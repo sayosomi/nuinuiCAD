@@ -154,6 +154,7 @@ implementation. Allowed scopes are exactly:
 * `Global`
 * `Source`
 * `Canvas`
+* `Output Preview`
 * `Source+Canvas`
 
 Palette scope is part of the implementation contract. Palette visibility

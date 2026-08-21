@@ -4288,6 +4288,125 @@ textarea {
   color: var(--vscode-canvas-ribbon-foreground);
 }
 
+.output-preview-workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.output-preview-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, #454545);
+  background: var(--vscode-titleBar-activeBackground, var(--vscode-editorWidget-background, #252526));
+  color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground, #cccccc));
+}
+
+.output-preview-toolbar select,
+.output-preview-toolbar button {
+  min-width: 0;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-widget-border, #454545));
+  border-radius: 3px;
+  background: var(--vscode-dropdown-background, #252526);
+  color: var(--vscode-dropdown-foreground, var(--vscode-foreground, #cccccc));
+  padding: 4px 7px;
+  font-size: 12px;
+}
+
+.output-preview-toolbar select {
+  width: min(360px, 42vw);
+}
+
+.output-preview-toolbar button:hover:not(:disabled),
+.output-preview-toolbar button:focus-visible {
+  background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+}
+
+.output-preview-toolbar button:disabled,
+.output-preview-toolbar select:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.output-preview-title-button {
+  overflow: hidden;
+  max-width: 32vw;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-preview-status {
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 12px;
+}
+
+.output-preview-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: default;
+  touch-action: none;
+}
+
+.output-preview-viewport:active {
+  cursor: grabbing;
+}
+
+.output-preview-plane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.output-preview-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  gap: 8px;
+  max-width: min(520px, calc(100% - 48px));
+  transform: translate(-50%, -50%);
+  padding: 18px 20px;
+  border: 1px solid var(--vscode-panel-border, #454545);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
+  color: var(--vscode-foreground, #cccccc);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  font-size: 13px;
+  text-align: center;
+}
+
+.output-preview-state span {
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  overflow-wrap: anywhere;
+}
+
+.output-preview-state button {
+  justify-self: center;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+  padding: 5px 10px;
+}
+
+.output-preview-error {
+  border-color: var(--vscode-inputValidation-errorBorder, #be1100);
+}
+
 .vscode-canvas-webview .command-ribbon-handle {
   background: color-mix(in srgb, var(--vscode-canvas-ribbon-background) 82%, var(--vscode-canvas-ribbon-foreground));
 }

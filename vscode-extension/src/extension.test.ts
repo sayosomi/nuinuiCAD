@@ -545,6 +545,16 @@ const openPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
   return mocks.panels.at(-1)!;
 };
 
+const openOutputPreviewPanelFor = (editor = mocks.activeTextEditor!): TestPanel => {
+  mocks.activeTextEditor = editor;
+  mocks.visibleTextEditors = [editor];
+  mocks.textDocuments = [editor.document];
+  mocks.activeTabInput = new mocks.TabInputText(editor.document.uri);
+  commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+  mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.outputPreview");
+  return mocks.panels.at(-1)!;
+};
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -596,6 +606,101 @@ afterEach(() => {
 });
 
 describe("VS Code production document lifecycle", () => {
+  it("registers and opens the Output Preview production surface", () => {
+    setup();
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    const panel = openOutputPreviewPanelFor();
+    expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
+    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+  });
+
+  it("reveals the existing Output Preview instead of creating a second panel", () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+
+    mocks.activeTabInput = new mocks.TabInputText(mocks.activeTextEditor!.document.uri);
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+    expect(panel.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("keeps Canvas and Output Preview sessions independent for one document", () => {
+    setup();
+    const canvas = openPanelFor();
+    const preview = openOutputPreviewPanelFor();
+
+    preview.dispose();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(canvas.dispose).not.toHaveBeenCalled();
+  });
+
+  it("hydrates and live-syncs the authoritative TextDocument in Output Preview", async () => {
+    setup();
+    const document = mocks.activeTextEditor!.document;
+    const panel = openOutputPreviewPanelFor();
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: document.version
+    }));
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewOpen",
+      documentVersion: document.version
+    }));
+
+    document.setSourceText("nui 4\n// changed\n");
+    document.version += 1;
+    emitDocumentChange(document);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      sourceText: "nui 4\n// changed\n",
+      documentVersion: document.version
+    }));
+  });
+
+  it("routes Fit Output Preview through the active Preview session", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("fails closed for stale Output Preview source-navigation requests", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({
+      type: "outputPreviewSourceNavigation",
+      documentVersion: document.version - 1,
+      range: { from: 0, to: 4 }
+    });
+
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+  });
+
+  it("disposes all matching sessions when the source document closes", () => {
+    setup();
+    const canvas = openPanelFor();
+    const preview = openOutputPreviewPanelFor();
+
+    emitDocumentClose(mocks.activeTextEditor!.document);
+
+    expect(canvas.dispose).toHaveBeenCalledTimes(1);
+    expect(preview.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it("does not create a panel during normal startup, then uses the command path", () => {
     setup();
 

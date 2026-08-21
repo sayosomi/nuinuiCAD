@@ -74,8 +74,20 @@ VS Code TextDocument / Extension Host
 → existing Rust evaluate_document
 ```
 
-The supported command is `nuinuiCAD: Open Canvas`, and the document lifecycle
-is production-oriented for file-scheme `.nui` documents.
+The supported commands are `nuinuiCAD: Open Canvas` and
+`nuinuiCAD: Open Output Preview`, and the document lifecycle is
+production-oriented for file-scheme `.nui` documents. Canvas and Output
+Preview are independent sessions keyed by document URI and surface kind in
+`src/vscode/vscodeWebviewSession.ts`; both use the one Extension Host Rust
+process owner and the shared `replaceTextDocument` / `commitText` hydration
+protocol. Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
+`webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
+Webview state. It derives current print/svg candidates from the compiled
+`StatementMap`, passes the selected compiled output to `evaluateOutputPlan`
+with `VscodeRustTransport`, and renders the resolved `OutputPlan` as a
+read-only physical plane. Source navigation crosses the host boundary only
+as the current document version plus a normalized source range, which the
+Extension Host validates before revealing the declaration.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
