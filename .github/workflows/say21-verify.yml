@@ -69,10 +69,13 @@ jobs:
               ('point1: A1, point2: A2, point3: A3', 'point1: @A1, point2: @A2, point3: @A3'),
               ('start: P1, end: P2', 'start: @P1, end: @P2'), ('start: P2, end: P3', 'start: @P2, end: @P3'),
               ('endpoint1: L1:end, endpoint2: L2:start', 'end1: @L1.end, end2: @L2.start'),
+              ('intersectionIndex: 0', 'index: 0'),
               ('first: Direct, second: Through', 'first: @Direct, second: @Through'),
               ('first: Direct, second: Corner', 'first: @Direct, second: @Corner'),
           ]:
               text = text.replace(old, new)
+          text = text.replace('expect(text).toContain("line T = commonTangent(first: @A, second: @B, kind: internal, side: right)");',
+                              'expect(text).toContain("line T = commonTangent(");\n    expect(text).toContain("first: @A,");\n    expect(text).toContain("second: @B,");\n    expect(text).toContain("kind: internal,");\n    expect(text).toContain("side: right,");')
           text = text.replace('choiceAfterStep("external", kind, 1)', 'choiceAfterStep("external", kind.choiceOptions!, 1)')
           text = text.replace('choiceAfterStep("internal", kind, 1)', 'choiceAfterStep("internal", kind.choiceOptions!, 1)')
           text = text.replace('choiceAfterStep("external", kind, -1)', 'choiceAfterStep("external", kind.choiceOptions!, -1)')
