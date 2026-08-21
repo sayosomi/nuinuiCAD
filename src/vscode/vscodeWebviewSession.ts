@@ -13,8 +13,11 @@ export const vscodeWebviewSessionKey = (
 export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
   private readonly byKey = new Map<string, T>();
 
-  get(documentUri: string, surfaceKind: VscodeWebviewSurfaceKind): T | undefined {
-    return this.byKey.get(vscodeWebviewSessionKey(documentUri, surfaceKind));
+  get<K extends VscodeWebviewSurfaceKind>(
+    documentUri: string,
+    surfaceKind: K
+  ): Extract<T, { surfaceKind: K }> | undefined {
+    return this.byKey.get(vscodeWebviewSessionKey(documentUri, surfaceKind)) as Extract<T, { surfaceKind: K }> | undefined;
   }
 
   set(session: T): void {
@@ -33,8 +36,8 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
     return this.byKey.values();
   }
 
-  valuesForSurface(surfaceKind: VscodeWebviewSurfaceKind): T[] {
-    return [...this.byKey.values()].filter((session) => session.surfaceKind === surfaceKind);
+  valuesForSurface<K extends VscodeWebviewSurfaceKind>(surfaceKind: K): Extract<T, { surfaceKind: K }>[] {
+    return [...this.byKey.values()].filter((session) => session.surfaceKind === surfaceKind) as Extract<T, { surfaceKind: K }>[];
   }
 
   clear(): void {

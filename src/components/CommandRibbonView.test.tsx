@@ -126,6 +126,33 @@ describe("CommandRibbonView", () => {
     expect(document.getElementById(describedBy!)).toBeInTheDocument();
   });
 
+  it("uses only the command label when its description is empty", () => {
+    const view = render(
+      <CommandRibbonView
+        ribbon={{
+          ...ribbonFor("horizontal"),
+          items: [{
+            id: "label-only",
+            type: "command",
+            commandId: "test.command",
+            icon: "circle",
+            label: "Go to Source",
+            description: "",
+            showLabel: false,
+            available: true
+          }]
+        }}
+        iconResolver={() => Circle}
+      />
+    );
+
+    const button = screen.getByRole("button", { name: "Go to Source" });
+    const tooltip = document.getElementById(button.getAttribute("aria-describedby")!);
+    expect(button).toHaveAttribute("title", "Go to Source");
+    expect(tooltip?.textContent).toBe("Go to Source");
+    expect(view.container.querySelector(".command-ribbon-tooltip")).toHaveTextContent("Go to Source");
+  });
+
   it("keeps a one-item VS Code vertical Ribbon handle beside its item column", () => {
     const oneItemRibbon: CommandRibbonPresentation = {
       ...ribbonFor("vertical"),
@@ -203,5 +230,26 @@ describe("CommandRibbonView", () => {
 
     expect(view.container.querySelector(".command-ribbon")).toHaveClass("is-vertical");
     expect(view.container.querySelector(".command-ribbon")).not.toHaveClass("has-side-handle");
+  });
+
+  it("keeps the handle by default and omits only the handle in no-handle mode", () => {
+    const view = render(
+      <CommandRibbonView ribbon={ribbonFor("horizontal")} iconResolver={() => Circle} />
+    );
+
+    expect(view.container.querySelector(".command-ribbon-handle")).toBeInTheDocument();
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+
+    view.rerender(
+      <CommandRibbonView
+        ribbon={ribbonFor("horizontal")}
+        iconResolver={() => Circle}
+        showHandle={false}
+      />
+    );
+
+    expect(view.container.querySelector(".command-ribbon-handle")).toBeNull();
+    expect(view.container.querySelector(".command-ribbon-buttons")?.children).toHaveLength(3);
+    expect(view.container.querySelectorAll(".command-ribbon-button")).toHaveLength(2);
   });
 });

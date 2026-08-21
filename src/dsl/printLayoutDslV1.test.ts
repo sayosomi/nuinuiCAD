@@ -157,10 +157,16 @@ describe("SAY-63 print layout DSL v1", () => {
       "print P(layout: @L, paper: a4, overlap: 200)",
       "svg S(layout: @L, margin: -1)",
     ].join("\n");
+    const compiled = compileDslDocument(source);
     const diagnostics = errors(source);
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("正の値"))).toBe(true);
-    expect(diagnostics.some((diagnostic) => diagnostic.message.includes("有効な用紙幅・高さ"))).toBe(true);
-    expect(diagnostics.some((diagnostic) => diagnostic.message.includes("overlap"))).toBe(true);
+    const overlapDiagnostic = diagnostics.find((diagnostic) => diagnostic.message.includes("overlap が大きすぎます"));
+    expect(overlapDiagnostic?.message).toContain("A4 portrait では overlap を 105mm 未満にしてください。");
+    const overlapFrom = source.indexOf("200");
+    expect(overlapDiagnostic?.physicalSpan).toEqual({
+      segments: [{ from: overlapFrom, to: overlapFrom + "200".length }],
+      sourceRevision: compiled.spans.sourceMap.sourceRevision
+    });
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("svg margin"))).toBe(true);
     expect(parseDsl("layout L {\n  place @G()\n}").diagnostics.some((diagnostic) => diagnostic.message.includes("必須引数「at」"))).toBe(true);
   });

@@ -105,6 +105,19 @@ type DocumentSession = VscodeWebviewSessionBase & {
   pendingSourceDefinitionRequest: { requestId: number } | null;
 };
 
+type OutputPreviewSession = VscodeWebviewSessionBase & {
+  surfaceKind: "outputPreview";
+  documentUri: string;
+  document: vscode.TextDocument;
+  panel: vscode.WebviewPanel;
+  disposables: vscode.Disposable[];
+  webviewReady: boolean;
+  authoritativeDocumentVersion: number | null;
+  pendingOpen: { normalizedSourceOffset: number } | null;
+};
+
+type WebviewSession = DocumentSession | OutputPreviewSession;
+
 type LastBakeSurface =
   | { kind: "canvas"; session: DocumentSession }
   | { kind: "source"; document: vscode.TextDocument };
@@ -319,12 +332,12 @@ const textEditForLineSplice = (
   };
 };
 
-const disposeSessionListeners = (session: DocumentSession): void => {
+const disposeSessionListeners = (session: WebviewSession): void => {
   for (const disposable of session.disposables.splice(0)) disposable.dispose();
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-  const sessions = new VscodeWebviewSessionRegistry<DocumentSession>();
+  const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
@@ -338,6 +351,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
+
+  const handleRustEvaluationRequest = async (
+    session: WebviewSession,
+    message: Extract<VscodeToExtensionMessage, { type: "rustEvaluationRequest" }>
+  ): Promise<void> => {
+    try {
+      const payload = await rustProcessOwner.get().request(message.input);
+      void session.panel.webview.postMessage({ type: "rustEvaluationResponse", id: message.id, payload } satisfies ExtensionToVscodeMessage);
+    } catch (error) {
+      void session.panel.webview.postMessage({
+        type: "rustEvaluationError",
+        id: message.id,
+        error: error instanceof Error ? error.message : String(error)
+      } satisfies ExtensionToVscodeMessage);
+    }
+  };
 
   const editCanvasRibbon = (): void => {
     void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
@@ -847,7 +876,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
-  const disposeSession = (session: DocumentSession): void => {
+  const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
@@ -857,6 +886,18 @@ export const activate = (context: vscode.ExtensionContext): void => {
     sessions.delete(session.documentUri, "canvas");
     disposeSessionListeners(session);
     updatePanelTitles();
+  };
+
+  const disposeOutputPreviewSession = (session: OutputPreviewSession): void => {
+    if (sessions.get(session.documentUri, "outputPreview") !== session) return;
+    session.pendingOpen = null;
+    sessions.delete(session.documentUri, "outputPreview");
+    disposeSessionListeners(session);
+  };
+
+  const disposeSession = (session: WebviewSession): void => {
+    if (session.surfaceKind === "canvas") disposeCanvasSession(session);
+    else disposeOutputPreviewSession(session);
   };
 
   const updatePanelTitles = (): void => {
@@ -1034,12 +1075,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         return;
       }
       if (message.type === "rustEvaluationRequest") {
-        try {
-          const payload = await rustProcessOwner.get().request(message.input);
-          post({ type: "rustEvaluationResponse", id: message.id, payload });
-        } catch (error) {
-          post({ type: "rustEvaluationError", id: message.id, error: error instanceof Error ? error.message : String(error) });
-        }
+        await handleRustEvaluationRequest(session, message);
         return;
       }
       if (message.type === "benchmarkResult") {
@@ -1075,6 +1111,146 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
+  };
+
+  const deliverPendingOutputPreviewOpen = (session: OutputPreviewSession): void => {
+    const pending = session.pendingOpen;
+    if (
+      !pending ||
+      !session.webviewReady ||
+      session.authoritativeDocumentVersion !== session.document.version
+    ) return;
+    session.pendingOpen = null;
+    void session.panel.webview.postMessage({
+      type: "outputPreviewOpen",
+      documentVersion: session.document.version,
+      normalizedSourceOffset: pending.normalizedSourceOffset
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const handleOutputPreviewSourceNavigation = async (
+    session: OutputPreviewSession,
+    message: Extract<VscodeToExtensionMessage, { type: "outputPreviewSourceNavigation" }>
+  ): Promise<void> => {
+    if (
+      !session.panel.active ||
+      !isOpenDocument(session.document) ||
+      session.document.version !== message.documentVersion ||
+      !normalizedRangeIsSafe(session.document, message.range)
+    ) return;
+    const visibleEditor = visibleEditorFor(session.document);
+    const range = vscodeRangeForNormalized(session.document, session.document.getText(), message.range);
+    let editor: vscode.TextEditor | undefined;
+    try {
+      editor = await vscode.window.showTextDocument(session.document, {
+        viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
+        preserveFocus: false,
+        preview: false,
+        selection: new vscode.Range(range.start, range.start)
+      });
+    } catch {
+      return;
+    }
+    if (!editor || session.document.version !== message.documentVersion) return;
+    try {
+      await vscode.commands.executeCommand("editor.unfold");
+    } catch {
+      return;
+    }
+    if (session.document.version !== message.documentVersion) return;
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  };
+
+  const createOutputPreviewPanel = (
+    editor: vscode.TextEditor,
+    normalizedSourceOffset: number,
+    preserveFocus = false
+  ): OutputPreviewSession => {
+    const document = editor.document;
+    const documentUri = documentKey(document);
+    const existing = sessions.get(documentUri, "outputPreview");
+    if (existing) {
+      existing.pendingOpen = { normalizedSourceOffset };
+      if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
+      else existing.panel.reveal(vscode.ViewColumn.Beside);
+      deliverPendingOutputPreviewOpen(existing);
+      return existing;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      "nuinuiCAD.outputPreview",
+      `${basename(document.fileName)} — Output Preview`,
+      preserveFocus
+        ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }
+        : vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")]
+      }
+    );
+    panel.webview.html = webviewHtml(panel, context, "outputPreview");
+    const session: OutputPreviewSession = {
+      documentUri,
+      surfaceKind: "outputPreview",
+      document,
+      panel,
+      disposables: [],
+      webviewReady: false,
+      authoritativeDocumentVersion: null,
+      pendingOpen: { normalizedSourceOffset }
+    };
+    sessions.set(session);
+
+    session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
+      if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
+      session.authoritativeDocumentVersion = null;
+      postDocumentText(panel, event.document.getText(), event.document.version, documentChangeReasonFor(event.reason));
+    }));
+    session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (message.type === "webviewReady") {
+        session.webviewReady = true;
+        session.authoritativeDocumentVersion = null;
+        postAuthoritativeDocument(panel, session.document);
+        return;
+      }
+      if (message.type === "webviewAuthoritativeDocumentReady") {
+        if (message.documentVersion !== session.document.version) return;
+        session.authoritativeDocumentVersion = message.documentVersion;
+        deliverPendingOutputPreviewOpen(session);
+        return;
+      }
+      if (message.type === "outputPreviewFit") {
+        if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
+          void panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
+        }
+        return;
+      }
+      if (message.type === "outputPreviewSourceNavigation") {
+        await handleOutputPreviewSourceNavigation(session, message);
+        return;
+      }
+      if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
+    }));
+    panel.onDidDispose(() => disposeOutputPreviewSession(session));
+    return session;
+  };
+
+  const executeOpenOutputPreview = (): void => {
+    const editor = activeNuiTextEditorForCommand();
+    if (!editor) {
+      void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor.");
+      return;
+    }
+    const offset = normalizedOffsetFromRaw(editor.document.getText(), editor.document.offsetAt(editor.selection.active));
+    createOutputPreviewPanel(editor, offset);
+  };
+
+  const executeFitOutputPreview = (): void => {
+    const session = sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active);
+    if (!session) return;
+    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
+      void session.panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
+    }
   };
 
   const bakeSettings = () => {
@@ -1208,6 +1384,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
     createCanvasPanel(editor);
   });
+  const openOutputPreviewCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.openOutputPreview",
+    executeOpenOutputPreview
+  );
+  const fitOutputPreviewCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.fitOutputPreview",
+    executeFitOutputPreview
+  );
   const goToSourceDefinitionCommand = vscode.commands.registerCommand(
     "nuinuiCAD.goToSourceDefinition",
     goToSourceDefinition
@@ -1266,6 +1450,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     command,
+    openOutputPreviewCommand,
+    fitOutputPreviewCommand,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     choiceQuickFixApplyCommand,

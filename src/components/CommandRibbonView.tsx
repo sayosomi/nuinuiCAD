@@ -54,6 +54,7 @@ export type CommandRibbonPresentation = {
 export type CommandRibbonViewProps = {
   ribbon: CommandRibbonPresentation;
   className?: string;
+  showHandle?: boolean;
   contextMenuData?: string;
   dragging?: boolean;
   viewportAwareTooltips?: boolean;
@@ -75,6 +76,7 @@ const tooltipIdFor = (ribbonId: string, itemId: string): string =>
 export const CommandRibbonView = ({
   ribbon,
   className = "",
+  showHandle = true,
   contextMenuData,
   dragging = false,
   viewportAwareTooltips = false,
@@ -189,18 +191,20 @@ export const CommandRibbonView = ({
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        className="command-ribbon-handle"
-        aria-label={`${ribbon.label}を移動`}
-        title="ドラッグで移動"
-        onPointerDown={(event) => onHandlePointerDown?.(event, ribbon)}
-        onPointerMove={onHandlePointerMove}
-        onPointerUp={onHandlePointerUp}
-        onPointerCancel={onHandlePointerCancel}
-      >
-        <span className="command-ribbon-grip" aria-hidden="true">⋮⋮</span>
-      </button>
+      {showHandle ? (
+        <button
+          type="button"
+          className="command-ribbon-handle"
+          aria-label={`${ribbon.label}を移動`}
+          title="ドラッグで移動"
+          onPointerDown={(event) => onHandlePointerDown?.(event, ribbon)}
+          onPointerMove={onHandlePointerMove}
+          onPointerUp={onHandlePointerUp}
+          onPointerCancel={onHandlePointerCancel}
+        >
+          <span className="command-ribbon-grip" aria-hidden="true">⋮⋮</span>
+        </button>
+      ) : null}
       <div className="command-ribbon-buttons">
         {ribbon.items.map((item) => {
           const tooltipId = tooltipIdFor(ribbon.id, item.id);
@@ -239,7 +243,7 @@ export const CommandRibbonView = ({
           }
 
           const Icon = iconResolver(item.icon);
-          const title = `${item.label}: ${item.description}`;
+          const title = item.description ? `${item.label}: ${item.description}` : item.label;
           return (
             <span
               key={item.id}

@@ -671,7 +671,8 @@ export const buildSourceOutputModel = ({
       if (paper !== "a4" && paper !== "a3") diagnostics.push(diagnostic(statement.line, "print paper は a4 または a3 で指定してください。"));
       const orientationSource = attr(statement.attrs, "orientation") ?? "portrait";
       if (orientationSource !== "portrait" && orientationSource !== "landscape") diagnostics.push(diagnostic(statement.line, "orientation は portrait / landscape で指定してください。"));
-      const overlapSource = attr(statement.attrs, "overlap") ?? "0";
+      const overlapAttribute = statement.attrs.find((item) => item.key === "overlap");
+      const overlapSource = overlapAttribute?.value ?? "0";
       const overlapLiteral = numericLiteral(overlapSource);
       if (overlapLiteral !== null && overlapLiteral.value < 0) diagnostics.push(diagnostic(statement.line, "print overlap は 0 以上で指定してください。"));
       if (overlapLiteral !== null && overlapLiteral.finite && (paper === "a4" || paper === "a3")) {
@@ -679,7 +680,14 @@ export const buildSourceOutputModel = ({
         const width = orientationSource === "landscape" ? base.height : base.width;
         const height = orientationSource === "landscape" ? base.width : base.height;
         if (width - overlapLiteral.value * 2 <= 0 || height - overlapLiteral.value * 2 <= 0) {
-          diagnostics.push(diagnostic(statement.line, "print の overlap に対する有効な用紙幅・高さは 0 より大きくしてください。"));
+          const overlapUpperBound = Math.min(width, height) / 2;
+          diagnostics.push({
+            ...diagnostic(statement.line, `print の overlap が大きすぎます。${paper === "a4" ? "A4" : "A3"} ${orientationSource === "landscape" ? "landscape" : "portrait"} では overlap を ${overlapUpperBound}mm 未満にしてください。`),
+            ...(overlapAttribute ? {
+              logicalSpan: { start: overlapAttribute.valueStart, end: overlapAttribute.valueEnd },
+              statementIndex
+            } : {})
+          });
         }
       }
       printOutputs.push({

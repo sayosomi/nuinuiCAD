@@ -59,7 +59,13 @@ export type VscodeToExtensionMessage =
       expectedDocumentVersion: number;
     }
   | { type: "benchmarkResult"; result: unknown }
-  | { type: "benchmarkError"; error: string };
+  | { type: "benchmarkError"; error: string }
+  | { type: "outputPreviewFit" }
+  | {
+      type: "outputPreviewSourceNavigation";
+      documentVersion: number;
+      range: NormalizedSourceRange;
+    };
 
 export type VscodeCanvasCommandId =
   | "undo"
@@ -123,7 +129,9 @@ export type ExtensionToVscodeMessage =
     }
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
-  | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig };
+  | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
+  | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number }
+  | { type: "outputPreviewFit" };
 
 export type VscodeWebviewApi = {
   postMessage: (message: VscodeToExtensionMessage) => void;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VSCodeApp } from "./VSCodeApp";
+import { OutputPreviewApp } from "./OutputPreviewApp";
 import { routeVscodeWebviewSurface } from "./webviewSurfaceRouter";
 import type { VscodeWebviewApi } from "./protocol";
 
@@ -10,10 +11,8 @@ describe("VS Code Webview surface routing", () => {
     expect(routeVscodeWebviewSurface("canvas", api).type).toBe(VSCodeApp);
   });
 
-  it("fails closed when Output Preview has no registered implementation", () => {
-    expect(() => routeVscodeWebviewSurface("outputPreview", api)).toThrow(
-      "The VS Code Output Preview surface is not implemented."
-    );
+  it("routes the Output Preview surface to its dedicated application", () => {
+    expect(routeVscodeWebviewSurface("outputPreview", api).type).toBe(OutputPreviewApp);
   });
 
   it.each([undefined, null, "", "unknown", "Canvas", { kind: "canvas" }])(

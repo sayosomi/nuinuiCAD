@@ -23,7 +23,12 @@ type CommandPaletteMenu = {
 type ExtensionManifest = {
   contributes?: {
     configuration?: {
-      properties?: Record<string, { type: string; default: unknown }>;
+      properties?: Record<string, {
+        scope?: string;
+        type?: string;
+        default?: unknown;
+        items?: unknown;
+      }>;
     };
     commands?: Command[];
     keybindings?: Keybinding[];
@@ -32,20 +37,13 @@ type ExtensionManifest = {
       "webview/context"?: CommandPaletteMenu[];
       "editor/context"?: CommandPaletteMenu[];
     };
-    configuration?: {
-      properties?: Record<string, {
-        scope?: string;
-        type?: string;
-        default?: unknown;
-        items?: unknown;
-      }>;
-    };
   };
 };
 
 type SchemaNode = {
   const?: unknown;
   enum?: unknown[];
+  required?: string[];
   oneOf?: SchemaNode[];
   properties?: Record<string, SchemaNode>;
   items?: SchemaNode;
@@ -54,6 +52,7 @@ type SchemaNode = {
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const commandIds = [
   "nuinuiCAD.openCanvas",
+  "nuinuiCAD.openOutputPreview",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.canvasUndo",
@@ -61,6 +60,7 @@ const commandIds = [
   "nuinuiCAD.clearCanvasSelection",
   "nuinuiCAD.resetCanvasView",
   "nuinuiCAD.fitDrawing",
+  "nuinuiCAD.fitOutputPreview",
   "nuinuiCAD.toggleCanvasPointNames",
   "nuinuiCAD.toggleCanvasGeometryNames",
   "nuinuiCAD.toggleCanvasElementNames",
@@ -99,6 +99,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(commands.map(({ command }) => command)).toEqual(commandIds);
     expect(commands.map(({ title }) => title)).toEqual([
       "nuinuiCAD: Open Canvas",
+      "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Undo Canvas Transition",
@@ -106,6 +107,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Clear Canvas Selection",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
+      "nuinuiCAD: Fit Output Preview",
       "nuinuiCAD: Toggle Point Names",
       "nuinuiCAD: Toggle Geometry Names",
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
@@ -122,12 +124,14 @@ describe("VS Code extension manifest command contributions", () => {
 
     expect(commandPalette).toEqual([
       { command: "nuinuiCAD.openCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.openOutputPreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasPaletteWhen },
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.fitOutputPreview", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGeometryNames", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasElementNames", when: "false" },
@@ -156,6 +160,11 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen }
     ]);
+    for (const menuId of ["webview/context", "editor/context"] as const) {
+      const contextCommands = (manifest.contributes?.menus?.[menuId] ?? []).map(({ command }) => command);
+      expect(contextCommands).not.toContain("nuinuiCAD.openOutputPreview");
+      expect(contextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
+    }
     expect(manifest.contributes?.menus?.commandPalette?.some(({ command }) =>
       command === "nuinuiCAD.toggleCanvasElementNames")).toBe(true);
     expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({
@@ -191,6 +200,8 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.some(({ key }) => key === "cmd+shift+z")).toBe(false);
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
+    expect(keybindings.some(({ command }) =>
+      command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
   });
 });
 
