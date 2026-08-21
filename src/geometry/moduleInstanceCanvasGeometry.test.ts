@@ -45,7 +45,11 @@ const line = (elementId: string): ComputedGeometry => ({
   endPointId: null,
   start: { kind: "point", elementId: `${elementId}-start`, name: "start", x: 0, y: 0 },
   end: { kind: "point", elementId: `${elementId}-end`, name: "end", x: 10, y: 10 },
-  length: Math.sqrt(200)
+  length: Math.sqrt(200),
+  startAngleDeg: 45,
+  endAngleDeg: 45,
+  startTangentAngleDeg: 45,
+  endTangentAngleDeg: 45
 });
 
 const image = (elementId: string): ComputedGeometry => ({
