@@ -1,6 +1,9 @@
 import { createRoot } from "react-dom/client";
-import { VSCodeApp } from "./VSCodeApp";
-import type { VscodeWebviewApi } from "./protocol";
+import {
+  vscodeWebviewSurfaceDataAttribute,
+  type VscodeWebviewApi
+} from "./protocol";
+import { routeVscodeWebviewSurface } from "./webviewSurfaceRouter";
 import "../styles.css";
 
 type VsCodeWindow = Window & {
@@ -11,6 +14,5 @@ const vscodeWindow = window as VsCodeWindow;
 const api = vscodeWindow.acquireVsCodeApi?.();
 if (!api) throw new Error("VS Code Webview API is unavailable");
 
-createRoot(document.getElementById("root")!).render(
-  <VSCodeApp api={api} />
-);
+const surfaceKind = document.documentElement.getAttribute(vscodeWebviewSurfaceDataAttribute);
+createRoot(document.getElementById("root")!).render(routeVscodeWebviewSurface(surfaceKind, api));

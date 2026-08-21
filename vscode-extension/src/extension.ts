@@ -52,6 +52,14 @@ import type {
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import {
+  vscodeWebviewSurfaceDataAttribute,
+  type VscodeWebviewSurfaceKind
+} from "../../src/vscode/protocol";
+import {
+  VscodeWebviewSessionRegistry,
+  type VscodeWebviewSessionBase
+} from "../../src/vscode/vscodeWebviewSession";
+import {
   defaultVscodeCanvasRibbons,
   normalizeVscodeCanvasRibbons,
   patchVscodeCanvasRibbonPosition,
@@ -60,8 +68,9 @@ import {
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 
-type DocumentSession = {
-  key: string;
+type DocumentSession = VscodeWebviewSessionBase & {
+  surfaceKind: "canvas";
+  documentUri: string;
   document: vscode.TextDocument;
   panel: vscode.WebviewPanel;
   disposables: vscode.Disposable[];
@@ -160,12 +169,16 @@ const toVscodeDiagnostic = (diagnostic: CompilerDiagnostic): vscode.Diagnostic =
   return result;
 };
 
-const webviewHtml = (panel: vscode.WebviewPanel, context: vscode.ExtensionContext): string => {
+const webviewHtml = (
+  panel: vscode.WebviewPanel,
+  context: vscode.ExtensionContext,
+  surfaceKind: VscodeWebviewSurfaceKind
+): string => {
   const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
   const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.css"));
   const contentNonce = nonce();
   return `<!doctype html>
-<html lang="ja">
+<html lang="ja" ${vscodeWebviewSurfaceDataAttribute}="${surfaceKind}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -311,7 +324,7 @@ const disposeSessionListeners = (session: DocumentSession): void => {
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-  const sessions = new Map<string, DocumentSession>();
+  const sessions = new VscodeWebviewSessionRegistry<DocumentSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
@@ -332,7 +345,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const broadcastCanvasRibbonConfiguration = (): void => {
     const ribbons = normalizedCanvasRibbonConfiguration();
-    for (const session of sessions.values()) postCanvasRibbonConfiguration(session.panel, ribbons);
+    for (const session of sessions.valuesForSurface("canvas")) postCanvasRibbonConfiguration(session.panel, ribbons);
   };
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
@@ -355,13 +368,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const canvasSessionForCommand = (): DocumentSession | null => {
     if (!isNuiCanvasTab(activeEditorTabInput())) return null;
-    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active);
     if (activeSession) {
       lastActiveCanvasSession = activeSession;
       return activeSession;
     }
     const remembered = lastActiveCanvasSession;
-    return remembered && sessions.get(remembered.key) === remembered && remembered.panel.visible
+    return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
       ? remembered
       : null;
   };
@@ -375,7 +388,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeCanvasSessionForBake = (): DocumentSession | null => {
-    const activeSession = [...sessions.values()].find((candidate) => candidate.panel.active);
+    const activeSession = sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active);
     if (!activeSession) return null;
     lastActiveCanvasSession = activeSession;
     rememberBakeCanvas(activeSession);
@@ -404,7 +417,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     if (lastBakeSurface?.kind === "canvas") {
       const session = lastBakeSurface.session;
-      if (sessions.get(session.key) === session && session.panel.visible) return { kind: "canvas", session };
+      if (sessions.get(session.documentUri, "canvas") === session && session.panel.visible) return { kind: "canvas", session };
       lastBakeSurface = null;
     } else if (lastBakeSurface?.kind === "source") {
       const document = lastBakeSurface.document;
@@ -515,7 +528,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const resync = (session: DocumentSession): void => {
     session.pendingCanvasFocus = null;
-    if (sessions.get(session.key) !== session || !isOpenDocument(session.document)) return;
+    if (sessions.get(session.documentUri, "canvas") !== session || !isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
     postAuthoritativeDocument(session.panel, session.document);
   };
@@ -677,7 +690,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
-    for (const session of sessions.values()) {
+    for (const session of sessions.valuesForSurface("canvas")) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
     }
   });
@@ -806,7 +819,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     canvasHistoryHandoffSession = session;
     try {
       await setCanvasHistoryHandoffContext(true);
-      if (canvasHistoryHandoffSession !== session || sessions.get(session.key) !== session) return;
+      if (canvasHistoryHandoffSession !== session || sessions.get(session.documentUri, "canvas") !== session) return;
       await vscode.window.showTextDocument(session.document, {
         viewColumn: editor.viewColumn,
         preserveFocus: false,
@@ -835,20 +848,20 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const disposeSession = (session: DocumentSession): void => {
-    if (sessions.get(session.key) !== session) return;
+    if (sessions.get(session.documentUri, "canvas") !== session) return;
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
     session.inFlightCanvasHistory = null;
     session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
-    sessions.delete(session.key);
+    sessions.delete(session.documentUri, "canvas");
     disposeSessionListeners(session);
     updatePanelTitles();
   };
 
   const updatePanelTitles = (): void => {
     const sessionsByBasename = new Map<string, DocumentSession[]>();
-    for (const session of sessions.values()) {
+    for (const session of sessions.valuesForSurface("canvas")) {
       const name = basename(session.document.fileName);
       const group = sessionsByBasename.get(name) ?? [];
       group.push(session);
@@ -870,8 +883,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     preserveFocus = false
   ): DocumentSession | undefined => {
     const document = editor.document;
-    const key = documentKey(document);
-    const existing = sessions.get(key);
+    const documentUri = documentKey(document);
+    const existing = sessions.get(documentUri, "canvas");
     if (existing) {
       if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
       else existing.panel.reveal(vscode.ViewColumn.Beside);
@@ -889,9 +902,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")]
       }
     );
-    panel.webview.html = webviewHtml(panel, context);
+    panel.webview.html = webviewHtml(panel, context, "canvas");
     const session: DocumentSession = {
-      key,
+      documentUri,
+      surfaceKind: "canvas",
       document,
       panel,
       disposables: [],
@@ -904,7 +918,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       pendingCanvasFocus: null,
       pendingSourceDefinitionRequest: null
     };
-    sessions.set(key, session);
+    sessions.set(session);
     if (panel.active) rememberBakeCanvas(session);
     updatePanelTitles();
 
@@ -1111,7 +1125,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     const key = documentKey(document);
-    let session = sessions.get(key);
+    let session = sessions.get(key, "canvas");
     if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
     if (!session) session = createCanvasPanel(editor, true);
     if (!session) return;
@@ -1158,7 +1172,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!queryDslCanvasSourceTarget({ source, compiled: semantic.compiled, position: normalizedSourceOffset })) return;
 
     const key = documentKey(document);
-    let session = sessions.get(key);
+    let session = sessions.get(key, "canvas");
     if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
     if (!session) session = createCanvasPanel(editor, true);
     if (!session) return;
@@ -1236,8 +1250,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
       lastBakeSurface = null;
     }
-    const session = sessions.get(documentKey(document));
-    if (session && sameDocument(session.document, document)) session.panel.dispose();
+    for (const session of sessions.forDocument(documentKey(document))) {
+      if (sameDocument(session.document, document)) session.panel.dispose();
+    }
   });
   const disposeAllSessions = {
     dispose: () => {
