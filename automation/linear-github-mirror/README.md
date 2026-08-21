@@ -44,6 +44,8 @@ The attachment URL is the durable mapping for newly created mirrors. Linear atta
 
 The HTTP webhook handler only validates and enqueues. A Cloudflare Queue consumer performs Linear/GitHub API calls with retries, a dead-letter queue, batch size 1, and max concurrency 1. This prevents concurrent create races for the same Linear issue and keeps webhook acknowledgement fast.
 
+A Cloudflare Cron Trigger runs every 12 hours (`0 */12 * * *`, UTC) as a safety sweep. It paginates every issue in the Sayosomi team, including archived issues, and enqueues each issue through the same Queue reconciliation path. This catches relation-only changes or any webhook delivery gap without introducing a second mirror implementation.
+
 Cloudflare Queues are available on the Workers Free plan. This project is far below the free daily operation allowance under normal nuinuiCAD use.
 
 ## Required secrets
@@ -109,11 +111,14 @@ Expected:
 
 ## Verification
 
-Automated pure-logic tests:
+Automated tests and syntax check:
 
 ```bash
 npm test
+node --check src/index.js
 ```
+
+The tests cover both webhook routing and the 12-hour safety sweep pagination / queue payload path.
 
 Manual production smoke test after deploy:
 
@@ -123,6 +128,7 @@ Manual production smoke test after deploy:
 4. Change title, description, priority, labels, and status in Linear; confirm GitHub follows one-way.
 5. Mark the Linear issue Canceled; confirm GitHub closes as `not planned`.
 6. Edit the GitHub issue directly and confirm nothing flows back to Linear.
-7. Remove/archive the temporary Linear test issue as appropriate after verification.
+7. Confirm the Worker deploy output lists the `0 */12 * * *` scheduled trigger.
+8. Remove/archive the temporary Linear test issue as appropriate after verification.
 
-After the bridge passes production smoke testing, disable the old scheduled `Legacy Issue Mirror` automation so webhook delivery is the normal reconciliation path.
+After the bridge passes production smoke testing and the scheduled safety sweep is deployed, disable the old scheduled `Legacy Issue Mirror` automation so this Worker is the only automatic reconciliation owner.
