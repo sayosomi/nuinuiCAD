@@ -28,6 +28,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import {
   moduleCompletionCandidates,
+  isInsideModuleSemanticStatement,
   type ModuleCompletionCandidate,
   type ModuleCompletionParameterMetadata
 } from "./moduleCompletionCandidates";
@@ -426,6 +427,7 @@ const sourceGeometryPropertyCandidates = (
 const scalarCandidatesAt = (
   context: Exclude<DslCompletionContext, null>,
   input: LogicalInput,
+  position: number,
   semantic: DslCompletionSemanticSnapshot | undefined,
   compiled: CompiledDslDocument | undefined,
   exact: boolean,
@@ -487,7 +489,11 @@ const scalarCandidatesAt = (
   }
   if (context.kind === "templateHole") {
     if (!bindingDeps) return [];
-    return templateHoleScalarCandidates(input.lineText, context.contentSpan, input.localPosition, bindingDeps).map(scalarCandidate);
+    const candidates = templateHoleScalarCandidates(input.lineText, context.contentSpan, input.localPosition, bindingDeps);
+    const insideModuleBody = compiled && exact && isInsideModuleSemanticStatement(compiled, position);
+    return candidates
+      .filter((candidate) => !(insideModuleBody && candidate.kind === "reference"))
+      .map(scalarCandidate);
   }
   return [];
 };
@@ -701,7 +707,7 @@ const queryCandidates = (
       : [];
   }
   if (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") {
-    return scalarCandidatesAt(context, input, semantic, compiled, exact, statementIndex);
+    return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
   }
   if (context.kind === "setTarget") {
     const analysis = semantic?.bindingAnalysis ?? compiled?.bindingAnalysis;
