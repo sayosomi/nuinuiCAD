@@ -99,6 +99,7 @@ type PointDragState = {
   startClientX: number;
   startClientY: number;
   zoom: number;
+  dragActivated: boolean;
   baseElements: CadElement[];
   baseEvaluation?: EvaluationResult;
   overlapCandidates?: CanvasIdentityCandidate[];
@@ -1098,6 +1099,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
+      dragActivated: false,
       ...dragBase,
       ...(identityCandidates.length > 1 && isPointCandidate && overlapSelectionBefore ? {
         overlapCandidates: identityCandidates,
@@ -1244,7 +1246,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const screenDx = event.clientX - drag.startClientX;
     const screenDy = event.clientY - drag.startClientY;
     const movement = Math.hypot(screenDx, screenDy);
-    if (drag.overlapCandidates && drag.overlapSelectionBefore && movement < DEFERRED_DRAG_THRESHOLD_PX) {
+    const dragActivated = drag.dragActivated || movement >= DEFERRED_DRAG_THRESHOLD_PX;
+    if (drag.overlapCandidates && drag.overlapSelectionBefore && !dragActivated) {
       const rect = event.currentTarget.getBoundingClientRect();
       const screen = {
         x: drag.startClientX - rect.left - event.currentTarget.clientLeft,
@@ -1263,7 +1266,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       );
       return;
     }
-    if (movement < DEFERRED_DRAG_THRESHOLD_PX) {
+    if (!dragActivated) {
       pointDragRef.current = null;
       setPointDragFeedback(null);
       setIsPointDragging(false);
@@ -1472,33 +1475,40 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const movement = Math.hypot(screenDx, screenDy);
-      if (movement < DEFERRED_DRAG_THRESHOLD_PX) return;
+      if (!pointDrag.dragActivated && movement < DEFERRED_DRAG_THRESHOLD_PX) return;
+
+      let activePointDrag = pointDrag;
+      if (!pointDrag.dragActivated) {
+        activePointDrag = { ...pointDrag, dragActivated: true };
+        pointDragRef.current = activePointDrag;
+      }
 
       claimPointerMoveEntry(pointerMoveEntry, "point");
       event.preventDefault();
-      if (pointDrag.overlapSelectionBefore) {
-        finalizeOverlapSelection(pointDrag.overlapSelectionBefore);
-        pointDragRef.current = {
-          ...pointDrag,
+      if (activePointDrag.overlapSelectionBefore) {
+        finalizeOverlapSelection(activePointDrag.overlapSelectionBefore);
+        activePointDrag = {
+          ...activePointDrag,
           overlapSelectionBefore: undefined
         };
+        pointDragRef.current = activePointDrag;
       }
       const worldDelta = constrainedWorldDelta({
         screenDx,
         screenDy,
-        zoom: pointDrag.zoom,
+        zoom: activePointDrag.zoom,
         axisLockKeys: axisLockKeysRef.current
       });
 
       const result = hostAdapter.movePointElementByDelta({
-        elementId: pointDrag.elementId,
+        elementId: activePointDrag.elementId,
         dx: worldDelta.dx,
         dy: worldDelta.dy,
         angleLocked: polarLockKeysRef.current.angle,
         distanceLocked: polarLockKeysRef.current.distance,
         commitMode: "preview",
-        baseElements: pointDrag.baseElements,
-        baseEvaluation: pointDrag.baseEvaluation
+        baseElements: activePointDrag.baseElements,
+        baseEvaluation: activePointDrag.baseEvaluation
       });
       if (isRejectedDocumentMutation(result)) {
         captureLedger.release(event.pointerId);
