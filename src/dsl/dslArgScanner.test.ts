@@ -95,7 +95,7 @@ describe("scanCallArgs", () => {
     const result = scan(source);
 
     expect(result.args.map((arg) => [arg.key, arg.value])).toEqual([["x", ""], ["y", "2"], ["z", "3"]]);
-    // The single mandatory separator space is x's whole raw gap here, so
+    // The single separator space is x's whole raw gap here, so
     // rawValueSpan and the trimmed (collapsed) valueSpan coincide.
     expect(result.args[0]).toEqual({
       key: "x",
