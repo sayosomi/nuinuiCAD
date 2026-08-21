@@ -10,12 +10,11 @@ export const placeScaleAttrKey = "scale";
 export const placeAngleAttrKey = "angle";
 export const placeMirrorAttrKey = "mirror";
 
-export const printMarginAttrKey = "margin";
 export const printOverlapAttrKey = "overlap";
 export const svgMarginAttrKey = "margin";
 
 export const placeNumericAttrKeys: readonly string[] = [placeScaleAttrKey, placeAngleAttrKey];
 export const placeCoordinateAttrKeys: readonly string[] = [placeAtAttrKey];
 export const layoutNumericAttrKeys: readonly string[] = [layoutScaleAttrKey];
-export const printNumericAttrKeys: readonly string[] = [printMarginAttrKey, printOverlapAttrKey];
+export const printNumericAttrKeys: readonly string[] = [printOverlapAttrKey];
 export const svgNumericAttrKeys: readonly string[] = [svgMarginAttrKey];

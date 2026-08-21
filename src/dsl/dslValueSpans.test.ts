@@ -301,12 +301,9 @@ describe("dslLinePrintLayoutStatement / dslLinePrintLayoutValueSpans", () => {
     // print uses the same source-line span strategy as
     // dslLineElementStatement (append, not prepend), so this is the same
     // no-shift guarantee already relied on elsewhere, re-asserted explicitly here.
-    const line = "print Output(layout: @Layout1, paper: a4, margin: 10, overlap: 2)";
+    const line = "print Output(layout: @Layout1, paper: a4, overlap: 2)";
     const spans = dslLinePrintLayoutValueSpans(line);
-    const margin = spans.find((span) => span.key === "margin")!;
     const overlap = spans.find((span) => span.key === "overlap")!;
-    expect(line.slice(margin.start, margin.end)).toBe("10");
-    expect(margin.start).toBe(line.indexOf("margin: 10") + "margin: ".length);
     expect(line.slice(overlap.start, overlap.end)).toBe("2");
     expect(overlap.start).toBe(line.indexOf("overlap: 2") + "overlap: ".length);
   });

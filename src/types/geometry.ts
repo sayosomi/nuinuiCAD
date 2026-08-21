@@ -128,7 +128,6 @@ export type PrintOutput = {
   profileId?: string;
   paper: PrintPaperSizeId;
   orientation: "portrait" | "landscape";
-  margin: NumericValue;
   overlap: NumericValue;
 };
 

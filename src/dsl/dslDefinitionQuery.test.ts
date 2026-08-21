@@ -413,7 +413,6 @@ describe("queryDslDefinition", () => {
       "  layout: @Layout,",
       "  profile: @OutputProfile,",
       "  paper: a4,",
-      "  margin: 0,",
       "  overlap: 0,",
       ")",
       "svg SvgOutput(",

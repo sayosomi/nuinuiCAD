@@ -425,8 +425,6 @@ fn push_guide(
     guide: &OutputGuide,
     paper_width_mm: f64,
     paper_height_mm: f64,
-    margin_mm: f64,
-    overlap_mm: f64,
 ) -> Result<(), String> {
     let guide_x = if guide.axis == "vertical" {
         guide.position_mm
@@ -500,11 +498,7 @@ fn push_guide(
             OutputPoint { x: 0.0, y: 0.0 },
         )?;
     }
-    content.push_str(&format!(
-        "% guide margin={} overlap={}\nQ\n",
-        pdf_number(pt(margin_mm)),
-        pdf_number(pt(overlap_mm))
-    ));
+    content.push_str("Q\n");
     Ok(())
 }
 
@@ -525,8 +519,6 @@ fn page_content(payload: &ResolvedPrintOutputPayload, page_index: usize) -> Resu
             guide,
             payload.paper.width_mm,
             payload.paper.height_mm,
-            payload.margin_mm,
-            payload.overlap_mm,
         )?;
     }
     Ok(content)
@@ -638,9 +630,8 @@ mod tests {
                 width_mm: 210.0,
                 height_mm: 297.0,
             },
-            margin_mm: 10.0,
             overlap_mm: 10.0,
-            stride: OutputPoint { x: 180.0, y: 267.0 },
+            stride: OutputPoint { x: 200.0, y: 287.0 },
             pages: vec![
                 OutputPrintPage {
                     index: 0,
@@ -653,7 +644,7 @@ mod tests {
                     index: 1,
                     column: 1,
                     row: 0,
-                    origin: OutputPoint { x: 170.0, y: -10.0 },
+                    origin: OutputPoint { x: 190.0, y: -10.0 },
                     guides: vec![],
                 },
             ],
@@ -674,7 +665,7 @@ mod tests {
             .find("28.346 28.346 m 56.693 28.346 l")
             .expect("first page should place the line from its page origin");
         let second_page_content = text
-            .find("-481.89 28.346 m -453.543 28.346 l")
+            .find("-538.583 28.346 m -510.236 28.346 l")
             .expect("second page should place the line from its distinct page origin");
         assert!(first_page_content < second_page_content);
     }
@@ -798,14 +789,16 @@ mod tests {
                 width_mm: 210.0,
                 height_mm: 297.0,
             },
-            margin_mm: 10.0,
             overlap_mm: 10.0,
-            stride: OutputPoint { x: 180.0, y: 267.0 },
+            stride: OutputPoint { x: 200.0, y: 287.0 },
             pages: vec![OutputPrintPage {
                 index: 0,
                 column: 0,
                 row: 0,
-                origin: OutputPoint { x: 0.0, y: 0.0 },
+                origin: OutputPoint {
+                    x: 10.0 + relative.min_x,
+                    y: 20.0 + relative.min_y,
+                },
                 guides: vec![],
             }],
         };
@@ -813,10 +806,10 @@ mod tests {
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("/DW 1000"));
         assert!(text.contains(
-            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 56.693 85.039 Tm [<0041> 380 <0042> 380] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 45.718 53.432 Tm [<0041> 380 <0042> 380] TJ ET"
         ));
         assert!(text.contains(
-            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 63.496 73.256 Tm [<65E5> 0 <672C> 0] TJ ET"
+            "BT 0.2 0.4 0.6 rg /F1 11.339 Tf -0.866 -0.5 -0.5 0.866 52.521 41.649 Tm [<65E5> 0 <672C> 0] TJ ET"
         ));
         assert!(!text.contains("BT 0.2 0.4 0.6 RG"));
         assert!(!text.contains("FEFF"));
@@ -853,11 +846,11 @@ mod tests {
     fn consumes_resolved_guide_center_and_keeps_label_off_the_guide_line() {
         let guide = OutputGuide {
             axis: "vertical".to_owned(),
-            position_mm: 190.0,
+            position_mm: 200.0,
             label: "1".to_owned(),
             label_font_size_mm: 1.0,
             label_rotation_deg: 90.0,
-            label_center: OutputPoint { x: 195.0, y: 148.5 },
+            label_center: OutputPoint { x: 205.0, y: 148.5 },
             label_width_mm: 0.62,
             label_advances_mm: vec![0.62],
         };
@@ -872,12 +865,12 @@ mod tests {
         let mut resolved = payload();
         resolved.pages[0].guides = vec![guide.clone()];
         resolved.pages[1].guides = vec![OutputGuide {
-            position_mm: 20.0,
-            label_center: OutputPoint { x: 15.0, y: 148.5 },
+            position_mm: 10.0,
+            label_center: OutputPoint { x: 5.0, y: 148.5 },
             ..guide
         }];
         let relative = text_bounds_relative(1.0, &[0.62], OUTPUT_TEXT_LINE_HEIGHT, 90.0, false);
-        assert!((expected_anchor.x + (relative.min_x + relative.max_x) / 2.0 - 195.0).abs() < 1e-9);
+        assert!((expected_anchor.x + (relative.min_x + relative.max_x) / 2.0 - 205.0).abs() < 1e-9);
         assert!((expected_anchor.y + (relative.min_y + relative.max_y) / 2.0 - 148.5).abs() < 1e-9);
         let pdf = build_print_pdf(&resolved).expect("resolved guide center should build");
         let text = String::from_utf8_lossy(&pdf);
