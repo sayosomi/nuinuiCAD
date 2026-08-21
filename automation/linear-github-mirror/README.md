@@ -1,32 +1,54 @@
-# Linear → GitHub public issue mirror
+# Linear → GitHub public mirror
 
-Cloudflare Worker for the nuinuiCAD one-way public issue mirror.
+Cloudflare Worker for the nuinuiCAD one-way public mirror.
 
-Linear is authoritative. GitHub Issues are a public mirror. The Worker receives Linear webhooks, validates the Linear HMAC signature, queues the event through Cloudflare Queues, refetches the canonical Linear issue, and reconciles the matching GitHub issue.
+Linear is authoritative. GitHub is the public mirror. The Worker validates Linear webhooks, enqueues them through Cloudflare Queues, refetches canonical Linear data, and reconciles GitHub through the REST API.
 
 ## Scope
 
-Mirrored automatically:
+Webhook resource types:
 
-- issue title and description
+- `Issue`
+- `Comment`
+- `Document`
+
+Issue mirror:
+
+- title and description
 - Linear status → GitHub open/closed + close reason
 - Linear labels
-- priority, project, parent, blocks / blocked-by / related metadata in the GitHub body
+- priority, project, parent, blocks / blocked-by / related metadata
 - existing Linear → GitHub mapping
-- new Linear issues: create a GitHub issue and attach its URL back to the Linear issue
+- new Linear issues create a GitHub issue and attach its URL back to Linear
 
-Not mirrored in v1:
+Comment mirror:
+
+- all Linear comments on mirrored Issues
+- all Linear comments on mirrored Documents
+- create, edit, and remove are reconciled one-way to GitHub
+- `linear-comment-id` hidden markers provide stable mapping and deduplication
+- GitHub-only comments remain GitHub-only
+
+Document mirror:
+
+- one Linear Document maps to one GitHub Issue
+- only Documents under the nuinuiCAD Initiative subtree are public
+- title and Markdown content are mirrored
+- the GitHub issue gets the `Linear Document` label
+- archived, trashed, or removed Documents close as `not planned`
+- `linear-document-id` hidden markers provide stable mapping
+
+Not mirrored:
 
 - GitHub → Linear changes
-- Linear comments
 - assignees
-- project-level objects
+- Project / Initiative / milestone / status-update comments
+- project-level objects as standalone mirrors
+- Linear-hosted authenticated media re-hosting
 
-Comments are intentionally excluded because existing Linear top-level discussions can contain internal/non-public notes. A later comment bridge needs an explicit public-comment marker or equivalent privacy-safe contract.
+Migration-only/shadow Linear issues `SAY-39`, `SAY-75`, `SAY-84`, and `SAY-85` are explicitly excluded.
 
-Migration-only/shadow Linear issues `SAY-39`, `SAY-75`, `SAY-84`, and `SAY-85` are explicitly excluded so they can never create a second public GitHub issue.
-
-## Mapping
+## Issue mapping
 
 Mapping resolution is deterministic and idempotent:
 
@@ -38,27 +60,24 @@ Mapping resolution is deterministic and idempotent:
 3. Recover a previously created mirror by the hidden `linear-issue-id` marker in the GitHub body.
 4. Otherwise create a new GitHub issue and attach it to Linear.
 
-The attachment URL is the durable mapping for newly created mirrors. Linear attachment creation is idempotent by issue + URL.
-
 ## Reliability
 
-The HTTP webhook handler only validates and enqueues. A Cloudflare Queue consumer performs Linear/GitHub API calls with retries, a dead-letter queue, batch size 1, and max concurrency 1. This prevents concurrent create races for the same Linear issue and keeps webhook acknowledgement fast.
+The HTTP handler only authenticates, validates freshness, and enqueues. The Queue consumer performs Linear/GitHub API calls with retries, a dead-letter queue, batch size 1, and max concurrency 1.
 
-A Cloudflare Cron Trigger runs every 12 hours (`0 */12 * * *`, UTC) as a safety sweep. It paginates every issue in the Sayosomi team, including archived issues, and enqueues each issue through the same Queue reconciliation path. This catches relation-only changes or any webhook delivery gap without introducing a second mirror implementation.
+A Cloudflare Cron Trigger runs every 12 hours (`0 */12 * * *`, UTC). It reconciles all Sayosomi Issues and all accessible Linear Documents, filters Documents to the nuinuiCAD Initiative subtree, reconciles managed comments, and closes orphaned managed Document mirrors. This catches webhook gaps and relation/comment-only changes.
 
-Cloudflare Queues are available on the Workers Free plan. This project is far below the free daily operation allowance under normal nuinuiCAD use.
+## Required secrets and variables
 
-## Required secrets
+Secrets:
 
-Set these as Cloudflare Worker secrets; never commit them:
+- `LINEAR_WEBHOOK_SECRET`
+- `LINEAR_API_KEY`
+- `GITHUB_TOKEN` — fine-grained PAT for `sayosomi/nuinuiCAD` with **Issues: Read and write**
 
-- `LINEAR_WEBHOOK_SECRET` — signing secret from the Linear webhook
-- `LINEAR_API_KEY` — Linear personal API key with read access to the Sayosomi team and permission to create attachments
-- `GITHUB_TOKEN` — fine-grained GitHub PAT scoped to `sayosomi/nuinuiCAD` with **Issues: Read and write**
-
-Non-secret deployment vars are already in `wrangler.jsonc`:
+Non-secret vars in `wrangler.jsonc`:
 
 - `LINEAR_TEAM_ID`
+- `LINEAR_INITIATIVE_ID`
 - `GITHUB_OWNER`
 - `GITHUB_REPO`
 
@@ -67,35 +86,15 @@ Non-secret deployment vars are already in `wrangler.jsonc`:
 From this directory:
 
 ```bash
-npx wrangler login
-npx wrangler queues create nuinuicad-linear-events
-npx wrangler queues create nuinuicad-linear-events-dlq
 npx wrangler deploy
 ```
 
-Set the API credentials:
+The queues and secrets are already provisioned in production. For a fresh environment, create both configured queues and set the three secrets before deployment.
 
-```bash
-npx wrangler secret put LINEAR_API_KEY
-npx wrangler secret put GITHUB_TOKEN
-```
-
-The deploy output gives the Worker URL, for example:
-
-```text
-https://nuinuicad-linear-github-mirror.<account>.workers.dev
-```
-
-In Linear workspace settings, create a team webhook for the Sayosomi team:
+Linear webhook configuration for the Sayosomi team:
 
 - URL: `https://<worker>/webhooks/linear`
-- resource type: `Issue`
-
-Copy the webhook signing secret, then set it:
-
-```bash
-npx wrangler secret put LINEAR_WEBHOOK_SECRET
-```
+- data change events: `Issues`, `Comments`, `Documents`
 
 Health check:
 
@@ -111,24 +110,28 @@ Expected:
 
 ## Verification
 
-Automated tests and syntax check:
+Automated checks:
 
 ```bash
 npm test
 node --check src/index.js
+node --check src/worker.js
+node --check src/mirrorApi.js
+node --check src/comments.js
+node --check src/documents.js
+node --check src/extensions.js
 ```
 
-The tests cover both webhook routing and the 12-hour safety sweep pagination / queue payload path.
+Manual production checks after deploying the Comment / Document extension:
 
-Manual production smoke test after deploy:
+1. Add a Linear Issue comment and confirm the corresponding GitHub Issue gets it.
+2. Edit that Linear comment and confirm the same GitHub comment is updated.
+3. Remove that Linear comment and confirm the managed GitHub comment is removed.
+4. Create a temporary Document under the nuinuiCAD Initiative and confirm a `Linear Document` GitHub Issue is created.
+5. Edit the Document title/body and confirm the GitHub mirror follows.
+6. Add a Document comment and confirm it appears on the Document mirror Issue.
+7. Archive or trash the Document and confirm the mirror closes as `not planned`.
+8. Confirm GitHub-only comments/edits do not flow back to Linear.
+9. Confirm the deploy still lists schedule `0 */12 * * *`, Queue producer, and Queue consumer.
 
-1. Create a temporary Linear issue in Sayosomi.
-2. Confirm a GitHub issue is created within a few seconds.
-3. Confirm the GitHub URL appears as an attachment on the Linear issue.
-4. Change title, description, priority, labels, and status in Linear; confirm GitHub follows one-way.
-5. Mark the Linear issue Canceled; confirm GitHub closes as `not planned`.
-6. Edit the GitHub issue directly and confirm nothing flows back to Linear.
-7. Confirm the Worker deploy output lists the `0 */12 * * *` scheduled trigger.
-8. Remove/archive the temporary Linear test issue as appropriate after verification.
-
-Production cutover was verified on 2026-08-21. The webhook smoke test passed, the scheduled trigger was deployed, and the old ChatGPT `Legacy Issue Mirror` automation was disabled. This Worker is the current automatic reconciliation owner.
+The Issue-only production cutover was verified on 2026-08-21, and the old ChatGPT `Legacy Issue Mirror` automation is disabled. Comment / Document mirroring is not production-complete until its redeploy and manual checks pass.
