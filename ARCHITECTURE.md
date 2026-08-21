@@ -450,6 +450,8 @@ Primary:
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/protocol.ts`
+- `src/vscode/vscodeWebviewSession.ts`
+- `src/vscode/webviewSurfaceRouter.tsx`
 
 VS Code `TextDocument` is the production source authority. The Webview
 `cadDocumentStore` is a disposable mirror hydrated from the authoritative
@@ -458,11 +460,20 @@ document and is never restored as a host-side source. The current scope is
 files and dirty in-memory content; untitled and non-file documents are not
 supported.
 
-The extension keeps one Canvas session per document URI and supports multiple
-documents at once. Reopening the command for an existing URI reveals its panel;
-an active-editor change never rebinds that session. Session disposal removes
-only its panel/listener ownership. Closing the matching TextDocument disposes
-that session, so a later open performs a fresh authoritative handshake.
+Webview sessions are keyed by document URI plus surface kind through the shared
+`VscodeWebviewSessionRegistry`. The semantic surface kinds are `canvas` and
+`outputPreview`; Canvas is the currently exposed production surface. Reopening
+Canvas for an existing URI reveals its existing Canvas session, while the
+identity boundary leaves a different surface for that URI independent. An
+active-editor change never rebinds an existing session. Disposing one surface
+removes only that surface's panel/listener ownership, and closing a
+`TextDocument` disposes every surface session belonging to that URI.
+
+The production host still ships one `webview.js` bundle. Extension Host HTML
+bootstrap places the surface kind in explicit static metadata, and
+`webviewSurfaceRouter.tsx` validates that value before routing `canvas` to
+`VSCodeApp`. `outputPreview` and malformed or unknown values fail closed; no
+Output Preview renderer or user-facing surface exists yet.
 
 Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
@@ -523,10 +534,11 @@ is accepted only after the same authoritative source/revision/evaluation checks
 used by navigation.
 
 `RustEvaluationProcess` is lazy and extension-wide through
-`RustEvaluationProcessOwner`; all document sessions share it. A panel does not
-own or kill the process. Unexpected process death rejects pending work, clears
-the dead owner, and allows the next evaluation request to respawn it. The
-existing bounded latest-wins Rust transport, stale evaluation discard,
+`RustEvaluationProcessOwner`; all Canvas sessions share it regardless of
+document or surface identity. A panel does not own or kill the process.
+Unexpected process death rejects pending work, clears the dead owner, and
+allows the next evaluation request to respawn it. The existing bounded
+latest-wins Rust transport, stale evaluation discard,
 `VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
 evaluator remain reused from the performance PoC path.
 

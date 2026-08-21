@@ -619,6 +619,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor();
 
     expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
+    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
   });
 
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
