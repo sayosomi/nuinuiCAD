@@ -1,0 +1,210 @@
+name: SAY-153 Review Fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.head_ref == 'sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Apply review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "mcp-server/src/documentSnapshot.ts",
+              'import type { DslDiagnostic, DslStatement } from "../../src/dsl/dslTypes";',
+              'import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "../../src/dsl/dslTypes";'
+          )
+
+          start = '''export type DiagnosticDto = {
+          severity: DslDiagnostic["severity"];
+          message: string;
+          line: number;
+          column: number;
+          sourceRevision: number;
+          code?: string;
+          range?: SourceRangeDto;
+          relatedInformation?: Array<{
+            message: string;
+            range: SourceRangeDto;
+          }>;
+          bindingId?: string;
+          elementId?: string;
+          propertyKey?: string;
+          origin?: "runtime";
+          expectedType?: DslDiagnostic["expectedType"];
+          actualType?: DslDiagnostic["actualType"];
+        };'''.replace("        ", "")
+          replacement = '''export type DiagnosticDto = Omit<DslDiagnostic, "sourceRevision" | "relatedInformation"> & {
+          sourceRevision: number;
+          range?: SourceRangeDto;
+          relatedInformation?: Array<DslDiagnosticRelatedInformation & {
+            range: SourceRangeDto;
+          }>;
+        };'''.replace("        ", "")
+          replace_once("mcp-server/src/documentSnapshot.ts", start, replacement)
+
+          start = '''const diagnosticDto = (
+          diagnostic: DslDiagnostic,
+          currentSourceRevision: number,
+          normalizedSource: string,
+          lineStarts: readonly number[]
+        ): DiagnosticDto => ({
+          severity: diagnostic.severity,
+          message: diagnostic.message,
+          line: diagnostic.line,
+          column: diagnostic.column,
+          sourceRevision: diagnostic.sourceRevision ?? currentSourceRevision,
+          ...(diagnostic.code ? { code: diagnostic.code } : {}),
+          ...(diagnostic.physicalSpan
+            ? { range: rangeDto(diagnostic.physicalSpan, normalizedSource, lineStarts) }
+            : {}),
+          ...(diagnostic.relatedInformation
+            ? {
+                relatedInformation: diagnostic.relatedInformation.map((related) => ({
+                  message: related.message,
+                  range: rangeDto(related.physicalSpan, normalizedSource, lineStarts)
+                }))
+              }
+            : {}),
+          ...(diagnostic.bindingId ? { bindingId: diagnostic.bindingId } : {}),
+          ...(diagnostic.elementId ? { elementId: diagnostic.elementId } : {}),
+          ...(diagnostic.propertyKey ? { propertyKey: diagnostic.propertyKey } : {}),
+          ...(diagnostic.origin ? { origin: diagnostic.origin } : {}),
+          ...(diagnostic.expectedType ? { expectedType: diagnostic.expectedType } : {}),
+          ...(diagnostic.actualType ? { actualType: diagnostic.actualType } : {})
+        });'''.replace("        ", "")
+          replacement = '''const diagnosticDto = (
+          diagnostic: DslDiagnostic,
+          currentSourceRevision: number,
+          normalizedSource: string,
+          lineStarts: readonly number[]
+        ): DiagnosticDto => ({
+          ...diagnostic,
+          sourceRevision: diagnostic.sourceRevision ?? currentSourceRevision,
+          ...(diagnostic.physicalSpan
+            ? { range: rangeDto(diagnostic.physicalSpan, normalizedSource, lineStarts) }
+            : {}),
+          ...(diagnostic.relatedInformation
+            ? {
+                relatedInformation: diagnostic.relatedInformation.map((related) => ({
+                  ...related,
+                  range: rangeDto(related.physicalSpan, normalizedSource, lineStarts)
+                }))
+              }
+            : {})
+        });'''.replace("        ", "")
+          replace_once("mcp-server/src/documentSnapshot.ts", start, replacement)
+
+          replace_once(
+              "mcp-server/test/documentSnapshot.test.ts",
+              '    expect(rangeText(source, related.range)).toBe("required");',
+              '    expect(related.physicalSpan.segments).toHaveLength(1);\n    expect(rangeText(source, related.range)).toBe("required");'
+          )
+
+          classifier_test = Path("scripts/ci/classifyChanges.node-test.mjs")
+          text = classifier_test.read_text()
+          marker = '  {\n    name: "ordinary Canvas/UI TypeScript",'
+          if text.count(marker) != 1:
+              raise SystemExit(f"classifier test marker count={text.count(marker)}")
+          insertion = ('  {\n'
+                       '    name: "MCP server source and tests",\n'
+                       '    paths: ["mcp-server/src/server.ts", "mcp-server/test/stdio.test.ts"],\n'
+                       '    expected: flags({ node: true })\n'
+                       '  },\n')
+          classifier_test.write_text(text.replace(marker, insertion + marker, 1))
+
+          architecture = Path("ARCHITECTURE.md")
+          text = architecture.read_text()
+          old = ('`AutomationDocument` は既存の parser、statement reconciler、compiler、Module\n'
+                 'semantic / materialization path をそのまま利用し、materialized Module children\n'
+                 'を source representation に flatten しない。Future Evaluation Context や\n'
+                 'Headless Rust はこの architecture の current component ではない。')
+          new = ('`AutomationDocument` は既存の parser、statement reconciler、compiler、Module\n'
+                 'semantic / materialization path をそのまま利用し、materialized Module children\n'
+                 'を source representation に flatten しない。Headless MCP の fresh file snapshot\n'
+                 'もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics\n'
+                 'だけを返して last-good `doc` を current semantics として公開しない。')
+          if text.count(old) != 1:
+              raise SystemExit(f"architecture owner target count={text.count(old)}")
+          text = text.replace(old, new, 1)
+          marker = '### Compilation / source mutation'
+          if text.count(marker) != 1:
+              raise SystemExit(f"architecture section marker count={text.count(marker)}")
+          section = '''### Headless MCP
+
+          Primary:
+
+          - `mcp-server/src/server.ts`
+          - `mcp-server/src/documentSnapshot.ts`
+
+          Repository-owned MCP server は Node の直接 entry
+          `mcp-server/dist/server.js` を stdio transport で起動する。stdout は MCP protocol
+          専用で、server diagnostics は stderr に出す。`document_inspect` は absolute
+          file-backed `.nui` を call ごとに disk から fresh read し、SHA-256 source identity、
+          exact-current compile status / diagnostics、compact declaration / element summary を
+          JSON-friendly DTO として返す。Mutable document registry、Rust evaluation、VS Code
+          attached observation、source mutation はこの boundary の owner ではない。
+
+          '''.replace("          ", "")
+          architecture.write_text(text.replace(marker, section + marker, 1))
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Classifier tests
+        run: node --test scripts/ci/classifyChanges.node-test.mjs
+
+      - name: Focused MCP tests
+        run: npm test -- mcp-server/test/documentSnapshot.test.ts mcp-server/test/stdio.test.ts
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- mcp-server/src/documentSnapshot.ts mcp-server/test/documentSnapshot.test.ts scripts/ci/classifyChanges.node-test.mjs ARCHITECTURE.md
+          git rm .github/workflows/say-153-review-fix.yml
+          git commit -m "fix: preserve full MCP diagnostic structure"
+          git push origin HEAD:sayosomi/say-153-headless-mcp-foundation-stdio-server-document_inspect
