@@ -400,8 +400,6 @@ describe("SAY-64 output core", () => {
       expect(print).toMatchObject({
         paperWidthMm: testCase.paperWidthMm,
         paperHeightMm: testCase.paperHeightMm,
-        firstUsableWidthMm,
-        firstUsableHeightMm,
         strideXmm,
         strideYmm,
         columns: testCase.columns,
@@ -546,38 +544,40 @@ describe("SAY-64 output core", () => {
     expect(absoluteBounds.maxY).toBeLessThanOrEqual(stripMinY + overlapMm + 1e-9);
   });
 
-  it("uses the first usable dimensions as the one-page threshold and physical strides after it", () => {
-    const onePageDoc = simpleSource();
-    const onePage = buildOutputPlan({
-      compiledDocument: onePageDoc,
-      output: output(onePageDoc, "P"),
-      evaluation: evaluationFor(onePageDoc)
-    });
-    expect(onePage.print).toMatchObject({
-      firstUsableWidthMm: 190,
-      firstUsableHeightMm: 277,
-      columns: 1,
-      rows: 1
-    });
-
-    const transitionDoc = sourceFor([
+  it("uses stroke-inclusive rendered bounds at the one-page threshold", () => {
+    const exactThresholdDoc = (epsilonMm: number) => sourceFor([
       "nui 4",
       "group G {",
-      "  line Large = segment(start: (0, 0), end: (190, 277))",
+      `  line Large = segment(start: (0, 0), end: (${190 - PX_TO_MM + epsilonMm}, ${277 - PX_TO_MM + epsilonMm}))`,
       "}",
       "layout L {",
       "  place @G(at: (0, 0))",
       "}",
       "print P(layout: @L, paper: a4, overlap: 10)"
     ]);
-    const transition = buildOutputPlan({
-      compiledDocument: transitionDoc,
-      output: transitionDoc.document.printOutputs[0],
-      evaluation: evaluationFor(transitionDoc)
+    const exactThresholdSource = exactThresholdDoc(0);
+    const exactThreshold = buildOutputPlan({
+      compiledDocument: exactThresholdSource,
+      output: exactThresholdSource.document.printOutputs[0],
+      evaluation: evaluationFor(exactThresholdSource)
     });
-    expect(transition.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 200, strideYmm: 287 });
-    expect(transition.print!.pages[1].origin.x - transition.print!.pages[0].origin.x).toBe(200);
-    expect(transition.print!.pages[2].origin.y - transition.print!.pages[0].origin.y).toBe(287);
+    expect(exactThreshold.renderedBounds.width).toBe(190);
+    expect(exactThreshold.renderedBounds.height).toBe(277);
+    expect(exactThreshold.print).toMatchObject({ columns: 1, rows: 1, strideXmm: 200, strideYmm: 287 });
+    expect(exactThreshold.print!.pages).toHaveLength(1);
+
+    const justOverThresholdDoc = exactThresholdDoc(1e-6);
+    const justOverThreshold = buildOutputPlan({
+      compiledDocument: justOverThresholdDoc,
+      output: justOverThresholdDoc.document.printOutputs[0],
+      evaluation: evaluationFor(justOverThresholdDoc)
+    });
+    expect(justOverThreshold.renderedBounds.width).toBeGreaterThan(190);
+    expect(justOverThreshold.renderedBounds.height).toBeGreaterThan(277);
+    expect(justOverThreshold.print).toMatchObject({ columns: 2, rows: 2, strideXmm: 200, strideYmm: 287 });
+    expect(justOverThreshold.print!.pages).toHaveLength(4);
+    expect(justOverThreshold.print!.pages[1].origin.x - justOverThreshold.print!.pages[0].origin.x).toBe(200);
+    expect(justOverThreshold.print!.pages[2].origin.y - justOverThreshold.print!.pages[0].origin.y).toBe(287);
   });
 
   it("emits no joining guides or labels when physical overlap is zero", () => {
