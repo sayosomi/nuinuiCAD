@@ -149,12 +149,19 @@ vi.mock("vscode", () => {
   class Diagnostic {
     code?: string | number;
     source?: string;
+    relatedInformation?: unknown[];
 
     constructor(
       public readonly range: unknown,
       public readonly message: string,
       public readonly severity: number
     ) {}
+  }
+  class Location {
+    constructor(public readonly uri: unknown, public readonly range: unknown) {}
+  }
+  class DiagnosticRelatedInformation {
+    constructor(public readonly location: unknown, public readonly message: string) {}
   }
   class CompletionItem {
     detail?: string;
@@ -256,6 +263,8 @@ vi.mock("vscode", () => {
     Selection,
     TextEditorRevealType: { InCenterIfOutsideViewport: 1 },
     Diagnostic,
+    Location,
+    DiagnosticRelatedInformation,
     CompletionItem,
     SnippetString,
     FoldingRange
@@ -625,6 +634,39 @@ describe("VS Code production document lifecycle", () => {
       selector: { language: "nui", scheme: "file" },
       triggerCharacters: ["(", ",", ":"]
     });
+  });
+
+  it("publishes Module diagnostic related information through the current document URI", () => {
+    const source = [
+      "nui 4",
+      "module M(required: number) {",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/related.nui", "file:///tmp/related.nui", source);
+    setup(false, editorFor(document), [document]);
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      relatedInformation?: Array<{
+        message: string;
+        location: { uri: unknown; range: { start: MockPosition; end: MockPosition } };
+      }>;
+    }>;
+    const missing = published.find((item) => item.code === "module-missing-argument");
+
+    expect(missing).toBeDefined();
+    expect(missing?.relatedInformation).toHaveLength(1);
+    expect(missing?.relatedInformation?.[0]).toMatchObject({
+      location: {
+        uri: document.uri,
+        range: {
+          start: { line: 1, character: 9 },
+          end: { line: 1, character: 17 }
+        }
+      }
+    });
+    expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
   });
 
   it("registers and opens the Output Preview production surface", () => {

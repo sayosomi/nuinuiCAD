@@ -135,4 +135,39 @@ describe("VS Code compiler diagnostics adapter", () => {
     }))).toBeNull();
   });
 
+  it("projects related ranges with CRLF/UTF-16 semantics and drops only invalid related entries", () => {
+    const source = "nui 4\r\n😀required\r\n";
+    const normalized = source.replace(/\r\n/g, "\n");
+    const from = normalized.indexOf("required");
+    const projected = toCompilerDiagnostic(source, diagnostic({
+      physicalSpan: { segments: [{ from: 0, to: 5 }], sourceRevision: 1 },
+      exactSpanOnly: true,
+      relatedInformation: [
+        {
+          message: "invalid cause",
+          physicalSpan: { segments: [{ from: 999, to: 1000 }], sourceRevision: 1 }
+        },
+        {
+          message: "valid cause",
+          physicalSpan: {
+            segments: [{ from, to: from + "required".length }],
+            sourceRevision: 1
+          }
+        }
+      ]
+    }));
+
+    expect(projected).not.toBeNull();
+    expect(projected?.message).toBe("production message");
+    expect(projected?.relatedInformation).toEqual([
+      {
+        message: "valid cause",
+        range: {
+          start: { line: 1, character: 2 },
+          end: { line: 1, character: 10 }
+        }
+      }
+    ]);
+  });
+
 });

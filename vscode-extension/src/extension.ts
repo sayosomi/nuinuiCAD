@@ -7,7 +7,8 @@ import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../sr
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
-  type CompilerDiagnostic
+  type CompilerDiagnostic,
+  type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
 import {
   createLanguageAnalysisSession,
@@ -171,20 +172,34 @@ const postCanvasRibbonConfiguration = (
 const fullDocumentRange = (document: vscode.TextDocument): vscode.Range =>
   new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
 
-const toVscodeDiagnostic = (diagnostic: CompilerDiagnostic): vscode.Diagnostic => {
+const toVscodeDiagnosticRange = (range: CompilerDiagnosticRange): vscode.Range =>
+  new vscode.Range(
+    new vscode.Position(range.start.line, range.start.character),
+    new vscode.Position(range.end.line, range.end.character)
+  );
+
+const toVscodeDiagnostic = (
+  document: vscode.TextDocument,
+  diagnostic: CompilerDiagnostic
+): vscode.Diagnostic => {
   const severity = diagnostic.severity === "error"
     ? vscode.DiagnosticSeverity.Error
     : vscode.DiagnosticSeverity.Warning;
   const result = new vscode.Diagnostic(
-    new vscode.Range(
-      new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
-      new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
-    ),
+    toVscodeDiagnosticRange(diagnostic.range),
     diagnostic.message,
     severity
   );
   if (diagnostic.code !== undefined) result.code = diagnostic.code;
   result.source = diagnostic.source;
+  if (diagnostic.relatedInformation && diagnostic.relatedInformation.length > 0) {
+    result.relatedInformation = diagnostic.relatedInformation.map((related) =>
+      new vscode.DiagnosticRelatedInformation(
+        new vscode.Location(document.uri, toVscodeDiagnosticRange(related.range)),
+        related.message
+      )
+    );
+  }
   return result;
 };
 
@@ -516,7 +531,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       !isOpenDocument(document) ||
       document.version !== capturedVersion
     ) return;
-    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map(toVscodeDiagnostic));
+    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map((diagnostic) => toVscodeDiagnostic(document, diagnostic)));
   };
 
   const languageAnalysisSessionFor = (document: vscode.TextDocument): NuiLanguageAnalysisSession => {
