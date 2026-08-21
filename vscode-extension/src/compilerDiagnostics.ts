@@ -11,10 +11,16 @@ export type CompilerDiagnosticRange = {
   end: CompilerDiagnosticPosition;
 };
 
+export type CompilerDiagnosticRelatedInformation = {
+  message: string;
+  range: CompilerDiagnosticRange;
+};
+
 export type CompilerDiagnostic = {
   severity: DslDiagnostic["severity"];
   message: string;
   range: CompilerDiagnosticRange;
+  relatedInformation?: readonly CompilerDiagnosticRelatedInformation[];
   code?: string;
   source: "nuinuiCAD";
 };
@@ -72,6 +78,18 @@ const rangeForSegment = (
   return start && end ? { start, end } : null;
 };
 
+const rangeForPhysicalSpan = (
+  index: LineIndex,
+  normalizedSource: string,
+  physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]>
+): CompilerDiagnosticRange | null => {
+  for (const segment of physicalSpan.segments) {
+    const range = rangeForSegment(index, normalizedSource, segment);
+    if (range) return range;
+  }
+  return null;
+};
+
 const rangeForLegacyPosition = (
   index: LineIndex,
   line: number,
@@ -111,10 +129,18 @@ export const toCompilerDiagnostic = (
   if (!range) range = rangeForLegacyPosition(index, diagnostic.line, diagnostic.column);
   if (!range) return null;
 
+  const relatedInformation = (diagnostic.relatedInformation ?? [])
+    .map((related) => {
+      const relatedRange = rangeForPhysicalSpan(index, normalizedSource, related.physicalSpan);
+      return relatedRange ? { message: related.message, range: relatedRange } : null;
+    })
+    .filter((related): related is CompilerDiagnosticRelatedInformation => related !== null);
+
   return {
     severity: diagnostic.severity,
     message: diagnostic.message,
     range,
+    ...(relatedInformation.length === 0 ? {} : { relatedInformation }),
     ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
     source: "nuinuiCAD"
   };
