@@ -8,8 +8,8 @@ import type {
   VisibilityProfile
 } from "../types/geometry";
 import {
+  canvasDrawingBoundsForVisibleIds,
   effectiveCanvasVisibleElementIds,
-  visibleCanvasDrawingBounds,
   type CanvasDrawingBounds,
   type CanvasTextWidthMeasurer
 } from "./canvasDrawingBounds";
@@ -118,20 +118,12 @@ export const moduleInstanceCanvasGeometry = ({
   }
 
   const nonImageIds = renderableDescendantIds.filter((id) => !imageIds.has(id));
-  const nonImageIdSet = new Set(nonImageIds);
   const nonImageBounds = nonImageIds.length === 0
     ? null
-    : visibleCanvasDrawingBounds({
-        elements: elements.filter((element) => nonImageIdSet.has(element.id)),
-        evaluation: {
-          ...evaluation,
-          computedGeometry: new Map(
-            [...evaluation.computedGeometry].filter(([id]) => nonImageIdSet.has(id))
-          ),
-          effectiveVisibleElementIds: new Set(nonImageIds)
-        },
-        visibilityProfiles: [...visibilityProfiles],
-        activeVisibilityProfileId,
+    : canvasDrawingBoundsForVisibleIds({
+        evaluation,
+        visibleIds: new Set(nonImageIds),
+        elementById,
         measureCanvasTextWidth
       });
 
