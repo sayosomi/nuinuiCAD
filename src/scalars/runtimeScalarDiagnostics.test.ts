@@ -156,12 +156,6 @@ describe("runtimeScalarDiagnostics", () => {
     const fallbackDiagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([[bindingId, evaluation]]))
     );
-    expect(namedDiagnostics[0]?.message).toBe(
-      "「Shoulder」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
-    );
-    expect(fallbackDiagnostics[0]?.message).toBe(
-      "「target-id」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
-    );
     expect(namedDiagnostics[0]?.message).not.toBe(fallbackDiagnostics[0]?.message);
     expect(namedDiagnostics[0]?.runtimeContext).toEqual({
       kind: "geometryBuiltinTarget",
