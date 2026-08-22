@@ -49,10 +49,6 @@ export const legacyBindingIdMap: Readonly<Record<string, string>> = {
 };
 
 export const retiredCommandIds = [
-  "newDocument",
-  "openDocument",
-  "saveDocument",
-  "saveDocumentAs",
   "openDslPanel",
   "exportDslSelection",
   "validateDslPanel",
@@ -103,7 +99,13 @@ export const retiredCommandIds = [
   "deleteBezierNumericVariable"
 ] as const;
 
-const retiredCommandIdSet = new Set<string>(retiredCommandIds);
+const retiredCommandIdSet = new Set<string>([
+  ...retiredCommandIds,
+  "newDocument",
+  "openDocument",
+  "saveDocument",
+  "saveDocumentAs"
+]);
 
 const commandIdForBinding = (bindingId: string) => bindingId.slice(bindingId.indexOf(".") + 1);
 
