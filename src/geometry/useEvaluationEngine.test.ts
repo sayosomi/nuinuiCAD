@@ -48,7 +48,7 @@ const line: CadElement = {
   endPoint: { mode: "reference", pointId: "b" }
 };
 
-const elements = [pointA, pointB, line];
+const elements: CadElement[] = [pointA, pointB, line];
 const unsupportedElement = {
   id: "unsupported",
   name: "未対応",
