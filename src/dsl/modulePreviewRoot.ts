@@ -1,4 +1,4 @@
-import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
+import type { StatementIdentity } from "../document/statementIdentity";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import type { ElementId } from "../types/geometry";
@@ -14,11 +14,10 @@ import type {
   ModuleDefinitionSemantic,
   ModuleGeometryReferenceSemantic,
   ModuleScalarExpressionSemantic,
-  ModuleScalarSourceTarget,
   ModuleSemanticAnalysis,
   ResolvedModuleParameterBinding
 } from "./moduleSemanticTypes";
-import { buildSourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { buildSourceLexicalNamespaceIndex, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 import { formatDslName } from "./dslTokens";
 import type { CompileDslResult, DslDiagnostic, DslStatement } from "./dslTypes";
 import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "./dslVersion";
@@ -92,13 +91,12 @@ const ownerModuleIndexOf = (statements: readonly DslStatement[], statementIndex:
 };
 
 const definitionChainFor = (
-  compiled: CompiledDslDocument,
+  statements: readonly DslStatement[],
+  analysis: ModuleSemanticAnalysis,
   target: ModuleDefinitionSemantic
 ): ModuleDefinitionSemantic[] | null => {
-  const analysis = compiled.moduleSemanticAnalysis;
-  if (!analysis) return null;
   const chain: ModuleDefinitionSemantic[] = [target];
-  let ownerIndex = ownerModuleIndexOf(compiled.statements, target.statementIndex);
+  let ownerIndex = ownerModuleIndexOf(statements, target.statementIndex);
   const visited = new Set<number>([target.statementIndex]);
   while (ownerIndex !== null) {
     if (visited.has(ownerIndex)) return null;
@@ -106,7 +104,7 @@ const definitionChainFor = (
     const owner = analysis.definitions.find((candidate) => candidate.statementIndex === ownerIndex);
     if (!owner) return null;
     chain.push(owner);
-    ownerIndex = ownerModuleIndexOf(compiled.statements, owner.statementIndex);
+    ownerIndex = ownerModuleIndexOf(statements, owner.statementIndex);
   }
   return chain.reverse();
 };
@@ -123,7 +121,11 @@ const stableIdsFor = (compiled: CompiledDslDocument): Map<number, StatementIdent
   }
   for (const instance of compiled.moduleSemanticAnalysis?.instances ?? []) ids.set(instance.statementIndex, instance.statementId);
   compiled.statements.forEach((statement, index) => {
-    if (!ids.has(index)) ids.set(index, createStatementIdentity(`module-preview-source-${statement.kind}`));
+    if (ids.has(index)) return;
+    ids.set(
+      index,
+      `module-preview-source:${compiled.spans.sourceMap.sourceRevision}:${index}:${statement.kind}` as StatementIdentity
+    );
   });
   return ids;
 };
@@ -193,18 +195,18 @@ const documentScalarBindingsFor = (
   return bindings;
 };
 
+const referenceIsResolved = (reference: ModuleGeometryReferenceSemantic): boolean =>
+  reference.coordinate !== null
+    ? (!reference.coordinate.x || expressionIsResolved(reference.coordinate.x)) &&
+      (!reference.coordinate.y || expressionIsResolved(reference.coordinate.y))
+    : (reference.resolution === "resolved" || reference.resolution === "deferred") && reference.target !== null;
+
 const expressionIsResolved = (expression: ModuleScalarExpressionSemantic): boolean =>
   expression.references.every((reference) => reference.resolution === "resolved" && reference.target !== null) &&
   expression.geometryProperties.every((reference) =>
     (reference.resolution === "resolved" || reference.resolution === "deferred") && reference.target !== null
   ) &&
   expression.geometryBuiltinArguments.every((argument) => referenceIsResolved(argument.reference));
-
-const referenceIsResolved = (reference: ModuleGeometryReferenceSemantic): boolean =>
-  reference.coordinate !== null
-    ? (!reference.coordinate.x || expressionIsResolved(reference.coordinate.x)) &&
-      (!reference.coordinate.y || expressionIsResolved(reference.coordinate.y))
-    : (reference.resolution === "resolved" || reference.resolution === "deferred") && reference.target !== null;
 
 const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => {
   if (binding.state === "requiredOmitted") return false;
@@ -216,23 +218,10 @@ const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => 
     : referenceIsResolved(binding.value.reference);
 };
 
-const statementIndexForScalarTarget = (target: ModuleScalarSourceTarget): number | null => {
-  switch (target.kind) {
-    case "iteration":
-    case "moduleLocal":
-    case "documentBinding":
-      return target.statementIndex;
-    case "deferredModuleScalarExport":
-      return target.instanceStatementIndex;
-    default:
-      return null;
-  }
-};
-
 const callerExpressionIsSafe = (
   expression: ModuleScalarExpressionSemantic,
   cutoffStatementIndex: number,
-  allowedAncestorDefinitionIds: ReadonlySet<StatementIdentity>,
+  allowedParameterDefinitionIds: ReadonlySet<StatementIdentity>,
   statements: readonly DslStatement[]
 ): boolean => {
   if (!expressionIsResolved(expression)) return false;
@@ -240,25 +229,35 @@ const callerExpressionIsSafe = (
     const target = reference.target;
     if (!target) return false;
     if (target.kind === "parameter") {
-      if (!allowedAncestorDefinitionIds.has(target.definitionStatementId)) return false;
+      if (!allowedParameterDefinitionIds.has(target.definitionStatementId)) return false;
       continue;
     }
-    if (target.kind === "moduleLocal" || target.kind === "iteration" || target.kind === "deferredModuleScalarExport") return false;
-    const statementIndex = statementIndexForScalarTarget(target);
-    if (statementIndex !== null && statementIndex >= cutoffStatementIndex) return false;
+    if (target.kind !== "documentBinding") return false;
+    if (
+      ownerModuleIndexOf(statements, target.statementIndex) !== null ||
+      target.statementIndex >= cutoffStatementIndex
+    ) return false;
   }
   for (const property of expression.geometryProperties) {
     const target = property.target;
     if (!target) return false;
     if (target.kind === "parameterProperty") {
-      if (!allowedAncestorDefinitionIds.has(target.definitionStatementId)) return false;
+      if (!allowedParameterDefinitionIds.has(target.definitionStatementId)) return false;
       continue;
     }
-    if (target.kind === "deferredModuleExportProperty") return false;
-    if (ownerModuleIndexOf(statements, target.statementIndex) !== null || target.statementIndex >= cutoffStatementIndex) return false;
+    if (target.kind !== "sourceGeometryProperty") return false;
+    if (
+      ownerModuleIndexOf(statements, target.statementIndex) !== null ||
+      target.statementIndex >= cutoffStatementIndex
+    ) return false;
   }
   for (const argument of expression.geometryBuiltinArguments) {
-    if (!callerGeometryReferenceIsSafe(argument.reference, cutoffStatementIndex, allowedAncestorDefinitionIds, statements)) return false;
+    if (!callerGeometryReferenceIsSafe(
+      argument.reference,
+      cutoffStatementIndex,
+      allowedParameterDefinitionIds,
+      statements
+    )) return false;
   }
   return true;
 };
@@ -266,31 +265,44 @@ const callerExpressionIsSafe = (
 const callerGeometryReferenceIsSafe = (
   reference: ModuleGeometryReferenceSemantic,
   cutoffStatementIndex: number,
-  allowedAncestorDefinitionIds: ReadonlySet<StatementIdentity>,
+  allowedParameterDefinitionIds: ReadonlySet<StatementIdentity>,
   statements: readonly DslStatement[]
 ): boolean => {
   if (reference.coordinate) {
-    return (!reference.coordinate.x || callerExpressionIsSafe(reference.coordinate.x, cutoffStatementIndex, allowedAncestorDefinitionIds, statements)) &&
-      (!reference.coordinate.y || callerExpressionIsSafe(reference.coordinate.y, cutoffStatementIndex, allowedAncestorDefinitionIds, statements));
+    return (!reference.coordinate.x || callerExpressionIsSafe(
+      reference.coordinate.x,
+      cutoffStatementIndex,
+      allowedParameterDefinitionIds,
+      statements
+    )) && (!reference.coordinate.y || callerExpressionIsSafe(
+      reference.coordinate.y,
+      cutoffStatementIndex,
+      allowedParameterDefinitionIds,
+      statements
+    ));
   }
   if (!referenceIsResolved(reference) || !reference.target) return false;
   const target = reference.target;
-  if (target.kind === "parameter") return allowedAncestorDefinitionIds.has(target.definitionStatementId);
-  if (target.kind === "deferredModuleExport") return false;
+  if (target.kind === "parameter") return allowedParameterDefinitionIds.has(target.definitionStatementId);
+  if (target.kind !== "sourceGeometry") return false;
   return ownerModuleIndexOf(statements, target.statementIndex) === null && target.statementIndex < cutoffStatementIndex;
 };
 
-const callerBindingIsSafe = (
+const parameterBindingIsSafe = (
   binding: ResolvedModuleParameterBinding,
   cutoffStatementIndex: number,
-  allowedAncestorDefinitionIds: ReadonlySet<StatementIdentity>,
+  callerParameterDefinitionIds: ReadonlySet<StatementIdentity>,
+  currentDefinitionStatementId: StatementIdentity,
   statements: readonly DslStatement[]
 ): boolean => {
   if (!bindingIsResolved(binding)) return false;
   if (!binding.value) return binding.state === "optionalOmitted";
+  const allowedParameterDefinitionIds = binding.state === "defaultedOmitted"
+    ? new Set<StatementIdentity>([currentDefinitionStatementId])
+    : callerParameterDefinitionIds;
   return binding.value.kind === "scalar"
-    ? callerExpressionIsSafe(binding.value.expression, cutoffStatementIndex, allowedAncestorDefinitionIds, statements)
-    : callerGeometryReferenceIsSafe(binding.value.reference, cutoffStatementIndex, allowedAncestorDefinitionIds, statements);
+    ? callerExpressionIsSafe(binding.value.expression, cutoffStatementIndex, allowedParameterDefinitionIds, statements)
+    : callerGeometryReferenceIsSafe(binding.value.reference, cutoffStatementIndex, allowedParameterDefinitionIds, statements);
 };
 
 const reachableDefinitionIdsFrom = (
@@ -336,8 +348,13 @@ const relevantLinesFor = (
   return lines;
 };
 
+const relevantDiagnostics = (
+  diagnostics: readonly DslDiagnostic[],
+  relevantLines: ReadonlySet<number>
+): DslDiagnostic[] => diagnostics.filter((diagnostic) => relevantLines.has(diagnostic.line));
+
 const hasRelevantError = (diagnostics: readonly DslDiagnostic[], relevantLines: ReadonlySet<number>) =>
-  diagnostics.some((diagnostic) => diagnostic.severity === "error" && relevantLines.has(diagnostic.line));
+  relevantDiagnostics(diagnostics, relevantLines).some((diagnostic) => diagnostic.severity === "error");
 
 const projectAncestorDefinitions = (
   analysis: ModuleSemanticAnalysis,
@@ -387,6 +404,21 @@ const noSourceOutputs = () => ({
   outputIdsByStatementIndex: new Map<number, string>()
 });
 
+const analyzeSource = (
+  compiled: CompiledDslDocument,
+  statements: readonly DslStatement[],
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>,
+  sourceNamespace: SourceLexicalNamespaceIndex,
+  logicalTextByStatementIndex: ReadonlyMap<number, string>
+) => analyzeModuleSemantics({
+  statements,
+  stableStatementIdByIndex,
+  sourceNamespace,
+  spans: compiled.spans,
+  logicalTextByStatementIndex,
+  documentScalarBindings: documentScalarBindingsFor(compiled, stableStatementIdByIndex)
+});
+
 /**
  * Compile one exact-current Module definition through the existing Module
  * semantic/materialization/compiler/scalar-runtime path without changing the
@@ -394,24 +426,7 @@ const noSourceOutputs = () => ({
  */
 export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModulePreviewRootResult | null => {
   const compiled = exactCompiled(input.source, input.semantic);
-  const sourceAnalysis = compiled?.moduleSemanticAnalysis;
-  if (!compiled || !sourceAnalysis || !compiled.sourceLexicalNamespace) return null;
-  const sourceDefinition = sourceAnalysis.definitionsByStatementId.get(input.target.definitionStatementId);
-  if (
-    !sourceDefinition ||
-    sourceDefinition.statementIndex !== input.target.definitionStatementIndex ||
-    sourceDefinition.name !== input.target.name ||
-    compiled.statements[sourceDefinition.statementIndex]?.kind !== "moduleDefinition" ||
-    compiled.statements[sourceDefinition.statementIndex]?.sourceRevision !== input.source.sourceRevision
-  ) return null;
-
-  const chain = definitionChainFor(compiled, sourceDefinition);
-  if (!chain) return null;
-  const ancestorContexts = new Map(
-    (input.ancestorContexts ?? []).map((context) => [context.definitionStatementId, context] as const)
-  );
-  const expectedAncestorIds = new Set(chain.slice(0, -1).map((definition) => definition.statementId));
-  if ([...ancestorContexts.keys()].some((id) => !expectedAncestorIds.has(id))) return null;
+  if (!compiled) return null;
 
   const statements: DslStatement[] = [...compiled.statements];
   const stableStatementIdByIndex = stableIdsFor(compiled);
@@ -420,6 +435,39 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (logical) logicalTextByStatementIndex.set(index, logical.logicalText);
   });
+
+  let canonicalSourceNamespace: SourceLexicalNamespaceIndex;
+  let canonicalAnalysis: ModuleSemanticAnalysis;
+  try {
+    canonicalSourceNamespace = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+    canonicalAnalysis = analyzeSource(
+      compiled,
+      statements,
+      stableStatementIdByIndex,
+      canonicalSourceNamespace,
+      logicalTextByStatementIndex
+    );
+  } catch {
+    return null;
+  }
+
+  const sourceDefinition = canonicalAnalysis.definitionsByStatementId.get(input.target.definitionStatementId);
+  if (
+    !sourceDefinition ||
+    sourceDefinition.statementIndex !== input.target.definitionStatementIndex ||
+    sourceDefinition.name !== input.target.name ||
+    stableStatementIdByIndex.get(sourceDefinition.statementIndex) !== input.target.definitionStatementId ||
+    compiled.statements[sourceDefinition.statementIndex]?.kind !== "moduleDefinition" ||
+    compiled.statements[sourceDefinition.statementIndex]?.sourceRevision !== input.source.sourceRevision
+  ) return null;
+
+  const chain = definitionChainFor(statements, canonicalAnalysis, sourceDefinition);
+  if (!chain) return null;
+  const ancestorContexts = new Map(
+    (input.ancestorContexts ?? []).map((context) => [context.definitionStatementId, context] as const)
+  );
+  const expectedAncestorIds = new Set(chain.slice(0, -1).map((definition) => definition.statementId));
+  if ([...ancestorContexts.keys()].some((id) => !expectedAncestorIds.has(id))) return null;
 
   const syntheticIndexes: number[] = [];
   const syntheticStatementIds: StatementIdentity[] = [];
@@ -447,15 +495,20 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     syntheticStatementIds.push(statementId);
   }
 
-  const sourceNamespace = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
-  const analysis = analyzeModuleSemantics({
-    statements,
-    stableStatementIdByIndex,
-    sourceNamespace,
-    spans: compiled.spans,
-    logicalTextByStatementIndex,
-    documentScalarBindings: documentScalarBindingsFor(compiled, stableStatementIdByIndex)
-  });
+  let sourceNamespace: SourceLexicalNamespaceIndex;
+  let analysis: ModuleSemanticAnalysis;
+  try {
+    sourceNamespace = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+    analysis = analyzeSource(
+      compiled,
+      statements,
+      stableStatementIdByIndex,
+      sourceNamespace,
+      logicalTextByStatementIndex
+    );
+  } catch {
+    return null;
+  }
 
   const syntheticInstances = syntheticStatementIds.map((statementId, index) => {
     const instance = analysis.instancesByStatementId.get(statementId);
@@ -464,13 +517,17 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   });
   if (syntheticInstances.some((instance) => instance === null)) return null;
 
-  const allowedAncestors = new Set<StatementIdentity>();
+  const callerParameterDefinitionIds = new Set<StatementIdentity>();
   for (const [index, instance] of syntheticInstances.entries()) {
     if (!instance) return null;
-    if (!instance.parameterBindings.every((binding) =>
-      callerBindingIsSafe(binding, chain[index].statementIndex, allowedAncestors, statements)
-    )) return null;
-    allowedAncestors.add(chain[index].statementId);
+    if (!instance.parameterBindings.every((binding) => parameterBindingIsSafe(
+      binding,
+      chain[index].statementIndex,
+      callerParameterDefinitionIds,
+      chain[index].statementId,
+      statements
+    ))) return null;
+    callerParameterDefinitionIds.add(chain[index].statementId);
   }
 
   const ancestorDefinitionIds = new Set(chain.slice(0, -1).map((definition) => definition.statementId));
@@ -481,57 +538,68 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     syntheticIndexes,
     ancestorDefinitionIds
   );
-  if (hasRelevantError(analysis.diagnostics, relevantLines)) return null;
+  if (
+    hasRelevantError(sourceNamespace.diagnostics, relevantLines) ||
+    hasRelevantError(analysis.diagnostics, relevantLines)
+  ) return null;
 
   const previewAnalysis = projectAncestorDefinitions(analysis, chain, syntheticStatementIds);
   const assignedElementIds = assignedElementIdsFor(statements, stableStatementIdByIndex);
-  const materialized = materializeModuleExecution({
-    statements,
-    stableStatementIdByIndex,
-    assignedElementIds,
-    moduleSemanticAnalysis: previewAnalysis
-  });
-  const moduleMaterialization: ModuleMaterialization = {
-    ...materialized,
-    evaluationLimitIndex: undefined
-  };
-  const moduleGeometryRuntime = buildModuleGeometryRuntime({
-    statements,
-    stableStatementIdByIndex,
-    moduleSemanticAnalysis: previewAnalysis,
-    moduleMaterialization
-  });
-  if (hasRelevantError(moduleGeometryRuntime.diagnostics, relevantLines)) return null;
 
-  const diagnostics: DslDiagnostic[] = [];
-  const visibilityRoles = compiled.document?.visibilityRoles ?? [];
-  const visibilityProfiles = compiled.document?.visibilityProfiles ?? [];
-  const compileResult = compileMaterializedExecution({
-    statements,
-    context: {
-      elements: [],
-      mode: "document",
-      majorVersion: compiled.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
-      assignedElementIds,
-      moduleSemanticAnalysis: previewAnalysis,
+  let moduleMaterialization: ModuleMaterialization;
+  let moduleGeometryRuntime: ModuleGeometryRuntimeCompilation;
+  let compileResult: CompileDslResult;
+  const compilerDiagnostics: DslDiagnostic[] = [];
+  try {
+    const materialized = materializeModuleExecution({
+      statements,
       stableStatementIdByIndex,
-      sourceLexicalResolution: {
-        sourceNamespace,
-        elementIdByStatementIndex: moduleMaterialization.elementIdBySourceStatementIndex
-      }
-    },
-    diagnostics,
-    visibilitySettings: {
-      visibilityRoles,
-      visibilityProfiles,
-      activeVisibilityProfileId: compiled.document?.activeVisibilityProfileId
-    },
-    materialization: moduleMaterialization,
-    moduleGeometryRuntime,
-    applyStatement,
-    buildSourceOutputModel: noSourceOutputs
-  });
-  if (hasRelevantError(diagnostics, relevantLines)) return null;
+      assignedElementIds,
+      moduleSemanticAnalysis: previewAnalysis
+    });
+    moduleMaterialization = {
+      ...materialized,
+      evaluationLimitIndex: undefined
+    };
+    moduleGeometryRuntime = buildModuleGeometryRuntime({
+      statements,
+      stableStatementIdByIndex,
+      moduleSemanticAnalysis: previewAnalysis,
+      moduleMaterialization
+    });
+    if (hasRelevantError(moduleGeometryRuntime.diagnostics, relevantLines)) return null;
+
+    const visibilityRoles = compiled.document?.visibilityRoles ?? [];
+    const visibilityProfiles = compiled.document?.visibilityProfiles ?? [];
+    compileResult = compileMaterializedExecution({
+      statements,
+      context: {
+        elements: [],
+        mode: "document",
+        majorVersion: compiled.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
+        assignedElementIds,
+        moduleSemanticAnalysis: previewAnalysis,
+        stableStatementIdByIndex,
+        sourceLexicalResolution: {
+          sourceNamespace,
+          elementIdByStatementIndex: moduleMaterialization.elementIdBySourceStatementIndex
+        }
+      },
+      diagnostics: compilerDiagnostics,
+      visibilitySettings: {
+        visibilityRoles,
+        visibilityProfiles,
+        activeVisibilityProfileId: compiled.document?.activeVisibilityProfileId
+      },
+      materialization: moduleMaterialization,
+      moduleGeometryRuntime,
+      applyStatement,
+      buildSourceOutputModel: noSourceOutputs
+    });
+  } catch {
+    return null;
+  }
+  if (hasRelevantError(compilerDiagnostics, relevantLines)) return null;
 
   let moduleScalarRuntime: ModuleScalarRuntimeCompilation;
   try {
@@ -551,7 +619,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       elements: compileResult.elements,
       sourceScopeIndex: sourceNamespace.scopeIndex,
       moduleGeometryRuntime,
-      drawingModifiers: compiled.document?.modifiers
+      drawingModifiers: compileResult.modifiers
     });
   } catch {
     return null;
@@ -567,6 +635,12 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     .map((entry) => entry.runtimeElementId);
   if (!targetRuntimeElementIds.includes(targetRuntimeElementId)) return null;
 
+  const diagnostics = [
+    ...relevantDiagnostics(sourceNamespace.diagnostics, relevantLines),
+    ...relevantDiagnostics(analysis.diagnostics, relevantLines),
+    ...relevantDiagnostics(moduleGeometryRuntime.diagnostics, relevantLines),
+    ...relevantDiagnostics(compilerDiagnostics, relevantLines)
+  ];
   return {
     target: input.target,
     targetRuntimeElementId,
@@ -581,6 +655,6 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     moduleMaterialization,
     moduleGeometryRuntime,
     moduleScalarRuntime,
-    diagnostics: [...analysis.diagnostics, ...moduleGeometryRuntime.diagnostics, ...diagnostics]
+    diagnostics
   };
 };
