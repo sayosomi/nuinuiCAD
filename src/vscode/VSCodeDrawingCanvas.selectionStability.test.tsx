@@ -1,32 +1,12 @@
 import { createRef } from "react";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { selectElement } from "../commands/selectionCommands";
-import { emptyEvaluationResult } from "../geometry/evaluationEngine";
+import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
+import type { EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
-
-const mocks = vi.hoisted(() => ({
-  hostAdapter: null as CanvasHostAdapter | null
-}));
-
-vi.mock("../commands/commands", () => ({
-  dispatchCommand: vi.fn()
-}));
-
-vi.mock("../components/DrawingCanvas", async () => {
-  const React = await import("react");
-  return {
-    DrawingCanvas: React.forwardRef((props: { hostAdapter: CanvasHostAdapter }, ref) => {
-      void ref;
-      mocks.hostAdapter = props.hostAdapter;
-      return React.createElement("div");
-    })
-  };
-});
 
 const baseline = [
   "nui 4",
@@ -62,7 +42,7 @@ const errorfulWithoutA = [
 ].join("\n");
 
 const evaluationState = (
-  evaluation: ReturnType<typeof emptyEvaluationResult>,
+  evaluation: EvaluationResult,
   evaluationRevision: number,
   evaluationRequestRevision: number,
   overrides: Partial<EvaluationEngineState> = {}
@@ -79,10 +59,7 @@ const evaluationState = (
   ...overrides
 });
 
-const renderCurrent = (
-  evaluation: ReturnType<typeof emptyEvaluationResult>,
-  state: EvaluationEngineState
-) => (
+const renderCurrent = (evaluation: EvaluationResult, state: EvaluationEngineState) => (
   <VSCodeDrawingCanvas
     evaluation={evaluation}
     evaluationState={state}
@@ -91,26 +68,114 @@ const renderCurrent = (
   />
 );
 
-const adapter = () => {
-  if (!mocks.hostAdapter) throw new Error("Canvas host adapter was not captured");
-  return mocks.hostAdapter;
+const mockCanvasContext = () => ({
+  arc: vi.fn(),
+  bezierCurveTo: vi.fn(),
+  beginPath: vi.fn(),
+  clearRect: vi.fn(),
+  closePath: vi.fn(),
+  drawImage: vi.fn(),
+  fill: vi.fn(),
+  fillRect: vi.fn(),
+  fillText: vi.fn(),
+  lineTo: vi.fn(),
+  measureText: vi.fn(() => ({ width: 0 })),
+  moveTo: vi.fn(),
+  restore: vi.fn(),
+  save: vi.fn(),
+  setLineDash: vi.fn(),
+  setTransform: vi.fn(),
+  stroke: vi.fn()
+});
+
+const selectedPointCount = (container: HTMLElement) =>
+  container.querySelectorAll(".overlay-selected-point").length;
+const selectedGlowCount = (container: HTMLElement) =>
+  container.querySelectorAll(".overlay-selected-point-glow").length;
+
+const clickFirstPoint = (container: HTMLElement) => {
+  const viewport = container.querySelector<HTMLDivElement>(".canvas-viewport");
+  const point = container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+  if (!viewport || !point) throw new Error("Expected Canvas viewport and point overlay");
+  const clientX = Number(point.getAttribute("cx"));
+  const clientY = Number(point.getAttribute("cy"));
+  fireEvent.pointerDown(viewport, {
+    button: 0,
+    buttons: 1,
+    clientX,
+    clientY,
+    pointerId: 1
+  });
+  fireEvent.pointerUp(viewport, {
+    buttons: 0,
+    clientX,
+    clientY,
+    pointerId: 1
+  });
 };
 
 describe("VSCodeDrawingCanvas transient invalid-source selection presentation", () => {
   beforeEach(() => {
-    mocks.hostAdapter = null;
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
+
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      value: 500
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      value: 400
+    });
+    HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 500,
+      bottom: 400,
+      width: 500,
+      height: 400,
+      toJSON: () => ({})
+    }));
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    HTMLElement.prototype.releasePointerCapture = vi.fn();
+    HTMLElement.prototype.hasPointerCapture = vi.fn(() => true);
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      mockCanvasContext() as unknown as CanvasRenderingContext2D
+    );
+
+    class ResizeObserverMock {
+      private callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element) {
+        this.callback([{ target } as ResizeObserverEntry], this);
+      }
+
+      disconnect() {
+        return undefined;
+      }
+
+      unobserve() {
+        return undefined;
+      }
+    }
+
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
   });
 
-  it("keeps A selected in the pinned presentation while Unit 1 source omits A", async () => {
+  it("keeps the clicked A marker through the exact Unit 1 error and recovery", async () => {
     useCadDocumentStore.getState().replaceTextDocument(baseline, {
       currentFilePath: null,
       dirtySinceSave: false
     });
     const baselineState = useCadDocumentStore.getState();
     const baselineRevision = baselineState.compiledDocumentRevision;
-    const baselineEvaluation = emptyEvaluationResult(baselineState.elements);
+    const baselineEvaluation = evaluateElements(baselineState.elements);
     const view = render(renderCurrent(
       baselineEvaluation,
       evaluationState(baselineEvaluation, baselineRevision, baselineRevision)
@@ -120,10 +185,13 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       await Promise.resolve();
     });
 
-    const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
-    expect(initialA).toBeDefined();
-    act(() => selectElement(initialA!.id, "replace", true));
-    expect(adapter().selectedElementIds).toEqual([initialA!.id]);
+    clickFirstPoint(view.container);
+    expect(useCadUiStore.getState().selectedElementIds).toHaveLength(1);
+    const selectedA = useCadUiStore.getState().selectedElementId;
+    expect(selectedA).not.toBeNull();
+    expect(baselineState.elements.find((element) => element.id === selectedA)?.name).toBe("A");
+    expect(selectedPointCount(view.container)).toBe(1);
+    expect(selectedGlowCount(view.container)).toBe(1);
 
     act(() => useCadDocumentStore.getState().commitText(errorfulWithoutA, "editor"));
     const errorfulState = useCadDocumentStore.getState();
@@ -144,11 +212,11 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       await Promise.resolve();
     });
 
-    expect(adapter().elements.map((element) => element.name)).toEqual(["A", "B", "AB"]);
-    expect(adapter().selectedElementIds).toEqual([initialA!.id]);
-    expect(adapter().selectedElementId).toBe(initialA!.id);
+    expect(useCadUiStore.getState().selectedElementId).toBe(selectedA);
+    expect(selectedPointCount(view.container)).toBe(1);
+    expect(selectedGlowCount(view.container)).toBe(1);
 
-    const errorfulEvaluation = emptyEvaluationResult(errorfulState.elements);
+    const errorfulEvaluation = evaluateElements(errorfulState.elements);
     await act(async () => {
       view.rerender(renderCurrent(
         errorfulEvaluation,
@@ -157,17 +225,17 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       await Promise.resolve();
     });
 
-    expect(adapter().elements.map((element) => element.name)).toEqual(["A", "B", "AB"]);
-    expect(adapter().selectedElementIds).toEqual([initialA!.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(selectedA);
+    expect(selectedPointCount(view.container)).toBe(1);
+    expect(selectedGlowCount(view.container)).toBe(1);
 
     act(() => useCadDocumentStore.getState().commitText(baseline, "editor"));
     const restoredState = useCadDocumentStore.getState();
     const restoredRevision = restoredState.compiledDocumentRevision;
     const restoredA = restoredState.elements.find((element) => element.name === "A");
-    expect(restoredA?.id).toBe(initialA!.id);
-    expect(useCadUiStore.getState().selectedElementId).toBe(initialA!.id);
+    expect(restoredA?.id).toBe(selectedA);
 
-    const restoredEvaluation = emptyEvaluationResult(restoredState.elements);
+    const restoredEvaluation = evaluateElements(restoredState.elements);
     await act(async () => {
       view.rerender(renderCurrent(
         restoredEvaluation,
@@ -176,8 +244,8 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       await Promise.resolve();
     });
 
-    expect(adapter().elements.map((element) => element.name)).toEqual(["A", "B", "AB"]);
-    expect(adapter().selectedElementIds).toEqual([initialA!.id]);
-    expect(adapter().selectedElementId).toBe(initialA!.id);
+    expect(useCadUiStore.getState().selectedElementId).toBe(selectedA);
+    expect(selectedPointCount(view.container)).toBe(1);
+    expect(selectedGlowCount(view.container)).toBe(1);
   });
 });
