@@ -50,7 +50,8 @@ const projectObservation = (
   const documents = copied.documents.map((document) => {
     if (!isObject(document)) return document;
     if (includeSourceText) return document;
-    const { sourceText: _sourceText, ...withoutSourceText } = document;
+    const withoutSourceText = { ...document };
+    delete withoutSourceText.sourceText;
     return withoutSourceText;
   });
 
@@ -119,9 +120,17 @@ const staleDocumentsFor = (observation: JsonObject): StaleDocument[] | null => {
   return stale;
 };
 
+const unavailableAfterResolution = (
+  instance: VscodeObservationCandidateMetadata
+): Record<string, unknown> => ({
+  status: "unavailable",
+  reason: "source-text-unavailable",
+  instance
+});
+
 const staleAfterResolution = (
   instance: VscodeObservationCandidateMetadata,
-  reason: "instance-changed-during-source-read" | "document-selection-changed-during-source-read"
+  reason: "document-selection-changed-during-source-read"
 ): Record<string, unknown> => ({
   status: "stale",
   reason,
@@ -169,11 +178,11 @@ export const observeVscode = async (
         }
       );
       if (sourceObservation === null) {
-        return staleAfterResolution(instance, "instance-changed-during-source-read");
+        return unavailableAfterResolution(instance);
       }
       rawObservation = sourceObservation;
     } catch {
-      return staleAfterResolution(instance, "instance-changed-during-source-read");
+      return unavailableAfterResolution(instance);
     }
 
     if (
