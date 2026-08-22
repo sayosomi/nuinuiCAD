@@ -28,7 +28,7 @@ export type CanvasRevisionPresentationSnapshot = {
 
 export type CanvasRevisionPresentation = CanvasRevisionPresentationInputs & {
   renderEvaluation: EvaluationResult;
-  renderEvaluationState?: EvaluationEngineState;
+  renderEvaluationState: EvaluationEngineState | undefined;
   isPinned: boolean;
 };
 
