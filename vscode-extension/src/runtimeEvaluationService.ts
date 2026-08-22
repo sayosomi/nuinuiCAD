@@ -113,8 +113,7 @@ export class NuiRuntimeEvaluationService {
     }
 
     const capturedEpoch = this.epochFor(request.documentKey);
-    let guardedPromise!: Promise<NuiRuntimeEvaluationSnapshot | undefined>;
-    guardedPromise = this.evaluateCaptured(captured)
+    const guardedPromise = this.evaluateCaptured(captured)
       .then((attempt) => {
         if (!attempt || !this.acceptsCompletion(request, captured, capturedEpoch)) return undefined;
 
@@ -129,7 +128,7 @@ export class NuiRuntimeEvaluationService {
         return snapshot;
       })
       .finally(() => {
-        if (this.inFlightByDocument.get(request.documentKey)?.promise === guardedPromise) {
+        if (this.inFlightByDocument.get(request.documentKey)?.captured === captured) {
           this.inFlightByDocument.delete(request.documentKey);
         }
       });
