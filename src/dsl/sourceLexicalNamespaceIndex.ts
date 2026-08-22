@@ -63,11 +63,6 @@ export type SourceLexicalExternalNamespaceResolver = (
 
 export type SourceLexicalLookup =
   | { kind: "resolved"; declaration: SourceLexicalDeclaration }
-  | {
-      kind: "external";
-      namespace: SourceLexicalDeclaration;
-      member: SourceLexicalExternalNamespaceMember;
-    }
   | { kind: "forward"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] }
   | { kind: "undefined" }
   | { kind: "ambiguous"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] }
@@ -78,8 +73,16 @@ export type SourceLexicalLookup =
       segmentIndex: number;
     };
 
+export type SourceLexicalExternalLookup = {
+  kind: "external";
+  namespace: SourceLexicalDeclaration;
+  member: SourceLexicalExternalNamespaceMember;
+};
+
+export type SourceLexicalLookupWithExternal = SourceLexicalLookup | SourceLexicalExternalLookup;
+
 export type SourceLexicalPathResolution = {
-  lookup: SourceLexicalLookup;
+  lookup: SourceLexicalLookupWithExternal;
   segments: readonly SourceLexicalDeclaration[];
 };
 
@@ -297,7 +300,7 @@ export const resolveSourceLexicalPathFromDeclaration = (
   remainingSegments: readonly string[],
   sourceOrderIndex = statementIndex,
   options: ResolveSourceLexicalPathOptions = {}
-): SourceLexicalLookup => {
+): SourceLexicalLookupWithExternal => {
   if (declaration.kind === "import" && remainingSegments.length > 0) {
     const memberName = remainingSegments[0]!;
     const member = options.externalNamespaceResolver?.(declaration, memberName) ?? null;
@@ -343,12 +346,23 @@ export const resolveSourceLexicalPathFromDeclaration = (
  * resolved by the preceding segment. Import aliases use this same first-step
  * lexical rule and delegate only their public member lookup through the
  * optional external namespace resolver. */
-export const resolveSourceLexicalPath = (
+export function resolveSourceLexicalPath(
+  index: SourceLexicalNamespaceIndex,
+  statementIndex: number,
+  path: DslReferencePath
+): SourceLexicalLookup;
+export function resolveSourceLexicalPath(
+  index: SourceLexicalNamespaceIndex,
+  statementIndex: number,
+  path: DslReferencePath,
+  options: ResolveSourceLexicalPathOptions
+): SourceLexicalLookupWithExternal;
+export function resolveSourceLexicalPath(
   index: SourceLexicalNamespaceIndex,
   statementIndex: number,
   path: DslReferencePath,
   options: ResolveSourceLexicalPathOptions = {}
-): SourceLexicalLookup => {
+): SourceLexicalLookupWithExternal {
   if (path.segments.length === 0) return { kind: "undefined" };
   if (path.segments.length === 1 && !path.absolute) {
     return resolveSourceLexicalDeclaration(index, statementIndex, path.segments[0]);
@@ -378,7 +392,7 @@ export const resolveSourceLexicalPath = (
     statementIndex,
     options
   );
-};
+}
 
 /**
  * Returns the same lookup as resolveSourceLexicalPath together with the
