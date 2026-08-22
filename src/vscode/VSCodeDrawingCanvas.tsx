@@ -7,8 +7,12 @@ import {
   previewCanvasSelection
 } from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
-import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import {
+  evaluationStateIsCurrentFor,
+  type EvaluationEngineState
+} from "../geometry/useEvaluationEngine";
+import {
+  effectiveCompiledDocument,
   effectiveElements,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
@@ -29,10 +33,13 @@ import {
 } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
+import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 import { vscodeCanvasContextDataFor } from "./protocol";
+import { useVSCodeReferencePickSession } from "./useVSCodeReferencePickSession";
+import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -121,6 +128,38 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       evaluation: canvasPresentation.renderEvaluation,
       evaluationState: canvasPresentation.renderEvaluationState,
       measureCanvasTextWidth
+    });
+
+    const currentReferencePickContext = useCallback(() => {
+      const state = useCadDocumentStore.getState();
+      const compiled = effectiveCompiledDocument(state);
+      const normalizedSource = state.sourceText.replace(/\r\n/g, "\n");
+      if (
+        compiled.spans.sourceMap.source !== normalizedSource ||
+        compiled.spans.sourceMap.sourceRevision !== state.doc.statementMap.sourceRevision
+      ) return null;
+      return {
+        source: {
+          normalizedSource,
+          sourceRevision: compiled.spans.sourceMap.sourceRevision
+        },
+        compiled,
+        evaluation: canvasPresentation.renderEvaluation,
+        evaluationIsCurrent: evaluationStateIsCurrentFor(
+          canvasPresentation.renderEvaluationState,
+          state.compiledDocumentRevision
+        )
+      };
+    }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState]);
+    const {
+      session: referencePickSession,
+      setHover: setReferencePickHover,
+      select: selectReferencePick,
+      confirm: confirmReferencePick,
+      cancel: cancelReferencePick
+    } = useVSCodeReferencePickSession({
+      api: vscodeWebviewApi(),
+      currentContextFor: currentReferencePickContext
     });
 
     const ribbonCommandContext = useMemo(() => ({
@@ -276,15 +315,34 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
-        <VSCodeCanvasRibbonOverlay
-          canvasFocusRef={canvasFocusRef}
-          canvasViewport={canvasViewport}
-          canvasRibbonRibbons={canvasRibbonRibbons}
-          viewportSize={viewportSize}
-          ribbonCommandContext={ribbonCommandContext}
-          onCommand={executeRibbonCommand}
-          onPositionCommit={onCanvasRibbonPositionCommit}
-        />
+        <>
+          {referencePickSession ? (
+            <VSCodeReferencePickOverlay
+              canvasFocusRef={canvasFocusRef}
+              viewportSize={viewportSize}
+              canvasViewport={canvasViewport}
+              canvasTheme={canvasTheme}
+              elements={canvasPresentation.elements}
+              evaluation={canvasPresentation.renderEvaluation}
+              visibilityProfiles={canvasPresentation.visibilityProfiles}
+              activeVisibilityProfileId={canvasPresentation.activeVisibilityProfileId}
+              session={referencePickSession}
+              onHover={setReferencePickHover}
+              onSelect={selectReferencePick}
+              onConfirm={confirmReferencePick}
+              onCancel={cancelReferencePick}
+            />
+          ) : null}
+          <VSCodeCanvasRibbonOverlay
+            canvasFocusRef={canvasFocusRef}
+            canvasViewport={canvasViewport}
+            canvasRibbonRibbons={canvasRibbonRibbons}
+            viewportSize={viewportSize}
+            ribbonCommandContext={ribbonCommandContext}
+            onCommand={executeRibbonCommand}
+            onPositionCommit={onCanvasRibbonPositionCommit}
+          />
+        </>
       )
     }), [
       activeLinePickTarget,
@@ -309,7 +367,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       onCanvasRibbonPositionCommit,
       canvasRibbonRibbons,
       ribbonCommandContext,
-      canvasFocusRef
+      canvasFocusRef,
+      referencePickSession,
+      setReferencePickHover,
+      selectReferencePick,
+      confirmReferencePick,
+      cancelReferencePick
     ]);
 
     useImperativeHandle(ref, () => ({

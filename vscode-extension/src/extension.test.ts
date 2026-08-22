@@ -77,6 +77,7 @@ const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
   activeEditorListeners: [] as Array<(editor?: TestEditor) => void>,
+  selectionChangeListeners: [] as Array<(event: { textEditor: TestEditor }) => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
@@ -112,6 +113,7 @@ const mocks = vi.hoisted(() => ({
   registerDocumentSymbolProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
+  onDidChangeTextEditorSelection: vi.fn(),
   onDidChangeActiveColorTheme: vi.fn(),
   onDidOpenTextDocument: vi.fn(),
   onDidChangeTextDocument: vi.fn(),
@@ -190,6 +192,7 @@ vi.mock("vscode", () => {
       },
       createWebviewPanel: mocks.createWebviewPanel,
       onDidChangeActiveTextEditor: mocks.onDidChangeActiveTextEditor,
+      onDidChangeTextEditorSelection: mocks.onDidChangeTextEditorSelection,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
       showTextDocument: mocks.showTextDocument,
@@ -215,6 +218,13 @@ vi.mock("vscode", () => {
       asRelativePath: mocks.asRelativePath
     },
     commands: { registerCommand: mocks.registerCommand, executeCommand: mocks.executeCommand },
+    Disposable: {
+      from: (...items: Array<{ dispose: () => void }>) => ({
+        dispose: () => {
+          for (const item of items) item.dispose();
+        }
+      })
+    },
     languages: {
       createDiagnosticCollection: mocks.createDiagnosticCollection,
       registerCompletionItemProvider: mocks.registerCompletionItemProvider,
@@ -433,6 +443,12 @@ const setup = (
     mocks.activeEditorListeners.push(listener);
     return disposable();
   });
+  mocks.onDidChangeTextEditorSelection.mockImplementation(
+    (listener: (event: { textEditor: TestEditor }) => void) => {
+      mocks.selectionChangeListeners.push(listener);
+      return disposable();
+    }
+  );
   mocks.onDidChangeActiveColorTheme.mockImplementation((listener: () => void) => {
     mocks.activeColorThemeListeners.push(listener);
     return disposable();
@@ -581,6 +597,7 @@ afterEach(() => {
   mocks.textDocuments.length = 0;
   mocks.commandHandlers.clear();
   mocks.activeEditorListeners.length = 0;
+  mocks.selectionChangeListeners.length = 0;
   mocks.activeColorThemeListeners.length = 0;
   mocks.documentOpenListeners.length = 0;
   mocks.documentChangeListeners.length = 0;
@@ -616,6 +633,7 @@ afterEach(() => {
   mocks.registerDocumentSymbolProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
+  mocks.onDidChangeTextEditorSelection.mockReset();
   mocks.onDidChangeActiveColorTheme.mockReset();
   mocks.onDidOpenTextDocument.mockReset();
   mocks.onDidChangeTextDocument.mockReset();
@@ -1286,7 +1304,9 @@ describe("VS Code production document lifecycle", () => {
       expectedDocumentVersion: 99
     });
 
-    expect(mocks.executeCommand).not.toHaveBeenCalled();
+    expect(
+      mocks.executeCommand.mock.calls.filter(([command]) => command !== "setContext")
+    ).toHaveLength(0);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "replaceTextDocument",
       documentVersion: 1
@@ -1603,7 +1623,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(2);
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(3);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
