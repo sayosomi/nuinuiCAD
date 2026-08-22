@@ -22,7 +22,7 @@ export const handoffOutputPreviewHistory = async (
   if (!handoff.isSessionCurrent() || !handoff.isPanelActive() || !handoff.isDocumentOpen()) return;
 
   const expectedDocumentVersion = handoff.documentVersion();
-  let sourceActivated = false;
+  let sourceActivated: boolean;
   try {
     sourceActivated = await handoff.activateMatchingSource();
   } catch {
