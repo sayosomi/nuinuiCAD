@@ -35,6 +35,7 @@ jobs:
           python scripts/say115_test_fixup.py
           python scripts/say115_test_followup.py
           python scripts/say115_full_test_fixup.py
+          python scripts/say115_escape_fix.py
           git diff --check
 
       - name: Install Tauri Linux dependencies
