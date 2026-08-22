@@ -13,8 +13,7 @@ import type { OutputPreviewViewport, OutputPreviewViewportSize } from "./outputP
 import "./outputPreviewPlaceOverlay.css";
 
 type OutputPreviewPlaceCandidateSession = {
-  anchor: { x: number; y: number };
-  candidates: readonly OutputPreviewPlaceHandle[];
+  placeIds: readonly string[];
   activeIndex: number;
 };
 
@@ -63,7 +62,23 @@ export const OutputPreviewPlaceOverlay = ({
     if (hoverLeaveTimerRef.current !== null) clearTimeout(hoverLeaveTimerRef.current);
   }, []);
 
-  const candidatePlaceId = candidateSession?.candidates[candidateSession.activeIndex]?.placeId ?? null;
+  const candidateHandles = candidateSession
+    ? candidateSession.placeIds.flatMap((placeId) => {
+        const handle = handles.find((candidate) => candidate.placeId === placeId);
+        return handle ? [handle] : [];
+      })
+    : [];
+  const candidateSessionIsCurrent = Boolean(
+    candidateSession &&
+    candidateHandles.length > 0 &&
+    candidateHandles.length === candidateSession.placeIds.length
+  );
+  const candidateActiveIndex = candidateSessionIsCurrent && candidateSession
+    ? Math.min(candidateSession.activeIndex, candidateHandles.length - 1)
+    : 0;
+  const candidatePlaceId = candidateSessionIsCurrent
+    ? candidateHandles[candidateActiveIndex]?.placeId ?? null
+    : null;
   const highlightedPlaceId = candidatePlaceId ?? hoveredPlaceId ?? activePlaceId;
   useEffect(() => {
     onHighlightPlaceIdChange(highlightedPlaceId);
@@ -78,10 +93,11 @@ export const OutputPreviewPlaceOverlay = ({
   const detailPlacement = detailHandle
     ? placeCanvasPopup(detailHandle.screen, { width: 320, height: 260 }, viewportSize)
     : null;
-  const candidatePlacement = candidateSession
+  const candidateAnchor = candidateSessionIsCurrent ? candidateHandles[candidateActiveIndex]?.screen ?? null : null;
+  const candidatePlacement = candidateAnchor
     ? placeCanvasPopup(
-        candidateSession.anchor,
-        { width: 240, height: Math.min(420, Math.max(72, candidateSession.candidates.length * 46 + 8)) },
+        candidateAnchor,
+        { width: 240, height: Math.min(420, Math.max(72, candidateHandles.length * 46 + 8)) },
         viewportSize
       )
     : null;
@@ -97,11 +113,14 @@ export const OutputPreviewPlaceOverlay = ({
     setHoveredPlaceId(null);
     const activeIndex = Math.max(0, candidates.findIndex(({ placeId }) => placeId === handle.placeId));
     setActivePlaceId(null);
-    setCandidateSession({ anchor: handle.screen, candidates, activeIndex });
+    setCandidateSession({
+      placeIds: candidates.map(({ placeId }) => placeId),
+      activeIndex
+    });
   };
 
   const activateCandidate = (index: number) => {
-    const candidate = candidateSession?.candidates[index];
+    const candidate = candidateHandles[index];
     if (!candidate) return;
     setCandidateSession(null);
     setHoveredPlaceId(null);
@@ -109,8 +128,7 @@ export const OutputPreviewPlaceOverlay = ({
   };
 
   const handleCandidateKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const session = candidateSession;
-    if (!session) return;
+    if (!candidateSessionIsCurrent || !candidateSession) return;
     if (event.key === "Escape") {
       event.preventDefault();
       setCandidateSession(null);
@@ -118,14 +136,14 @@ export const OutputPreviewPlaceOverlay = ({
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      activateCandidate(session.activeIndex);
+      activateCandidate(candidateActiveIndex);
       return;
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
     const direction = event.key === "ArrowDown" ? 1 : -1;
-    const activeIndex = (session.activeIndex + direction + session.candidates.length) % session.candidates.length;
-    setCandidateSession({ ...session, activeIndex });
+    const activeIndex = (candidateActiveIndex + direction + candidateHandles.length) % candidateHandles.length;
+    setCandidateSession({ ...candidateSession, activeIndex });
   };
 
   return (
@@ -152,26 +170,26 @@ export const OutputPreviewPlaceOverlay = ({
         />
       ))}
 
-      {candidateSession && candidatePlacement ? (
+      {candidateSessionIsCurrent && candidateSession && candidatePlacement ? (
         <div
           className="canvas-overlap-candidate-menu output-preview-place-candidate-menu"
           style={{ left: candidatePlacement.left, top: candidatePlacement.top }}
           role="listbox"
           aria-label="Overlapping place handles"
-          aria-activedescendant={`output-preview-place-candidate-${candidateSession.candidates[candidateSession.activeIndex]?.placeId ?? ""}`}
+          aria-activedescendant={`output-preview-place-candidate-${candidateHandles[candidateActiveIndex]?.placeId ?? ""}`}
           tabIndex={0}
           autoFocus
           onKeyDown={handleCandidateKeyDown}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          {candidateSession.candidates.map((candidate, index) => (
+          {candidateHandles.map((candidate, index) => (
             <button
               key={candidate.placeId}
               id={`output-preview-place-candidate-${candidate.placeId}`}
               type="button"
               role="option"
-              aria-selected={index === candidateSession.activeIndex}
-              className={index === candidateSession.activeIndex ? "is-active" : ""}
+              aria-selected={index === candidateActiveIndex}
+              className={index === candidateActiveIndex ? "is-active" : ""}
               onPointerEnter={() => setCandidateSession({ ...candidateSession, activeIndex: index })}
               onClick={() => activateCandidate(index)}
             >
