@@ -117,11 +117,32 @@ export const queryDslTypoSuggestions = ({
   // keeps outside its edit range (for example the leading `@` of a binding
   // reference). The completion-owned range is therefore authoritative as long
   // as it remains wholly inside the exact diagnostic token.
-  const completion = queryDslCompletion({
+  let completion = queryDslCompletion({
     source,
     position: diagnosticRange.to,
     semantic
   });
+
+  // Line-head completion deliberately stops offering keywords once a statement
+  // has additional terms. An exact-current unknown-keyword diagnostic still
+  // proves the misspelled head token, so project only that token through the
+  // same canonical completion query. The projected query owns keyword spelling;
+  // the exact diagnostic owns the physical replacement range.
+  if (!completion && diagnostic.code === "unknown-dsl-keyword") {
+    const keywordText = source.normalizedSource.slice(diagnosticRange.from, diagnosticRange.to);
+    const projected = queryDslCompletion({
+      source: { normalizedSource: keywordText, sourceRevision: source.sourceRevision },
+      position: keywordText.length
+    });
+    if (
+      projected?.category === "keyword" &&
+      projected.replacementRange.from === 0 &&
+      projected.replacementRange.to === keywordText.length
+    ) {
+      completion = { ...projected, replacementRange: diagnosticRange };
+    }
+  }
+
   if (!completion || !containsRange(diagnosticRange, completion.replacementRange)) return null;
   if (completion.replacementRange.from >= completion.replacementRange.to) return null;
 
