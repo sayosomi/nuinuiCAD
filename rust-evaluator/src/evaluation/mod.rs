@@ -773,7 +773,9 @@ fn evaluate_document_input_with_scalar_program(
     let source_effective_drawing_modifier_strokes =
         effective_drawing_modifier_stroke_by_runtime(&source_effective_drawing_modifier_runtime);
     let source_effective_drawing_modifier_resolutions =
-        effective_drawing_modifier_resolution_by_runtime(&source_effective_drawing_modifier_runtime);
+        effective_drawing_modifier_resolution_by_runtime(
+            &source_effective_drawing_modifier_runtime,
+        );
     let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
@@ -1172,7 +1174,9 @@ fn evaluate_document_input_with_scalar_program(
         .iter()
         .filter_map(|element| {
             let id = element_id(element)?;
-            let resolution = source_effective_drawing_modifier_resolutions.get(&id)?.clone();
+            let resolution = source_effective_drawing_modifier_resolutions
+                .get(&id)?
+                .clone();
             Some(serde_json::json!({
                 "elementId": id,
                 "resolution": resolution,
