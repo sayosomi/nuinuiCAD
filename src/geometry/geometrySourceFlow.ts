@@ -23,11 +23,6 @@ export type GeometrySourceFlow = {
   steps: readonly GeometrySourceFlowStep[];
 };
 
-type SourceOperation = {
-  owner: SourceOwner;
-  step: GeometrySourceFlowStep;
-};
-
 /**
  * Joins exact-current runtime mutation facts to authoritative source ownership.
  * No source text search, runtime-id parsing, or geometry re-evaluation occurs here.
@@ -59,40 +54,37 @@ export const buildGeometrySourceFlowByRuntimeElementId = (
     return null;
   };
 
-  const sourceOperation = (
+  const sourceStep = (
     runtimeOperationElementId: ElementId,
     kind: GeometrySourceFlowStep["kind"]
-  ): SourceOperation | null => {
+  ): GeometrySourceFlowStep | null => {
     const owner = sourceOwner(runtimeOperationElementId);
     if (!owner) return null;
     const statement = compiledDocument.statements[owner.sourceStatementIndex];
     if (!statement || statement.kind !== "element" || !statement.type) return null;
     return {
-      owner,
-      step: {
-        kind,
-        operation: statement.construction,
-        elementType: statement.type,
-        runtimeOperationElementId,
-        sourceStatementId: owner.sourceStatementId,
-        sourceStatementIndex: owner.sourceStatementIndex,
-        sourceSpan: statement.physicalSpan
-      }
+      kind,
+      operation: statement.construction,
+      elementType: statement.type,
+      runtimeOperationElementId,
+      sourceStatementId: owner.sourceStatementId,
+      sourceStatementIndex: owner.sourceStatementIndex,
+      sourceSpan: statement.physicalSpan
     };
   };
 
   const mutableFlows = new Map<ElementId, GeometrySourceFlowStep[]>();
   for (const runtimeElementId of evaluation.computedGeometry.keys()) {
-    const construction = sourceOperation(runtimeElementId, "construction");
+    const construction = sourceStep(runtimeElementId, "construction");
     if (!construction) continue;
-    mutableFlows.set(runtimeElementId, [construction.step]);
+    mutableFlows.set(runtimeElementId, [construction]);
   }
 
   for (const mutation of evaluation.geometryMutationExecutions ?? []) {
-    const operation = sourceOperation(mutation.mutationElementId, "mutation");
-    if (!operation) continue;
+    const step = sourceStep(mutation.mutationElementId, "mutation");
+    if (!step) continue;
     for (const targetElementId of mutation.targetElementIds) {
-      mutableFlows.get(targetElementId)?.push(operation.step);
+      mutableFlows.get(targetElementId)?.push(step);
     }
   }
 
