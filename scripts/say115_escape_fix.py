@@ -46,8 +46,7 @@ repair(
     "src/document/documentTestGenerators.ts",
     [
         (
-            '    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で\n'
-            '    // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。\n',
+            '    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。\n',
             '    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。\n'
             '    // common state引数を使い、旧Document Paletteには依存しない。\n',
         ),
