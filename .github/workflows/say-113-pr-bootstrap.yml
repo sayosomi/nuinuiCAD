@@ -25,6 +25,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
           awk '
             /python <<.PY./ { capture=1; next }
             capture && /^          PY$/ { capture=0; exit }
@@ -37,8 +41,6 @@ jobs:
           npm test -- src/geometry/geometrySourceFlow.test.ts src/geometry/evaluationPayload.test.ts
           git diff --check
           git rm .github/workflows/say-113-direct-implement.yml .github/workflows/say-113-pr-bootstrap.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "SAY-113: add exact geometry source flow metadata"
           git push origin HEAD:sayosomi/say-113-runtime-inspection-geometry-source-flow-metadata
