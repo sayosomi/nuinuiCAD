@@ -21,6 +21,7 @@ import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import { parsePropertyBindingOccurrenceKey, type ScalarValueSource } from "./propertyBindingCompiler";
 import { runtimeIssueMessage } from "./runtimeIssueMessages";
+import type { ScalarEvaluationErrorContext } from "./types";
 
 export type RuntimeScalarDiagnosticsInput = {
   computedScalarBindings: EvaluationResult["computedScalarBindings"];
@@ -34,12 +35,29 @@ export type RuntimeScalarDiagnosticsInput = {
   freshness: RuntimeBindingFreshnessInput;
 };
 
+/**
+ * Host-neutral runtime diagnostic payload. It remains a DslDiagnostic for all
+ * existing consumers while retaining the structured ScalarEvaluation context
+ * needed by later document-session sidecars without parsing localized text.
+ */
+export type RuntimeScalarDiagnostic = DslDiagnostic & {
+  origin: "runtime";
+  code: string;
+  bindingId: BindingId;
+  runtimeContext?: ScalarEvaluationErrorContext;
+};
+
+const structuredRuntimeContext = (
+  context: ScalarEvaluationErrorContext | undefined
+): Pick<RuntimeScalarDiagnostic, "runtimeContext"> =>
+  context ? { runtimeContext: { ...context } } : {};
+
 const declarationDiagnostic = (
   bindingId: BindingId,
   issueCode: string,
-  context: Parameters<typeof runtimeIssueMessage>[1],
+  context: ScalarEvaluationErrorContext | undefined,
   input: RuntimeScalarDiagnosticsInput
-): DslDiagnostic | null => {
+): RuntimeScalarDiagnostic | null => {
   const binding = input.bindingAnalysis.catalog.bindingsById.get(bindingId);
   const statement = binding ? input.statements[binding.statementIndex] : undefined;
   const nameSpan = binding?.nameSpan;
@@ -55,7 +73,8 @@ const declarationDiagnostic = (
     ...(physicalSpan ? { physicalSpan } : {}),
     origin: "runtime",
     bindingId,
-    navigationTarget: { kind: "binding", bindingId }
+    navigationTarget: { kind: "binding", bindingId },
+    ...structuredRuntimeContext(context)
   };
 };
 
@@ -63,9 +82,9 @@ const consumerDiagnostic = (
   occurrenceKey: string,
   bindingId: BindingId,
   issueCode: string,
-  context: Parameters<typeof runtimeIssueMessage>[1],
+  context: ScalarEvaluationErrorContext | undefined,
   input: RuntimeScalarDiagnosticsInput
-): DslDiagnostic | null => {
+): RuntimeScalarDiagnostic | null => {
   const source = input.propertySourcesByOccurrenceKey.get(occurrenceKey);
   const parsedKey = parsePropertyBindingOccurrenceKey(occurrenceKey);
   if (!source || source.kind !== "binding" || !parsedKey) return null;
@@ -85,14 +104,15 @@ const consumerDiagnostic = (
     bindingId,
     elementId,
     propertyKey: parsedKey.parameterKey,
-    navigationTarget: { kind: "property", occurrenceKey }
+    navigationTarget: { kind: "property", occurrenceKey },
+    ...structuredRuntimeContext(context)
   };
 };
 
-export const runtimeScalarDiagnostics = (input: RuntimeScalarDiagnosticsInput): readonly DslDiagnostic[] => {
+export const runtimeScalarDiagnostics = (input: RuntimeScalarDiagnosticsInput): readonly RuntimeScalarDiagnostic[] => {
   if (!isRuntimeBindingDisplayFresh(input.freshness) || !input.computedScalarBindings) return [];
 
-  const diagnostics: DslDiagnostic[] = [];
+  const diagnostics: RuntimeScalarDiagnostic[] = [];
   // computedScalarBindings' own iteration order is insertion order from the
   // evaluation payload decode, i.e. document/catalog order - never re-sorted
   // here, matching the deterministic-order contract compile diagnostics use.
