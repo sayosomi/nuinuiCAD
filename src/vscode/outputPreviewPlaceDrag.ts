@@ -32,6 +32,8 @@ export type OutputPreviewPlaceCoordinatePatch = {
   replacement: string;
 };
 
+const DIRECT_NUMERIC_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 const rangeContains = (outer: NormalizedSourceRange, inner: NormalizedSourceRange): boolean =>
   outer.from <= inner.from && inner.to <= outer.to;
 
@@ -40,6 +42,13 @@ const exactRangeText = (
   range: NormalizedSourceRange,
   expectedText: string
 ): boolean => source.slice(range.from, range.to) === expectedText;
+
+const safeNormalizedRange = (range: NormalizedSourceRange, sourceLength: number): boolean =>
+  Number.isInteger(range.from) &&
+  Number.isInteger(range.to) &&
+  range.from >= 0 &&
+  range.to > range.from &&
+  range.to <= sourceLength;
 
 export const outputPreviewPlaceDragPlanIdentityFor = (
   plan: OutputPreviewPlaceDragPlanIdentity
@@ -179,6 +188,43 @@ export const outputPreviewPlaceCoordinatePatchesFor = (
   const x = coordinatePatchFor(proof.x, coordinates.x);
   const y = coordinatePatchFor(proof.y, coordinates.y);
   return [x, y].filter((patch): patch is OutputPreviewPlaceCoordinatePatch => patch !== null);
+};
+
+/**
+ * Host-side fail-closed validation for the exact coordinate patches emitted by
+ * one drag. This validates only source ownership/safety, not parsing semantics.
+ */
+export const outputPreviewPlaceCoordinatePatchesAreSafe = ({
+  normalizedSource,
+  statementRange,
+  patches
+}: {
+  normalizedSource: string;
+  statementRange: NormalizedSourceRange;
+  patches: readonly OutputPreviewPlaceCoordinatePatch[];
+}): boolean => {
+  if (
+    !safeNormalizedRange(statementRange, normalizedSource.length) ||
+    patches.length < 1 ||
+    patches.length > 2
+  ) return false;
+
+  const ordered = [...patches].sort((left, right) => left.range.from - right.range.from);
+  for (let index = 0; index < ordered.length; index += 1) {
+    const patch = ordered[index]!;
+    const previous = ordered[index - 1];
+    const replacement = patch.replacement.trim();
+    if (
+      !safeNormalizedRange(patch.range, normalizedSource.length) ||
+      !rangeContains(statementRange, patch.range) ||
+      (previous !== undefined && previous.range.to > patch.range.from) ||
+      patch.expectedText.length === 0 ||
+      !exactRangeText(normalizedSource, patch.range, patch.expectedText) ||
+      !DIRECT_NUMERIC_LITERAL.test(replacement) ||
+      !Number.isFinite(Number(replacement))
+    ) return false;
+  }
+  return true;
 };
 
 /** Creates transient normalized source only from the exact drag-begin snapshot. */
