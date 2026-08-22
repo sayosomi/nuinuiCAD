@@ -359,6 +359,28 @@ reverse(
 )
 ```
 
+同じ名前の caller value を同名 parameter へ渡す場合は、simple relative reference
+`@name` を Module argument shorthand として書けます。`@width` は
+`width: @width` と完全に同じ named argument であり、positional argument ではありません。
+
+```text
+const width: number = 120
+
+module Pocket(width: number) {
+  ...
+}
+
+instance pocket = Pocket(
+  @width,
+)
+```
+
+shorthand にできるのは `@width`、`@縫い代幅`、`@"name with spaces"` のような、
+相対・1 name segment・property なしの参照だけです。`@front::width`、`@::width`、
+`@settings.width`、literal、式は shorthand にならず、通常の `name: expression` を使います。
+explicit named form は常に利用できます。同じ parameter が shorthand と explicit form の両方で
+指定された場合は duplicate argument の診断になります。
+
 モジュールは外側の値を暗黙 capture しません。必要な値は signature の parameter として渡します。`export` された値は `@front::name` で参照できます。
 
 scalar / geometry parameter は `name?: type` で optional にできます。optional と

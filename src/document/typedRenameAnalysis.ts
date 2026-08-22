@@ -4,6 +4,8 @@
 // src/scalars/typedDependencyGraph.ts - the algorithm stays decoupled from
 // CompiledDslDocument, this file only adapts one to the other.
 import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { DslModuleArgument } from "../dsl/dslTypes";
+import { parseDslSourceReference, formatDslReferencePath } from "../dsl/dslReferenceTokens";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { analyzeTypedBindingRename, type TypedRenameAnalysis, type TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "./typedRenameSplice";
@@ -65,6 +67,44 @@ export const analyzeTypedBindingRenameInDocument = ({
   return combined;
 };
 
+const shorthandTypedRenameSpan = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  argument: DslModuleArgument,
+  reference: ModuleScalarExpressionSemantic["references"][number],
+  newName: string
+): TypedRenameSpan | null => {
+  if (
+    !argument.label ||
+    !argument.labelSpan ||
+    argument.labelSpan.start !== reference.nameSpan.start ||
+    argument.labelSpan.end !== reference.nameSpan.end
+  ) return null;
+  const statement = compiled.statements[statementIndex];
+  const logical = statement
+    ? compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)
+    : undefined;
+  if (!logical) return null;
+  const rawValue = logical.logicalText.slice(argument.valueSpan.start, argument.valueSpan.end);
+  const parsed = parseDslSourceReference(rawValue);
+  if (
+    parsed.kind !== "valid" ||
+    parsed.reference.path.absolute ||
+    parsed.reference.path.segments.length !== 1 ||
+    parsed.reference.property !== null ||
+    parsed.reference.path.segments[0] !== argument.label
+  ) return null;
+  const rawLabel = rawValue.slice(parsed.reference.pathRange.start, parsed.reference.pathRange.end);
+  const replacementReference = `@${formatDslReferencePath({ absolute: false, segments: [newName] })}`;
+  return {
+    kind: "module-semantic",
+    statementIndex,
+    span: argument.valueSpan,
+    oldName: rawValue,
+    newName: `${rawLabel}: ${replacementReference}`
+  };
+};
+
 const moduleBindingOccurrences = (
   compiled: CompiledDslDocument,
   bindingId: BindingId,
@@ -75,14 +115,28 @@ const moduleBindingOccurrences = (
   // Binding resolver for inert module bodies.
   const result: TypedRenameSpan[] = [];
   const seen = new Set<string>();
-  const addExpression = (statementIndex: number, expression: ModuleScalarExpressionSemantic | null) => {
+  const addExpression = (
+    statementIndex: number,
+    expression: ModuleScalarExpressionSemantic | null,
+    argument?: DslModuleArgument
+  ) => {
     if (!expression) return;
     for (const reference of expression.references) {
       if (reference.target?.kind !== "documentBinding" || reference.target.bindingId !== bindingId) continue;
-      const key = `${statementIndex}:${reference.nameSpan.start}:${reference.nameSpan.end}`;
+      const shorthand = argument
+        ? shorthandTypedRenameSpan(compiled, statementIndex, argument, reference, newName)
+        : null;
+      const span = shorthand?.span ?? reference.nameSpan;
+      const key = `${statementIndex}:${span.start}:${span.end}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      result.push({ kind: "module-semantic", statementIndex, span: reference.nameSpan, oldName: reference.name, newName });
+      result.push(shorthand ?? {
+        kind: "module-semantic",
+        statementIndex,
+        span: reference.nameSpan,
+        oldName: reference.name,
+        newName
+      });
     }
   };
   const addGeometry = (statementIndex: number, reference: ModuleGeometryReferenceSemantic) => {
@@ -100,9 +154,13 @@ const moduleBindingOccurrences = (
     }
   }
   for (const instance of analysis.instances) {
+    const statement = compiled.statements[instance.statementIndex];
     for (const binding of instance.parameterBindings) {
       if (binding.argumentIndex === null) continue;
-      if (binding.value?.kind === "scalar") addExpression(instance.statementIndex, binding.value.expression);
+      const argument = statement?.kind === "moduleInstance"
+        ? statement.arguments[binding.argumentIndex]
+        : undefined;
+      if (binding.value?.kind === "scalar") addExpression(instance.statementIndex, binding.value.expression, argument);
       else if (binding.value?.kind === "geometry") addGeometry(instance.statementIndex, binding.value.reference);
     }
   }

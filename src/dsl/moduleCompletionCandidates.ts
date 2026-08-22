@@ -15,7 +15,8 @@ import type {
   ModuleScalarSourceTarget
 } from "./moduleSemanticTypes";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
-import { scanCallArgs } from "./dslArgScanner";
+import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
+import { formatDslReferencePath, parseDslSourceReference } from "./dslReferenceTokens";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -249,8 +250,6 @@ const geometryCompletions = (compiled: CompiledDslDocument, statementIndex: numb
     const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
     const kind = interfaceType === "point" ? "point" : interfaceType ? "line" : null;
     if (kind === expected) result.push({ kind: "geometry", label: name, identity: lookup.declaration.statementId });
-    // A line-like source is point-compatible only through its named endpoint;
-    // iteration variables intentionally never enter this branch.
     if (expected === "point" && kind === "line") {
       result.push(
         { kind: "geometry", label: `${name}.start`, identity: `${lookup.declaration.statementId}:start` },
@@ -308,26 +307,79 @@ const liveArguments = (request: ModuleCompletionRequest) => {
   return scanCallArgs(source, { start: open + 1, end: source.length }).args;
 };
 
+const shorthandLabelForArgument = (argument: ScannedArg): string | null => {
+  if (argument.key !== null) return argument.key;
+  const parsed = parseDslSourceReference(argument.value);
+  if (parsed.kind !== "valid") return null;
+  const { reference } = parsed;
+  return !reference.path.absolute && reference.path.segments.length === 1 && reference.property === null
+    ? reference.path.segments[0]
+    : null;
+};
+
+const shorthandSourceFor = (name: string) => `@${formatDslReferencePath({ absolute: false, segments: [name] })}`;
+
+const shorthandCompatible = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  parameter: ModuleCompletionParameterMetadata,
+  request: ModuleCompletionRequest
+) => {
+  const resolved = visibleLookup(compiled, statementIndex, parameter.name, request.scopeId, request.sourceOrderIndex);
+  if (!resolved || !parameter.type) return false;
+  const expectedScalar = scalarTypeOf(parameter.type);
+  const expectedGeometry = moduleGeometryInterfaceTypeOf(parameter.type);
+  const { lookup } = resolved;
+  if (lookup.kind === "iteration") return expectedScalar?.kind === "number";
+  if (lookup.kind === "parameter") {
+    if (!optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) return false;
+    const actualScalar = scalarTypeOf(lookup.parameter.value.type);
+    if (expectedScalar) return Boolean(actualScalar && isScalarTypeAssignable(actualScalar, expectedScalar));
+    const actualGeometry = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
+    return Boolean(expectedGeometry && isModuleGeometryInterfaceAssignable(actualGeometry, expectedGeometry));
+  }
+  if (lookup.kind !== "resolved") return false;
+  if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
+    const actualScalar = lookup.declaration.statement.declaredType;
+    return Boolean(expectedScalar && actualScalar && isScalarTypeAssignable(actualScalar, expectedScalar));
+  }
+  if (lookup.declaration.kind === "geometry" && lookup.declaration.statement.kind === "element") {
+    const actualGeometry = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    return Boolean(expectedGeometry && isModuleGeometryInterfaceAssignable(actualGeometry, expectedGeometry));
+  }
+  return false;
+};
+
 const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const statement = compiled.statements[statementIndex];
-  const used = request.usedArgumentNames ?? new Set(
-    (liveArguments(request)?.map((argument) => argument.key) ?? (statement?.kind === "moduleInstance" ? statement.arguments.map((argument) => argument.label) : []))
-      .filter((label): label is string => Boolean(label))
-  );
-  if (request.currentDefinitionParameters) {
-    return request.currentDefinitionParameters
-      .filter((parameter) => !used.has(parameter.name))
-      .map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
-  }
+  const live = liveArguments(request) ?? [];
+  const used = new Set<string>([
+    ...(request.usedArgumentNames ?? []),
+    ...live.map(shorthandLabelForArgument).filter((label): label is string => Boolean(label)),
+    ...(live.length === 0 && statement?.kind === "moduleInstance"
+      ? statement.arguments.map((argument) => argument.label).filter((label): label is string => Boolean(label))
+      : [])
+  ]);
 
-  const instance = currentInstance(compiled, statementIndex);
-  if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
-  const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
-  if (!definition) return [];
-  const parameters = request.currentDefinitionParameters ?? definition.parameters;
-  return parameters
-    .filter((parameter) => !used.has(parameter.name))
-    .map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
+  let parameters: readonly ModuleCompletionParameterMetadata[] | null = request.currentDefinitionParameters ?? null;
+  if (!parameters) {
+    const instance = currentInstance(compiled, statementIndex);
+    if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
+    const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+    if (!definition) return [];
+    parameters = definition.parameters;
+  }
+  const remaining = parameters.filter((parameter) => !used.has(parameter.name));
+  const shorthand = remaining
+    .filter((parameter) => shorthandCompatible(compiled, statementIndex, parameter, request))
+    .map((parameter) => ({
+      kind: "literal" as const,
+      label: shorthandSourceFor(parameter.name),
+      detail: `same-name Module argument for ${parameter.name}`,
+      identity: `module-argument-shorthand:${parameter.definitionStatementId}:${parameter.parameterIndex}`
+    }));
+  const explicit = remaining.map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
+  return [...shorthand, ...explicit];
 };
 
 const moduleArgumentParameterType = (
