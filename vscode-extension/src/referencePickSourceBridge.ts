@@ -206,7 +206,7 @@ export const createVscodeReferencePickSourceBridge = ({
 
     current.phase = "applying";
     const editRange = vscodeRangeForNormalized(document, rawSource, plan.range);
-    let applied = false;
+    let applied: boolean;
     try {
       applied = await editor.edit((editBuilder) => {
         editBuilder.replace(editRange, plan.replacement);
