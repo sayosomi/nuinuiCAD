@@ -277,7 +277,7 @@ export const selectablePointsForElement = (
 export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
   elements.flatMap((element) => {
     if (isPointElement(element)) return [referenceAnchor(element.id)];
-    if (element.type === "line") {
+    if (element.type === "line" || element.type === "commonTangentLine") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
     if (element.type === "arcLine" || element.type === "threePointArcLine") {
@@ -343,6 +343,7 @@ export const pointAnchorLabel = (anchor: PointAnchor, elements: CadElement[]) =>
 export const isLineLikeElement = (element: CadElement) =>
   element.type === "line" ||
   element.type === "angleLengthLine" ||
+  element.type === "commonTangentLine" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||
