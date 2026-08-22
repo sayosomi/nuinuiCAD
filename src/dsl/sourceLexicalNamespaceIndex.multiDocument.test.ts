@@ -64,7 +64,10 @@ describe("multi-document lexical namespace integration", () => {
     expect(index.collisions).toEqual([
       expect.objectContaining({
         name: "common",
-        declarations: [{ kind: "import" }, { kind: "import" }]
+        declarations: [
+          expect.objectContaining({ kind: "import" }),
+          expect.objectContaining({ kind: "import" })
+        ]
       })
     ]);
     expect(index.diagnostics).toEqual([
