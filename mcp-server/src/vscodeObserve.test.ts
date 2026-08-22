@@ -65,7 +65,8 @@ const bridgeFor = async (
       return {
         ...observation,
         documents: observation.documents.map((document) => {
-          const { sourceText: _sourceText, ...compact } = document;
+          const compact = { ...document };
+          delete compact.sourceText;
           return compact;
         })
       };
