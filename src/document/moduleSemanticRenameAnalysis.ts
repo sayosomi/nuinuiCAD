@@ -154,6 +154,31 @@ const compileWithStableIds = (source: string, before: CompiledDslDocument) => co
   assignedStatementIds: before.statementMap?.statementIdByStatementIndex
 });
 
+type RenameReplacement = {
+  from: number;
+  to: number;
+  oldName: string;
+  newName: string;
+};
+
+const shorthandRenameReplacement = (
+  sourceText: string,
+  index: ReturnType<typeof createModuleSemanticRangeIndex>,
+  token: ReturnType<typeof createModuleSemanticRangeIndex>["tokens"][number],
+  target: ModuleSemanticTarget,
+  oldName: string,
+  newName: string
+): RenameReplacement | null => {
+  if (token.from <= 0 || sourceText[token.from - 1] !== "@" || sourceText.slice(token.from, token.to) !== oldName) return null;
+  const overlapping = index.tokens.filter((candidate) => candidate.from === token.from && candidate.to === token.to);
+  const parameter = overlapping.find((candidate) => candidate.target.kind === "moduleParameter");
+  const value = overlapping.find((candidate) => candidate.target.kind !== "moduleParameter");
+  if (!parameter || !value) return null;
+  return target.kind === "moduleParameter"
+    ? { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${newName}: @${oldName}` }
+    : { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${oldName}: @${newName}` };
+};
+
 export const analyzeModuleSemanticRename = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -187,11 +212,17 @@ export const analyzeModuleSemanticRename = (
     if (statementIndex < 0 || token.to <= token.from || sourceText.slice(token.from, token.to) !== oldName) {
       return { verdict: "rejected", reason: "span-mismatch" };
     }
-    const key = `${token.from}:${token.to}`;
+    const replacement = shorthandRenameReplacement(sourceText, index, token, target, oldName, newName) ?? {
+      from: token.from,
+      to: token.to,
+      oldName: sourceText.slice(token.from, token.to),
+      newName
+    };
+    const key = `${replacement.from}:${replacement.to}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    entries.push({ statementIndex, span: { start: 0, end: 0 }, oldName: sourceText.slice(token.from, token.to), newName, physicalSpan: {
-      segments: [{ from: token.from, to: token.to }], sourceRevision: compiled.spans.sourceMap.sourceRevision
+    entries.push({ statementIndex, span: { start: 0, end: 0 }, oldName: replacement.oldName, newName: replacement.newName, physicalSpan: {
+      segments: [{ from: replacement.from, to: replacement.to }], sourceRevision: compiled.spans.sourceMap.sourceRevision
     }});
   }
   if (entries.length === 0) return { verdict: "rejected", reason: "target-not-found" };
