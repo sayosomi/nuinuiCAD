@@ -261,6 +261,12 @@
     "configuration": {
       "title": "nuinuiCAD",
       "properties": {
+        "nuinuiCAD.developer.mcpObservation.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Enable the private developer-only loopback observation bridge used by nuinuiCAD MCP/E2E tooling. Reload the Extension Host after changing this setting."
+        },
         "nuinuiCAD.bake.emitSkippedComments": {
           "type": "boolean",
           "default": true,

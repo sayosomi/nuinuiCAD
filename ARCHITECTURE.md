@@ -175,6 +175,33 @@ instanceを持つがprotocol implementationは複製しない。binaryは既存�
 MCP startup時にCargo buildは起動しない。Mutable document registry、VS Code
 attached observation、source mutationはHeadless MCP boundaryのownerではない。
 
+### VS Code attached observation bridge
+
+Primary:
+
+- `vscode-extension/src/vscodeObservationState.ts`
+- `vscode-extension/src/mcpObservationBridge.ts`
+- `vscode-extension/src/extensionEntry.ts`
+- `src/node/vscodeObservationBridge.ts`
+
+The Extension Host keeps the exact-current observation facts in
+`vscodeObservationState`; the bridge reads that owner and does not reconstruct
+Canvas, evaluation, selection, or diagnostic semantics. `extensionEntry.ts` is
+the packaged Extension Host entry and starts the private bridge only when
+`NUINUICAD_MCP_OBSERVATION=1` or the application-scoped developer setting
+`nuinuiCAD.developer.mcpObservation.enabled` is enabled. The bridge is disabled
+by default and setting changes require an Extension Host reload.
+
+`src/node/vscodeObservationBridge.ts` owns the shared Node-only transport and
+discovery boundary: loopback-only ephemeral TCP, authenticated observe-only
+NDJSON, restrictive temporary descriptor lifecycle, canonical file-path matching,
+and deterministic instance resolution. Resolution uses explicit instance ID,
+then an exactly-one-open-document match, then the sole live instance; remaining
+multiple candidates are reported as ambiguity rather than guessed by PID,
+timestamp, or window order. Candidate metadata omits the auth token. The current
+Headless MCP tool surface remains separate; MCP registration of `vscode_observe`
+belongs to the next integration child.
+
 ### Compilation / source mutation
 
 Primary:
