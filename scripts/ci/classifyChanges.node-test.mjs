@@ -48,6 +48,11 @@ const cases = [
     expected: flags({ workflow: true })
   },
   {
+    name: "lifecycle stress runner",
+    paths: ["scripts/ci/runLifecycleStress.mjs"],
+    expected: flags({ node: true, full_node: true, workflow: true })
+  },
+  {
     name: "MCP server source and tests",
     paths: ["mcp-server/src/server.ts", "mcp-server/test/stdio.test.ts"],
     expected: flags({ node: true })
