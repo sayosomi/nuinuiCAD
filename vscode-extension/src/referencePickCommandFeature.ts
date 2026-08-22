@@ -65,7 +65,9 @@ export const registerVscodeReferencePickFeature = ({
   ensureCanvas
 }: {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
-  ensureCanvas: (document: vscode.TextDocument) => VscodeReferencePickCanvasEndpoint | null;
+  ensureCanvas: (
+    document: vscode.TextDocument
+  ) => VscodeReferencePickCanvasEndpoint | null | Promise<VscodeReferencePickCanvasEndpoint | null>;
 }): vscode.Disposable => {
   let nextRequestId = 1;
   let active: ActiveReferencePick | null = null;
@@ -154,7 +156,7 @@ export const registerVscodeReferencePickFeature = ({
     refreshContext(vscode.window.activeTextEditor);
   };
 
-  const command = vscode.commands.registerCommand(VSCODE_REFERENCE_PICK_COMMAND_ID, () => {
+  const command = vscode.commands.registerCommand(VSCODE_REFERENCE_PICK_COMMAND_ID, async () => {
     const editor = vscode.window.activeTextEditor;
     if (!isSupportedSourceEditor(editor)) return;
     const normalizedSourceOffset = referencePickSourceOffsetForEditor(
@@ -167,14 +169,31 @@ export const registerVscodeReferencePickFeature = ({
     }
 
     cancelActive();
-    const endpoint = ensureCanvas(editor.document);
-    if (!endpoint) return;
+    const documentVersion = editor.document.version;
+    const sourceSelection = editor.selection;
+    const endpoint = await ensureCanvas(editor.document);
+    if (
+      !endpoint ||
+      editor.document.version !== documentVersion ||
+      !sameDocument(editor.document, endpoint.document)
+    ) return;
+
+    try {
+      await vscode.window.showTextDocument(editor.document, {
+        viewColumn: editor.viewColumn,
+        preserveFocus: false,
+        preview: false,
+        selection: sourceSelection
+      });
+    } catch {
+      return;
+    }
     endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
 
     const current: ActiveReferencePick = {
       editor,
       normalizedSourceOffset,
-      documentVersion: editor.document.version,
+      documentVersion,
       requestId: nextRequestId++,
       endpoint,
       bridge: null,
