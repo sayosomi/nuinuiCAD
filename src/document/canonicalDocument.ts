@@ -75,6 +75,20 @@ const adoptElementObjects = (
   }
 });
 
+/**
+ * Recoverable editor errors can still produce a compiled document so live
+ * source semantics remain available. Such a partial document must not become
+ * the identity-reconciliation owner for the next revision: statements that
+ * temporarily disappear would otherwise receive fresh IDs when the source is
+ * repaired. Keep the last error-free reconciliation base associated with each
+ * errorful compiled document without changing the document's live semantics.
+ */
+const errorRecoveryReconciliationBase = new WeakMap<LastGoodDslDocument, LastGoodDslDocument>();
+
+const hasErrorDiagnostics = (compiled: CompiledDslDocument): boolean =>
+  compiled.diagnostics.some((item) => item.severity === "error") ||
+  (compiled.bindingIssueDiagnostics ?? []).some((item) => item.severity === "error");
+
 export const compileCanonicalText = (
   current: CanonicalDocumentValue,
   nextText: string,
@@ -85,11 +99,12 @@ export const compileCanonicalText = (
   const normalizedSource = sourceText.replace(/\r\n/g, "\n");
   const parsed = parseDslSnapshot({ normalizedSource, sourceRevision: revision });
   const createdElementIds = [...(options.createdElementIds ?? [])];
+  const reconciliationBase = errorRecoveryReconciliationBase.get(current.doc) ?? current.doc;
   const reconciled = reconcileStatements({
-    oldStatements: current.doc.statements,
-    oldLines: current.doc.sourceLines,
-    oldElementIds: current.doc.statementMap.elementIdByStatementIndex,
-    oldStatementIds: current.doc.statementMap.statementIdByStatementIndex,
+    oldStatements: reconciliationBase.statements,
+    oldLines: reconciliationBase.sourceLines,
+    oldElementIds: reconciliationBase.statementMap.elementIdByStatementIndex,
+    oldStatementIds: reconciliationBase.statementMap.statementIdByStatementIndex,
     newStatements: parsed.statements,
     newLines: compileLines(sourceText)
   }, {
@@ -113,6 +128,10 @@ export const compileCanonicalText = (
       typedDependencyGraph: compiled.typedDependencyGraph,
       status: "fatal"
     };
+  }
+
+  if (hasErrorDiagnostics(compiled)) {
+    errorRecoveryReconciliationBase.set(compiled, reconciliationBase);
   }
 
   return {
