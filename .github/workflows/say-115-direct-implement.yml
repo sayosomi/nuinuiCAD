@@ -80,3 +80,10 @@ jobs:
             tail -300 /tmp/say115-full-test.log
           fi
           exit "$status"
+
+      - name: Materialize SAY-115 implementation
+        run: |
+          git status --short
+          git add -A
+          git commit -m "SAY-115: remove legacy palette source and canonical model"
+          git push origin HEAD:sayosomi/say-115-legacy-palette-remove-source-canonical-model
