@@ -16,6 +16,17 @@ export type GeometryHoverPresentation = {
   availability: GeometryHoverAvailability;
 };
 
+const headingFor = (element: CadElement): string =>
+  `${element.name} · ${elementTypeLabels[element.type]}`;
+
+export const geometryHoverUnavailablePresentation = (
+  element: CadElement
+): GeometryHoverPresentation => ({
+  heading: headingFor(element),
+  statuses: [],
+  availability: { kind: "unavailable" }
+});
+
 const hasIssueFor = (
   issues: readonly { elementId: string }[],
   elementId: string
@@ -32,7 +43,7 @@ export const geometryHoverPresentation = (
   element: CadElement,
   evaluation: EvaluationResult
 ): GeometryHoverPresentation => {
-  const heading = `${element.name} · ${elementTypeLabels[element.type]}`;
+  const heading = headingFor(element);
   const inactive = evaluation.conditionInactiveElementIds?.has(element.id) ?? false;
   const enabled = evaluation.effectiveEnabledElementIds
     ? evaluation.effectiveEnabledElementIds.has(element.id)
