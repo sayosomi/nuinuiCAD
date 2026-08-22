@@ -27,7 +27,7 @@ import {
   type MultiDocumentPublicApiCatalog,
   type MultiDocumentPublicApiDiagnostic
 } from "./multiDocumentPublicApi";
-import { createStatementIdentity } from "./statementIdentity";
+import { reconcileStatements } from "./statementReconciler";
 
 export type SavedDependencyLoadFailureReason =
   | "root-unaddressable"
@@ -205,12 +205,21 @@ const hasNui4Version = (parsed: ParseDslResult) => {
 
 const statementIdsFor = (
   parsed: ParseDslResult,
+  normalizedSource: string,
   supplied?: ReadonlyMap<number, string>
 ): ReadonlyMap<number, string> => {
-  const ids = new Map<number, string>(supplied ?? []);
-  parsed.statements.forEach((statement, statementIndex) => {
-    if (!ids.has(statementIndex)) ids.set(statementIndex, createStatementIdentity(`multiDocument:${statement.kind}`));
-  });
+  const reconciled = reconcileStatements({
+    oldStatements: [],
+    oldLines: [],
+    oldElementIds: new Map(),
+    oldStatementIds: new Map(),
+    newStatements: parsed.statements,
+    newLines: normalizedSource.split("\n")
+  }).assignedIds;
+  const ids = new Map<number, string>(reconciled);
+  for (const [statementIndex, statementId] of supplied ?? []) {
+    ids.set(statementIndex, statementId);
+  }
   return ids;
 };
 
@@ -225,7 +234,11 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     normalizedSource: source.normalizedSource,
     sourceRevision: source.kind === "root-current" ? source.sourceRevision : 0
   });
-  const statementIdByStatementIndex = statementIdsFor(parsed, options.statementIdByStatementIndex);
+  const statementIdByStatementIndex = statementIdsFor(
+    parsed,
+    source.normalizedSource,
+    options.statementIdByStatementIndex
+  );
   const sourceLexicalNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, statementIdByStatementIndex);
   const imports: MultiDocumentImportDirective[] = [];
   const reExports: FileReExportDescriptor[] = [];
