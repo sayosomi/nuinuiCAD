@@ -25,6 +25,7 @@ import {
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
+import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
 
 export type DslReferencePickRange = { from: number; to: number };
@@ -93,7 +94,8 @@ const exactCompiledSemantic = (
   if (source.normalizedSource.includes("\r") || semanticSourceText(semantic) !== source.normalizedSource) return null;
   if (semantic.compiled.spans.sourceMap.source !== source.normalizedSource) return null;
   if (semantic.compiled.spans.sourceMap.sourceRevision !== source.sourceRevision) return null;
-  return semantic.compiled.statementMap?.sourceRevision === source.sourceRevision ? semantic.compiled : null;
+  if (semantic.compiled.statementMap && semantic.compiled.statementMap.sourceRevision !== source.sourceRevision) return null;
+  return semantic.compiled;
 };
 
 const exactPositionAt = (source: SourceSnapshot, position: number): ExactPosition | null => {
@@ -107,18 +109,38 @@ const exactPositionAt = (source: SourceSnapshot, position: number): ExactPositio
   return logicalPosition === null ? null : { map, statement, statementIndex, logicalPosition };
 };
 
+const oneExactString = (values: readonly (string | undefined)[]): string | null => {
+  const unique = [...new Set(values.filter((value): value is string => value !== undefined))];
+  return unique.length === 1 ? unique[0]! : null;
+};
+
 const sourceAnchorFor = (
   compiled: CompiledDslDocument,
   exact: ExactPosition
 ): DslReferencePickSourceAnchor | null => {
   const compiledStatement = compiled.statements[exact.statementIndex];
-  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(exact.statementIndex);
-  const scopeId = compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(exact.statementIndex);
-  if (!compiledStatement || !statementId || !scopeId) return null;
+  if (!compiledStatement) return null;
   if (
     compiledStatement.documentRange.from !== exact.statement.range.from ||
     compiledStatement.documentRange.to !== exact.statement.range.to
   ) return null;
+
+  const namespace = compiled.sourceLexicalNamespace;
+  const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
+    candidate.statementIndex === exact.statementIndex
+  );
+  const setAnalysis = compiled.setStatements?.get(exact.statementIndex);
+  const statementId = oneExactString([
+    compiled.statementMap?.statementIdByStatementIndex?.get(exact.statementIndex),
+    namespaceDeclaration?.statementId,
+    setAnalysis?.statementId
+  ]);
+  const scopeId = oneExactString([
+    namespace?.scopeIndex.scopeOfStatement.get(exact.statementIndex),
+    setAnalysis?.scopeId
+  ]);
+  if (!statementId || !scopeId) return null;
+
   return {
     sourceRevision: exact.map.sourceRevision,
     statementId,
@@ -428,6 +450,24 @@ const typedDeclarationTarget = (
   return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
 };
 
+const setNumericTarget = (
+  position: number,
+  exact: ExactPosition,
+  compiled: CompiledDslDocument,
+  anchor: DslReferencePickSourceAnchor
+): DslReferencePickTarget | null => {
+  const context = setCompletionContextAt(exact.statement.logicalText, exact.logicalPosition);
+  if (context?.kind !== "rhs") return null;
+  const analysis = compiled.setStatements?.get(exact.statementIndex);
+  if (!analysis || analysis.statementId !== anchor.statementId || analysis.scopeId !== anchor.scopeId) return null;
+  const targetBinding = compiled.bindingAnalysis?.catalog.bindingsById.get(analysis.targetBindingId);
+  if (targetBinding?.declaredType?.kind !== "number") return null;
+  const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, context.expressionSpan);
+  if (!numeric) return null;
+  const range = physicalRangeForLogical(exact, numeric.range, position);
+  return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
+};
+
 /**
  * Identify the one exact-current Source Editor range that may be mutated by a
  * Canvas reference-pick session. The query is host-neutral and read-only. It
@@ -448,7 +488,8 @@ export const queryDslReferencePickTarget = ({
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
   return callTarget(source, position, exact, compiled, anchor)
-    ?? typedDeclarationTarget(position, exact, anchor);
+    ?? typedDeclarationTarget(position, exact, anchor)
+    ?? setNumericTarget(position, exact, compiled, anchor);
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
