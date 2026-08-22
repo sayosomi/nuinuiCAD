@@ -106,10 +106,15 @@ describe("condition evaluation trace", () => {
     });
 
     const root = trace.nodes[trace.rootNodeIndex]!;
-    expect(root.evaluation).toEqual(failed);
+    expect(root.evaluation).toEqual({
+      status: "error",
+      type: { kind: "boolean" },
+      issueCode: "poisoned-binding",
+      bindingId: "binding:bad"
+    });
     expect(root.comparisonOperands).toEqual({ left: { kind: "number", value: 42 } });
     expect(root.comparisonOperands).not.toHaveProperty("right");
-    expect(trace.finalEvaluation).toEqual(failed);
+    expect(trace.finalEvaluation).toEqual(root.evaluation);
   });
 
   it("validates the flat JSON shape used by the Rust payload", () => {
