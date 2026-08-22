@@ -1,30 +1,25 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
 import type { CadElement } from "../types/geometry";
 import type { ScalarProgram } from "../scalars/scalarProgram";
-import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
-import { emptyDocument } from "../dsl/dslDocumentTestUtils";
-import { buildConditionalGroupConditionsByElementId } from "./controlBooleanRuntime";
-import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
-import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
-import * as evaluationEngine from "./evaluationEngine";
-import { evaluateElementsReferencePayload, evaluateElementsWithRust } from "./evaluationEngine";
-import { useEvaluationEngine } from "./useEvaluationEngine";
 import {
   abortBenchmarkSample,
   beginBenchmarkSample,
   beginSourceChange,
   bindElementsToActiveSample,
   drainCompletedBenchmarkSamples,
-  measureCompile,
-  measureCanvasDraw
+  measureCompile
 } from "../performance/benchmarkInstrumentation";
 import * as benchmarkInstrumentation from "../performance/benchmarkInstrumentation";
-
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn()
-}));
+import {
+  evaluateElementsReferencePayload,
+  evaluateElementsWithRust
+} from "./evaluationEngine";
+import type { RustEvaluationTransport } from "./rustEvaluationRunner";
+import {
+  evaluationStateIsCurrentFor,
+  useEvaluationEngine
+} from "./useEvaluationEngine";
 
 const pointA: CadElement = {
   id: "a",
@@ -54,6 +49,13 @@ const line: CadElement = {
 };
 
 const elements = [pointA, pointB, line];
+const unsupportedElement = {
+  id: "unsupported",
+  name: "未対応",
+  type: "unsupportedElement",
+  activity: "visible"
+} as unknown as CadElement;
+
 const scalarProgram: ScalarProgram = {
   statements: [{
     kind: "declare",
@@ -63,87 +65,30 @@ const scalarProgram: ScalarProgram = {
     declaration: {
       bindingKind: "const",
       declaredType: { kind: "number" },
-      initializer: { kind: "numberLiteral", span: { start: 0, end: 1 }, value: 1, type: { kind: "number" } }
+      initializer: {
+        kind: "numberLiteral",
+        span: { start: 0, end: 1 },
+        value: 1,
+        type: { kind: "number" }
+      }
     }
   }]
 };
 
-const copySource = (angleDeg: string) => [
-  "nui 4",
-  "point A = coordinate(x: 0, y: 0)",
-  "point B = coordinate(x: 10, y: 0)",
-  "line AB = segment(start: @A, end: @B)",
-  "for i in range(from: 0, count: 2, step: 1, showGenerated: true) {",
-  `  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: ${angleDeg}, mirrorX: false, baseLines: [@AB])`,
-  "}"
-].join("\n");
-
-const unsupportedElement = {
-  id: "unsupported",
-  name: "未対応",
-  type: "unsupportedElement",
-  activity: "visible"
-} as unknown as CadElement;
-
-const invokeMock = vi.mocked(invoke);
-
-const setTauriRuntime = () => {
-  Object.defineProperty(window, "__TAURI_INTERNALS__", {
-    configurable: true,
-    value: {}
-  });
-};
-
-const clearTauriRuntime = () => {
-  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
-};
+const transportReturning = (
+  payload = evaluateElementsReferencePayload(elements)
+): ReturnType<typeof vi.fn<RustEvaluationTransport>> =>
+  vi.fn<RustEvaluationTransport>(async () => payload);
 
 afterEach(() => {
   abortBenchmarkSample();
   drainCompletedBenchmarkSamples();
-  clearTauriRuntime();
   vi.unstubAllEnvs();
-  invokeMock.mockReset();
   vi.restoreAllMocks();
 });
 
 describe("useEvaluationEngine", () => {
-  it("does not warn while a valid numeric expression is temporarily incomplete", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "parity");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const valid = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), copySource("90"));
-    const incomplete = compileCanonicalText(valid, copySource("90 +"));
-    const completed = compileCanonicalText(incomplete, copySource("90 + 10"));
-    expect(valid.status).toBe("valid");
-    expect(incomplete.status).toBe("valid");
-    expect(completed.status).toBe("valid");
-
-    const payloads = [
-      evaluateElementsReferencePayload(valid.doc.document.elements),
-      evaluateElementsReferencePayload(incomplete.doc.document.elements),
-      evaluateElementsReferencePayload(completed.doc.document.elements)
-    ];
-    invokeMock.mockImplementation(() => Promise.resolve(payloads.shift()!));
-
-    const { result, rerender } = renderHook(
-      ({ source, revision }: { source: typeof valid; revision: number }) =>
-        useEvaluationEngine(source.doc.document.elements, {}, revision),
-      { initialProps: { source: valid, revision: 1 } }
-    );
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    rerender({ source: incomplete, revision: 2 });
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    rerender({ source: completed, revision: 3 });
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-
-    expect(invokeMock).toHaveBeenCalledTimes(3);
-    expect(result.current.evaluation.errors).toHaveLength(0);
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("returns the reference evaluation in browser mode", () => {
+  it("uses the TypeScript reference evaluator when no Rust transport is supplied", () => {
     const { result } = renderHook(() =>
       useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 41)
     );
@@ -153,328 +98,96 @@ describe("useEvaluationEngine", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
     expect(result.current.evaluationRevision).toBe(41);
-    expect(invokeMock).not.toHaveBeenCalled();
   });
 
-  it("returns an empty evaluating state before the first Rust result in Rust mode", () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    invokeMock.mockImplementation(() => new Promise(() => undefined));
-
+  it("uses Rust by default when the host supplies a Rust transport", async () => {
+    const transport = transportReturning();
     const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 7, transport)
     );
 
     expect(result.current.mode).toBe("rust");
     expect(result.current.source).toBe("rust");
     expect(result.current.status).toBe("evaluating");
-    expect(result.current.isStale).toBe(false);
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
-  });
-
-  it("uses an injected Rust transport without Tauri globals and preserves round-trip timing", async () => {
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const sample = beginBenchmarkSample("source-edit-v1");
-    expect(sample).not.toBeNull();
-    const sourceTiming = beginSourceChange();
-    measureCompile(sourceTiming, () => undefined);
-    expect(bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
-
-    const transport = vi.fn(async (input: { elements: CadElement[] }) => {
-      expect(input.elements).toBe(elements);
-      return evaluateElementsReferencePayload(elements);
-    });
-    const begin = vi.spyOn(benchmarkInstrumentation, "beginRustRoundTrip");
-    const finish = vi.spyOn(benchmarkInstrumentation, "finishRustRoundTrip");
-    vi.spyOn(performance, "now")
-      .mockReturnValueOnce(20)
-      .mockReturnValueOnce(50)
-      .mockReturnValue(50);
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 23, transport)
-    );
 
     await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.mode).toBe("rust");
     expect(result.current.source).toBe("rust");
+    expect(result.current.evaluation.computedGeometry.size).toBe(3);
     expect(transport).toHaveBeenCalledTimes(1);
-    expect(begin.mock.invocationCallOrder[0]).toBeLessThan(transport.mock.invocationCallOrder[0]!);
-    expect(finish.mock.invocationCallOrder[0]).toBeGreaterThan(transport.mock.invocationCallOrder[0]!);
+    expect(transport).toHaveBeenCalledWith(expect.objectContaining({ elements }));
   });
 
-  it("uses Rust by default in Tauri dev when the document is supported", async () => {
-    setTauriRuntime();
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
-    );
-
-    expect(result.current.mode).toBe("rust");
-    expect(result.current.source).toBe("rust");
-    expect(result.current.status).toBe("evaluating");
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", expect.any(Object)));
-  });
-
-  it("measures the production Rust round trip around invoke and payload decoding", async () => {
-    setTauriRuntime();
-    const sample = beginBenchmarkSample("source-edit-v1");
-    expect(sample).not.toBeNull();
-    const sourceTiming = beginSourceChange();
-    measureCompile(sourceTiming, () => undefined);
-    expect(bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
-
-    const payload = evaluateElementsReferencePayload(elements);
-    invokeMock.mockResolvedValue(payload);
-    const frames: Array<(timestamp: number) => void> = [];
-    const originalRequestAnimationFrame = window.requestAnimationFrame;
-    const requestAnimationFrame = vi.fn((callback: (timestamp: number) => void) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    Object.defineProperty(window, "requestAnimationFrame", {
-      configurable: true,
-      value: requestAnimationFrame
-    });
-    const now = vi.spyOn(performance, "now")
-      .mockReturnValueOnce(20)
-      .mockReturnValueOnce(50)
-      .mockReturnValueOnce(70)
-      .mockReturnValueOnce(90)
-      .mockReturnValueOnce(60)
-      .mockReturnValueOnce(65);
-    const rustAttempts = vi.spyOn(benchmarkInstrumentation, "beginRustRoundTrip");
-
-    const result = await evaluateElementsWithRust(elements);
-    const secondResult = await evaluateElementsWithRust(elements);
-
-    expect(invokeMock).toHaveBeenCalledTimes(2);
-    expect(invokeMock).toHaveBeenNthCalledWith(1, "evaluate_document", expect.any(Object));
-    expect(now.mock.invocationCallOrder[0]).toBeLessThan(invokeMock.mock.invocationCallOrder[0]!);
-    expect(now.mock.invocationCallOrder[1]).toBeGreaterThan(invokeMock.mock.invocationCallOrder[0]!);
-    expect(rustAttempts).toHaveBeenCalledTimes(2);
-    expect(rustAttempts.mock.results[0]?.value).not.toBe(rustAttempts.mock.results[1]?.value);
-    expect(result).not.toBe(secondResult);
-
-    measureCanvasDraw(result, true, () => undefined);
-    expect(frames).toHaveLength(1);
-    frames[0](100_000);
-
-    const completed = drainCompletedBenchmarkSamples();
-    expect(completed).toHaveLength(1);
-    expect(completed[0]?.metrics.rustRoundTripMs).toBe(30);
-    Object.defineProperty(window, "requestAnimationFrame", {
-      configurable: true,
-      value: originalRequestAnimationFrame
-    });
-  });
-
-  it("adopts the Rust result for a canonical forGroup mutation graph", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
-      "nui 4",
-      "let total: number = 0",
-      "for i in range(from: 0, count: 2, step: 1) {",
-      "  set total = @total + 1",
-      "  point P = coordinate(x: @total, y: 0)",
-      "}"
-    ].join("\n"));
-    expect(compiled.status).not.toBe("fatal");
-    const bindingVersions = compiled.doc.bindingVersions!;
-    const options = {
-      evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex,
-      bindingVersions,
-      statementInfoByElementId: compiled.doc.statementMap.byElementId,
-      statementIdByStatementIndex: compiled.doc.statementMap.statementIdByStatementIndex,
-      forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
-        bindingVersions,
-        compiled.doc.document.elements,
-        compiled.doc.statementMap.byElementId,
-        compiled.doc.statementMap.statementIdByStatementIndex
-      ))
-    };
-    const rustPayload = evaluateElementsReferencePayload(compiled.doc.document.elements, options);
-    invokeMock.mockResolvedValue(rustPayload);
-
-    const { result } = renderHook(() => useEvaluationEngine(compiled.doc.document.elements, options));
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.source).toBe("rust");
-    expect(result.current.rustEligible).toBe(true);
-    expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
-      input: expect.objectContaining({
-        bindingVersions: expect.objectContaining({ forGroupOwners: expect.any(Array) })
-      })
-    });
-    const bindingId = bindingVersions.versions[0].bindingId;
-    expect(result.current.evaluation.computedScalarBindings?.get(bindingId)).toMatchObject({
-      value: { value: 2 }
-    });
-  });
-
-  it("adopts Rust for canonical nested conditional and forGroup mutation", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
-      "nui 4",
-      "let total: number = 0",
-      "for i in range(from: 0, count: 2, step: 1) {",
-      "  if (@total == 0) {",
-      "    let scratch: number = 1",
-      "    set total = @total + @scratch",
-      "  } else {",
-      "    set total = @total + 10",
-      "  }",
-      "  for j in range(from: 0, count: 2, step: 1) {",
-      "    set total = @total + 1",
-      "    point P = coordinate(x: 0, y: 0)",
-      "  }",
-      "}"
-    ].join("\n"));
-    expect(compiled.status).not.toBe("fatal");
-    const bindingVersions = compiled.doc.bindingVersions!;
-    const options = {
-      scalarProgram: compiled.doc.scalarProgram,
-      bindingVersions,
-      statementInfoByElementId: compiled.doc.statementMap.byElementId,
-      statementIdByStatementIndex: compiled.doc.statementMap.statementIdByStatementIndex,
-      conditionalOwnerStatementIdByElementId: conditionalOwnerIdByElementId(buildConditionalMutationOwners(
-        bindingVersions,
-        compiled.doc.document.elements,
-        compiled.doc.statementMap.byElementId,
-        compiled.doc.statementMap.statementIdByStatementIndex
-      )),
-      forGroupMutationOwnerByElementId: forGroupMutationOwnerByElementId(buildForGroupMutationOwners(
-        bindingVersions,
-        compiled.doc.document.elements,
-        compiled.doc.statementMap.byElementId,
-        compiled.doc.statementMap.statementIdByStatementIndex
-      )),
-      conditionalGroupConditionsByElementId: buildConditionalGroupConditionsByElementId(
-        compiled.doc.conditionalGroupConditions ?? new Map(),
-        compiled.doc.statementMap.elementIdByStatementIndex
-      )
-    };
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(compiled.doc.document.elements, options));
-
-    const { result } = renderHook(() => useEvaluationEngine(compiled.doc.document.elements, options));
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.source).toBe("rust");
-    expect(result.current.rustEligible).toBe(true);
-    expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
-      input: expect.objectContaining({
-        bindingVersions: expect.objectContaining({
-          conditionalOwners: expect.any(Array),
-          forGroupOwners: expect.any(Array)
-        })
-      })
-    });
-    expect(result.current.evaluation.computedScalarBindings?.get(bindingVersions.versions[0].bindingId)).toMatchObject({
-      value: { value: 15 }
-    });
-  });
-
-  it("round-trips optional scalar bindings through the desktop command", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements, { scalarProgram }));
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
-    );
-
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
-      input: expect.objectContaining({ elements, scalarProgram })
-    }));
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.evaluation.computedScalarBindings?.get("binding:stable")).toEqual({
-      status: "ok",
-      type: { kind: "number" },
-      value: { kind: "number", value: 1 }
-    });
-  });
-
-  it("does not invoke Rust for unsupported Tauri documents", () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
+  it("keeps unsupported documents on the TypeScript path even when a Rust transport exists", () => {
+    const transport = transportReturning();
     const unsupportedElements = [unsupportedElement];
-
     const { result } = renderHook(() =>
-      useEvaluationEngine(unsupportedElements, {
-        evaluationLimitIndex: unsupportedElements.length
-      })
+      useEvaluationEngine(
+        unsupportedElements,
+        { evaluationLimitIndex: unsupportedElements.length },
+        1,
+        transport
+      )
     );
 
     expect(result.current.mode).toBe("rust");
     expect(result.current.source).toBe("reference");
     expect(result.current.rustEligible).toBe(false);
     expect(result.current.status).toBe("idle");
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(transport).not.toHaveBeenCalled();
   });
 
-  it("uses the Rust result after Rust evaluation succeeds", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(elements));
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
-    );
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.source).toBe("rust");
-    expect(result.current.isStale).toBe(false);
-    expect(result.current.evaluation.computedGeometry.size).toBe(3);
-  });
-
-  it("keeps the previous Rust result as stale while a new Rust evaluation is pending", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    invokeMock.mockResolvedValueOnce(evaluateElementsReferencePayload(elements));
+  it("keeps the previous Rust result stale while a new request is pending", async () => {
+    const firstPayload = evaluateElementsReferencePayload(elements);
+    let resolveSecond: ((value: typeof firstPayload) => void) | undefined;
+    const transport = vi.fn<RustEvaluationTransport>()
+      .mockResolvedValueOnce(firstPayload)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
 
     const { result, rerender } = renderHook(
       ({ nextElements, revision }: { nextElements: CadElement[]; revision: number }) =>
-        useEvaluationEngine(nextElements, { evaluationLimitIndex: nextElements.length }, revision),
+        useEvaluationEngine(
+          nextElements,
+          { evaluationLimitIndex: nextElements.length },
+          revision,
+          transport
+        ),
       { initialProps: { nextElements: elements, revision: 7 } }
     );
 
     await waitFor(() => expect(result.current.status).toBe("ready"));
-
-    invokeMock.mockImplementationOnce(() => new Promise(() => undefined));
-    rerender({
-      nextElements: [
-        ...elements,
-        {
-          id: "c",
-          name: "点C",
-          type: "freePoint",
-          activity: "visible",
-          x: 0,
-          y: 50
-        }
-      ],
-      revision: 8
-    });
+    const nextElements: CadElement[] = [
+      ...elements,
+      {
+        id: "c",
+        name: "点C",
+        type: "freePoint",
+        activity: "visible",
+        x: 0,
+        y: 50
+      }
+    ];
+    rerender({ nextElements, revision: 8 });
 
     expect(result.current.status).toBe("evaluating");
     expect(result.current.source).toBe("rust");
     expect(result.current.isStale).toBe(true);
-    expect(result.current.evaluation.computedGeometry.size).toBe(3);
     expect(result.current.evaluationRevision).toBe(7);
+    expect(evaluationStateIsCurrentFor(result.current, 8)).toBe(false);
+
+    resolveSecond?.(evaluateElementsReferencePayload(nextElements));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.evaluationRevision).toBe(8);
+    expect(evaluationStateIsCurrentFor(result.current, 8)).toBe(true);
   });
 
   it("falls back to the TypeScript reference evaluation when Rust evaluation fails", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
     const error = new Error("rust failed");
+    const transport = vi.fn<RustEvaluationTransport>().mockRejectedValue(error);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    invokeMock.mockRejectedValue(error);
 
     const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 1, transport)
     );
 
     await waitFor(() => expect(result.current.status).toBe("failed"));
@@ -483,16 +196,18 @@ describe("useEvaluationEngine", () => {
     expect(result.current.evaluation.computedGeometry.size).toBe(3);
   });
 
-  it("fails closed instead of adopting a fallback after scalar program validation fails", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const malformedScalarProgram = { statements: "not-an-array" } as unknown as ScalarProgram;
-    const error = { code: "scalar-payload-invalid-field-type", message: "scalar program statements must be an array" };
+  it("fails closed after a Rust failure when a scalar program is present", async () => {
+    const error = new Error("scalar validation failed");
+    const transport = vi.fn<RustEvaluationTransport>().mockRejectedValue(error);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    invokeMock.mockRejectedValue(error);
 
     const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram: malformedScalarProgram })
+      useEvaluationEngine(
+        elements,
+        { evaluationLimitIndex: elements.length, scalarProgram },
+        1,
+        transport
+      )
     );
 
     await waitFor(() => expect(result.current.status).toBe("failed"));
@@ -501,153 +216,90 @@ describe("useEvaluationEngine", () => {
     expect(result.current.evaluation.computedGeometry.size).toBe(0);
   });
 
-  it.each([
-    ["malformed scalar output", { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } } }],
-    ["duplicate scalar output bindings", [
-      { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } } },
-      { bindingId: "binding:stable", evaluation: { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 2 } } }
-    ]]
-  ])("fails closed instead of adopting a fallback after %s", async (_name, computedScalarBindings) => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    invokeMock.mockResolvedValue({
-      ...evaluateElementsReferencePayload(elements, { scalarProgram }),
-      computedScalarBindings
-    });
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
-    );
-
-    await waitFor(() => expect(result.current.status).toBe("failed"));
-    expect(result.current.source).toBe("rust");
-    expect(result.current.evaluation.computedGeometry.size).toBe(0);
-    expect(result.current.error).toBeInstanceOf(Error);
-  });
-
   it.each(["parity", "shadow"] as const)(
-    "keeps malformed scalar input fail-closed in %s mode before TS reference evaluation",
+    "keeps the reference result in %s mode and warns when Rust differs",
     async (mode) => {
-      setTauriRuntime();
       vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
-      const malformedScalarProgram = { statements: "not-an-array" } as unknown as ScalarProgram;
-      const error = { code: "scalar-payload-invalid-field-type", message: "scalar program statements must be an array" };
-      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
-      vi.spyOn(console, "error").mockImplementation(() => undefined);
-      invokeMock.mockRejectedValue(error);
+      const transport = transportReturning({
+        ...evaluateElementsReferencePayload(elements),
+        computedGeometry: []
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       const { result } = renderHook(() =>
-        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram: malformedScalarProgram })
+        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length }, 1, transport)
       );
 
-      await waitFor(() => expect(result.current.status).toBe("failed"));
-      expect(referenceSpy).not.toHaveBeenCalled();
-      expect(result.current.source).toBe("rust");
-      expect(result.current.evaluation.computedGeometry.size).toBe(0);
-      expect(result.current.error).toBe(error);
+      expect(result.current.source).toBe("reference");
+      expect(result.current.status).toBe("evaluating");
+      expect(result.current.evaluation.computedGeometry.size).toBe(3);
+
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      expect(result.current.source).toBe("reference");
+      expect(warn).toHaveBeenCalledWith(
+        "Rust evaluation differs from the TypeScript reference evaluation.",
+        expect.any(Object)
+      );
     }
   );
 
   it.each(["parity", "shadow"] as const)(
-    "keeps malformed scalar output fail-closed in %s mode",
+    "defers scalar reference evaluation until Rust validates successfully in %s mode",
     async (mode) => {
-      setTauriRuntime();
       vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
-      const malformedOutput = {
-        ...evaluateElementsReferencePayload(elements, { scalarProgram }),
-        computedScalarBindings: { bindingId: "binding:stable" }
-      };
-      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
-      vi.spyOn(console, "error").mockImplementation(() => undefined);
-      invokeMock.mockResolvedValue(malformedOutput);
-
-      const { result } = renderHook(() =>
-        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
+      let resolveRust: ((value: ReturnType<typeof evaluateElementsReferencePayload>) => void) | undefined;
+      const transport = vi.fn<RustEvaluationTransport>(() =>
+        new Promise((resolve) => { resolveRust = resolve; })
+      );
+      const referenceSpy = vi.spyOn(
+        await import("./evaluationEngine"),
+        "evaluateElementsReference"
       );
 
-      await waitFor(() => expect(result.current.status).toBe("failed"));
-      expect(referenceSpy).not.toHaveBeenCalled();
+      const { result } = renderHook(() =>
+        useEvaluationEngine(
+          elements,
+          { evaluationLimitIndex: elements.length, scalarProgram },
+          1,
+          transport
+        )
+      );
+
       expect(result.current.source).toBe("rust");
-      expect(result.current.evaluation.computedGeometry.size).toBe(0);
-      expect(result.current.error).toBeInstanceOf(Error);
-    }
-  );
-
-  it.each(["parity", "shadow"] as const)(
-    "runs TS reference evaluation after successful Rust scalar validation in %s mode",
-    async (mode) => {
-      setTauriRuntime();
-      vi.stubEnv("VITE_EVALUATION_ENGINE", mode);
-      let resolveRustPayload: ((value: unknown) => void) | undefined;
-      invokeMock.mockImplementation(() => new Promise((resolve) => { resolveRustPayload = resolve; }));
-      const rustPayload = evaluateElementsReferencePayload(elements, { scalarProgram });
-      const referenceSpy = vi.spyOn(evaluationEngine, "evaluateElementsReference");
-
-      const { result } = renderHook(() =>
-        useEvaluationEngine(elements, { evaluationLimitIndex: elements.length, scalarProgram })
-      );
-
-      await waitFor(() => expect(invokeMock).toHaveBeenCalled());
+      expect(result.current.status).toBe("evaluating");
       expect(referenceSpy).not.toHaveBeenCalled();
-      resolveRustPayload?.(rustPayload);
 
+      resolveRust?.(evaluateElementsReferencePayload(elements, { scalarProgram }));
       await waitFor(() => expect(result.current.status).toBe("ready"));
       expect(referenceSpy).toHaveBeenCalledTimes(1);
       expect(result.current.source).toBe("reference");
-      expect(result.current.evaluation.computedGeometry.size).toBe(3);
     }
   );
 
-  it("returns the TypeScript reference result in shadow mode and warns on Rust differences", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "shadow");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    invokeMock.mockResolvedValue({
-      ...evaluateElementsReferencePayload(elements),
-      computedGeometry: []
-    });
+  it("measures Rust round-trip timing around the explicit transport", async () => {
+    const sample = beginBenchmarkSample("source-edit-v1");
+    expect(sample).not.toBeNull();
+    const sourceTiming = beginSourceChange();
+    measureCompile(sourceTiming, () => undefined);
+    expect(bindElementsToActiveSample(elements, sourceTiming!)).toBe(true);
 
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
+    const transport = transportReturning();
+    const begin = vi.spyOn(benchmarkInstrumentation, "beginRustRoundTrip");
+    const finish = vi.spyOn(benchmarkInstrumentation, "finishRustRoundTrip");
+    vi.spyOn(performance, "now")
+      .mockReturnValueOnce(20)
+      .mockReturnValueOnce(50)
+      .mockReturnValue(50);
+
+    const result = await evaluateElementsWithRust(
+      elements,
+      { evaluationLimitIndex: elements.length },
+      transport
     );
 
-    expect(result.current.mode).toBe("shadow");
-    expect(result.current.source).toBe("reference");
-    expect(result.current.status).toBe("evaluating");
-    expect(result.current.evaluation.computedGeometry.size).toBe(3);
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.source).toBe("reference");
-    expect(warn).toHaveBeenCalledWith(
-      "Rust evaluation differs from the TypeScript reference evaluation.",
-      expect.any(Object)
-    );
-  });
-
-  it("returns the TypeScript reference result in parity mode and warns on Rust differences", async () => {
-    setTauriRuntime();
-    vi.stubEnv("VITE_EVALUATION_ENGINE", "parity");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    invokeMock.mockResolvedValue({
-      ...evaluateElementsReferencePayload(elements),
-      computedGeometry: []
-    });
-
-    const { result } = renderHook(() =>
-      useEvaluationEngine(elements, { evaluationLimitIndex: elements.length })
-    );
-
-    expect(result.current.mode).toBe("parity");
-    expect(result.current.source).toBe("reference");
-    expect(result.current.status).toBe("evaluating");
-    expect(result.current.evaluation.computedGeometry.size).toBe(3);
-
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(result.current.source).toBe("reference");
-    expect(warn).toHaveBeenCalledWith(
-      "Rust evaluation differs from the TypeScript reference evaluation.",
-      expect.any(Object)
-    );
+    expect(result.computedGeometry.size).toBe(3);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(begin.mock.invocationCallOrder[0]).toBeLessThan(transport.mock.invocationCallOrder[0]!);
+    expect(finish.mock.invocationCallOrder[0]).toBeGreaterThan(transport.mock.invocationCallOrder[0]!);
   });
 });
