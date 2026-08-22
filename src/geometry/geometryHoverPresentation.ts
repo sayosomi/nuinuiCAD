@@ -97,8 +97,15 @@ export const geometryHoverPresentation = (
   };
 };
 
+const markdownCharacters = new Set([
+  "\\", "`", "*", "_", "{", "}", "[", "]", "(", ")",
+  "#", "+", "-", ".", "!", "|", ">"
+]);
+
 const escapeMarkdown = (value: string): string =>
-  value.replace(/([\\`*_{}\[\]()#+\-.!|>])/g, "\\$1");
+  [...value]
+    .map((character) => markdownCharacters.has(character) ? `\\${character}` : character)
+    .join("");
 
 export const geometryHoverMarkdown = (
   presentation: GeometryHoverPresentation
