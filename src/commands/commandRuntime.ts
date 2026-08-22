@@ -24,6 +24,7 @@ export const getSelectedElement = () => {
 export const isLineLikeElement = (element: CadElement) =>
   element.type === "line" ||
   element.type === "angleLengthLine" ||
+  element.type === "commonTangentLine" ||
   element.type === "arcLine" ||
   element.type === "threePointArcLine" ||
   element.type === "cornerRadiusArcLine" ||

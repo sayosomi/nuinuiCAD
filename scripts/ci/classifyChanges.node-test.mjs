@@ -48,6 +48,11 @@ const cases = [
     expected: flags({ workflow: true })
   },
   {
+    name: "MCP server source and tests",
+    paths: ["mcp-server/src/server.ts", "mcp-server/test/stdio.test.ts"],
+    expected: flags({ node: true })
+  },
+  {
     name: "ordinary Canvas/UI TypeScript",
     paths: ["src/components/Canvas.tsx"],
     expected: flags({ node: true, vscode: true })
@@ -55,6 +60,11 @@ const cases = [
   {
     name: "src/state changes",
     paths: ["src/state/documentStore.ts"],
+    expected: flags({ node: true, full_node: true, vscode: true })
+  },
+  {
+    name: "shared Node host runtime",
+    paths: ["src/node/rustEvaluationProcess.ts"],
     expected: flags({ node: true, full_node: true, vscode: true })
   },
   {

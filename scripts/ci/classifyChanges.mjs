@@ -114,6 +114,7 @@ const isTestBackedDocumentationPath = (path) =>
   path.startsWith(TEST_BACKED_DOCUMENTATION_PREFIX);
 
 const isStatePath = (path) => path.startsWith("src/state/");
+const isSharedNodeRuntimePath = (path) => path.startsWith("src/node/");
 
 const classifyPath = (path) => {
   if (isTestBackedDocumentationPath(path)) {
@@ -179,7 +180,7 @@ const classifyPath = (path) => {
     return null;
   }
 
-  if (isStatePath(path)) {
+  if (isStatePath(path) || isSharedNodeRuntimePath(path)) {
     const flags = emptyFlags();
     flags.node = true;
     flags.full_node = true;
@@ -200,6 +201,7 @@ const classifyPath = (path) => {
 
   if (path.startsWith("src/") ||
       path.startsWith("test/") ||
+      path.startsWith("mcp-server/") ||
       path.startsWith("vscode-extension/") ||
       (path.startsWith("scripts/") && !path.startsWith("scripts/ci/")) ||
       isRootNodeInput(path)) {

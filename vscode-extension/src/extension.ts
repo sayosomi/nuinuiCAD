@@ -7,7 +7,8 @@ import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../sr
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
-  type CompilerDiagnostic
+  type CompilerDiagnostic,
+  type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
 import {
   createLanguageAnalysisSession,
@@ -49,6 +50,10 @@ import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
+import {
+  createNuiElementsTreeProvider,
+  NUI_ELEMENTS_VIEW_ID
+} from "./elementsTreeProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -73,6 +78,10 @@ import {
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
+import {
+  vscodeObservationState,
+  type VscodeObservationHostDocument
+} from "./vscodeObservationState";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -171,20 +180,34 @@ const postCanvasRibbonConfiguration = (
 const fullDocumentRange = (document: vscode.TextDocument): vscode.Range =>
   new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
 
-const toVscodeDiagnostic = (diagnostic: CompilerDiagnostic): vscode.Diagnostic => {
+const toVscodeDiagnosticRange = (range: CompilerDiagnosticRange): vscode.Range =>
+  new vscode.Range(
+    new vscode.Position(range.start.line, range.start.character),
+    new vscode.Position(range.end.line, range.end.character)
+  );
+
+const toVscodeDiagnostic = (
+  document: vscode.TextDocument,
+  diagnostic: CompilerDiagnostic
+): vscode.Diagnostic => {
   const severity = diagnostic.severity === "error"
     ? vscode.DiagnosticSeverity.Error
     : vscode.DiagnosticSeverity.Warning;
   const result = new vscode.Diagnostic(
-    new vscode.Range(
-      new vscode.Position(diagnostic.range.start.line, diagnostic.range.start.character),
-      new vscode.Position(diagnostic.range.end.line, diagnostic.range.end.character)
-    ),
+    toVscodeDiagnosticRange(diagnostic.range),
     diagnostic.message,
     severity
   );
   if (diagnostic.code !== undefined) result.code = diagnostic.code;
   result.source = diagnostic.source;
+  if (diagnostic.relatedInformation && diagnostic.relatedInformation.length > 0) {
+    result.relatedInformation = diagnostic.relatedInformation.map((related) =>
+      new vscode.DiagnosticRelatedInformation(
+        new vscode.Location(document.uri, toVscodeDiagnosticRange(related.range)),
+        related.message
+      )
+    );
+  }
   return result;
 };
 
@@ -516,7 +539,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       !isOpenDocument(document) ||
       document.version !== capturedVersion
     ) return;
-    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map(toVscodeDiagnostic));
+    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map((diagnostic) => toVscodeDiagnostic(document, diagnostic)));
   };
 
   const languageAnalysisSessionFor = (document: vscode.TextDocument): NuiLanguageAnalysisSession => {
@@ -528,10 +551,61 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return session;
   };
 
+  const observationHostDocuments = (): VscodeObservationHostDocument[] => {
+    const activeSourceEditor = activeNuiTextEditorForCommand();
+    const activeCanvasSession = activeCanvasSessionForOpenCommand();
+    const activeOutputPreviewSession = activeOutputPreviewSessionForOpenCommand();
+
+    return vscode.workspace.textDocuments
+      .filter(isSupportedNuiDocument)
+      .map((document) => {
+        const documentUri = documentKey(document);
+        const analysis = languageAnalysisSessions.get(documentUri);
+        const sourceText = document.getText();
+        const sourceEditorIsActive = activeSourceEditor !== undefined && sameDocument(activeSourceEditor.document, document);
+        const canvasIsActive = activeCanvasSession !== null && sameDocument(activeCanvasSession.document, document);
+        const outputPreviewIsActive = activeOutputPreviewSession !== null && sameDocument(activeOutputPreviewSession.document, document);
+        const selection = sourceEditorIsActive ? activeSourceEditor.selection : null;
+
+        return {
+          documentUri,
+          documentPath: document.fileName,
+          documentVersion: document.version,
+          isDirty: document.isDirty,
+          activeSurface: sourceEditorIsActive
+            ? "source"
+            : canvasIsActive
+              ? "canvas"
+              : outputPreviewIsActive
+                ? "outputPreview"
+                : "none",
+          sourceSelection: selection
+            ? {
+                anchor: { line: selection.anchor.line, character: selection.anchor.character },
+                active: { line: selection.active.line, character: selection.active.character },
+                start: { line: selection.start.line, character: selection.start.character },
+                end: { line: selection.end.line, character: selection.end.character },
+                isEmpty: selection.anchor.line === selection.active.line &&
+                  selection.anchor.character === selection.active.character
+              }
+            : null,
+          diagnostics: analysis?.getSource() === sourceText ? analysis.getDiagnostics() : [],
+          canvasSessionPresent: sessions.get(documentUri, "canvas") !== undefined,
+          outputPreviewSessionPresent: sessions.get(documentUri, "outputPreview") !== undefined
+        } satisfies VscodeObservationHostDocument;
+      });
+  };
+
+  vscodeObservationState.reset();
+  vscodeObservationState.setHostDocumentsProvider(observationHostDocuments);
+
   const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
     publishCompilerDiagnostics(document);
   });
   const compilerDiagnosticChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    if (isSupportedNuiDocument(event.document) && event.contentChanges.length > 0) {
+      vscodeObservationState.invalidateCanvasRuntime(documentKey(event.document));
+    }
     publishCompilerDiagnostics(event.document);
   });
   const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
@@ -539,6 +613,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     languageAnalysisSessions.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
+    vscodeObservationState.removeDocument(key);
   });
   const disposeCompilerDiagnosticSessions = {
     dispose: () => languageAnalysisSessions.clear()
@@ -578,6 +653,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiDocumentSymbolSelector,
     createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
   );
+  const elementsTreeProvider = createNuiElementsTreeProvider(
+    () => activeNuiEditor()?.document,
+    languageAnalysisSessionFor
+  );
+  const elementsTreeRegistration = vscode.window.registerTreeDataProvider?.(
+    NUI_ELEMENTS_VIEW_ID,
+    elementsTreeProvider
+  );
+  const elementsTreeActiveEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
+    elementsTreeProvider.refresh();
+  });
+  const elementsTreeDocumentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    const activeDocument = activeNuiEditor()?.document;
+    if (activeDocument && sameDocument(activeDocument, event.document)) elementsTreeProvider.refresh();
+  });
+  const elementsTreeDocumentCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    const activeDocument = activeNuiEditor()?.document;
+    if (!activeDocument || sameDocument(activeDocument, document)) elementsTreeProvider.refresh();
+  });
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -591,8 +685,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
     referenceProvider,
     choiceQuickFixProvider,
     foldingProvider,
-    documentSymbolProvider
+    documentSymbolProvider,
+    elementsTreeActiveEditorListener,
+    elementsTreeDocumentChangeListener,
+    elementsTreeDocumentCloseListener
   );
+  if (elementsTreeRegistration) context.subscriptions.push(elementsTreeRegistration);
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
   const resync = (session: DocumentSession): void => {
@@ -733,6 +831,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
       session.pendingCanvasFocus = { requestId: message.requestId };
       session.panel.reveal(vscode.ViewColumn.Beside, false);
       flushPendingCanvasFocus(session);
+      return;
+    }
+    if (message.status === "no-renderable-geometry") {
+      session.pendingCanvasFocus = null;
+      session.inFlightCanvasNavigation = null;
+      void vscode.window.showErrorMessage(
+        "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
+      );
+      deliverPendingCanvasNavigation(session);
       return;
     }
     if (message.status === "focused") {
@@ -924,6 +1031,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.documentUri, "canvas");
+    vscodeObservationState.invalidateCanvasRuntime(session.documentUri);
     disposeSessionListeners(session);
     updatePanelTitles();
   };
@@ -1014,6 +1122,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           session.pendingCanvasFocus = null;
           session.inFlightCanvasNavigation = null;
           session.pendingSourceDefinitionRequest = null;
+          vscodeObservationState.invalidateCanvasRuntime(session.documentUri);
 
           const inFlightHistory = session.inFlightCanvasHistory;
           const documentChangedDuringCanvasHistory = inFlightHistory !== null
@@ -1056,6 +1165,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "canvasObservationPublication") {
+        vscodeObservationState.acceptCanvasPublication({
+          sessionDocumentUri: session.documentUri,
+          sessionSurfaceKind: session.surfaceKind,
+          sessionIsCurrent: sessions.get(session.documentUri, "canvas") === session && isOpenDocument(session.document),
+          currentDocumentVersion: session.document.version,
+          snapshot: message.snapshot
+        });
         return;
       }
       if (message.type === "canvasRibbonPositionCommit") {
@@ -1509,6 +1628,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
       lastBakeSurface = null;
     }
+    vscodeObservationState.removeDocument(documentKey(document));
     for (const session of sessions.forDocument(documentKey(document))) {
       if (sameDocument(session.document, document)) session.panel.dispose();
     }
@@ -1519,6 +1639,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sessions.clear();
       sourceBakeRequestsWithStructuredSkips.clear();
       lastBakeSurface = null;
+      vscodeObservationState.reset();
     }
   };
   const disposeRustProcess = {

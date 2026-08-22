@@ -35,6 +35,7 @@ export const createCadElement = (
     (element) =>
       element.type === "line" ||
       element.type === "angleLengthLine" ||
+      element.type === "commonTangentLine" ||
       element.type === "arcLine" ||
       element.type === "threePointArcLine" ||
       element.type === "cornerRadiusArcLine" ||
@@ -43,6 +44,12 @@ export const createCadElement = (
       element.type === "splitLine" ||
       element.type === "copyLine" ||
       element.type === "symmetricCopyLine"
+  );
+  const arcLikeElements = referenceElements.filter(
+    (element) =>
+      element.type === "arcLine" ||
+      element.type === "threePointArcLine" ||
+      element.type === "cornerRadiusArcLine"
   );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
     makeUniqueElementName({
@@ -266,6 +273,22 @@ export const createCadElement = (
         startPoint: firstPointId ? referenceAnchor(firstPointId) : { mode: "coordinate", x: 0, y: 0 },
         angleDeg: 0,
         length: 100
+      };
+    }
+    case "commonTangentLine": {
+      const id = createId(type);
+      const lineCount = elements.filter((element) => element.type === "commonTangentLine").length;
+      const firstArc = arcLikeElements[0];
+      const secondArc = arcLikeElements.find((element) => element.id !== firstArc?.id) ?? firstArc;
+      return {
+        id,
+        name: uniqueName(id, `共通接線${lineCount + 1}`),
+        type,
+        activity: "visible",
+        firstLineId: firstArc?.id ?? "",
+        secondLineId: secondArc?.id ?? "",
+        kind: "external",
+        side: "left"
       };
     }
     case "arcLine": {

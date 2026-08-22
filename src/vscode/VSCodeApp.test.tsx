@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { selectElement } from "../commands/selectionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import type { EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
@@ -11,7 +12,8 @@ import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string) => void) | null,
   bakeSandboxTargetIds: null as string[] | null,
-  bakeSandboxPromise: null as Promise<unknown> | null
+  bakeSandboxPromise: null as Promise<unknown> | null,
+  evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
 vi.mock("../geometry/productionEvaluationContext", () => ({
@@ -29,8 +31,7 @@ vi.mock("../geometry/evaluationEngine", () => ({
 vi.mock("../geometry/useEvaluationEngine", () => ({
   evaluationStateIsCurrentFor: () => true,
   useEvaluationEngine: () => ({
-    evaluation: {},
-    evaluationState: { evaluation: {} }
+    evaluation: drawingCanvasProps.evaluation
   })
 }));
 
@@ -63,6 +64,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.postCanonicalSourceText = null;
     drawingCanvasProps.bakeSandboxTargetIds = null;
     drawingCanvasProps.bakeSandboxPromise = null;
+    drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -668,7 +670,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it.each([
     ["hidden", "nui 4\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
     ["disabled", "nui 4\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
-    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", true]
+    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
   ] as const)("handles a %s primary without changing activity or viewport", async (_label, source, token, shouldSelect) => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -837,4 +839,124 @@ describe("VSCodeApp Canvas history coordinator", () => {
       status: "stale"
     });
   });
+
+  it("reveals a concrete Module instance as one identity and minimally pans its descendant bounds without zooming", async () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  point P = coordinate(x: 80, y: 0)",
+      "}",
+      "instance A = M()"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 31 }
+      }));
+    });
+    const state = useCadDocumentStore.getState();
+    const instance = state.elements.find((element) => element.type === "moduleInstance" && element.name === "A")!;
+    const child = state.elements.find((element) => element.parentGroupId === instance.id && element.name === "P")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(child.id, {
+      kind: "point",
+      elementId: child.id,
+      name: child.name,
+      x: 80,
+      y: 0
+    });
+    const canvas = screen.getByTestId("canvas");
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+      width: 100,
+      height: 100,
+      toJSON: () => ({})
+    } as DOMRect);
+    useCadUiStore.getState().setCanvasViewport({ panX: 0, panY: 0, zoom: 1 });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 311,
+          documentVersion: 31,
+          normalizedSourceOffset: source.indexOf("A = M")
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([instance.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
+    expect(useCadUiStore.getState().selectedElementIds).not.toContain(child.id);
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -30, panY: 0, zoom: 1 });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 311,
+      status: "ready"
+    });
+  });
+
+  it("preserves selection and viewport when a Module instance has no currently renderable descendants", async () => {
+    const source = [
+      "nui 4",
+      "point Existing = coordinate(x: 0, y: 0)",
+      "module M() {",
+      "  point P = coordinate(x: 80, y: 0, state: hidden)",
+      "}",
+      "instance A = M()"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 32 }
+      }));
+    });
+    const state = useCadDocumentStore.getState();
+    const existing = state.elements.find((element) => element.name === "Existing")!;
+    const instance = state.elements.find((element) => element.type === "moduleInstance" && element.name === "A")!;
+    const child = state.elements.find((element) => element.parentGroupId === instance.id && element.name === "P")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(child.id, {
+      kind: "point",
+      elementId: child.id,
+      name: child.name,
+      x: 80,
+      y: 0
+    });
+    selectElement(existing.id, "replace", true);
+    useCadUiStore.getState().setCanvasViewport({ panX: 17, panY: -9, zoom: 2 });
+    const selectionBefore = {
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    };
+    const viewportBefore = { ...useCadUiStore.getState().canvasViewport };
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 321,
+          documentVersion: 32,
+          normalizedSourceOffset: source.indexOf("A = M")
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject(selectionBefore);
+    expect(useCadUiStore.getState().canvasViewport).toEqual(viewportBefore);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 321,
+      status: "no-renderable-geometry"
+    });
+  });
+
 });

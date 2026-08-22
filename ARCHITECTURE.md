@@ -71,6 +71,7 @@ document/evaluation/Canvas path:
 VS Code TextDocument / Extension Host
 → Webview production document/evaluation/Canvas
 → Extension Host persistent stdio transport
+→ shared Node evaluation_stdio process client
 → existing Rust evaluate_document
 ```
 
@@ -139,8 +140,40 @@ consumer が共有する。
 
 `AutomationDocument` は既存の parser、statement reconciler、compiler、Module
 semantic / materialization path をそのまま利用し、materialized Module children
-を source representation に flatten しない。Future Evaluation Context や
-Headless Rust はこの architecture の current component ではない。
+を source representation に flatten しない。Headless MCP の fresh file snapshot
+もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics
+だけを返して last-good `doc` を current semantics として公開しない。
+
+### Headless MCP
+
+Primary:
+
+- `mcp-server/src/server.ts`
+- `mcp-server/src/documentSnapshot.ts`
+- `mcp-server/src/documentEvaluation.ts`
+- `src/node/rustEvaluationProcess.ts`
+
+Repository-owned MCP server は Node の直接 entry
+`mcp-server/dist/server.js` を stdio transport で起動する。stdout は MCP protocol
+専用で、server diagnostics は stderr に出す。`document_inspect`、
+`document_definition`、`document_references` は absolute file-backed `.nui` を
+call ごとに disk から fresh read し、SHA-256 source identity と exact-current
+compiler / semantic productsを利用する。
+
+`document_evaluate` も同じ fresh snapshot boundary を使い、exact-current compiled
+documentだけを shared `productionEvaluationContext` → `rustEvaluationRunner` で
+production Rust inputへlowerする。Rust eligibility、process unavailable / failed、
+source-unavailable、staleを明示し、成功時もerrors / warningsを含むcompact DTOだけを
+返す。computed geometryやevaluated element IDsは明示的に要求された範囲だけを返し、
+internal `EvaluationResult` 全体は公開しない。Rust完了後にはdisk source identityを
+再取得し、変化していれば結果をstaleとして破棄する。
+
+MCPとVS Code Extension Hostは`src/node/rustEvaluationProcess.ts`の同じNode-only
+`evaluation_stdio` NDJSON client / lazy owner実装を利用する。各hostは独立したowner
+instanceを持つがprotocol implementationは複製しない。binaryは既存の
+`NUINUICAD_RUST_EVALUATION_BINARY` overrideまたはrepository debug fallbackで解決し、
+MCP startup時にCargo buildは起動しない。Mutable document registry、VS Code
+attached observation、source mutationはHeadless MCP boundaryのownerではない。
 
 ### Compilation / source mutation
 
@@ -247,6 +280,11 @@ Representative owners:
 children を source representation として flatten しない。
 
 ### TypeScript evaluation
+
+`EvaluationResult.geometryMutationExecutions` is the production/reference parity fact for successful in-place geometry mutations. It contains only the runtime mutation occurrence ID and the target geometry IDs, in actual execution order; disabled, inactive, skipped, or failed mutations are absent. Rust emits the same JSON-friendly field through the ordinary evaluation payload.
+
+`src/geometry/geometrySourceFlow.ts` joins those runtime facts with the exact-current `CompiledDslDocument`. Construction and mutation steps resolve through `sourceOwnership`; `forGroupGeneratedRows` maps generated runtime occurrences back to their source templates. The resulting host-neutral steps carry reconciler-owned source statement identity and exact physical source span. Consumers must use this structured join rather than parsing runtime IDs, searching source text, or reconstructing evaluator semantics.
+
 
 Primary:
 
@@ -355,6 +393,7 @@ Primary:
 
 - `src-tauri/src/evaluation/`
 - `src/geometry/rustEvaluationRunner.ts` (request boundary)
+- `src/node/rustEvaluationProcess.ts` (shared Node stdio process boundary)
 
 Production Tauri evaluator。
 
@@ -367,11 +406,12 @@ Rust evaluator は `.nui` source text を parse したり source name resolution
 runtime payload を decode / validate / evaluate する。
 
 Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
-から既存の `evaluation::evaluate_document` を呼び出す。Parityのcargo exampleは
-同じRust evaluatorと `buildRustEvaluationInput` のprojectionを利用する。Parity
-harnessはRust evaluator自体のcorrectness検証のため、production Rust eligibilityとは
-独立してRust inputを構築できる。Current-release fixtureは別途production Rust
-eligibilityをassertする。
+から既存の `evaluation::evaluate_document` を呼び出す。VS CodeとHeadless MCPの
+Node hostsはshared `RustEvaluationProcess`から既存`evaluation_stdio` protocolへ接続し、
+同じRust evaluatorを利用する。Parityのcargo exampleは同じRust evaluatorと
+`buildRustEvaluationInput` のprojectionを利用する。Parity harnessはRust evaluator
+自体のcorrectness検証のため、production Rust eligibilityとは独立してRust inputを
+構築できる。Current-release fixtureは別途production Rust eligibilityをassertする。
 
 ### Rendering / hit testing
 
@@ -492,7 +532,7 @@ Primary:
 - `vscode-extension/src/documentSymbolProvider.ts`
 - `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/choiceQuickFixProvider.ts`
-- `vscode-extension/src/rustEvaluationProcessOwner.ts`
+- `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/protocol.ts`
@@ -579,19 +619,23 @@ Source Editor focus where possible, rejects reusable module-definition bodies, a
 is accepted only after the same authoritative source/revision/evaluation checks
 used by navigation.
 
-`RustEvaluationProcess` is lazy and extension-wide through
-`RustEvaluationProcessOwner`; all Canvas sessions share it regardless of
-document or surface identity. A panel does not own or kill the process.
-Unexpected process death rejects pending work, clears the dead owner, and
-allows the next evaluation request to respawn it. The existing bounded
-latest-wins Rust transport, stale evaluation discard,
-`VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
-evaluator remain reused from the performance PoC path.
+`RustEvaluationProcess` and `RustEvaluationProcessOwner` are implemented in the
+shared Node-only `src/node/rustEvaluationProcess.ts` boundary. The VS Code
+compatibility modules re-export that implementation; Extension Host still owns
+one lazy process instance shared by all Canvas / Output Preview sessions regardless
+of document or surface identity. A panel does not own or kill the process.
+Unexpected process death rejects pending work, clears the dead owner, and allows
+the next evaluation request to respawn it. Headless MCP owns a separate lazy owner
+instance but uses the same client/protocol implementation. The existing bounded
+latest-wins Rust transport, stale evaluation discard, `VscodeDragPreviewScheduler`,
+shared DrawingCanvas, and production compiler / evaluator remain reused from the
+performance PoC path.
 
 `src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
 Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
-desktop-local extension host, Canvas session registry, persistent Rust stdio
-relay, TextDocument edit bridge, and URI-scoped language analysis sessions.
+desktop-local extension host, Canvas session registry, TextDocument edit bridge,
+URI-scoped language analysis sessions, and its adapter into the shared persistent
+Rust stdio process boundary.
 
 The Extension Host is authoritative for VS Code Canvas Ribbon configuration. It
 normalizes `nuinuiCAD.canvasRibbon.ribbons`, sends the current normalized value

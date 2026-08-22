@@ -20,12 +20,34 @@ describe("evaluation payload conversion", () => {
       Array.from(evaluation.computedGeometry.values())
     );
     expect(roundTrip.preMutationGeometry).toEqual(evaluation.preMutationGeometry);
+    expect(roundTrip.geometryMutationExecutions).toEqual(evaluation.geometryMutationExecutions);
     expect(roundTrip.errors).toEqual(evaluation.errors);
     expect(roundTrip.warnings).toEqual(evaluation.warnings);
     expect(roundTrip.evaluatedElementIds).toEqual(evaluation.evaluatedElementIds);
     expect(roundTrip.effectiveVisibleElementIds).toEqual(evaluation.effectiveVisibleElementIds);
     expect(roundTrip.effectiveEnabledElementIds).toEqual(evaluation.effectiveEnabledElementIds);
     expect(roundTrip.effectiveDrawingModifierStrokes).toEqual(evaluation.effectiveDrawingModifierStrokes);
+  });
+
+  it("round-trips ordered successful geometry mutation executions", () => {
+    const evaluation = evaluateElements([
+      { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+      {
+        id: "line", name: "Line", type: "line", activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      { id: "reverse", name: "", type: "pathReverse", activity: "visible", targetLineId: "line" }
+    ]);
+    const payload = evaluationResultToPayload(evaluation);
+
+    expect(payload.geometryMutationExecutions).toEqual([
+      { mutationElementId: "reverse", targetElementIds: ["line"] }
+    ]);
+    expect(evaluationPayloadToResult(payload).geometryMutationExecutions).toEqual(
+      evaluation.geometryMutationExecutions
+    );
   });
 
   it("omits an empty effective stroke map from the JSON payload", () => {

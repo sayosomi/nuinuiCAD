@@ -17,6 +17,7 @@ export const elementSupportsDisplayColor = (element: CadElement): boolean => {
     case "splitLine":
     case "line":
     case "angleLengthLine":
+    case "commonTangentLine":
     case "arcLine":
     case "threePointArcLine":
     case "cornerRadiusArcLine":

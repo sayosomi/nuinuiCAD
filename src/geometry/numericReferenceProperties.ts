@@ -54,6 +54,7 @@ export const numericReferencePropertiesForElement = (
   if (
     element.type === "line" ||
     element.type === "angleLengthLine" ||
+    element.type === "commonTangentLine" ||
     element.type === "arcLine" ||
     element.type === "threePointArcLine" ||
     element.type === "cornerRadiusArcLine"

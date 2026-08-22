@@ -199,6 +199,12 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         angleDeg: remapNumericValue(element.angleDeg, idMap),
         length: remapNumericValue(element.length, idMap)
       };
+    case "commonTangentLine":
+      return {
+        ...element,
+        firstLineId: mapId(element.firstLineId, idMap),
+        secondLineId: mapId(element.secondLineId, idMap)
+      };
     case "arcLine":
       return {
         ...element,

@@ -9,6 +9,9 @@ mod bezier_math;
 #[cfg(test)]
 mod bezier_math_tests;
 mod bezier_path;
+mod common_tangent_evaluator;
+#[cfg(test)]
+mod common_tangent_evaluator_tests;
 mod control_boolean_runtime;
 #[cfg(test)]
 mod control_boolean_runtime_tests;
@@ -114,6 +117,7 @@ use activity::{
 };
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
+use common_tangent_evaluator::evaluate_common_tangent_line;
 use control_boolean_runtime::{
     resolve_conditional_group_branch, resolve_for_group_effective_show_generated,
 };
@@ -158,7 +162,7 @@ use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{
     element_id, element_name, element_type, EffectiveDrawingModifierStroke, ElementId,
-    EvaluationState,
+    EvaluationState, GeometryMutationExecution,
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
@@ -491,6 +495,41 @@ struct ConditionalGroupContext<'a> {
     scalar_binding_resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
 }
 
+fn geometry_mutation_target_ids(element: &Value) -> Vec<ElementId> {
+    let endpoint_line_id = |key: &str| {
+        element
+            .get(key)
+            .and_then(|endpoint| endpoint.get("lineId"))
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+    };
+    let mut target_ids = match element_type(element) {
+        Some("edge") => [endpoint_line_id("endpoint1"), endpoint_line_id("endpoint2")]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        Some("extendTrim") => endpoint_line_id("endpoint").into_iter().collect(),
+        Some("pathReverse") => element
+            .get("targetLineId")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+            .into_iter()
+            .collect(),
+        Some("move" | "symmetricMove") => element
+            .get("baseLineIds")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect(),
+        _ => Vec::new(),
+    };
+    let mut seen = HashSet::new();
+    target_ids.retain(|target_id| seen.insert(target_id.clone()));
+    target_ids
+}
+
 fn evaluate_element_by_type(
     id: ElementId,
     element: Value,
@@ -501,6 +540,8 @@ fn evaluate_element_by_type(
     state: &mut EvaluationState,
 ) {
     let capture_id = id.clone();
+    let mutation_target_ids = geometry_mutation_target_ids(&element);
+    let error_count_before_element_evaluation = state.errors.len();
     match element_type(&element) {
         Some("conditionalGroup") => {
             let active_branch = match condition_context
@@ -545,6 +586,7 @@ fn evaluate_element_by_type(
         Some("intersectionPoint") => evaluate_intersection_point(&element, &local_variables, state),
         Some("line") => evaluate_line(&element, &local_variables, state),
         Some("angleLengthLine") => evaluate_angle_length_line(&element, &local_variables, state),
+        Some("commonTangentLine") => evaluate_common_tangent_line(&element, state),
         Some("arcLine") => evaluate_arc_line(&element, &local_variables, state),
         Some("threePointArcLine") => {
             evaluate_three_point_arc_line(&element, &local_variables, state)
@@ -567,6 +609,16 @@ fn evaluate_element_by_type(
         Some("image") => evaluate_image(&element, &local_variables, state),
         Some("text") => evaluate_text(&element, &local_variables, text_context, state),
         _ => {}
+    }
+    if !mutation_target_ids.is_empty()
+        && state.errors.len() == error_count_before_element_evaluation
+    {
+        state
+            .geometry_mutation_executions
+            .push(GeometryMutationExecution {
+                mutation_element_id: capture_id.clone(),
+                target_element_ids: mutation_target_ids,
+            });
     }
     if !state.pre_mutation_geometry.contains_key(&capture_id) {
         if let Some(geometry) = state.computed_geometry.get(&capture_id) {
@@ -698,6 +750,7 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
@@ -1126,6 +1179,7 @@ fn evaluate_document_input_with_scalar_program(
             .iter()
             .filter_map(|id| state.pre_mutation_geometry.get(id).cloned())
             .collect(),
+        geometry_mutation_executions: state.geometry_mutation_executions,
         instance_base_geometry: instance_snapshots
             .iter()
             .filter_map(|snapshot| {

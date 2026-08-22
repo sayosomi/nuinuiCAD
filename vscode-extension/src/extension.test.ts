@@ -149,12 +149,19 @@ vi.mock("vscode", () => {
   class Diagnostic {
     code?: string | number;
     source?: string;
+    relatedInformation?: unknown[];
 
     constructor(
       public readonly range: unknown,
       public readonly message: string,
       public readonly severity: number
     ) {}
+  }
+  class Location {
+    constructor(public readonly uri: unknown, public readonly range: unknown) {}
+  }
+  class DiagnosticRelatedInformation {
+    constructor(public readonly location: unknown, public readonly message: string) {}
   }
   class CompletionItem {
     detail?: string;
@@ -256,6 +263,8 @@ vi.mock("vscode", () => {
     Selection,
     TextEditorRevealType: { InCenterIfOutsideViewport: 1 },
     Diagnostic,
+    Location,
+    DiagnosticRelatedInformation,
     CompletionItem,
     SnippetString,
     FoldingRange
@@ -625,6 +634,39 @@ describe("VS Code production document lifecycle", () => {
       selector: { language: "nui", scheme: "file" },
       triggerCharacters: ["(", ",", ":"]
     });
+  });
+
+  it("publishes Module diagnostic related information through the current document URI", () => {
+    const source = [
+      "nui 4",
+      "module M(required: number) {",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/related.nui", "file:///tmp/related.nui", source);
+    setup(false, editorFor(document), [document]);
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      relatedInformation?: Array<{
+        message: string;
+        location: { uri: unknown; range: { start: MockPosition; end: MockPosition } };
+      }>;
+    }>;
+    const missing = published.find((item) => item.code === "module-missing-argument");
+
+    expect(missing).toBeDefined();
+    expect(missing?.relatedInformation).toHaveLength(1);
+    expect(missing?.relatedInformation?.[0]).toMatchObject({
+      location: {
+        uri: document.uri,
+        range: {
+          start: { line: 1, character: 9 },
+          end: { line: 1, character: 17 }
+        }
+      }
+    });
+    expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
   });
 
   it("registers and opens the Output Preview production surface", () => {
@@ -1545,8 +1587,8 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorFor();
     mocks.visibleTextEditors = [mocks.activeTextEditor];
     mocks.textDocuments = [mocks.activeTextEditor.document];
-    mocks.activeEditorListeners[0]?.();
-    mocks.activeEditorListeners[0]?.();
+    emitActiveEditorChange(mocks.activeTextEditor);
+    emitActiveEditorChange(mocks.activeTextEditor);
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
   });
 
@@ -1561,7 +1603,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(2);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
@@ -2784,5 +2826,46 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
         items: []
       }]
     });
+  });
+});
+
+
+describe("SAY-125 Module instance Reveal feedback", () => {
+  it("reports a no-renderable result without asking the Canvas to take focus", async () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, state: hidden)",
+      "}",
+      "instance A = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/instance.nui", "file:///tmp/instance.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("A = M"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+    mocks.showErrorMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasNavigationRequest") as { requestId: number } | undefined;
+    expect(request).toBeDefined();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: request!.requestId,
+      status: "no-renderable-geometry"
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "focusCanvas", requestId: request!.requestId })
+    );
   });
 });

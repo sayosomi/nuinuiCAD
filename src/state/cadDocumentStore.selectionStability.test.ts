@@ -38,6 +38,39 @@ const errorfulWithBoth = [
   ")"
 ].join("\n");
 
+const vscodeE2eBaseline = [
+  "nui 4",
+  "",
+  "point A = coordinate(",
+  "  x: 0,",
+  "  y: 0,",
+  ")",
+  "",
+  "point B = coordinate(",
+  "  x: 60,",
+  "  y: 0,",
+  ")",
+  "",
+  "line AB = segment(",
+  "  start: @A,",
+  "  end: @B,",
+  ")"
+].join("\n");
+
+const vscodeE2eErrorfulWithoutA = [
+  "nui 4",
+  "",
+  "point B = coordinate(",
+  "  x: 60,",
+  "  y: 0,",
+  ")",
+  "",
+  "line Temp = segment(",
+  "  start: @B,",
+  "  end:",
+  ")"
+].join("\n");
+
 const selection = () => {
   const ui = useCadUiStore.getState();
   return {
@@ -68,10 +101,13 @@ describe("editor selection stability across transient invalid source", () => {
   it("preserves the last stable selection when an errorful editor snapshot temporarily drops its element", () => {
     useCadDocumentStore.getState().commitText(errorfulWithoutA, "editor");
 
-    expect(useCadDocumentStore.getState().diagnostics).toContainEqual(
+    const documentState = useCadDocumentStore.getState();
+    expect(documentState.sourceText).toBe(errorfulWithoutA);
+    expect(documentState.sourceUpdate.kind).toBe("editor");
+    expect(documentState.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
     );
-    expect(useCadDocumentStore.getState().elements.some((element) => element.id === "selection-a")).toBe(false);
+    expect(documentState.elements.some((element) => element.id === "selection-a")).toBe(false);
     expect(selection()).toEqual({
       selectedElementId: "selection-a",
       selectedElementIds: ["selection-a"],
@@ -81,6 +117,46 @@ describe("editor selection stability across transient invalid source", () => {
     useCadDocumentStore.getState().commitText(validSource, "editor");
     expect(useCadDocumentStore.getState().diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(selection().selectedElementId).toBe("selection-a");
+  });
+
+  it("preserves the exact VS Code E2E selection without explicit DSL ids", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.getState().commitText(vscodeE2eBaseline, "test");
+
+    const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(initialA).toBeDefined();
+    useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+      selectedElementId: initialA!.id,
+      selectedElementIds: [initialA!.id],
+      selectionAnchorElementId: initialA!.id
+    });
+
+    useCadDocumentStore.getState().commitText(vscodeE2eErrorfulWithoutA, "editor");
+
+    const errorfulState = useCadDocumentStore.getState();
+    expect(errorfulState.sourceText).toBe(vscodeE2eErrorfulWithoutA);
+    expect(errorfulState.sourceUpdate.kind).toBe("editor");
+    expect(errorfulState.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
+    );
+    expect(errorfulState.elements.some((element) => element.name === "A")).toBe(false);
+    expect(selection()).toEqual({
+      selectedElementId: initialA!.id,
+      selectedElementIds: [initialA!.id],
+      selectionAnchorElementId: initialA!.id
+    });
+
+    useCadDocumentStore.getState().commitText(vscodeE2eBaseline, "editor");
+
+    const restoredA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
+    expect(restoredA?.id).toBe(initialA!.id);
+    expect(useCadDocumentStore.getState().diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(selection()).toEqual({
+      selectedElementId: initialA!.id,
+      selectedElementIds: [initialA!.id],
+      selectionAnchorElementId: initialA!.id
+    });
   });
 
   it("clears the preserved selection when the next error-free editor revision intentionally deletes it", () => {

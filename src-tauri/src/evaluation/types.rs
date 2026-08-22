@@ -123,6 +123,13 @@ pub(crate) struct ForGroupGeneratedRow {
     pub(crate) element_type: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GeometryMutationExecution {
+    pub(crate) mutation_element_id: ElementId,
+    pub(crate) target_element_ids: Vec<ElementId>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EffectiveDrawingModifierStroke {
@@ -136,6 +143,8 @@ pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) pre_mutation_geometry: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) instance_base_geometry: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
@@ -208,6 +217,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
+    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,

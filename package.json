@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run build:mcp",
+    "build:mcp": "tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js",
     "desktop:dev": "tauri dev",
     "desktop:dev:parity": "VITE_EVALUATION_ENGINE=parity npm run desktop:dev",
     "desktop:dev:shadow": "VITE_EVALUATION_ENGINE=shadow npm run desktop:dev",
@@ -37,6 +38,7 @@
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.6",
     "@lezer/highlight": "^1.2.3",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@vitejs/plugin-react": "latest",
@@ -44,6 +46,7 @@
     "react": "latest",
     "react-dom": "latest",
     "vite": "latest",
+    "zod": "^4.4.3",
     "zustand": "latest"
   },
   "devDependencies": {
