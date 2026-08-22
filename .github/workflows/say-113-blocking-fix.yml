@@ -24,6 +24,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           targets = {
               "src-tauri/src/evaluation/bezier_feature_point_evaluator.rs": 2,
@@ -31,26 +32,30 @@ jobs:
               "src-tauri/src/evaluation/scalars/bindings_tests.rs": 1,
               "src-tauri/src/evaluation/scalars/geometry_builtin_runtime_tests.rs": 1,
           }
-          old = (
-              "            pre_mutation_geometry: HashMap::new(),\n"
-              "            instance_base_geometry: HashMap::new(),"
-          )
-          new = (
-              "            pre_mutation_geometry: HashMap::new(),\n"
-              "            geometry_mutation_executions: Vec::new(),\n"
-              "            instance_base_geometry: HashMap::new(),"
+          pattern = re.compile(
+              r"(?m)^(?P<indent>[ \t]*)pre_mutation_geometry: HashMap::new\(\),\n"
+              r"(?P=indent)instance_base_geometry: HashMap::new\(\),"
           )
 
           total = 0
           for path_text, expected in targets.items():
               path = Path(path_text)
               text = path.read_text()
-              actual = text.count(old)
+
+              def replacement(match: re.Match[str]) -> str:
+                  indent = match.group("indent")
+                  return (
+                      f"{indent}pre_mutation_geometry: HashMap::new(),\n"
+                      f"{indent}geometry_mutation_executions: Vec::new(),\n"
+                      f"{indent}instance_base_geometry: HashMap::new(),"
+                  )
+
+              updated, actual = pattern.subn(replacement, text)
               if actual != expected:
                   raise SystemExit(
                       f"{path_text}: expected {expected} initializer match(es), found {actual}"
                   )
-              path.write_text(text.replace(old, new))
+              path.write_text(updated)
               total += actual
 
           if total != 6:
