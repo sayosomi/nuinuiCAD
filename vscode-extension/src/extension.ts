@@ -4,6 +4,7 @@ import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
+import { outputPreviewPlaceCoordinatePatchesAreSafe } from "../../src/vscode/outputPreviewPlaceDrag";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
@@ -707,6 +708,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
     postAuthoritativeDocument(session.panel, session.document);
   };
 
+  const resyncOutputPreview = (session: OutputPreviewSession): void => {
+    if (sessions.get(session.documentUri, "outputPreview") !== session || !isOpenDocument(session.document)) return;
+    session.authoritativeDocumentVersion = null;
+    postAuthoritativeDocument(session.panel, session.document);
+  };
+
   const deliverPendingCanvasNavigation = (session: DocumentSession): void => {
     const pending = session.pendingCanvasNavigation;
     if (
@@ -1341,6 +1348,44 @@ export const activate = (context: vscode.ExtensionContext): void => {
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   };
 
+  const applyOutputPreviewPlaceCommit = async (
+    session: OutputPreviewSession,
+    message: Extract<VscodeToExtensionMessage, { type: "outputPreviewPlaceCommit" }>
+  ): Promise<void> => {
+    if (!isOpenDocument(session.document) || session.document.version !== message.documentVersion) {
+      resyncOutputPreview(session);
+      return;
+    }
+    const rawSource = session.document.getText();
+    const normalizedSource = normalizedSourceFor(rawSource);
+    if (
+      normalizedSource !== message.normalizedSourceSnapshot ||
+      !outputPreviewPlaceCoordinatePatchesAreSafe({
+        normalizedSource,
+        statementRange: message.statementRange,
+        patches: message.patches
+      })
+    ) {
+      resyncOutputPreview(session);
+      return;
+    }
+
+    const edit = new vscode.WorkspaceEdit();
+    for (const patch of message.patches) {
+      edit.replace(
+        session.document.uri,
+        vscodeRangeForNormalized(session.document, rawSource, patch.range),
+        patch.replacement
+      );
+    }
+    try {
+      const applied = await vscode.workspace.applyEdit(edit);
+      if (!applied) resyncOutputPreview(session);
+    } catch {
+      resyncOutputPreview(session);
+    }
+  };
+
   const createOutputPreviewPanel = (
     document: vscode.TextDocument,
     normalizedSourceOffset: number | null,
@@ -1406,6 +1451,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
       if (message.type === "outputPreviewSourceNavigation") {
         await handleOutputPreviewSourceNavigation(session, message);
+        return;
+      }
+      if (message.type === "outputPreviewPlaceCommit") {
+        await applyOutputPreviewPlaceCommit(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
@@ -1570,9 +1619,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
 
-    // Preserve the existing source-editor command behavior. The Output Preview
-    // branch above is checked first so a stale activeTextEditor cannot
-    // override a live cross-surface session.
     const editor = activeNuiTextEditorForCommand();
     if (editor) {
       if (benchmarkConfig) {
