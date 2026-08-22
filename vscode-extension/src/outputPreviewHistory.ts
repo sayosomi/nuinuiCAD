@@ -26,9 +26,13 @@ export const handoffOutputPreviewHistory = async (
   try {
     sourceActivated = await handoff.activateMatchingSource();
   } catch {
+    restorePreviewFocusIfSafe(handoff);
     return;
   }
-  if (!sourceActivated) return;
+  if (!sourceActivated) {
+    restorePreviewFocusIfSafe(handoff);
+    return;
+  }
 
   if (!handoff.isSessionCurrent() || !handoff.isDocumentOpen()) return;
   if (handoff.documentVersion() !== expectedDocumentVersion) {
