@@ -93,7 +93,7 @@ const modifierContributionFor = (
     key: K
   ): ModifierPropertyContribution<K> | undefined => {
     const deltaValue = delta?.[key];
-    if (deltaValue !== undefined) {
+    if (delta && deltaValue !== undefined) {
       return {
         value: deltaValue as NonNullable<DrawingModifierProperties[K]>,
         selectedProfileDelta: {
