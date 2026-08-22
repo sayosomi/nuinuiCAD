@@ -1,4 +1,3 @@
-import type { LegacyDocumentPalette } from "../palette/palette";
 import {
   isForGroupElement,
   isGroupExpanded,
@@ -78,7 +77,6 @@ export const createEvaluationDecorationIndex = ({
   elements,
   evaluation,
   groupFoldById,
-  palette,
   visibilityProfiles,
   activeVisibilityProfileId,
   pickCandidates
@@ -87,7 +85,6 @@ export const createEvaluationDecorationIndex = ({
   elements: readonly CadElement[];
   evaluation: EvaluationResult | null;
   groupFoldById: GroupFoldById;
-  palette: LegacyDocumentPalette;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
   pickCandidates: readonly PickCandidate[];
@@ -97,7 +94,6 @@ export const createEvaluationDecorationIndex = ({
     elements,
     evaluation,
     groupFoldById,
-    palette,
     visibilityProfiles,
     activeVisibilityProfileId,
   });
