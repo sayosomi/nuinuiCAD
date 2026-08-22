@@ -131,6 +131,12 @@ const constructionSpecs: DslConstructionSpec[] = [
   { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
   {
     category: "line",
+    construction: "commonTangent",
+    elementType: "commonTangentLine",
+    args: [required("first", "firstLineId"), required("second", "secondLineId"), required("kind"), required("side")],
+  },
+  {
+    category: "line",
     construction: "offset",
     elementType: "offsetLine",
     args: [required("sources", "baseLineIds"), arg("distance", "offset"), arg("side"), arg("closed"), arg("suppressTrimWarnings")],

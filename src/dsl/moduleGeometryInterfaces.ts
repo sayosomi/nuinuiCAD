@@ -37,7 +37,7 @@ export const moduleGeometryInterfaceTypeOfElement = (
 
   const construction = constructionFor(statement.category, statement.construction);
   if (!construction) return null;
-  return construction.elementType === "line" || construction.elementType === "angleLengthLine" ? "line" : "path";
+  return construction.elementType === "line" || construction.elementType === "angleLengthLine" || construction.elementType === "commonTangentLine" ? "line" : "path";
 };
 
 /** Module interface compatibility is directional, not an implicit conversion. */

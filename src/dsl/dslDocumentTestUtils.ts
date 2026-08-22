@@ -67,7 +67,7 @@ export const normalizeForComparison = (elements: CadElement[]) => {
     for (const key of ["endpoint", "endpoint1", "endpoint2"]) {
       if (key in rest) rest[key] = remapEndpoint(rest[key] as { lineId: ElementId; endpointKey: string } | undefined);
     }
-    for (const key of ["line1Id", "line2Id", "baseLineId", "lineId"]) {
+    for (const key of ["line1Id", "line2Id", "firstLineId", "secondLineId", "baseLineId", "lineId"]) {
       if (key in rest) rest[key] = remapId(rest[key] as ElementId | undefined);
     }
     for (const key of ["baseLineIds"]) {

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
 import type { CanvasSelectionMode } from "../commands/selectionCommands";
@@ -71,6 +72,7 @@ export type CanvasHostAdapter = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;
+  measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];
   selectionAnchorElementId?: ElementId | null;

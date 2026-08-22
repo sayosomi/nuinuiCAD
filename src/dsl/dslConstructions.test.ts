@@ -26,6 +26,7 @@ const calls = [
   ["point", "bezierBulgePoint", "bezierBulgePoint"],
   ["line", "segment", "line"],
   ["line", "polar", "angleLengthLine"],
+  ["line", "commonTangent", "commonTangentLine"],
   ["line", "offset", "offsetLine"],
   ["line", "split", "splitLine"],
   ["line", "transformCopy", "copyLine"],

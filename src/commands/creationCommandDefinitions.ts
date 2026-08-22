@@ -126,6 +126,15 @@ export const creationCommandDefinitions = {
     palette: { order: 8.5, keywords: ["angle", "length", "line", "角度", "距離", "長さ", "線", "追加"] },
     run: (context) => startCreationSessionForCommand("addAngleLengthLine", context)
   },
+  addCommonTangentLine: {
+    id: "addCommonTangentLine",
+    label: "Add Common Tangent",
+    palette: {
+      order: 8.75,
+      keywords: ["common tangent", "tangent", "circle", "line", "共通接線", "接線", "円", "線", "追加"]
+    },
+    run: (context) => startCreationSessionForCommand("addCommonTangentLine", context)
+  },
   addArcLine: {
     id: "addArcLine",
     label: "円弧線を追加",

@@ -2,6 +2,7 @@ import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
+import type { RuntimeScalarDiagnostic } from "../scalars/runtimeScalarDiagnostics";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
@@ -36,6 +37,13 @@ export type VscodeRustEvaluationRequest = {
   input: unknown;
 };
 
+/** JSON-safe runtime layer published only from the current canonical Webview evaluation. */
+export type VscodeRuntimeDiagnosticsPublication = {
+  type: "runtimeDiagnosticsPublication";
+  documentVersion: number;
+  diagnostics: readonly RuntimeScalarDiagnostic[];
+};
+
 export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeBakeOperationResult = {
@@ -48,8 +56,9 @@ export type VscodeToExtensionMessage =
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
+  | VscodeRuntimeDiagnosticsPublication
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
-  | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "stale" | "focused" }
+  | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "no-renderable-geometry" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
   | ({ type: "bakeOperationResult"; surface: "source"; requestId: number; mode: "current" | "base" } & VscodeBakeOperationResult)
   | ({ type: "bakeOperationResult"; surface: "canvas"; mode: "current" | "base" } & VscodeBakeOperationResult)

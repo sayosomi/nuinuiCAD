@@ -19,6 +19,7 @@ export const legacyCreationCommandRecipeMap = {
   addBezierExtremePoint: { type: "bezierExtremePoint", recipeKind: "fallback" },
   addLine: { type: "line", recipeKind: "specialized" },
   addAngleLengthLine: { type: "angleLengthLine", recipeKind: "specialized" },
+  addCommonTangentLine: { type: "commonTangentLine", recipeKind: "fallback" },
   addArcLine: { type: "arcLine", recipeKind: "specialized" },
   addThreePointArcLine: { type: "threePointArcLine", recipeKind: "fallback" },
   addCornerRadiusArcLine: { type: "cornerRadiusArcLine", recipeKind: "fallback" },

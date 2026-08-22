@@ -20,7 +20,9 @@ import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import {
   normalizeVscodeCanvasRibbons,
   type VscodeCanvasRibbon
@@ -183,6 +185,46 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
   }, []);
+
+  const publishCanonicalRuntimeDiagnostics = useCallback((documentVersion: number) => {
+    const current = currentAuthoritativeDocument(documentVersion);
+    if (
+      !current ||
+      current.state.previewElements !== null ||
+      current.state.docText !== current.state.sourceText ||
+      !evaluationStateIsCurrentFor(
+        evaluationStateRef.current,
+        current.state.compiledDocumentRevision
+      )
+    ) return;
+
+    const bindingAnalysis = current.compiled.bindingAnalysis;
+    const diagnostics = bindingAnalysis
+      ? runtimeScalarDiagnostics({
+          computedScalarBindings: evaluationRef.current.computedScalarBindings,
+          bindingAnalysis,
+          statements: current.compiled.statements,
+          spans: current.compiled.spans,
+          elementIdByStatementIndex: current.compiled.statementMap.elementIdByStatementIndex,
+          propertySourcesByOccurrenceKey: current.compiled.propertyBindings ?? new Map(),
+          occurrenceKeysByBindingId: current.compiled.occurrenceKeysByBindingId ?? new Map(),
+          elements: current.state.elements,
+          freshness: { isSourceDirty: false, isEvaluationStale: false }
+        })
+      : [];
+    api.postMessage({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion,
+      // Keep the Extension Host protocol strictly JSON-safe even if the
+      // host-neutral diagnostic type later gains readonly/prototype-backed data.
+      diagnostics: JSON.parse(JSON.stringify(diagnostics)) as typeof diagnostics
+    });
+  }, [api, currentAuthoritativeDocument]);
+
+  useEffect(() => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (documentVersion !== null) publishCanonicalRuntimeDiagnostics(documentVersion);
+  }, [evaluationState, publishCanonicalRuntimeDiagnostics]);
 
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
@@ -453,10 +495,54 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
         const owners = sourceOwnerByRuntimeElementId(current.compiled);
+        const runtimeElements = effectiveElements(current.state);
         const runtimeElementIds = current.state.elements
           .filter((element) => owners.get(element.id)?.sourceStatementIndex === target.sourceStatementIndex)
           .map((element) => element.id);
-        if (runtimeElementIds.length === 0 || !replaceCanvasSelection(runtimeElementIds, runtimeElementIds[0], true)) {
+        if (runtimeElementIds.length === 0) {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+          return;
+        }
+
+        const runtimeElementById = new Map(runtimeElements.map((element) => [element.id, element]));
+        const instanceId = runtimeElementIds.find((id) => runtimeElementById.get(id)?.type === "moduleInstance") ?? null;
+        const currentEvaluation = evaluationRef.current;
+        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current.state.compiledDocumentRevision
+        );
+        let selectionIds = runtimeElementIds;
+        let primarySelectionId = runtimeElementIds[0]!;
+        let revealBounds = null;
+
+        if (instanceId) {
+          if (!currentEvaluationIsCurrent || !(currentEvaluation.computedGeometry instanceof Map)) {
+            api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+            return;
+          }
+          const instanceGeometry = moduleInstanceCanvasGeometry({
+            instanceId,
+            elements: runtimeElements,
+            evaluation: currentEvaluation,
+            moduleMaterialization: current.state.doc.moduleMaterialization,
+            visibilityProfiles: current.state.visibilityProfiles,
+            activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+            measureCanvasTextWidth
+          });
+          if (!instanceGeometry?.bounds || instanceGeometry.renderableDescendantIds.length === 0) {
+            api.postMessage({
+              type: "canvasNavigationResult",
+              requestId: message.requestId,
+              status: "no-renderable-geometry"
+            });
+            return;
+          }
+          selectionIds = [instanceId];
+          primarySelectionId = instanceId;
+          revealBounds = instanceGeometry.bounds;
+        }
+
+        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true)) {
           api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
           return;
         }
@@ -464,19 +550,20 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const viewport = canvasFocusRef.current;
         if (viewport) {
           const rect = viewport.getBoundingClientRect();
-          const evaluation = evaluationRef.current;
-          const bounds = evaluation &&
-            evaluationStateIsCurrentFor(evaluationStateRef.current, current.state.compiledDocumentRevision) &&
-            evaluation.computedGeometry instanceof Map
-            ? canvasElementDrawingBounds({
-                elementId: runtimeElementIds[0]!,
-                elements: effectiveElements(current.state),
-                evaluation,
-                visibilityProfiles: current.state.visibilityProfiles,
-                activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-                measureCanvasTextWidth
-              })
-            : null;
+          const bounds = revealBounds ?? (
+            currentEvaluation &&
+            currentEvaluationIsCurrent &&
+            currentEvaluation.computedGeometry instanceof Map
+              ? canvasElementDrawingBounds({
+                  elementId: primarySelectionId,
+                  elements: runtimeElements,
+                  evaluation: currentEvaluation,
+                  visibilityProfiles: current.state.visibilityProfiles,
+                  activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+                  measureCanvasTextWidth
+                })
+              : null
+          );
           if (bounds && Number.isFinite(rect.width) && Number.isFinite(rect.height)) {
             const pan = minimumCanvasPanForBounds(bounds, useCadUiStore.getState().canvasViewport, {
               width: rect.width,
@@ -507,6 +594,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           dirtySinceSave: false
         });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanonicalRuntimeDiagnostics(message.documentVersion);
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
@@ -524,6 +612,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanonicalRuntimeDiagnostics(message.documentVersion);
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
       }
@@ -534,7 +623,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig
     ? {
