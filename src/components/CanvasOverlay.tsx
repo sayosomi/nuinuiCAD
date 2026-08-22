@@ -1,7 +1,8 @@
-import type { ElementId } from "../types/geometry";
+import type { DrawingModifierStroke, ElementId } from "../types/geometry";
 import type { ViewportSize } from "./canvasViewport";
 import type { ModuleInstanceSelectionFrameOverlay } from "./moduleInstanceSelectionFrame";
 import {
+  canvasThemeColorForRole,
   canvasThemeCssVariables,
   type CanvasTheme
 } from "./canvasTheme";
@@ -37,7 +38,7 @@ type CanvasOverlayProps = {
   pickCandidateLineIds: Set<ElementId>;
   selectedElementId: ElementId | null;
   canvasTheme: CanvasTheme;
-  elementColors: Map<ElementId, string>;
+  effectiveDrawingModifierStrokes?: ReadonlyMap<ElementId, DrawingModifierStroke>;
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
@@ -47,6 +48,11 @@ type CanvasOverlayProps = {
   hoveredElementIds: ReadonlySet<ElementId>;
   hoverRepresentativeElementId: ElementId | null;
 };
+
+const drawingModifierColor = (stroke: DrawingModifierStroke, canvasTheme: CanvasTheme) =>
+  stroke.color.kind === "fixed"
+    ? stroke.color.hex
+    : canvasThemeColorForRole(canvasTheme, stroke.color.role);
 
 export const CanvasOverlay = ({
   viewportSize,
@@ -66,7 +72,7 @@ export const CanvasOverlay = ({
   pickCandidateLineIds,
   selectedElementId,
   canvasTheme,
-  elementColors,
+  effectiveDrawingModifierStrokes,
   showCanvasPointNames,
   showCanvasGeometryNames,
   showCanvasPoints,
@@ -216,7 +222,11 @@ export const CanvasOverlay = ({
     {overlayTexts.map(({ text, screen, fontSizePx }) => {
       const lines = text.text.split(/\r?\n/);
       const isSelected = selectedElementIdSet.has(text.elementId);
-      const fill = isSelected ? canvasTheme.selection : elementColors.get(text.elementId) ?? canvasTheme.foreground;
+      const modifierStroke = effectiveDrawingModifierStrokes?.get(text.elementId);
+      const documentColor = modifierStroke
+        ? drawingModifierColor(modifierStroke, canvasTheme)
+        : canvasTheme.foreground;
+      const fill = isSelected ? canvasTheme.selection : documentColor;
       return (
         <text
           key={text.elementId}
