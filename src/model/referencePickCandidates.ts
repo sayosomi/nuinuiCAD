@@ -11,11 +11,8 @@ import {
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
 import type { MaterializedExecutionStatement } from "../dsl/moduleMaterialization";
-import { effectiveEnabledElementIds, effectiveVisibleElementIds } from "./groups";
-import {
-  effectiveVisibleElementIdsForProfile,
-  visibilityProfileById
-} from "./visibilityProfiles";
+import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
+import { effectiveEnabledElementIds } from "./groups";
 import { elementQualifiedNameParts } from "./elementNames";
 import {
   isLineEndpointPointKey,
@@ -56,10 +53,15 @@ export type ReferencePickCandidate = {
   options: readonly ReferencePickCandidateOption[];
 };
 
+type ReferencePickExecutionEntry = Pick<
+  MaterializedExecutionStatement,
+  "statement" | "sourceStatementId" | "sourceStatementIndex" | "runtimeElementId" | "instancePath" | "origin"
+>;
+
 type CandidateContext = {
   target: DslReferencePickTarget;
   namespace: SourceLexicalNamespaceIndex;
-  moduleSemanticContext: ModuleSemanticCandidateContext;
+  moduleSemanticContext: ModuleSemanticCandidateContext | null;
   elements: readonly CadElement[];
 };
 
@@ -81,7 +83,7 @@ const declarationByStatementId = (
 ) => namespace.allDeclarations.find((declaration) => declaration.statementId === statementId);
 
 const ordinarySourceReference = (
-  entry: MaterializedExecutionStatement,
+  entry: ReferencePickExecutionEntry,
   element: CadElement,
   context: CandidateContext
 ): CanonicalGeometrySourceReference | null => {
@@ -114,15 +116,17 @@ const ordinarySourceReference = (
 };
 
 const canonicalReferenceForEntry = (
-  entry: MaterializedExecutionStatement,
+  entry: ReferencePickExecutionEntry,
   element: CadElement,
   context: CandidateContext
 ): CanonicalGeometrySourceReference | null => entry.origin?.kind === "moduleBody"
-  ? sourceReferenceForRuntimeElementAtSourceAnchor({
-      runtimeElementId: entry.runtimeElementId,
-      target: context.target.sourceAnchor,
-      context: context.moduleSemanticContext
-    })
+  ? context.moduleSemanticContext
+    ? sourceReferenceForRuntimeElementAtSourceAnchor({
+        runtimeElementId: entry.runtimeElementId,
+        target: context.target.sourceAnchor,
+        context: context.moduleSemanticContext
+      })
+    : null
   : ordinarySourceReference(entry, element, context);
 
 const candidateVisibility = (
@@ -132,20 +136,42 @@ const candidateVisibility = (
 ) => {
   const sourceElements = [...elements];
   const enabled = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds(sourceElements);
-  const visible = evaluation.effectiveVisibleElementIds ?? effectiveVisibleElementIds(sourceElements);
   const evaluated = evaluation.evaluatedElementIds;
   const document = compiled.document!;
-  const profile = visibilityProfileById(
-    document.visibilityProfiles,
-    document.activeVisibilityProfileId
-  );
-  const profileVisible = effectiveVisibleElementIdsForProfile({ elements: sourceElements, profile });
+  const canvasVisible = effectiveCanvasVisibleElementIds({
+    elements: sourceElements,
+    evaluation,
+    visibilityProfiles: document.visibilityProfiles,
+    activeVisibilityProfileId: document.activeVisibilityProfileId
+  });
   return (elementId: ElementId) =>
     enabled.has(elementId) &&
-    visible.has(elementId) &&
-    profileVisible.has(elementId) &&
+    canvasVisible.has(elementId) &&
     (!evaluated || evaluated.has(elementId)) &&
     evaluation.computedGeometry.has(elementId);
+};
+
+const sourceExecutionEntries = (
+  compiled: CompiledDslDocument,
+  namespace: SourceLexicalNamespaceIndex
+): ReferencePickExecutionEntry[] => {
+  const statementMap = compiled.statementMap;
+  if (!statementMap) return [];
+
+  return [...statementMap.elementIdByStatementIndex.entries()].flatMap(([sourceStatementIndex, runtimeElementId]) => {
+    const statement = compiled.statements[sourceStatementIndex];
+    const declaration = namespace.allDeclarations.find((candidate) =>
+      candidate.statementIndex === sourceStatementIndex && candidate.kind === "geometry"
+    );
+    if (!statement || !declaration) return [];
+    return [{
+      statement,
+      sourceStatementId: declaration.statementId,
+      sourceStatementIndex,
+      runtimeElementId,
+      instancePath: []
+    } satisfies ReferencePickExecutionEntry];
+  });
 };
 
 const referenceWithPointKey = (
@@ -167,23 +193,28 @@ export const referencePickCandidates = ({
   target: DslReferencePickTarget;
 }): ReferencePickCandidate[] => {
   const document = compiled.document;
-  const materialization = compiled.moduleMaterialization;
   const namespace = compiled.sourceLexicalNamespace;
-  if (!document || !materialization || !namespace) return [];
+  if (!document || !namespace || !compiled.statementMap) return [];
   if (target.sourceAnchor.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return [];
 
+  const materialization = compiled.moduleMaterialization;
   const elements = document.elements;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const entriesByRuntimeId = new Map(
-    materialization.executionStatements.map((entry) => [entry.runtimeElementId, entry])
+  const entriesByRuntimeId = new Map<ElementId, ReferencePickExecutionEntry>(
+    sourceExecutionEntries(compiled, namespace).map((entry) => [entry.runtimeElementId, entry])
   );
+  for (const entry of materialization?.executionStatements ?? []) {
+    entriesByRuntimeId.set(entry.runtimeElementId, entry);
+  }
   const isVisible = candidateVisibility(elements, evaluation, compiled);
-  const moduleSemanticContext: ModuleSemanticCandidateContext = {
-    moduleMaterialization: materialization,
-    moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
-    sourceLexicalNamespace: namespace,
-    statementInfoByElementId: compiled.statementMap?.byElementId
-  };
+  const moduleSemanticContext: ModuleSemanticCandidateContext | null = materialization
+    ? {
+        moduleMaterialization: materialization,
+        moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+        sourceLexicalNamespace: namespace,
+        statementInfoByElementId: compiled.statementMap.byElementId
+      }
+    : null;
   const context: CandidateContext = {
     target,
     namespace,
