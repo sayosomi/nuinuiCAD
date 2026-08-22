@@ -52,6 +52,7 @@ export type VscodeRustEvaluationRequest = {
   input: unknown;
 };
 
+/** JSON-safe runtime layer published only from the current canonical Webview evaluation. */
 export type VscodeRuntimeDiagnosticsPublication = {
   type: "runtimeDiagnosticsPublication";
   documentVersion: number;
@@ -68,6 +69,7 @@ export type VscodeCanvasObservationIssueSummary = {
   message: string;
 };
 
+/** Compact JSON-safe facts published only from the ordinary canonical Canvas state. */
 export type VscodeCanvasObservationSnapshot = {
   documentVersion: number;
   selectedElementIds: readonly string[];
@@ -157,6 +159,7 @@ export type VscodeCanvasCommandId =
   | "fitDrawing"
   | "toggleCanvasPointNames"
   | "toggleCanvasGeometryNames"
+  /** @deprecated Compatibility alias for Point Names. */
   | "toggleCanvasElementNames"
   | "toggleCanvasPoints"
   | "bakeCurrentShape"
