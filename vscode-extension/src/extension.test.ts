@@ -625,9 +625,961 @@ afterEach(() => {
   mocks.asRelativePath.mockReset();
 });
 
-// Remaining tests unchanged from current branch blob except the benchmark listener baseline below.
-
 describe("VS Code production document lifecycle", () => {
+  it("registers the standard file-backed nui Signature Help provider", () => {
+    setup();
+
+    expect(mocks.signatureHelpRegistrations).toHaveLength(1);
+    expect(mocks.signatureHelpRegistrations[0]).toMatchObject({
+      selector: { language: "nui", scheme: "file" },
+      triggerCharacters: ["(", ",", ":"]
+    });
+  });
+
+  it("publishes Module diagnostic related information through the current document URI", () => {
+    const source = [
+      "nui 4",
+      "module M(required: number) {",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/related.nui", "file:///tmp/related.nui", source);
+    setup(false, editorFor(document), [document]);
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      relatedInformation?: Array<{
+        message: string;
+        location: { uri: unknown; range: { start: MockPosition; end: MockPosition } };
+      }>;
+    }>;
+    const missing = published.find((item) => item.code === "module-missing-argument");
+
+    expect(missing).toBeDefined();
+    expect(missing?.relatedInformation).toHaveLength(1);
+    expect(missing?.relatedInformation?.[0]).toMatchObject({
+      location: {
+        uri: document.uri,
+        range: {
+          start: { line: 1, character: 9 },
+          end: { line: 1, character: 17 }
+        }
+      }
+    });
+    expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
+  });
+
+  it("registers and opens the Output Preview production surface", () => {
+    setup();
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    const panel = openOutputPreviewPanelFor();
+    expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
+    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+  });
+
+  it("reveals the existing Output Preview instead of creating a second panel", () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+
+    mocks.activeTabInput = new mocks.TabInputText(mocks.activeTextEditor!.document.uri);
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+    expect(panel.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("opens Output Preview for the active Canvas document without a source cursor", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const canvas = openPanelFor(editorA);
+    canvas.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    const preview = mocks.panels.at(-1)!;
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(preview.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+
+    await messageHandlerFor(preview)({ type: "webviewReady" });
+    await messageHandlerFor(preview)({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentA.version });
+    expect(preview.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewOpen",
+      documentVersion: documentA.version,
+      normalizedSourceOffset: null
+    });
+  });
+
+  it("keeps active Canvas document identity when another document already has an Output Preview", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA, documentB]);
+    const canvasA = openPanelFor(editorA);
+    const previewB = openOutputPreviewPanelFor(editorB);
+    canvasA.active = true;
+    previewB.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
+    expect(mocks.createWebviewPanel.mock.calls.at(-1)?.[1]).toBe("a.nui — Output Preview");
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    expect(previewB.reveal).not.toHaveBeenCalled();
+  });
+
+  it("opens Canvas for the active Output Preview document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const preview = openOutputPreviewPanelFor(editorA);
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(preview.reveal).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for an unrelated active webview instead of using the active text editor", () => {
+    setup();
+    mocks.activeTabInput = new mocks.TabInputWebview("unrelated.webview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD requires an active .nui Text Editor or Output Preview."
+    );
+  });
+
+  it("reveals an existing cross-surface target without duplicating it", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const editorA = editorFor(documentA);
+    setup(false, editorA, [documentA]);
+    const canvas = openPanelFor(editorA);
+    const preview = openOutputPreviewPanelFor(editorA);
+    preview.active = true;
+    canvas.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(canvas.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("never resolves a cross-surface open command through another document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA, documentB]);
+    const previewA = openOutputPreviewPanelFor(editorA);
+    const canvasB = openPanelFor(editorB);
+    previewA.active = true;
+    canvasB.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.outputPreview");
+
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(canvasB.reveal).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the active webview has no matching live session", () => {
+    setup();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("nuinuiCAD requires an active .nui Text Editor or Canvas.");
+  });
+
+  it("keeps Canvas and Output Preview sessions independent for one document", () => {
+    setup();
+    const canvas = openPanelFor();
+    const preview = openOutputPreviewPanelFor();
+
+    preview.dispose();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(canvas.dispose).not.toHaveBeenCalled();
+  });
+
+  it("hydrates and live-syncs the authoritative TextDocument in Output Preview", async () => {
+    setup();
+    const document = mocks.activeTextEditor!.document;
+    const panel = openOutputPreviewPanelFor();
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: document.version
+    }));
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewOpen",
+      documentVersion: document.version,
+      normalizedSourceOffset: expect.any(Number)
+    }));
+
+    document.setSourceText("nui 4\n// changed\n");
+    document.version += 1;
+    emitDocumentChange(document);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      sourceText: "nui 4\n// changed\n",
+      documentVersion: document.version
+    }));
+  });
+
+  it("routes Fit Output Preview through the active Preview session", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("fails closed for stale Output Preview source-navigation requests", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({
+      type: "outputPreviewSourceNavigation",
+      documentVersion: document.version - 1,
+      range: { from: 0, to: 4 }
+    });
+
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+  });
+
+  it("disposes all matching sessions when the source document closes", () => {
+    setup();
+    const canvas = openPanelFor();
+    const preview = openOutputPreviewPanelFor();
+
+    emitDocumentClose(mocks.activeTextEditor!.document);
+
+    expect(canvas.dispose).toHaveBeenCalledTimes(1);
+    expect(preview.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not create a panel during normal startup, then uses the command path", () => {
+    setup();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openCanvas", expect.any(Function));
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the production canvas view type and a unique document title", () => {
+    const document = documentFor("/tmp/front.nui", "file:///tmp/front.nui");
+    setup(false, editorFor(document));
+    const panel = openPanelFor();
+
+    expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.canvas");
+    expect(panel.title).toBe("front.nui — nuinuiCAD");
+  });
+
+  it("marks the Canvas Webview body with its host-specific layout class", () => {
+    setup();
+    const panel = openPanelFor();
+
+    expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
+    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+  });
+
+  it("reuses and reveals the existing panel when the same document command runs twice", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputText(mocks.activeTextEditor!.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
+    expect(panel.reveal).toHaveBeenCalledWith(2);
+  });
+
+  it("routes Canvas command palette commands to the active Canvas webview", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    for (const command of [
+      "nuinuiCAD.clearCanvasSelection",
+      "nuinuiCAD.resetCanvasView",
+      "nuinuiCAD.fitDrawing",
+      "nuinuiCAD.toggleCanvasPointNames",
+      "nuinuiCAD.toggleCanvasGeometryNames",
+      "nuinuiCAD.toggleCanvasElementNames",
+      "nuinuiCAD.toggleCanvasPoints"
+    ]) {
+      commandHandlerFor(command)?.();
+    }
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "clearCanvasSelection" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "resetCanvasView" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPointNames" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasGeometryNames" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasElementNames" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPoints" });
+  });
+
+  it("accepts the direct Canvas TabInputWebview representation", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.clearCanvasSelection")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "clearCanvasSelection"
+    });
+  });
+
+  it("routes Bake Current Shape from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("routes Go to Source Definition from a dynamic Canvas tab to Canvas", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("resolves the Canvas context command through a dynamic Canvas tab", () => {
+    setup();
+    const panel = openPanelFor();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    // The webview/context contribution invokes this same registered command.
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+  });
+
+  it("resolves all Bake settings in the Extension Host before Canvas routing", () => {
+    mocks.bakeSettings = {
+      "nuinuiCAD.bake.emitSkippedComments": false,
+      "nuinuiCAD.bake.includeHiddenGeometry": true,
+      "nuinuiCAD.bake.includeDisabledGeometry": true
+    };
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape",
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
+  });
+
+  it("keeps Bake routed to the last active Canvas while the Command Palette owns focus", () => {
+    setup();
+    const sourceEditor = mocks.activeTextEditor!;
+    const panel = openPanelFor(sourceEditor);
+    const viewStateHandler = (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler;
+    viewStateHandler();
+    panel.canvasSelection = "NormalArc";
+
+    mocks.activeTextEditor = sourceEditor;
+    mocks.visibleTextEditors = [sourceEditor];
+    panel.active = false;
+    viewStateHandler();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
+    }));
+    expect(panel.canvasSelection).toBe("NormalArc");
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
+  it("routes Bake through Source after switching from Canvas while the Canvas remains visible", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "point Derived = between(",
+      "  start: @A,",
+      "  end: @B,",
+      "  ratio: 0.25,",
+      ")"
+    ].join("\n");
+    const document = documentFor("/tmp/routing.nui", "file:///tmp/routing.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("Derived"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    panel.active = false;
+    panel.canvasSelection = "NormalArc";
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest",
+      normalizedSourceOffset: source.indexOf("Derived")
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(panel.canvasSelection).toBe("NormalArc");
+  });
+
+  it("routes Case K through Source when Palette focus leaves a stale Canvas tab input", async () => {
+    const source = [
+      "nui 4",
+      "modifier Guide {",
+      "  state: visible,",
+      "}",
+      "module Reusable() {",
+      "  point P0 = coordinate(x: 0, y: 0)",
+      "  point P1 = coordinate(x: 100, y: 0)",
+      "  export line PublicEdge [Guide] = segment(",
+      "    start: @P0,",
+      "    end: @P1,",
+      "  )",
+      "}",
+      "instance InstanceOne = Reusable()"
+    ].join("\n");
+    const document = documentFor("/tmp/case-k.nui", "file:///tmp/case-k.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("start: @P0"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    panel.canvasSelection = "InstanceOne::PublicEdge";
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    panel.active = true;
+    mocks.activeTextEditor = editor;
+    mocks.visibleTextEditors = [editor];
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    emitActiveEditorChange(editor);
+    panel.active = false;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "bakeSourceRequest"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    expect(document.getText()).toBe(source);
+  });
+
+  it("routes Canvas Undo/Redo to the active Canvas webview", () => {
+    setup();
+    const panel = openPanelFor();
+
+    commandHandlerFor("nuinuiCAD.canvasUndo")?.();
+    commandHandlerFor("nuinuiCAD.canvasRedo")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "undo" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "redo" });
+  });
+
+  it.each(["undo", "redo"] as const)("uses the requested Canvas history direction when the native change has no explicit reason (%s)", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      expect(command).toBe(direction);
+      document.version = 2;
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+      emitDocumentChange(document);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      preview: false
+    }));
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: direction
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it.each(["undo", "redo"] as const)("waits for a delayed native Canvas %s change event before completing history", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      expect(command).toBe(direction);
+      document.version = 2;
+      document.setSourceText(`nui 4\n// native ${direction}\n`);
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
+    expect(panel.reveal).not.toHaveBeenCalled();
+
+    emitDocumentChange(document);
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      documentVersion: 2,
+      reason: direction
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 2
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it.each(["undo", "redo"] as const)("treats native Canvas %s with no document version change as a completed no-op", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockResolvedValue(editor);
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith(direction);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction,
+      status: "completed",
+      documentVersion: 1
+    });
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it("restores the Canvas panel when native history fails after source focus is transferred", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      throw new Error("native history failed");
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument" }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "undo",
+      status: "failed",
+      documentVersion: 1
+    });
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+  });
+
+  it("resyncs and never executes native history for a stale Canvas document version", async () => {
+    setup();
+    const panel = openPanelFor();
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "redo",
+      expectedDocumentVersion: 99
+    });
+
+    expect(mocks.executeCommand).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "replaceTextDocument",
+      documentVersion: 1
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasHistoryResult",
+      direction: "redo",
+      status: "resynced",
+      documentVersion: 1
+    });
+  });
+
+  it("fails safely when no Canvas webview is active", () => {
+    setup();
+    const panel = openPanelFor();
+    panel.active = false;
+
+    commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+  });
+
+  it.each(["undo", "redo"] as const)("routes a second Canvas %s through the handoff session while native history is in flight", async (direction) => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    const historyCommand = direction === "undo" ? "nuinuiCAD.canvasUndo" : "nuinuiCAD.canvasRedo";
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    panel.reveal.mockImplementation(() => {
+      panel.active = true;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === direction) return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction,
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(direction));
+
+    const setContextTrueCall = mocks.executeCommand.mock.calls.find(([command, key, enabled]) =>
+      command === "setContext" && key === "nuinuiCAD.canvasHistoryHandoff" && enabled === true
+    );
+    expect(setContextTrueCall).toBeDefined();
+    const setContextTrueCallIndex = mocks.executeCommand.mock.calls.indexOf(setContextTrueCall!);
+    expect(mocks.executeCommand.mock.invocationCallOrder[setContextTrueCallIndex]).toBeLessThan(mocks.showTextDocument.mock.invocationCallOrder[0]!);
+
+    commandHandlerFor(historyCommand)?.();
+
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: direction });
+
+    mocks.showErrorMessage.mockClear();
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.fitDrawing")?.();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+
+    resolveNativeHistory();
+    await firstRequest;
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("setContext", "nuinuiCAD.canvasHistoryHandoff", false);
+
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+  });
+
+  it("clears the Canvas history handoff context when its session is disposed", async () => {
+    const document = documentFor("/tmp/history.nui", "file:///tmp/history.nui");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === "undo") return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const firstRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      true
+    ));
+
+    (panel.dispose as unknown as () => void)();
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      false
+    ));
+
+    resolveNativeHistory();
+    await firstRequest;
+  });
+
+  it.each(["nuinuiCAD.canvasUndo", "nuinuiCAD.canvasRedo"])("rejects %s when no Canvas is active and no history handoff exists", (command) => {
+    setup();
+    const panel = openPanelFor();
+    panel.active = false;
+
+    commandHandlerFor(command)?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+  });
+
+  it("keeps two document sessions independent", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    expect(panelA.title).toBe("a.nui — nuinuiCAD");
+    expect(panelB.title).toBe("b.nui — nuinuiCAD");
+
+    documentA.version = 2;
+    documentA.setSourceText("nui 4\nA changed\n");
+    emitDocumentChange(documentA);
+
+    expect(mocks.panels).toHaveLength(2);
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+    expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+  });
+
+  it("invalidates every open Canvas session when the active VS Code theme changes", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    expect(mocks.activeColorThemeListeners).toHaveLength(1);
+    mocks.activeColorThemeListeners[0]!();
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
+    expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds directory context to all sessions when basenames collide", () => {
+    const documentA = documentFor("/workspace/patterns/front.nui", "file:///workspace/patterns/front.nui");
+    const documentB = documentFor("/workspace/archive/front.nui", "file:///workspace/archive/front.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    mocks.asRelativePath.mockImplementation((uri: { toString: () => string }) =>
+      uri.toString().replace("file:///workspace/", "")
+    );
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    expect(panelA.title).toBe("patterns/front.nui — nuinuiCAD");
+    expect(panelB.title).toBe("archive/front.nui — nuinuiCAD");
+    expect(mocks.asRelativePath).toHaveBeenCalledWith(documentA.uri, true);
+    expect(mocks.asRelativePath).toHaveBeenCalledWith(documentB.uri, true);
+  });
+
+  it("returns the remaining session to its basename title after a collision is disposed", () => {
+    const documentA = documentFor("/workspace/patterns/front.nui", "file:///workspace/patterns/front.nui");
+    const documentB = documentFor("/workspace/archive/front.nui", "file:///workspace/archive/front.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    mocks.asRelativePath.mockImplementation((uri: { toString: () => string }) =>
+      uri.toString().replace("file:///workspace/", "")
+    );
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    (panelA.dispose as unknown as () => void)();
+
+    expect(panelB.title).toBe("front.nui — nuinuiCAD");
+  });
+
+  it("disposing panel A leaves panel B alive and syncing its document", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    (panelA.dispose as unknown as () => void)();
+    expect(panelA.dispose).toHaveBeenCalledTimes(1);
+    expect(panelB.dispose).not.toHaveBeenCalled();
+
+    documentB.version = 2;
+    documentB.setSourceText("nui 4\n// panel B change\n");
+    emitDocumentChange(documentB);
+
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "commitText",
+      sourceText: "nui 4\n// panel B change\n",
+      documentVersion: 2
+    }));
+  });
+
+  it("panel disposal does not dispose the shared Rust process used by another panel", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    await messageHandlerFor(panelA)({ type: "rustEvaluationRequest", id: 1, input: { request: "first" } });
+    expect(mocks.rustProcesses).toHaveLength(1);
+    const sharedProcess = mocks.rustProcesses[0]!;
+
+    (panelA.dispose as unknown as () => void)();
+    expect(sharedProcess.dispose).not.toHaveBeenCalled();
+
+    await messageHandlerFor(panelB)({ type: "rustEvaluationRequest", id: 2, input: { request: "second" } });
+    expect(mocks.rustProcesses).toHaveLength(1);
+    expect(sharedProcess.request).toHaveBeenCalledTimes(2);
+    expect(sharedProcess.dispose).not.toHaveBeenCalled();
+  });
+
   it("auto-starts once when benchmark config exists and an active .nui editor becomes ready", () => {
     setup(true, null);
 
@@ -651,7 +1603,1269 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(2);
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
+  });
+
+  it("hydrates from the current authoritative document and ignores unrelated changes", async () => {
+    setup();
+    const panel = openPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
+
+    document.version = 2;
+    document.setSourceText("nui 4\n// changed\n");
+    emitDocumentChange(document);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("disposes only the matching panel when a document closes and creates a fresh session on reopen", async () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    emitDocumentClose(documentA);
+    expect(panelA.dispose).toHaveBeenCalledTimes(1);
+    expect(panelB.dispose).not.toHaveBeenCalled();
+
+    documentA.version = 4;
+    documentA.setSourceText("nui 4\n// reopened\n");
+    mocks.activeTextEditor = editorA;
+    mocks.visibleTextEditors = [editorA];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorA.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const reopened = mocks.panels[2]!;
+    await messageHandlerFor(reopened)({ type: "webviewReady" });
+    expect(reopened).not.toBe(panelA);
+    expect(reopened.webview.postMessage).toHaveBeenCalledWith({
+      type: "replaceTextDocument",
+      sourceText: "nui 4\n// reopened\n",
+      documentVersion: 4
+    });
+  });
+
+  it("reopens a fresh panel after panel-only disposal and hydrates current document text and version", async () => {
+    setup();
+    const editor = mocks.activeTextEditor!;
+    const panelA = openPanelFor(editor);
+
+    (panelA.dispose as unknown as () => void)();
+    editor.document.version = 6;
+    editor.document.setSourceText("nui 4\n// panel reopened\n");
+    const panelB = openPanelFor(editor);
+    await messageHandlerFor(panelB)({ type: "webviewReady" });
+
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
+    expect(panelB).not.toBe(panelA);
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
+      type: "replaceTextDocument",
+      sourceText: "nui 4\n// panel reopened\n",
+      documentVersion: 6
+    });
+  });
+
+  it("fails closed and resyncs when the expected document version is stale", async () => {
+    setup();
+    const panel = openPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    document.version = 2;
+    document.setSourceText("nui 4\n// authoritative\n");
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\n// stale\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "replaceTextDocument",
+      sourceText: "nui 4\n// authoritative\n",
+      documentVersion: 2
+    });
+  });
+
+  it("applies a valid model patch as one snapshot-coordinate edit transaction", async () => {
+    const source = "nui 4\nA\nB\n";
+    const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\nA changed\nB\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "model-patch",
+      splices: [{ startLine: 2, endLine: 2, replacementLines: ["A changed"] }]
+    });
+
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(editor.edit).toHaveBeenCalledWith(expect.any(Function), { undoStopBefore: true, undoStopAfter: true });
+    expect(editor.editBuilder.replace).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+  });
+
+  it("fails closed when a model patch source does not match its LineSplices", async () => {
+    const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", "nui 4\nA\n");
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\nnot the patch result\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "model-patch",
+      splices: [{ startLine: 2, endLine: 2, replacementLines: ["A changed"] }]
+    });
+
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
+  });
+
+  it("resyncs when TextEditor.edit returns false", async () => {
+    setup();
+    const editor = mocks.activeTextEditor!;
+    editor.edit.mockImplementationOnce(async () => false);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\n// reset\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
+  });
+
+  it("uses whole-document replacement only for reset mutations", async () => {
+    setup();
+    const editor = mocks.activeTextEditor!;
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\n// reset\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(editor.editBuilder.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the normal document change echo as the only successful commit acknowledgement", async () => {
+    setup();
+    const editor = mocks.activeTextEditor!;
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: "nui 4\n// committed\n",
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
+
+    editor.document.version = 2;
+    editor.document.setSourceText("nui 4\n// committed\n");
+    emitDocumentChange(editor.document);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("does not forward non-content TextDocument changes during a Canvas commit", async () => {
+    const preDrag = "nui 4\n// pre-drag\n";
+    const postDrag = "nui 4\n// post-drag\n";
+    const document = documentFor("/tmp/drag.nui", "file:///tmp/drag.nui", preDrag);
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openPanelFor(editor);
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      emitDocumentChange(document, undefined, []);
+      document.version = 2;
+      document.setSourceText(postDrag);
+      emitDocumentChange(document, undefined, [{ text: postDrag }]);
+      return true;
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: postDrag,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset"
+    });
+
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "commitText")).toEqual([
+      [{
+        type: "commitText",
+        sourceText: postDrag,
+        documentVersion: 2,
+        reason: "edit"
+      }]
+    ]);
+  });
+});
+
+describe("VS Code explicit Canvas navigation lifecycle", () => {
+  const prepareNavigation = async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/navigation-focus.nui", "file:///tmp/navigation-focus.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const navigationRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasNavigationRequest")
+      .at(-1) as { requestId: number };
+    return { document, panel, navigationRequest };
+  };
+
+  const focusMessagesFor = (panel: TestPanel) => panel.webview.postMessage.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message?.type === "focusCanvas");
+
+  it("does not open Canvas when the source cursor has no runtime target", () => {
+    const source = "nui 4\n// comment only";
+    const document = documentFor("/tmp/no-target.nui", "file:///tmp/no-target.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: 3 };
+    setup(false, editor, [document]);
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+  });
+
+  it("waits for authoritative Webview hydration and latest request wins", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/reveal.nui", "file:///tmp/reveal.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    setup(false, editor, [document]);
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const panel = mocks.panels[0]!;
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasNavigationRequest")).toHaveLength(0);
+
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "replaceTextDocument",
+      sourceText: source,
+      documentVersion: 1
+    });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const navigationRequests = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasNavigationRequest");
+    expect(navigationRequests).toHaveLength(1);
+    expect(navigationRequests[0]).toMatchObject({
+      type: "canvasNavigationRequest",
+      documentVersion: 1,
+      normalizedSourceOffset: source.indexOf("A")
+    });
+  });
+
+  it("defers Canvas focus while the destination panel is inactive", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("flushes one deferred Canvas focus when the destination becomes active", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: navigationRequest.requestId
+    }]);
+  });
+
+  it("does not duplicate deferred Canvas focus for repeated active view-state events", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    panel.active = true;
+    const viewStateHandler = (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler;
+    viewStateHandler();
+    viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(1);
+  });
+
+  it("sends Canvas focus immediately when the destination panel is already active", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    expect(panel.reveal).toHaveBeenCalledWith(2, false);
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: navigationRequest.requestId
+    }]);
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    expect(focusMessagesFor(panel)).toHaveLength(1);
+  });
+
+  it("clears deferred Canvas focus when navigation completes", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "focused"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("prevents a superseded deferred request from focusing the Canvas", async () => {
+    const { panel, navigationRequest: firstRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: firstRequest.requestId,
+      status: "ready"
+    });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const secondRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasNavigationRequest")
+      .at(-1) as { requestId: number };
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: firstRequest.requestId,
+      status: "ready"
+    });
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: secondRequest.requestId,
+      status: "ready"
+    });
+    expect(focusMessagesFor(panel)).toEqual([{
+      type: "focusCanvas",
+      requestId: secondRequest.requestId
+    }]);
+  });
+
+  it("prevents an invalidated deferred request from focusing after a document reset", async () => {
+    const { document, panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    document.version = 2;
+    emitDocumentChange(document);
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("clears deferred Canvas focus when navigation becomes stale", async () => {
+    const { panel, navigationRequest } = await prepareNavigation();
+    panel.active = false;
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "stale"
+    });
+
+    panel.active = true;
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+
+    expect(focusMessagesFor(panel)).toHaveLength(0);
+  });
+
+  it("keeps Reveal and Canvas-to-Source navigation isolated per document session", async () => {
+    const sourceA = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const sourceB = [
+      "nui 4",
+      "point B = coordinate(x: 10, y: 0)"
+    ].join("\n");
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui", sourceA);
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui", sourceB);
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    editorA.selection.active = { line: 1, character: "point A = coordinate(x: 0, y: 0)".indexOf("A") };
+    editorB.selection.active = { line: 1, character: "point B = coordinate(x: 10, y: 0)".indexOf("B") };
+    setup(false, editorA, [documentA, documentB]);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels[1]!;
+
+    await messageHandlerFor(panelB)({ type: "webviewReady" });
+    await messageHandlerFor(panelB)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasNavigationRequest",
+      normalizedSourceOffset: sourceB.indexOf("B")
+    }));
+    expect(panelA.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasNavigationRequest" }));
+
+    panelA.active = true;
+    panelB.active = false;
+    mocks.activeTextEditor = editorA;
+    mocks.visibleTextEditors = [editorA, editorB];
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panelA.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as { requestId: number } | undefined;
+    expect(request).toBeDefined();
+
+    mocks.showTextDocument.mockResolvedValue(editorA);
+    await messageHandlerFor(panelA)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request!.requestId,
+      documentVersion: 1,
+      range: { from: sourceA.indexOf("A"), to: sourceA.indexOf("A") + 1 }
+    });
+
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(documentA, expect.objectContaining({ preserveFocus: false }));
+    expect(mocks.showTextDocument).not.toHaveBeenCalledWith(documentB, expect.anything());
+  });
+
+  it("does not transfer focus for stale or no-target navigation results", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/navigation-stale.nui", "file:///tmp/navigation-stale.nui", source);
+    const editor = editorFor(document);
+    const initialActive = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    editor.selection.active = initialActive;
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const sourceRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as { requestId: number };
+    document.version = 2;
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: sourceRequest.requestId,
+      documentVersion: 1,
+      range: { from: source.indexOf("A"), to: source.indexOf("A") + 1 }
+    });
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(editor.selection.active).toEqual(initialActive);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const noTargetRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message, index) => message?.type === "canvasSourceDefinitionRequest" && index > 0) as { requestId: number };
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: noTargetRequest.requestId,
+      documentVersion: 2,
+      range: null
+    });
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(editor.selection.active).toEqual(initialActive);
+
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const navigationRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasNavigationRequest") as { requestId: number };
+    panel.webview.postMessage.mockClear();
+    panel.reveal.mockClear();
+    document.version = 3;
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: navigationRequest.requestId,
+      status: "ready"
+    });
+
+    expect(panel.reveal).not.toHaveBeenCalledWith(2, false);
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "focusCanvas" }));
+  });
+
+  it("blocks navigation during Canvas history and its handoff context", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/navigation-history.nui", "file:///tmp/navigation-history.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: source.split("\n")[1]!.indexOf("A") };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    let resolveNativeHistory!: () => void;
+    const nativeHistory = new Promise<void>((resolve) => {
+      resolveNativeHistory = resolve;
+    });
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      return editor;
+    });
+    mocks.executeCommand.mockImplementation((command: string) => {
+      if (command === "setContext") return Promise.resolve();
+      if (command === "undo") return nativeHistory;
+      return Promise.resolve();
+    });
+
+    const historyRequest = messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+    await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.canvasHistoryHandoff",
+      true
+    ));
+
+    panel.active = true;
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasSourceDefinitionRequest"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasNavigationRequest"
+    }));
+
+    resolveNativeHistory();
+    await historyRequest;
+  });
+
+  it("establishes the main-thread Rename caret through showTextDocument for named Canvas navigation", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(",
+      "  x: 0,",
+      "  y: 0",
+      ")",
+      "",
+      "point B = coordinate(",
+      "  x: 100,",
+      "  y: 0",
+      ")",
+      "",
+      "line BaseLine = segment(",
+      "  start: @A,",
+      "  end: @B",
+      ")"
+    ].join("\n");
+    const document = documentFor("/tmp/go-to-source.nui", "file:///tmp/go-to-source.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
+    expect(request).toBeDefined();
+
+    let mainThreadPosition: MockPosition | null = null;
+    mocks.showTextDocument.mockImplementation(async (
+      _document: TestDocument,
+      options: { selection?: { start: MockPosition; end: MockPosition } }
+    ) => {
+      const selection = options.selection;
+      expect(selection).toBeDefined();
+      mainThreadPosition = selection!.end;
+      panel.active = false;
+      mocks.activeTextEditor = editor;
+      return editor;
+    });
+    const identifierFrom = source.indexOf("BaseLine");
+    const identifierTo = identifierFrom + "BaseLine".length;
+    const identifierStart = document.positionAt(identifierFrom);
+    const identifierEnd = document.positionAt(identifierTo);
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      range: { from: identifierFrom, to: identifierTo }
+    });
+
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      preserveFocus: false,
+      selection: expect.objectContaining({ start: identifierStart, end: identifierStart })
+    }));
+    expect(mocks.activeTextEditor).toBe(editor);
+    expect(panel.active).toBe(false);
+    expect(mainThreadPosition).toEqual(identifierStart);
+    const renameProvider = mocks.renameRegistrations[0]!.provider as {
+      prepareRename: (document: TestDocument, position: { line: number; character: number }) => {
+        range: { start: { line: number; character: number }; end: { line: number; character: number } };
+        placeholder: string;
+      };
+    };
+    expect(renameProvider.prepareRename(document, mainThreadPosition!)).toMatchObject({
+      range: { start: identifierStart, end: identifierEnd },
+      placeholder: "BaseLine"
+    });
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
+    expect(editor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: identifierStart, end: identifierEnd }),
+      1
+    );
+  });
+
+  it("keeps unnamed Canvas keyword navigation exact without adding Rename support", async () => {
+    const source = [
+      "nui 4",
+      "point = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/go-to-unnamed-source.nui", "file:///tmp/go-to-unnamed-source.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
+    expect(request).toBeDefined();
+
+    let mainThreadPosition: MockPosition | null = null;
+    mocks.showTextDocument.mockImplementation(async (
+      _document: TestDocument,
+      options: { selection?: { start: MockPosition; end: MockPosition } }
+    ) => {
+      const selection = options.selection;
+      expect(selection).toBeDefined();
+      mainThreadPosition = selection!.end;
+      return editor;
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      range: { from: source.indexOf("point"), to: source.indexOf("point") + "point".length }
+    });
+
+    const keywordStart = document.positionAt(source.indexOf("point"));
+    const keywordEnd = document.positionAt(source.indexOf("point") + "point".length);
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
+      selection: expect.objectContaining({ start: keywordStart, end: keywordStart })
+    }));
+    expect(mainThreadPosition).toEqual(keywordStart);
+    const renameProvider = mocks.renameRegistrations[0]!.provider as {
+      prepareRename: (document: TestDocument, position: { line: number; character: number }) => unknown;
+    };
+    expect(() => renameProvider.prepareRename(document, mainThreadPosition!)).toThrow(
+      "Rename is not available at this position."
+    );
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
+    expect(editor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: keywordStart, end: keywordEnd }),
+      1
+    );
+  });
+});
+
+describe("VS Code compiler diagnostics lifecycle", () => {
+  const invalidSource = "nui 4\npoint A = coordinate(x: 0, y: )\n";
+
+  const collectionFor = (): TestDiagnosticCollection => mocks.diagnosticCollections[0]!;
+
+  it("bootstraps already-open supported documents without opening Canvas", () => {
+    const document = documentFor("/tmp/bootstrap.nui", "file:///tmp/bootstrap.nui", invalidSource);
+    const context = setup(false, null, [document]);
+    const collection = collectionFor();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.createDiagnosticCollection).toHaveBeenCalledWith("nuinuiCAD");
+    expect(collection.set).toHaveBeenCalledWith(document.uri, [
+      expect.objectContaining({
+        message: "引数「y」の値がありません。",
+        code: "missing-attribute-value",
+        source: "nuinuiCAD",
+        severity: 0
+      })
+    ]);
+    expect(context.subscriptions).toContain(collection);
+  });
+
+  it("creates diagnostics for documents opened after activation", () => {
+    setup(false, null, []);
+    const document = documentFor("/tmp/opened.nui", "file:///tmp/opened.nui", invalidSource);
+    mocks.textDocuments.push(document);
+
+    emitDocumentOpen(document);
+
+    expect(collectionFor().set).toHaveBeenCalledWith(document.uri, expect.any(Array));
+  });
+
+  it("recompiles unsaved current text on change and publishes binding issues", () => {
+    const document = documentFor(
+      "/tmp/changed.nui",
+      "file:///tmp/changed.nui",
+      "nui 4\nconst x: number = 1\nconst x: number = 2\n"
+    );
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const initialCallCount = collection.set.mock.calls.length;
+
+    document.version = 2;
+    document.setSourceText("nui 4\npoint A = coordinate(x: 0, y: 1)\n");
+    emitDocumentChange(document);
+
+    expect(initialCallCount).toBe(1);
+    expect(collection.set).toHaveBeenLastCalledWith(document.uri, []);
+  });
+
+  it("keeps document diagnostics isolated when another URI closes", () => {
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui", invalidSource);
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui", invalidSource);
+    setup(false, null, [documentA, documentB]);
+    const collection = collectionFor();
+
+    emitDocumentClose(documentA);
+    expect(collection.delete).toHaveBeenCalledWith(documentA.uri);
+    expect(collection.delete).not.toHaveBeenCalledWith(documentB.uri);
+
+    documentB.version = 2;
+    documentB.setSourceText("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+    emitDocumentChange(documentB);
+    expect(collection.set).toHaveBeenLastCalledWith(documentB.uri, []);
+  });
+
+  it("ignores untitled and non-nui documents", () => {
+    const untitled = documentFor("/tmp/untitled.nui", "untitled:/tmp/untitled.nui", invalidSource);
+    const textFile = documentFor("/tmp/pattern.txt", "file:///tmp/pattern.txt", invalidSource);
+    setup(false, null, [untitled, textFile]);
+    const collection = collectionFor();
+
+    emitDocumentOpen(untitled);
+    emitDocumentOpen(textFile);
+    emitDocumentChange(untitled);
+    emitDocumentChange(textFile);
+
+    expect(collection.set).not.toHaveBeenCalled();
+    expect(collection.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not publish when the document version changes during compilation", () => {
+    const document = documentFor("/tmp/stale.nui", "file:///tmp/stale.nui", "nui 4\n");
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const initialCallCount = collection.set.mock.calls.length;
+
+    document.version = 2;
+    document.setSourceText(invalidSource);
+    document.onGetText = () => { document.version = 3; };
+    emitDocumentChange(document);
+
+    expect(collection.set.mock.calls).toHaveLength(initialCallCount);
+  });
+
+  it("does not publish an old session after close and same-URI reopen", () => {
+    const document = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", "nui 4\n");
+    setup(false, null, [document]);
+    const collection = collectionFor();
+    const reopened = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", invalidSource);
+
+    document.version = 2;
+    document.setSourceText(invalidSource);
+    document.onGetText = () => {
+      mocks.textDocuments = [reopened];
+      emitDocumentClose(document);
+      emitDocumentOpen(reopened);
+    };
+    emitDocumentChange(document);
+
+    expect(collection.set).toHaveBeenCalledTimes(2);
+    expect(collection.set).toHaveBeenLastCalledWith(reopened.uri, expect.any(Array));
+  });
+});
+
+describe("VS Code native completion lifecycle", () => {
+  it("registers the provider with the requested selector, triggers, and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.completionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.triggerCharacters).toEqual(["@", ".", ":", "=", "(", ",", "[", "{"]);
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the URI-scoped analysis session and does not start Rust for completion", () => {
+    const document = documentFor(
+      "/tmp/completion.nui",
+      "file:///tmp/completion.nui",
+      "nui 4\nconst value: number = ab"
+    );
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.completionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideCompletionItems: (document: TestDocument, position: { line: number; character: number }, token: unknown, context: unknown) => unknown;
+    };
+
+    const items = provider.provideCompletionItems(document, { line: 1, character: "const value: number = ab".length }, undefined, undefined) as Array<{ label: string }>;
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(items.map((item) => item.label)).toContain("abs");
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
+  });
+
+  it("works for an open document without creating Canvas", () => {
+    const document = documentFor("/tmp/no-canvas.nui", "file:///tmp/no-canvas.nui", "nui 4\npoint P = co");
+    setup(false, null, [document]);
+    const registration = mocks.completionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideCompletionItems: (document: TestDocument, position: { line: number; character: number }, token: unknown, context: unknown) => unknown;
+    };
+
+    const items = provider.provideCompletionItems(document, { line: 1, character: "point P = co".length }, undefined, undefined) as Array<{ label: string }>;
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(items.map((item) => item.label)).toContain("coordinate");
+  });
+});
+
+describe("VS Code native structural folding lifecycle", () => {
+  it("registers one nui/file folding provider in the extension lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.foldingRegistrations[0]!;
+
+    expect(mocks.foldingRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideFoldingRanges: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("reuses URI-scoped sessions while isolating documents across close and reopen", () => {
+    const sourceA = [
+      "group A {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const sourceB = "// one\n// two\n";
+    const documentA = documentFor("/tmp/folding-a.nui", "file:///tmp/folding-a.nui", sourceA);
+    const documentB = documentFor("/tmp/folding-b.nui", "file:///tmp/folding-b.nui", sourceB);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [documentA, documentB]);
+    const provider = mocks.foldingRegistrations[0]!.provider as {
+      provideFoldingRanges: (document: TestDocument) => Array<{ start: number; end: number; kind?: unknown }>;
+    };
+
+    expect(provider.provideFoldingRanges(documentA)).toEqual([
+      expect.objectContaining({ start: 0, end: 2 })
+    ]);
+    expect(provider.provideFoldingRanges(documentB)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+
+    emitDocumentClose(documentA);
+    const reopened = documentFor(
+      "/tmp/folding-a.nui",
+      "file:///tmp/folding-a.nui",
+      "// reopened\n// document\n"
+    );
+    mocks.textDocuments = [documentB, reopened];
+    emitDocumentOpen(reopened);
+    expect(provider.provideFoldingRanges(reopened)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+    expect(provider.provideFoldingRanges(documentB)).toEqual([
+      expect.objectContaining({ start: 0, end: 1, kind: "comment" })
+    ]);
+    expect(fromSource).toHaveBeenCalledTimes(3);
+    fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native document symbol lifecycle", () => {
+  it("registers one nui/file document symbol provider with the session lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.documentSymbolRegistrations[0]!;
+
+    expect(mocks.documentSymbolRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideDocumentSymbols: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+});
+
+describe("VS Code native definition lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.definitionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the diagnostic session for definition lookup without Canvas or Rust", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/definition.nui", "file:///tmp/definition.nui", source);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.definitionRegistrations[0]!;
+    const provider = registration.provider as {
+      provideDefinition: (
+        document: TestDocument,
+        position: { line: number; character: number },
+        token: unknown
+      ) => unknown;
+    };
+    const referenceLine = source.split("\n")[2]!;
+    const links = provider.provideDefinition(
+      document,
+      { line: 2, character: referenceLine.indexOf("@A") + "@A".length },
+      undefined
+    ) as Array<{ targetSelectionRange: { start: { line: number; character: number } } }> | undefined;
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(links).toHaveLength(1);
+    expect(links?.[0]?.targetSelectionRange.start).toEqual({ line: 1, character: "point ".length });
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native rename lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.renameRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("shares the URI-scoped analysis session without Canvas or Rust", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const document = documentFor("/tmp/rename.nui", "file:///tmp/rename.nui", source);
+    const fromSource = vi.spyOn(AutomationDocument, "fromSource");
+    setup(false, null, [document]);
+    const registration = mocks.renameRegistrations[0]!;
+    const provider = registration.provider as {
+      prepareRename: (
+        document: TestDocument,
+        position: { line: number; character: number },
+        token: unknown
+      ) => unknown;
+    };
+    const referenceLine = source.split("\n")[2]!;
+    const result = provider.prepareRename(
+      document,
+      { line: 2, character: referenceLine.indexOf("@A") + 1 },
+      undefined
+    );
+
+    expect(fromSource).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ placeholder: "A" });
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.rustProcesses).toHaveLength(0);
+    fromSource.mockRestore();
+  });
+});
+
+describe("VS Code native references lifecycle", () => {
+  it("registers the provider with the requested selector and lifecycle disposable", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.referenceRegistrations[0]!;
+
+    expect(mocks.referenceRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({ provideReferences: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+});
+
+describe("VS Code native choice Quick Fix lifecycle", () => {
+  it("registers only QuickFix CodeActions and the internal apply command", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.codeActionRegistrations[0]!;
+
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.providedCodeActionKinds).toEqual(["quickfix"]);
+    expect(context.subscriptions).toContain(registration.disposable);
+    expect(mocks.registerCommand).toHaveBeenCalledWith(
+      "nuinuiCAD.applyChoiceQuickFix",
+      expect.any(Function)
+    );
+    expect(commandHandlerFor("nuinuiCAD.applyChoiceQuickFix")).toEqual(expect.any(Function));
+    expect(commandHandlerFor("nuinuiCAD.openCanvas")).toEqual(expect.any(Function));
+  });
+});
+
+describe("VS Code Canvas Ribbon lifecycle", () => {
+  it("registers the global edit command and targets the normal Settings surface", () => {
+    setup(false, null, []);
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith(
+      "nuinuiCAD.editCanvasRibbon",
+      expect.any(Function)
+    );
+    commandHandlerFor("nuinuiCAD.editCanvasRibbon")?.();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "workbench.action.openSettings",
+      "nuinuiCAD.canvasRibbon.ribbons"
+    );
+  });
+
+  it("patches only a validated Ribbon position in authoritative User Settings", async () => {
+    mocks.canvasRibbonSetting = [
+      {
+        id: "one",
+        label: "One",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        iconSize: 16,
+        items: [{
+          id: "edit",
+          type: "command",
+          commandId: "editCanvasRibbon",
+          icon: "settings-2",
+          label: "Legacy edit",
+          showLabel: false,
+          futureItemField: { keep: "verbatim" }
+        }],
+        futureRibbonField: { keep: true }
+      },
+      {
+        id: "two",
+        items: "malformed",
+        futureMalformedRibbonField: [1, 2, 3]
+      },
+      {
+        id: "one",
+        label: "Later duplicate",
+        x: 7,
+        y: 8,
+        items: [{ id: "later", type: "value", valueId: "canvasZoom" }],
+        futureDuplicateField: "keep"
+      },
+      {
+        id: "three",
+        label: "Three",
+        x: 4,
+        y: 5,
+        orientation: "vertical",
+        iconSize: 20,
+        items: [{ id: "zoom", type: "value", valueId: "canvasZoom" }]
+      }
+    ];
+    const configuredRibbons = mocks.canvasRibbonSetting as Array<Record<string, unknown>>;
+    setup();
+    const panel = openPanelFor();
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: 40, y: 52 });
+
+    expect(mocks.configurationUpdates).toEqual([{
+      section: "nuinuiCAD.canvasRibbon.ribbons",
+      target: 1,
+      value: [
+        { ...configuredRibbons[0], x: 40, y: 52 },
+        configuredRibbons[1],
+        configuredRibbons[2],
+        configuredRibbons[3]
+      ]
+    }]);
+
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.NaN, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "one", x: Number.POSITIVE_INFINITY, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "", x: 40, y: 52 });
+    await messageHandlerFor(panel)({ type: "canvasRibbonPositionCommit", ribbonId: "missing", x: 40, y: 52 });
+    expect(mocks.configurationUpdates).toHaveLength(1);
+  });
+
+  it("broadcasts normalized configuration changes to every open Canvas session", () => {
+    mocks.canvasRibbonSetting = [];
+    const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
+    const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
+    const editorA = editorFor(documentA);
+    const editorB = editorFor(documentB);
+    setup(false, editorA, [documentA]);
+    const panelA = openPanelFor(editorA);
+    mocks.activeTextEditor = editorB;
+    mocks.visibleTextEditors = [editorB];
+    mocks.textDocuments = [documentA, documentB];
+    mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
+    commandHandlerFor("nuinuiCAD.openCanvas")?.();
+    const panelB = mocks.panels.at(-1)!;
+    panelA.webview.postMessage.mockClear();
+    panelB.webview.postMessage.mockClear();
+
+    mocks.canvasRibbonSetting = [{
+      id: "new",
+      label: "New",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      iconSize: 16,
+      items: []
+    }];
+    mocks.configurationChangeListeners[0]?.({
+      affectsConfiguration: (section) => section === "nuinuiCAD.canvasRibbon.ribbons"
+    });
+
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasRibbonConfiguration",
+      ribbons: [{
+        id: "new",
+        label: "New",
+        x: null,
+        y: 12,
+        orientation: "horizontal",
+        items: []
+      }]
+    });
+  });
+});
+
+
+describe("SAY-125 Module instance Reveal feedback", () => {
+  it("reports a no-renderable result without asking the Canvas to take focus", async () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0, state: hidden)",
+      "}",
+      "instance A = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/instance.nui", "file:///tmp/instance.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("A = M"));
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+    mocks.showErrorMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasNavigationRequest") as { requestId: number } | undefined;
+    expect(request).toBeDefined();
+
+    await messageHandlerFor(panel)({
+      type: "canvasNavigationResult",
+      requestId: request!.requestId,
+      status: "no-renderable-geometry"
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
+    );
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "focusCanvas", requestId: request!.requestId })
+    );
   });
 });
