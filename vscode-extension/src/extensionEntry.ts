@@ -6,13 +6,33 @@ import {
 } from "./mcpObservationBridge";
 import { vscodeObservationState } from "./vscodeObservationState";
 
+const observationSnapshot = (includeSourceText: boolean): unknown => {
+  const snapshot = vscodeObservationState.snapshot();
+  if (!includeSourceText) return snapshot;
+
+  const observedDocumentUris = new Set(snapshot.documents.map((document) => document.documentUri));
+  const sourceTextByUri = new Map(
+    vscode.workspace.textDocuments
+      .filter((document) => observedDocumentUris.has(document.uri.toString()))
+      .map((document) => [document.uri.toString(), document.getText()] as const)
+  );
+
+  return {
+    ...snapshot,
+    documents: snapshot.documents.map((document) => {
+      const sourceText = sourceTextByUri.get(document.documentUri);
+      return sourceText === undefined ? document : { ...document, sourceText };
+    })
+  };
+};
+
 export const activate = (context: vscode.ExtensionContext): void => {
   activateExtension(context);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),
     workspaceFolderPaths: vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [],
-    observationProvider: () => vscodeObservationState.snapshot()
+    observationProvider: ({ includeSourceText }) => observationSnapshot(includeSourceText)
   });
   if (!bridge) return;
 

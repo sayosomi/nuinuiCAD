@@ -14,6 +14,7 @@ import {
   queryNuiDocumentDefinition,
   queryNuiDocumentReferences
 } from "./documentSemanticQueries";
+import { observeVscode } from "./vscodeObserve";
 
 const SERVER_NAME = "nuinuicad-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -136,6 +137,29 @@ export const createNuinuiCadMcpServer = (
         return successfulToolResult(await documentEvaluate(path, {
           ...(requestedElementIds ? { requestedElementIds } : {}),
           ...(includeEvaluatedElementIds !== undefined ? { includeEvaluatedElementIds } : {})
+        }));
+      } catch (error) {
+        return failedToolResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "vscode_observe",
+    {
+      description: "Observe exact-current read-only nuinuiCAD state from a live developer-enabled VS Code Extension Host.",
+      inputSchema: z.object({
+        instanceId: z.string().min(1).optional(),
+        documentPath: absoluteNuiPathSchema.optional(),
+        includeSourceText: z.boolean().optional()
+      })
+    },
+    async ({ instanceId, documentPath, includeSourceText }) => {
+      try {
+        return successfulToolResult(await observeVscode({
+          ...(instanceId ? { instanceId } : {}),
+          ...(documentPath ? { documentPath } : {}),
+          ...(includeSourceText !== undefined ? { includeSourceText } : {})
         }));
       } catch (error) {
         return failedToolResult(error);

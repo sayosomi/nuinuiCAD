@@ -52,8 +52,12 @@ export type VscodeObservationResolution =
       candidates: VscodeObservationCandidateMetadata[];
     };
 
+export type VscodeObservationRequestOptions = {
+  includeSourceText: boolean;
+};
+
 export type VscodeObservationBridgeOptions = {
-  observationProvider: () => unknown;
+  observationProvider: (options: VscodeObservationRequestOptions) => unknown;
   workspaceFolderPaths: readonly string[];
   descriptorDirectory?: string;
   pid?: number;
@@ -64,6 +68,7 @@ export type VscodeObservationBridgeOptions = {
 type ObservationRequest = {
   type: "observe";
   token: string;
+  includeSourceText: boolean;
 };
 
 type ObservationResponse = {
@@ -79,6 +84,7 @@ type ErrorResponse = {
 
 export type VscodeObservationClientOptions = {
   timeoutMs?: number;
+  includeSourceText?: boolean;
 };
 
 export type VscodeObservationDiscoveryOptions = VscodeObservationClientOptions & {
@@ -166,7 +172,12 @@ const parseRequest = (line: string): ObservationRequest | "unsupported" | null =
   if (!isObject(value) || typeof value.type !== "string") return null;
   if (value.type !== "observe") return "unsupported";
   if (typeof value.token !== "string") return null;
-  return { type: "observe", token: value.token };
+  if ("includeSourceText" in value && typeof value.includeSourceText !== "boolean") return null;
+  return {
+    type: "observe",
+    token: value.token,
+    includeSourceText: value.includeSourceText === true
+  };
 };
 
 export class VscodeObservationBridge {
@@ -178,7 +189,7 @@ export class VscodeObservationBridge {
 
   private readonly server: Server;
   private readonly sockets = new Set<Socket>();
-  private readonly observationProvider: () => unknown;
+  private readonly observationProvider: (options: VscodeObservationRequestOptions) => unknown;
   private readonly workspaceFolderPaths: string[];
   private readonly pid: number;
   private readonly now: () => Date;
@@ -289,7 +300,9 @@ export class VscodeObservationBridge {
         writeResponse(socket, {
           type: "observation",
           instanceId: this.instanceId,
-          observation: this.observationProvider()
+          observation: this.observationProvider({
+            includeSourceText: request.includeSourceText
+          })
         });
       } catch {
         writeResponse(socket, { type: "error", error: "internal-error" });
@@ -330,7 +343,11 @@ export const requestVscodeObservation = async (
     const timeout = setTimeout(() => fail(new Error("VS Code observation bridge timed out")), timeoutMs);
     socket.setEncoding("utf8");
     socket.once("connect", () => {
-      socket.write(`${JSON.stringify({ type: "observe", token: descriptor.authToken })}\n`);
+      socket.write(`${JSON.stringify({
+        type: "observe",
+        token: descriptor.authToken,
+        includeSourceText: options.includeSourceText === true
+      })}\n`);
     });
     socket.on("data", (chunk: string) => {
       buffer += chunk;
