@@ -155,6 +155,8 @@ pub struct EvaluationPayload {
     pub(crate) effective_enabled_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) effective_drawing_modifier_strokes: Vec<EffectiveDrawingModifierStroke>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) effective_drawing_modifier_resolutions: Vec<Value>,
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) condition_evaluation_traces: Vec<Value>,

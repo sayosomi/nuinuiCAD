@@ -127,7 +127,10 @@ describe("VscodeObservationBridge", () => {
     const descriptor = await bridge.ready;
     const socket = connect({ host: "127.0.0.1", port: descriptor.port });
     await once(socket, "connect");
-    const closed = once(socket, "close");
+    const closed = new Promise<void>((resolve) => {
+      socket.once("close", () => resolve());
+    });
+    socket.on("error", () => undefined);
 
     bridge.dispose();
 
