@@ -88,10 +88,13 @@ const contextDiagnosticFor = (
   diagnostics: readonly vscode.Diagnostic[]
 ): vscode.Diagnostic | undefined => diagnostics.find((diagnostic) => sameDiagnostic(fingerprint, diagnostic));
 
-const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] => [
-  ...semantic.compiled.diagnostics,
-  ...(semantic.compiled.bindingIssueDiagnostics ?? [])
-];
+const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] =>
+  semantic.compiled
+    ? [
+        ...semantic.compiled.diagnostics,
+        ...(semantic.compiled.bindingIssueDiagnostics ?? [])
+      ]
+    : [];
 
 const candidateFingerprint = (candidate: DslTypoSuggestionCandidate): TypoCandidateFingerprint => ({
   kind: candidate.kind,
@@ -136,45 +139,6 @@ const payloadFor = (
   candidate: candidateFingerprint(candidate)
 });
 
-const diagnosticKey = (diagnostic: Pick<CompilerDiagnostic, "code" | "range">): string =>
-  `${String(diagnostic.code)}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
-
-/**
- * Add the localized single-candidate suggestion suffix without changing the
- * stable diagnostic identity used by CodeAction routing.
- */
-export const compilerDiagnosticsWithTypoSuggestions = (
-  rawSource: string,
-  session: NuiLanguageAnalysisSession,
-  displayLanguage: string = vscode.env?.language ?? "en"
-): CompilerDiagnostic[] => {
-  const baseDiagnostics = session.getDiagnostics();
-  const source = sourceSnapshotFor(rawSource, session);
-  const semantic = session.completionSemanticSnapshot(source);
-  if (!semantic) return baseDiagnostics;
-
-  const translate = createTranslator(typoSuggestionTranslationCatalog, resolveLocale(displayLanguage));
-  const suffixByDiagnostic = new Map<string, string>();
-
-  for (const diagnostic of dslDiagnosticsFor(semantic)) {
-    if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) continue;
-    const result = queryDslTypoSuggestions({ source, diagnostic, semantic });
-    if (!result || result.candidates.length !== 1) continue;
-    const projected = toCompilerDiagnostic(semantic.sourceText ?? source.normalizedSource, diagnostic);
-    if (!projected || !isDslTypoSuggestionDiagnosticCode(projected.code)) continue;
-    suffixByDiagnostic.set(
-      diagnosticKey(projected),
-      translate("typoSuggestion.diagnosticSuffix", { candidate: result.candidates[0]!.label })
-    );
-  }
-
-  return baseDiagnostics.map((diagnostic) => {
-    if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) return diagnostic;
-    const suffix = suffixByDiagnostic.get(diagnosticKey(diagnostic));
-    return suffix ? { ...diagnostic, message: `${diagnostic.message} ${suffix}` } : diagnostic;
-  });
-};
-
 export const createNuiTypoQuickFixProvider = (
   sessionFor: NuiTypoQuickFixSessionFor,
   displayLanguageFor: () => string = () => vscode.env?.language ?? "en"
@@ -189,7 +153,7 @@ export const createNuiTypoQuickFixProvider = (
     if (session.getSource() !== rawSource) session.replaceSource(rawSource);
     const source = sourceSnapshotFor(rawSource, session);
     const semantic = session.completionSemanticSnapshot(source);
-    if (!semantic) return [];
+    if (!semantic?.compiled) return [];
     if (
       document.uri.toString() !== documentUri ||
       document.version !== documentVersion ||
@@ -330,7 +294,7 @@ export const createNuiTypoQuickFixApplyHandler = (
 
   const source = sourceSnapshotFor(currentRawSource, session);
   const semantic = session.completionSemanticSnapshot(source);
-  if (!semantic) return;
+  if (!semantic?.compiled) return;
   const result = currentTypoResultFor(payload, source, semantic);
   if (!result) return;
   if (!sameReplacementRange(payload.replacementRange, result.replacementRange)) return;
