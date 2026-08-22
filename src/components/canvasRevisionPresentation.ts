@@ -95,9 +95,9 @@ export const resolveRevisionCoherentCanvasPresentation = ({
     return {
       ...current,
       renderEvaluation: evaluation,
-      evaluationState,
+      renderEvaluationState: undefined,
       isPinned: false
-    } as CanvasRevisionPresentation;
+    };
   }
   if (!evaluationState.isStale && evaluationState.evaluationRevision === compiledDocumentRevision) {
     return {
