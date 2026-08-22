@@ -46,7 +46,7 @@ const evaluationState = (
 });
 
 describe("revision-coherent Canvas presentation", () => {
-  it("keeps the previous full document inputs while that evaluation is stale", () => {
+  it("keeps the previous full presentation while a newer evaluation is stale", () => {
     const oldInputs = inputs("old");
     const currentInputs = inputs("new");
     const oldEvaluation = evaluation("old");
@@ -59,7 +59,7 @@ describe("revision-coherent Canvas presentation", () => {
 
     const resolved = resolveRevisionCoherentCanvasPresentation({
       current: currentInputs,
-      evaluation: oldEvaluation,
+      evaluation: evaluation("new-pending"),
       compiledDocumentRevision: 8,
       evaluationState: evaluationState(7, 41, true, oldEvaluation),
       lastStable: stable
@@ -70,27 +70,47 @@ describe("revision-coherent Canvas presentation", () => {
     expect(resolved.renderEvaluationState?.isStale).toBe(true);
   });
 
-  it("fails closed instead of pairing a stale request with another request or the current document", () => {
+  it("keeps the accepted stable snapshot instead of pairing an unrelated stale request with current metadata", () => {
     const currentInputs = inputs("new");
+    const oldEvaluation = evaluation("old");
     const stable: CanvasRevisionPresentationSnapshot = {
       evaluationRevision: 7,
       evaluationRequestRevision: 40,
       inputs: inputs("old"),
-      evaluation: evaluation("old")
+      evaluation: oldEvaluation
     };
-    const staleEvaluation = evaluation("stale-request");
+    const unrelatedStaleEvaluation = evaluation("unaccepted-intermediate");
 
     const resolved = resolveRevisionCoherentCanvasPresentation({
       current: currentInputs,
-      evaluation: staleEvaluation,
-      compiledDocumentRevision: 7,
-      evaluationState: evaluationState(7, 41, true, staleEvaluation),
+      evaluation: unrelatedStaleEvaluation,
+      compiledDocumentRevision: 9,
+      evaluationState: evaluationState(8, 41, true, unrelatedStaleEvaluation),
       lastStable: stable
+    });
+
+    expect(resolved.elements.map((element) => element.id)).toEqual(["old"]);
+    expect(resolved.renderEvaluation).toBe(oldEvaluation);
+    expect(resolved.renderEvaluationState).toMatchObject({
+      evaluationRevision: 7,
+      evaluationRequestRevision: 40,
+      isStale: true
+    });
+  });
+
+  it("fails closed when a stale request has no accepted previous presentation", () => {
+    const staleEvaluation = evaluation("first-stale");
+    const resolved = resolveRevisionCoherentCanvasPresentation({
+      current: inputs("new"),
+      evaluation: staleEvaluation,
+      compiledDocumentRevision: 2,
+      evaluationState: evaluationState(1, 10, true, staleEvaluation),
+      lastStable: null
     });
 
     expect(resolved.elements).toEqual([]);
     expect(resolved.canonicalElements).toEqual([]);
-    expect(resolved.renderEvaluation).toBe(staleEvaluation);
+    expect(resolved.isPinned).toBe(true);
   });
 
   it("promotes current document inputs atomically when the newer evaluation resolves", () => {
