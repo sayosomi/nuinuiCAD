@@ -54,6 +54,24 @@ describe("multi-document lexical namespace integration", () => {
     ]);
   });
 
+  it("reports duplicate import aliases in the same lexical scope", () => {
+    const { index } = namespaceFor([
+      "nui 4",
+      "import \"./a.nui\" as common",
+      "import \"./b.nui\" as common"
+    ].join("\n"));
+
+    expect(index.collisions).toEqual([
+      expect.objectContaining({
+        name: "common",
+        declarations: [{ kind: "import" }, { kind: "import" }]
+      })
+    ]);
+    expect(index.diagnostics).toEqual([
+      expect.objectContaining({ code: "source-namespace-collision", line: 3 })
+    ]);
+  });
+
   it("does not expose private or unknown members when the external owner returns null", () => {
     const { index } = namespaceFor([
       "nui 4",
