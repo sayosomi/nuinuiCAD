@@ -23,7 +23,35 @@ repair(
     [
         ('"nui 4\npoint P = coordinate(x: 0, y: 0, state: hidden)"', '"nui 4\\npoint P = coordinate(x: 0, y: 0, state: hidden)"'),
         ('"nui 4\npoint P = coordinate(x: 0, y: 0, color: pattern-black)"', '"nui 4\\npoint P = coordinate(x: 0, y: 0, color: pattern-black)"'),
+        (
+            '    expect(withColor.diagnostics.filter((item) => item.severity === "error")).toEqual([\n'
+            '      expect.objectContaining({ message: expect.stringContaining("引数「color」") })\n'
+            '    ]);\n'
+            '  });',
+            '    expect(withColor.diagnostics.filter((item) => item.severity === "error")).toEqual([\n'
+            '      expect.objectContaining({ message: expect.stringContaining("引数「color」") })\n'
+            '    ]);\n\n'
+            '    const containerColor = compileDslDocument(\n'
+            '      "nui 4\\ngroup G (color: pattern-black) {\\n}"\n'
+            '    );\n'
+            '    expect(containerColor.diagnostics.filter((item) => item.severity === "error")).toEqual([\n'
+            '      expect.objectContaining({ message: expect.stringContaining("引数「color」") })\n'
+            '    ]);\n'
+            '  });',
+        ),
     ],
 )
 
-print("SAY-115 generated test string escapes repaired")
+repair(
+    "src/document/documentTestGenerators.ts",
+    [
+        (
+            '    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で\n'
+            '    // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。\n',
+            '    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。\n'
+            '    // common state引数を使い、旧Document Paletteには依存しない。\n',
+        ),
+    ],
+)
+
+print("SAY-115 generated test string escapes and regression checks repaired")
