@@ -17,6 +17,11 @@
   pointer-events: auto;
 }
 
+.output-preview-place-handle.is-active,
+.output-preview-place-handle.is-dragging {
+  z-index: 1;
+}
+
 .output-preview-place-handle::before {
   position: absolute;
   inset: 4px;

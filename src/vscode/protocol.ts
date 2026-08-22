@@ -101,6 +101,20 @@ export type VscodeBakeOperationResult = {
   summary: BakeOperationSummary;
 };
 
+export type VscodeOutputPreviewPlaceCoordinatePatch = {
+  range: NormalizedSourceRange;
+  expectedText: string;
+  replacement: string;
+};
+
+export type VscodeOutputPreviewPlaceCommit = {
+  type: "outputPreviewPlaceCommit";
+  documentVersion: number;
+  normalizedSourceSnapshot: string;
+  statementRange: NormalizedSourceRange;
+  patches: readonly VscodeOutputPreviewPlaceCoordinatePatch[];
+};
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
@@ -134,7 +148,8 @@ export type VscodeToExtensionMessage =
       type: "outputPreviewSourceNavigation";
       documentVersion: number;
       range: NormalizedSourceRange;
-    };
+    }
+  | VscodeOutputPreviewPlaceCommit;
 
 export type VscodeCanvasCommandId =
   | "undo"
