@@ -1,13 +1,13 @@
+import type { LegacyDocumentPalette } from "./palette";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
-import type { DocumentPalette } from "../types/geometry";
 import { defaultDocumentPalette, normalizeDocumentPalette } from "./palette";
 
 const STORAGE_KEY = "nuinuiCAD.paletteTemplate.v1";
 
 export type PaletteTemplateSettings = {
   version: 1;
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -46,7 +46,7 @@ export const loadPaletteTemplateSettings = async (): Promise<PaletteTemplateSett
   return normalizePaletteTemplateSettings(settings);
 };
 
-export const savePaletteTemplateSettings = async (palette: DocumentPalette) => {
+export const savePaletteTemplateSettings = async (palette: LegacyDocumentPalette) => {
   const normalized = normalizePaletteTemplateSettings({ version: 1, palette });
   if (!isTauriRuntime()) {
     savePaletteTemplateToLocalStorage(normalized);

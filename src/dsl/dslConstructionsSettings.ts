@@ -1,7 +1,7 @@
 import type { DslArgSpec } from "./dslConstructions";
 
 export type DslSettingsSpec = {
-  keyword: "color" | "role" | "view" | "layout" | "print" | "svg" | "place";
+  keyword: "role" | "view" | "layout" | "print" | "svg" | "place";
   args: DslArgSpec[];
   allowsDynamicArgs?: boolean;
 };
@@ -13,7 +13,6 @@ const arg = (argName: string, required = false): DslArgSpec => ({
 });
 
 const settingsSpecs: DslSettingsSpec[] = [
-  { keyword: "color", args: [positional("hex"), arg("name"), arg("default")] },
   { keyword: "role", args: [arg("name")] },
   { keyword: "view", args: [arg("default")], allowsDynamicArgs: true },
   { keyword: "layout", args: [arg("scale")] },

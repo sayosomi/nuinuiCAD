@@ -204,7 +204,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, locked: true)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「locked」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -213,7 +213,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, vars: 1)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「vars」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「vars」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -222,7 +222,7 @@ describe("DSL compiler", () => {
     const result = compileDslToElements("point A = coordinate(x: 0, y: 0, varIds: 1)", { elements: [] });
 
     expect(result.diagnostics.map((item) => item.message)).toContain(
-      "construction「coordinate」に引数「varIds」はありません。候補: x、y、state、color、steps、id、roles、parent、branch。"
+      "construction「coordinate」に引数「varIds」はありません。候補: x、y、state、steps、id、roles、parent、branch。"
     );
     expect(result.elements).toHaveLength(0);
   });
@@ -686,32 +686,13 @@ describe("DSL compiler blocks", () => {
 });
 
 describe("DSL compiler document settings", () => {
-  it("builds a palette from color statements", () => {
+  it("rejects legacy top-level color statements", () => {
     const result = compileDslToElements(
-      [
-        'color main ("#112233", name: "本体")',
-        'color accent ("#445566", default: true)',
-        "point A = coordinate(x: 0,y: 0)"
-      ].join("\n"),
+      ['color main ("#112233", name: "本体")', "point A = coordinate(x: 0,y: 0)"].join(String.fromCharCode(10)),
       { elements: [], mode: "document" }
     );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.palette).toEqual({
-      colors: [
-        { id: "main", name: "本体", hex: "#112233" },
-        { id: "accent", name: "accent", hex: "#445566" }
-      ],
-      defaultColorId: "accent"
-    });
-  });
-
-  it("rejects multiple default colors", () => {
-    const result = compileDslToElements(
-      ['color a ("#112233", default: true)', 'color b ("#445566", default: true)'].join("\n"),
-      { elements: [], mode: "document" }
-    );
-    expect(result.diagnostics.some((item) => item.message.includes("default"))).toBe(true);
+    expect(result.diagnostics.some((item) => item.severity === "error")).toBe(true);
+    expect(result).not.toHaveProperty("palette");
   });
 
   it("computes evaluationLimitIndex from stop in document mode", () => {

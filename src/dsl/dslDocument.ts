@@ -1,4 +1,3 @@
-import { defaultDocumentPalette } from "../palette/palette";
 import {
   createElementNameContext,
   elementQualifiedNameParts,
@@ -9,11 +8,9 @@ import { DEFAULT_VISIBILITY_PROFILE_ID, defaultVisibilityProfile } from "../mode
 import type {
   CadElement,
   CadElementType,
-  DocumentPalette,
   DrawingModifierDefinition,
   DrawingProfile,
   ElementId,
-  PaletteColor,
   Layout,
   PrintOutput,
   SvgOutput,
@@ -72,7 +69,7 @@ import { serializeElementStatementBlock, type SerializedStatement } from "./dslS
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
-import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";
+import { DSL_INDENT, formatDslName } from "./dslTokens";
 import {
   isSupportedDslMajorVersion,
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
@@ -95,7 +92,6 @@ export type DslDocumentData = {
   modifiers?: DrawingModifierDefinition[];
   /** Document-level drawing profile declarations, in source order. */
   drawingProfiles?: DrawingProfile[];
-  palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
@@ -169,7 +165,7 @@ export type StatementMap = {
   /** Current physical statement range by reconciler-owned source identity. */
   statementRangeById: Map<StatementIdentity, StatementInfo>;
   /**
-   * 非要素文のキー: `color:<id>` / `role:<id>` / `view:<id>` / `layout:<id>` /
+   * 非要素文のキー: `role:<id>` / `view:<id>` / `layout:<id>` /
    * `print:<id>` / `svg:<id>` / `version` / `atStop` / `activeView`。
    * active系は最後の出現(コンパイラのlast-winsに一致)、version/atStopは最初の出現。
    */
@@ -177,7 +173,6 @@ export type StatementMap = {
   /** 各セクションが存在する場合の最終行(セクション新設時の挿入アンカー)。 */
   sectionEnds: {
     version?: number;
-    palette?: number;
     drawingProfiles?: number;
     modifiers?: number;
     visibility?: number;
@@ -302,24 +297,6 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
   column: 1,
   message
 });
-
-// ==== パレット ====
-
-export const serializePaletteColorLine = (
-  color: PaletteColor,
-  defaultColorId: string
-): string => {
-  const args = [
-    quoteDslString(color.hex),
-    `name: ${quoteDslString(color.name)}`,
-    ...(color.id === defaultColorId ? ["default: true"] : [])
-  ];
-  return `color ${formatDslName(color.id)} (${args.join(", ")})`;
-};
-
-export const serializePaletteLines = (
-  palette: DocumentPalette
-): string[] => palette.colors.map((color) => serializePaletteColorLine(color, palette.defaultColorId));
 
 export const serializeDrawingProfileLines = (
   profiles: readonly DrawingProfile[]
@@ -724,7 +701,6 @@ export const serializeDocumentToDsl = (
       ).values()];
   const sections: string[][] = [
     [`nui ${majorVersion}`, ...(options.headerComment ? [`// ${options.headerComment}`] : [])],
-    serializePaletteLines(data.palette),
     serializeVisibilitySettingsLines(data.visibilityRoles, data.visibilityProfiles, data.activeVisibilityProfileId),
     serializeDrawingProfileLines(drawingProfiles),
     serializeDrawingModifierLines(data.modifiers ?? []),
@@ -884,9 +860,6 @@ const buildStatementMap = (
 
     if (!included) return;
     switch (statement.kind) {
-      case "color":
-        byKey.set(`color:${statement.name}`, info);
-        break;
       case "modifierDefinition":
         byKey.set(`modifier:${statement.name}`, info);
         break;
@@ -1007,8 +980,6 @@ const buildStatementMap = (
     if (!includeStatement(statement, info.statementIndex)) continue;
     if (statement.kind === "version") {
       sectionEnds.version = Math.max(sectionEnds.version ?? 0, info.line);
-    } else if (statement.kind === "color") {
-      sectionEnds.palette = Math.max(sectionEnds.palette ?? 0, info.line);
     } else if (statement.kind === "profileDeclaration") {
       sectionEnds.drawingProfiles = Math.max(sectionEnds.drawingProfiles ?? 0, info.line);
     } else if (statement.kind === "modifierDefinition") {
@@ -1688,7 +1659,6 @@ export const compileDslDocument = (
     elements: compiled.elements,
     modifiers: compiled.modifiers ?? [],
     ...(compiled.drawingProfiles?.length ? { drawingProfiles: compiled.drawingProfiles } : {}),
-    palette: compiled.palette ?? defaultDocumentPalette(),
     visibilityRoles: compiled.visibilityRoles ?? [],
     visibilityProfiles,
     activeVisibilityProfileId:

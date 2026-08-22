@@ -97,7 +97,6 @@ describe("DSL nui 4 element serializer", () => {
       x: { kind: "expression" as const, expression: "-(bust / 4)" },
       y: -2,
       activity: "disabled" as const,
-      colorId: "pattern-black",
       numericParameterSteps: { x: 0.1 },
     };
     const refs = documentDslRefs([...referenceElements, point]);
@@ -107,14 +106,13 @@ describe("DSL nui 4 element serializer", () => {
       args: [
         { key: "x", text: "x: -(bust / 4)" }, { key: "y", text: "y: -2" },
         { key: "state", text: "state: disabled" },
-        { key: "color", text: "color: pattern-black" },
         { key: "steps", text: "steps: [x: 0.1]" },
       ],
       close: ")",
       argumentSeparator: "comma",
     });
     expect(serializeElementStatementLogical(point, refs)).toBe(
-      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, color: pattern-black, steps: [x: 0.1])',
+      'point "前 身" = coordinate(x: -(bust / 4), y: -2, state: disabled, steps: [x: 0.1])',
     );
 
     const curve = {

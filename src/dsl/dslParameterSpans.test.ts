@@ -51,21 +51,12 @@ const applyFixtureText = (fixture: Nui4CanonicalElementStatement, text: string) 
 const specialArgNames = new Set(["steps", "id", "roles", "parent", "branch", "intermediates"]);
 
 /**
- * `state`/`color` are universal `CadElement` fields that P5 serializes whenever
- * non-default, regardless of whether a given type's `getParameterDefinitions`
- * exposes them as an editable parameterKey (e.g. `edge` omits `colorId`, yet
- * still carries the field and P5 still writes it out if set). The reverse
- * "every emitted arg is claimed" check would otherwise flag this pre-existing,
- * type-independent P5 behavior as a gap; the forward per-type check below
- * still fully covers these keys for the types that do expose them.
- *
- * `color` is universal for every category except mutation
- * (edge/extendTrim/move/symmetricMove/pathReverse): those types have no
- * drawable geometry of their own, so `color:` is rejected at parse time
- * (dslCallParser.ts's color-unsupported diagnostic) && never appears in
- * their fixtures.
+ * `state` is a universal `CadElement` field that P5 serializes whenever
+ * non-default. The reverse "every emitted arg is claimed" check would otherwise
+ * flag this type-independent behavior as a gap; the forward per-type check below
+ * still covers editable parameter keys.
  */
-const universalArgNames = new Set(["state", "color"]);
+const universalArgNames = new Set(["state"]);
 
 /**
  * Two parameterKeys are never written to nui 4 text directly, by construction

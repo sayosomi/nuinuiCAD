@@ -76,7 +76,6 @@ const special = (argName: string, value: DslArgSpecial): DslArgSpec => ({
 
 export const commonArgSpecs: DslArgSpec[] = [
   arg("state"),
-  arg("color", "colorId"),
   special("steps", "steps"),
   special("id", "id"),
   special("roles", "roles"),

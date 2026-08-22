@@ -1,5 +1,4 @@
 import { expect } from "vitest";
-import { defaultDocumentPalette } from "../palette/palette";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadElement, ElementId, PointAnchor, Layout } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
@@ -22,7 +21,6 @@ const TEST_DEFAULT_DSL_MAJOR_VERSION: DslMajorVersion = 4;
 export const emptyDocument = (): DslDocumentData => ({
   elements: [],
   modifiers: [],
-  palette: defaultDocumentPalette(),
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,
@@ -104,7 +102,6 @@ export const comparableLayouts = (layouts: readonly Layout[] | undefined, elemen
 export const expectSemanticallyEqualDocuments = (a: DslDocumentData, b: DslDocumentData) => {
   expect(normalizeForComparison(a.elements)).toEqual(normalizeForComparison(b.elements));
   expect(a.modifiers ?? []).toEqual(b.modifiers ?? []);
-  expect(a.palette).toEqual(b.palette);
   expect(a.visibilityRoles).toEqual(b.visibilityRoles);
   expect(a.visibilityProfiles).toEqual(b.visibilityProfiles);
   expect(a.evaluationLimitIndex).toBe(b.evaluationLimitIndex);
@@ -138,7 +135,6 @@ export const dslFlatTextForElements = (elements: CadElement[]): string =>
     {
       ...emptyDocument(),
       elements,
-      palette: { colors: [], defaultColorId: "" },
       visibilityProfiles: [],
       activeVisibilityProfileId: ""
     },
@@ -156,7 +152,6 @@ export const roundTrip = (source: string) => {
   const document: DslDocumentData = {
     elements: first.elements,
     modifiers: first.modifiers ?? [],
-    palette: first.palette ?? defaultDocumentPalette(),
     visibilityRoles: first.visibilityRoles ?? [],
     visibilityProfiles: first.visibilityProfiles?.length ? first.visibilityProfiles : [defaultVisibilityProfile()],
     activeVisibilityProfileId: first.activeVisibilityProfileId ?? defaultVisibilityProfile().id,

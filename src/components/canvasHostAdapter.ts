@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import type { LegacyDocumentPalette } from "../palette/palette";
+import type {
+  ReactNode } from "react";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
@@ -12,7 +14,6 @@ import type {
 import type { CommandLineSession } from "../commands/commandLineSession";
 import type {
   CadElement,
-  DocumentPalette,
   ElementId,
   EvaluationResult,
   PointAnchor,
@@ -68,7 +69,7 @@ export type CanvasHostAdapter = {
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
   canvasTheme: CanvasTheme;
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;

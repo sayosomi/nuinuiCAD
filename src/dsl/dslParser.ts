@@ -58,7 +58,6 @@ const callCategoryKeywords = new Set<string>([
 
 const settingsKeywords = new Set<string>([
   dslStatementKeywords.version,
-  dslStatementKeywords.color,
   dslStatementKeywords.role,
   dslStatementKeywords.view,
   dslStatementKeywords.activeView,
@@ -97,7 +96,6 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "print",
   "svg",
   "version",
-  "color",
   "atStop",
   "place",
   "moduleDefinition",
@@ -234,11 +232,6 @@ const settingsStatementToDslStatement = (settings: DslSettingsStatement, line: n
     case "place": {
       const group = settings.args.find((arg) => arg.key === null)?.value ?? "";
       return { ...base, kind: "place", group };
-    }
-    case "color": {
-      const hex = unquoteDslString(settings.args.find((arg) => arg.key === null)?.value ?? "");
-      const isDefault = attrValue(settings.attrs, "default") === "true";
-      return { ...base, kind: "color", hex, isDefault };
     }
     case "role":
       return { ...base, kind: "role" };
@@ -602,17 +595,9 @@ const fromModule = (
   return { statement: moduleStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
-const hexColorPattern = /^#[0-9a-fA-F]{6}$/;
-
 const fromSettings = (result: DslSettingsParseResult, line: number, endLine: number): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) => diagnostic(line, item.message));
   if (!result.statement) return { diagnostics };
-  if (result.statement.kind === "color") {
-    const hex = unquoteDslString(result.statement.args.find((arg) => arg.key === null)?.value ?? "");
-    if (!hexColorPattern.test(hex)) {
-      return { diagnostics: [...diagnostics, diagnostic(line, "色は `color <ID> (\"#rrggbb\" …)` の形式で指定してください。")] };
-    }
-  }
   return { statement: settingsStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 

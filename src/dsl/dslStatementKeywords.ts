@@ -17,7 +17,6 @@ export const dslStatementKeywords = {
   layout: "layout",
   print: "print",
   svg: "svg",
-  color: "color",
   conditional: "if",
   constDeclaration: "const",
   letDeclaration: "let",

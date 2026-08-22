@@ -1,4 +1,3 @@
-import { elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
 import { getParameterValue } from "../parameters/parameterAccess";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, LineEndpointReference, NumericValue, PointAnchor } from "../types/geometry";
@@ -67,8 +66,6 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
 
 const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSerializerRefs): string => {
   const value = getParameterValue(element, parameterKey);
-  if (parameterKey === "colorId") return formatDslName((value as string | undefined) ?? "");
-
   const definition = findParameterDefinition(element, parameterKey);
   if (!definition) throw new Error(`Missing parameter definition for ${element.type}.${parameterKey}`);
 
@@ -91,8 +88,6 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
       // トークンを書いてしまう(再パース不能)。
       return `${Boolean(value)}`;
     case "choice":
-      return formatDslName(value as string);
-    case "color":
       return formatDslName(value as string);
   }
 };
@@ -134,8 +129,7 @@ const commonArgs = (
       if (constructionArgNames.has(arg.arg)) return false;
       if (arg.special) return specialArgText(element, arg, refs) !== null;
       const key = arg.parameterKey ?? arg.arg;
-      if (key === "state") return activity !== "visible";
-      return key === "colorId" && Boolean(element.colorId) && !elementTypesWithoutOwnDrawableGeometry.has(element.type);
+      return key === "state" && activity !== "visible";
     })
     // `state` is model activity rather than an editable parameter.
     .map((arg) => (arg.arg === "state" ? { key: "state", text: `state: ${activity}` } : serializeArg(element, arg, refs)))

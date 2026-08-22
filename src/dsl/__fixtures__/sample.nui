@@ -1,8 +1,8 @@
 nui 4
 
 // P7 golden: comments and canonical multiline calls are intentional.
-color pattern-black ("#31322f", name: "基本線", default: true)
-color cut-red ("#b42318", name: "裁断線")
+// SAY-115: legacy Document Palette source removed.
+// Reserved comment line keeps source-map fixture positions stable.
 
 role seam (name: "縫い代")
 view 通常 (default: true, seam: false)

@@ -6,10 +6,10 @@ import {
   type DslMajorVersion
 } from "../dsl/dslDocument";
 import { isElementDslStatement, parseDsl } from "../dsl/dslParser";
-import type { DslStatement } from "../dsl/dslTypes";
+import type {
+  DslStatement } from "../dsl/dslTypes";
 import type {
   CadElement,
-  DocumentPalette,
   DrawingModifierDefinition,
   DrawingProfile,
   ElementId,
@@ -47,7 +47,6 @@ export type ModelSnapshotForShadow = {
   elements: CadElement[];
   modifiers?: DrawingModifierDefinition[];
   drawingProfiles?: DrawingProfile[];
-  palette: DocumentPalette;
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
@@ -61,7 +60,6 @@ export const snapshotToDslData = (snapshot: ModelSnapshotForShadow): DslDocument
   elements: snapshot.elements,
   modifiers: snapshot.modifiers ?? [],
   ...(snapshot.drawingProfiles?.length ? { drawingProfiles: snapshot.drawingProfiles } : {}),
-  palette: snapshot.palette,
   visibilityRoles: snapshot.visibilityRoles,
   visibilityProfiles: snapshot.visibilityProfiles,
   activeVisibilityProfileId: snapshot.activeVisibilityProfileId,

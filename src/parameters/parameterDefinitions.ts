@@ -9,7 +9,6 @@ export type ParameterValueKind =
   | "lineEndpointReference"
   | "lineReference"
   | "lineReferenceList"
-  | "color"
   | "choice";
 
 export type ParameterKey = string;
@@ -55,7 +54,6 @@ export const angleNumericParameterStepLevels = [0.1, 1, 15, 60, 90] as const;
 
 const commonParameters: ParameterDefinition[] = [
   { key: "name", label: "名前", kind: "text" },
-  { key: "colorId", label: "表示色", kind: "color" },
 ];
 
 const pointAnchorParameters = ({

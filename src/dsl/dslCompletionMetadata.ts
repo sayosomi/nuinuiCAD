@@ -43,8 +43,6 @@ const sampleValue = (definition: ParameterDefinition): unknown => {
       return "ReferenceLine";
     case "lineReferenceList":
       return ["ReferenceLine"];
-    case "color":
-      return "accent";
     case "choice":
       return definition.choiceOptions?.at(-1) ?? "";
     case "text":

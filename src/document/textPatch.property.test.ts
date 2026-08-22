@@ -36,7 +36,6 @@ const opArb: fc.Arbitrary<RandomOp> = fc.record({
     "ungroup",
     "move",
     "reparent",
-    "paletteEdit",
     "stopMove",
     "profileToggle",
     "layoutEdit"
