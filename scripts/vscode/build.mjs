@@ -7,6 +7,11 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const outputDirectory = resolve(repositoryRoot, "vscode-extension/dist");
 mkdirSync(outputDirectory, { recursive: true });
 
+const productionEnvironmentDefines = {
+  "import.meta.env.VITE_EVALUATION_ENGINE": "\"rust\"",
+  "import.meta.env.DEV": "false"
+};
+
 await build({
   entryPoints: [resolve(repositoryRoot, "vscode-extension/src/extensionEntry.ts")],
   bundle: true,
@@ -14,6 +19,7 @@ await build({
   format: "cjs",
   target: "node20",
   external: ["vscode"],
+  define: productionEnvironmentDefines,
   outfile: resolve(outputDirectory, "extension.js")
 });
 
@@ -24,10 +30,7 @@ await build({
   format: "iife",
   target: "es2022",
   jsx: "automatic",
-  define: {
-    "import.meta.env.VITE_EVALUATION_ENGINE": "\"rust\"",
-    "import.meta.env.DEV": "false"
-  },
+  define: productionEnvironmentDefines,
   loader: { ".css": "css" },
   outfile: resolve(outputDirectory, "webview.js")
 });
