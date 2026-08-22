@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { placeCanvasPopup } from "../components/canvasPopupPlacement";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -45,6 +45,24 @@ export const OutputPreviewPlaceOverlay = ({
   const [hoveredPlaceId, setHoveredPlaceId] = useState<string | null>(null);
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [candidateSession, setCandidateSession] = useState<OutputPreviewPlaceCandidateSession | null>(null);
+  const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelHoverClear = () => {
+    if (hoverLeaveTimerRef.current !== null) {
+      clearTimeout(hoverLeaveTimerRef.current);
+      hoverLeaveTimerRef.current = null;
+    }
+  };
+
+  const scheduleHoverClear = (placeId: string) => {
+    cancelHoverClear();
+    hoverLeaveTimerRef.current = setTimeout(() => {
+      setHoveredPlaceId((current) => current === placeId ? null : current);
+      hoverLeaveTimerRef.current = null;
+    }, 120);
+  };
+
+  useEffect(() => () => cancelHoverClear(), []);
 
   useEffect(() => {
     if (hoveredPlaceId && !placeExists(projections, hoveredPlaceId)) setHoveredPlaceId(null);
@@ -55,7 +73,7 @@ export const OutputPreviewPlaceOverlay = ({
   }, [activePlaceId, candidateSession, hoveredPlaceId, projections]);
 
   const candidatePlaceId = candidateSession?.candidates[candidateSession.activeIndex]?.placeId ?? null;
-  const highlightedPlaceId = hoveredPlaceId ?? candidatePlaceId ?? activePlaceId;
+  const highlightedPlaceId = candidatePlaceId ?? hoveredPlaceId ?? activePlaceId;
   useEffect(() => {
     onHighlightPlaceIdChange(highlightedPlaceId);
     return () => onHighlightPlaceIdChange(null);
@@ -84,6 +102,8 @@ export const OutputPreviewPlaceOverlay = ({
       setActivePlaceId(handle.placeId);
       return;
     }
+    cancelHoverClear();
+    setHoveredPlaceId(null);
     const activeIndex = Math.max(0, candidates.findIndex(({ placeId }) => placeId === handle.placeId));
     setActivePlaceId(null);
     setCandidateSession({ anchor: handle.screen, candidates, activeIndex });
@@ -129,11 +149,10 @@ export const OutputPreviewPlaceOverlay = ({
           data-place-id={handle.placeId}
           data-draggable={handle.projection.dragability.draggable ? "true" : "false"}
           onPointerEnter={() => {
+            cancelHoverClear();
             if (!candidateSession) setHoveredPlaceId(handle.placeId);
           }}
-          onPointerLeave={() => {
-            if (hoveredPlaceId === handle.placeId) setHoveredPlaceId(null);
-          }}
+          onPointerLeave={() => scheduleHoverClear(handle.placeId)}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
@@ -150,6 +169,7 @@ export const OutputPreviewPlaceOverlay = ({
           aria-label="Overlapping place handles"
           aria-activedescendant={`output-preview-place-candidate-${candidateSession.candidates[candidateSession.activeIndex]?.placeId ?? ""}`}
           tabIndex={0}
+          autoFocus
           onKeyDown={handleCandidateKeyDown}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -177,10 +197,11 @@ export const OutputPreviewPlaceOverlay = ({
           style={{ left: detailPlacement.left, top: detailPlacement.top }}
           aria-label={`Place details for ${detailProjection.groupName}`}
           onPointerDown={(event) => event.stopPropagation()}
-          onPointerEnter={() => setHoveredPlaceId(detailProjection.placeId)}
-          onPointerLeave={() => {
-            if (hoveredPlaceId === detailProjection.placeId) setHoveredPlaceId(null);
+          onPointerEnter={() => {
+            cancelHoverClear();
+            setHoveredPlaceId(detailProjection.placeId);
           }}
+          onPointerLeave={() => scheduleHoverClear(detailProjection.placeId)}
         >
           <div className="output-preview-place-popover-header">
             {detailProjection.authored.group.targetRange ? (
