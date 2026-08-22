@@ -73,6 +73,9 @@ fn active_branch_for_condition_evaluation(evaluation: &ScalarEvaluation) -> Opti
     }
 }
 
+/// Evaluates a `conditionalGroup` condition exactly once through the existing
+/// typed expression evaluator, returning both the active branch and the trace
+/// of expression nodes that were actually reached.
 pub(crate) fn resolve_conditional_group_condition(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
@@ -81,21 +84,6 @@ pub(crate) fn resolve_conditional_group_condition(
     let environment = ResolverEnvironment { resolver, state };
     let (evaluation, trace) = evaluate_condition_expression_with_trace(expression, &environment);
     (active_branch_for_condition_evaluation(&evaluation), trace)
-}
-
-/// A `conditionalGroup`'s active branch from its typed boolean condition:
-/// evaluated exactly once via the caller's existing binding resolver. Any
-/// result other than a clean `Ok` boolean becomes `None` (poisoned - both
-/// branches inactive), identical to the established poison semantics so the
-/// caller's `activeBranch != branch` comparison keeps working unmodified.
-pub(crate) fn resolve_conditional_group_branch(
-    expression: &TypedScalarExpression,
-    resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
-) -> Option<&'static str> {
-    let environment = ResolverEnvironment { resolver, state };
-    let evaluation = evaluate_typed_expression(expression, &environment);
-    active_branch_for_condition_evaluation(&evaluation)
 }
 
 /// `showGenerated`'s effective value: the literal, unchanged, when unbound
