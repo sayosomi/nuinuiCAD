@@ -38,6 +38,15 @@ fn path_reverse_flips_target_line_in_place_without_own_geometry() {
 
     assert!(result.errors.is_empty());
     assert!(geometry_missing(&result, "reverse"));
+    assert_eq!(result.geometry_mutation_executions.len(), 1);
+    assert_eq!(
+        result.geometry_mutation_executions[0].mutation_element_id,
+        "reverse"
+    );
+    assert_eq!(
+        result.geometry_mutation_executions[0].target_element_ids,
+        vec!["line"]
+    );
     let line_geometry = geometry(&result, "line");
     assert_close(line_geometry["start"]["x"].as_f64().unwrap(), 100.0);
     assert_close(line_geometry["end"]["x"].as_f64().unwrap(), 0.0);
@@ -63,6 +72,7 @@ fn path_reverse_reports_dependency_error_for_missing_target() {
     });
 
     assert_eq!(result.errors.len(), 1);
+    assert!(result.geometry_mutation_executions.is_empty());
     assert_eq!(result.errors[0].missing_dependency_id, "missing-line");
     // A blank `name` (the bare `reverse(...)` statement never carries one)
     // must fall back to a display label, never surface as an empty string.
@@ -105,6 +115,7 @@ fn path_reverse_does_not_apply_inside_a_disabled_group() {
     });
 
     assert!(result.errors.is_empty());
+    assert!(result.geometry_mutation_executions.is_empty());
     let geometry = geometry(&result, "line");
     assert_close(geometry["start"]["x"].as_f64().unwrap(), 0.0);
     assert_close(geometry["end"]["x"].as_f64().unwrap(), 100.0);
@@ -212,6 +223,12 @@ fn path_reverse_allows_target_declared_in_the_same_for_loop() {
     });
 
     assert!(result.errors.is_empty());
+    assert_eq!(result.geometry_mutation_executions.len(), 2);
+    assert!(result
+        .geometry_mutation_executions
+        .iter()
+        .all(|execution| execution.mutation_element_id != "rev"
+            && execution.target_element_ids != vec!["ab"]));
 }
 
 #[test]
