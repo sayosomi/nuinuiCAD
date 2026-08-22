@@ -93,11 +93,11 @@ describe("ShortcutSettingsDialog", () => {
     await renderDialog();
 
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
-    fireEvent.keyDown(window, { key: "s", metaKey: true });
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
 
-    expect(screen.getByText("フォーカス横断 / saveDocument")).toBeInTheDocument();
+    expect(screen.getByText("通常 / undo")).toBeInTheDocument();
     expect(screen.queryByText("free point を追加")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+s");
+    expect(screen.getByLabelText("検索中のショートカットキー")).toHaveTextContent("Mod+z");
   });
 
   it("filters commands by shortcuts added in the current draft", async () => {
@@ -136,13 +136,13 @@ describe("ShortcutSettingsDialog", () => {
     await renderDialog();
 
     fireEvent.change(screen.getByLabelText("ショートカット設定を検索"), {
-      target: { value: "名前" }
+      target: { value: "元に戻す" }
     });
     fireEvent.click(screen.getByRole("button", { name: "キーで検索" }));
-    fireEvent.keyDown(window, { key: "s", metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
 
-    expect(screen.getByText("名前を付けて保存")).toBeInTheDocument();
-    expect(screen.queryByText("全体 / saveDocument")).not.toBeInTheDocument();
+    expect(screen.getByText("元に戻す")).toBeInTheDocument();
+    expect(screen.queryByText("やり直す")).not.toBeInTheDocument();
   });
 
   it("records and auto-saves a shortcut for a command without a default", async () => {
