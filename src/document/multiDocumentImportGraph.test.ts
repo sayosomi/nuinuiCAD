@@ -17,7 +17,6 @@ import {
   savedSourceFingerprintFromHost,
   sourceIdentityOf,
   type DependencySavedSourceSnapshot,
-  type DocumentId,
   type RootCurrentSourceSnapshot
 } from "./multiDocumentPrimitives";
 
