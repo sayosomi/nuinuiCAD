@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { VscodeObservationBridge } from "../../src/node/vscodeObservationBridge";
+import { inspectNuiDocument } from "./documentSnapshot";
 import { observeVscode } from "./vscodeObserve";
 
 const temporaryDirectories: string[] = [];
@@ -135,6 +136,67 @@ describe("vscode_observe", () => {
     expect(observation.documents[0]?.sourceText).toBe(
       "nui 4\npoint A = coordinate(x: 0, y: 0)\n"
     );
+    expect(sourceRequests).toEqual([false, true]);
+  });
+
+  it("projects Canvas runtime selection into the headless stable snapshot identity", async () => {
+    const descriptorDirectory = temporaryDirectory();
+    const documentPath = join(descriptorDirectory, "selection.nui");
+    const sourceText = [
+      "nui 4",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      ""
+    ].join("\n");
+    writeFileSync(documentPath, sourceText, "utf8");
+    const inspected = await inspectNuiDocument(documentPath);
+    const expectedAbId = inspected.summary.elements.find((element) => element.name === "AB")?.id;
+    expect(expectedAbId).toMatch(/^line-mcp-/);
+
+    const runtimeAbId = "line-runtime-ab";
+    const sourceRequests: boolean[] = [];
+    await bridgeFor(descriptorDirectory, 10, documentPath, {
+      activeSurface: "canvas",
+      canvasSessionPresent: true,
+      sourceText,
+      canvas: {
+        documentVersion: 3,
+        selectedElementIds: [runtimeAbId],
+        selectedElementSources: [{
+          runtimeElementId: runtimeAbId,
+          sourceStatementIndex: 2,
+          elementType: "line"
+        }],
+        selectionSubject: { kind: "elements" },
+        compiledDocumentRevision: 1,
+        previewActive: false,
+        evaluationRevision: 1,
+        evaluationRequestRevision: 1,
+        evaluationStatus: "ready",
+        evaluationSource: "rust",
+        rustEligible: true,
+        isStale: false,
+        isCurrent: true,
+        errorCount: 0,
+        warningCount: 0,
+        errorSummaries: [],
+        warningSummaries: []
+      }
+    }, sourceRequests);
+
+    const result = await observeVscode({ documentPath }, { descriptorDirectory });
+
+    expect(result.status).toBe("ok");
+    const observation = result.observation as { documents: Array<Record<string, unknown>> };
+    const document = observation.documents[0]!;
+    const canvas = document.canvas as Record<string, unknown>;
+    expect(canvas.selectedElementIds).toEqual([expectedAbId]);
+    expect(canvas.runtimeSelectedElementIds).toEqual([runtimeAbId]);
+    expect(document).not.toHaveProperty("sourceText");
     expect(sourceRequests).toEqual([false, true]);
   });
 
