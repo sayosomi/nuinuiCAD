@@ -373,6 +373,18 @@ reasonably cover the regression surface. Run the broader suite when a change can
 realistically break independent existing features even while the focused tests
 for the edited behavior still pass.
 
+For tests that exercise asynchronous lifecycle boundaries such as sockets,
+streams, child processes, timers, abort/teardown, or similar event emitters,
+install relevant error, close, and completion listeners before triggering the
+lifecycle transition. Forced teardown may legitimately surface errors such as
+socket resets; explicitly consume or assert allowed errors instead of allowing
+helper semantics to turn expected teardown into an unhandled rejection. Do not
+use helpers such as `events.once(emitter, "close")` when a legitimate `error`
+may precede `close` unless rejection is the intended assertion, and do not
+encode event ordering that the runtime or API does not guarantee. Timing- or
+race-sensitive lifecycle changes require focused repeated verification; every
+iteration must pass, and retry-until-green is not acceptable verification.
+
 For documentation, comments, or policy-only changes that do not change source
 code, configuration, generated artifacts, or runtime behavior, `git diff --check`
 and diff review are sufficient. Do not routinely run `npm run build`, `npm run

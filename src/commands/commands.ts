@@ -1,7 +1,6 @@
 import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
-import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
@@ -12,8 +11,9 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadUiStore } from "../state/cadUiStore";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
 
-export const commands: Record<CommandId, Command> = {
-  ...documentCommandDefinitions,
+// CommandId remains a durable identifier type for persisted settings, while the
+// host-neutral registry contains only commands implemented by the shared core.
+export const commands = {
   ...viewModeCommandDefinitions,
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
@@ -21,7 +21,7 @@ export const commands: Record<CommandId, Command> = {
   ...commandLineCommandDefinitions,
   ...sourceEditorCommandDefinitions,
   ...bakeCommandDefinitions
-};
+} as Record<CommandId, Command>;
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
   const command = commands[commandId];

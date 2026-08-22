@@ -1,14 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { evaluateElementsReferencePayload } from "./evaluationEngine";
+import type { RustEvaluationTransport } from "./rustEvaluationRunner";
 import { useEvaluationEngine } from "./useEvaluationEngine";
-
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-
-const invokeMock = vi.mocked(invoke);
 
 const source = [
   "nui 4",
@@ -23,14 +19,12 @@ const source = [
 ].join("\n");
 
 afterEach(() => {
-  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   vi.unstubAllEnvs();
-  invokeMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe("Module conditional mutation evaluation engine", () => {
   it("forwards qualified Module conditional owners into the Rust payload", async () => {
-    Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
     expect(compiled.status).toBe("valid");
@@ -46,19 +40,23 @@ describe("Module conditional mutation evaluation engine", () => {
       conditionalOwnerStatementIdByElementId: owners,
       moduleConditionalOwnerStatementIdByElementId: owners
     };
-    invokeMock.mockResolvedValue(evaluateElementsReferencePayload(document.document.elements));
+    const transport = vi.fn<RustEvaluationTransport>(async () =>
+      evaluateElementsReferencePayload(document.document.elements)
+    );
 
-    const { result } = renderHook(() => useEvaluationEngine(document.document.elements, options));
+    const { result } = renderHook(() =>
+      useEvaluationEngine(document.document.elements, options, 0, transport)
+    );
 
     await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(invokeMock).toHaveBeenCalledWith("evaluate_document", {
-      input: expect.objectContaining({
+    expect(transport).toHaveBeenCalledWith(
+      expect.objectContaining({
         bindingVersions: expect.objectContaining({
           conditionalOwners: expect.arrayContaining(
             [...owners!].map(([elementId, ownerStatementId]) => ({ elementId, ownerStatementId }))
           )
         })
       })
-    });
+    );
   });
 });

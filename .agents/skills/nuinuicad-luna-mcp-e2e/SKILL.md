@@ -60,6 +60,8 @@ Use only a clean checkout permitted by the prompt. Never reset, stash, discard, 
 
 When a stable E2E ref is supplied, verify that it points to the exact expected commit. Record the execution-time `origin/main` separately. A newer `origin/main` alone is not product failure and does not authorize changing the tested state.
 
+If an expected repository file, Agent Skill, or build input appears to be missing from the local checkout, verify the exact tested commit on GitHub before classifying it as product absence. An incompletely materialized checkout or dependency tree is an environment/setup problem. When the prompt permits a bounded recovery, use a clean full detached checkout/worktree at the exact tested commit, run the repository's normal dependency install such as `npm ci`, and rebuild. Do not repair or overwrite unrelated user work merely to make the checkout usable.
+
 Return `BLOCKED` for a rewritten/missing tested ref or for a checkout that cannot be made safe without touching unrelated work.
 
 ## 2. Launch the isolated VS Code host and preflight it
@@ -78,9 +80,11 @@ Before product units, objectively verify:
 
 - the run-unique `.nui` fixture is active;
 - its language mode is nuinuiCAD/`nui`, not Plain Text;
-- required nuinuiCAD commands are registered;
+- required nuinuiCAD commands are registered **from a surface where their declared Palette scope is supposed to be visible**;
 - Playwright/CDP is attached to the workbench containing that exact fixture;
 - when `vscode_observe` is required, the expected live observation instance/document resolves.
+
+Do not require a Canvas-only command while Source is active merely because the test will use it later. For example, verify Source-scope commands while Source is active and verify Canvas-only commands such as Fit Drawing after Canvas is active. A missing command in an out-of-scope Palette state is not evidence of extension-registration failure.
 
 Registration/launch/observation-bridge setup failure is environment `BLOCKED`, not product `FAIL`.
 
@@ -115,6 +119,14 @@ Use `vscode_observe` for live VS Code production-host facts such as document ide
 
 `vscode_observe` is observation only. Never treat it as an automation or mutation API.
 
+### Deterministic Canvas operation inside the webview
+
+When a Canvas unit requires a geometry click, first resolve the correct `vscode-webview://...` frame for the run-unique document, then derive the operation point from the actual rendered geometry/overlay in that frame. Nested-frame coordinates must be resolved against the frame/element that owns the geometry; do not mix workbench coordinates, webview-frame coordinates, and geometry-local coordinates.
+
+Do not use an offset geometry-name label or other `pointer-events: none` identity text as the click target. A label may be positioned near the geometry rather than on its hit-test point. Geometry-name identity DOM may also be intentionally absent before hover/selection or while name display is disabled, so do not make optional pre-selection identity text a prerequisite unless the tested product contract guarantees it.
+
+For a fixture with one objectively unique rendered geometry, it is valid to click that geometry's deterministic midpoint/bounds-derived point, then require the post-click selection marker/selected identity DOM before taking the fresh structured observation. If multiple geometries are plausible and the intended target cannot be distinguished objectively, return `BLOCKED` instead of guessing.
+
 ## 4. Resolve the live instance/document without guessing
 
 Use explicit `instanceId` when the prompt has established it. Otherwise prefer the exact run-unique `documentPath`.
@@ -139,6 +151,8 @@ Use Playwright/CDP only for editor-visible facts/actions not represented by the 
 ### Canvas
 
 Prefer `vscode_observe` for the structured Canvas facts it publishes: selected IDs/subject, document/compiled/evaluation revisions, preview/evaluation state, evaluation source/Rust eligibility, current/stale state, and error/warning summaries. Use Playwright/CDP for webview DOM identity, controls, overlays, deterministic UI operation, bounding boxes, and screenshots when those are part of the oracle.
+
+For the current MCP projection, `canvas.selectedElementIds` is the agent-facing stable snapshot identity namespace and is the field to compare with stable IDs returned by headless tools such as `document_inspect`. When `runtimeSelectedElementIds` is present, it intentionally exposes the separate Canvas runtime/session IDs; do not compare those raw runtime IDs to headless stable IDs or treat their difference as failure.
 
 Do not replace published structured Canvas facts with screenshot interpretation.
 

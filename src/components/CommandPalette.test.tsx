@@ -28,11 +28,11 @@ describe("CommandPalette", () => {
     render(<CommandPalette commandContext={{}} />);
 
     fireEvent.change(screen.getByLabelText("コマンドを検索"), {
-      target: { value: "保存" }
+      target: { value: "元に戻す" }
     });
 
-    const saveOption = screen.getByRole("option", { name: /保存Mod\+s/ });
-    expect(within(saveOption).getByText("Mod+s")).toBeInTheDocument();
+    const undoOption = screen.getByRole("option", { name: /元に戻すMod\+z/ });
+    expect(within(undoOption).getByText("Mod+z")).toBeInTheDocument();
   });
 
   it("shows user-customized shortcuts in command candidates", () => {
@@ -41,7 +41,7 @@ describe("CommandPalette", () => {
         version: 1,
         overrides: [
           {
-            bindingId: "crossFocus.saveDocument",
+            bindingId: "normal.undo",
             chords: [{ key: "k", mod: true, alt: true, shift: false }]
           }
         ]
@@ -51,12 +51,12 @@ describe("CommandPalette", () => {
     render(<CommandPalette commandContext={{}} />);
 
     fireEvent.change(screen.getByLabelText("コマンドを検索"), {
-      target: { value: "保存" }
+      target: { value: "元に戻す" }
     });
 
-    const saveOption = screen.getByRole("option", { name: /保存Mod\+Alt\+k/ });
-    expect(within(saveOption).getByText("Mod+Alt+k")).toBeInTheDocument();
-    expect(within(saveOption).queryByText("Mod+s")).not.toBeInTheDocument();
+    const undoOption = screen.getByRole("option", { name: /元に戻すMod\+Alt\+k/ });
+    expect(within(undoOption).getByText("Mod+Alt+k")).toBeInTheDocument();
+    expect(within(undoOption).queryByText("Mod+z")).not.toBeInTheDocument();
   });
 
   it("lists the Source Editor Canvas-pick command and its configured shortcut", () => {

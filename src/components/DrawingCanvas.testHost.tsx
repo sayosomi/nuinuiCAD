@@ -8,37 +8,43 @@ import {
   previewCanvasSelection
 } from "../commands/selectionCommands";
 import { sourceEditSession } from "../editor/sourceEditSession";
-import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
+import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
-import { imageSourceUrl } from "./imageSourceUrls";
-import { CommandRibbonOverlay } from "./CommandRibbonOverlay";
 import { DrawingCanvas } from "./DrawingCanvas";
 import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
-import { useModuleInstanceSelectionReconciliation } from "./useModuleInstanceSelectionReconciliation";
 import { useRevisionCoherentCanvasPresentation } from "./canvasRevisionPresentation";
+import { useModuleInstanceSelectionReconciliation } from "./useModuleInstanceSelectionReconciliation";
 
-type TauriDrawingCanvasProps = {
+type DrawingCanvasTestHostProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   commandContext?: CommandContext;
-  leftPanelDockRef: RefObject<HTMLDivElement | null>;
+  /** Retained only so existing integration-test call sites do not need host-specific plumbing. */
+  leftPanelDockRef?: RefObject<HTMLDivElement | null>;
 };
 
-export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCanvasProps>(
-  function TauriDrawingCanvas({
+/**
+ * Store-backed host used by shared DrawingCanvas integration tests.
+ *
+ * Production hosts own their adapters independently. This helper deliberately
+ * contains no platform runtime API and keeps the tests focused on the shared
+ * document/UI-store interaction boundary that used to be exercised through the
+ * removed desktop host wrapper.
+ */
+export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanvasTestHostProps>(
+  function DrawingCanvasTestHost({
     evaluation,
     evaluationState,
     canvasFocusRef,
     measureCanvasTextWidth,
-    commandContext = {},
-    leftPanelDockRef
+    commandContext = {}
   }, ref) {
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
@@ -50,7 +56,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
     const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
     const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
-    const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
     const holdLastStableCanvasPresentation = useCadDocumentStore((state) =>
       state.sourceUpdate.kind === "editor" && (
         state.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
@@ -68,12 +73,14 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
       sourceLexicalNamespace,
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
+
     const currentCanvasPresentation = useMemo(() => ({
       elements,
       canonicalElements,
@@ -89,6 +96,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       moduleSemanticContext,
       visibilityProfiles
     ]);
+
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
       evaluation,
@@ -96,10 +104,12 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       evaluationState,
       holdLastStable: holdLastStableCanvasPresentation
     });
+
     useModuleInstanceSelectionReconciliation({
       evaluation: canvasPresentation.renderEvaluation,
       evaluationState: canvasPresentation.renderEvaluationState
     });
+
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
       elements: canvasPresentation.elements,
       canonicalElements: canvasPresentation.canonicalElements,
@@ -159,14 +169,7 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
-      resolveImageSourceUrl: (sourcePath) => imageSourceUrl(sourcePath, currentFilePath),
-      renderHostOverlay: (viewportSize) => (
-        <CommandRibbonOverlay
-          commandContext={commandContext}
-          leftPanelDockRef={leftPanelDockRef}
-          viewportSize={viewportSize}
-        />
-      )
+      resolveImageSourceUrl: (sourcePath) => sourcePath
     }), [
       activeLinePickTarget,
       activeNumericReferencePickTarget,
@@ -176,8 +179,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       commandContext,
       commandLineSession,
       compiledDocumentRevision,
-      currentFilePath,
-      leftPanelDockRef,
       measureCanvasTextWidth,
       selectedElementId,
       selectedElementIds,
