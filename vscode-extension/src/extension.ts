@@ -50,6 +50,10 @@ import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
+import {
+  createNuiElementsTreeProvider,
+  NUI_ELEMENTS_VIEW_ID
+} from "./elementsTreeProvider";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -593,6 +597,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiDocumentSymbolSelector,
     createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
   );
+  const elementsTreeProvider = createNuiElementsTreeProvider(
+    () => activeNuiEditor()?.document,
+    languageAnalysisSessionFor
+  );
+  const elementsTreeRegistration = vscode.window.registerTreeDataProvider?.(
+    NUI_ELEMENTS_VIEW_ID,
+    elementsTreeProvider
+  );
+  const elementsTreeActiveEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
+    elementsTreeProvider.refresh();
+  });
+  const elementsTreeDocumentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    const activeDocument = activeNuiEditor()?.document;
+    if (activeDocument && sameDocument(activeDocument, event.document)) elementsTreeProvider.refresh();
+  });
+  const elementsTreeDocumentCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    const activeDocument = activeNuiEditor()?.document;
+    if (!activeDocument || sameDocument(activeDocument, document)) elementsTreeProvider.refresh();
+  });
   context.subscriptions.push(
     compilerDiagnosticCollection,
     compilerDiagnosticOpenListener,
@@ -606,8 +629,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
     referenceProvider,
     choiceQuickFixProvider,
     foldingProvider,
-    documentSymbolProvider
+    documentSymbolProvider,
+    elementsTreeActiveEditorListener,
+    elementsTreeDocumentChangeListener,
+    elementsTreeDocumentCloseListener
   );
+  if (elementsTreeRegistration) context.subscriptions.push(elementsTreeRegistration);
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
   const resync = (session: DocumentSession): void => {
