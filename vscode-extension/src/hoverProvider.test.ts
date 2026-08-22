@@ -55,16 +55,13 @@ const documentFor = (
     const line = Math.min(Math.max(position.line, 0), lines.length - 1);
     let offset = 0;
     for (let index = 0; index < line; index += 1) {
-      const rawLineStart = offset;
       offset += lines[index]!.length;
-      const next = source.slice(offset, offset + 2);
-      offset += next === "\r\n" ? 2 : 1;
-      if (offset <= rawLineStart) break;
+      offset += source.slice(offset, offset + 2) === "\r\n" ? 2 : 1;
     }
     return offset + Math.min(Math.max(position.character, 0), lines[line]!.length);
   };
 
-  return {
+  const document: TestDocument = {
     fileName,
     version: 1,
     uri: { scheme, toString: () => `${scheme}://${fileName}` },
@@ -76,6 +73,7 @@ const documentFor = (
       document.version += 1;
     }
   };
+  return document;
 };
 
 const sourceSnapshotFor = (session: ReturnType<typeof createLanguageAnalysisSession>, source: string) => ({
