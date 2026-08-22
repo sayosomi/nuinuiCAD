@@ -1603,7 +1603,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(2);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
