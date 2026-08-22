@@ -32,8 +32,6 @@ const handoffFor = (overrides: Partial<OutputPreviewHistoryHandoff> = {}) => {
     handoff,
     calls,
     setCurrent: (value: boolean) => { current = value; },
-    setActive: (value: boolean) => { active = value; },
-    setOpen: (value: boolean) => { open = value; },
     setVersion: (value: number) => { version = value; }
   };
 };
@@ -75,7 +73,20 @@ describe("Output Preview native history handoff", () => {
     await handoffOutputPreviewHistory("undo", fixture.handoff);
 
     expect(fixture.handoff.executeNativeHistory).not.toHaveBeenCalled();
-    expect(fixture.handoff.restorePreviewFocus).not.toHaveBeenCalled();
+    expect(fixture.handoff.restorePreviewFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the still-live Preview when source activation fails", async () => {
+    const fixture = handoffFor({
+      activateMatchingSource: vi.fn(async () => {
+        throw new Error("source activation failed");
+      })
+    });
+
+    await handoffOutputPreviewHistory("undo", fixture.handoff);
+
+    expect(fixture.handoff.executeNativeHistory).not.toHaveBeenCalled();
+    expect(fixture.handoff.restorePreviewFocus).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a version change during focus handoff and returns to the still-live Preview", async () => {
