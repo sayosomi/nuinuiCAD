@@ -201,7 +201,7 @@ const shorthandArgumentLabel = (arg: ScannedArg): { label: string; labelSpan: Ds
 const argumentFromArg = (arg: ScannedArg, diagnostics: DslModuleDiagnostic[]): DslModuleArgument => {
   const shorthand = shorthandArgumentLabel(arg);
   if (arg.key === null && shorthand === null) {
-    diagnostic(diagnostics, "module argument は名前付き引数または単純な `@name` shorthand で指定してください。", arg.valueSpan);
+    diagnostic(diagnostics, "module argument は名前付き引数で指定してください。単純な `@name` shorthand も使用できます。", arg.valueSpan);
   }
   return {
     kind: "moduleArgument",
