@@ -69,6 +69,26 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
+const undefinedGeometryReferenceDiagnostic = (
+  line: number,
+  message: string,
+  sourceSpan: DslSpan | undefined,
+  relativeSpan: DslSpan
+): DslDiagnostic => ({
+  severity: "warning",
+  line,
+  column: 1,
+  code: "undefined-geometry-reference",
+  message,
+  exactSpanOnly: true,
+  ...(sourceSpan ? {
+    logicalSpan: {
+      start: sourceSpan.start + relativeSpan.start,
+      end: sourceSpan.start + relativeSpan.end
+    }
+  } : {})
+});
+
 const invalidReferenceDiagnostic = (
   line: number,
   reference: string,
@@ -171,7 +191,12 @@ export const resolveId = (
     diagnostics.push(diagnostic(line, `参照名が曖昧です: ${unresolvedToken}`));
     return unresolvedToken;
   }
-  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));
+  diagnostics.push(undefinedGeometryReferenceDiagnostic(
+    line,
+    `参照先が見つかりません: ${unresolvedToken}`,
+    sourceSpan,
+    reference.pathRange
+  ));
   return unresolvedToken;
 };
 
@@ -194,7 +219,7 @@ export const resolveAnchor = (
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return referenceAnchor(value.trim());
   const pathToken = `@${formatDslReferencePath(reference.path)}`;
-  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);
+  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);
   return reference.property
     ? derivedAnchor(elementId, reference.property)
     : referenceAnchor(elementId);
@@ -213,7 +238,7 @@ export const resolveEndpoint = (
   const lineName = `@${formatDslReferencePath(reference.path)}`;
   const endpointKey = reference.property === "end" ? "end" : "start";
   return {
-    lineId: resolveId(lineName, index, line, diagnostics, currentElement),
+    lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),
     endpointKey
   };
 };
