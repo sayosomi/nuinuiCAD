@@ -39,10 +39,11 @@ if n != 1:
 text = text.replace("  patchPalette(input, ops);\n", "")
 write(path, text)
 
-# Remove residual source indexing / validation branches for top-level color statements.
+# Remove residual source indexing / serialization helpers for top-level color statements.
 path = "src/dsl/dslDocument.ts"
 text = read(path)
 text = text.replace('      case "color":\n        byKey.set(`color:${statement.name}`, info);\n        break;\n', "", 1)
+text = text.replace('import { DSL_INDENT, formatDslName, quoteDslString } from "./dslTokens";', 'import { DSL_INDENT, formatDslName } from "./dslTokens";', 1)
 write(path, text)
 
 path = "src/dsl/dslParser.ts"
