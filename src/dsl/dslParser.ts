@@ -768,13 +768,13 @@ const parseLine = (
   }
   return {
     diagnostics: keyword
-    ? [diagnostic(
-        line,
-        `未対応のDSLキーワードです: ${keyword}`,
-        "unknown-dsl-keyword",
-        project({ start: 0, end: keyword.length }) ?? undefined
-      )]
-    : [diagnostic(line, "文はキーワードから始めてください。")]
+      ? [diagnostic(
+          line,
+          `未対応のDSLキーワードです: ${keyword}`,
+          "unknown-dsl-keyword",
+          project({ start: 0, end: keyword.length }) ?? undefined
+        )]
+      : [diagnostic(line, "文はキーワードから始めてください。")]
   };
 };
 

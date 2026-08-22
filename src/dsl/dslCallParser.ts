@@ -229,11 +229,11 @@ const validateArgs = (
       ? `category「${category}」と construction「${construction}」の組み合わせは不一致です。使用できる category: ${categories.join("、")}。${category} の候補: ${candidates}。`
       : `category「${category}」に construction「${construction}」はありません。候補: ${candidates}。`;
     diagnostic(
-    diagnostics,
-    message,
-    constructionSpan ?? categorySpan,
-    constructionSpan ? "unknown-construction" : undefined
-  );
+      diagnostics,
+      message,
+      constructionSpan ?? categorySpan,
+      constructionSpan ? "unknown-construction" : undefined
+    );
     return null;
   }
 
@@ -251,11 +251,11 @@ const validateArgs = (
     }
     if (!allowed.has(arg.key)) {
       diagnostic(
-      diagnostics,
-      `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
-      arg.keySpan!,
-      "unknown-construction-argument"
-    );
+        diagnostics,
+        `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
+        arg.keySpan!,
+        "unknown-construction-argument"
+      );
       continue;
     }
     if (arg.key === positional?.arg) {

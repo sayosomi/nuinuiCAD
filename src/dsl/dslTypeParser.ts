@@ -132,9 +132,9 @@ export const parseDslScalarType = (
     diagnostics.push({
       message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
       span: typeSpan,
-    code: "unknown-type"
-  });
-  return { declaredType: null, choiceOptionSpans: [] };
+      code: "unknown-type"
+    });
+    return { declaredType: null, choiceOptionSpans: [] };
   }
 
   const openIndex = typeSpan.start + choiceMatch[0].length - 1;
