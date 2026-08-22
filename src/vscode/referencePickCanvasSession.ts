@@ -70,12 +70,16 @@ const resultBase = (session: VscodeReferencePickCanvasSession) => ({
  */
 export const startVscodeReferencePickCanvasSession = ({
   request,
+  authoritativeDocumentUri,
+  authoritativeDocumentVersion,
   source,
   compiled,
   evaluation,
   evaluationIsCurrent
 }: {
   request: VscodeReferencePickStartRequest;
+  authoritativeDocumentUri: string;
+  authoritativeDocumentVersion: number;
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
@@ -92,7 +96,11 @@ export const startVscodeReferencePickCanvasSession = ({
     targetProof: request.targetProof,
     status
   });
-  if (!evaluationIsCurrent) return { session: null, result: rejected("stale") };
+  if (
+    request.documentUri !== authoritativeDocumentUri ||
+    request.documentVersion !== authoritativeDocumentVersion ||
+    !evaluationIsCurrent
+  ) return { session: null, result: rejected("stale") };
   const target = queryDslReferencePickTarget({
     source,
     position: request.normalizedSourceOffset,
