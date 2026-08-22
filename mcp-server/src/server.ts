@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
@@ -172,7 +173,13 @@ export const createNuinuiCadMcpServer = (
 
 const isMainModule = (): boolean => {
   const entry = process.argv[1];
-  return Boolean(entry && import.meta.url === pathToFileURL(entry).href);
+  if (!entry) return false;
+
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(entry);
+  } catch {
+    return import.meta.url === pathToFileURL(entry).href;
+  }
 };
 
 export const runNuinuiCadMcpStdioServer = async (): Promise<void> => {
