@@ -2599,7 +2599,8 @@ describe("VS Code native definition lifecycle", () => {
     const document = documentFor("/tmp/definition.nui", "file:///tmp/definition.nui", source);
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
     setup(false, null, [document]);
-    const registration = mocks.definitionRegistrations[0]!.provider as {
+    const registration = mocks.definitionRegistrations[0]!;
+    const provider = registration.provider as {
       provideDefinition: (
         document: TestDocument,
         position: { line: number; character: number },
@@ -2607,7 +2608,7 @@ describe("VS Code native definition lifecycle", () => {
       ) => unknown;
     };
     const referenceLine = source.split("\n")[2]!;
-    const links = registration.provideDefinition(
+    const links = provider.provideDefinition(
       document,
       { line: 2, character: referenceLine.indexOf("@A") + "@A".length },
       undefined
