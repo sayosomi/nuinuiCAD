@@ -68,27 +68,26 @@ const renderOverlay = (
       onSelect={callbacks.onSelect}
       onConfirm={callbacks.onConfirm}
       onCancel={callbacks.onCancel}
-    />
+    />,
+    { container: viewport }
   );
   return { viewport, callbacks, view };
 };
 
 describe("VSCodeReferencePickOverlay", () => {
-  it("uses the Canvas bottom-right transient hint region and theme contract", () => {
+  it("reuses the Canvas bottom-right transient hint and theme contract", () => {
     const { viewport, view } = renderOverlay(sessionFor());
     const status = screen.getByRole("status");
 
+    expect(status).toHaveClass("point-drag-axis-lock-hint");
     expect(status).toHaveAttribute("data-reference-pick-hint-position", "bottom-right");
-    expect(status.style.position).toBe("absolute");
     expect(status.style.right).toBe("0px");
     expect(status.style.bottom).toBe("0px");
-    expect(status).toHaveStyle({ background: LEGACY_CANVAS_THEME.background });
-    expect(status).toHaveStyle({ color: LEGACY_CANVAS_THEME.foreground });
+    expect(status.style.getPropertyValue("--canvas-background")).toBe(LEGACY_CANVAS_THEME.background);
+    expect(status.style.getPropertyValue("--canvas-foreground")).toBe(LEGACY_CANVAS_THEME.foreground);
     expect(screen.getByText("Line target")).toBeInTheDocument();
-    expect(screen.getByText("Enter")).toBeInTheDocument();
-    expect(screen.getAllByText("Done").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Esc")).toBeInTheDocument();
-    expect(screen.getByText("Cancel")).toBeInTheDocument();
+    expect(screen.getByText("Enter Done")).toBeInTheDocument();
+    expect(screen.getByText("Esc Cancel")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
 
     view.unmount();
@@ -103,11 +102,13 @@ describe("VSCodeReferencePickOverlay", () => {
       { onConfirm, onCancel }
     );
 
-    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(done).toBeEnabled();
     fireEvent.keyDown(viewport, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
 
-    fireEvent.keyDown(viewport, { key: "Escape" });
+    done.focus();
+    fireEvent.keyDown(done, { key: "Escape" });
     expect(onCancel).toHaveBeenCalledTimes(1);
 
     view.unmount();
