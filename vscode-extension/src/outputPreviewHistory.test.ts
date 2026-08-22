@@ -7,8 +7,8 @@ import {
 
 const handoffFor = (overrides: Partial<OutputPreviewHistoryHandoff> = {}) => {
   let current = true;
-  let active = true;
-  let open = true;
+  const active = true;
+  const open = true;
   let version = 7;
   const calls: string[] = [];
   const handoff: OutputPreviewHistoryHandoff = {
