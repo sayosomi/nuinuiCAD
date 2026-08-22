@@ -38,24 +38,12 @@ jobs:
               text = file.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one patch target, found {count}')
+                  raise SystemExit(f'{path}: expected exactly one patch target, found {count}: {old!r}')
               file.write_text(text.replace(old, new, 1))
 
           replace_once(
               'src/dsl/dslParser.ts',
-              '''const diagnostic = (
-            line: number,
-            message: string,
-            code?: string,
-            physicalSpan?: DslPhysicalSpan
-          ): DslDiagnostic => ({
-            severity: "error",
-            line,
-            column: 1,
-            message,
-            ...(code ? { code } : {}),
-            ...(physicalSpan ? { physicalSpan } : {})
-          });''',
+              'const diagnostic = (\n',
               '''const exactUnknownNameDiagnosticCodes = new Set([
             "unknown-dsl-keyword",
             "unknown-type",
@@ -64,93 +52,65 @@ jobs:
           ]);
 
           const diagnostic = (
-            line: number,
-            message: string,
-            code?: string,
-            physicalSpan?: DslPhysicalSpan
-          ): DslDiagnostic => ({
-            severity: "error",
-            line,
-            column: 1,
-            message,
-            ...(code ? { code } : {}),
-            ...(physicalSpan ? { physicalSpan } : {}),
+          '''
+          )
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '  ...(physicalSpan ? { physicalSpan } : {})\n});',
+              '''  ...(physicalSpan ? { physicalSpan } : {}),
             ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
           });'''
           )
-
           replace_once(
               'src/dsl/dslParser.ts',
-              '''  return {
-            diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
-          };''',
-              '''  return {
-            diagnostics: keyword
+              '    diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]\n',
+              '''    diagnostics: keyword
               ? [diagnostic(
                   line,
                   `未対応のDSLキーワードです: ${keyword}`,
                   "unknown-dsl-keyword",
                   project({ start: 0, end: keyword.length }) ?? undefined
                 )]
-              : [diagnostic(line, "文はキーワードから始めてください。")]
-          };'''
+              : [diagnostic(line, "文はキーワードから始めてください.")]
+          '''.replace('ください.', 'ください。')
           )
 
           replace_once(
               'src/dsl/dslTypeParser.ts',
-              '''    diagnostics.push({
-            message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
-            span: typeSpan
-          });''',
-              '''    diagnostics.push({
-            message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
-            span: typeSpan,
-            code: "unknown-type"
-          });'''
+              '      span: typeSpan\n    });\n    return { declaredType: null, choiceOptionSpans: [] };',
+              '''      span: typeSpan,
+              code: "unknown-type"
+            });
+            return { declaredType: null, choiceOptionSpans: [] };'''
           )
 
           replace_once(
               'src/dsl/dslCallParser.ts',
-              '''    diagnostic(diagnostics, message, constructionSpan ?? categorySpan);
-            return null;''',
+              '    diagnostic(diagnostics, message, constructionSpan ?? categorySpan);\n',
               '''    diagnostic(
               diagnostics,
               message,
               constructionSpan ?? categorySpan,
               constructionSpan ? "unknown-construction" : undefined
             );
-            return null;'''
+          '''
           )
-
           replace_once(
               'src/dsl/dslCallParser.ts',
-              '''      diagnostic(diagnostics, `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`, arg.keySpan!);
-              continue;''',
+              '      diagnostic(diagnostics, `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`, arg.keySpan!);\n',
               '''      diagnostic(
                 diagnostics,
                 `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
                 arg.keySpan!,
                 "unknown-construction-argument"
               );
-              continue;'''
+          '''
           )
 
           replace_once(
               'src/dsl/dslReferences.ts',
-              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
-            severity: "warning",
-            line,
-            column: 1,
-            message
-          });''',
-              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
-            severity: "warning",
-            line,
-            column: 1,
-            message
-          });
-
-          const undefinedGeometryReferenceDiagnostic = (
+              'const invalidReferenceDiagnostic = (\n',
+              '''const undefinedGeometryReferenceDiagnostic = (
             line: number,
             message: string,
             sourceSpan: DslSpan | undefined,
@@ -168,71 +128,42 @@ jobs:
                 end: sourceSpan.start + relativeSpan.end
               }
             } : {})
-          });'''
-          )
+          });
 
+          const invalidReferenceDiagnostic = (
+          '''
+          )
           replace_once(
               'src/dsl/dslReferences.ts',
-              '''  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));
-            return unresolvedToken;''',
+              '  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));\n',
               '''  diagnostics.push(undefinedGeometryReferenceDiagnostic(
               line,
               `参照先が見つかりません: ${unresolvedToken}`,
               sourceSpan,
               reference.pathRange
             ));
-            return unresolvedToken;'''
+          '''
           )
-
           replace_once(
               'src/dsl/dslReferences.ts',
-              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);''',
-              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);'''
+              '  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);\n',
+              '  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);\n'
           )
-
           replace_once(
               'src/dsl/dslReferences.ts',
-              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement),''',
-              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),'''
+              '    lineId: resolveId(lineName, index, line, diagnostics, currentElement),\n',
+              '    lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),\n'
           )
 
           replace_once(
               'src/dsl/dslDocument.ts',
-              '''  const projectedCompilerDiagnostics = compiled.diagnostics.map((diagnostic) => {
-            const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
-            if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
-            const statement = parsed.statements[statementIndex];
-            const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
-            return {
-              ...publicDiagnostic,
-              exactSpanOnly: true as const,
-              ...(physicalSpan ? { physicalSpan } : {})
-            };
-          });''',
-              '''  const projectCompilerDiagnostic = (diagnostic: (typeof compiled.diagnostics)[number]): DslDiagnostic => {
-            const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
-            if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
-            const statement = parsed.statements[statementIndex];
-            const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
-            return {
-              ...publicDiagnostic,
-              exactSpanOnly: true as const,
-              ...(physicalSpan ? { physicalSpan } : {})
-            };
-          };
-          const projectedCompilerDiagnostics = compiled.diagnostics.map(projectCompilerDiagnostic);'''
-          )
-
-          replace_once(
-              'src/dsl/dslDocument.ts',
-              '''    ...compiled.diagnostics,
-            ...(sourceLexicalNamespace?.diagnostics ?? []),''',
-              '''    ...compiled.diagnostics.map((diagnostic) =>
+              '    ...compiled.diagnostics,\n',
+              '''    ...compiled.diagnostics.map((diagnostic, index) =>
               diagnostic.code === "undefined-geometry-reference"
-                ? projectCompilerDiagnostic(diagnostic)
+                ? (projectedCompilerDiagnostics[index] ?? diagnostic)
                 : diagnostic
             ),
-            ...(sourceLexicalNamespace?.diagnostics ?? []),'''
+          '''
           )
           PY
           git diff --check
