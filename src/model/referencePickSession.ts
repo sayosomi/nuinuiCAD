@@ -97,9 +97,11 @@ export const selectReferencePickDraft = (
 
 export const confirmReferencePickSession = (
   session: ReferencePickSession
-): ReferencePickSession => session.status !== "active"
-  ? session
-  : { ...session, hover: null, status: "confirmed" };
+): ReferencePickSession => {
+  if (session.status !== "active") return session;
+  if (session.multiplicity === "single" && session.draftReferences.length !== 1) return session;
+  return { ...session, hover: null, status: "confirmed" };
+};
 
 export const cancelReferencePickSession = (
   session: ReferencePickSession
