@@ -57,6 +57,7 @@ describe("runtimeScalarDiagnostics", () => {
     expect(diagnostic.exactSpanOnly).toBe(true);
     expect(diagnostic.bindingId).toBe(bindingId);
     expect(diagnostic.navigationTarget).toEqual({ kind: "binding", bindingId });
+    expect(diagnostic.runtimeContext).toBeUndefined();
     expect(diagnostic.physicalSpan).toBeDefined();
     const [segment] = diagnostic.physicalSpan!.segments;
     expect(source.slice(segment.from, segment.to)).toBe("x");
@@ -140,26 +141,28 @@ describe("runtimeScalarDiagnostics", () => {
     expect(diagnostics).toEqual([]);
   });
 
-  it("uses the named disabled-target wording and falls back to the target ID", () => {
+  it("preserves geometry builtin runtime context as clone-safe structured data independent of localized wording", () => {
     const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const evaluation: ScalarEvaluation = {
       status: "error",
       type: { kind: "number" },
       issueCode: "evaluation-geometry-builtin-disabled",
-      context: { kind: "geometryBuiltinTarget", targetElementId: "target-id" }
+      context: { kind: "geometryBuiltinTarget", targetElementId: "target-id", pointKey: "center" }
     };
     const namedDiagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([[bindingId, evaluation]]), FRESH, [{ id: "target-id", name: "Shoulder" } as CadElement])
     );
-    expect(namedDiagnostics[0]?.message).toBe(
-      "「Shoulder」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
-    );
     const fallbackDiagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([[bindingId, evaluation]]))
     );
-    expect(fallbackDiagnostics[0]?.message).toBe(
-      "「target-id」は評価OFFのためgeometry引数として利用できません。評価ONにするか、参照先を変更してください。"
-    );
+    expect(namedDiagnostics[0]?.message).not.toBe(fallbackDiagnostics[0]?.message);
+    expect(namedDiagnostics[0]?.runtimeContext).toEqual({
+      kind: "geometryBuiltinTarget",
+      targetElementId: "target-id",
+      pointKey: "center"
+    });
+    expect(fallbackDiagnostics[0]?.runtimeContext).toEqual(namedDiagnostics[0]?.runtimeContext);
+    expect(structuredClone(namedDiagnostics[0])).toEqual(namedDiagnostics[0]);
   });
 });
