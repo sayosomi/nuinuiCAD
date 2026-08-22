@@ -115,7 +115,7 @@ const initialize = async (session: ReturnType<typeof startServer>) => {
 };
 
 describe("nuinuiCAD MCP stdio server", () => {
-  it("lists and calls inspect/definition/references with schema validation and protocol-only stdout", async () => {
+  it("lists and calls headless/VS Code tools with schema validation and protocol-only stdout", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "nuinuicad-mcp-stdio-"));
     temporaryDirectories.push(directory);
     const filePath = path.join(directory, "sample.nui");
@@ -134,12 +134,24 @@ describe("nuinuiCAD MCP stdio server", () => {
     session.send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
     const listResponse = await session.responseFor(2);
     expect(listResponse.error).toBeUndefined();
-    const tools = (listResponse.result as { tools?: Array<{ name: string }> } | undefined)?.tools;
+    const tools = (listResponse.result as {
+      tools?: Array<{
+        name: string;
+        inputSchema?: { properties?: Record<string, unknown> };
+      }>;
+    } | undefined)?.tools;
     expect(tools?.map((tool) => tool.name)).toEqual([
       "document_inspect",
       "document_definition",
       "document_references",
-      "document_evaluate"
+      "document_evaluate",
+      "vscode_observe"
+    ]);
+    const vscodeObserveTool = tools?.find((tool) => tool.name === "vscode_observe");
+    expect(Object.keys(vscodeObserveTool?.inputSchema?.properties ?? {})).toEqual([
+      "instanceId",
+      "documentPath",
+      "includeSourceText"
     ]);
 
     session.send({
@@ -230,6 +242,19 @@ describe("nuinuiCAD MCP stdio server", () => {
     const invalidPathResponse = await session.responseFor(8);
     expect(invalidPathResponse.error).toBeUndefined();
     expect(invalidPathResponse.result).toMatchObject({ isError: true });
+
+    session.send({
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: {
+        name: "vscode_observe",
+        arguments: { documentPath: "relative.nui" }
+      }
+    });
+    const invalidObservationPathResponse = await session.responseFor(9);
+    expect(invalidObservationPathResponse.error).toBeUndefined();
+    expect(invalidObservationPathResponse.result).toMatchObject({ isError: true });
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(session.protocolNoise).toEqual([]);
