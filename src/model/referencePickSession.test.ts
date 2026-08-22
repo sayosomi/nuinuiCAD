@@ -39,6 +39,8 @@ describe("referencePickSession", () => {
       role: "numericPropertyBase",
       multiplicity: "single"
     });
+    expect(confirmReferencePickSession(initial)).toBe(initial);
+
     const first = selectReferencePickDraft(initial, hover("line-a", "LineA"));
     const second = selectReferencePickDraft(first, hover("line-b", "LineB"));
 
