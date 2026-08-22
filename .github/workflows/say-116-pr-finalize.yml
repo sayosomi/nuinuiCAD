@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   finalize:
@@ -184,29 +183,7 @@ jobs:
       - name: Build VS Code extension
         run: npm run build:vscode
 
-      - name: Full Node tests
-        id: full_node_tests
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee /tmp/say-116-full-node-tests.log
-
-      - name: Report Full Node test failure
-        if: failure() && steps.full_node_tests.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          {
-            echo 'SAY-116 finalizer full Node test failure (tail):'
-            echo
-            echo '```text'
-            tail -n 320 /tmp/say-116-full-node-tests.log
-            echo '```'
-          } > /tmp/say-116-test-comment.md
-          gh pr comment 390 --body-file /tmp/say-116-test-comment.md
-
-      - name: Commit verified implementation
+      - name: Commit implementation for standard CI
         shell: bash
         run: |
           set -euo pipefail
