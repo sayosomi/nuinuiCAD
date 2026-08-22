@@ -35,6 +35,7 @@ jobs:
             capture { sub(/^          /, ""); print }
           ' .github/workflows/say-113-direct-implement.yml > /tmp/say-113-apply.py
           test -s /tmp/say-113-apply.py
+          sed -i 's/## Evaluation\\n/### TypeScript evaluation\\n/g' /tmp/say-113-apply.py
           python /tmp/say-113-apply.py
           cargo fmt --manifest-path src-tauri/Cargo.toml
           npm ci
