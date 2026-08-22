@@ -428,6 +428,37 @@ const callTarget = (
     : null;
 };
 
+const emptyConstructionTarget = (
+  position: number,
+  exact: ExactPosition,
+  compiled: CompiledDslDocument,
+  anchor: DslReferencePickSourceAnchor
+): DslReferencePickTarget | null => {
+  const statement = compiled.statements[exact.statementIndex];
+  if (statement?.kind !== "element" || !statement.type) return null;
+  const emptyAttrs = statement.attrs.filter((attr) =>
+    attr.value === "" &&
+    attr.rawValueSpan &&
+    exact.logicalPosition >= attr.rawValueSpan.start &&
+    exact.logicalPosition <= attr.rawValueSpan.end
+  );
+  if (emptyAttrs.length !== 1) return null;
+  const attr = emptyAttrs[0]!;
+  const parameters = dslCompletionMetadataForType(statement.type).parameters.filter((parameter) =>
+    parameter.source === "attr" && parameter.key === attr.key
+  );
+  if (parameters.length !== 1) return null;
+  const expectation = expectationForParameter(parameters[0]!);
+  if (!expectation) return null;
+  const range = { from: position, to: position };
+  if (expectation !== "number") return targetFromExpectation(anchor, expectation, range);
+  return targetFromExpectation(anchor, {
+    expectedGeometryInterface: "path",
+    role: "numericPropertyBase",
+    multiplicity: "single"
+  }, range);
+};
+
 const typedDeclarationTarget = (
   position: number,
   exact: ExactPosition,
@@ -487,6 +518,7 @@ export const queryDslReferencePickTarget = ({
   const anchor = sourceAnchorFor(compiled, exact);
   if (!anchor) return null;
   return callTarget(source, position, exact, compiled, anchor)
+    ?? emptyConstructionTarget(position, exact, compiled, anchor)
     ?? typedDeclarationTarget(position, exact, anchor)
     ?? setNumericTarget(position, exact, compiled, anchor);
 };
