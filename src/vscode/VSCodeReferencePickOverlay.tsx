@@ -241,11 +241,20 @@ export const VSCodeReferencePickOverlay = ({
   ), [session.candidates]);
   const canConfirm = session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
   const selectionCount = session.draft.draftReferences.length;
+  const targetLabel = session.target.role === "endpoint"
+    ? "Endpoint"
+    : session.target.role === "numericPropertyBase"
+      ? "Geometry base"
+      : session.target.expectedGeometryInterface === "point"
+        ? "Point"
+        : session.target.expectedGeometryInterface === "line"
+          ? "Line"
+          : "Path";
   const instruction = session.draft.multiplicity === "multiple"
-    ? `Select references on Canvas (${selectionCount} selected).`
+    ? `${selectionCount} selected`
     : selectionCount === 0
-      ? "Select a reference on Canvas."
-      : "Reference selected. Choose Done or press Enter.";
+      ? "Select a candidate"
+      : "Reference selected";
 
   return (
     <>
@@ -286,25 +295,59 @@ export const VSCodeReferencePickOverlay = ({
       <aside
         className="pick-mode-status"
         data-reference-pick-ui="true"
+        data-reference-pick-hint-position="bottom-right"
         role="status"
         aria-live="polite"
-        style={canvasThemeCssVariables(canvasTheme)}
+        style={{
+          ...canvasThemeCssVariables(canvasTheme),
+          position: "absolute",
+          top: "auto",
+          left: "auto",
+          right: 0,
+          bottom: 0,
+          width: "auto",
+          maxWidth: "min(720px, calc(100% - 16px))",
+          transform: "none",
+          borderColor: canvasTheme.muted,
+          background: canvasTheme.background,
+          boxShadow: "none",
+          color: canvasTheme.foreground
+        }}
       >
-        <span className="pick-mode-status-title" aria-hidden="true">PICK MODE</span>
+        <span
+          className="pick-mode-status-title"
+          aria-hidden="true"
+          style={{
+            borderColor: canvasTheme.muted,
+            background: "transparent",
+            color: canvasTheme.muted
+          }}
+        >
+          PICK MODE
+        </span>
         <span className="pick-mode-status-copy">
-          <strong>Pick Reference from Canvas</strong>
-          <small>{instruction}</small>
+          <strong>{targetLabel} target</strong>
+          <small style={{ color: canvasTheme.muted }}>{instruction}</small>
         </span>
         <button
           type="button"
           disabled={!canConfirm}
           onPointerDown={(event: ReactPointerEvent) => event.stopPropagation()}
           onClick={onConfirm}
+          style={{
+            borderColor: canvasTheme.accent,
+            background: canvasTheme.background,
+            color: canvasTheme.accent
+          }}
         >
           Done
         </button>
-        <kbd>Enter</kbd>
-        <kbd>Esc</kbd>
+        <span className="point-drag-axis-lock-action">
+          <kbd style={{ borderColor: canvasTheme.muted, color: canvasTheme.muted }}>Enter</kbd> Done
+        </span>
+        <span className="point-drag-axis-lock-action">
+          <kbd style={{ borderColor: canvasTheme.muted, color: canvasTheme.muted }}>Esc</kbd> Cancel
+        </span>
       </aside>
     </>
   );
