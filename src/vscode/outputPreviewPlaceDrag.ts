@@ -106,6 +106,32 @@ export const beginOutputPreviewPlaceDrag = ({
   };
 };
 
+/** Re-validates the immutable drag-begin proof against authoritative state. */
+export const outputPreviewPlaceDragProofIsCurrent = ({
+  proof,
+  normalizedSource,
+  currentSourceRevision,
+  documentVersion,
+  plan
+}: {
+  proof: OutputPreviewPlaceDragProof;
+  normalizedSource: string;
+  currentSourceRevision: number;
+  documentVersion: number | null;
+  plan: OutputPreviewPlaceDragPlanIdentity | null;
+}): boolean => Boolean(
+  plan &&
+  documentVersion === proof.documentVersion &&
+  currentSourceRevision === proof.sourceRevision &&
+  normalizedSource === proof.normalizedSourceSnapshot &&
+  outputPreviewPlaceDragPlanIdentityFor(plan) === proof.planIdentity &&
+  rangeContains(proof.statementRange, proof.x.range) &&
+  rangeContains(proof.statementRange, proof.y.range) &&
+  proof.x.range.to <= proof.y.range.from &&
+  exactRangeText(normalizedSource, proof.x.range, proof.x.sourceText) &&
+  exactRangeText(normalizedSource, proof.y.range, proof.y.sourceText)
+);
+
 export const outputPreviewPlaceDragCoordinatesFor = ({
   proof,
   screenDx,
@@ -131,17 +157,28 @@ export const outputPreviewPlaceDragCoordinatesFor = ({
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 };
 
+const coordinatePatchFor = (
+  coordinate: OutputPreviewPlaceDragProof["x"],
+  value: number
+): OutputPreviewPlaceCoordinatePatch | null => {
+  if (value === coordinate.literal) return null;
+  const replacement = numericLiteralForExpression(value);
+  if (replacement === null) return null;
+  return {
+    range: coordinate.range,
+    expectedText: coordinate.sourceText,
+    replacement
+  };
+};
+
 export const outputPreviewPlaceCoordinatePatchesFor = (
   proof: OutputPreviewPlaceDragProof,
   coordinates: { x: number; y: number }
 ): readonly OutputPreviewPlaceCoordinatePatch[] | null => {
-  const x = numericLiteralForExpression(coordinates.x);
-  const y = numericLiteralForExpression(coordinates.y);
-  if (x === null || y === null) return null;
-  return [
-    { range: proof.x.range, expectedText: proof.x.sourceText, replacement: x },
-    { range: proof.y.range, expectedText: proof.y.sourceText, replacement: y }
-  ];
+  if (!Number.isFinite(coordinates.x) || !Number.isFinite(coordinates.y)) return null;
+  const x = coordinatePatchFor(proof.x, coordinates.x);
+  const y = coordinatePatchFor(proof.y, coordinates.y);
+  return [x, y].filter((patch): patch is OutputPreviewPlaceCoordinatePatch => patch !== null);
 };
 
 /** Creates transient normalized source only from the exact drag-begin snapshot. */
