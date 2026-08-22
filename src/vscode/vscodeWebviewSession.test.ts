@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  onVscodeWebviewSessionRegistryEvent,
   VscodeWebviewSessionRegistry,
-  type VscodeWebviewSessionBase
+  type VscodeWebviewSessionBase,
+  type VscodeWebviewSessionRegistryEvent
 } from "./vscodeWebviewSession";
 
 type TestSession = VscodeWebviewSessionBase & { id: string };
@@ -53,5 +55,26 @@ describe("VS Code Webview session identity", () => {
     registry.set(other);
 
     expect(registry.forDocument("file:///pattern.nui")).toEqual([canvas, outputPreview]);
+  });
+
+  it("publishes replacement and removal events for Canvas readiness adapters", () => {
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const events: VscodeWebviewSessionRegistryEvent[] = [];
+    const stop = onVscodeWebviewSessionRegistryEvent((event) => events.push(event));
+    const first = sessionFor("file:///pattern.nui", "canvas", "first");
+    const replacement = sessionFor("file:///pattern.nui", "canvas", "replacement");
+
+    registry.set(first);
+    registry.set(replacement);
+    registry.delete("file:///pattern.nui", "canvas");
+    stop();
+    registry.set(sessionFor("file:///other.nui", "canvas", "ignored"));
+
+    expect(events).toEqual([
+      { type: "set", session: first },
+      { type: "delete", session: first },
+      { type: "set", session: replacement },
+      { type: "delete", session: replacement }
+    ]);
   });
 });
