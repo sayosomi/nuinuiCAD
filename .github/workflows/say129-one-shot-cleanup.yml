@@ -61,15 +61,26 @@ jobs:
           ]:
               edit(path, lambda s: re.sub(r'^\s*(?:elementColors|palette):[^\n]*\n', '', s, flags=re.M))
 
-          # Store fixtures which used the removed compatibility field.
-          for path in [
+          # Store fixtures which used removed compatibility/UI fields.
+          fixture_paths = [
               'src/commands/imageCreationCommands.test.ts',
               'src/components/CommandPalette.test.tsx',
               'src/components/DrawingCanvas.test.ts',
               'src/components/ImageImportDialog.test.tsx',
               'src/components/ShortcutSettingsDialog.test.tsx',
+          ]
+          for path in fixture_paths:
+              edit(path, lambda s: re.sub(r'^\s*(?:palette|showPaletteSettings|showSelectionColorPicker):[^\n]*\n', '', s, flags=re.M))
+
+          # Imports left unused after compatibility fixture removal.
+          for path in [
+              *fixture_paths,
+              'src/components/DrawingCanvas.dragThreshold.test.ts',
+              'src/editor/sourceEditorEvaluationDecorations.test.ts',
           ]:
-              edit(path, lambda s: re.sub(r'^\s*palette:[^\n]*\n', '', s, flags=re.M))
+              edit(path, lambda s: s.replace('import { defaultDocumentPalette } from "../palette/palette";\n', ''))
+          edit('src/components/canvasRevisionPresentation.test.ts', lambda s: s.replace(
+              'import type { LegacyDocumentPalette } from "../palette/palette";\n', ''))
 
           # Header Palette UI test is obsolete with the removed surface.
           def source_pane_test(s):
