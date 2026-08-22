@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - sayosomi/say-131-runtime-diagnostics-canonical-webview-publication
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   implement:
-    if: github.event.head_commit.message == 'chore: stage SAY-131 direct implementation'
+    if: github.event_name == 'pull_request' || github.event.head_commit.message == 'chore: stage SAY-131 direct implementation'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
