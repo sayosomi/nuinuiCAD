@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
+import { compileCanonicalText, type LastGoodDslDocument } from "../document/canonicalDocument";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
@@ -10,6 +11,15 @@ import {
 import { OutputPreviewPlaceOverlay } from "./OutputPreviewPlaceOverlay";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
+import {
+  beginOutputPreviewPlaceDrag,
+  outputPreviewPlaceCoordinatePatchesFor,
+  outputPreviewPlaceDragPlanIdentityFor,
+  outputPreviewPlaceDragProofIsCurrent,
+  outputPreviewPlacePreviewSourceFor,
+  type OutputPreviewPlaceDragPlanIdentity,
+  type OutputPreviewPlaceDragProof
+} from "./outputPreviewPlaceDrag";
 import {
   outputPreviewCandidateForKey,
   outputPreviewCandidatesFor,
@@ -42,6 +52,12 @@ type OutputPreviewEvaluationState = {
   evaluating: boolean;
 };
 
+type OutputPreviewPlaceDragPreviewState = {
+  proof: OutputPreviewPlaceDragProof;
+  sourceText: string;
+  compiledDocument: LastGoodDslDocument;
+};
+
 type PanState = { pointerId: number; lastX: number; lastY: number };
 
 const diagnosticMessageFor = (state: ReturnType<typeof useCadDocumentStore.getState>): string =>
@@ -51,6 +67,15 @@ const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
   candidate.kind === "print" ? "Print" : "SVG";
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
+const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
+
+const dragPlanIdentityForCandidate = (
+  candidate: OutputPreviewCandidate | null
+): OutputPreviewPlaceDragPlanIdentity | null => candidate ? {
+  kind: candidate.kind,
+  outputId: candidate.output.id,
+  layoutId: candidate.output.layoutId
+} : null;
 
 const outputTextSvg = (
   drawable: OutputText,
@@ -161,13 +186,20 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const docText = useCadDocumentStore((state) => state.docText);
   const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
-  const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
+  const canonicalCompiledDocument = useCadDocumentStore(effectiveCompiledDocument);
   const diagnostics = useCadDocumentStore((state) => state.diagnostics);
   const bindingIssueDiagnostics = useCadDocumentStore((state) => state.bindingIssueDiagnostics);
   const sourceIsCurrent = sourceText === docText;
+  const [placeDragPreview, setPlaceDragPreview] = useState<OutputPreviewPlaceDragPreviewState | null>(null);
+  const effectiveSourceText = placeDragPreview?.sourceText ?? sourceText;
+  const compiledDocument = placeDragPreview?.compiledDocument ?? canonicalCompiledDocument;
   const candidates = useMemo(
-    () => sourceIsCurrent ? outputPreviewCandidatesFor(sourceText, compiledDocument) : [],
-    [compiledDocument, sourceIsCurrent, sourceText]
+    () => sourceIsCurrent ? outputPreviewCandidatesFor(effectiveSourceText, compiledDocument) : [],
+    [compiledDocument, effectiveSourceText, sourceIsCurrent]
+  );
+  const canonicalCandidates = useMemo(
+    () => sourceIsCurrent ? outputPreviewCandidatesFor(sourceText, canonicalCompiledDocument) : [],
+    [canonicalCompiledDocument, sourceIsCurrent, sourceText]
   );
   const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OutputPreviewViewport>(DEFAULT_OUTPUT_PREVIEW_VIEWPORT);
@@ -183,6 +215,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
+  const outputPreviewPlaceCommitPendingRef = useRef<number | null>(null);
   const pendingOpenRef = useRef<{ normalizedSourceOffset: number | null } | null>(null);
   const selectionGenerationRef = useRef(0);
   const fittedSelectionTokenRef = useRef<string | null>(null);
@@ -251,16 +284,17 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (pendingOpenRef.current !== null) {
       applyOpenSelection(pendingOpenRef.current.normalizedSourceOffset);
     }
-  }, [applyOpenSelection, candidates, sourceIsCurrent]);
+  }, [applyOpenSelection, canonicalCandidates, sourceIsCurrent]);
 
   useEffect(() => {
-    const fallbackKey = candidates[0]?.key ?? null;
+    const fallbackKey = canonicalCandidates[0]?.key ?? null;
     const currentKey = selectedOutputKeyRef.current;
-    if (outputPreviewCandidateForKey(candidates, currentKey) || currentKey === fallbackKey) return;
+    if (outputPreviewCandidateForKey(canonicalCandidates, currentKey) || currentKey === fallbackKey) return;
     updateSelectedOutputKey(fallbackKey);
-  }, [candidates, selectedOutputKey, updateSelectedOutputKey]);
+  }, [canonicalCandidates, selectedOutputKey, updateSelectedOutputKey]);
 
   const selectedCandidate = outputPreviewCandidateForKey(candidates, selectedOutputKey);
+  const canonicalSelectedCandidate = outputPreviewCandidateForKey(canonicalCandidates, selectedOutputKey);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,14 +331,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [activePlan, fitPlan]);
 
   useEffect(() => {
-    if (!sourceIsCurrent) return;
+    if (!sourceIsCurrent || placeDragPreview) return;
     const plan = activePlan;
     if (!plan) return;
     const identity = `${plan.kind}:${plan.outputId}`;
     const fitToken = `${selectionGenerationRef.current}:${identity}`;
     if (fittedSelectionTokenRef.current === fitToken) return;
     if (fitPlan(plan)) fittedSelectionTokenRef.current = fitToken;
-  }, [activePlan, fitPlan, sourceIsCurrent, selectedOutputKey]);
+  }, [activePlan, fitPlan, placeDragPreview, sourceIsCurrent, selectedOutputKey]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
@@ -322,6 +356,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (message.type === "replaceTextDocument") {
         if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
+        outputPreviewPlaceCommitPendingRef.current = null;
+        setPlaceDragPreview(null);
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
           dirtySinceSave: false
@@ -332,6 +368,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (message.type === "commitText") {
         if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
         latestHostDocumentVersionRef.current = message.documentVersion;
+        outputPreviewPlaceCommitPendingRef.current = null;
+        setPlaceDragPreview(null);
         useCadDocumentStore.getState().commitText(message.sourceText, "editor");
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
       }
@@ -391,7 +429,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   };
 
-  const navigateToSelectedOutput = () => navigateToSourceRange(selectedCandidate?.sourceRange ?? null);
+  const navigateToSelectedOutput = () => navigateToSourceRange(canonicalSelectedCandidate?.sourceRange ?? null);
 
   const plan = activePlan;
   const placeProjections = useMemo(
@@ -401,9 +439,103 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const highlightedPlace = highlightedPlaceId
     ? placeProjections.find((projection) => projection.placeId === highlightedPlaceId) ?? null
     : null;
+
+  const currentDragPlanIdentity = dragPlanIdentityForCandidate(canonicalSelectedCandidate);
+  const dragProofIsCurrent = useCallback((proof: OutputPreviewPlaceDragProof): boolean => {
+    const state = useCadDocumentStore.getState();
+    const currentCandidates = state.sourceText === state.docText
+      ? outputPreviewCandidatesFor(state.sourceText, effectiveCompiledDocument(state))
+      : [];
+    const currentCandidate = outputPreviewCandidateForKey(currentCandidates, selectedOutputKeyRef.current);
+    return outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: normalizedSourceForDrag(state.sourceText),
+      currentSourceRevision: state.currentSourceRevision,
+      documentVersion: latestHostDocumentVersionRef.current,
+      plan: dragPlanIdentityForCandidate(currentCandidate)
+    });
+  }, []);
+
+  const beginPlaceDrag = useCallback((projection: (typeof placeProjections)[number]) => {
+    if (
+      outputPreviewPlaceCommitPendingRef.current !== null ||
+      placeDragPreview ||
+      !plan ||
+      !currentDragPlanIdentity
+    ) return null;
+    const state = useCadDocumentStore.getState();
+    return beginOutputPreviewPlaceDrag({
+      projection,
+      normalizedSource: normalizedSourceForDrag(state.sourceText),
+      currentSourceRevision: state.currentSourceRevision,
+      documentVersion: latestHostDocumentVersionRef.current,
+      plan
+    });
+  }, [currentDragPlanIdentity, placeDragPreview, plan]);
+
+  const previewPlaceDrag = useCallback((
+    proof: OutputPreviewPlaceDragProof,
+    coordinates: { x: number; y: number }
+  ): boolean => {
+    if (!dragProofIsCurrent(proof)) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    const transientSource = outputPreviewPlacePreviewSourceFor(proof, coordinates);
+    if (transientSource === null) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    const state = useCadDocumentStore.getState();
+    const compiled = compileCanonicalText(state, transientSource);
+    if (compiled.status === "fatal" || compiled.docText !== compiled.sourceText) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    const transientCandidates = outputPreviewCandidatesFor(transientSource, compiled.doc);
+    const transientCandidate = outputPreviewCandidateForKey(transientCandidates, selectedOutputKeyRef.current);
+    const transientIdentity = dragPlanIdentityForCandidate(transientCandidate);
+    if (!transientIdentity || outputPreviewPlaceDragPlanIdentityFor(transientIdentity) !== proof.planIdentity) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    setPlaceDragPreview({ proof, sourceText: transientSource, compiledDocument: compiled.doc });
+    return true;
+  }, [dragProofIsCurrent]);
+
+  const cancelPlaceDrag = useCallback((proof: OutputPreviewPlaceDragProof) => {
+    setPlaceDragPreview((current) => current?.proof === proof ? null : current);
+  }, []);
+
+  const commitPlaceDrag = useCallback((
+    proof: OutputPreviewPlaceDragProof,
+    coordinates: { x: number; y: number }
+  ): boolean => {
+    if (outputPreviewPlaceCommitPendingRef.current !== null || !dragProofIsCurrent(proof)) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    const patches = outputPreviewPlaceCoordinatePatchesFor(proof, coordinates);
+    if (patches === null) {
+      setPlaceDragPreview(null);
+      return false;
+    }
+    setPlaceDragPreview(null);
+    if (patches.length === 0) return true;
+    outputPreviewPlaceCommitPendingRef.current = proof.documentVersion;
+    api.postMessage({
+      type: "outputPreviewPlaceCommit",
+      documentVersion: proof.documentVersion,
+      normalizedSourceSnapshot: proof.normalizedSourceSnapshot,
+      statementRange: proof.statementRange,
+      patches
+    });
+    return true;
+  }, [api, dragProofIsCurrent]);
+
   const currentDiagnostic = [...diagnostics, ...bindingIssueDiagnostics].find((diagnostic) => diagnostic.severity === "error") ?? diagnostics[0] ?? bindingIssueDiagnostics[0];
   const diagnosticSourceRange = outputPreviewDiagnosticSourceRangeFor(sourceText, currentSourceRevision, currentDiagnostic);
-  const sourceNavigationRange = diagnosticSourceRange ?? selectedCandidate?.sourceRange ?? null;
+  const sourceNavigationRange = diagnosticSourceRange ?? canonicalSelectedCandidate?.sourceRange ?? null;
   const previewError = sourceIsCurrent
     ? selectedCandidate && evaluationState.outputKey === selectedCandidate.key ? evaluationState.error : null
     : diagnosticMessageFor({ ...useCadDocumentStore.getState(), diagnostics, bindingIssueDiagnostics });
@@ -416,6 +548,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return { x: topLeft.x, y: topLeft.y, width: paperBounds.width * viewport.zoom, height: paperBounds.height * viewport.zoom };
       })()
     : null;
+  const dragContextKey = `${latestHostDocumentVersionRef.current ?? "none"}:${currentSourceRevision}:${selectedOutputKey ?? "none"}`;
 
   return (
     <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
@@ -425,10 +558,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             aria-label="Output"
             value={selectedOutputKey ?? ""}
             onChange={(event) => updateSelectedOutputKey(event.target.value || null)}
-            disabled={candidates.length === 0}
+            disabled={canonicalCandidates.length === 0}
           >
-            {candidates.length === 0 ? <option value="">No outputs</option> : null}
-            {candidates.map((candidate) => (
+            {canonicalCandidates.length === 0 ? <option value="">No outputs</option> : null}
+            {canonicalCandidates.map((candidate) => (
               <option key={candidate.key} value={candidate.key}>
                 {outputKindLabel(candidate)} · {candidate.output.name}
               </option>
@@ -455,8 +588,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                   label: "Go to Source",
                   description: "",
                   showLabel: false,
-                  available: Boolean(selectedCandidate),
-                  nativeDisabled: !selectedCandidate
+                  available: Boolean(canonicalSelectedCandidate),
+                  nativeDisabled: !canonicalSelectedCandidate
                 }
               ]
             }}
@@ -533,11 +666,16 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             </svg>
             <OutputPreviewPlaceOverlay
               projections={placeProjections}
-              sourceText={sourceText}
+              sourceText={effectiveSourceText}
               viewportSize={viewportSize}
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
+              dragContextKey={dragContextKey}
+              onBeginDrag={beginPlaceDrag}
+              onPreviewDrag={previewPlaceDrag}
+              onCommitDrag={commitPlaceDrag}
+              onCancelDrag={cancelPlaceDrag}
             />
           </>
         ) : null}
