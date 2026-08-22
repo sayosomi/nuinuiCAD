@@ -81,6 +81,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.pickReferenceFromCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -195,6 +199,10 @@
         {
           "command": "nuinuiCAD.revealInCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.pickReferenceFromCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
         }
       ]
     },
@@ -224,6 +232,10 @@
       {
         "command": "nuinuiCAD.revealInCanvas",
         "title": "nuinuiCAD: Reveal in Canvas"
+      },
+      {
+        "command": "nuinuiCAD.pickReferenceFromCanvas",
+        "title": "nuinuiCAD: Pick Reference from Canvas"
       },
       {
         "command": "nuinuiCAD.canvasUndo",
