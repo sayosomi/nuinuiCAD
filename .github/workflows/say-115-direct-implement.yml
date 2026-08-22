@@ -25,7 +25,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          pattern='DocumentPalette|PaletteColor|colorId|kind: "color"|dslStatementKeywords\.color|sectionEnds\.palette|serializePalette|compiled\.palette|data\.palette|palette:'
           echo '=== SOURCE REFERENCES ==='
-          rg -n -C 3 'DocumentPalette|PaletteColor|colorId|kind: "color"|dslStatementKeywords\.color|sectionEnds\.palette|serializePalette|compiled\.palette|data\.palette|palette:' src --glob '!**/*.test.*' || true
+          grep -R -n -E "$pattern" src --exclude='*.test.ts' --exclude='*.test.tsx' || true
           echo '=== CORE TEST REFERENCES ==='
-          rg -n -C 2 'DocumentPalette|PaletteColor|colorId|kind: "color"|dslStatementKeywords\.color|sectionEnds\.palette|serializePalette|compiled\.palette|data\.palette|palette:' src/dsl src/document src/parameters --glob '**/*.test.*' || true
+          grep -R -n -E "$pattern" src/dsl src/document src/parameters --include='*.test.ts' --include='*.test.tsx' || true
