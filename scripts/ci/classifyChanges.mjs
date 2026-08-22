@@ -43,6 +43,7 @@ const FULL_NODE_FILES = new Set([
   "vscode-extension/language-configuration.json"
 ]);
 
+const LIFECYCLE_STRESS_RUNNER = "scripts/ci/runLifecycleStress.mjs";
 const TEST_BACKED_DOCUMENTATION_PREFIX = "docs/module/manual-fixtures/";
 
 const fullCheckFlags = () => ({
@@ -127,6 +128,14 @@ const classifyPath = (path) => {
 
   if (isDocumentationPath(path)) {
     return emptyFlags();
+  }
+
+  if (path === LIFECYCLE_STRESS_RUNNER) {
+    const flags = emptyFlags();
+    flags.node = true;
+    flags.full_node = true;
+    flags.workflow = true;
+    return flags;
   }
 
   if (path.startsWith(".github/workflows/") || path.startsWith("scripts/ci/")) {

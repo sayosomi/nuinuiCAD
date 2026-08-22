@@ -1,7 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { relativeImagePath } from "../document/imageFilePaths";
-import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { defaultTargetPixelsPerMm, initialImageScale } from "../geometry/imageScale";
 import {
   applyCreationPlacement,
@@ -30,16 +26,6 @@ type ImageMetadata = {
   dpi?: number | null;
 };
 
-const IMAGE_FILTER = {
-  name: "Images",
-  extensions: ["png", "jpg", "jpeg", "webp"]
-};
-
-const selectedPath = (value: string | string[] | null) =>
-  Array.isArray(value) ? value[0] ?? null : value;
-
-const fileNameFromPath = (path: string) => path.replace(/\\/g, "/").split("/").pop() ?? path;
-
 const imageMetadataFromBrowserFile = (file: File): Promise<ImageMetadata & { sourcePath: string }> =>
   new Promise((resolve, reject) => {
     const sourcePath = URL.createObjectURL(file);
@@ -66,19 +52,6 @@ const pickBrowserImageFile = () =>
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.click();
   });
-
-const pickTauriImagePath = async () => {
-  return selectedPath(
-    await open({
-      filters: [IMAGE_FILTER],
-      multiple: false
-    })
-  );
-};
-
-const loadTauriImageMetadata = async (path: string) => {
-  return invoke<ImageMetadata>("read_image_metadata", { path });
-};
 
 const creationContext = (sourceInsertion: SourceCreationInsertion | null) => {
   const { elements, evaluationLimitIndex } = useCadDocumentStore.getState();
@@ -210,30 +183,14 @@ export const addImage = async (context?: CommandContext) => {
     statementMap: document.doc.statementMap
   });
   try {
-    let metadata: ImageMetadata;
-    let sourcePath: string;
-    let displayName: string;
-
-    if (isTauriRuntime()) {
-      const path = await pickTauriImagePath();
-      if (!path) return;
-      metadata = await loadTauriImageMetadata(path);
-      sourcePath = relativeImagePath(path, useCadDocumentStore.getState().currentFilePath);
-      displayName = fileNameFromPath(path);
-    } else {
-      const file = await pickBrowserImageFile();
-      if (!file) return;
-      const browserMetadata = await imageMetadataFromBrowserFile(file);
-      metadata = browserMetadata;
-      sourcePath = browserMetadata.sourcePath;
-      displayName = file.name;
-    }
-
+    const file = await pickBrowserImageFile();
+    if (!file) return;
+    const metadata = await imageMetadataFromBrowserFile(file);
     const sourceDpi = metadata.dpi && metadata.dpi > 0 ? metadata.dpi : 300;
     useCadUiStore.setState({
       pendingImageImport: {
-        sourcePath,
-        displayName,
+        sourcePath: metadata.sourcePath,
+        displayName: file.name,
         naturalWidthPx: metadata.widthPx,
         naturalHeightPx: metadata.heightPx,
         detectedDpi: metadata.dpi && metadata.dpi > 0 ? metadata.dpi : null,

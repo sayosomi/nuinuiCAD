@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import {
@@ -28,30 +27,25 @@ const configuredEvaluationEngineMode = (
 
 export const resolveEvaluationEngineMode = ({
   configuredMode,
-  tauriRuntime
+  rustTransportAvailable
 }: {
   configuredMode?: string;
-  tauriRuntime: boolean;
-  dev: boolean;
+  rustTransportAvailable: boolean;
 }): EvaluationEngineMode => {
   const configured = configuredEvaluationEngineMode(configuredMode);
   if (configured) return configured;
-  if (!tauriRuntime) return "reference";
+  if (!rustTransportAvailable) return "reference";
   return "rust";
 };
 
 export const isParityEvaluationEngineMode = (mode: EvaluationEngineMode) =>
   mode === "parity" || mode === "shadow";
 
-export const getEvaluationEngineMode = (tauriRuntime = isTauriRuntime()): EvaluationEngineMode =>
+export const getEvaluationEngineMode = (rustTransportAvailable = false): EvaluationEngineMode =>
   resolveEvaluationEngineMode({
     configuredMode: import.meta.env.VITE_EVALUATION_ENGINE,
-    tauriRuntime,
-    dev: import.meta.env.DEV
+    rustTransportAvailable
   });
-
-export const isTauriRuntime = () =>
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export const evaluateElementsReference = (
   elements: CadElement[],
@@ -85,13 +79,10 @@ export const evaluateElementsReferencePayload = (
   options: EvaluateElementsOptions = {}
 ): EvaluationPayload => evaluationResultToPayload(evaluateElementsReference(elements, options));
 
-const tauriRustEvaluationTransport: RustEvaluationTransport = (input) =>
-  invoke<EvaluationPayload>("evaluate_document", { input });
-
 export const evaluateElementsWithRust = async (
   elements: CadElement[],
   options: EvaluateElementsOptions = {},
-  transport: RustEvaluationTransport = tauriRustEvaluationTransport
+  transport: RustEvaluationTransport
 ): Promise<EvaluationResult> => {
   const prepared = prepareRustEvaluation(elements, options);
   const rustAttempt = beginRustRoundTrip(elements);
