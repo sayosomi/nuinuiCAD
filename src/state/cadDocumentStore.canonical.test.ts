@@ -137,7 +137,7 @@ describe("cadDocumentStore canonical text", () => {
       "nui 4",
       "",
       "// keep this comment",
-      "point A = coordinate(x: 0, y: 0, color: missing-color)",
+      "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"));
     const nextElements = useCadDocumentStore.getState().elements.map((element) =>
@@ -145,9 +145,6 @@ describe("cadDocumentStore canonical text", () => {
     );
     useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
     expect(useCadDocumentStore.getState().sourceText).toContain("// keep this comment");
-    expect(useCadDocumentStore.getState().sourceText).toContain("color: missing-color");
-    expect(useCadDocumentStore.getState().elements.find((element) => element.name === "A")?.colorId)
-      .toBe("missing-color");
   });
 
   it("uses reconciler IDs for rename, line move, and cross-group move", () => {

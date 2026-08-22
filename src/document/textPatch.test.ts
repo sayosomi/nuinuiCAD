@@ -76,8 +76,8 @@ const canonicalFrom = (source: string): CanonicalDocumentValue => {
 const BASE_SOURCE = [
   "nui 4",
   "",
-  "// パレット注釈",
-  'color main ("#112233", name: "本体", default: true)',
+  "// legacy palette source removed",
+  "// retained source-noise line",
   "",
   'role seam (name: "縫い代")',
   "view 通常 (default: true, seam: false)",
@@ -358,7 +358,7 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("要素セクションが空の文書への挿入はセクションを新設する", () => {
-    const source = ["nui 4", "", 'color main ("#112233", name: "本体", default: true)'].join("\n");
+    const source = ["nui 4", "", 'role seam (name: "縫い代")'].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -367,7 +367,7 @@ describe("textPatch 要素の挿入", () => {
     expect(patched.split("\n")).toEqual([
       "nui 4",
       "",
-      'color main ("#112233", name: "本体", default: true)',
+      'role seam (name: "縫い代")',
       "",
       "point Z = coordinate(",
       "  x: 9,",
@@ -532,7 +532,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
-    "  color: main  // 継続コメント",
+    "  state: hidden  // 継続コメント",
     ")",
     "point B = coordinate(x: 1, y: 1)"
   ].join("\n");
@@ -541,17 +541,17 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const { patched } = applyChange(CONTINUATION_SOURCE, (document) => ({
       ...document,
       elements: document.elements.map((element) =>
-        element.name === "A" ? ({ ...element, colorId: "accent" } as CadElement) : element
+        element.name === "A" ? ({ ...element, activity: "disabled" } as CadElement) : element
       )
     }));
     const lines = patched.split("\n");
-    expect(lines).toContain("  color: accent,  // 継続コメント");
-    expect(lines).not.toContain("  color: main  // 継続コメント");
+    expect(lines).toContain("  state: disabled,  // 継続コメント");
+    expect(lines).not.toContain("  state: hidden  // 継続コメント");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
   it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
-    const source = ["nui 4", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       return {
@@ -563,9 +563,9 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     });
     const lines = patched.split("\n");
     expect(lines).toContain("  point A = coordinate(");
-    expect(lines).toContain("    color: main,");
-    // 旧・継続行の残骸(トップレベルの"  color: main"単独行)が残っていないこと。
-    expect(lines.filter((line) => line.includes("color: main"))).toHaveLength(1);
+    expect(lines).toContain("    state: hidden,");
+    // 旧・継続行の残骸(トップレベルの"  state: hidden"単独行)が残っていないこと。
+    expect(lines.filter((line) => line.includes("state: hidden"))).toHaveLength(1);
   });
 
   it("削除された継続statementは継続行を含めて全行が消える", () => {
@@ -575,7 +575,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
       evaluationLimitIndex: document.evaluationLimitIndex
     }));
     expect(patched).not.toContain("point A");
-    expect(patched).not.toContain("color: main");
+    expect(patched).not.toContain("state: hidden");
     expect(patched).toContain("point B = coordinate(x: 1, y: 1)");
   });
 
@@ -594,7 +594,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
     // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
     // (property testで発見・修正)。
-    const source = ["nui 4", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  color: main", ")"].join("\n");
+    const source = ["nui 4", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -603,7 +603,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     const reparsed = compileDslDocument(patched);
     expect(reparsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     const lines = patched.split("\n");
-    const continuationIndex = lines.findIndex((line) => line.includes("color: main"));
+    const continuationIndex = lines.findIndex((line) => line.includes("state: hidden"));
     const zIndex = lines.findIndex((line) => line.includes("point Z"));
     expect(zIndex).toBeGreaterThan(continuationIndex);
   });
@@ -632,23 +632,6 @@ describe("textPatch リネーム伝播", () => {
 });
 
 describe("textPatch 非要素セクション", () => {
-  it("palette line rewrites keep a full-source block-comment close before color code", () => {
-    const source = [
-      "nui 4",
-      "/* keep palette note",
-      '*/ color main ("#112233", name: "本体", default: true)',
-      "point A = coordinate(x: 0, y: 0)"
-    ].join("\n");
-    const { patched } = applyChange(source, (document) => ({
-      ...document,
-      palette: {
-        ...document.palette,
-        colors: document.palette.colors.map((color) => ({ ...color, hex: "#000000" }))
-      }
-    }));
-
-    expect(patched).toContain('/* keep palette note\n*/ color main ("#000000"');
-  });
 
   it("visibility line rewrites keep a full-source block-comment close before activeView code", () => {
     const source = [
@@ -668,33 +651,6 @@ describe("textPatch 非要素セクション", () => {
     expect(patched).toContain("/* keep active-view note\n*/ activeView 印刷");
   });
 
-  it("色の追加・編集・default移動・削除", () => {
-    const source = [
-      "nui 4",
-      "",
-      'color main ("#112233", name: "本体", default: true)',
-      'color sub ("#445566", name: "サブ")',
-      'color gone ("#778899", name: "消える")',
-      "",
-      "point A = coordinate(x: 0, y: 0)"
-    ].join("\n");
-    const { patched, splices } = applyChange(source, (document) => ({
-      ...document,
-      palette: {
-        colors: [
-          { id: "main", name: "本体", hex: "#000000" },
-          { id: "sub", name: "サブ", hex: "#445566" },
-          { id: "added", name: "追加", hex: "#abcdef" }
-        ],
-        defaultColorId: "sub"
-      }
-    }));
-    expect(patched).toContain('color main ("#000000", name: "本体")');
-    expect(patched).toContain('color sub ("#445566", name: "サブ", default: true)');
-    expect(patched).toContain('color added ("#abcdef", name: "追加")');
-    expect(patched).not.toContain("gone");
-    expectLinesUntouched(splices, [1, 2, 7]);
-  });
 
   it("ロール追加は各view行を個別に書き換え、行間コメントを保存する", () => {
     const source = [
@@ -789,7 +745,6 @@ describe("diffDocuments", () => {
     expect(kinds.get(elementByName(document, "C").id)).toBe("delete");
     expect(kinds.get(inserted.id)).toBe("insert");
     expect(kinds.has(group.id)).toBe(false);
-    expect(diff.palette).toBe(false);
     expect(diff.visibility).toBe(false);
   });
 

@@ -1,6 +1,13 @@
+import type { LegacyDocumentPalette } from "./palette";
 import { groupStateByElementId, isGroupElement } from "../model/groups";
-import type { CadElement, DocumentPalette, ElementId } from "../types/geometry";
+import type {
+  CadElement,
+  ElementId
+} from "../types/geometry";
 import { paletteColorById } from "./palette";
+
+const legacyColorId = (element: CadElement) =>
+  (element as CadElement & { colorId?: string }).colorId;
 
 export const resolvedColorIdForElement = ({
   element,
@@ -11,15 +18,17 @@ export const resolvedColorIdForElement = ({
   element: CadElement;
   elementsById: Map<ElementId, CadElement>;
   ancestorGroupIds: ElementId[];
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
 }) => {
   const colorsById = paletteColorById(palette);
-  if (element.colorId && colorsById.has(element.colorId)) return element.colorId;
+  const elementColorId = legacyColorId(element);
+  if (elementColorId && colorsById.has(elementColorId)) return elementColorId;
 
   for (let index = ancestorGroupIds.length - 1; index >= 0; index -= 1) {
     const ancestor = elementsById.get(ancestorGroupIds[index]);
-    if (ancestor && isGroupElement(ancestor) && ancestor.colorId && colorsById.has(ancestor.colorId)) {
-      return ancestor.colorId;
+    const ancestorColorId = ancestor ? legacyColorId(ancestor) : undefined;
+    if (ancestor && isGroupElement(ancestor) && ancestorColorId && colorsById.has(ancestorColorId)) {
+      return ancestorColorId;
     }
   }
 
@@ -30,7 +39,7 @@ export const resolvedColorIdForElement = ({
 
 export const resolvedElementColorMap = (
   elements: CadElement[],
-  palette: DocumentPalette
+  palette: LegacyDocumentPalette
 ): Map<ElementId, string> => {
   const states = groupStateByElementId(elements);
   const elementsById = new Map(elements.map((element) => [element.id, element]));

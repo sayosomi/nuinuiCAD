@@ -1,3 +1,4 @@
+import type { LegacyDocumentPalette } from "../palette/palette";
 import {
   isForGroupElement,
   isGroupExpanded,
@@ -8,8 +9,14 @@ import {
   createElementPresentationStatusIndex,
   type ElementPresentationStatus
 } from "../model/elementPresentationStatus";
-import type { PickCandidate } from "../model/pickCandidates";
-import type { CadElement, DocumentPalette, ElementId, EvaluationResult, ForGroupGeneratedRow, VisibilityProfile } from "../types/geometry";
+import type {
+  PickCandidate } from "../model/pickCandidates";
+import type { CadElement,
+  ElementId,
+  EvaluationResult,
+  ForGroupGeneratedRow,
+  VisibilityProfile
+} from "../types/geometry";
 import type { StatementRange, StatementRangeIndex } from "./statementRangeIndex";
 
 export type VisibleRange = { from: number; to: number };
@@ -80,7 +87,7 @@ export const createEvaluationDecorationIndex = ({
   elements: readonly CadElement[];
   evaluation: EvaluationResult | null;
   groupFoldById: GroupFoldById;
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
   pickCandidates: readonly PickCandidate[];

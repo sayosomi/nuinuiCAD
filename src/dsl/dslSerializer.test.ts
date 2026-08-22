@@ -39,7 +39,7 @@ const buildElements = () => {
       "for i in range(from: 0,count: 5,step: 1,showGenerated: false, id: e7) {",
       "}",
       'image img = image(source: "assets/ref.png",origin: @A,scale: 1,angleDeg: 0,mirrorX: false, id: e8)',
-      "point hidden = coordinate(x: 5,y: 5, id: p8,state: disabled,color: main)"
+      "point hidden = coordinate(x: 5,y: 5, id: p8,state: disabled)"
     ].join("\n"),
     { elements: [] }
   );
@@ -231,7 +231,6 @@ describe("serializeElementsToDsl flat output", () => {
         x: 5,
         y: 5,
         state: disabled,
-        color: main,
         id: p8,
       )"
     `);

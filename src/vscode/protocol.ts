@@ -44,6 +44,41 @@ export type VscodeRuntimeDiagnosticsPublication = {
   diagnostics: readonly RuntimeScalarDiagnostic[];
 };
 
+export type VscodeCanvasObservationSelectionSubject =
+  | { kind: "elements" }
+  | { kind: "binding"; bindingId: string };
+
+export type VscodeCanvasObservationIssueSummary = {
+  elementId: string;
+  elementName: string;
+  message: string;
+};
+
+/** Compact JSON-safe facts published only from the ordinary canonical Canvas state. */
+export type VscodeCanvasObservationSnapshot = {
+  documentVersion: number;
+  selectedElementIds: readonly string[];
+  selectionSubject: VscodeCanvasObservationSelectionSubject;
+  compiledDocumentRevision: number;
+  previewActive: boolean;
+  evaluationRevision: number;
+  evaluationRequestRevision: number;
+  evaluationStatus: "idle" | "evaluating" | "ready" | "failed";
+  evaluationSource: "reference" | "rust" | "fallback";
+  rustEligible: boolean;
+  isStale: boolean;
+  isCurrent: boolean;
+  errorCount: number;
+  warningCount: number;
+  errorSummaries: readonly VscodeCanvasObservationIssueSummary[];
+  warningSummaries: readonly VscodeCanvasObservationIssueSummary[];
+};
+
+export type VscodeCanvasObservationPublication = {
+  type: "canvasObservationPublication";
+  snapshot: VscodeCanvasObservationSnapshot;
+};
+
 export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeBakeOperationResult = {
@@ -57,6 +92,7 @@ export type VscodeToExtensionMessage =
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsPublication
+  | VscodeCanvasObservationPublication
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "no-renderable-geometry" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }

@@ -228,11 +228,6 @@ export const setParameterValue = (
   ) {
     return { ...element, placement: { kind: key, value: value as NumericValue } };
   }
-  if (key === "colorId" && value === undefined) {
-    const rest = { ...element };
-    delete rest.colorId;
-    return rest as CadElement;
-  }
   return { ...element, [key]: value } as CadElement;
 };
 

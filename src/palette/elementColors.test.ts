@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { CadElement, DocumentPalette } from "../types/geometry";
+import type { CadElement } from "../types/geometry";
+import type { LegacyDocumentPalette } from "./palette";
 import { resolvedElementColorMap } from "./elementColors";
 
-const palette: DocumentPalette = {
+const palette: LegacyDocumentPalette = {
   defaultColorId: "black",
   colors: [
     { id: "black", name: "Black", hex: "#111111" },
@@ -11,7 +12,7 @@ const palette: DocumentPalette = {
   ]
 };
 
-const point = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
+const point = (id: string, patch: Partial<CadElement> & { colorId?: string } = {}): CadElement => ({
   id,
   name: id,
   type: "freePoint",
@@ -19,15 +20,15 @@ const point = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
   x: 0,
   y: 0,
   ...patch
-} as CadElement);
+} as unknown as CadElement);
 
-const group = (id: string, patch: Partial<CadElement> = {}): CadElement => ({
+const group = (id: string, patch: Partial<CadElement> & { colorId?: string } = {}): CadElement => ({
   id,
   name: id,
   type: "group",
   activity: "visible",
   ...patch
-} as CadElement);
+} as unknown as CadElement);
 
 describe("resolvedElementColorMap", () => {
   it("uses an element color before the document default", () => {
@@ -68,14 +69,14 @@ describe("resolvedElementColorMap", () => {
   it("crosses a moduleInstance for ancestry but does not use its color as a group source", () => {
     const elements = [
       group("outer", { colorId: "red" }),
-      {
+      ({
         id: "module",
         name: "module",
         type: "moduleInstance" as const,
         activity: "visible" as const,
         parentGroupId: "outer",
         colorId: "blue"
-      },
+      } as unknown as CadElement),
       point("p", { parentGroupId: "module" })
     ];
 

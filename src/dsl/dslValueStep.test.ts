@@ -142,9 +142,6 @@ describe("resolveDslValueStep", () => {
     expect(stepAt(lineSource, line, "A", 1)).toBeNull();
     expect(stepAt(lineSource, line, "line", 1)).toBeNull();
 
-    const coloredLineSource = "line L = segment(start: A,end: B,color: red)";
-    const coloredLine = compileElement(coloredLineSource);
-    expect(stepAt(coloredLineSource, coloredLine, "red", 1)).toBeNull();
   });
 
   it("accepts a caret at a target start or end, and exact target selection, never a partial selection", () => {

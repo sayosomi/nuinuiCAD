@@ -1,8 +1,6 @@
 import {
   layoutElementTree,
   planSourceOutputSection,
-  serializePaletteColorLine,
-  serializePaletteLines,
   withFallbackParentArgs,
   type CompiledDslDocument,
   type DslDocumentData,
@@ -55,7 +53,6 @@ export type ElementChange =
 
 export type DocumentDiff = {
   elements: ElementChange[];
-  palette: boolean;
   visibility: boolean;
   sourceOutputIds: { changed: string[]; removed: string[]; added: string[] };
   activeSourceOutput: boolean;
@@ -296,7 +293,6 @@ export const diffDocuments = (oldDoc: DslDocumentData, newDoc: DslDocumentData):
 
   return {
     elements,
-    palette: serializePaletteLines(oldDoc.palette).join("\n") !== serializePaletteLines(newDoc.palette).join("\n"),
     visibility:
       [
         ...oldDoc.visibilityRoles.map(serializeRoleLine),
@@ -653,78 +649,10 @@ const patchElements = (input: TextPatchInput, ops: PatchOps) => {
       // printLayoutはcanonicalに常にelementsより後なので、その手前にanchorする。
       const { sectionEnds } = statementMap;
       const anchor =
-        sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
+        sectionEnds.visibility ?? sectionEnds.version ?? 0;
       insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...texts] : texts);
     }
   }
-};
-
-// ==== パレットセクション ====
-
-const patchPalette = (input: TextPatchInput, ops: PatchOps) => {
-  const { old, newDocument } = input;
-  const oldDocument = old.document!;
-  const statementMap = old.statementMap!;
-  const oldLines = serializePaletteLines(oldDocument.palette);
-  const newLines = serializePaletteLines(newDocument.palette);
-  if (oldLines.join("\n") === newLines.join("\n")) return;
-
-  const oldColorStatements = statementMap.statements
-    .filter((info) => info.kind === "color")
-    .map((info) => ({ info, id: old.statements[info.statementIndex].name }));
-  const oldColorLineById = new Map(oldColorStatements.map((item) => [item.id, item.info.line]));
-  const newColorIds = newDocument.palette.colors.map((color) => color.id);
-  const newColorById = new Map(newDocument.palette.colors.map((color) => [color.id, color]));
-  const oldColorById = new Map(oldDocument.palette.colors.map((color) => [color.id, color]));
-
-  if (oldColorStatements.length === 0) {
-    // セクション新設(旧文書はフォールバックの既定パレットだった)。
-    const anchor = statementMap.sectionEnds.version ?? 0;
-    insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...newLines] : newLines);
-    return;
-  }
-
-  // 保持色の相対順序が変わった場合はセクション単位で書き直す(稀なパス)。
-  const keptOldOrder = oldColorStatements.map((item) => item.id).filter((id) => newColorById.has(id));
-  const keptNewOrder = newColorIds.filter((id) => oldColorLineById.has(id));
-  if (keptOldOrder.join(" ") !== keptNewOrder.join(" ")) {
-    for (const item of oldColorStatements) setLineOp(ops, item.info.line, null);
-    insertBefore(ops, oldColorStatements[0].info.line, newLines);
-    return;
-  }
-
-  for (const item of oldColorStatements) {
-    const newColor = newColorById.get(item.id);
-    const rawOldLine = old.sourceLines[item.info.line - 1] ?? "";
-    if (!newColor) {
-      setLineOp(ops, item.info.line, null);
-      continue;
-    }
-    const oldColor = oldColorById.get(item.id);
-    const desired = serializePaletteColorLine(newColor, newDocument.palette.defaultColorId);
-    const previous = oldColor
-      ? serializePaletteColorLine(oldColor, oldDocument.palette.defaultColorId)
-      : undefined;
-    if (previous === desired) continue;
-    const replacement = preserveDslLineComments(desired, sourceLexicalLineAt(old, item.info.line));
-    if (replacement !== rawOldLine) setLineOp(ops, item.info.line, replacement);
-  }
-
-  // 追加色: 新配列順で、直後にくる既存色の行の直前へ挿入(無ければ末尾へ)。
-  const lastColorLine = Math.max(...oldColorStatements.map((item) => item.info.line));
-  newColorIds.forEach((id, index) => {
-    if (oldColorLineById.has(id)) return;
-    const desired = serializePaletteColorLine(newColorById.get(id)!, newDocument.palette.defaultColorId);
-    let anchorLine: number | undefined;
-    for (let after = index + 1; after < newColorIds.length; after += 1) {
-      const existing = oldColorLineById.get(newColorIds[after]);
-      if (existing !== undefined) {
-        anchorLine = existing;
-        break;
-      }
-    }
-    insertBefore(ops, anchorLine ?? lastColorLine + 1, [desired]);
-  });
 };
 
 // ==== 表示ロール・プロファイルセクション ====
@@ -764,7 +692,7 @@ const patchVisibility = (input: TextPatchInput, ops: PatchOps) => {
 
   if (roleStatements.length === 0 && viewStatements.length === 0 && !activeViewInfo) {
     const { sectionEnds } = statementMap;
-    const anchor = sectionEnds.palette ?? sectionEnds.version ?? 0;
+    const anchor = sectionEnds.version ?? 0;
     const lines = [...newRoleLines, ...newViewLines, newActiveLine];
     insertBefore(ops, anchor + 1, anchor > 0 ? ["", ...lines] : lines);
     return;
@@ -1003,7 +931,7 @@ const patchSourceOutputs = (input: TextPatchInput, ops: PatchOps) => {
   if (infoById.size === 0) {
     // セクション新設。printLayoutはcanonicalに常にelementsより後。
     const { sectionEnds } = statementMap;
-    const anchor = sectionEnds.elements ?? sectionEnds.visibility ?? sectionEnds.palette ?? sectionEnds.version ?? 0;
+    const anchor = sectionEnds.elements ?? sectionEnds.visibility ?? sectionEnds.version ?? 0;
     const lines = [
       ...newPlan.blocks.flatMap((block) => block.lines),
       ...(newPlan.activeSourceOutputLine ? [newPlan.activeSourceOutputLine] : [])
@@ -1138,7 +1066,6 @@ export const buildTextPatch = (input: TextPatchInput): LineSplice[] => {
   }
   const ops: PatchOps = { lineOps: new Map(), insertsBefore: new Map() };
   if (!input.skipElements) patchElements(input, ops);
-  patchPalette(input, ops);
   patchVisibility(input, ops);
   patchSourceOutputs(input, ops);
   return buildSplicesFromOps(input.old.sourceLines.length, ops);

@@ -179,7 +179,6 @@ describe("safeGenerateShadowFromModel", () => {
     } as unknown as CadElement;
     const afterDoc: DslDocumentData = {
       elements: [danglingElement],
-      palette: { colors: [{ id: "main", name: "本体", hex: "#000000" }], defaultColorId: "main" },
       visibilityRoles: [],
       visibilityProfiles: [{ id: "default", name: "通常", defaultRoleVisible: true, roleVisibility: {} }],
       activeVisibilityProfileId: "default",

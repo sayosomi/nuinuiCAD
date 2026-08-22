@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { defaultDocumentPalette } from "../palette/palette";
 import type { CadElement } from "../types/geometry";
 import { compileDslToElements } from "./dslCompiler";
 import {
@@ -302,31 +301,11 @@ describe("dslDocument unnamed elements", () => {
   });
 });
 
-describe("dslDocument palette", () => {
-  it("round-trips palette colors and defaultColorId", () => {
-    const source = [
-      "nui 4",
-      "",
-      'color main ("#112233", name: "本体")',
-      'color accent ("#445566", name: "アクセント", default: true)'
-    ].join("\n");
-    const parsed = parseDslDocument(source);
-    expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(parsed.document?.palette).toEqual({
-      colors: [
-        { id: "main", name: "本体", hex: "#112233" },
-        { id: "accent", name: "アクセント", hex: "#445566" }
-      ],
-      defaultColorId: "accent"
-    });
-    const reserialized = serializeDocumentToDsl(parsed.document!, 4);
-    const reparsed = parseDslDocument(reserialized);
-    expect(reparsed.document?.palette).toEqual(parsed.document?.palette);
-  });
-
-  it("falls back to the default palette when no color statements are present", () => {
-    const parsed = parseDslDocument("nui 4\n\npoint A = coordinate(x: 0, y: 0)");
-    expect(parsed.document?.palette).toEqual(defaultDocumentPalette());
+describe("dslDocument legacy palette syntax", () => {
+  it("rejects top-level color statements", () => {
+    const parsed = parseDslDocument(["nui 4", 'color main ("#112233", name: "本体")'].join(String.fromCharCode(10)));
+    expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);
+    expect(parsed.document).toBeNull();
   });
 });
 
@@ -566,15 +545,13 @@ describe("compileDslDocument facade", () => {
     const map = compiled.statementMap!;
 
     expect(map.byKey.get("version")).toMatchObject({ line: 1 });
-    expect(map.byKey.get("color:pattern-black")).toMatchObject({ line: 4 });
-    expect(map.byKey.get("color:cut-red")).toMatchObject({ line: 5 });
     expect(map.byKey.get("role:seam")).toMatchObject({ line: 7 });
     expect(map.byKey.get("view:通常")).toMatchObject({ line: 8 });
     expect(map.byKey.get("view:印刷")).toMatchObject({ line: 9 });
     expect(map.byKey.get("activeView")).toMatchObject({ line: 10 });
     expect(map.byKey.get("atStop")).toMatchObject({ line: 52 });
 
-    expect(map.sectionEnds).toEqual({ version: 1, palette: 5, visibility: 10, elements: 57 });
+    expect(map.sectionEnds).toEqual({ version: 1, visibility: 10, elements: 57 });
   });
 
   it("counts a trailing stop as the end of the elements section, not the statement before it", () => {
@@ -611,8 +588,6 @@ describe("dslDocument golden fixture", () => {
     const parsed = parseDslDocument(sampleFixture);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     const document = parsed.document!;
-    expect(document.palette.colors.map((color) => color.id)).toEqual(["pattern-black", "cut-red"]);
-    expect(document.palette.defaultColorId).toBe("pattern-black");
     expect(document.visibilityRoles).toEqual([{ id: "seam", name: "縫い代" }]);
     expect(document.elements.some((element) => element.name === "前身頃" && element.type === "group")).toBe(true);
     expect(document.evaluationLimitIndex).toBeLessThan(document.elements.length);

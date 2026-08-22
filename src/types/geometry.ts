@@ -57,7 +57,6 @@ export type CadElementBase = {
   id: ElementId;
   name: string;
   activity: "visible" | "hidden" | "disabled";
-  colorId?: string;
   /** Source-owned, ordered references to document-level drawing modifiers. */
   modifierNames?: string[];
   parentGroupId?: ElementId;
@@ -65,16 +64,6 @@ export type CadElementBase = {
   numericParameterSteps?: Partial<Record<string, number>>;
 };
 
-export type PaletteColor = {
-  id: string;
-  name: string;
-  hex: string;
-};
-
-export type DocumentPalette = {
-  colors: PaletteColor[];
-  defaultColorId: string;
-};
 
 export type VisibilityRole = {
   id: string;
@@ -623,10 +612,18 @@ export type ForGroupGeneratedRow = {
   elementType: CadElementType;
 };
 
+/** A successful source-semantic in-place geometry mutation, in runtime execution order. */
+export type GeometryMutationExecution = {
+  mutationElementId: ElementId;
+  targetElementIds: ElementId[];
+};
+
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   /** Every successfully evaluated declaration, captured before later mutations. */
   preMutationGeometry?: Map<ElementId, ComputedGeometry>;
+  /** Successful in-place geometry mutations, preserving actual runtime execution order. */
+  geometryMutationExecutions?: GeometryMutationExecution[];
   /** Concrete module-instance geometry captured at materialization end. */
   instanceBaseGeometry?: Map<ElementId, ComputedGeometry[]>;
   errors: DependencyError[];

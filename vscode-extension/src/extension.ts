@@ -79,6 +79,10 @@ import {
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
+import {
+  vscodeObservationState,
+  type VscodeObservationHostDocument
+} from "./vscodeObservationState";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -553,10 +557,61 @@ export const activate = (context: vscode.ExtensionContext): void => {
     sessionFor: languageAnalysisSessionFor
   });
 
+  const observationHostDocuments = (): VscodeObservationHostDocument[] => {
+    const activeSourceEditor = activeNuiTextEditorForCommand();
+    const activeCanvasSession = activeCanvasSessionForOpenCommand();
+    const activeOutputPreviewSession = activeOutputPreviewSessionForOpenCommand();
+
+    return vscode.workspace.textDocuments
+      .filter(isSupportedNuiDocument)
+      .map((document) => {
+        const documentUri = documentKey(document);
+        const analysis = languageAnalysisSessions.get(documentUri);
+        const sourceText = document.getText();
+        const sourceEditorIsActive = activeSourceEditor !== undefined && sameDocument(activeSourceEditor.document, document);
+        const canvasIsActive = activeCanvasSession !== null && sameDocument(activeCanvasSession.document, document);
+        const outputPreviewIsActive = activeOutputPreviewSession !== null && sameDocument(activeOutputPreviewSession.document, document);
+        const selection = sourceEditorIsActive ? activeSourceEditor.selection : null;
+
+        return {
+          documentUri,
+          documentPath: document.fileName,
+          documentVersion: document.version,
+          isDirty: document.isDirty,
+          activeSurface: sourceEditorIsActive
+            ? "source"
+            : canvasIsActive
+              ? "canvas"
+              : outputPreviewIsActive
+                ? "outputPreview"
+                : "none",
+          sourceSelection: selection
+            ? {
+                anchor: { line: selection.anchor.line, character: selection.anchor.character },
+                active: { line: selection.active.line, character: selection.active.character },
+                start: { line: selection.start.line, character: selection.start.character },
+                end: { line: selection.end.line, character: selection.end.character },
+                isEmpty: selection.anchor.line === selection.active.line &&
+                  selection.anchor.character === selection.active.character
+              }
+            : null,
+          diagnostics: analysis?.getSource() === sourceText ? analysis.getDiagnostics() : [],
+          canvasSessionPresent: sessions.get(documentUri, "canvas") !== undefined,
+          outputPreviewSessionPresent: sessions.get(documentUri, "outputPreview") !== undefined
+        } satisfies VscodeObservationHostDocument;
+      });
+  };
+
+  vscodeObservationState.reset();
+  vscodeObservationState.setHostDocumentsProvider(observationHostDocuments);
+
   const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
     publishCompilerDiagnostics(document);
   });
   const compilerDiagnosticChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    if (isSupportedNuiDocument(event.document) && event.contentChanges.length > 0) {
+      vscodeObservationState.invalidateCanvasRuntime(documentKey(event.document));
+    }
     publishCompilerDiagnostics(event.document);
   });
   const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
@@ -564,6 +619,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const key = documentKey(document);
     languageAnalysisSessions.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
+    vscodeObservationState.removeDocument(key);
   });
   const disposeCompilerDiagnosticSessions = {
     dispose: () => languageAnalysisSessions.clear()
@@ -982,6 +1038,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.documentUri, "canvas");
+    vscodeObservationState.invalidateCanvasRuntime(session.documentUri);
     disposeSessionListeners(session);
     updatePanelTitles();
   };
@@ -1072,6 +1129,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           session.pendingCanvasFocus = null;
           session.inFlightCanvasNavigation = null;
           session.pendingSourceDefinitionRequest = null;
+          vscodeObservationState.invalidateCanvasRuntime(session.documentUri);
 
           const inFlightHistory = session.inFlightCanvasHistory;
           const documentChangedDuringCanvasHistory = inFlightHistory !== null
@@ -1114,6 +1172,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "canvasObservationPublication") {
+        vscodeObservationState.acceptCanvasPublication({
+          sessionDocumentUri: session.documentUri,
+          sessionSurfaceKind: session.surfaceKind,
+          sessionIsCurrent: sessions.get(session.documentUri, "canvas") === session && isOpenDocument(session.document),
+          currentDocumentVersion: session.document.version,
+          snapshot: message.snapshot
+        });
         return;
       }
       if (message.type === "canvasRibbonPositionCommit") {
@@ -1567,6 +1635,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
       lastBakeSurface = null;
     }
+    vscodeObservationState.removeDocument(documentKey(document));
     for (const session of sessions.forDocument(documentKey(document))) {
       if (sameDocument(session.document, document)) session.panel.dispose();
     }
@@ -1577,6 +1646,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sessions.clear();
       sourceBakeRequestsWithStructuredSkips.clear();
       lastBakeSurface = null;
+      vscodeObservationState.reset();
     }
   };
   const disposeRustProcess = {

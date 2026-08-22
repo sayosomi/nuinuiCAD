@@ -21,16 +21,16 @@ describe("DSL parser spans", () => {
   });
 
   it("records keyword, name, and attribute spans", () => {
-    const source = "point A = coordinate(x: 10, y: 20, color: main)";
+    const source = "point A = coordinate(x: 10, y: 20, state: hidden)";
     const statement = single(source);
     expect(statement.kind).toBe("element");
     expect(statement.keywordSpan).toEqual({ start: 0, end: 5 });
     expect(statement.nameSpan).toEqual({ start: 6, end: 7 });
-    const colorAttr = statement.attrs.find((attr) => attr.key === "color");
-    const keyStart = source.indexOf("color:");
-    const valueStart = source.indexOf("main");
-    expect(colorAttr).toMatchObject({ keyStart, valueStart, valueEnd: valueStart + "main".length });
-    expect(source.slice(colorAttr!.valueStart, colorAttr!.valueEnd)).toBe("main");
+    const stateAttr = statement.attrs.find((attr) => attr.key === "state");
+    const keyStart = source.indexOf("state:");
+    const valueStart = source.indexOf("hidden");
+    expect(stateAttr).toMatchObject({ keyStart, valueStart, valueEnd: valueStart + "hidden".length });
+    expect(source.slice(stateAttr!.valueStart, stateAttr!.valueEnd)).toBe("hidden");
   });
 
   it("records coordinate payload spans", () => {
@@ -213,16 +213,7 @@ describe("DSL parser new document statements", () => {
     expect(parsed.statements[0]).toMatchObject({ kind: "version", value: "abc" });
   });
 
-  it("parses color statements", () => {
-    const statement = single('color main ("#ff0000", name: "本体", default: true)');
-    expect(statement).toMatchObject({ kind: "color", name: "main", hex: "#ff0000", isDefault: true });
-    expect(statement.attrs.find((attr) => attr.key === "name")?.value).toBe('"本体"');
-  });
 
-  it("rejects invalid color hex values", () => {
-    expect(errors('color main ("#ff00")')[0].message).toContain("#rrggbb");
-    expect(errors("color main (red)")[0].message).toContain("#rrggbb");
-  });
 
   it("parses stop as a standalone statement", () => {
     const statement = single("stop");

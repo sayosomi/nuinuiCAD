@@ -478,12 +478,26 @@ describe("nui4 drawing modifier source model", () => {
     ]);
   });
 
-  it("keeps direct state and palette color behavior unchanged", () => {
-    const compiled = compileDslDocument(
-      "nui 4\npoint P = coordinate(x: 0, y: 0, state: hidden, color: pattern-black)"
+  it("keeps direct state while rejecting the removed element color argument", () => {
+    const stateOnly = compileDslDocument(
+      "nui 4\npoint P = coordinate(x: 0, y: 0, state: hidden)"
     );
-    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(compiled.document?.elements[0]).toMatchObject({ activity: "hidden", colorId: "pattern-black" });
+    expect(stateOnly.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(stateOnly.document?.elements[0]).toMatchObject({ activity: "hidden" });
+
+    const withColor = compileDslDocument(
+      "nui 4\npoint P = coordinate(x: 0, y: 0, color: pattern-black)"
+    );
+    expect(withColor.diagnostics.filter((item) => item.severity === "error")).toEqual([
+      expect.objectContaining({ message: expect.stringContaining("引数「color」") })
+    ]);
+
+    const containerColor = compileDslDocument(
+      "nui 4\ngroup G (color: pattern-black) {\n}"
+    );
+    expect(containerColor.diagnostics.filter((item) => item.severity === "error")).toEqual([
+      expect.objectContaining({ message: expect.stringContaining("引数「color」") })
+    ]);
   });
 
 });
