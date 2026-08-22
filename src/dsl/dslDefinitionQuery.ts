@@ -42,6 +42,9 @@ const semanticSourceText = (semantic: DslDefinitionSemanticSnapshot) =>
 const semanticIsExact = (source: SourceSnapshot, semantic: DslDefinitionSemanticSnapshot | undefined) => {
   if (!semantic || semantic.sourceRevision !== source.sourceRevision) return false;
   if (semanticSourceText(semantic) !== source.normalizedSource) return false;
+  // An explicit sourceText is useful as a proof carried beside a semantic
+  // result, but it cannot make a compiled source map from a different source
+  // safe for source-range projection.
   return !semantic.compiled || (
     semantic.compiled.spans.sourceMap.source === source.normalizedSource &&
     semantic.compiled.spans.sourceMap.sourceRevision === source.sourceRevision
