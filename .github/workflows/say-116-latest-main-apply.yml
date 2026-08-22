@@ -30,86 +30,68 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one patch target, found {count}')
-              file.write_text(text.replace(old, new, 1))
+          parser = Path('src/dsl/dslParser.ts')
+          text = parser.read_text()
+          start = text.index('const diagnostic = (')
+          end = text.index('\n\ntype ParsedLine', start)
+          replacement = '\n'.join([
+              'const exactUnknownNameDiagnosticCodes = new Set([',
+              '  "unknown-dsl-keyword",',
+              '  "unknown-type",',
+              '  "unknown-construction",',
+              '  "unknown-construction-argument"',
+              ']);',
+              '',
+              'const diagnostic = (',
+              '  line: number,',
+              '  message: string,',
+              '  code?: string,',
+              '  physicalSpan?: DslPhysicalSpan',
+              '): DslDiagnostic => ({',
+              '  severity: "error",',
+              '  line,',
+              '  column: 1,',
+              '  message,',
+              '  ...(code ? { code } : {}),',
+              '  ...(physicalSpan ? { physicalSpan } : {}),',
+              '  ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})',
+              '});'
+          ])
+          text = text[:start] + replacement + text[end:]
+          needle = 'diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]'
+          if text.count(needle) != 1:
+              raise SystemExit(f'dslParser unknown-keyword target count: {text.count(needle)}')
+          replacement = '\n'.join([
+              'diagnostics: keyword',
+              '      ? [diagnostic(',
+              '          line,',
+              '          `未対応のDSLキーワードです: ${keyword}`,',
+              '          "unknown-dsl-keyword",',
+              '          project({ start: 0, end: keyword.length }) ?? undefined',
+              '        )]',
+              '      : [diagnostic(line, "文はキーワードから始めてください。")]'
+          ])
+          text = text.replace(needle, replacement, 1)
+          parser.write_text(text)
 
-          replace_once(
-              'src/dsl/dslParser.ts',
-              '''const diagnostic = (
-            line: number,
-            message: string,
-            code?: string,
-            physicalSpan?: DslPhysicalSpan
-          ): DslDiagnostic => ({
-            severity: "error",
-            line,
-            column: 1,
-            message,
-            ...(code ? { code } : {}),
-            ...(physicalSpan ? { physicalSpan } : {})
-          });''',
-              '''const exactUnknownNameDiagnosticCodes = new Set([
-            "unknown-dsl-keyword",
-            "unknown-type",
-            "unknown-construction",
-            "unknown-construction-argument"
-          ]);
-
-          const diagnostic = (
-            line: number,
-            message: string,
-            code?: string,
-            physicalSpan?: DslPhysicalSpan
-          ): DslDiagnostic => ({
-            severity: "error",
-            line,
-            column: 1,
-            message,
-            ...(code ? { code } : {}),
-            ...(physicalSpan ? { physicalSpan } : {}),
-            ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
-          });'''
-          )
-
-          replace_once(
-              'src/dsl/dslParser.ts',
-              '''  return {
-            diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
-          };''',
-              '''  return {
-            diagnostics: keyword
-              ? [diagnostic(
-                  line,
-                  `未対応のDSLキーワードです: ${keyword}`,
-                  "unknown-dsl-keyword",
-                  project({ start: 0, end: keyword.length }) ?? undefined
-                )]
-              : [diagnostic(line, "文はキーワードから始めてください。")]
-          };'''
-          )
-
-          replace_once(
-              'src/dsl/dslDocument.ts',
-              '''  const allDiagnostics = [
-            ...versionValidation.diagnostics,
-            ...sourceOutputPlacementDiagnostics,
-            ...compiled.diagnostics,
-            ...(sourceLexicalNamespace?.diagnostics ?? []),''',
-              '''  const allDiagnostics = [
-            ...versionValidation.diagnostics,
-            ...sourceOutputPlacementDiagnostics,
-            ...compiled.diagnostics.map((diagnostic, index) =>
-              diagnostic.code === "undefined-geometry-reference"
-                ? (projectedCompilerDiagnostics[index] ?? diagnostic)
-                : diagnostic
-            ),
-            ...(sourceLexicalNamespace?.diagnostics ?? []),'''
-          )
+          document = Path('src/dsl/dslDocument.ts')
+          text = document.read_text()
+          array_start = text.index('const allDiagnostics = [')
+          array_end = text.index('];', array_start)
+          before = text[:array_start]
+          array = text[array_start:array_end]
+          after = text[array_end:]
+          needle = '...compiled.diagnostics,'
+          if array.count(needle) != 1:
+              raise SystemExit(f'dslDocument allDiagnostics target count: {array.count(needle)}')
+          replacement = '\n'.join([
+              '...compiled.diagnostics.map((diagnostic, index) =>',
+              '      diagnostic.code === "undefined-geometry-reference"',
+              '        ? (projectedCompilerDiagnostics[index] ?? diagnostic)',
+              '        : diagnostic',
+              '    ),'
+          ])
+          document.write_text(before + array.replace(needle, replacement, 1) + after)
           PY
           git diff --check
 
