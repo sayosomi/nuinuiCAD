@@ -1,6 +1,6 @@
 use std::{env, fs, io};
 
-use nuinuicad_lib::evaluation::{evaluate_document, EvaluationInput};
+use nuinuicad_rust_evaluator::{evaluate_document, EvaluationInput};
 
 fn main() {
     if let Err(error) = run() {
