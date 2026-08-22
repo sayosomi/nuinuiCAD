@@ -78,6 +78,13 @@ const publish = async (data: Record<string, unknown>) => {
   });
 };
 
+const selectCanvasElement = async (elementId: string) => {
+  await act(async () => {
+    selectElement(elementId, "replace", true);
+    await Promise.resolve();
+  });
+};
+
 const selectedElementId = () => useCadUiStore.getState().selectedElementId;
 
 describe("VSCodeApp transient invalid-source selection lifecycle", () => {
@@ -98,7 +105,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    selectElement(initialA!.id, "replace", true);
+    await selectCanvasElement(initialA!.id);
     expect(selectedElementId()).toBe(initialA!.id);
 
     await publish({
@@ -141,7 +148,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    selectElement(initialA!.id, "replace", true);
+    await selectCanvasElement(initialA!.id);
 
     await publish({
       type: "commitText",
