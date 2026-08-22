@@ -42,6 +42,7 @@ export type NuiRuntimeEvaluationRequest = {
   documentVersion: number;
   source: SourceSnapshot;
   session: NuiLanguageAnalysisSession;
+  isCancelled?: () => boolean;
 };
 
 export type NuiRuntimeEvaluationServiceDependencies = {
@@ -95,19 +96,19 @@ export class NuiRuntimeEvaluationService {
   evaluateCurrent(
     request: NuiRuntimeEvaluationRequest
   ): Promise<NuiRuntimeEvaluationSnapshot | undefined> {
-    if (this.disposed) return Promise.resolve(undefined);
+    if (this.disposed || request.isCancelled?.()) return Promise.resolve(undefined);
 
     const captured = this.captureCurrentDocument(request);
     if (!captured) return Promise.resolve(undefined);
 
     const cached = this.cachedByDocument.get(request.documentKey);
     if (cached && sameCapturedDocument(cached.captured, captured)) {
-      return Promise.resolve(cached.snapshot);
+      return this.forCaller(request, Promise.resolve(cached.snapshot));
     }
 
     const inFlight = this.inFlightByDocument.get(request.documentKey);
     if (inFlight && sameCapturedDocument(inFlight.captured, captured)) {
-      return inFlight.promise;
+      return this.forCaller(request, inFlight.promise);
     }
 
     const capturedEpoch = this.epochFor(request.documentKey);
@@ -133,7 +134,7 @@ export class NuiRuntimeEvaluationService {
       });
 
     this.inFlightByDocument.set(request.documentKey, { captured, promise: guardedPromise });
-    return guardedPromise;
+    return this.forCaller(request, guardedPromise);
   }
 
   invalidateDocument(documentKey: string): void {
@@ -236,6 +237,14 @@ export class NuiRuntimeEvaluationService {
         rustEligible: true
       };
     }
+  }
+
+  private forCaller(
+    request: NuiRuntimeEvaluationRequest,
+    shared: Promise<NuiRuntimeEvaluationSnapshot | undefined>
+  ): Promise<NuiRuntimeEvaluationSnapshot | undefined> {
+    if (!request.isCancelled) return shared;
+    return shared.then((snapshot) => request.isCancelled?.() ? undefined : snapshot);
   }
 
   private epochFor(documentKey: string): number {
