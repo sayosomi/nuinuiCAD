@@ -25,6 +25,9 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Inspect empty construction contexts
+        run: npx vitest run src/dsl/dslReferencePickQuery.debug.test.ts --disableConsoleIntercept
+
       - name: SAY-106 focused tests
         run: npm test -- src/dsl/dslReferencePickQuery.test.ts src/dsl/dslReferencePickQuery.set.test.ts src/dsl/dslReferencePickQuery.empty.test.ts
 
