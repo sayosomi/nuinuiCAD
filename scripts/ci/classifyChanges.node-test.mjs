@@ -83,14 +83,19 @@ const cases = [
     expected: flags({ node: true, full_node: true, vscode: true })
   },
   {
-    name: "Rust non-evaluation",
+    name: "Tauri Rust host",
     paths: ["src-tauri/src/window.rs"],
     expected: flags({ rust: true })
   },
   {
-    name: "Rust evaluation",
-    paths: ["src-tauri/src/evaluation/evaluator.rs"],
+    name: "Rust evaluator implementation",
+    paths: ["rust-evaluator/src/evaluation/evaluator.rs"],
     expected: flags({ rust: true, parity: true })
+  },
+  {
+    name: "Rust evaluator stdio host",
+    paths: ["rust-evaluator/src/bin/evaluation_stdio.rs"],
+    expected: flags({ rust: true })
   },
   {
     name: "evaluation parity test",

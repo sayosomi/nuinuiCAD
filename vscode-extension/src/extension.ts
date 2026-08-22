@@ -245,7 +245,7 @@ const webviewHtml = (
 };
 
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
-  process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "src-tauri", "target", "debug", "evaluation_stdio");
+  process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "rust-evaluator", "target", "debug", "evaluation_stdio");
 
 const postDocumentText = (
   panel: vscode.WebviewPanel,

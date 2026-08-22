@@ -99,7 +99,7 @@ const defaultDependencies = (): CaptureVscodeDependencies => ({
   createTempDirectory: () => createVscodeTempDirectory(),
   writeFile: (path, content) => writeFileSync(path, content, "utf8"),
   buildExtension: (repositoryPath) => execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build:vscode"], { cwd: repositoryPath, stdio: "inherit" }),
-  buildRust: (repositoryPath) => execFileSync("cargo", ["build", "--manifest-path", "src-tauri/Cargo.toml", "--bin", "evaluation_stdio"], { cwd: repositoryPath, stdio: "inherit" }),
+  buildRust: (repositoryPath) => execFileSync("cargo", ["build", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { cwd: repositoryPath, stdio: "inherit" }),
   launchVscode: (config, repositoryPath, extensionPath, fixturePath, rustBinaryPath) => launchVscode(config, repositoryPath, extensionPath, fixturePath, rustBinaryPath),
   readResult: readBenchmarkResultFile,
   writeResult: writeBenchmarkResultFile,
@@ -241,7 +241,7 @@ export const captureVscode = async (
     expectedRenderSurface: baseline.environment.renderSurface
   };
   dependencies.writeFile(fixturePath, fixtureSource);
-  const rustBinaryPath = resolve(repositoryPath, "src-tauri", "target", "debug", process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio");
+  const rustBinaryPath = resolve(repositoryPath, "rust-evaluator", "target", "debug", process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio");
 
   try {
     dependencies.buildExtension(repositoryPath);

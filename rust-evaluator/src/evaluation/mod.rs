@@ -372,7 +372,6 @@ fn decode_text_property_bindings(
         })
 }
 
-#[tauri::command]
 pub fn evaluate_document(
     input: EvaluationInput,
 ) -> Result<EvaluationPayload, EvaluationCommandError> {
