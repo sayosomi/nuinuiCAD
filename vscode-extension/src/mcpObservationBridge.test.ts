@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createMcpObservationBridge,
@@ -29,5 +32,27 @@ describe("createMcpObservationBridge", () => {
       observationProvider: () => ({ documents: [] }),
       workspaceFolderPaths: []
     })).toBeNull();
+  });
+
+  it("starts a bridge when the isolated-host environment flag is enabled", async () => {
+    const descriptorDirectory = mkdtempSync(join(tmpdir(), "nuinuicad-observation-activation-test-"));
+    const bridge = createMcpObservationBridge({
+      configured: false,
+      environment: { [NUI_MCP_OBSERVATION_ENV]: "1" },
+      descriptorDirectory,
+      observationProvider: () => ({ documents: [] }),
+      workspaceFolderPaths: ["/workspace"]
+    });
+    expect(bridge).not.toBeNull();
+    if (!bridge) throw new Error("expected observation bridge");
+
+    try {
+      const descriptor = await bridge.ready;
+      expect(descriptor.port).toBeGreaterThan(0);
+      expect(descriptor.workspaceFolderPaths).toEqual(["/workspace"]);
+    } finally {
+      bridge.dispose();
+      rmSync(descriptorDirectory, { recursive: true, force: true });
+    }
   });
 });
