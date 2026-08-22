@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isLastGoodDslDocument } from "../document/canonicalDocument";
 import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { CadElement } from "../types/geometry";
@@ -19,7 +20,7 @@ const compileWithIds = (source: string, prefix = "flow") => {
 };
 
 const evaluateCompiled = (compiled: CompiledDslDocument) => {
-  if (!compiled.document) throw new Error("expected compiled document");
+  if (!isLastGoodDslDocument(compiled)) throw new Error("expected a last-good compiled document");
   return evaluateElements(
     compiled.document.elements,
     buildEvaluationOptions({
