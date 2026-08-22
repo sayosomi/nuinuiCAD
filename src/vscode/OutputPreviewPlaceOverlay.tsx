@@ -79,7 +79,10 @@ export const OutputPreviewPlaceOverlay = ({
   const suppressClickPlaceIdRef = useRef<string | null>(null);
   const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCallbacksRef = useRef({ onPreviewDrag, onCommitDrag, onCancelDrag });
-  dragCallbacksRef.current = { onPreviewDrag, onCommitDrag, onCancelDrag };
+
+  useEffect(() => {
+    dragCallbacksRef.current = { onPreviewDrag, onCommitDrag, onCancelDrag };
+  }, [onPreviewDrag, onCommitDrag, onCancelDrag]);
 
   const cancelHoverClear = () => {
     if (hoverLeaveTimerRef.current !== null) {
