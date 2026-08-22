@@ -54,6 +54,7 @@ import {
   createNuiElementsTreeProvider,
   NUI_ELEMENTS_VIEW_ID
 } from "./elementsTreeProvider";
+import { registerNuiHoverFeature } from "./hoverFeature";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -551,6 +552,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return session;
   };
 
+  const hoverFeature = registerNuiHoverFeature({
+    rustProcessOwner,
+    sessionFor: languageAnalysisSessionFor
+  });
+
   const observationHostDocuments = (): VscodeObservationHostDocument[] => {
     const activeSourceEditor = activeNuiTextEditorForCommand();
     const activeCanvasSession = activeCanvasSessionForOpenCommand();
@@ -678,6 +684,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
+    hoverFeature,
     completionProvider,
     signatureHelpProvider,
     definitionProvider,
