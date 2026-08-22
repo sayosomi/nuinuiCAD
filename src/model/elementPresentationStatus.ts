@@ -1,4 +1,3 @@
-import type { LegacyDocumentPalette } from "../palette/palette";
 import {
   effectiveEnabledElementIds,
   effectiveVisibleElementIds,
@@ -9,7 +8,6 @@ import {
   effectiveVisibleElementIdsForProfile,
   visibilityProfileById
 } from "./visibilityProfiles";
-import { resolvedElementColorMap } from "../palette/elementColors";
 import type {
   CadElement,
   ElementId,
@@ -57,14 +55,12 @@ export const createElementPresentationStatusIndex = ({
   elements,
   evaluation,
   groupFoldById,
-  palette,
   visibilityProfiles,
   activeVisibilityProfileId
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   groupFoldById: GroupFoldById;
-  palette: LegacyDocumentPalette;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
 }) => {
@@ -75,10 +71,10 @@ export const createElementPresentationStatusIndex = ({
   const enabled = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds([...elements]);
   const conditionInactive = evaluation.conditionInactiveElementIds ?? new Set<ElementId>();
   const evaluated = evaluation.evaluatedElementIds ?? new Set(elements.map((element) => element.id));
-  const colors = resolvedElementColorMap([...elements], palette);
   const { errorIds, warningIds } = issueIdsIncludingGroups(elements, evaluation);
   const statuses = elements.map<ElementPresentationStatus>((element) => {
     const groupState = groupStates.get(element.id);
+    const modifierStroke = evaluation.effectiveDrawingModifierStrokes?.get(element.id);
     return {
       elementId: element.id,
       hasError: errorIds.has(element.id),
@@ -90,7 +86,7 @@ export const createElementPresentationStatusIndex = ({
       disabledByGroup: Boolean(groupState?.disabledByGroupId),
       conditionInactive: conditionInactive.has(element.id),
       isEvaluated: evaluated.has(element.id) && enabled.has(element.id) && baseVisible.has(element.id),
-      color: colors.get(element.id) ?? "#31322f"
+      color: modifierStroke?.color.kind === "fixed" ? modifierStroke.color.hex : "#31322f"
     };
   });
   return new Map(statuses.map((status) => [status.elementId, status]));
