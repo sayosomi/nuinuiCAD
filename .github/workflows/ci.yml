@@ -209,6 +209,10 @@ jobs:
         if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: npm test
 
+      - name: Lifecycle stress tests
+        if: ${{ needs.classification.outputs.full_node == 'true' }}
+        run: npm run test:stress:lifecycle
+
       - name: TypeScript/Rust parity
         if: ${{ needs.classification.outputs.parity == 'true' }}
         run: npm run test:parity
