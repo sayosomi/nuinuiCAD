@@ -43,6 +43,7 @@ fn state_with_geometry(
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),

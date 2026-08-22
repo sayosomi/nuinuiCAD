@@ -2,6 +2,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingVersionId } from "../scalars/bindingVersions";
 import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
 import type { ScalarEvaluation } from "../scalars/types";
+import type { ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 
 export type ElementId = string;
 
@@ -646,6 +647,8 @@ export type EvaluationResult = {
   /** Explicitly resolved drawing modifier strokes, keyed by runtime element id. */
   effectiveDrawingModifierStrokes?: Map<ElementId, DrawingModifierStroke>;
   conditionInactiveElementIds?: Set<ElementId>;
+  /** Exact reached-node trace for each typed conditionalGroup evaluated in this runtime revision. */
+  conditionEvaluationTraces?: ReadonlyMap<ElementId, ConditionEvaluationTrace>;
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /**
    * Task 25: `forGroup` element ids whose generated-result presentation is

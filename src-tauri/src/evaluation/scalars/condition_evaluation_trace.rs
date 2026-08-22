@@ -103,14 +103,11 @@ fn children_for_node(
     node_index_by_identity: &HashMap<usize, usize>,
 ) -> Vec<Value> {
     match node {
-        TypedScalarExpression::Unary { operand, .. } => reached_child(
-            node_index_by_identity,
-            "operand",
-            operand,
-            None,
-        )
-        .into_iter()
-        .collect(),
+        TypedScalarExpression::Unary { operand, .. } => {
+            reached_child(node_index_by_identity, "operand", operand, None)
+                .into_iter()
+                .collect()
+        }
         TypedScalarExpression::Binary { left, right, .. } => [
             reached_child(node_index_by_identity, "left", left, None),
             reached_child(node_index_by_identity, "right", right, None),
@@ -118,14 +115,11 @@ fn children_for_node(
         .into_iter()
         .flatten()
         .collect(),
-        TypedScalarExpression::Group { expression, .. } => reached_child(
-            node_index_by_identity,
-            "expression",
-            expression,
-            None,
-        )
-        .into_iter()
-        .collect(),
+        TypedScalarExpression::Group { expression, .. } => {
+            reached_child(node_index_by_identity, "expression", expression, None)
+                .into_iter()
+                .collect()
+        }
         TypedScalarExpression::Call { args, .. } => args
             .iter()
             .enumerate()

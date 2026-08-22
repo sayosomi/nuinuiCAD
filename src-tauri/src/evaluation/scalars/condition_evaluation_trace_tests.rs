@@ -28,7 +28,12 @@ fn number_literal(value: f64, start: usize) -> TypedScalarExpression {
     }
 }
 
-fn reference(name: &str, binding_id: &str, r#type: ScalarType, start: usize) -> TypedScalarExpression {
+fn reference(
+    name: &str,
+    binding_id: &str,
+    r#type: ScalarType,
+    start: usize,
+) -> TypedScalarExpression {
     TypedScalarExpression::Reference {
         span: span(start),
         name_span: span(start),

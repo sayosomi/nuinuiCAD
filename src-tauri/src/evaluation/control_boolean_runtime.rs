@@ -6,10 +6,13 @@
 //! never re-parses/re-resolves a name; only calls the caller-supplied
 //! resolver, at most once per condition/showGenerated per group entry.
 
+use serde_json::Value;
+
 use super::numeric_expression::computed_reference_value;
 use super::scalars::{
-    evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
-    ScalarEvaluationEnvironment, ScalarType, TypedScalarExpression, ValidatedPropertyBinding,
+    evaluate_condition_expression_with_trace, evaluate_typed_expression,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationEnvironment, ScalarType,
+    TypedScalarExpression, ValidatedPropertyBinding,
 };
 use super::types::EvaluationState;
 
@@ -56,6 +59,30 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
     }
 }
 
+fn active_branch_for_condition_evaluation(evaluation: &ScalarEvaluation) -> Option<&'static str> {
+    match evaluation {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: super::scalars::ScalarValue::Boolean(true),
+        } => Some("then"),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: super::scalars::ScalarValue::Boolean(false),
+        } => Some("else"),
+        _ => None,
+    }
+}
+
+pub(crate) fn resolve_conditional_group_condition(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+) -> (Option<&'static str>, Value) {
+    let environment = ResolverEnvironment { resolver, state };
+    let (evaluation, trace) = evaluate_condition_expression_with_trace(expression, &environment);
+    (active_branch_for_condition_evaluation(&evaluation), trace)
+}
+
 /// A `conditionalGroup`'s active branch from its typed boolean condition:
 /// evaluated exactly once via the caller's existing binding resolver. Any
 /// result other than a clean `Ok` boolean becomes `None` (poisoned - both
@@ -67,17 +94,8 @@ pub(crate) fn resolve_conditional_group_branch(
     state: &EvaluationState,
 ) -> Option<&'static str> {
     let environment = ResolverEnvironment { resolver, state };
-    match evaluate_typed_expression(expression, &environment) {
-        ScalarEvaluation::Ok {
-            r#type: ScalarType::Boolean,
-            value,
-        } => match value {
-            super::scalars::ScalarValue::Boolean(true) => Some("then"),
-            super::scalars::ScalarValue::Boolean(false) => Some("else"),
-            _ => None,
-        },
-        _ => None,
-    }
+    let evaluation = evaluate_typed_expression(expression, &environment);
+    active_branch_for_condition_evaluation(&evaluation)
 }
 
 /// `showGenerated`'s effective value: the literal, unchanged, when unbound
