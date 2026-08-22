@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   finalize:
@@ -32,53 +33,207 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          workflow = Path('.github/workflows/say-116-direct-finalize.yml').read_text().splitlines()
-          start = workflow.index("          python - <<'PY'") + 1
-          end = workflow.index("          PY", start)
-          script = "\n".join(line[10:] if line.startswith("          ") else line for line in workflow[start:end])
-          exec(compile(script, 'say-116-direct-patches.py', 'exec'))
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one patch target, found {count}')
+              file.write_text(text.replace(old, new, 1))
 
-          document = Path('src/dsl/dslDocument.ts')
-          text = document.read_text()
-          anchor = "  });\n  const baseDiagnostics = ["
-          insertion = "\n".join([
-              "  });",
-              "  const exactCompilerUnknownNameDiagnosticCodes = new Set([",
-              "    \"unknown-type\",",
-              "    \"unknown-construction\",",
-              "    \"unknown-construction-argument\",",
-              "    \"undefined-geometry-reference\"",
-              "  ]);",
-              "  const compilerDiagnosticsForDocument = compiled.diagnostics.map((diagnostic, index) =>",
-              "    exactCompilerUnknownNameDiagnosticCodes.has(diagnostic.code ?? \"\")",
-              "      ? (projectedCompilerDiagnostics[index] ?? diagnostic)",
-              "      : diagnostic",
-              "  );",
-              "  const baseDiagnostics = ["
-          ])
-          if text.count(anchor) != 1:
-              raise SystemExit(f'dslDocument projection anchor count: {text.count(anchor)}')
-          text = text.replace(anchor, insertion, 1)
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '''const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(physicalSpan ? { physicalSpan } : {})
+          });''',
+              '''const exactUnknownNameDiagnosticCodes = new Set([
+            "unknown-dsl-keyword",
+            "unknown-type",
+            "unknown-construction",
+            "unknown-construction-argument"
+          ]);
 
-          old_final = "\n".join([
-              "  const allDiagnostics = [",
-              "    ...versionValidation.diagnostics,",
-              "    ...sourceOutputPlacementDiagnostics,",
-              "    ...projectedCompilerDiagnostics,",
-              "    ...(sourceLexicalNamespace?.diagnostics ?? []),",
-              "    ...scalarAnalysisCompilation.diagnostics,"
-          ])
-          new_final = "\n".join([
-              "  const allDiagnostics = [",
-              "    ...versionValidation.diagnostics,",
-              "    ...sourceOutputPlacementDiagnostics,",
-              "    ...compilerDiagnosticsForDocument,",
-              "    ...(sourceLexicalNamespace?.diagnostics ?? []),",
-              "    ...scalarAnalysisCompilation.diagnostics,"
-          ])
-          if text.count(old_final) != 1:
-              raise SystemExit(f'dslDocument final diagnostics target count: {text.count(old_final)}')
-          document.write_text(text.replace(old_final, new_final, 1))
+          const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(physicalSpan ? { physicalSpan } : {}),
+            ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
+          });'''
+          )
+
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '''  return {
+            diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
+          };''',
+              '''  return {
+            diagnostics: keyword
+              ? [diagnostic(
+                  line,
+                  `未対応のDSLキーワードです: ${keyword}`,
+                  "unknown-dsl-keyword",
+                  project({ start: 0, end: keyword.length }) ?? undefined
+                )]
+              : [diagnostic(line, "文はキーワードから始めてください。")]
+          };'''
+          )
+
+          replace_once(
+              'src/dsl/dslTypeParser.ts',
+              '''    diagnostics.push({
+            message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
+            span: typeSpan
+          });''',
+              '''    diagnostics.push({
+            message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
+            span: typeSpan,
+            code: "unknown-type"
+          });'''
+          )
+
+          replace_once(
+              'src/dsl/dslCallParser.ts',
+              '''    diagnostic(diagnostics, message, constructionSpan ?? categorySpan);
+            return null;''',
+              '''    diagnostic(
+              diagnostics,
+              message,
+              constructionSpan ?? categorySpan,
+              constructionSpan ? "unknown-construction" : undefined
+            );
+            return null;'''
+          )
+
+          replace_once(
+              'src/dsl/dslCallParser.ts',
+              '''      diagnostic(diagnostics, `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`, arg.keySpan!);
+              continue;''',
+              '''      diagnostic(
+                diagnostics,
+                `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
+                arg.keySpan!,
+                "unknown-construction-argument"
+              );
+              continue;'''
+          )
+
+          replace_once(
+              'src/dsl/dslReferences.ts',
+              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
+            severity: "warning",
+            line,
+            column: 1,
+            message
+          });''',
+              '''const diagnostic = (line: number, message: string): DslDiagnostic => ({
+            severity: "warning",
+            line,
+            column: 1,
+            message
+          });
+
+          const undefinedGeometryReferenceDiagnostic = (
+            line: number,
+            message: string,
+            sourceSpan: DslSpan | undefined,
+            relativeSpan: DslSpan
+          ): DslDiagnostic => ({
+            severity: "warning",
+            line,
+            column: 1,
+            code: "undefined-geometry-reference",
+            message,
+            exactSpanOnly: true,
+            ...(sourceSpan ? {
+              logicalSpan: {
+                start: sourceSpan.start + relativeSpan.start,
+                end: sourceSpan.start + relativeSpan.end
+              }
+            } : {})
+          });'''
+          )
+
+          replace_once(
+              'src/dsl/dslReferences.ts',
+              '''  diagnostics.push(diagnostic(line, `参照先が見つかりません: ${unresolvedToken}`));
+            return unresolvedToken;''',
+              '''  diagnostics.push(undefinedGeometryReferenceDiagnostic(
+              line,
+              `参照先が見つかりません: ${unresolvedToken}`,
+              sourceSpan,
+              reference.pathRange
+            ));
+            return unresolvedToken;'''
+          )
+
+          replace_once(
+              'src/dsl/dslReferences.ts',
+              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement);''',
+              '''  const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);'''
+          )
+
+          replace_once(
+              'src/dsl/dslReferences.ts',
+              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement),''',
+              '''    lineId: resolveId(lineName, index, line, diagnostics, currentElement, sourceSpan),'''
+          )
+
+          replace_once(
+              'src/dsl/dslDocument.ts',
+              '''  const projectedCompilerDiagnostics = compiled.diagnostics.map((diagnostic) => {
+            const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
+            if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
+            const statement = parsed.statements[statementIndex];
+            const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
+            return {
+              ...publicDiagnostic,
+              exactSpanOnly: true as const,
+              ...(physicalSpan ? { physicalSpan } : {})
+            };
+          });''',
+              '''  const projectCompilerDiagnostic = (diagnostic: (typeof compiled.diagnostics)[number]): DslDiagnostic => {
+            const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
+            if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
+            const statement = parsed.statements[statementIndex];
+            const physicalSpan = statement ? exactPhysicalSpan(spans, statement, logicalSpan) : null;
+            return {
+              ...publicDiagnostic,
+              exactSpanOnly: true as const,
+              ...(physicalSpan ? { physicalSpan } : {})
+            };
+          };
+          const projectedCompilerDiagnostics = compiled.diagnostics.map(projectCompilerDiagnostic);'''
+          )
+
+          replace_once(
+              'src/dsl/dslDocument.ts',
+              '''    ...compiled.diagnostics,
+            ...(sourceLexicalNamespace?.diagnostics ?? []),''',
+              '''    ...compiled.diagnostics.map((diagnostic) =>
+              diagnostic.code === "undefined-geometry-reference"
+                ? projectCompilerDiagnostic(diagnostic)
+                : diagnostic
+            ),
+            ...(sourceLexicalNamespace?.diagnostics ?? []),'''
+          )
           PY
           git diff --check
           git status --short
@@ -99,7 +254,26 @@ jobs:
         run: npm run build:vscode
 
       - name: Full Node tests
-        run: npm test
+        id: full_node_tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/say-116-full-node-tests.log
+
+      - name: Report Full Node test failure
+        if: failure() && steps.full_node_tests.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo 'SAY-116 finalizer full Node test failure (tail):'
+            echo
+            echo '```text'
+            tail -n 320 /tmp/say-116-full-node-tests.log
+            echo '```'
+          } > /tmp/say-116-test-comment.md
+          gh pr comment 390 --body-file /tmp/say-116-test-comment.md
 
       - name: Commit verified implementation
         shell: bash
@@ -108,7 +282,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/say-116-direct-finalize.yml .github/workflows/say-116-pr-finalize.yml .github/workflows/say-116-pr-finalize-v2.yml
-          git add -u
+          git add src/dsl/dslParser.ts src/dsl/dslTypeParser.ts src/dsl/dslCallParser.ts src/dsl/dslReferences.ts src/dsl/dslDocument.ts
           git diff --cached --check
-          git commit -m "feat: finalize stable unknown-name diagnostics (SAY-116)"
+          git commit -m "feat: add stable unknown-name diagnostics (SAY-116)"
           git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
