@@ -77,6 +77,19 @@ describe("canvasObservationSnapshot", () => {
     expect(result).not.toHaveProperty("computedGeometry");
   });
 
+  it("treats missing issue arrays in partial evaluation fixtures as empty observation facts", () => {
+    const result = snapshot({
+      state: evaluationState({
+        evaluation: { computedGeometry: new Map() } as EvaluationEngineState["evaluation"]
+      })
+    });
+
+    expect(result.errorCount).toBe(0);
+    expect(result.warningCount).toBe(0);
+    expect(result.errorSummaries).toEqual([]);
+    expect(result.warningSummaries).toEqual([]);
+  });
+
   it("updates element selection without changing the evaluation identity", () => {
     const result = snapshot({ selectedElementIds: ["line-c"] });
     expect(result.selectedElementIds).toEqual(["line-c"]);
