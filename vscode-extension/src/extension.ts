@@ -50,6 +50,7 @@ import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
+import { registerNuiHoverFeature } from "./hoverFeature";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -543,6 +544,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return session;
   };
 
+  const hoverFeature = registerNuiHoverFeature({
+    rustProcessOwner,
+    sessionFor: languageAnalysisSessionFor
+  });
+
   const compilerDiagnosticOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
     publishCompilerDiagnostics(document);
   });
@@ -599,6 +605,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
+    hoverFeature,
     completionProvider,
     signatureHelpProvider,
     definitionProvider,
