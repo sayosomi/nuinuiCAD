@@ -51,6 +51,9 @@ export type NuiLanguageAnalysisSession = {
   getSourceRevision: () => number;
   replaceSource: (sourceText: string) => void;
   getDiagnostics: () => CompilerDiagnostic[];
+  runtimeEvaluationSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => NuiRuntimeEvaluationSemanticSnapshot | undefined;
   completionSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslCompletionSemanticSnapshot | undefined;
@@ -78,6 +81,14 @@ export type NuiLanguageAnalysisSession = {
   choiceQuickFixSemanticSnapshot: (
     source: SourceSnapshot
   ) => NuiChoiceQuickFixSemanticSnapshot | undefined;
+};
+
+export type NuiRuntimeEvaluationSemanticSnapshot = {
+  sourceRevision: number;
+  sourceText: string;
+  documentRevision: number;
+  compiledDocumentRevision: number;
+  compiled: AutomationDocumentState["doc"];
 };
 
 export type NuiFoldingSyntaxSnapshot = {
@@ -123,6 +134,32 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       ...(state.currentCompiled.bindingAnalysis
         ? { bindingAnalysis: state.currentCompiled.bindingAnalysis }
         : {})
+    };
+  };
+
+  const runtimeEvaluationSemanticSnapshot = (
+    source: SourceSnapshot
+  ): NuiRuntimeEvaluationSemanticSnapshot | undefined => {
+    const state = document.getState();
+    const currentRawSource = document.getSource();
+    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+
+    if (
+      source.normalizedSource !== normalizedCurrentSource ||
+      source.sourceRevision !== currentSourceRevision() ||
+      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource ||
+      state.status === "fatal" ||
+      state.docText !== currentRawSource ||
+      state.doc.spans.sourceMap.source !== normalizedCurrentSource ||
+      state.doc.spans.sourceMap.sourceRevision !== source.sourceRevision
+    ) return undefined;
+
+    return {
+      sourceRevision: source.sourceRevision,
+      sourceText: normalizedCurrentSource,
+      documentRevision: state.revision,
+      compiledDocumentRevision: state.compiledRevision,
+      compiled: state.doc
     };
   };
 
@@ -203,6 +240,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       completionRecovery = completionRecoveryFor(document.getState());
     },
     getDiagnostics: () => diagnostics,
+    runtimeEvaluationSemanticSnapshot,
     completionSemanticSnapshot: semanticSnapshotFor,
     completionRecoverySnapshot: (source) => {
       const state = document.getState();

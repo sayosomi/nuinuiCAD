@@ -2,6 +2,7 @@ import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
+import type { RuntimeScalarDiagnostic } from "../scalars/runtimeScalarDiagnostics";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
@@ -36,6 +37,48 @@ export type VscodeRustEvaluationRequest = {
   input: unknown;
 };
 
+/** JSON-safe runtime layer published only from the current canonical Webview evaluation. */
+export type VscodeRuntimeDiagnosticsPublication = {
+  type: "runtimeDiagnosticsPublication";
+  documentVersion: number;
+  diagnostics: readonly RuntimeScalarDiagnostic[];
+};
+
+export type VscodeCanvasObservationSelectionSubject =
+  | { kind: "elements" }
+  | { kind: "binding"; bindingId: string };
+
+export type VscodeCanvasObservationIssueSummary = {
+  elementId: string;
+  elementName: string;
+  message: string;
+};
+
+/** Compact JSON-safe facts published only from the ordinary canonical Canvas state. */
+export type VscodeCanvasObservationSnapshot = {
+  documentVersion: number;
+  selectedElementIds: readonly string[];
+  selectionSubject: VscodeCanvasObservationSelectionSubject;
+  compiledDocumentRevision: number;
+  previewActive: boolean;
+  evaluationRevision: number;
+  evaluationRequestRevision: number;
+  evaluationStatus: "idle" | "evaluating" | "ready" | "failed";
+  evaluationSource: "reference" | "rust" | "fallback";
+  rustEligible: boolean;
+  isStale: boolean;
+  isCurrent: boolean;
+  errorCount: number;
+  warningCount: number;
+  errorSummaries: readonly VscodeCanvasObservationIssueSummary[];
+  warningSummaries: readonly VscodeCanvasObservationIssueSummary[];
+};
+
+export type VscodeCanvasObservationPublication = {
+  type: "canvasObservationPublication";
+  snapshot: VscodeCanvasObservationSnapshot;
+};
+
 export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeBakeOperationResult = {
@@ -48,6 +91,8 @@ export type VscodeToExtensionMessage =
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
+  | VscodeRuntimeDiagnosticsPublication
+  | VscodeCanvasObservationPublication
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "no-renderable-geometry" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }

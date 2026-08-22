@@ -1587,8 +1587,8 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorFor();
     mocks.visibleTextEditors = [mocks.activeTextEditor];
     mocks.textDocuments = [mocks.activeTextEditor.document];
-    mocks.activeEditorListeners[0]?.();
-    mocks.activeEditorListeners[0]?.();
+    emitActiveEditorChange(mocks.activeTextEditor);
+    emitActiveEditorChange(mocks.activeTextEditor);
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
   });
 
@@ -1603,7 +1603,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(1);
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(2);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
