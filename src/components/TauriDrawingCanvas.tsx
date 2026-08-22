@@ -44,7 +44,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
-    const palette = useCadDocumentStore((state) => state.palette);
     const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
     const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
     const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
@@ -79,7 +78,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       elements,
       canonicalElements,
       evaluationLimitIndex,
-      palette,
       visibilityProfiles,
       activeVisibilityProfileId,
       moduleSemanticContext
@@ -89,7 +87,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       elements,
       evaluationLimitIndex,
       moduleSemanticContext,
-      palette,
       visibilityProfiles
     ]);
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
@@ -109,7 +106,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
       compiledDocumentRevision,
       canvasTheme: LEGACY_CANVAS_THEME,
-      palette: canvasPresentation.palette,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,

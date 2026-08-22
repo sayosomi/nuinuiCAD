@@ -141,15 +141,10 @@ export type CommandId =
   | "closeCommandPalette"
   | "openShortcutSettings"
   | "closeShortcutSettings"
-  | "openPaletteSettings"
-  | "closePaletteSettings"
   | "openVisibilityProfileSettings"
   | "closeVisibilityProfileSettings"
   | "openCommandRibbonSettings"
   | "closeCommandRibbonSettings"
-  | "openSelectionColorPicker"
-  | "closeSelectionColorPicker"
-  | "applyDisplayColorToSelection"
   | "renameSelectedElement"
   | "goToSourceDefinition"
   | "focusCanvas"
@@ -248,7 +243,6 @@ export type CommandContext = {
   /** Canonical source reference supplied by a semantic Module pick candidate. */
   pickedLineSourceReference?: CanonicalGeometrySourceReference;
   numericValue?: NumericValue;
-  colorId?: string;
   activity?: ElementActivity;
 };
 

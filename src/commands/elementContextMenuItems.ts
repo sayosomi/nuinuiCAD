@@ -4,7 +4,6 @@ import {
   elementTypeSupportsHiddenActivity,
   type ElementActivity
 } from "../model/elementActivity";
-import { elementSupportsDisplayColor } from "../palette/colorApplicability";
 import type { CadElement } from "../types/geometry";
 import type { GroupFoldById } from "../model/groups";
 
@@ -51,7 +50,6 @@ export const menuItemsForElement = ({
   groupFoldById: GroupFoldById;
 }): MenuItem[] => {
   const selectedCount = selectedElements.length;
-  const hasColorTarget = selectedElements.some(elementSupportsDisplayColor);
   const items: MenuItem[] = [];
 
   for (const activity of offerableActivities(element)) {
@@ -117,13 +115,6 @@ export const menuItemsForElement = ({
       kind: "command",
       commandId: "ungroupSelectedGroup",
       label: "グループ解除"
-    });
-  }
-  if (hasColorTarget) {
-    items.push({
-      kind: "command",
-      commandId: "openSelectionColorPicker",
-      label: "表示色を変更"
     });
   }
 

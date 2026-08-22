@@ -2073,7 +2073,6 @@ export class SourceEditorController implements SourceEditorHandle {
       elements: state.elements,
       evaluation: this.appliedEvaluation?.evaluation ?? null,
       groupFoldById: this.uiStore.getState().groupFoldById,
-      palette: state.palette,
       visibilityProfiles: state.visibilityProfiles,
       activeVisibilityProfileId: state.activeVisibilityProfileId,
       pickCandidates: this.currentPickCandidates()

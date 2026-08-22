@@ -19,13 +19,6 @@ import { assertReconcileSane,
 import { initialGroupFoldForLoadedDocument } from "../model/groups";
 import { defaultVisibilityProfile,
   visibilityIdFromName } from "../model/visibilityProfiles";
-import {
-  createPaletteColor,
-  defaultDocumentPalette,
-  isValidPaletteColorId,
-  type LegacyDocumentPalette,
-  type LegacyPaletteColor
-} from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import type { LineSplice } from "../document/textPatch";
 import type { SourceUpdate } from "../editor/sourceEditorTypes";
@@ -104,8 +97,6 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility view. sourceText remains canonical. */
   drawingProfiles: DrawingProfile[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
-  palette: LegacyDocumentPalette;
-  /** @deprecated Derived compatibility views. sourceText remains canonical. */
   visibilityRoles: VisibilityRole[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   visibilityProfiles: VisibilityProfile[];
@@ -160,12 +151,7 @@ export type CadDocumentState = {
   updateVisibilityProfile: (id: string, patch: Partial<VisibilityProfile>) => void;
   deleteVisibilityProfile: (id: string) => void;
   setVisibilityProfileRoleVisible: (profileId: string, roleId: string, visible: boolean) => void;
-  setPalette: (palette: LegacyDocumentPalette) => void;
-  updatePaletteColor: (id: string, patch: Partial<LegacyPaletteColor>) => void;
-  addPaletteColor: () => void;
-  deletePaletteColor: (id: string) => void;
-  setDefaultColorId: (id: string) => void;
-  replaceDocument: (document: DslDocumentData & { palette?: LegacyDocumentPalette }, filePath: string | null) => void;
+  replaceDocument: (document: DslDocumentData, filePath: string | null) => void;
   replaceTextDocument: (
     sourceText: string,
     options: { currentFilePath: string | null; dirtySinceSave: boolean }
@@ -489,7 +475,6 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
   const canonical = regenerateCanonicalFromModel(snapshot, NEW_DOCUMENT_DSL_MAJOR_VERSION);
   return {
     ...canonicalFields(canonical),
-    palette: defaultDocumentPalette(),
     sourceRevision: 0,
     sourceUpdate: { revision: 0, kind: "reset" },
     compiledDocumentRevision: 0,
@@ -522,11 +507,6 @@ type CadDocumentActions = Pick<
   | "updateVisibilityProfile"
   | "deleteVisibilityProfile"
   | "setVisibilityProfileRoleVisible"
-  | "setPalette"
-  | "updatePaletteColor"
-  | "addPaletteColor"
-  | "deletePaletteColor"
-  | "setDefaultColorId"
   | "replaceDocument"
   | "replaceTextDocument"
   | "markDocumentSaved"
@@ -807,31 +787,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       )
     });
   },
-  setPalette: (palette) => set({ palette }),
-  updatePaletteColor: (id, patch) => {
-    const palette = get().palette;
-    if (!palette.colors.some((color) => color.id === id)) return;
-    set({
-      palette: {
-        ...palette,
-        colors: palette.colors.map((color) => color.id === id ? { ...color, ...patch, id } : color)
-      }
-    });
-  },
-  addPaletteColor: () => {
-    const palette = get().palette;
-    set({ palette: { ...palette, colors: [...palette.colors, createPaletteColor(palette.colors)] } });
-  },
-  deletePaletteColor: (id) => {
-    const palette = get().palette;
-    if (id === palette.defaultColorId || !palette.colors.some((color) => color.id === id)) return;
-    set({ palette: { ...palette, colors: palette.colors.filter((color) => color.id !== id) } });
-  },
-  setDefaultColorId: (id) => {
-    const palette = get().palette;
-    if (!isValidPaletteColorId(palette, id) || palette.defaultColorId === id) return;
-    set({ palette: { ...palette, defaultColorId: id } });
-  },
   replaceDocument: (snapshot, currentFilePath) => {
     if (rejectExternalDocumentReset()) return;
     let selectionElements: CadElement[] | null = null;
@@ -841,7 +796,6 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionElements = canonical.doc.document.elements;
         return {
           ...canonicalFields(canonical),
-          palette: snapshot.palette ?? state.palette,
           ...clearedPreviewState(),
           past: [],
           future: [],

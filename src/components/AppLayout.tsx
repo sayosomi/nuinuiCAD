@@ -56,9 +56,6 @@ const commandLineCreationCommandIds = new Set(legacyCreationCommandIds);
 const ImageImportDialog = lazy(() =>
   import("./ImageImportDialog").then((module) => ({ default: module.ImageImportDialog }))
 );
-const PaletteSettingsDialog = lazy(() =>
-  import("./PalettePanel").then((module) => ({ default: module.PaletteSettingsDialog }))
-);
 const VisibilityProfileSettingsDialog = lazy(() =>
   import("./VisibilityProfilePanel").then((module) => ({
     default: module.VisibilityProfileSettingsDialog
@@ -72,11 +69,6 @@ const ShortcutSettingsDialog = lazy(() =>
 const CommandRibbonSettingsDialog = lazy(() =>
   import("./CommandRibbonSettingsDialog").then((module) => ({
     default: module.CommandRibbonSettingsDialog
-  }))
-);
-const SelectionColorPickerDialog = lazy(() =>
-  import("./SelectionColorPickerDialog").then((module) => ({
-    default: module.SelectionColorPickerDialog
   }))
 );
 const RenameElementDialog = lazy(() =>
@@ -106,13 +98,11 @@ export const AppLayout = () => {
   // join their materialized conditionalGroup element IDs at the Rust boundary.
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const shortcutSettings = useCadUiStore((state) => state.shortcutSettings);
-  const showPaletteSettings = useCadUiStore((state) => state.showPaletteSettings);
   const showVisibilityProfileSettings = useCadUiStore(
     (state) => state.showVisibilityProfileSettings
   );
   const showShortcutSettings = useCadUiStore((state) => state.showShortcutSettings);
   const showCommandRibbonSettings = useCadUiStore((state) => state.showCommandRibbonSettings);
-  const showSelectionColorPicker = useCadUiStore((state) => state.showSelectionColorPicker);
   const renameElementPromptTargetId = useCadUiStore((state) => state.renameElementPromptTargetId);
   const renameTypedBindingPromptTargetId = useCadUiStore((state) => state.renameTypedBindingPromptTargetId);
   const renameModuleSemanticPromptTarget = useCadUiStore((state) => state.renameModuleSemanticPromptTarget);
@@ -365,9 +355,7 @@ export const AppLayout = () => {
       if (isSourceEditorTarget && !isSourceEditorSearchKeyboardTarget(event)) return;
       if (isImeComposingKeyEvent(event) || isCommandLineInputComposing()) return;
       if (useCadUiStore.getState().showShortcutSettings) return;
-      if (useCadUiStore.getState().showPaletteSettings) return;
       if (useCadUiStore.getState().showCommandRibbonSettings) return;
-      if (useCadUiStore.getState().showSelectionColorPicker) return;
       if (useCadUiStore.getState().renameElementPromptTargetId) return;
       if (useCadUiStore.getState().renameTypedBindingPromptTargetId) return;
       if (useCadUiStore.getState().renameModuleSemanticPromptTarget) return;
@@ -519,19 +507,9 @@ export const AppLayout = () => {
         compiledDocumentRevision={compiledDocumentRevision}
         canvasFocusRef={canvasFocusRef}
       />
-      {showPaletteSettings ? (
-        <Suspense fallback={null}>
-          <PaletteSettingsDialog />
-        </Suspense>
-      ) : null}
       {showVisibilityProfileSettings ? (
         <Suspense fallback={null}>
           <VisibilityProfileSettingsDialog />
-        </Suspense>
-      ) : null}
-      {showSelectionColorPicker ? (
-        <Suspense fallback={null}>
-          <SelectionColorPickerDialog />
         </Suspense>
       ) : null}
       {renameElementPromptTargetId ? (

@@ -23,8 +23,6 @@ import {
   subtreeIdsForElement,
   visibleOutlineElements
 } from "../model/groups";
-import { elementSupportsDisplayColor } from "../palette/colorApplicability";
-import { isValidPaletteColorId } from "../palette/palette";
 import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import {
   selectionEligibleElementIds,
@@ -83,27 +81,6 @@ export const setElementsActivity = (activity: ElementActivity) => {
   const nextElements = applyActivityToTargets(elements, selectedIds, activity);
   if (!nextElements) return;
   useCadDocumentStore.getState().commitDocumentChange({ elements: nextElements });
-};
-
-const elementWithoutColorId = (element: CadElement): CadElement => {
-  const rest = { ...element } as CadElement & { colorId?: string };
-  delete rest.colorId;
-  return rest;
-};
-
-export const applyDisplayColorToSelection = (colorId: string | undefined) => {
-  const { elements, palette } = useCadDocumentStore.getState();
-  if (colorId !== undefined && !isValidPaletteColorId(palette, colorId)) return;
-
-  const selectedIds = new Set(getSelectedElementIds());
-  if (selectedIds.size === 0) return;
-
-  useCadDocumentStore.getState().commitDocumentChange({
-    elements: elements.map((element) => {
-      if (!selectedIds.has(element.id) || !elementSupportsDisplayColor(element)) return element;
-      return colorId === undefined ? elementWithoutColorId(element) : { ...element, colorId };
-    })
-  });
 };
 
 const clearTransientSelectionUi = () => {

@@ -226,10 +226,8 @@ export type CadUiState = CadElementSelection & {
   showElementListColorAccents: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
-  showPaletteSettings: boolean;
   showVisibilityProfileSettings: boolean;
   showCommandRibbonSettings: boolean;
-  showSelectionColorPicker: boolean;
   renameElementPromptTargetId: ElementId | null;
   renameTypedBindingPromptTargetId: BindingId | null;
   renameModuleSemanticPromptTarget: ModuleSemanticTarget | null;
@@ -272,10 +270,8 @@ export type CadUiState = CadElementSelection & {
   setShowElementListColorAccents: (showElementListColorAccents: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
-  setShowPaletteSettings: (showPaletteSettings: boolean) => void;
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings: boolean) => void;
   setShowCommandRibbonSettings: (showCommandRibbonSettings: boolean) => void;
-  setShowSelectionColorPicker: (showSelectionColorPicker: boolean) => void;
   setRenameElementPromptTargetId: (renameElementPromptTargetId: ElementId | null) => void;
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId: BindingId | null) => void;
   setRenameModuleSemanticPromptTarget: (target: ModuleSemanticTarget | null) => void;
@@ -340,10 +336,8 @@ export const initialCadUiState = (): Omit<
   | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
-  | "setShowPaletteSettings"
   | "setShowVisibilityProfileSettings"
   | "setShowCommandRibbonSettings"
-  | "setShowSelectionColorPicker"
   | "setRenameElementPromptTargetId"
   | "setRenameTypedBindingPromptTargetId"
   | "setRenameModuleSemanticPromptTarget"
@@ -400,10 +394,8 @@ export const initialCadUiState = (): Omit<
   showElementListColorAccents: false,
   showShortcutHelp: false,
   showShortcutSettings: false,
-  showPaletteSettings: false,
   showVisibilityProfileSettings: false,
   showCommandRibbonSettings: false,
-  showSelectionColorPicker: false,
   renameElementPromptTargetId: null,
   renameTypedBindingPromptTargetId: null,
   renameModuleSemanticPromptTarget: null,
@@ -511,12 +503,10 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({ showElementListColorAccents }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
   setShowShortcutSettings: (showShortcutSettings) => set({ showShortcutSettings }),
-  setShowPaletteSettings: (showPaletteSettings) => set({ showPaletteSettings }),
   setShowVisibilityProfileSettings: (showVisibilityProfileSettings) =>
     set({ showVisibilityProfileSettings }),
   setShowCommandRibbonSettings: (showCommandRibbonSettings) =>
     set({ showCommandRibbonSettings }),
-  setShowSelectionColorPicker: (showSelectionColorPicker) => set({ showSelectionColorPicker }),
   setRenameElementPromptTargetId: (renameElementPromptTargetId) => set({ renameElementPromptTargetId }),
   setRenameTypedBindingPromptTargetId: (renameTypedBindingPromptTargetId) => set({ renameTypedBindingPromptTargetId }),
   setRenameModuleSemanticPromptTarget: (renameModuleSemanticPromptTarget) => set({ renameModuleSemanticPromptTarget }),

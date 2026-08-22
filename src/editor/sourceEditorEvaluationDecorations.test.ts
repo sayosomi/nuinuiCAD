@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { createStatementRangeIndex } from "./statementRangeIndex";
 import { createEvaluationDecorationIndex, entriesInVisibleRanges } from "./sourceEditorEvaluationIndex";
-import { defaultDocumentPalette } from "../palette/palette";
 import type { CadElement, EvaluationResult, ForGroupGeneratedRow } from "../types/geometry";
 
 const rangesFor = (source: string) => {
@@ -27,7 +26,6 @@ const indexFor = (ranges: ReturnType<typeof rangesFor>["ranges"], elements: CadE
     elements,
     evaluation,
     groupFoldById: folds,
-    palette: defaultDocumentPalette(),
     visibilityProfiles: [],
     activeVisibilityProfileId: "",
     pickCandidates: []
@@ -170,7 +168,6 @@ describe("pick candidate index", () => {
       elements,
       evaluation: baseEvaluation(elements),
       groupFoldById: new Map(),
-      palette: defaultDocumentPalette(),
       visibilityProfiles: [],
       activeVisibilityProfileId: "",
       pickCandidates: [
