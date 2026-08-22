@@ -39,8 +39,8 @@ export const canvasObservationSnapshot = (input: {
   evaluationState: EvaluationEngineState;
 }): VscodeCanvasObservationSnapshot => {
   const selection = observationSelectionFor(input.selectionSubject, input.selectedElementIds);
-  const errors = input.evaluationState.evaluation.errors.map(issueSummary);
-  const warnings = input.evaluationState.evaluation.warnings.map(issueSummary);
+  const errors = (input.evaluationState.evaluation.errors ?? []).map(issueSummary);
+  const warnings = (input.evaluationState.evaluation.warnings ?? []).map(issueSummary);
 
   return {
     documentVersion: input.documentVersion,
