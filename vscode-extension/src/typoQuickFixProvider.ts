@@ -16,6 +16,7 @@ import {
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { createTranslator, resolveLocale } from "./localization";
 import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
+import { projectCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
 import { typoSuggestionTranslationCatalog } from "./typoSuggestionLocalization";
 
 export const nuiTypoQuickFixSelector: vscode.DocumentSelector = {
@@ -120,6 +121,20 @@ const sourceSnapshotFor = (
   normalizedSource: normalizedSourceFor(rawSource),
   sourceRevision: session.getSourceRevision()
 });
+
+/** @internal Focused-test adapter; production diagnostic presentation is owned by typoDiagnosticPresentation.ts. */
+export const compilerDiagnosticsWithTypoSuggestions = (
+  rawSource: string,
+  session: NuiLanguageAnalysisSession,
+  displayLanguage: string = vscode.env?.language ?? "en"
+): CompilerDiagnostic[] => {
+  const baseDiagnostics = session.getDiagnostics();
+  const source = sourceSnapshotFor(rawSource, session);
+  const semantic = session.completionSemanticSnapshot(source);
+  return semantic?.compiled
+    ? projectCompilerDiagnosticsWithTypoSuggestions(baseDiagnostics, source, semantic, displayLanguage)
+    : baseDiagnostics;
+};
 
 const payloadFor = (
   document: vscode.TextDocument,
