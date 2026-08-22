@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   canonicalizeObservationDocumentPath,
   requestVscodeObservation,
@@ -6,6 +7,7 @@ import {
   type VscodeObservationDiscoveryOptions,
   type VscodeObservationLiveInstance
 } from "../../src/node/vscodeObservationBridge";
+import { stableSnapshotElementId } from "./documentSnapshot";
 
 export type VscodeObserveInput = {
   instanceId?: string;
@@ -19,6 +21,12 @@ export type VscodeObserveOptions = Pick<
 >;
 
 type JsonObject = Record<string, unknown>;
+
+type CanvasElementSource = {
+  runtimeElementId: string;
+  sourceStatementIndex: number;
+  elementType: string;
+};
 
 const isObject = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -40,6 +48,69 @@ const jsonFriendlyCopy = (value: unknown): unknown => {
   return JSON.parse(encoded) as unknown;
 };
 
+const canvasNeedsStableSelectionProjection = (canvas: unknown): boolean => {
+  if (!isObject(canvas)) return false;
+  return Array.isArray(canvas.selectedElementIds) &&
+    canvas.selectedElementIds.length > 0 &&
+    Array.isArray(canvas.selectedElementSources) &&
+    canvas.selectedElementSources.length > 0;
+};
+
+const observationNeedsStableSelectionProjection = (observation: unknown): boolean =>
+  isObject(observation) &&
+  Array.isArray(observation.documents) &&
+  observation.documents.some((document) =>
+    isObject(document) && canvasNeedsStableSelectionProjection(document.canvas)
+  );
+
+const canvasElementSources = (value: unknown): CanvasElementSource[] | null => {
+  if (!Array.isArray(value)) return null;
+  const result: CanvasElementSource[] = [];
+  for (const item of value) {
+    if (
+      !isObject(item) ||
+      typeof item.runtimeElementId !== "string" ||
+      !Number.isSafeInteger(item.sourceStatementIndex) ||
+      (item.sourceStatementIndex as number) < 0 ||
+      typeof item.elementType !== "string" ||
+      item.elementType.length === 0
+    ) return null;
+    result.push({
+      runtimeElementId: item.runtimeElementId,
+      sourceStatementIndex: item.sourceStatementIndex as number,
+      elementType: item.elementType
+    });
+  }
+  return result;
+};
+
+const projectCanvasSelection = (
+  canvas: JsonObject,
+  sourceText: unknown
+): JsonObject => {
+  if (typeof sourceText !== "string" || !Array.isArray(canvas.selectedElementIds)) return canvas;
+  const runtimeSelectedElementIds = canvas.selectedElementIds;
+  if (
+    runtimeSelectedElementIds.length === 0 ||
+    !runtimeSelectedElementIds.every((value): value is string => typeof value === "string")
+  ) return canvas;
+
+  const sources = canvasElementSources(canvas.selectedElementSources);
+  if (!sources || sources.length === 0) return canvas;
+  const sourceByRuntimeId = new Map(sources.map((source) => [source.runtimeElementId, source] as const));
+  const selectedSources = runtimeSelectedElementIds.map((runtimeElementId) => sourceByRuntimeId.get(runtimeElementId));
+  if (selectedSources.some((source) => source === undefined)) return canvas;
+
+  const sourceHash = createHash("sha256").update(sourceText, "utf8").digest("hex");
+  return {
+    ...canvas,
+    runtimeSelectedElementIds: [...runtimeSelectedElementIds],
+    selectedElementIds: selectedSources.map((source) =>
+      stableSnapshotElementId(sourceHash, source!.sourceStatementIndex, source!.elementType)
+    )
+  };
+};
+
 const projectObservation = (
   observation: unknown,
   includeSourceText: boolean
@@ -49,10 +120,12 @@ const projectObservation = (
 
   const documents = copied.documents.map((document) => {
     if (!isObject(document)) return document;
-    if (includeSourceText) return document;
-    const withoutSourceText = { ...document };
-    delete withoutSourceText.sourceText;
-    return withoutSourceText;
+    const projected = isObject(document.canvas)
+      ? { ...document, canvas: projectCanvasSelection(document.canvas, document.sourceText) }
+      : { ...document };
+    if (includeSourceText) return projected;
+    delete projected.sourceText;
+    return projected;
   });
 
   return { ...copied, documents };
@@ -167,8 +240,10 @@ export const observeVscode = async (
 
   const instance = candidateMetadata(resolution.instance);
   let rawObservation = resolution.instance.observation;
+  const needsStableSelectionProjection = observationNeedsStableSelectionProjection(rawObservation);
+  const needsSourceText = input.includeSourceText === true || needsStableSelectionProjection;
 
-  if (input.includeSourceText === true) {
+  if (needsSourceText) {
     try {
       const sourceObservation = await requestVscodeObservation(
         resolution.instance.descriptor,
