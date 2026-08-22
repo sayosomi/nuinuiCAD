@@ -143,6 +143,27 @@ export const queryDslTypoSuggestions = ({
     }
   }
 
+  // Construction completion uses the authored prefix to decide whether the
+  // cursor is still a construction slot. A spelling error is intentionally not
+  // a valid prefix, so erase only the exact diagnosed token in a projection and
+  // ask the same completion authority for the category's unfiltered set.
+  if (!completion && diagnostic.code === "unknown-construction") {
+    const projectedText =
+      source.normalizedSource.slice(0, diagnosticRange.from) +
+      source.normalizedSource.slice(diagnosticRange.to);
+    const projected = queryDslCompletion({
+      source: { normalizedSource: projectedText, sourceRevision: source.sourceRevision },
+      position: diagnosticRange.from
+    });
+    if (
+      projected?.category === "construction" &&
+      projected.replacementRange.from === diagnosticRange.from &&
+      projected.replacementRange.to === diagnosticRange.from
+    ) {
+      completion = { ...projected, replacementRange: diagnosticRange };
+    }
+  }
+
   if (!completion || !containsRange(diagnosticRange, completion.replacementRange)) return null;
   if (completion.replacementRange.from >= completion.replacementRange.to) return null;
 
