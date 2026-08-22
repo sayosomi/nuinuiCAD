@@ -5,11 +5,11 @@ import {
   dslSemanticDeclarationRange,
   dslSemanticIdentityKey,
   dslSemanticOccurrenceAt,
+  semanticIdentityForModuleTarget,
   type DslSemanticIdentity,
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "./dslSemanticOccurrenceIndex";
-import { semanticIdentityForModuleTarget } from "./moduleSemanticEditor";
 import type { ModuleSourceTarget } from "./moduleSemanticTypes";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 
