@@ -1,0 +1,141 @@
+name: SAY-116 Format Final
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.head_ref == 'sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+          fetch-depth: 0
+
+      - name: Normalize formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one target, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/dsl/dslCallParser.ts',
+              '''    diagnostic(
+            diagnostics,
+            message,
+            constructionSpan ?? categorySpan,
+            constructionSpan ? "unknown-construction" : undefined
+          );''',
+              '''    diagnostic(
+              diagnostics,
+              message,
+              constructionSpan ?? categorySpan,
+              constructionSpan ? "unknown-construction" : undefined
+            );'''
+          )
+          replace_once(
+              'src/dsl/dslCallParser.ts',
+              '''      diagnostic(
+            diagnostics,
+            `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
+            arg.keySpan!,
+            "unknown-construction-argument"
+          );''',
+              '''      diagnostic(
+                diagnostics,
+                `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
+                arg.keySpan!,
+                "unknown-construction-argument"
+              );'''
+          )
+          replace_once(
+              'src/dsl/dslDocument.ts',
+              '''    ...compiled.diagnostics.map((diagnostic, index) =>
+            diagnostic.code === "undefined-geometry-reference"
+              ? (projectedCompilerDiagnostics[index] ?? diagnostic)
+              : diagnostic
+          ),''',
+              '''    ...compiled.diagnostics.map((diagnostic, index) =>
+              diagnostic.code === "undefined-geometry-reference"
+                ? (projectedCompilerDiagnostics[index] ?? diagnostic)
+                : diagnostic
+            ),'''
+          )
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '''    diagnostics: keyword
+            ? [diagnostic(
+                line,
+                `未対応のDSLキーワードです: ${keyword}`,
+                "unknown-dsl-keyword",
+                project({ start: 0, end: keyword.length }) ?? undefined
+              )]
+            : [diagnostic(line, "文はキーワードから始めてください。")]''',
+              '''    diagnostics: keyword
+              ? [diagnostic(
+                  line,
+                  `未対応のDSLキーワードです: ${keyword}`,
+                  "unknown-dsl-keyword",
+                  project({ start: 0, end: keyword.length }) ?? undefined
+                )]
+              : [diagnostic(line, "文はキーワードから始めてください。")]'''
+          )
+          replace_once(
+              'src/dsl/dslTypeParser.ts',
+              '''      span: typeSpan,
+            code: "unknown-type"
+          });
+          return { declaredType: null, choiceOptionSpans: [] };''',
+              '''      span: typeSpan,
+              code: "unknown-type"
+            });
+            return { declaredType: null, choiceOptionSpans: [] };'''
+          )
+          PY
+          git diff --check
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focused tests
+        run: npm test -- src/dsl/dslTypoMatcher.test.ts src/dsl/dslUnknownNameDiagnostics.test.ts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/say-116-format-final.yml
+          git add src/dsl/dslCallParser.ts src/dsl/dslDocument.ts src/dsl/dslParser.ts src/dsl/dslTypeParser.ts
+          git diff --cached --check
+          git commit -m "chore: normalize SAY-116 diagnostics formatting"
+          git push origin HEAD:sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
