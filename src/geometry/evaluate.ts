@@ -18,9 +18,12 @@ import {
   activityAllowsEvaluation,
   activityAllowsDrawing,
   effectiveElementActivity,
-  effectiveElementActivityById,
-  effectiveDrawingModifierStrokeById
+  effectiveElementActivityByRuntime,
+  effectiveDrawingModifierResolutionsByRuntime,
+  effectiveDrawingModifierRuntimeById,
+  effectiveDrawingModifierStrokeByRuntime
 } from "../model/elementActivity";
+import type { EvaluationResultWithDrawingModifierInspection } from "../model/drawingModifierInspection";
 import { numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import {
@@ -130,7 +133,7 @@ export type EvaluateElementsOptions = {
   textTemplateEntriesByElementId?: ReadonlyMap<ElementId, TextTemplateAst>;
   /**
    * Task 27's elementId-keyed bare `@binding` `text.text` property source
-   * (already re-keyed by textTemplateRuntime.ts's
+   * (already re-keyed from textTemplateRuntime.ts's
    * buildTextPropertyBindingRuntimeEntries). Requires `scalarProgram`, like
    * propertyBindingEntries/controlBooleanEntries above - a bound reference
    * always implies a typed declaration exists.
@@ -160,7 +163,7 @@ const geometryMutationTargetIds = (element: CadElement): ElementId[] => {
 export const evaluateElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
-): EvaluationResult => {
+): EvaluationResultWithDrawingModifierInspection => {
   if (options.propertyBindingEntries?.length && !options.scalarProgram) {
     throw new Error(
       "evaluateElements: propertyBindingEntries was given without a scalarProgram - " +
@@ -215,17 +218,17 @@ export const evaluateElements = (
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const runtimeElementsById = new Map(elementsById);
   const runtimeElements = [...evaluatedElements];
-  const activities = effectiveElementActivityById(
+  const drawingModifierRuntime = effectiveDrawingModifierRuntimeById(
     elements,
     options.drawingModifiers,
     options.selectedDrawingProfileId
   );
+  const activities = effectiveElementActivityByRuntime(drawingModifierRuntime);
+  const effectiveDrawingModifierResolutions = new Map(
+    effectiveDrawingModifierResolutionsByRuntime(drawingModifierRuntime)
+  );
   const effectiveDrawingModifierStrokes = new Map(
-    effectiveDrawingModifierStrokeById(
-      elements,
-      options.drawingModifiers,
-      options.selectedDrawingProfileId
-    )
+    effectiveDrawingModifierStrokeByRuntime(drawingModifierRuntime)
   );
   const effectiveVisibleIds = new Set(elements
     .filter((element) => evaluatedElementIds.has(element.id) &&
@@ -769,6 +772,8 @@ export const evaluateElements = (
   for (const row of forGroupGeneratedRows) {
     const stroke = effectiveDrawingModifierStrokes.get(row.templateElementId);
     if (stroke) effectiveDrawingModifierStrokes.set(row.generatedElementId, { ...stroke, color: { ...stroke.color } });
+    const resolution = effectiveDrawingModifierResolutions.get(row.templateElementId);
+    if (resolution) effectiveDrawingModifierResolutions.set(row.generatedElementId, structuredClone(resolution));
   }
 
   return {
@@ -783,6 +788,7 @@ export const evaluateElements = (
     effectiveVisibleElementIds: effectiveVisibleIds,
     effectiveEnabledElementIds: effectiveEnabledIds,
     effectiveDrawingModifierStrokes,
+    effectiveDrawingModifierResolutions,
     conditionInactiveElementIds,
     conditionEvaluationTraces,
     forGroupGeneratedRows,
