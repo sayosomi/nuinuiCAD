@@ -10,9 +10,10 @@ const observationSnapshot = (includeSourceText: boolean): unknown => {
   const snapshot = vscodeObservationState.snapshot();
   if (!includeSourceText) return snapshot;
 
+  const observedDocumentUris = new Set(snapshot.documents.map((document) => document.documentUri));
   const sourceTextByUri = new Map(
     vscode.workspace.textDocuments
-      .filter((document) => document.uri.scheme === "file" && document.fileName.endsWith(".nui"))
+      .filter((document) => observedDocumentUris.has(document.uri.toString()))
       .map((document) => [document.uri.toString(), document.getText()] as const)
   );
 
