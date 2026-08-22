@@ -146,7 +146,9 @@ const sourceNamespaceScopeIdsForDeclaration = (
  * Build a source-only namespace index from parser-owned enclosing metadata.
  * This observes module bodies but does not lower || evaluate them. The caller
  * must provide reconciler-owned identities for every scope opener && named
- * declaration that is included in the index.
+ * declaration that is included in the index. Import aliases are indexed when
+ * their multi-document caller supplies an import-statement identity; legacy
+ * single-document callers that do not own those identities remain unchanged.
  */
 export const buildSourceLexicalNamespaceIndex = (
   statements: readonly DslStatement[],
@@ -167,6 +169,7 @@ export const buildSourceLexicalNamespaceIndex = (
     if (!scopeId) return;
     const statementId = stableStatementIdByIndex.get(statementIndex);
     if (statementId === undefined) {
+      if (kind === "import") return;
       throw new Error(`sourceLexicalNamespaceIndex: no stable statement id supplied for statement index ${statementIndex}`);
     }
     const declaration: SourceLexicalDeclaration = {
@@ -203,6 +206,7 @@ export const buildSourceLexicalNamespaceIndex = (
         const conflicting = prior.find(
           (candidate) =>
             candidate.kind !== declaration.kind ||
+            (candidate.kind === "import" && declaration.kind === "import") ||
             isModuleKind(candidate.kind) ||
             isModuleKind(declaration.kind) ||
             (candidate.kind === "profile" && declaration.kind === "profile") ||
