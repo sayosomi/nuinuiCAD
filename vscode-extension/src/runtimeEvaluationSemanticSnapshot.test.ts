@@ -45,8 +45,12 @@ describe("VS Code runtime evaluation semantic snapshot", () => {
     session.replaceSource(fatalSource);
     session.replaceSource(repairedSource);
 
-    expect(session.runtimeEvaluationSemanticSnapshot(sourceSnapshotFor(repairedSource, 3))).toMatchObject({
-      sourceRevision: 3,
+    // Source revision is reconciler-owned from the last-good compiled document,
+    // so repairing a fatal edit reuses the next successful source revision.
+    // The AutomationDocument revision still proves that two source replacements
+    // occurred, while compiledDocumentRevision proves one new compiled document.
+    expect(session.runtimeEvaluationSemanticSnapshot(sourceSnapshotFor(repairedSource, 2))).toMatchObject({
+      sourceRevision: 2,
       sourceText: repairedSource,
       documentRevision: 2,
       compiledDocumentRevision: 1,
