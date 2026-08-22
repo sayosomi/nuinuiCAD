@@ -14,6 +14,7 @@
     "desktop:build": "tauri build",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:stress:lifecycle": "node scripts/ci/runLifecycleStress.mjs",
     "test:performance:reconciler": "vitest run src/document/statementReconciler.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:codemirror-foundation": "VITE_RUN_PERFORMANCE_GATES=1 vitest run src/editor/codemirrorFoundationCost.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
     "test:performance:rename-analysis": "VITE_RUN_PERFORMANCE_GATES=1 vitest run src/document/renameAnalysis.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
