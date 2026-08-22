@@ -12,7 +12,6 @@ import { numericReferencePropertiesForGeometry } from "../geometry/numericRefere
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
-import { resolvedElementColorMap } from "../palette/elementColors";
 import type { BezierHandleRole as CommandBezierHandleRole } from "../model/elementDragTransforms";
 import type {
   CadElement,
@@ -191,7 +190,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluationLimitIndex,
     compiledDocumentRevision,
     canvasTheme,
-    palette,
     visibilityProfiles,
     activeVisibilityProfileId,
     moduleSemanticContext,
@@ -262,10 +260,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     ));
   }, [activeLinePickTarget?.draftLineIds, sharedPickCandidates]);
   const [imageRenderVersion, scheduleImageRender] = useReducer((version: number) => version + 1, 0);
-  const elementColors = useMemo(
-    () => resolvedElementColorMap(elements, palette),
-    [elements, palette]
-  );
   const {
     lines,
     arcs,
@@ -495,7 +489,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     compiledDocumentRevision,
     canvasTheme,
     curves,
-    elementColors,
     evaluation.effectiveDrawingModifierStrokes,
     evaluation,
     evaluationState,
@@ -1638,7 +1631,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           pickCandidateLineIds={pickCandidateLineIds}
           selectedElementId={selectedElementId}
           canvasTheme={canvasTheme}
-          elementColors={elementColors}
+          effectiveDrawingModifierStrokes={evaluation.effectiveDrawingModifierStrokes}
           overlayIdentityCandidates={interactiveOverlayIdentityCandidates}
           showCanvasPointNames={showCanvasPointNames}
           showCanvasGeometryNames={showCanvasGeometryNames}
