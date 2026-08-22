@@ -50,4 +50,14 @@ jobs:
           npm run lint
           npm run build
           npm test -- src/dsl/dslSettingsParser.test.ts src/dsl/dslCompiler.test.ts src/dsl/dslDocument.test.ts src/dsl/dslSerializeElement.test.ts src/document/textPatch.test.ts
-          npm test
+          set +e
+          npm test > /tmp/say115-full-test.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "=== full test failure summary ==="
+            grep -E "FAIL|failed|Error|AssertionError|×|❯" /tmp/say115-full-test.log | tail -250 || true
+            echo "=== full test raw tail ==="
+            tail -300 /tmp/say115-full-test.log
+          fi
+          exit "$status"
