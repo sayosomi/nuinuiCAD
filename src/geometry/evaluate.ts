@@ -6,7 +6,8 @@ import type {
   ElementId,
   EvaluationResult,
   EvaluationWarning,
-  ForGroupGeneratedRow
+  ForGroupGeneratedRow,
+  GeometryMutationExecution
 } from "../types/geometry";
 import {
   isConditionalGroupElement,
@@ -136,6 +137,25 @@ export type EvaluateElementsOptions = {
   textPropertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
 };
 
+const geometryMutationTargetIds = (element: CadElement): ElementId[] => {
+  const targetIds = (() => {
+    switch (element.type) {
+      case "edge":
+        return [element.endpoint1.lineId, element.endpoint2.lineId];
+      case "extendTrim":
+        return [element.endpoint.lineId];
+      case "pathReverse":
+        return [element.targetLineId];
+      case "move":
+      case "symmetricMove":
+        return element.baseLineIds;
+      default:
+        return [];
+    }
+  })();
+  return Array.from(new Set(targetIds));
+};
+
 export const evaluateElements = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {}
@@ -177,6 +197,7 @@ export const evaluateElements = (
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
+  const geometryMutationExecutions: GeometryMutationExecution[] = [];
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
   const instanceSnapshotsByEnd = new Map<number, ModuleMaterialization["instanceBaseGeometrySnapshots"]>();
   for (const snapshot of options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
@@ -685,6 +706,8 @@ export const evaluateElements = (
     // template.
     const textTemplateForElement = textTemplateEntriesByElementId?.get((sourceElement ?? element).id);
 
+    const mutationTargetIds = geometryMutationTargetIds(elementToEvaluate);
+    const errorCountBeforeElementEvaluation = errors.length;
     evaluateElement(elementToEvaluate, {
       computedGeometry,
       elementsById: runtimeElementsById,
@@ -697,6 +720,12 @@ export const evaluateElements = (
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
         : {})
     });
+    if (mutationTargetIds.length > 0 && errors.length === errorCountBeforeElementEvaluation) {
+      geometryMutationExecutions.push({
+        mutationElementId: elementToEvaluate.id,
+        targetElementIds: mutationTargetIds
+      });
+    }
     if (!preMutationGeometry.has(elementToEvaluate.id)) {
       const geometry = computedGeometry.get(elementToEvaluate.id);
       if (geometry) preMutationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
@@ -739,6 +768,7 @@ export const evaluateElements = (
   return {
     computedGeometry,
     preMutationGeometry,
+    geometryMutationExecutions,
     instanceBaseGeometry,
     errors,
     warnings,
