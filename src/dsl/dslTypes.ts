@@ -209,6 +209,22 @@ export type DslStatement =
   | (DslStatementBase & { kind: "print" })
   | (DslStatementBase & { kind: "svg" })
   | (DslStatementBase & {
+      kind: "import";
+      importPath: string;
+      importPathSpan: DslSpan;
+      alias: string;
+      aliasSpan: DslSpan;
+    })
+  | (DslStatementBase & {
+      kind: "fileReExport";
+      targetReference: string;
+      targetSpan: DslSpan;
+      importAlias: string;
+      importAliasSpan: DslSpan;
+      exportedName: string;
+      exportedNameSpan: DslSpan;
+    })
+  | (DslStatementBase & {
       kind: "moduleDefinition";
       parameters: readonly DslModuleParameter[];
     })

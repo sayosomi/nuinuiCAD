@@ -36,6 +36,7 @@ export const dslStatementKeywords = {
   module: "module",
   modifier: "modifier",
   instance: "instance",
+  import: "import",
   export: "export"
 } as const;
 
