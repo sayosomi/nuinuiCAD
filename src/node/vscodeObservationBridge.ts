@@ -177,6 +177,7 @@ export class VscodeObservationBridge {
   readonly ready: Promise<VscodeObservationDescriptor>;
 
   private readonly server: Server;
+  private readonly sockets = new Set<Socket>();
   private readonly observationProvider: () => unknown;
   private readonly workspaceFolderPaths: string[];
   private readonly pid: number;
@@ -193,7 +194,11 @@ export class VscodeObservationBridge {
     this.workspaceFolderPaths = [...options.workspaceFolderPaths];
     this.pid = options.pid ?? process.pid;
     this.now = options.now ?? (() => new Date());
-    this.server = createServer((socket) => this.handleSocket(socket));
+    this.server = createServer((socket) => {
+      this.sockets.add(socket);
+      socket.once("close", () => this.sockets.delete(socket));
+      this.handleSocket(socket);
+    });
 
     this.ready = new Promise<VscodeObservationDescriptor>((resolveReady, rejectReady) => {
       this.server.once("error", rejectReady);
@@ -239,10 +244,9 @@ export class VscodeObservationBridge {
     if (this.disposed) return;
     this.disposed = true;
     safeUnlink(this.descriptorPath);
-    if (this.server.listening) {
-      this.server.close();
-      this.server.closeAllConnections();
-    }
+    if (this.server.listening) this.server.close();
+    for (const socket of this.sockets) socket.destroy();
+    this.sockets.clear();
   }
 
   private handleSocket(socket: Socket): void {
