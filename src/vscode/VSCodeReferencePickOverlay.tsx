@@ -117,6 +117,12 @@ export const VSCodeReferencePickOverlay = ({
   useEffect(() => {
     const viewport = canvasFocusRef.current;
     if (!viewport || session.draft.status !== "active") return;
+    viewport.focus({ preventScroll: true });
+  }, [canvasFocusRef, session.request.requestId, session.draft.status]);
+
+  useEffect(() => {
+    const viewport = canvasFocusRef.current;
+    if (!viewport || session.draft.status !== "active") return;
 
     const handlePointerMove = (event: PointerEvent) => {
       if (eventTargetsReferencePickUi(event)) return;
