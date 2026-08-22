@@ -64,11 +64,9 @@ const bridgeFor = async (
       if (includeSourceText) return observation;
       return {
         ...observation,
-        documents: observation.documents.map((document) => {
-          const compact = { ...document };
-          delete compact.sourceText;
-          return compact;
-        })
+        documents: observation.documents.map((document) => Object.fromEntries(
+          Object.entries(document).filter(([key]) => key !== "sourceText")
+        ))
       };
     }
   });
