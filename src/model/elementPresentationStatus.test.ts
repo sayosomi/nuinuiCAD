@@ -19,7 +19,6 @@ describe("createElementPresentationStatusIndex", () => {
       elements: state.elements,
       evaluation: emptyEvaluationResult(state.elements),
       groupFoldById: new Map(),
-      palette: state.palette,
       visibilityProfiles: state.visibilityProfiles,
       activeVisibilityProfileId: state.activeVisibilityProfileId
     });
