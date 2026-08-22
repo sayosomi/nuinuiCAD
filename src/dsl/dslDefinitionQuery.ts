@@ -48,7 +48,38 @@ const semanticIsExact = (source: SourceSnapshot, semantic: DslDefinitionSemantic
   );
 };
 
+const shorthandLabelIdentityKey = (
+  compiled: CompiledDslDocument,
+  from: number,
+  to: number
+): string | null => {
+  const statementIndex = compiled.statements.findIndex((statement) =>
+    statement.physicalSpan.segments.some((segment) => from >= segment.from && from <= segment.to)
+  );
+  const statement = compiled.statements[statementIndex];
+  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
+  if (statement?.kind !== "moduleInstance" || !instance?.callee) return null;
+  const argumentIndex = statement.arguments.findIndex((argument) => {
+    const physical = argument.labelPhysicalSpan?.segments;
+    return physical?.length === 1 && physical[0]?.from === from && physical[0]?.to === to;
+  });
+  if (argumentIndex < 0) return null;
+  const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
+  if (!binding) return null;
+  return dslSemanticIdentityKey({
+    kind: "module",
+    target: {
+      kind: "moduleParameter",
+      slot: {
+        definitionStatementId: instance.callee.definitionStatementId,
+        parameterIndex: binding.parameterIndex
+      }
+    }
+  });
+};
+
 const shorthandValueOccurrenceAt = (
+  compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
   position: number
 ): DslSemanticOccurrence | null => {
@@ -58,8 +89,10 @@ const shorthandValueOccurrenceAt = (
   if (matches.length === 0) return null;
   const shortest = matches[0]!.to - matches[0]!.from;
   const shortestMatches = matches.filter((occurrence) => occurrence.to - occurrence.from === shortest);
+  const labelIdentityKey = shorthandLabelIdentityKey(compiled, shortestMatches[0]!.from, shortestMatches[0]!.to);
+  if (!labelIdentityKey) return null;
   const valueMatches = shortestMatches.filter((occurrence) =>
-    occurrence.identity.kind !== "module" || occurrence.identity.target.kind !== "moduleParameter"
+    dslSemanticIdentityKey(occurrence.identity) !== labelIdentityKey
   );
   const identities = new Set(valueMatches.map((occurrence) => dslSemanticIdentityKey(occurrence.identity)));
   return identities.size === 1 ? valueMatches[0] ?? null : null;
@@ -74,7 +107,7 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
     semantic.compiled,
     semantic.bindingAnalysis ?? semantic.compiled.bindingAnalysis
   );
-  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position) ?? shorthandValueOccurrenceAt(occurrenceIndex, position);
+  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position) ?? shorthandValueOccurrenceAt(semantic.compiled, occurrenceIndex, position);
   if (!occurrence || occurrence.kind !== "reference") return null;
   const declarationRange = dslSemanticDeclarationRange(occurrenceIndex, occurrence.identity);
   if (!declarationRange || (declarationRange.from === occurrence.from && declarationRange.to === occurrence.to)) return null;
