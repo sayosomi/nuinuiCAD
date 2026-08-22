@@ -52,7 +52,7 @@ path = "src/dsl/dslCompiler.test.ts"
 text = read(path)
 text, n = re.subn(
     r'  it\("builds a palette from color statements", \(\) => \{.*?\n  \}\);\n\n  it\("rejects multiple default colors", \(\) => \{.*?\n  \}\);\n',
-    '''  it("rejects legacy top-level color statements", () => {\n    const result = compileDslToElements(\n      ['color main ("#112233", name: "本体")', "point A = coordinate(x: 0,y: 0)"].join("\\n"),\n      { elements: [], mode: "document" }\n    );\n    expect(result.diagnostics.some((item) => item.severity === "error")).toBe(true);\n    expect(result).not.toHaveProperty("palette");\n  });\n''',
+    '''  it("rejects legacy top-level color statements", () => {\n    const result = compileDslToElements(\n      ['color main ("#112233", name: "本体")', "point A = coordinate(x: 0,y: 0)"].join(String.fromCharCode(10)),\n      { elements: [], mode: "document" }\n    );\n    expect(result.diagnostics.some((item) => item.severity === "error")).toBe(true);\n    expect(result).not.toHaveProperty("palette");\n  });\n''',
     text,
     count=1,
     flags=re.S,
@@ -66,7 +66,7 @@ path = "src/dsl/dslDocument.test.ts"
 text = read(path).replace('import { defaultDocumentPalette } from "../palette/palette";\n', "", 1)
 text, n = re.subn(
     r'\ndescribe\("dslDocument palette", \(\) => \{.*?\n\}\);\n',
-    '''\ndescribe("dslDocument legacy palette syntax", () => {\n  it("rejects top-level color statements", () => {\n    const parsed = parseDslDocument('nui 4\\ncolor main ("#112233", name: "本体")');\n    expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);\n    expect(parsed.document).toBeNull();\n  });\n});\n''',
+    '''\ndescribe("dslDocument legacy palette syntax", () => {\n  it("rejects top-level color statements", () => {\n    const parsed = parseDslDocument(["nui 4", 'color main ("#112233", name: "本体")'].join(String.fromCharCode(10)));\n    expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);\n    expect(parsed.document).toBeNull();\n  });\n});\n''',
     text,
     count=1,
     flags=re.S,
