@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - sayosomi/say-115-legacy-palette-remove-source-canonical-model
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
