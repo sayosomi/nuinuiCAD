@@ -5,7 +5,8 @@ import type {
   ElementId,
   EvaluationResult,
   EvaluationWarning,
-  ForGroupGeneratedRow
+  ForGroupGeneratedRow,
+  GeometryMutationExecution
 } from "../types/geometry";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingVersionId } from "../scalars/bindingVersions";
@@ -86,6 +87,7 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
   preMutationGeometry?: ComputedGeometry[];
+  geometryMutationExecutions?: GeometryMutationExecution[];
   instanceBaseGeometry?: Array<{ instanceId: ElementId; geometry: ComputedGeometry[] }>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];
@@ -107,6 +109,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   computedGeometry: Array.from(result.computedGeometry.values()),
   preMutationGeometry: result.preMutationGeometry?.size
     ? Array.from(result.preMutationGeometry.values())
+    : undefined,
+  geometryMutationExecutions: result.geometryMutationExecutions?.length
+    ? result.geometryMutationExecutions
     : undefined,
   instanceBaseGeometry: result.instanceBaseGeometry?.size
     ? Array.from(result.instanceBaseGeometry, ([instanceId, geometry]) => ({ instanceId, geometry }))
@@ -138,6 +143,7 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
   preMutationGeometry: new Map(
     (payload.preMutationGeometry ?? []).map((geometry) => [geometry.elementId, geometry])
   ),
+  geometryMutationExecutions: payload.geometryMutationExecutions ?? [],
   instanceBaseGeometry: new Map(
     (payload.instanceBaseGeometry ?? []).map(({ instanceId, geometry }) => [instanceId, geometry])
   ),

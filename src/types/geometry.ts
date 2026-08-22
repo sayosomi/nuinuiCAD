@@ -623,10 +623,18 @@ export type ForGroupGeneratedRow = {
   elementType: CadElementType;
 };
 
+/** A successful source-semantic in-place geometry mutation, in runtime execution order. */
+export type GeometryMutationExecution = {
+  mutationElementId: ElementId;
+  targetElementIds: ElementId[];
+};
+
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   /** Every successfully evaluated declaration, captured before later mutations. */
   preMutationGeometry?: Map<ElementId, ComputedGeometry>;
+  /** Successful in-place geometry mutations, preserving actual runtime execution order. */
+  geometryMutationExecutions?: GeometryMutationExecution[];
   /** Concrete module-instance geometry captured at materialization end. */
   instanceBaseGeometry?: Map<ElementId, ComputedGeometry[]>;
   errors: DependencyError[];
