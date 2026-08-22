@@ -1,7 +1,7 @@
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { ElementId } from "../types/geometry";
 import { applyStatement } from "./dslCompiler";
 import type { CompiledDslDocument } from "./dslDocument";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
@@ -12,7 +12,6 @@ import { materializeModuleExecution, materializedRuntimeElementId, type ModuleMa
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type {
   ModuleDefinitionSemantic,
-  ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
@@ -222,18 +221,11 @@ const statementIndexForScalarTarget = (target: ModuleScalarSourceTarget): number
     case "iteration":
     case "moduleLocal":
     case "documentBinding":
-    case "deferredModuleScalarExport":
       return target.statementIndex;
+    case "deferredModuleScalarExport":
+      return target.instanceStatementIndex;
     default:
       return null;
-  }
-};
-
-const statementIndexForPropertyTarget = (target: ModuleGeometryPropertySourceTarget): number | null => {
-  switch (target.kind) {
-    case "sourceGeometryProperty": return target.statementIndex;
-    case "deferredModuleExportProperty": return target.instanceStatementIndex;
-    default: return null;
   }
 };
 
