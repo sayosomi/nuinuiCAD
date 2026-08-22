@@ -46,6 +46,7 @@ const renderOverlay = (
   overrides: Partial<OverlayCallbacks> = {}
 ) => {
   const viewport = document.createElement("div");
+  viewport.tabIndex = 0;
   document.body.append(viewport);
   const callbacks: OverlayCallbacks = {
     onHover: overrides.onHover ?? vi.fn<(hover: ReferencePickHover | null) => void>(),
@@ -89,6 +90,7 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(screen.getByText("Enter Done")).toBeInTheDocument();
     expect(screen.getByText("Esc Cancel")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    expect(document.activeElement).toBe(viewport);
 
     view.unmount();
     viewport.remove();
