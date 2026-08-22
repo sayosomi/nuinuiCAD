@@ -139,6 +139,14 @@ const createPanel = () => {
   return { panel, webviewListeners, disposeListeners };
 };
 
+const createBridge = () => ({
+  start: vi.fn(() => ({ type: "referencePickStartRequest" })),
+  handleResult: vi.fn(async () => "started"),
+  cancel: vi.fn(),
+  dispose: vi.fn(),
+  activeRequest: vi.fn()
+});
+
 const flush = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -199,13 +207,7 @@ describe("registerVscodeReferencePickFeature", () => {
       panel,
       isAuthoritativeReady: () => ready
     }));
-    const bridge = {
-      start: vi.fn(() => ({ type: "referencePickStartRequest" })),
-      handleResult: vi.fn(async () => "started"),
-      cancel: vi.fn(),
-      dispose: vi.fn(),
-      activeRequest: vi.fn()
-    };
+    const bridge = createBridge();
     mocks.bridgeFactory.mockReturnValue(bridge);
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
@@ -250,13 +252,7 @@ describe("registerVscodeReferencePickFeature", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const { panel, webviewListeners } = createPanel();
     let ready = false;
-    const bridge = {
-      start: vi.fn(() => ({ type: "referencePickStartRequest" })),
-      handleResult: vi.fn(async () => "started"),
-      cancel: vi.fn(),
-      dispose: vi.fn(),
-      activeRequest: vi.fn()
-    };
+    const bridge = createBridge();
     mocks.bridgeFactory.mockReturnValue(bridge);
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
@@ -280,6 +276,39 @@ describe("registerVscodeReferencePickFeature", () => {
     ready = true;
     expect(mocks.bridgeFactory).not.toHaveBeenCalled();
     expect(bridge.start).not.toHaveBeenCalled();
+
+    feature.dispose();
+  });
+
+  it("cancels an active Canvas Pick when Source changes after the bridge starts", async () => {
+    const editor = createEditor();
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(source);
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    mocks.bridgeFactory.mockReturnValue(bridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: async () => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }) as never
+    });
+
+    const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
+    if (!command) throw new Error("reference pick command was not registered");
+    await command();
+    expect(bridge.start).toHaveBeenCalledTimes(1);
+    expect(webviewListeners).toHaveLength(1);
+
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({ document: editor.document, contentChanges: [{}] });
+    }
+
+    expect(bridge.cancel).toHaveBeenCalledTimes(1);
+    expect(webviewListeners).toHaveLength(0);
 
     feature.dispose();
   });
