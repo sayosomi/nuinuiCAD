@@ -71,9 +71,13 @@ path = "src/dsl/dslDocumentTestUtils.ts"
 text = read(path).replace("  expect(a.palette).toEqual(b.palette);\n", "", 1)
 write(path, text)
 
-# Generated canonical model edits no longer include palette mutations.
+# Generated canonical documents/operations no longer contain palette source/model mutations.
 path = "src/document/documentTestGenerators.ts"
 text = read(path)
+text = text.replace("  sections.push([\n    'color main (\"#31322f\", name: \"基本線\", default: true)',\n    'color accent (\"#b42318\", name: \"裁断線\")'\n  ]);\n", "", 1)
+text = text.replace("    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で\n    // 定義済みの\"main\"色を参照する(パースはcolorIdの存在検証をしない)。\n", "    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。\n", 1)
+text = text.replace('    elementLines.push("  color: main");\n', '    elementLines.push("  state: hidden");\n', 1)
+text = text.replace('    | "paletteEdit"\n', "", 1)
 text, n = re.subn(r'\n    case "paletteEdit": \{.*?\n    \}\n', '\n', text, count=1, flags=re.S)
 if n != 1:
     raise SystemExit("src/document/documentTestGenerators.ts: paletteEdit case not found")
