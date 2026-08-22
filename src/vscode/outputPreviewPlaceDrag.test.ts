@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
 import {
   beginOutputPreviewPlaceDrag,
+  outputPreviewPlaceCoordinatePatchesAreSafe,
   outputPreviewPlaceCoordinatePatchesFor,
   outputPreviewPlaceDragCoordinatesFor,
   outputPreviewPlaceDragProofIsCurrent,
@@ -180,5 +181,35 @@ describe("Output Preview place drag proof", () => {
     ]);
     expect(outputPreviewPlaceCoordinatePatchesFor(proof, { x: 10, y: 20 })).toEqual([]);
     expect(outputPreviewPlacePreviewSourceFor(proof, { x: 10, y: 20 })).toBe(source);
+  });
+
+  it("accepts only exact finite non-overlapping coordinate patches inside the captured statement", () => {
+    const proof = begin();
+    expect(proof).not.toBeNull();
+    if (!proof) return;
+    const patches = outputPreviewPlaceCoordinatePatchesFor(proof, { x: 15.5, y: -4 });
+    expect(patches).not.toBeNull();
+    if (!patches) return;
+
+    expect(outputPreviewPlaceCoordinatePatchesAreSafe({
+      normalizedSource: source,
+      statementRange: proof.statementRange,
+      patches
+    })).toBe(true);
+    expect(outputPreviewPlaceCoordinatePatchesAreSafe({
+      normalizedSource: source.replace("10", "11"),
+      statementRange: proof.statementRange,
+      patches
+    })).toBe(false);
+    expect(outputPreviewPlaceCoordinatePatchesAreSafe({
+      normalizedSource: source,
+      statementRange: proof.statementRange,
+      patches: [{ ...patches[0]!, replacement: "@x" }]
+    })).toBe(false);
+    expect(outputPreviewPlaceCoordinatePatchesAreSafe({
+      normalizedSource: source,
+      statementRange: proof.statementRange,
+      patches: [{ ...patches[0]!, replacement: patches[0]!.expectedText }]
+    })).toBe(false);
   });
 });
