@@ -112,8 +112,9 @@ use std::collections::{HashMap, HashSet};
 use serde_json::Value;
 
 use activity::{
-    effective_activity_by_element_id_with_profile,
-    effective_drawing_modifier_stroke_by_element_id_with_profile,
+    effective_activity_by_runtime, effective_drawing_modifier_resolution_by_runtime,
+    effective_drawing_modifier_runtime_by_element_id_with_profile,
+    effective_drawing_modifier_stroke_by_runtime,
 };
 use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
@@ -716,11 +717,13 @@ fn evaluate_document_input_with_scalar_program(
         .unwrap_or_default();
     let evaluated_ids: HashSet<ElementId> =
         evaluated_elements.iter().filter_map(element_id).collect();
-    let activities = effective_activity_by_element_id_with_profile(
-        &input.elements,
-        Some(&drawing_modifiers),
-        input.selected_drawing_profile_id.as_deref(),
-    );
+    let source_effective_drawing_modifier_runtime =
+        effective_drawing_modifier_runtime_by_element_id_with_profile(
+            &input.elements,
+            Some(&drawing_modifiers),
+            input.selected_drawing_profile_id.as_deref(),
+        );
+    let activities = effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
     let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut effective_visible_element_ids =
         effective_element_ids(&input.elements, &activities, true)
@@ -768,11 +771,9 @@ fn evaluate_document_input_with_scalar_program(
     let template_descendant_ids = for_group_template_descendant_ids(&state.elements);
     let original_elements = state.elements.clone();
     let source_effective_drawing_modifier_strokes =
-        effective_drawing_modifier_stroke_by_element_id_with_profile(
-            &original_elements,
-            Some(&state.drawing_modifiers),
-            state.selected_drawing_profile_id.as_deref(),
-        );
+        effective_drawing_modifier_stroke_by_runtime(&source_effective_drawing_modifier_runtime);
+    let source_effective_drawing_modifier_resolutions =
+        effective_drawing_modifier_resolution_by_runtime(&source_effective_drawing_modifier_runtime);
     let mut for_group_generated_rows = Vec::new();
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let capture_completed_instances = |completed_index: usize, state: &mut EvaluationState| {
@@ -791,9 +792,9 @@ fn evaluate_document_input_with_scalar_program(
         }
     };
 
-    // Built whenever a scalar_program is present, independent of whether
-    // any property bindings exist - computed_scalar_bindings is Task 21's
-    // own contract and must not depend on Task 23's property wiring. One
+    // Built whenever a scalar_program is present, independent of whether any
+    // property bindings exist - computed_scalar_bindings is Task 21's own
+    // contract and must not depend on Task 23's property wiring. One
     // resolver instance is reused for both materialization below and the
     // final computed_scalar_bindings output, so no binding is ever
     // evaluated more than once.
@@ -1167,6 +1168,17 @@ fn evaluate_document_input_with_scalar_program(
             })
         })
         .collect::<Vec<_>>();
+    let mut effective_drawing_modifier_resolutions = original_elements
+        .iter()
+        .filter_map(|element| {
+            let id = element_id(element)?;
+            let resolution = source_effective_drawing_modifier_resolutions.get(&id)?.clone();
+            Some(serde_json::json!({
+                "elementId": id,
+                "resolution": resolution,
+            }))
+        })
+        .collect::<Vec<_>>();
     // Generated ids are runtime identities. Their modifier semantics belong
     // to the source template, so use the structured evaluator relationship
     // instead of inferring a template from the generated id string.
@@ -1179,6 +1191,15 @@ fn evaluate_document_input_with_scalar_program(
                 element_id: row.generated_element_id.clone(),
                 stroke,
             });
+        }
+        if let Some(resolution) = source_effective_drawing_modifier_resolutions
+            .get(&row.template_element_id)
+            .cloned()
+        {
+            effective_drawing_modifier_resolutions.push(serde_json::json!({
+                "elementId": row.generated_element_id,
+                "resolution": resolution,
+            }));
         }
     }
 
@@ -1209,6 +1230,7 @@ fn evaluate_document_input_with_scalar_program(
         effective_visible_element_ids: effective_visible_element_ids.into_iter().collect(),
         effective_enabled_element_ids: effective_enabled_order,
         effective_drawing_modifier_strokes,
+        effective_drawing_modifier_resolutions,
         condition_inactive_element_ids: state
             .elements
             .iter()
