@@ -6,6 +6,10 @@ on:
       - sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
     paths:
       - .github/workflows/say-127-apply.yml
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
