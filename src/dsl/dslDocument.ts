@@ -1443,7 +1443,11 @@ export const compileDslDocument = (
   const allDiagnostics = [
     ...versionValidation.diagnostics,
     ...sourceOutputPlacementDiagnostics,
-    ...compiled.diagnostics,
+    ...compiled.diagnostics.map((diagnostic, index) =>
+      diagnostic.code === "undefined-geometry-reference"
+        ? (projectedCompilerDiagnostics[index] ?? diagnostic)
+        : diagnostic
+    ),
     ...(sourceLexicalNamespace?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
     ...(moduleSemanticCompilation?.diagnostics ?? [])
