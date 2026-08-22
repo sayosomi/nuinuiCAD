@@ -557,13 +557,15 @@ export type MultiDocumentGraphBuildResult<Metadata = unknown> =
  * Active-root coordinator: each root has its own latest-request-wins token.
  * Dependency invalidation drops only roots whose installed graph transitively
  * contains that saved DocumentId; callers rebuild those roots from their
- * latest current buffers.
+ * latest current buffers. Exact saved artifacts are shared across roots only
+ * when both DocumentId and saved-source fingerprint match.
  */
 export class MultiDocumentGraphCoordinator<Metadata = unknown> {
   private readonly requestRevisionByRoot = new Map<DocumentId, number>();
   private readonly graphByRoot = new Map<DocumentId, MultiDocumentImportGraph<Metadata>>();
   private readonly dependenciesByRoot = new Map<DocumentId, Set<DocumentId>>();
   private readonly rootsByDependency = new Map<DocumentId, Set<DocumentId>>();
+  private readonly savedArtifactCache = new SavedDocumentArtifactCache<Metadata>();
 
   async rebuild(
     input: BuildMultiDocumentImportGraphInput<Metadata>
@@ -571,7 +573,10 @@ export class MultiDocumentGraphCoordinator<Metadata = unknown> {
     const rootId = input.root.documentId;
     const requestRevision = (this.requestRevisionByRoot.get(rootId) ?? 0) + 1;
     this.requestRevisionByRoot.set(rootId, requestRevision);
-    const graph = await buildMultiDocumentImportGraph(input);
+    const graph = await buildMultiDocumentImportGraph({
+      ...input,
+      cache: input.cache ?? this.savedArtifactCache
+    });
     if (this.requestRevisionByRoot.get(rootId) !== requestRevision) return { status: "stale" };
     this.install(graph);
     return { status: "current", graph };
