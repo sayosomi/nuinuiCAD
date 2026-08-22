@@ -15,17 +15,13 @@ retired command ID の対応を1箇所に集約している。
 * 新IDの既存overrideを優先し、同じ新bindingへ移る複数の旧bindingは保存順で
   重複しないchordを併合する。
 * 代替不能な廃止ID・**未知ID・不正recordは安全に無視・除去**する。
-* 正規化済み設定はlocalStorageとTauri設定へ書き戻す。書戻し失敗は読込済み
+* 正規化済み設定はlocalStorageへ書き戻す。書戻し失敗は読込済み
   設定の利用を妨げない。
 
 ## 1. 移行(旧binding ID → 新binding ID)
 
 | 旧 | 新 |
 |---|---|
-| `global.newDocument` | `crossFocus.newDocument` |
-| `global.openDocument` | `crossFocus.openDocument` |
-| `global.saveDocument` | `crossFocus.saveDocument` |
-| `global.saveDocumentAs` | `crossFocus.saveDocumentAs` |
 | `global.openCommandPalette` | `crossFocus.openCommandPalette` |
 | `global.focusElementSearch` | `crossFocus.focusElementSearch` |
 | `global.undo` | `normal.undo` |

@@ -10,8 +10,7 @@ import {
   evaluateElementsWithRust,
   evaluationResultsMatch,
   getEvaluationEngineMode,
-  isParityEvaluationEngineMode,
-  isTauriRuntime
+  isParityEvaluationEngineMode
 } from "./evaluationEngine";
 import { ScalarOutputDecodeError } from "./evaluationPayload";
 
@@ -151,11 +150,11 @@ export const useEvaluationEngine = (
       textPropertyBindingEntries
     ]
   );
-  const tauriRuntime = isTauriRuntime() || rustTransport !== undefined;
-  const engineMode = getEvaluationEngineMode(tauriRuntime);
+  const rustTransportAvailable = rustTransport !== undefined;
+  const engineMode = getEvaluationEngineMode(rustTransportAvailable);
   const rustEligible = canUseRustEvaluationForElements(elements, evaluationOptions);
   const parityMode = isParityEvaluationEngineMode(engineMode);
-  const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && tauriRuntime && rustEligible;
+  const deferScalarReferenceEvaluation = parityMode && scalarProgram !== undefined && rustTransportAvailable && rustEligible;
   const requestKey = useMemo(
     () => JSON.stringify({
       elements,
@@ -211,7 +210,7 @@ export const useEvaluationEngine = (
     [evaluationRevision, requestKey]
   );
   const needsReferenceEvaluation =
-    (!tauriRuntime || engineMode !== "rust" || !rustEligible) && !deferScalarReferenceEvaluation;
+    (!rustTransportAvailable || engineMode !== "rust" || !rustEligible) && !deferScalarReferenceEvaluation;
   const referenceEvaluation = useMemo(
     () => (needsReferenceEvaluation ? evaluateElementsReference(elements, evaluationOptions) : null),
     [elements, evaluationOptions, needsReferenceEvaluation]
@@ -220,7 +219,7 @@ export const useEvaluationEngine = (
   const emptyEvaluation = useMemo(() => emptyEvaluationResult(elements, evaluationOptions), [elements, evaluationOptions]);
 
   useEffect(() => {
-    if (!tauriRuntime || engineMode === "reference" || !rustEligible) {
+    if (!rustTransport || engineMode === "reference" || !rustEligible) {
       return;
     }
 
@@ -309,12 +308,11 @@ export const useEvaluationEngine = (
     referenceEvaluation,
     requestKey,
     rustEligible,
-    scalarProgram,
-    tauriRuntime,
-    rustTransport
+    rustTransport,
+    scalarProgram
   ]);
 
-  if (engineMode === "reference" || !rustEligible || !tauriRuntime) {
+  if (engineMode === "reference" || !rustEligible || !rustTransportAvailable) {
     return {
       evaluation: referenceEvaluation ?? emptyEvaluation,
       evaluationRevision,

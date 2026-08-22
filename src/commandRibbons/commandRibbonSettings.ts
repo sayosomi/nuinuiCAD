@@ -1,6 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
 import { commands, type CommandId } from "../commands/commands";
-import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { isCommandRibbonIconId, type CommandRibbonIconId } from "./commandRibbonIcons";
 import {
   commandRibbonIconColors,
@@ -200,7 +198,7 @@ export const normalizeCommandRibbonSettings = (value: unknown): CommandRibbonSet
   return { version: 1, ribbons };
 };
 
-const loadCommandRibbonSettingsFromLocalStorage = () => {
+export const loadCommandRibbonSettings = async (): Promise<CommandRibbonSettings> => {
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) return defaultCommandRibbonSettings();
   try {
@@ -210,21 +208,7 @@ const loadCommandRibbonSettingsFromLocalStorage = () => {
   }
 };
 
-const saveCommandRibbonSettingsToLocalStorage = (settings: CommandRibbonSettings) => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-};
-
-export const loadCommandRibbonSettings = async (): Promise<CommandRibbonSettings> => {
-  if (!isTauriRuntime()) return loadCommandRibbonSettingsFromLocalStorage();
-  const settings = await invoke<unknown>("load_command_ribbon_settings");
-  return normalizeCommandRibbonSettings(settings);
-};
-
 export const saveCommandRibbonSettings = async (settings: CommandRibbonSettings) => {
   const normalized = normalizeCommandRibbonSettings(settings);
-  if (!isTauriRuntime()) {
-    saveCommandRibbonSettingsToLocalStorage(normalized);
-    return;
-  }
-  await invoke<void>("save_command_ribbon_settings", { input: normalized });
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
 };

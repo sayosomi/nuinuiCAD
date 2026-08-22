@@ -12,13 +12,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: true,
-    watch: {
-      ignored: ["**/src-tauri/**"]
-    }
+    strictPort: true
   },
   build: {
-    target: process.env.TAURI_ENV_PLATFORM === "darwin" ? "safari13" : "es2022",
+    target: "es2022",
     rolldownOptions: {
       output: {
         codeSplitting: {
