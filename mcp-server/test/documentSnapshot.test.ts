@@ -55,6 +55,21 @@ describe("inspectNuiDocument", () => {
     ]));
   });
 
+  it("keeps element IDs stable while exact source identity is unchanged", async () => {
+    const filePath = await makeTempDocument([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n"));
+
+    const first = await inspectNuiDocument(filePath);
+    const second = await inspectNuiDocument(filePath);
+
+    expect(second.sourceIdentity).toEqual(first.sourceIdentity);
+    expect(second.summary.elements.map((element) => element.id))
+      .toEqual(first.summary.elements.map((element) => element.id));
+  });
+
   it("keeps warning snapshots semantically available", async () => {
     const filePath = await makeTempDocument([
       "nui 4",
