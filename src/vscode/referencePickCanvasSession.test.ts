@@ -3,6 +3,7 @@ import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { queryDslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import { evaluateElements } from "../geometry/evaluate";
+import type { EvaluationResult } from "../types/geometry";
 import {
   confirmVscodeReferencePickCanvasSession,
   referencePickHoverForCanvasOption,
@@ -14,15 +15,30 @@ import {
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
 
-const REVISION = 93;
+const HOST_REVISION = 93;
+const CANVAS_REVISION = 1093;
 const DOCUMENT_URI = "file:///pick.nui";
 const DOCUMENT_VERSION = 7;
 
-const compile = (source: string): CompiledDslDocument => {
-  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: REVISION });
+const compile = (
+  source: string,
+  sourceRevision = HOST_REVISION,
+  statementIdPrefix = "host-pick"
+): CompiledDslDocument => {
+  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
   return compileDslDocument(source, {
     preparsed: parsed,
-    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `pick-canvas:${index}`]))
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `${statementIdPrefix}:${index}`]))
+  });
+};
+
+const evaluate = (compiled: CompiledDslDocument): EvaluationResult => {
+  if (!compiled.document || !compiled.statementMap) throw new Error("fixture did not compile");
+  return evaluateElements(compiled.document.elements, {
+    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+    statementInfoByElementId: compiled.statementMap.byElementId,
+    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
   });
 };
 
@@ -32,19 +48,13 @@ const setup = (source: string, fragment: string) => {
   const start = source.indexOf(fragment);
   const position = start + Math.max(1, fragment.indexOf("@") + 2);
   const target = queryDslReferencePickTarget({
-    source: { normalizedSource: source, sourceRevision: REVISION },
+    source: { normalizedSource: source, sourceRevision: HOST_REVISION },
     position,
-    semantic: { sourceRevision: REVISION, sourceText: source, compiled }
+    semantic: { sourceRevision: HOST_REVISION, sourceText: source, compiled }
   });
   if (!target) throw new Error(`missing target: ${fragment}`);
   const proof = referencePickTargetProofFor(source, target);
   if (!proof) throw new Error(`missing proof: ${fragment}`);
-  const evaluation = evaluateElements(compiled.document.elements, {
-    evaluationLimitIndex: compiled.document.evaluationLimitIndex,
-    statementInfoByElementId: compiled.statementMap.byElementId,
-    statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
-    sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId
-  });
   const request: VscodeReferencePickStartRequest = {
     type: "referencePickStartRequest",
     requestId: 44,
@@ -53,7 +63,7 @@ const setup = (source: string, fragment: string) => {
     normalizedSourceOffset: position,
     targetProof: proof
   };
-  return { compiled, evaluation, request };
+  return { compiled, evaluation: evaluate(compiled), request };
 };
 
 const startSession = ({
@@ -61,24 +71,26 @@ const startSession = ({
   compiled,
   evaluation,
   request,
+  sourceRevision = HOST_REVISION,
   authoritativeDocumentUri = DOCUMENT_URI,
   authoritativeDocumentVersion = DOCUMENT_VERSION
 }: ReturnType<typeof setup> & {
   source: string;
+  sourceRevision?: number;
   authoritativeDocumentUri?: string;
   authoritativeDocumentVersion?: number;
 }) => startVscodeReferencePickCanvasSession({
   request,
   authoritativeDocumentUri,
   authoritativeDocumentVersion,
-  source: { normalizedSource: source, sourceRevision: REVISION },
+  source: { normalizedSource: source, sourceRevision },
   compiled,
   evaluation,
   evaluationIsCurrent: true
 });
 
 describe("VS Code Canvas reference pick session bridge", () => {
-  it("requires the matching authoritative Canvas document and reproduces the Source proof", () => {
+  it("matches document/version proof across independent Host and Webview compiler sessions", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -89,8 +101,16 @@ describe("VS Code Canvas reference pick session bridge", () => {
       "}",
       "instance X = M(straight: @Straight)"
     ].join("\n");
-    const setupResult = setup(source, "straight: @Straight");
-    const started = startSession({ source, ...setupResult });
+    const host = setup(source, "straight: @Straight");
+    const canvasCompiled = compile(source, CANVAS_REVISION, "canvas-pick");
+    const canvasEvaluation = evaluate(canvasCompiled);
+    const started = startSession({
+      source,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION
+    });
 
     expect(started.session).not.toBeNull();
     expect(started.result.status).toBe("started");
@@ -101,21 +121,30 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
     expect(startSession({
       source,
-      ...setupResult,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION,
       authoritativeDocumentVersion: DOCUMENT_VERSION + 1
     }).result.status).toBe("stale");
     expect(startSession({
       source,
-      ...setupResult,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION,
       authoritativeDocumentUri: "file:///other.nui"
     }).result.status).toBe("stale");
 
     const staleProof = startSession({
       source,
-      ...setupResult,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION,
       request: {
-        ...setupResult.request,
-        targetProof: { ...setupResult.request.targetProof, oldText: "@Other" }
+        ...host.request,
+        targetProof: { ...host.request.targetProof, oldText: "@Other" }
       }
     });
     expect(staleProof.session).toBeNull();
