@@ -7,6 +7,7 @@ import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
+  | "import"
   | "profile"
   | "moduleDefinition"
   | "moduleInstance"
@@ -44,8 +45,29 @@ export type SourceLexicalNamespaceIndex = {
   diagnostics: readonly DslDiagnostic[];
 };
 
+/** Opaque payload returned by a document/import owner for one external namespace member. */
+export type SourceLexicalExternalNamespaceMember = {
+  name: string;
+  value: unknown;
+};
+
+/**
+ * Extension point for namespaces whose members are owned outside this source
+ * document. The lexical resolver still owns the alias/source-order step; only
+ * the member lookup is delegated after an `import` declaration has resolved.
+ */
+export type SourceLexicalExternalNamespaceResolver = (
+  namespace: SourceLexicalDeclaration,
+  memberName: string
+) => SourceLexicalExternalNamespaceMember | null;
+
 export type SourceLexicalLookup =
   | { kind: "resolved"; declaration: SourceLexicalDeclaration }
+  | {
+      kind: "external";
+      namespace: SourceLexicalDeclaration;
+      member: SourceLexicalExternalNamespaceMember;
+    }
   | { kind: "forward"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] }
   | { kind: "undefined" }
   | { kind: "ambiguous"; scopeId: ScopeId; declarations: readonly SourceLexicalDeclaration[] }
@@ -66,7 +88,12 @@ export type BuildSourceLexicalNamespaceOptions = {
   scopeIndex?: LexicalScopeIndex;
 };
 
+export type ResolveSourceLexicalPathOptions = {
+  externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
+};
+
 const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKind | null => {
+  if (statement.kind === "import") return "import";
   if (statement.kind === "profileDeclaration") return "profile";
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "moduleInstance") return "moduleInstance";
@@ -264,8 +291,24 @@ export const resolveSourceLexicalPathFromDeclaration = (
   statementIndex: number,
   declaration: SourceLexicalDeclaration,
   remainingSegments: readonly string[],
-  sourceOrderIndex = statementIndex
+  sourceOrderIndex = statementIndex,
+  options: ResolveSourceLexicalPathOptions = {}
 ): SourceLexicalLookup => {
+  if (declaration.kind === "import" && remainingSegments.length > 0) {
+    const memberName = remainingSegments[0]!;
+    const member = options.externalNamespaceResolver?.(declaration, memberName) ?? null;
+    if (!member) return { kind: "undefined" };
+    if (remainingSegments.length > 1) {
+      return {
+        kind: "invalidTraversal",
+        declaration,
+        segment: remainingSegments[1]!,
+        segmentIndex: 2
+      };
+    }
+    return { kind: "external", namespace: declaration, member };
+  }
+
   let current = declaration;
   for (const [remainingIndex, segment] of remainingSegments.entries()) {
     const segmentIndex = remainingIndex + 1;
@@ -293,12 +336,14 @@ export const resolveSourceLexicalPathFromDeclaration = (
 /** Resolve a source-level qualified path using the same lexical visibility
  * rule as a simple name. The first segment is resolved through the nearest
  * visible scope; every later segment is a direct member of the container
- * resolved by the preceding segment. No materialized CadElement names are
- * consulted here. */
+ * resolved by the preceding segment. Import aliases use this same first-step
+ * lexical rule and delegate only their public member lookup through the
+ * optional external namespace resolver. */
 export const resolveSourceLexicalPath = (
   index: SourceLexicalNamespaceIndex,
   statementIndex: number,
-  path: DslReferencePath
+  path: DslReferencePath,
+  options: ResolveSourceLexicalPathOptions = {}
 ): SourceLexicalLookup => {
   if (path.segments.length === 0) return { kind: "undefined" };
   if (path.segments.length === 1 && !path.absolute) {
@@ -325,29 +370,37 @@ export const resolveSourceLexicalPath = (
     index,
     statementIndex,
     first.declaration,
-    path.segments.slice(1)
+    path.segments.slice(1),
+    statementIndex,
+    options
   );
 };
 
 /**
  * Returns the same lookup as resolveSourceLexicalPath together with the
- * resolved declaration for every path segment. The path resolver remains the
- * sole owner of lexical meaning; this is only an identity projection for
- * source editors such as rename.
+ * resolved declaration for every source-owned path segment. External members
+ * keep their import declaration as the source-owned segment; the catalog
+ * payload itself remains owned by the multi-document layer.
  */
 export const resolveSourceLexicalPathSegments = (
   index: SourceLexicalNamespaceIndex,
   statementIndex: number,
-  path: DslReferencePath
+  path: DslReferencePath,
+  options: ResolveSourceLexicalPathOptions = {}
 ): SourceLexicalPathResolution => {
-  const lookup = resolveSourceLexicalPath(index, statementIndex, path);
+  const lookup = resolveSourceLexicalPath(index, statementIndex, path, options);
+  if (lookup.kind === "external") return { lookup, segments: [lookup.namespace] };
   if (lookup.kind !== "resolved") return { lookup, segments: [] };
   const segments: SourceLexicalDeclaration[] = [];
   for (let segmentIndex = 0; segmentIndex < path.segments.length; segmentIndex += 1) {
     const prefix = resolveSourceLexicalPath(index, statementIndex, {
       absolute: path.absolute,
       segments: path.segments.slice(0, segmentIndex + 1)
-    });
+    }, options);
+    if (prefix.kind === "external") {
+      segments.push(prefix.namespace);
+      break;
+    }
     if (prefix.kind !== "resolved") return { lookup, segments: [] };
     segments.push(prefix.declaration);
   }
