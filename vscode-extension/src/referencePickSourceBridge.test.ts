@@ -82,8 +82,10 @@ const createDocument = (initialSource: string): TestDocument => {
 
 const createEditor = (document: TestDocument) => {
   const edit = vi.fn(async (
-    callback: (builder: { replace: (range: { start: TestPosition; end: TestPosition }, replacement: string) => void }) => void
+    callback: (builder: { replace: (range: { start: TestPosition; end: TestPosition }, replacement: string) => void }) => void,
+    options: unknown
   ) => {
+    void options;
     let pending: { range: { start: TestPosition; end: TestPosition }; replacement: string } | null = null;
     callback({ replace: (range, replacement) => { pending = { range, replacement }; } });
     if (!pending) return false;
