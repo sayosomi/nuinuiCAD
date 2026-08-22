@@ -30,7 +30,7 @@ const targetAt = (source: string, compiled: CompiledDslDocument, fragment: strin
   const fragmentStart = source.indexOf(fragment);
   if (fragmentStart < 0) throw new Error(`missing target fragment: ${fragment}`);
   const referenceOffset = fragment.indexOf("@");
-  const position = fragmentStart + (referenceOffset >= 0 ? referenceOffset + 1 : fragment.length);
+  const position = fragmentStart + (referenceOffset >= 0 ? referenceOffset + 2 : fragment.length);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
     position,
