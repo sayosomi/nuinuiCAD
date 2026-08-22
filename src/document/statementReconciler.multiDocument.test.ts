@@ -9,7 +9,7 @@ describe("statement reconciler multi-document identities", () => {
     const originalSource = [
       "nui 4",
       "import \"./library.nui\" as library",
-      "export library::Pocket"
+      "export @library::Pocket"
     ].join("\n");
     const original = parseDsl(originalSource);
     let nextId = 0;
@@ -32,7 +32,7 @@ describe("statement reconciler multi-document identities", () => {
       "nui 4",
       "const marker: number = 0",
       "import \"./library.nui\" as library",
-      "export library::Pocket"
+      "export @library::Pocket"
     ].join("\n");
     const edited = parseDsl(editedSource);
     const second = reconcileStatements({
