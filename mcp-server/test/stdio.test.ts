@@ -138,7 +138,8 @@ describe("nuinuiCAD MCP stdio server", () => {
     expect(tools?.map((tool) => tool.name)).toEqual([
       "document_inspect",
       "document_definition",
-      "document_references"
+      "document_references",
+      "document_evaluate"
     ]);
 
     session.send({

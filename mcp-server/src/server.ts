@@ -1,8 +1,14 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
+import {
+  createDocumentEvaluationRuntime,
+  type DocumentEvaluationDto,
+  type DocumentEvaluationOptions,
+  type DocumentEvaluationRuntime
+} from "./documentEvaluation";
 import { inspectNuiDocument } from "./documentSnapshot";
 import {
   queryNuiDocumentDefinition,
@@ -11,6 +17,7 @@ import {
 
 const SERVER_NAME = "nuinuicad-mcp";
 const SERVER_VERSION = "0.1.0";
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const absoluteNuiPathSchema = z.string()
   .min(1)
@@ -36,11 +43,30 @@ const failedToolResult = (error: unknown) => {
   };
 };
 
-export const createNuinuiCadMcpServer = (): McpServer => {
+type DocumentEvaluateHandler = (
+  requestedPath: string,
+  options: DocumentEvaluationOptions
+) => Promise<DocumentEvaluationDto>;
+
+type McpServerDependencies = {
+  documentEvaluate?: DocumentEvaluateHandler;
+};
+
+let defaultEvaluationRuntime: DocumentEvaluationRuntime | null = null;
+
+const defaultDocumentEvaluate: DocumentEvaluateHandler = async (requestedPath, options) => {
+  defaultEvaluationRuntime ??= createDocumentEvaluationRuntime(repositoryRoot);
+  return await defaultEvaluationRuntime.evaluate(requestedPath, options);
+};
+
+export const createNuinuiCadMcpServer = (
+  dependencies: McpServerDependencies = {}
+): McpServer => {
   const server = new McpServer({
     name: SERVER_NAME,
     version: SERVER_VERSION
   });
+  const documentEvaluate = dependencies.documentEvaluate ?? defaultDocumentEvaluate;
 
   server.registerTool(
     "document_inspect",
@@ -95,6 +121,28 @@ export const createNuinuiCadMcpServer = (): McpServer => {
     }
   );
 
+  server.registerTool(
+    "document_evaluate",
+    {
+      description: "Evaluate one exact-current file-backed .nui document with the production Rust evaluator.",
+      inputSchema: z.object({
+        path: absoluteNuiPathSchema,
+        requestedElementIds: z.array(z.string().min(1)).max(1000).optional(),
+        includeEvaluatedElementIds: z.boolean().optional()
+      })
+    },
+    async ({ path, requestedElementIds, includeEvaluatedElementIds }) => {
+      try {
+        return successfulToolResult(await documentEvaluate(path, {
+          ...(requestedElementIds ? { requestedElementIds } : {}),
+          ...(includeEvaluatedElementIds !== undefined ? { includeEvaluatedElementIds } : {})
+        }));
+      } catch (error) {
+        return failedToolResult(error);
+      }
+    }
+  );
+
   return server;
 };
 
@@ -104,7 +152,12 @@ const isMainModule = (): boolean => {
 };
 
 export const runNuinuiCadMcpStdioServer = async (): Promise<void> => {
-  await serveStdio(createNuinuiCadMcpServer);
+  try {
+    await serveStdio(() => createNuinuiCadMcpServer());
+  } finally {
+    defaultEvaluationRuntime?.dispose();
+    defaultEvaluationRuntime = null;
+  }
 };
 
 if (isMainModule()) {
