@@ -134,13 +134,13 @@ export const VSCodeReferencePickOverlay = ({
       viewport.focus();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (eventTargetsReferencePickUi(event)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopImmediatePropagation();
         onCancel();
         return;
       }
+      if (eventTargetsReferencePickUi(event)) return;
       if (event.key === "Enter") {
         const canConfirm = session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
         if (!canConfirm) return;
@@ -293,61 +293,40 @@ export const VSCodeReferencePickOverlay = ({
         })}
       </svg>
       <aside
-        className="pick-mode-status"
+        className="point-drag-axis-lock-hint"
         data-reference-pick-ui="true"
         data-reference-pick-hint-position="bottom-right"
         role="status"
         aria-live="polite"
         style={{
           ...canvasThemeCssVariables(canvasTheme),
-          position: "absolute",
-          top: "auto",
-          left: "auto",
           right: 0,
           bottom: 0,
-          width: "auto",
           maxWidth: "min(720px, calc(100% - 16px))",
-          transform: "none",
-          borderColor: canvasTheme.muted,
-          background: canvasTheme.background,
-          boxShadow: "none",
-          color: canvasTheme.foreground
+          gap: 8,
+          pointerEvents: "auto"
         }}
       >
-        <span
-          className="pick-mode-status-title"
-          aria-hidden="true"
-          style={{
-            borderColor: canvasTheme.muted,
-            background: "transparent",
-            color: canvasTheme.muted
-          }}
-        >
-          PICK MODE
-        </span>
-        <span className="pick-mode-status-copy">
-          <strong>{targetLabel} target</strong>
-          <small style={{ color: canvasTheme.muted }}>{instruction}</small>
-        </span>
+        <strong>{targetLabel} target</strong>
+        <small style={{ color: canvasTheme.muted }}>{instruction}</small>
+        <span className="point-drag-axis-lock-action">Enter Done</span>
+        <span className="point-drag-axis-lock-action">Esc Cancel</span>
         <button
           type="button"
           disabled={!canConfirm}
           onPointerDown={(event: ReactPointerEvent) => event.stopPropagation()}
           onClick={onConfirm}
           style={{
+            marginLeft: "auto",
             borderColor: canvasTheme.accent,
             background: canvasTheme.background,
-            color: canvasTheme.accent
+            color: canvasTheme.accent,
+            padding: "4px 8px",
+            whiteSpace: "nowrap"
           }}
         >
           Done
         </button>
-        <span className="point-drag-axis-lock-action">
-          <kbd style={{ borderColor: canvasTheme.muted, color: canvasTheme.muted }}>Enter</kbd> Done
-        </span>
-        <span className="point-drag-axis-lock-action">
-          <kbd style={{ borderColor: canvasTheme.muted, color: canvasTheme.muted }}>Esc</kbd> Cancel
-        </span>
       </aside>
     </>
   );
