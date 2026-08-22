@@ -1,0 +1,32 @@
+name: Diagnose SAY-106 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose SAY-106
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: SAY-106 focused tests
+        run: npm test -- src/dsl/dslReferencePickQuery.test.ts src/dsl/dslReferencePickQuery.set.test.ts src/dsl/dslReferencePickQuery.empty.test.ts
+
+      - name: Reconciler performance test
+        run: npm run test:performance:reconciler
