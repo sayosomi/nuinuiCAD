@@ -73,6 +73,21 @@ text = text.replace('    expect(messages("color c (name: \\"missing hex\\")").jo
 text = text.replace('    expect(messages("color c (#fff, unknown: true)").join("\\n")).toContain("引数「unknown」");\n', "")
 write(path, text)
 
+# Syntax highlighting follows the supported statement keyword surface. `color`
+# remains meaningful inside Drawing Modifier bodies, but the removed top-level
+# Document Palette statement is no longer a settings keyword example.
+path = "src/dsl/dslHighlight.test.ts"
+text = read(path)
+text = text.replace('  it("classifies nui, color, place, layout, and print", () => {', '  it("classifies nui, place, layout, and print", () => {', 1)
+text, _ = re.subn(
+    r'\n    expect\(tokenKinds\(\'color pattern-black .*?\n      expect\.arrayContaining\(\["keyword", "string", "attributeKey"\]\)\n    \);',
+    "",
+    text,
+    count=1,
+    flags=re.S,
+)
+write(path, text)
+
 # Element serialization no longer emits the removed common color argument.
 path = "src/dsl/dslSerializeElement.test.ts"
 text = read(path)
