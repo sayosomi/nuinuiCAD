@@ -20,6 +20,7 @@ import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import {
@@ -184,6 +185,46 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
   }, []);
+
+  const publishCanonicalRuntimeDiagnostics = useCallback((documentVersion: number) => {
+    const current = currentAuthoritativeDocument(documentVersion);
+    if (
+      !current ||
+      current.state.previewElements !== null ||
+      current.state.docText !== current.state.sourceText ||
+      !evaluationStateIsCurrentFor(
+        evaluationStateRef.current,
+        current.state.compiledDocumentRevision
+      )
+    ) return;
+
+    const bindingAnalysis = current.compiled.bindingAnalysis;
+    const diagnostics = bindingAnalysis
+      ? runtimeScalarDiagnostics({
+          computedScalarBindings: evaluationRef.current.computedScalarBindings,
+          bindingAnalysis,
+          statements: current.compiled.statements,
+          spans: current.compiled.spans,
+          elementIdByStatementIndex: current.compiled.statementMap.elementIdByStatementIndex,
+          propertySourcesByOccurrenceKey: current.compiled.propertyBindings ?? new Map(),
+          occurrenceKeysByBindingId: current.compiled.occurrenceKeysByBindingId ?? new Map(),
+          elements: current.state.elements,
+          freshness: { isSourceDirty: false, isEvaluationStale: false }
+        })
+      : [];
+    api.postMessage({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion,
+      // Keep the Extension Host protocol strictly JSON-safe even if the
+      // host-neutral diagnostic type later gains readonly/prototype-backed data.
+      diagnostics: JSON.parse(JSON.stringify(diagnostics)) as typeof diagnostics
+    });
+  }, [api, currentAuthoritativeDocument]);
+
+  useEffect(() => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (documentVersion !== null) publishCanonicalRuntimeDiagnostics(documentVersion);
+  }, [evaluationState, publishCanonicalRuntimeDiagnostics]);
 
   useEffect(() => {
     const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
@@ -553,6 +594,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           dirtySinceSave: false
         });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanonicalRuntimeDiagnostics(message.documentVersion);
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
@@ -570,6 +612,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanonicalRuntimeDiagnostics(message.documentVersion);
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
       }
@@ -580,7 +623,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig
     ? {
