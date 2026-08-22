@@ -18,10 +18,13 @@ export const configureNuiTypoDiagnosticPresentation = (provider: () => string): 
   displayLanguageFor = provider;
 };
 
-const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] => [
-  ...semantic.compiled.diagnostics,
-  ...(semantic.compiled.bindingIssueDiagnostics ?? [])
-];
+const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] =>
+  semantic.compiled
+    ? [
+        ...semantic.compiled.diagnostics,
+        ...(semantic.compiled.bindingIssueDiagnostics ?? [])
+      ]
+    : [];
 
 const diagnosticKey = (diagnostic: Pick<CompilerDiagnostic, "code" | "range">): string =>
   `${String(diagnostic.code)}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
@@ -32,6 +35,8 @@ export const projectCompilerDiagnosticsWithTypoSuggestions = (
   semantic: DslCompletionSemanticSnapshot,
   displayLanguage: string
 ): CompilerDiagnostic[] => {
+  if (!semantic.compiled) return [...baseDiagnostics];
+
   const translate = createTranslator(typoSuggestionTranslationCatalog, resolveLocale(displayLanguage));
   const suffixByDiagnostic = new Map<string, string>();
 
