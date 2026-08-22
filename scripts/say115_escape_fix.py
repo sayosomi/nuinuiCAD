@@ -53,4 +53,14 @@ repair(
     ],
 )
 
+repair(
+    "src/components/DrawingCanvas.test.ts",
+    [
+        (
+            'useCadDocumentStore.getState().commitText("nui 4\\npoint A = coordinate(x: 0, y: 0)\\npoint B = coordinate(x: 100, y: 0, color: cut-red)", "editor");',
+            'useCadDocumentStore.getState().commitText("nui 4\\npoint A = coordinate(x: 1, y: 0)\\npoint B = coordinate(x: 100, y: 0)", "editor");',
+        ),
+    ],
+)
+
 print("SAY-115 generated test string escapes and regression checks repaired")
