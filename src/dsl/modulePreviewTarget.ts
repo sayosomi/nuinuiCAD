@@ -1,7 +1,7 @@
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { CompiledDslDocument, StatementInfo } from "./dslDocument";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
-import type { ModuleDefinitionSemantic } from "./moduleSemanticTypes";
+import type { DslStatement } from "./dslTypes";
 
 export type ModulePreviewTargetSemanticSnapshot = {
   sourceRevision: SourceRevision;
@@ -46,27 +46,45 @@ const statementAtPosition = (
   position <= statement.documentRange.to
 );
 
+const definitionAtIndex = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): ModulePreviewTarget | null => {
+  const statement = compiled.statements[statementIndex];
+  if (statement?.kind !== "moduleDefinition") return null;
+
+  const semantic = compiled.moduleSemanticAnalysis?.definitions.find(
+    (candidate) => candidate.statementIndex === statementIndex
+  );
+  if (semantic) {
+    return {
+      definitionStatementId: semantic.statementId,
+      definitionStatementIndex: semantic.statementIndex,
+      name: semantic.name
+    };
+  }
+
+  const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(
+    (candidate) => candidate.kind === "moduleDefinition" && candidate.statementIndex === statementIndex
+  );
+  if (!declaration) return null;
+  return {
+    definitionStatementId: declaration.statementId,
+    definitionStatementIndex: declaration.statementIndex,
+    name: declaration.name
+  };
+};
+
 const definitionFromStatementAncestry = (
   compiled: CompiledDslDocument,
   statementIndex: number
-): ModuleDefinitionSemantic | null => {
-  const analysis = compiled.moduleSemanticAnalysis;
-  if (!analysis) return null;
-
+): ModulePreviewTarget | null => {
   let currentIndex: number | null = statementIndex;
   while (currentIndex !== null) {
-    const statement = compiled.statements[currentIndex];
+    const statement: DslStatement | undefined = compiled.statements[currentIndex];
     if (!statement) return null;
-    if (statement.kind === "moduleDefinition") {
-      const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(currentIndex);
-      if (statementId) {
-        const definition = analysis.definitionsByStatementId.get(statementId);
-        if (definition?.statementIndex === currentIndex) return definition;
-      }
-      const definition = analysis.definitions.find((candidate) => candidate.statementIndex === currentIndex);
-      if (definition) return definition;
-      return null;
-    }
+    const definition = definitionAtIndex(compiled, currentIndex);
+    if (definition) return definition;
     currentIndex = statement.enclosing?.statementIndex ?? null;
   }
   return null;
@@ -78,17 +96,36 @@ const sourceLineAt = (source: string, position: number) => {
   return line;
 };
 
+const definitionCandidates = (compiled: CompiledDslDocument): ModulePreviewTarget[] => {
+  const byStatementIndex = new Map<number, ModulePreviewTarget>();
+  for (const definition of compiled.moduleSemanticAnalysis?.definitions ?? []) {
+    byStatementIndex.set(definition.statementIndex, {
+      definitionStatementId: definition.statementId,
+      definitionStatementIndex: definition.statementIndex,
+      name: definition.name
+    });
+  }
+  for (const declaration of compiled.sourceLexicalNamespace?.allDeclarations ?? []) {
+    if (declaration.kind !== "moduleDefinition" || byStatementIndex.has(declaration.statementIndex)) continue;
+    byStatementIndex.set(declaration.statementIndex, {
+      definitionStatementId: declaration.statementId,
+      definitionStatementIndex: declaration.statementIndex,
+      name: declaration.name
+    });
+  }
+  return [...byStatementIndex.values()];
+};
+
 const definitionFromStatementMapRange = (
   compiled: CompiledDslDocument,
   line: number
-): ModuleDefinitionSemantic | null => {
-  const analysis = compiled.moduleSemanticAnalysis;
+): ModulePreviewTarget | null => {
   const statementMap = compiled.statementMap;
-  if (!analysis || !statementMap) return null;
+  if (!statementMap) return null;
 
-  let winner: { definition: ModuleDefinitionSemantic; info: StatementInfo } | null = null;
-  for (const definition of analysis.definitions) {
-    const info = statementMap.statementRangeById.get(definition.statementId);
+  let winner: { definition: ModulePreviewTarget; info: StatementInfo } | null = null;
+  for (const definition of definitionCandidates(compiled)) {
+    const info = statementMap.statementRangeById.get(definition.definitionStatementId);
     if (!info || line < info.range.startLine || line > info.range.endLine) continue;
     if (!winner) {
       winner = { definition, info };
@@ -114,7 +151,7 @@ const definitionFromStatementMapRange = (
  * A successful StatementMap gives full block coverage (including blank/closing
  * lines); when unrelated diagnostics prevent StatementMap construction, a real
  * parsed statement inside the selected Module can still resolve through its
- * structural ancestry.
+ * structural ancestry and source-namespace identity.
  */
 export const queryModulePreviewTarget = ({
   source,
@@ -126,7 +163,7 @@ export const queryModulePreviewTarget = ({
     position < 0 ||
     position > source.normalizedSource.length ||
     !semanticIsExact(source, semantic) ||
-    !semantic?.compiled?.moduleSemanticAnalysis
+    !semantic?.compiled
   ) return null;
 
   const compiled = semantic.compiled;
@@ -136,18 +173,14 @@ export const queryModulePreviewTarget = ({
     : definitionFromStatementMapRange(compiled, sourceLineAt(source.normalizedSource, position));
   if (!definition) return null;
 
-  const statement = compiled.statements[definition.statementIndex];
+  const statement = compiled.statements[definition.definitionStatementIndex];
   if (
     !statement ||
     statement.kind !== "moduleDefinition" ||
     statement.sourceRevision !== source.sourceRevision
   ) return null;
 
-  return {
-    definitionStatementId: definition.statementId,
-    definitionStatementIndex: definition.statementIndex,
-    name: definition.name
-  };
+  return definition;
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
