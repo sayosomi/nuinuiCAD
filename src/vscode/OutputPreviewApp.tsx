@@ -191,6 +191,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const bindingIssueDiagnostics = useCadDocumentStore((state) => state.bindingIssueDiagnostics);
   const sourceIsCurrent = sourceText === docText;
   const [placeDragPreview, setPlaceDragPreview] = useState<OutputPreviewPlaceDragPreviewState | null>(null);
+  const [authoritativeContextGeneration, setAuthoritativeContextGeneration] = useState(0);
   const effectiveSourceText = placeDragPreview?.sourceText ?? sourceText;
   const compiledDocument = placeDragPreview?.compiledDocument ?? canonicalCompiledDocument;
   const candidates = useMemo(
@@ -358,6 +359,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
+        setAuthoritativeContextGeneration((current) => current + 1);
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
           dirtySinceSave: false
@@ -370,6 +372,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
+        setAuthoritativeContextGeneration((current) => current + 1);
         useCadDocumentStore.getState().commitText(message.sourceText, "editor");
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
       }
@@ -548,7 +551,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return { x: topLeft.x, y: topLeft.y, width: paperBounds.width * viewport.zoom, height: paperBounds.height * viewport.zoom };
       })()
     : null;
-  const dragContextKey = `${latestHostDocumentVersionRef.current ?? "none"}:${currentSourceRevision}:${selectedOutputKey ?? "none"}`;
+  const dragContextKey = `${authoritativeContextGeneration}:${currentSourceRevision}:${selectedOutputKey ?? "none"}`;
 
   return (
     <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
