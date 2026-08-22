@@ -13,9 +13,6 @@ describe("nui4 settings parser", () => {
   });
 
   it("parses call settings with positional and named arguments", () => {
-    const color = parse('color pattern-black ("#31322f", name: "基本線", default: true)').statement!;
-    expect(color).toMatchObject({ kind: "color", name: "pattern-black", payloadSpans: { hex: { start: 21, end: 30 } } });
-    expect(color.args.map((arg) => [arg.key, arg.value])).toEqual([[null, '"#31322f"'], ["name", '"基本線"'], ["default", "true"]]);
     expect(parse('role seam (name: "縫い代")').statement).toMatchObject({ kind: "role", name: "seam" });
     expect(parse("view 通常 (default: true ,seam: false)").statement?.attrs.map((attr) => attr.key)).toEqual(["default", "seam"]);
     expect(parse("place @前身頃(at: (0, margin),angle: 0,mirrorX: false)").statement).toMatchObject({ kind: "place", name: "", payloadSpans: { group: { start: 6, end: 10 } } });
@@ -40,9 +37,7 @@ describe("nui4 settings parser", () => {
   });
 
   it("reports recoverable argument and statement diagnostics with spans", () => {
-    expect(messages("color c (name: \"missing hex\")").join("\n")).toContain("必須の位置引数「hex」");
     expect(messages("place (at: (0, 0))").join("\n")).toContain("必須の位置引数「group」");
-    expect(messages("color c (#fff, unknown: true)").join("\n")).toContain("引数「unknown」");
     expect(messages("role seam (name: a ,name: b)").join("\n")).toContain("重複");
     expect(messages("view 通常 (default: )").join("\n")).toContain("値がありません");
     expect(messages("print A4 (paper: a4, overlap: 10)").join("\n")).toContain("必須引数「layout」");

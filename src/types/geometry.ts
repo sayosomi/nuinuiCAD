@@ -57,7 +57,6 @@ export type CadElementBase = {
   id: ElementId;
   name: string;
   activity: "visible" | "hidden" | "disabled";
-  colorId?: string;
   /** Source-owned, ordered references to document-level drawing modifiers. */
   modifierNames?: string[];
   parentGroupId?: ElementId;
@@ -65,16 +64,6 @@ export type CadElementBase = {
   numericParameterSteps?: Partial<Record<string, number>>;
 };
 
-export type PaletteColor = {
-  id: string;
-  name: string;
-  hex: string;
-};
-
-export type DocumentPalette = {
-  colors: PaletteColor[];
-  defaultColorId: string;
-};
 
 export type VisibilityRole = {
   id: string;

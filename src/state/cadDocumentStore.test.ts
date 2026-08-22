@@ -351,25 +351,13 @@ describe("cadDocumentStore file state", () => {
     expectPreviewCleared();
   });
 
-  it("tracks palette edits in document history", () => {
+  it("keeps legacy palette UI edits outside canonical document history", () => {
     useCadDocumentStore.getState().setDefaultColorId("cut-red");
-
     expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("cut-red");
-    expect(useCadDocumentStore.getState().past).toHaveLength(1);
+    expect(useCadDocumentStore.getState().past).toHaveLength(0);
 
-    useCadDocumentStore.getState().undo();
-
-    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("pattern-black");
-  });
-
-  it("clears element color ids when deleting a palette color", () => {
-    useCadDocumentStore.setState({
-      elements: [{ ...sampleElements[0], colorId: "cut-red" }, ...sampleElements.slice(1)]
-    });
-
-    useCadDocumentStore.getState().deletePaletteColor("cut-red");
-
-    expect(useCadDocumentStore.getState().elements[0].colorId).toBeUndefined();
-    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "cut-red")).toBe(false);
+    useCadDocumentStore.getState().deletePaletteColor("guide-blue");
+    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "guide-blue")).toBe(false);
+    expect(useCadDocumentStore.getState().past).toHaveLength(0);
   });
 });

@@ -113,14 +113,14 @@ describe("DSL nui 4 call parser", () => {
     expect(messages("point A = coordinate(x: 0, y: 0, enabled: false)").join("\n")).toContain("引数「enabled」");
   });
 
-  it("rejects, color: on a bare mutation statement but keeps it valid on a drawable element", () => {
-    expect(parse("reverse(target: AB, color: red)").diagnostics).toContainEqual(
-      expect.objectContaining({ code: "color-unsupported" })
-    );
-    expect(messages("edge(end1: AB.end, end2: CD.start, color: red)").join("\n")).toContain(
-      "color を指定できません"
-    );
-    expect(messages("point A = coordinate(x: 0, y: 0, color: red)")).toEqual([]);
+  it("rejects the removed common color argument on mutations and drawable elements", () => {
+    for (const source of [
+      "reverse(target: AB, color: red)",
+      "edge(end1: AB.end, end2: CD.start, color: red)",
+      "point A = coordinate(x: 0, y: 0, color: red)"
+    ]) {
+      expect(messages(source).join("\n")).toContain("引数「color」");
+    }
   });
 
   it("keeps legacy syntax out of the live parser", () => {

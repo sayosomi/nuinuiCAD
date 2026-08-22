@@ -19,7 +19,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(context).toMatchObject({ kind: "argument", spec: { category: "point", construction: "intersection" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "line1", "line2", "index", "extensions", "state", "color", "steps"
+      "line1", "line2", "index", "extensions", "state", "steps"
     ]);
   });
 
@@ -28,7 +28,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(context).toMatchObject({ kind: "argument", spec: { category: "line", construction: "transformCopy", elementType: "copyLine" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines", "state", "color", "steps"
+      "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines", "state", "steps"
     ]);
   });
 
@@ -38,7 +38,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(offsetContext).toMatchObject({ kind: "argument" });
     if (!offsetContext || offsetContext.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(offsetContext.spec, offsetContext.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "dy", "state", "color", "steps"
+      "dy", "state", "steps"
     ]);
 
     expect(atEnd("if (")).toBeNull();
@@ -51,7 +51,7 @@ describe("dslCallCompletionContextAt", () => {
     const spec = constructionFor("point", "intersection")!;
     const candidates = argumentCompletionCandidates(spec, new Set());
     expect(candidates.map((candidate) => candidate.apply)).toEqual([
-      "line1: ", "line2: ", "index: ", "extensions: ", "state: ", "color: ", "steps: "
+      "line1: ", "line2: ", "index: ", "extensions: ", "state: ", "steps: "
     ]);
     expect(candidates.map((candidate) => candidate.label)).not.toEqual(expect.arrayContaining(["id", "parent", "branch"]));
   });
@@ -61,7 +61,7 @@ describe("dslCallCompletionContextAt", () => {
     expect(context).toMatchObject({ kind: "argument", spec: { construction: "tangentOffset" } });
     if (!context || context.kind !== "argument") throw new Error("argument context expected");
     expect(argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => candidate.label)).toEqual([
-      "angle", "curveSide", "distance", "state", "color", "steps"
+      "angle", "curveSide", "distance", "state", "steps"
     ]);
   });
 

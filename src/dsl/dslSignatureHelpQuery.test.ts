@@ -44,7 +44,7 @@ describe("DSL Signature Help query", () => {
     const mutation = queryAt("nui 4\nmove(targets: @P, ");
 
     expect(construction?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
-      "x", "y", "state", "color", "steps"
+      "x", "y", "state", "steps"
     ]);
     expect(construction?.activeParameter).toBe(1);
     expect(construction?.signatures[0]?.parameters.some((parameter) => ["id", "roles", "parent", "branch"].includes(parameter.name))).toBe(false);

@@ -86,9 +86,9 @@ export const setElementsActivity = (activity: ElementActivity) => {
 };
 
 const elementWithoutColorId = (element: CadElement): CadElement => {
-  const rest = { ...element };
+  const rest = { ...element } as CadElement & { colorId?: string };
   delete rest.colorId;
-  return rest as CadElement;
+  return rest;
 };
 
 export const applyDisplayColorToSelection = (colorId: string | undefined) => {

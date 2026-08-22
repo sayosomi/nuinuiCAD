@@ -4,11 +4,11 @@ import { singlePhysicalSegment, statementProjectionAt } from "./dslStatementProj
 
 describe("statement source projection", () => {
   it("projects second-line values to their physical positions", () => {
-    const source = ["point A = coordinate(", "  x: 0,", "  y: 0,", "  color: red,", "  state: hidden", ")"].join("\n");
-    const color = source.indexOf("red");
-    const values = dslDocumentValueSpansAt({ normalizedSource: source, sourceRevision: 9 }, color);
+    const source = ["point A = coordinate(", "  x: 1,", "  y: 2,", "  state: hidden", ")"].join("\n");
+    const state = source.indexOf("hidden");
+    const values = dslDocumentValueSpansAt({ normalizedSource: source, sourceRevision: 9 }, state);
     expect(values).toEqual(expect.objectContaining({ ok: true }));
-    if (values.ok) expect(values.value.map((span) => source.slice(span.from, span.to))).toEqual(expect.arrayContaining(["red", "hidden"]));
+    if (values.ok) expect(values.value.map((span) => source.slice(span.from, span.to))).toEqual(expect.arrayContaining(["1", "2", "hidden"]));
   });
 
   it("does not use a span from another snapshot revision", () => {

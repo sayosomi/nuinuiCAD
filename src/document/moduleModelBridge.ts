@@ -75,7 +75,6 @@ const literalForValue = (kind: ParameterValueKind, value: unknown): string | nul
     case "boolean":
       return typeof value === "boolean" ? `${value}` : null;
     case "choice":
-    case "color":
       return typeof value === "string" ? formatDslName(value) : null;
     case "text":
       return typeof value === "string" ? quoteDslString(value) : null;
@@ -102,7 +101,6 @@ const safeLiteralFor = (
     case "boolean":
       return booleanLiteral.test(sourceValue) ? replacement : null;
     case "choice":
-    case "color":
       return nameLiteral.test(sourceValue) ? replacement : null;
     case "text":
       return typeof value === "string" &&  /^(["']).*\1$/.test(sourceValue)

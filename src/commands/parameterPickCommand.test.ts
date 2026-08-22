@@ -12,7 +12,7 @@ describe("parameterPickCommandId", () => {
     expect(parameterPickCommandId(kind)).toBe(commandId);
   });
 
-  it.each(["text", "boolean", "color", "choice"] as const)(
+  it.each(["text", "boolean", "choice"] as const)(
     "does not expose a Canvas picker for %s parameters",
     (kind) => {
       expect(parameterPickCommandId(kind)).toBeNull();

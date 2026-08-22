@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { NEW_DOCUMENT_DSL_MAJOR_VERSION, type DslDocumentData } from "../dsl/dslDocument";
-import type { DslDiagnostic } from "../dsl/dslTypes";
+import type {
+  DslDiagnostic } from "../dsl/dslTypes";
 import type { TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import {
   commitLineSplicePatch,
@@ -12,13 +13,18 @@ import {
   type LastGoodDslDocument,
   type TextCompileResult
 } from "../document/canonicalDocument";
-import { assertReconcileSane, assertShadowEquivalent, shadowAssertEnabled } from "../document/shadowTextAssert";
+import { assertReconcileSane,
+  assertShadowEquivalent,
+  shadowAssertEnabled } from "../document/shadowTextAssert";
 import { initialGroupFoldForLoadedDocument } from "../model/groups";
-import { defaultVisibilityProfile, visibilityIdFromName } from "../model/visibilityProfiles";
+import { defaultVisibilityProfile,
+  visibilityIdFromName } from "../model/visibilityProfiles";
 import {
   createPaletteColor,
   defaultDocumentPalette,
-  isValidPaletteColorId
+  isValidPaletteColorId,
+  type LegacyDocumentPalette,
+  type LegacyPaletteColor
 } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import type { LineSplice } from "../document/textPatch";
@@ -32,11 +38,9 @@ import {
 } from "../performance/benchmarkInstrumentation";
 import type {
   CadElement,
-  DocumentPalette,
   DrawingModifierDefinition,
   DrawingProfile,
   ElementId,
-  PaletteColor,
   Layout,
   PrintOutput,
   SvgOutput,
@@ -100,7 +104,7 @@ export type CadDocumentState = {
   /** @deprecated Derived compatibility view. sourceText remains canonical. */
   drawingProfiles: DrawingProfile[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
   visibilityRoles: VisibilityRole[];
   /** @deprecated Derived compatibility views. sourceText remains canonical. */
@@ -156,12 +160,12 @@ export type CadDocumentState = {
   updateVisibilityProfile: (id: string, patch: Partial<VisibilityProfile>) => void;
   deleteVisibilityProfile: (id: string) => void;
   setVisibilityProfileRoleVisible: (profileId: string, roleId: string, visible: boolean) => void;
-  setPalette: (palette: DocumentPalette) => void;
-  updatePaletteColor: (id: string, patch: Partial<PaletteColor>) => void;
+  setPalette: (palette: LegacyDocumentPalette) => void;
+  updatePaletteColor: (id: string, patch: Partial<LegacyPaletteColor>) => void;
   addPaletteColor: () => void;
   deletePaletteColor: (id: string) => void;
   setDefaultColorId: (id: string) => void;
-  replaceDocument: (document: DslDocumentData, filePath: string | null) => void;
+  replaceDocument: (document: DslDocumentData & { palette?: LegacyDocumentPalette }, filePath: string | null) => void;
   replaceTextDocument: (
     sourceText: string,
     options: { currentFilePath: string | null; dirtySinceSave: boolean }
@@ -181,7 +185,6 @@ type DocumentCompatibilityView = Pick<
   | "elements"
   | "modifiers"
   | "drawingProfiles"
-  | "palette"
   | "visibilityRoles"
   | "visibilityProfiles"
   | "activeVisibilityProfileId"
@@ -195,7 +198,6 @@ const documentOf = (state: DocumentCompatibilityView): DslDocumentData => ({
   elements: state.elements,
   modifiers: state.modifiers ?? [],
   drawingProfiles: state.drawingProfiles ?? [],
-  palette: state.palette,
   visibilityRoles: state.visibilityRoles,
   visibilityProfiles: state.visibilityProfiles,
   activeVisibilityProfileId: state.activeVisibilityProfileId,
@@ -212,7 +214,6 @@ const compatibilityViewMatchesDoc = (state: CadDocumentState) => {
     (document.drawingProfiles === undefined
       ? state.drawingProfiles.length === 0
       : state.drawingProfiles === document.drawingProfiles) &&
-    state.palette === document.palette &&
     state.visibilityRoles === document.visibilityRoles &&
     state.visibilityProfiles === document.visibilityProfiles &&
     state.activeVisibilityProfileId === document.activeVisibilityProfileId &&
@@ -299,7 +300,6 @@ const canonicalFields = (value: CanonicalDocumentValue | TextCompileResult) => {
     elements: document.elements,
     modifiers: document.modifiers ?? [],
     drawingProfiles: document.drawingProfiles ?? [],
-    palette: document.palette,
     visibilityRoles: document.visibilityRoles,
     visibilityProfiles: document.visibilityProfiles,
     activeVisibilityProfileId: document.activeVisibilityProfileId,
@@ -345,7 +345,6 @@ const documentFromChange = (
     elements: change.elements ?? before.elements,
     modifiers: change.modifiers ?? before.modifiers ?? [],
     drawingProfiles: change.drawingProfiles ?? before.drawingProfiles ?? [],
-    palette: change.palette ?? before.palette,
     visibilityRoles: change.visibilityRoles ?? before.visibilityRoles,
     visibilityProfiles: change.visibilityProfiles ?? before.visibilityProfiles,
     activeVisibilityProfileId: change.activeVisibilityProfileId ?? before.activeVisibilityProfileId,
@@ -476,7 +475,6 @@ const initialSnapshot = (): DslDocumentData => ({
   elements: sampleElements,
   modifiers: [],
   drawingProfiles: [],
-  palette: defaultDocumentPalette(),
   visibilityRoles: [],
   visibilityProfiles: [defaultVisibilityProfile()],
   activeVisibilityProfileId: defaultVisibilityProfile().id,
@@ -491,6 +489,7 @@ export const initialCadDocumentState = (): Omit<CadDocumentState, keyof CadDocum
   const canonical = regenerateCanonicalFromModel(snapshot, NEW_DOCUMENT_DSL_MAJOR_VERSION);
   return {
     ...canonicalFields(canonical),
+    palette: defaultDocumentPalette(),
     sourceRevision: 0,
     sourceUpdate: { revision: 0, kind: "reset" },
     compiledDocumentRevision: 0,
@@ -557,11 +556,6 @@ const visibilityProfileId = (name: string, profiles: VisibilityProfile[]) => {
   return `${base}-${index}`;
 };
 
-const elementWithoutColorId = (element: CadElement): CadElement => {
-  const rest = { ...element };
-  delete rest.colorId;
-  return rest as CadElement;
-};
 
 const rejectDocumentMutation = (
   reason: Extract<DocumentMutationResult, { status: "rejected" }>["reason"]
@@ -813,11 +807,11 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
       )
     });
   },
-  setPalette: (palette) => get().commitDocumentChange({ palette }),
+  setPalette: (palette) => set({ palette }),
   updatePaletteColor: (id, patch) => {
-    const palette = documentOf(get()).palette;
+    const palette = get().palette;
     if (!palette.colors.some((color) => color.id === id)) return;
-    get().commitDocumentChange({
+    set({
       palette: {
         ...palette,
         colors: palette.colors.map((color) => color.id === id ? { ...color, ...patch, id } : color)
@@ -825,25 +819,18 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
     });
   },
   addPaletteColor: () => {
-    const palette = documentOf(get()).palette;
-    get().commitDocumentChange({
-      palette: { ...palette, colors: [...palette.colors, createPaletteColor(palette.colors)] }
-    });
+    const palette = get().palette;
+    set({ palette: { ...palette, colors: [...palette.colors, createPaletteColor(palette.colors)] } });
   },
   deletePaletteColor: (id) => {
-    const document = documentOf(get());
-    if (id === document.palette.defaultColorId || !document.palette.colors.some((color) => color.id === id)) return;
-    get().commitDocumentChange({
-      elements: document.elements.map((element) =>
-        element.colorId === id ? elementWithoutColorId(element) : element
-      ),
-      palette: { ...document.palette, colors: document.palette.colors.filter((color) => color.id !== id) }
-    });
+    const palette = get().palette;
+    if (id === palette.defaultColorId || !palette.colors.some((color) => color.id === id)) return;
+    set({ palette: { ...palette, colors: palette.colors.filter((color) => color.id !== id) } });
   },
   setDefaultColorId: (id) => {
-    const palette = documentOf(get()).palette;
+    const palette = get().palette;
     if (!isValidPaletteColorId(palette, id) || palette.defaultColorId === id) return;
-    get().commitDocumentChange({ palette: { ...palette, defaultColorId: id } });
+    set({ palette: { ...palette, defaultColorId: id } });
   },
   replaceDocument: (snapshot, currentFilePath) => {
     if (rejectExternalDocumentReset()) return;
@@ -854,6 +841,7 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
         selectionElements = canonical.doc.document.elements;
         return {
           ...canonicalFields(canonical),
+          palette: snapshot.palette ?? state.palette,
           ...clearedPreviewState(),
           past: [],
           future: [],

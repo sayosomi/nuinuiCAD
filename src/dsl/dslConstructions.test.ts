@@ -129,20 +129,14 @@ describe("DSL nui 4 construction registry", () => {
       }
     }
 
-    expect(argNameForParameter("freePoint", "colorId")).toBe("color");
+    expect(argNameForParameter("freePoint", "colorId")).toBeNull();
     expect(argNameForParameter("freePoint", "unknown")).toBeNull();
   });
 });
 
 describe("DSL nui 4 settings registry", () => {
   it("defines the specified settings arguments and positional slots", () => {
-    expect(settingsSpecFor("color")).toMatchObject({
-      args: [
-        { arg: "hex", positional: true },
-        { arg: "name" },
-        { arg: "default" },
-      ],
-    });
+    expect(settingsSpecFor("color")).toBeNull();
     expect(settingsSpecFor("role")?.args.map((arg) => arg.arg)).toEqual(["name"]);
     expect(settingsSpecFor("view")).toMatchObject({ allowsDynamicArgs: true });
     expect(settingsSpecFor("layout")?.args.map((arg) => arg.arg)).toEqual(["scale"]);
