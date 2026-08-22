@@ -1,9 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-
+import { describe, expect, it } from "vitest";
 import { legacyBindingIdMap, retiredCommandIds } from "../src/keyboard/shortcutSettingsStorage";
 
 const commandIdMapDocument = readFileSync(resolve(process.cwd(), "docs/command-id-map.md"), "utf8");

@@ -98,7 +98,7 @@ export type DocumentInspectDto = {
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
-const stableSnapshotElementId = (
+export const stableSnapshotElementId = (
   sourceHash: string,
   statementIndex: number,
   elementType: string

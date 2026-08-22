@@ -149,6 +149,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install Tauri Linux dependencies
+        if: ${{ hashFiles('src-tauri/Cargo.toml') != '' }}
         timeout-minutes: 10
         run: |
           sudo apt-get -o Acquire::Retries=3 update
@@ -175,19 +176,19 @@ jobs:
         run: cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings
 
       - name: Check Tauri Rust formatting
-        if: ${{ needs.classification.outputs.rust == 'true' }}
+        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
       - name: Check Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' }}
+        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Test Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' }}
+        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Clippy Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' }}
+        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
         run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Setup Node
@@ -208,6 +209,10 @@ jobs:
       - name: Full Node tests
         if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: npm test
+
+      - name: Lifecycle stress tests
+        if: ${{ needs.classification.outputs.full_node == 'true' }}
+        run: npm run test:stress:lifecycle
 
       - name: TypeScript/Rust parity
         if: ${{ needs.classification.outputs.parity == 'true' }}

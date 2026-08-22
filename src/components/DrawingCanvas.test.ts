@@ -14,7 +14,7 @@ import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadDocumentStore, useCadStore } from "../state/useCadStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
-import { TauriDrawingCanvas } from "./TauriDrawingCanvas";
+import { DrawingCanvasTestHost } from "./DrawingCanvas.testHost";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { worldToScreen } from "./canvasViewport";
 import { hitTestCanvasGeometry } from "./DrawingCanvasHitTest";
@@ -172,7 +172,7 @@ const mockCanvasContext = () => ({
 
 const renderDrawingCanvas = () => {
   const view = render(
-    createElement(TauriDrawingCanvas, {
+    createElement(DrawingCanvasTestHost, {
       evaluation: evaluateElements(useCadStore.getState().elements),
       canvasFocusRef: createRef<HTMLDivElement>(),
       leftPanelDockRef: createRef<HTMLDivElement>()
@@ -2063,7 +2063,7 @@ describe("DrawingCanvas point dragging", () => {
     const beforeRevision = useCadDocumentStore.getState().compiledDocumentRevision;
     const staleEvaluation = referenceEvaluationState(beforeRevision);
     const canvasFocusRef = createRef<HTMLDivElement>();
-    const view = render(createElement(TauriDrawingCanvas, {
+    const view = render(createElement(DrawingCanvasTestHost, {
       evaluation: staleEvaluation.evaluation,
       evaluationState: staleEvaluation,
       canvasFocusRef,
@@ -2090,7 +2090,7 @@ describe("DrawingCanvas point dragging", () => {
       expect(pointBId).toBeDefined();
       await act(async () => {
         const fresh = referenceEvaluationState(currentRevision);
-        view.rerender(createElement(TauriDrawingCanvas, {
+        view.rerender(createElement(DrawingCanvasTestHost, {
           evaluation: fresh.evaluation,
           evaluationState: fresh,
           canvasFocusRef,
@@ -2337,7 +2337,7 @@ describe("DrawingCanvas pending pointer intents", () => {
       canvasFocusRef,
       leftPanelDockRef
     });
-    const view = render(createElement(TauriDrawingCanvas, propsFor(staleState)));
+    const view = render(createElement(DrawingCanvasTestHost, propsFor(staleState)));
     const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
     if (!viewport) throw new Error("Missing canvas viewport");
 
@@ -2356,7 +2356,7 @@ describe("DrawingCanvas pending pointer intents", () => {
 
     const deliverEvaluationState = async (overrides?: Partial<EvaluationEngineState>) => {
       await act(async () => {
-        view.rerender(createElement(TauriDrawingCanvas, propsFor({
+        view.rerender(createElement(DrawingCanvasTestHost, propsFor({
           ...referenceEvaluationState(useCadDocumentStore.getState().compiledDocumentRevision),
           ...overrides
         })));

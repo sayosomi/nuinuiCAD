@@ -1,5 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-import { isTauriRuntime } from "../geometry/evaluationEngine";
 import { configurableShortcutBindings, defaultShortcutSettings } from "./shortcutRegistry";
 import { keyChordId } from "./shortcutChords";
 import type { KeyChord, ShortcutOverride, ShortcutSettings, UnresolvedShortcutOverride } from "./shortcutTypes";
@@ -12,10 +10,6 @@ const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
  * replacement keyboard scope || command.
  */
 export const legacyBindingIdMap: Readonly<Record<string, string>> = {
-  "global.newDocument": "crossFocus.newDocument",
-  "global.openDocument": "crossFocus.openDocument",
-  "global.saveDocument": "crossFocus.saveDocument",
-  "global.saveDocumentAs": "crossFocus.saveDocumentAs",
   "global.openCommandPalette": "crossFocus.openCommandPalette",
   "global.focusElementSearch": "crossFocus.focusElementSearch",
   "global.undo": "normal.undo",
@@ -105,7 +99,13 @@ export const retiredCommandIds = [
   "deleteBezierNumericVariable"
 ] as const;
 
-const retiredCommandIdSet = new Set<string>(retiredCommandIds);
+const retiredCommandIdSet = new Set<string>([
+  ...retiredCommandIds,
+  "newDocument",
+  "openDocument",
+  "saveDocument",
+  "saveDocumentAs"
+]);
 
 const commandIdForBinding = (bindingId: string) => bindingId.slice(bindingId.indexOf(".") + 1);
 
@@ -168,8 +168,6 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
       !retiredCommandIdSet.has(commandIdForBinding(override.bindingId)) &&
       validBindingIds.has(override.bindingId)
     ) {
-      // This also preserves the previous effective-settings behaviour for a
-      // duplicate saved override: the later entry wins.
       explicitOverrides.set(override.bindingId, { override, index });
     }
   });
@@ -182,8 +180,6 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
 
     const targetBindingId = legacyBindingIdMap[override.bindingId];
     if (targetBindingId) {
-      // A user override saved against the new binding is authoritative. Legacy
-      // bindings only contribute when no replacement override exists.
       if (explicitOverrides.has(targetBindingId)) return;
 
       const target = bindingById.get(targetBindingId);
@@ -234,7 +230,11 @@ const normalizeShortcutSettingsWithStatus = (value: unknown) => {
 export const normalizeShortcutSettings = (value: unknown): ShortcutSettings =>
   normalizeShortcutSettingsWithStatus(value).settings;
 
-const loadShortcutSettingsFromLocalStorage = () => {
+const saveShortcutSettingsToLocalStorage = (settings: ShortcutSettings) => {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+};
+
+export const loadShortcutSettings = async (): Promise<ShortcutSettings> => {
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) return defaultShortcutSettings();
   try {
@@ -252,26 +252,6 @@ const loadShortcutSettingsFromLocalStorage = () => {
   }
 };
 
-const saveShortcutSettingsToLocalStorage = (settings: ShortcutSettings) => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-};
-
-export const loadShortcutSettings = async (): Promise<ShortcutSettings> => {
-  if (!isTauriRuntime()) return loadShortcutSettingsFromLocalStorage();
-  const normalized = normalizeShortcutSettingsWithStatus(
-    await invoke<unknown>("load_shortcut_settings")
-  );
-  if (normalized.changed) {
-    void invoke<void>("save_shortcut_settings", { input: normalized.settings }).catch(() => undefined);
-  }
-  return normalized.settings;
-};
-
 export const saveShortcutSettings = async (settings: ShortcutSettings) => {
-  const normalized = normalizeShortcutSettings(settings);
-  if (!isTauriRuntime()) {
-    saveShortcutSettingsToLocalStorage(normalized);
-    return;
-  }
-  await invoke<void>("save_shortcut_settings", { input: normalized });
+  saveShortcutSettingsToLocalStorage(normalizeShortcutSettings(settings));
 };

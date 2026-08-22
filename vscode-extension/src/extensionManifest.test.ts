@@ -56,6 +56,7 @@ const commandIds = [
   "nuinuiCAD.openOutputPreview",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
+  "nuinuiCAD.pickReferenceFromCanvas",
   "nuinuiCAD.canvasUndo",
   "nuinuiCAD.canvasRedo",
   "nuinuiCAD.outputPreviewUndo",
@@ -73,6 +74,7 @@ const commandIds = [
   "nuinuiCAD.editCanvasRibbon"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
+const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
@@ -112,6 +114,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
+      "nuinuiCAD: Pick Reference from Canvas",
       "nuinuiCAD: Undo Canvas Transition",
       "nuinuiCAD: Redo Canvas Transition",
       "nuinuiCAD: Undo Output Preview Source Edit",
@@ -140,6 +143,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasPaletteWhen },
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
@@ -160,7 +164,10 @@ describe("VS Code extension manifest command contributions", () => {
   it("adds the exact Source and Canvas context menu conditions", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus).toMatchObject({
-      "editor/context": [{ command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen }]
+      "editor/context": [
+        { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
+        { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen }
+      ]
     });
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },
@@ -233,6 +240,7 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
+    expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
   });
 });
 
