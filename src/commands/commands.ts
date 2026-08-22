@@ -1,7 +1,6 @@
 import { filterCommandPaletteItems as filterPaletteItems } from "./commandPalette";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
 import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
-import { documentCommandDefinitions } from "./documentCommandDefinitions";
 import { pickCommandDefinitions } from "./pickCommandDefinitions";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
@@ -12,8 +11,7 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadUiStore } from "../state/cadUiStore";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
 
-export const commands: Record<CommandId, Command> = {
-  ...documentCommandDefinitions,
+export const commands: Partial<Record<CommandId, Command>> = {
   ...viewModeCommandDefinitions,
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
@@ -22,6 +20,10 @@ export const commands: Record<CommandId, Command> = {
   ...sourceEditorCommandDefinitions,
   ...bakeCommandDefinitions
 };
+
+const registeredCommands = Object.values(commands).filter(
+  (command): command is Command => command !== undefined
+);
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
   const command = commands[commandId];
@@ -38,18 +40,18 @@ export const dispatchCommand = (commandId: CommandId, context?: CommandContext) 
 
 export type { CommandPaletteItem } from "./commandPalette";
 
-export const paletteCommandIds = Object.values(commands)
+export const paletteCommandIds = registeredCommands
   .filter((command) => command.palette)
   .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
   .map((command) => command.id);
 
 export const paletteKeywords = Object.fromEntries(
-  Object.values(commands)
+  registeredCommands
     .filter((command) => command.palette?.keywords)
     .map((command) => [command.id, command.palette?.keywords ?? []])
 ) as Partial<Record<CommandId, string[]>>;
 
-export const commandPaletteItems = Object.values(commands)
+export const commandPaletteItems = registeredCommands
   .filter((command) => command.palette)
   .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
   .map((command) => ({
