@@ -165,6 +165,9 @@ export const registerVscodeReferencePickFeature = ({
     );
     if (normalizedSourceOffset === null) {
       refreshContext(editor);
+      void vscode.window.showErrorMessage(
+        "nuinuiCAD: Source Editorのカーソル位置にCanvasから選択できる参照先がありません。"
+      );
       return;
     }
 
