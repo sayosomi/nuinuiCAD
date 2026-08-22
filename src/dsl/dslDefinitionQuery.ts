@@ -3,7 +3,10 @@ import type { CompiledDslDocument } from "./dslDocument";
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticDeclarationRange,
-  dslSemanticOccurrenceAt
+  dslSemanticIdentityKey,
+  dslSemanticOccurrenceAt,
+  type DslSemanticOccurrence,
+  type DslSemanticOccurrenceIndex
 } from "./dslSemanticOccurrenceIndex";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 
@@ -39,13 +42,27 @@ const semanticSourceText = (semantic: DslDefinitionSemanticSnapshot) =>
 const semanticIsExact = (source: SourceSnapshot, semantic: DslDefinitionSemanticSnapshot | undefined) => {
   if (!semantic || semantic.sourceRevision !== source.sourceRevision) return false;
   if (semanticSourceText(semantic) !== source.normalizedSource) return false;
-  // An explicit sourceText is useful as a proof carried beside a semantic
-  // result, but it cannot make a compiled source map from a different source
-  // safe for source-range projection.
   return !semantic.compiled || (
     semantic.compiled.spans.sourceMap.source === source.normalizedSource &&
     semantic.compiled.spans.sourceMap.sourceRevision === source.sourceRevision
   );
+};
+
+const shorthandValueOccurrenceAt = (
+  index: DslSemanticOccurrenceIndex,
+  position: number
+): DslSemanticOccurrence | null => {
+  const matches = index.occurrences
+    .filter((occurrence) => occurrence.kind === "reference" && occurrence.from <= position && position <= occurrence.to)
+    .sort((left, right) => (left.to - left.from) - (right.to - right.from) || left.from - right.from || left.to - right.to);
+  if (matches.length === 0) return null;
+  const shortest = matches[0]!.to - matches[0]!.from;
+  const shortestMatches = matches.filter((occurrence) => occurrence.to - occurrence.from === shortest);
+  const valueMatches = shortestMatches.filter((occurrence) =>
+    occurrence.identity.kind !== "module" || occurrence.identity.target.kind !== "moduleParameter"
+  );
+  const identities = new Set(valueMatches.map((occurrence) => dslSemanticIdentityKey(occurrence.identity)));
+  return identities.size === 1 ? valueMatches[0] ?? null : null;
 };
 
 /** Query a resolved DSL reference without importing VS Code, CodeMirror, or Tauri. */
@@ -57,7 +74,7 @@ export const queryDslDefinition = ({ source, position, semantic }: DslDefinition
     semantic.compiled,
     semantic.bindingAnalysis ?? semantic.compiled.bindingAnalysis
   );
-  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position);
+  const occurrence = dslSemanticOccurrenceAt(occurrenceIndex, position) ?? shorthandValueOccurrenceAt(occurrenceIndex, position);
   if (!occurrence || occurrence.kind !== "reference") return null;
   const declarationRange = dslSemanticDeclarationRange(occurrenceIndex, occurrence.identity);
   if (!declarationRange || (declarationRange.from === occurrence.from && declarationRange.to === occurrence.to)) return null;
