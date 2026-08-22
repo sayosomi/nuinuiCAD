@@ -36,7 +36,7 @@ const installBrowserImagePicker = ({
     value: revokeObjectURL
   });
 
-  vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function () {
+  vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
     Object.defineProperty(this, "files", {
       configurable: true,
       value: file ? [file] : []
