@@ -26,87 +26,69 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected one target, found {count}')
-              file.write_text(text.replace(old, new, 1))
+          def lines(path):
+              p = Path(path)
+              return p, p.read_text().splitlines(keepends=True)
 
-          replace_once(
-              'src/dsl/dslCallParser.ts',
-              '''    diagnostic(
-            diagnostics,
-            message,
-            constructionSpan ?? categorySpan,
-            constructionSpan ? "unknown-construction" : undefined
-          );''',
-              '''    diagnostic(
-              diagnostics,
-              message,
-              constructionSpan ?? categorySpan,
-              constructionSpan ? "unknown-construction" : undefined
-            );'''
-          )
-          replace_once(
-              'src/dsl/dslCallParser.ts',
-              '''      diagnostic(
-            diagnostics,
-            `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
-            arg.keySpan!,
-            "unknown-construction-argument"
-          );''',
-              '''      diagnostic(
-                diagnostics,
-                `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
-                arg.keySpan!,
-                "unknown-construction-argument"
-              );'''
-          )
-          replace_once(
-              'src/dsl/dslDocument.ts',
-              '''    ...compiled.diagnostics.map((diagnostic, index) =>
-            diagnostic.code === "undefined-geometry-reference"
-              ? (projectedCompilerDiagnostics[index] ?? diagnostic)
-              : diagnostic
-          ),''',
-              '''    ...compiled.diagnostics.map((diagnostic, index) =>
-              diagnostic.code === "undefined-geometry-reference"
-                ? (projectedCompilerDiagnostics[index] ?? diagnostic)
-                : diagnostic
-            ),'''
-          )
-          replace_once(
-              'src/dsl/dslParser.ts',
-              '''    diagnostics: keyword
-            ? [diagnostic(
-                line,
-                `未対応のDSLキーワードです: ${keyword}`,
-                "unknown-dsl-keyword",
-                project({ start: 0, end: keyword.length }) ?? undefined
-              )]
-            : [diagnostic(line, "文はキーワードから始めてください。")]''',
-              '''    diagnostics: keyword
-              ? [diagnostic(
-                  line,
-                  `未対応のDSLキーワードです: ${keyword}`,
-                  "unknown-dsl-keyword",
-                  project({ start: 0, end: keyword.length }) ?? undefined
-                )]
-              : [diagnostic(line, "文はキーワードから始めてください。")]'''
-          )
-          replace_once(
-              'src/dsl/dslTypeParser.ts',
-              '''      span: typeSpan,
-            code: "unknown-type"
-          });
-          return { declaredType: null, choiceOptionSpans: [] };''',
-              '''      span: typeSpan,
-              code: "unknown-type"
-            });
-            return { declaredType: null, choiceOptionSpans: [] };'''
-          )
+          def find_sequence(items, stripped):
+              for i in range(len(items) - len(stripped) + 1):
+                  if [line.strip() for line in items[i:i + len(stripped)]] == stripped:
+                      return i
+              raise SystemExit(f'sequence not found: {stripped}')
+
+          p, items = lines('src/dsl/dslCallParser.ts')
+          i = find_sequence(items, [
+              'diagnostic(', 'diagnostics,', 'message,',
+              'constructionSpan ?? categorySpan,',
+              'constructionSpan ? "unknown-construction" : undefined', ');'
+          ])
+          indents = [4, 6, 6, 6, 6, 4]
+          for offset, indent in enumerate(indents):
+              items[i + offset] = ' ' * indent + items[i + offset].strip() + '\n'
+          i = find_sequence(items, [
+              'diagnostic(', 'diagnostics,',
+              '`construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,',
+              'arg.keySpan!,', '"unknown-construction-argument"', ');'
+          ])
+          indents = [6, 8, 8, 8, 8, 6]
+          for offset, indent in enumerate(indents):
+              items[i + offset] = ' ' * indent + items[i + offset].strip() + '\n'
+          p.write_text(''.join(items))
+
+          p, items = lines('src/dsl/dslDocument.ts')
+          i = find_sequence(items, [
+              '...compiled.diagnostics.map((diagnostic, index) =>',
+              'diagnostic.code === "undefined-geometry-reference"',
+              '? (projectedCompilerDiagnostics[index] ?? diagnostic)',
+              ': diagnostic', '),'
+          ])
+          indents = [4, 6, 8, 8, 4]
+          for offset, indent in enumerate(indents):
+              items[i + offset] = ' ' * indent + items[i + offset].strip() + '\n'
+          p.write_text(''.join(items))
+
+          p, items = lines('src/dsl/dslParser.ts')
+          i = find_sequence(items, [
+              'diagnostics: keyword', '? [diagnostic(', 'line,',
+              '`未対応のDSLキーワードです: ${keyword}`,',
+              '"unknown-dsl-keyword",',
+              'project({ start: 0, end: keyword.length }) ?? undefined',
+              ')]', ': [diagnostic(line, "文はキーワードから始めてください。")]'
+          ])
+          indents = [4, 6, 10, 10, 10, 10, 8, 6]
+          for offset, indent in enumerate(indents):
+              items[i + offset] = ' ' * indent + items[i + offset].strip() + '\n'
+          p.write_text(''.join(items))
+
+          p, items = lines('src/dsl/dslTypeParser.ts')
+          i = find_sequence(items, [
+              'span: typeSpan,', 'code: "unknown-type"', '});',
+              'return { declaredType: null, choiceOptionSpans: [] };'
+          ])
+          indents = [6, 6, 4, 4]
+          for offset, indent in enumerate(indents):
+              items[i + offset] = ' ' * indent + items[i + offset].strip() + '\n'
+          p.write_text(''.join(items))
           PY
           git diff --check
 
