@@ -138,6 +138,7 @@ describe("nuinuiCAD MCP stdio server", () => {
       tools?: Array<{
         name: string;
         inputSchema?: { properties?: Record<string, unknown> };
+        annotations?: { readOnlyHint?: boolean };
       }>;
     } | undefined)?.tools;
     expect(tools?.map((tool) => tool.name)).toEqual([
@@ -147,6 +148,7 @@ describe("nuinuiCAD MCP stdio server", () => {
       "document_evaluate",
       "vscode_observe"
     ]);
+    expect(tools?.every((tool) => tool.annotations?.readOnlyHint === true)).toBe(true);
     const vscodeObserveTool = tools?.find((tool) => tool.name === "vscode_observe");
     expect(Object.keys(vscodeObserveTool?.inputSchema?.properties ?? {})).toEqual([
       "instanceId",
