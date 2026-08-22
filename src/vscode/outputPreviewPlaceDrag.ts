@@ -219,6 +219,7 @@ export const outputPreviewPlaceCoordinatePatchesAreSafe = ({
       !rangeContains(statementRange, patch.range) ||
       (previous !== undefined && previous.range.to > patch.range.from) ||
       patch.expectedText.length === 0 ||
+      patch.replacement === patch.expectedText ||
       !exactRangeText(normalizedSource, patch.range, patch.expectedText) ||
       !DIRECT_NUMERIC_LITERAL.test(replacement) ||
       !Number.isFinite(Number(replacement))
