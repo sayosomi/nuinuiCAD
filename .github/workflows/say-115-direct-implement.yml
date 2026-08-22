@@ -27,6 +27,7 @@ jobs:
           python scripts/say115_transform.py
           python scripts/say115_fixup.py
           python scripts/say115_test_fixup.py
+          python scripts/say115_test_followup.py
           git diff --check
 
       - name: Setup Node
