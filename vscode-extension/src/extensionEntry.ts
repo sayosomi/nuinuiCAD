@@ -6,8 +6,10 @@ import {
 } from "./mcpObservationBridge";
 import { vscodeObservationState } from "./vscodeObservationState";
 
-const observationSnapshot = (): unknown => {
+const observationSnapshot = (includeSourceText: boolean): unknown => {
   const snapshot = vscodeObservationState.snapshot();
+  if (!includeSourceText) return snapshot;
+
   const sourceTextByUri = new Map(
     vscode.workspace.textDocuments
       .filter((document) => document.uri.scheme === "file" && document.fileName.endsWith(".nui"))
@@ -29,7 +31,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),
     workspaceFolderPaths: vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [],
-    observationProvider: observationSnapshot
+    observationProvider: ({ includeSourceText }) => observationSnapshot(includeSourceText)
   });
   if (!bridge) return;
 
