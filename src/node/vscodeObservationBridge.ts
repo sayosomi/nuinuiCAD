@@ -239,16 +239,26 @@ export class VscodeObservationBridge {
     if (this.disposed) return;
     this.disposed = true;
     safeUnlink(this.descriptorPath);
-    if (this.server.listening) this.server.close();
+    if (this.server.listening) {
+      this.server.close();
+      this.server.closeAllConnections();
+    }
   }
 
   private handleSocket(socket: Socket): void {
+    if (this.disposed) {
+      socket.destroy();
+      return;
+    }
     socket.setEncoding("utf8");
     let buffer = "";
     let handled = false;
     socket.on("error", () => undefined);
     socket.on("data", (chunk: string) => {
-      if (handled) return;
+      if (handled || this.disposed) {
+        socket.destroy();
+        return;
+      }
       buffer += chunk;
       if (Buffer.byteLength(buffer, "utf8") > MAX_REQUEST_BYTES) {
         handled = true;
