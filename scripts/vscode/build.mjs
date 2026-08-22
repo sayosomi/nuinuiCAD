@@ -8,7 +8,7 @@ const outputDirectory = resolve(repositoryRoot, "vscode-extension/dist");
 mkdirSync(outputDirectory, { recursive: true });
 
 await build({
-  entryPoints: [resolve(repositoryRoot, "vscode-extension/src/extension.ts")],
+  entryPoints: [resolve(repositoryRoot, "vscode-extension/src/extensionEntry.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
