@@ -1,0 +1,28 @@
+name: SAY-115 Direct Implement
+
+on:
+  push:
+    branches:
+      - sayosomi/say-115-legacy-palette-remove-source-canonical-model
+
+permissions:
+  contents: write
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-115-legacy-palette-remove-source-canonical-model
+          fetch-depth: 0
+
+      - name: Inventory legacy palette references
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== SOURCE REFERENCES ==='
+          rg -n -C 3 'DocumentPalette|PaletteColor|colorId|kind: "color"|dslStatementKeywords\.color|sectionEnds\.palette|serializePalette|compiled\.palette|data\.palette|palette:' src --glob '!**/*.test.*' || true
+          echo '=== CORE TEST REFERENCES ==='
+          rg -n -C 2 'DocumentPalette|PaletteColor|colorId|kind: "color"|dslStatementKeywords\.color|sectionEnds\.palette|serializePalette|compiled\.palette|data\.palette|palette:' src/dsl src/document src/parameters --glob '**/*.test.*' || true
