@@ -1,6 +1,7 @@
 import { act, render } from "@testing-library/react";
 import type { EvaluationResult } from "../types/geometry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { selectElement } from "../commands/selectionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp } from "./VSCodeApp";
@@ -97,7 +98,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    useCadUiStore.getState().setSelectedElementId(initialA!.id);
+    selectElement(initialA!.id, "replace", true);
     expect(selectedElementId()).toBe(initialA!.id);
 
     await publish({
@@ -140,7 +141,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    useCadUiStore.getState().setSelectedElementId(initialA!.id);
+    selectElement(initialA!.id, "replace", true);
 
     await publish({
       type: "commitText",
