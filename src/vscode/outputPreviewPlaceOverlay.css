@@ -1,0 +1,149 @@
+.output-preview-place-overlay {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+
+.output-preview-place-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.output-preview-place-handle::before {
+  position: absolute;
+  inset: 4px;
+  border: 2px solid var(--vscode-focusBorder, var(--canvas-accent, #0f766e));
+  border-radius: 50%;
+  background: var(--vscode-editor-background, var(--canvas-background, #ffffff));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-editor-background, #ffffff) 70%, transparent);
+  content: "";
+}
+
+.output-preview-place-handle:hover::before,
+.output-preview-place-handle:focus-visible::before,
+.output-preview-place-handle.is-active::before {
+  background: color-mix(in srgb, var(--vscode-focusBorder, #0f766e) 22%, var(--vscode-editor-background, #ffffff));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #0f766e) 35%, transparent);
+}
+
+.output-preview-place-handle:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--canvas-accent, #0f766e));
+  outline-offset: 2px;
+}
+
+.output-preview-place-popover {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  width: min(320px, calc(100% - 16px));
+  max-height: min(430px, calc(100% - 16px));
+  overflow: auto;
+  gap: 8px;
+  border: 1px solid var(--vscode-widget-border, var(--canvas-border, #7f7f7f));
+  border-radius: 7px;
+  background: var(--vscode-editorWidget-background, var(--canvas-background, #ffffff));
+  color: var(--vscode-editorWidget-foreground, var(--canvas-foreground, #252622));
+  box-shadow: 0 10px 28px color-mix(in srgb, #000000 24%, transparent);
+  padding: 10px;
+  pointer-events: auto;
+}
+
+.output-preview-place-popover-header {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--canvas-border, #7f7f7f));
+}
+
+.output-preview-place-popover button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+.output-preview-place-popover button:hover,
+.output-preview-place-popover button:focus-visible {
+  background: var(--vscode-list-hoverBackground, color-mix(in srgb, var(--canvas-accent, #0f766e) 10%, transparent));
+}
+
+.output-preview-place-popover-title {
+  font-weight: 650;
+}
+
+.output-preview-place-popover-context {
+  color: var(--vscode-descriptionForeground, var(--canvas-muted, #70757a));
+  font-size: 11px;
+}
+
+.output-preview-place-property-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.output-preview-place-property-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  margin: 0;
+}
+
+.output-preview-place-property-row dt {
+  color: var(--vscode-descriptionForeground, var(--canvas-muted, #70757a));
+  font-size: 11px;
+  line-height: 24px;
+}
+
+.output-preview-place-property-row dd {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 0;
+}
+
+.output-preview-place-property-value {
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family, var(--dsl-code-font));
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.output-preview-place-reference-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.output-preview-place-reference-targets button {
+  border: 1px solid var(--vscode-widget-border, var(--canvas-border, #7f7f7f));
+  border-radius: 4px;
+  color: var(--vscode-textLink-foreground, var(--canvas-accent, #0f766e));
+  font-family: var(--vscode-editor-font-family, var(--dsl-code-font));
+  font-size: 10px;
+  padding: 2px 5px;
+}
+
+.output-preview-place-drag-reason {
+  margin: 0;
+  border-top: 1px solid var(--vscode-widget-border, var(--canvas-border, #7f7f7f));
+  padding-top: 7px;
+  color: var(--vscode-descriptionForeground, var(--canvas-muted, #70757a));
+  font-size: 11px;
+}
+
+.output-preview-place-candidate-menu {
+  pointer-events: auto;
+}
