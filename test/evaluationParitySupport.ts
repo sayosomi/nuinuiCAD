@@ -59,7 +59,7 @@ export const evaluateWithRustFixture = (
   fixture: EvaluationFixture,
   selectedDrawingProfileId?: string
 ): EvaluationPayload => {
-  const cargoManifest = join(repoRoot, "src-tauri", "Cargo.toml");
+  const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
   const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture, selectedDrawingProfileId));
   const output = execFileSync(
     "cargo",
