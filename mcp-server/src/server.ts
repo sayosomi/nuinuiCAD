@@ -74,6 +74,7 @@ export const createNuinuiCadMcpServer = (
     "document_inspect",
     {
       description: "Inspect one absolute file-backed .nui document using the exact current source snapshot.",
+      annotations: { readOnlyHint: true },
       inputSchema: z.object({
         path: absoluteNuiPathSchema
       })
@@ -91,6 +92,7 @@ export const createNuinuiCadMcpServer = (
     "document_definition",
     {
       description: "Resolve the same-document declaration for a semantic reference in an exact current .nui snapshot.",
+      annotations: { readOnlyHint: true },
       inputSchema: z.object({
         path: absoluteNuiPathSchema,
         position: normalizedSourcePositionSchema
@@ -109,6 +111,7 @@ export const createNuinuiCadMcpServer = (
     "document_references",
     {
       description: "List ordered same-document references for the semantic symbol at a position in an exact current .nui snapshot.",
+      annotations: { readOnlyHint: true },
       inputSchema: z.object({
         path: absoluteNuiPathSchema,
         position: normalizedSourcePositionSchema
@@ -127,6 +130,7 @@ export const createNuinuiCadMcpServer = (
     "document_evaluate",
     {
       description: "Evaluate one exact-current file-backed .nui document with the production Rust evaluator.",
+      annotations: { readOnlyHint: true },
       inputSchema: z.object({
         path: absoluteNuiPathSchema,
         requestedElementIds: z.array(z.string().min(1)).max(1000).optional(),
@@ -149,6 +153,7 @@ export const createNuinuiCadMcpServer = (
     "vscode_observe",
     {
       description: "Observe exact-current read-only nuinuiCAD state from a live developer-enabled VS Code Extension Host.",
+      annotations: { readOnlyHint: true },
       inputSchema: z.object({
         instanceId: z.string().min(1).optional(),
         documentPath: absoluteNuiPathSchema.optional(),
