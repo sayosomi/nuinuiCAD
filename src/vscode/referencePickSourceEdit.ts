@@ -65,7 +65,7 @@ export const planVscodeReferencePickSourceEdit = ({
 
   const allowedKeys = new Set([
     ...allowedCandidateReferences,
-    ...referencePickSeedReferences(targetProof)
+    ...(target.multiplicity === "multiple" ? referencePickSeedReferences(targetProof) : [])
   ].map(referencePickReferenceKey));
   if (references.some((reference) => !allowedKeys.has(referencePickReferenceKey(reference)))) return null;
 
