@@ -1,0 +1,101 @@
+name: SAY-165 test diagnosis
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: ${{ github.event.pull_request.number == 460 && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Skip after diagnosis is recorded
+        id: existing
+        run: |
+          if [[ -f SAY165_TEST_FAILURES.txt ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Rust
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        run: npm ci
+
+      - name: Build Rust evaluation fixture
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        run: cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --example evaluate_fixture
+
+      - name: Capture failing Vitest assertions
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        run: |
+          set +e
+          npm test -- --reporter=json --outputFile=/tmp/vitest-results.json > /tmp/vitest-console.log 2>&1
+          test_status=$?
+          set -e
+
+          TEST_STATUS="$test_status" node <<'NODE'
+          const fs = require('node:fs');
+          const status = Number(process.env.TEST_STATUS ?? 1);
+          const lines = [`exit=${status}`];
+          try {
+            const report = JSON.parse(fs.readFileSync('/tmp/vitest-results.json', 'utf8'));
+            lines.push(`failedTests=${report.numFailedTests ?? 'unknown'}`);
+            lines.push(`failedSuites=${report.numFailedTestSuites ?? 'unknown'}`);
+            for (const result of report.testResults ?? []) {
+              const failed = (result.assertionResults ?? []).filter((item) => item.status === 'failed');
+              for (const assertion of failed) {
+                lines.push('');
+                lines.push(`FILE: ${result.name ?? 'unknown'}`);
+                lines.push(`TEST: ${assertion.fullName ?? assertion.title ?? 'unknown'}`);
+                const messages = assertion.failureMessages ?? [];
+                if (messages.length > 0) lines.push(messages.join('\n'));
+              }
+              if (failed.length === 0 && result.status === 'failed' && result.message) {
+                lines.push('');
+                lines.push(`FILE: ${result.name ?? 'unknown'}`);
+                lines.push(String(result.message));
+              }
+            }
+          } catch (error) {
+            lines.push(`json-report-error=${error instanceof Error ? error.message : String(error)}`);
+            try {
+              const consoleText = fs.readFileSync('/tmp/vitest-console.log', 'utf8');
+              lines.push(consoleText.split('\n').slice(-250).join('\n'));
+            } catch {}
+          }
+          fs.writeFileSync('SAY165_TEST_FAILURES.txt', `${lines.join('\n')}\n`);
+          NODE
+
+      - name: Commit diagnosis
+        if: ${{ steps.existing.outputs.skip != 'true' }}
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git add SAY165_TEST_FAILURES.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "SAY-165: capture failing full-node tests"
+          git push origin "HEAD:${HEAD_REF}"
