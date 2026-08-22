@@ -1,0 +1,19 @@
+name: Delete accidental temporary branch
+
+on:
+  push:
+    branches:
+      - tmp-do-not-use
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete temporary branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" push https://github.com/${{ github.repository }}.git --delete tmp-do-not-use
