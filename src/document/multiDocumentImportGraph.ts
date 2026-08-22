@@ -388,6 +388,25 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
 
         const targetSnapshot = loaded.snapshot;
         edge.targetDocumentId = targetSnapshot.documentId;
+        const existingFingerprint = dependencyFingerprints.get(targetSnapshot.documentId);
+        if (
+          existingFingerprint !== undefined &&
+          existingFingerprint !== targetSnapshot.savedSourceFingerprint
+        ) {
+          const previousEdge = edges.find(
+            (candidate) => candidate !== edge && candidate.targetDocumentId === targetSnapshot.documentId
+          );
+          edge.status = "failed";
+          edge.failureReason = "stale";
+          diagnostics.push({
+            code: "import-load-stale",
+            message: `同じDocumentId「${targetSnapshot.documentId}」が異なるsaved source fingerprintで解決されたため、import graphを確定できません。`,
+            location: directive.location,
+            ...(previousEdge ? { relatedLocations: [previousEdge.importLocation] } : {})
+          });
+          node.valid = false;
+          continue;
+        }
         dependencyFingerprints.set(targetSnapshot.documentId, targetSnapshot.savedSourceFingerprint);
         const cycleStart = nextStackDocumentIds.indexOf(targetSnapshot.documentId);
         if (cycleStart >= 0) {
@@ -562,7 +581,7 @@ export class MultiDocumentGraphCoordinator<Metadata = unknown> {
     this.removeInstalledRoot(graph.rootDocumentId);
     this.graphByRoot.set(graph.rootDocumentId, graph);
     const dependencies = new Set(
-      [...graph.nodes.keys()].filter((documentId) => documentId !== graph.rootDocumentId)
+      [...graph.dependencyFingerprints.keys()].filter((documentId) => documentId !== graph.rootDocumentId)
     );
     this.dependenciesByRoot.set(graph.rootDocumentId, dependencies);
     for (const dependency of dependencies) {
