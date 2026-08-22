@@ -82,8 +82,7 @@ const createDocument = (initialSource: string): TestDocument => {
 
 const createEditor = (document: TestDocument) => {
   const edit = vi.fn(async (
-    callback: (builder: { replace: (range: { start: TestPosition; end: TestPosition }, replacement: string) => void }) => void,
-    _options: unknown
+    callback: (builder: { replace: (range: { start: TestPosition; end: TestPosition }, replacement: string) => void }) => void
   ) => {
     let pending: { range: { start: TestPosition; end: TestPosition }; replacement: string } | null = null;
     callback({ replace: (range, replacement) => { pending = { range, replacement }; } });
@@ -97,6 +96,22 @@ const createEditor = (document: TestDocument) => {
     viewColumn: 1,
     edit
   };
+};
+
+const createBridgeFixture = (requestId: number) => {
+  const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
+  const document = createDocument(source);
+  const editor = createEditor(document);
+  mocks.textDocuments = [document];
+  const postMessage = vi.fn();
+  const bridge = createVscodeReferencePickSourceBridge({
+    editor: editor as never,
+    languageAnalysisSession: createLanguageAnalysisSession(source),
+    requestId,
+    normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
+    postMessage
+  });
+  return { source, document, editor, postMessage, bridge };
 };
 
 beforeEach(() => {
@@ -160,18 +175,7 @@ describe("createVscodeReferencePickSourceBridge", () => {
   });
 
   it("cancels the draft immediately when the captured Source document changes", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
-    const document = createDocument(source);
-    const editor = createEditor(document);
-    mocks.textDocuments = [document];
-    const postMessage = vi.fn();
-    const bridge = createVscodeReferencePickSourceBridge({
-      editor: editor as never,
-      languageAnalysisSession: createLanguageAnalysisSession(source),
-      requestId: 18,
-      normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
-      postMessage
-    });
+    const { document, postMessage, bridge } = createBridgeFixture(18);
     expect(bridge.start()).not.toBeNull();
 
     for (const listener of [...mocks.changeListeners]) {
@@ -181,6 +185,21 @@ describe("createVscodeReferencePickSourceBridge", () => {
     expect(postMessage).toHaveBeenLastCalledWith({
       type: "referencePickCancelRequest",
       requestId: 18,
+      documentUri: "file:///pick.nui",
+      documentVersion: 3
+    });
+  });
+
+  it("cancels the draft when the captured Source document closes", () => {
+    const { document, postMessage, bridge } = createBridgeFixture(19);
+    expect(bridge.start()).not.toBeNull();
+
+    for (const listener of [...mocks.closeListeners]) listener(document);
+
+    expect(bridge.activeRequest()).toBeNull();
+    expect(postMessage).toHaveBeenLastCalledWith({
+      type: "referencePickCancelRequest",
+      requestId: 19,
       documentUri: "file:///pick.nui",
       documentVersion: 3
     });
