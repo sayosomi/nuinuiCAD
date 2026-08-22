@@ -13,8 +13,10 @@ const ch = (
   ...modifiers
 });
 
-const commandLabel = (commandId: CommandId, fallback?: string) =>
-  fallback ?? commands[commandId].shortcuts?.[0]?.label ?? commands[commandId].label;
+const commandLabel = (commandId: CommandId, fallback?: string) => {
+  const command = commands[commandId];
+  return fallback ?? command?.shortcuts?.[0]?.label ?? command?.label ?? commandId;
+};
 
 const binding = (
   scope: ShortcutScope,
@@ -32,10 +34,6 @@ const binding = (
 });
 
 const defaultBindings: ShortcutBinding[] = [
-  binding("crossFocus", "newDocument", [ch("n", { mod: true })]),
-  binding("crossFocus", "openDocument", [ch("o", { mod: true })]),
-  binding("crossFocus", "saveDocument", [ch("s", { mod: true })]),
-  binding("crossFocus", "saveDocumentAs", [ch("s", { mod: true, shift: true })]),
   binding("crossFocus", "openCommandPalette", [ch("k", { mod: true })]),
   binding("crossFocus", "openShortcutSettings", [ch(",", { mod: true })]),
   binding("crossFocus", "toggleShortcutHelp", [ch("h", { mod: true, shift: true })]),
