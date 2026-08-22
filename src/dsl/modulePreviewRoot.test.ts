@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
+import { buildBindingVersionGraph } from "../scalars/bindingVersions";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
 import { compileModulePreviewRoot } from "./modulePreviewRoot";
@@ -21,7 +24,7 @@ const targetAt = (source: string, compiled: CompiledDslDocument, needle: string,
   });
 
 describe("compileModulePreviewRoot", () => {
-  it("materializes a top-level preview through the existing compiler/runtime path with omission semantics and provenance", () => {
+  it("materializes and evaluates a top-level preview through the existing runtime with omission semantics and provenance", () => {
     const source = [
       "nui 4",
       "module Pocket(base: number, width: number = @base * 2, note?: string) {",
@@ -43,12 +46,13 @@ describe("compileModulePreviewRoot", () => {
 
     expect(result).not.toBeNull();
     expect(source).toBe(original);
-    expect(result?.targetRuntimeElementIds).toContain(result?.targetRuntimeElementId);
-    expect(result?.compileResult.elements.some((element) => element.id === result?.targetRuntimeElementId)).toBe(true);
-    expect(result?.moduleScalarRuntime.scalarProgram).toBeDefined();
+    if (!result || !target) throw new Error("expected preview result");
+    expect(result.targetRuntimeElementIds).toContain(result.targetRuntimeElementId);
+    expect(result.compileResult.elements.some((element) => element.id === result.targetRuntimeElementId)).toBe(true);
+    expect(result.moduleScalarRuntime.scalarProgram).toBeDefined();
 
-    const previewInstance = result?.moduleSemanticAnalysis.instancesByStatementId.get(
-      `module-preview-call:${target?.definitionStatementId}:0`
+    const previewInstance = result.moduleSemanticAnalysis.instancesByStatementId.get(
+      `module-preview-call:${target.definitionStatementId}:0`
     );
     expect(previewInstance?.parameterBindings.map((binding) => [binding.parameterName, binding.state])).toEqual([
       ["base", "requiredSupplied"],
@@ -56,11 +60,45 @@ describe("compileModulePreviewRoot", () => {
       ["note", "optionalOmitted"]
     ]);
 
-    const bodyEntry = result?.moduleMaterialization.executionStatements.find((entry) =>
+    const bodyEntry = result.moduleMaterialization.executionStatements.find((entry) =>
       entry.origin?.kind === "moduleBody" && entry.sourceStatementIndex === 2 &&
       result.targetRuntimeElementIds.includes(entry.runtimeElementId)
     );
     expect(bodyEntry?.origin?.sourceStatementId).toBe("preview-root:2");
+
+    const runtime = result.moduleScalarRuntime;
+    const bindingVersions = buildBindingVersionGraph({
+      scalarProgram: runtime.scalarProgram,
+      bindingAnalysis: runtime.bindingAnalysis,
+      setStatements: new Map(runtime.moduleSetStatements.map((set, index) => [-(index + 1), set] as const)),
+      controlByScopeId: runtime.controlByScopeId,
+      requiresExecutionOrdering: true
+    });
+    const evaluation = evaluateElements(result.compileResult.elements, {
+      scalarProgram: runtime.scalarProgram,
+      bindingVersions,
+      sourceExecutionPositionByElementId: result.moduleMaterialization.sourceExecutionPositionByRuntimeElementId,
+      scalarExecutionPositionByElementId: runtime.scalarExecutionPositionByRuntimeElementId,
+      numericBindingEntries: buildNumericBindingRuntimeEntries({
+        numericBindings: new Map(),
+        elementIdByStatementIndex: result.moduleMaterialization.elementIdBySourceStatementIndex,
+        materializedNumericBindings: runtime.materializedNumericBindings
+      }, result.compileResult.elements),
+      moduleMaterialization: result.moduleMaterialization
+    });
+    expect(evaluation.errors).toEqual([]);
+    const previewPoint = result.compileResult.elements.find((element) =>
+      element.name === "P" && result.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(previewPoint).toBeDefined();
+    expect(evaluation.computedGeometry.get(previewPoint!.id)).toMatchObject({ kind: "point", x: 6, y: 0 });
+
+    expect(compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      arguments: []
+    })).toBeNull();
   });
 
   it("evaluates nested preview arguments in the ancestor parameter context without granting body outer capture", () => {
