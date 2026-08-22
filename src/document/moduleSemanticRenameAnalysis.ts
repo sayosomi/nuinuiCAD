@@ -104,10 +104,10 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     }
     return value.kind;
   };
-  const expressionFingerprint = (expression: { references: readonly { resolution: string; target: unknown }[]; geometryProperties: readonly { resolution: string; target: unknown }[] } | null) => expression && {
+  const expressionFingerprint = (expression: { references: readonly { resolution: string; target: unknown }[]; geometryProperties: readonly { resolution: string; target: unknown }[] } | null) => expression && ({
     references: expression.references.map((reference) => [reference.resolution, targetFingerprint(reference.target)]),
     geometryProperties: expression.geometryProperties.map((reference) => [reference.resolution, targetFingerprint(reference.target)])
-  };
+  });
   const geometryFingerprint = (reference: { resolution: string; target: unknown; coordinate: { x: Parameters<typeof expressionFingerprint>[0]; y: Parameters<typeof expressionFingerprint>[0] } | null }) => ({
     resolution: reference.resolution,
     target: targetFingerprint(reference.target),
@@ -154,6 +154,62 @@ const compileWithStableIds = (source: string, before: CompiledDslDocument) => co
   assignedStatementIds: before.statementMap?.statementIdByStatementIndex
 });
 
+type RenameReplacement = {
+  from: number;
+  to: number;
+  oldName: string;
+  newName: string;
+};
+
+const shorthandLabelTargetKey = (
+  compiled: CompiledDslDocument,
+  from: number,
+  to: number
+): string | null => {
+  const statementIndex = statementIndexForOffset(compiled, from);
+  const statement = compiled.statements[statementIndex];
+  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
+  if (statement?.kind !== "moduleInstance" || !instance?.callee) return null;
+  const argumentIndex = statement.arguments.findIndex((argument) => {
+    const physical = argument.labelPhysicalSpan?.segments;
+    return physical?.length === 1 && physical[0]?.from === from && physical[0]?.to === to;
+  });
+  if (argumentIndex < 0) return null;
+  const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
+  if (!binding) return null;
+  return moduleSemanticTargetKey({
+    kind: "moduleParameter",
+    slot: {
+      definitionStatementId: instance.callee.definitionStatementId,
+      parameterIndex: binding.parameterIndex
+    }
+  });
+};
+
+const shorthandRenameReplacement = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  index: ReturnType<typeof createModuleSemanticRangeIndex>,
+  token: ReturnType<typeof createModuleSemanticRangeIndex>["tokens"][number],
+  target: ModuleSemanticTarget,
+  oldName: string,
+  newName: string
+): RenameReplacement | null => {
+  if (token.from <= 0 || sourceText[token.from - 1] !== "@" || sourceText.slice(token.from, token.to) !== oldName) return null;
+  const labelTargetKey = shorthandLabelTargetKey(compiled, token.from, token.to);
+  if (!labelTargetKey) return null;
+  const overlappingKeys = new Set(
+    index.tokens
+      .filter((candidate) => candidate.from === token.from && candidate.to === token.to)
+      .map((candidate) => moduleSemanticTargetKey(candidate.target))
+  );
+  const targetKey = moduleSemanticTargetKey(target);
+  if (!overlappingKeys.has(labelTargetKey) || !overlappingKeys.has(targetKey) || overlappingKeys.size < 2) return null;
+  return targetKey === labelTargetKey
+    ? { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${newName}: @${oldName}` }
+    : { from: token.from - 1, to: token.to, oldName: `@${oldName}`, newName: `${oldName}: @${newName}` };
+};
+
 export const analyzeModuleSemanticRename = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -187,11 +243,17 @@ export const analyzeModuleSemanticRename = (
     if (statementIndex < 0 || token.to <= token.from || sourceText.slice(token.from, token.to) !== oldName) {
       return { verdict: "rejected", reason: "span-mismatch" };
     }
-    const key = `${token.from}:${token.to}`;
+    const replacement = shorthandRenameReplacement(sourceText, compiled, index, token, target, oldName, newName) ?? {
+      from: token.from,
+      to: token.to,
+      oldName: sourceText.slice(token.from, token.to),
+      newName
+    };
+    const key = `${replacement.from}:${replacement.to}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    entries.push({ statementIndex, span: { start: 0, end: 0 }, oldName: sourceText.slice(token.from, token.to), newName, physicalSpan: {
-      segments: [{ from: token.from, to: token.to }], sourceRevision: compiled.spans.sourceMap.sourceRevision
+    entries.push({ statementIndex, span: { start: 0, end: 0 }, oldName: replacement.oldName, newName: replacement.newName, physicalSpan: {
+      segments: [{ from: replacement.from, to: replacement.to }], sourceRevision: compiled.spans.sourceMap.sourceRevision
     }});
   }
   if (entries.length === 0) return { verdict: "rejected", reason: "target-not-found" };
