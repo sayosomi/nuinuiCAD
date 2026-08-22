@@ -93,15 +93,6 @@ describe("cadDocumentStore 影テキスト: 代表的なコミット経路", () 
     expectNoShadowWarnings();
   });
 
-  it("パレット操作(追加・編集・既定色変更・削除)で警告が出ない", () => {
-    useCadDocumentStore.getState().addPaletteColor();
-    const newColorId = useCadDocumentStore.getState().palette.colors.at(-1)!.id;
-    useCadDocumentStore.getState().updatePaletteColor(newColorId, { name: "新色" });
-    useCadDocumentStore.getState().setDefaultColorId(newColorId);
-    useCadDocumentStore.getState().deletePaletteColor(newColorId === useCadDocumentStore.getState().palette.defaultColorId ? useCadDocumentStore.getState().palette.colors[0].id : newColorId);
-    expectShadowConsistent();
-    expectNoShadowWarnings();
-  });
 
   it("可視性ロール・プロファイル操作で警告が出ない", () => {
     useCadDocumentStore.getState().addVisibilityRole("ガイド");

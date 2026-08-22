@@ -9,7 +9,6 @@ import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import { defaultDocumentPalette } from "../palette/palette";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadDocumentStore, useCadStore } from "../state/useCadStore";
@@ -128,7 +127,6 @@ const resetStore = () => {
     elements: sampleElements,
     previewElements: null,
     previewEvaluationLimitIndex: null,
-    palette: defaultDocumentPalette(),
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
     selectionAnchorElementId: sampleElements[0].id,
@@ -146,8 +144,6 @@ const resetStore = () => {
     showCanvasPoints: true,
     showShortcutHelp: false,
     showShortcutSettings: false,
-    showPaletteSettings: false,
-    showSelectionColorPicker: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
@@ -211,7 +207,6 @@ const createFakeCanvasHostAdapter = (
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: 0,
     canvasTheme: LEGACY_CANVAS_THEME,
-    palette: defaultDocumentPalette(),
     visibilityProfiles: [],
     activeVisibilityProfileId: null,
     moduleSemanticContext: {},

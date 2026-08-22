@@ -79,7 +79,6 @@ export const InspectorPanel = ({
     (state) => state.activeNumericReferencePickTarget,
   );
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
-  const palette = useCadDocumentStore((state) => state.palette);
   const profiles = useCadDocumentStore((state) => state.visibilityProfiles);
   const activeProfileId = useCadDocumentStore(
     (state) => state.activeVisibilityProfileId,
@@ -132,11 +131,10 @@ export const InspectorPanel = ({
         elements,
         evaluation,
         groupFoldById,
-        palette,
         visibilityProfiles: profiles,
         activeVisibilityProfileId: activeProfileId,
       }),
-    [activeProfileId, elements, evaluation, groupFoldById, palette, profiles],
+    [activeProfileId, elements, evaluation, groupFoldById, profiles],
   );
   const status = element
     ? (presentationStatusIndex.get(element.id) ?? null)

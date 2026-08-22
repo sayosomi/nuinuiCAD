@@ -1,15 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { ShortcutSettingsDialog } from "./ShortcutSettingsDialog";
 
 const resetStore = () => {
   useCadStore.setState({
-    palette: defaultDocumentPalette(),
     showShortcutSettings: true,
-    showPaletteSettings: false,
-    showSelectionColorPicker: false,
     shortcutSettings: { version: 1, overrides: [] },
     shortcutSettingsLoading: false,
     shortcutSettingsError: null,
