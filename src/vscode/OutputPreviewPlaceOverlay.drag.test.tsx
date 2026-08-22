@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -50,7 +51,7 @@ const proof: OutputPreviewPlaceDragProof = {
   y: { range: { from: yFrom, to: yFrom + 2 }, sourceText: "20", literal: 20 }
 };
 
-const renderDragOverlay = (overrides: Partial<React.ComponentProps<typeof OutputPreviewPlaceOverlay>> = {}) => {
+const renderDragOverlay = (overrides: Partial<ComponentProps<typeof OutputPreviewPlaceOverlay>> = {}) => {
   const callbacks = {
     onBeginDrag: vi.fn(() => proof),
     onPreviewDrag: vi.fn(() => true),
