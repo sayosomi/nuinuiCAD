@@ -379,6 +379,7 @@ pub(crate) fn effective_drawing_modifier_stroke_by_element_id(
     effective_drawing_modifier_stroke_by_element_id_with_profile(elements, drawing_modifiers, None)
 }
 
+#[cfg(test)]
 pub(crate) fn effective_drawing_modifier_stroke_by_element_id_with_profile(
     elements: &[Value],
     drawing_modifiers: Option<&Value>,
