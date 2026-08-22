@@ -149,8 +149,6 @@ const genericParameterDocumentationKeyFor = (definition: ParameterDefinition): s
       return "signatureHelp.parameter.choice";
     case "text":
       return "signatureHelp.parameter.text";
-    case "color":
-      return "signatureHelp.parameter.color";
   }
 };
 

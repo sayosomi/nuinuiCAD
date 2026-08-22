@@ -170,7 +170,6 @@ describe("module definition compilation guard", () => {
       "nui 4",
       "module M() {",
       "  nui 4",
-      "  color hidden (\"#ff0000\", default: true)",
       "  role inner (name: \"Inner\")",
       "  view hiddenView (default: false)",
       "  activeView hiddenView",
@@ -181,8 +180,6 @@ describe("module definition compilation guard", () => {
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("文書の先頭に1つだけ"))).toBe(false);
-    expect(compiled.document?.palette.colors.some((color) => color.id === "hidden")).toBe(false);
-    expect(compiled.document?.palette.defaultColorId).toBe("pattern-black");
     expect(compiled.document?.visibilityRoles).toEqual([]);
     expect(compiled.document?.visibilityProfiles).toHaveLength(1);
   });

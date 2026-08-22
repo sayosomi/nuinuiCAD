@@ -492,7 +492,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 4",
       "module Outer() {",
-      "  color hidden (\"#ff0000\")",
+      '  role hidden (name: "hidden")',
       "  module Inner() {",
       "    const value: number = 1",
       "  }",

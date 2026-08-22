@@ -37,7 +37,6 @@ const randomOpArbitrary: fc.Arbitrary<RandomOp> = fc.record({
     "ungroup",
     "move",
     "reparent",
-    "paletteEdit",
     "stopMove",
     "profileToggle",
     "layoutEdit"
@@ -123,7 +122,6 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
           document = applied.document;
           useCadDocumentStore.getState().commitDocumentChange({
             elements: document.elements,
-            palette: document.palette,
             visibilityRoles: document.visibilityRoles,
             visibilityProfiles: document.visibilityProfiles,
             layouts: document.layouts,

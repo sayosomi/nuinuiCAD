@@ -49,7 +49,6 @@ const valueFor = (element: CadElement, parameterKey: string) => {
     case "lineReferenceList": return "[@AB, @CD]";
     case "text": return '"a value"';
     case "choice": return definition.choiceOptions![0];
-    case "color": return "pattern-black";
   }
 };
 
@@ -102,11 +101,11 @@ describe("DSL nui 4 compiler argument application", () => {
     const division = sample("divisionPoint");
     const between = applyArgs(division, constructionFor("point", "between")!, [
       arg("start", "@A"), arg("end", "@B"), arg("ratio", "0.25"),
-      arg("state", "disabled"), arg("color", "red"),
+      arg("state", "disabled"),
     ], resolvers);
     expect(between.element).toMatchObject({
       startPoint: referenceAnchor("p1"), endPoint: referenceAnchor("p2"),
-      placement: { kind: "ratio", value: 0.25 }, activity: "disabled", colorId: "red",
+      placement: { kind: "ratio", value: 0.25 }, activity: "disabled",
     });
 
     const curve = applyArgs(sample("bezierCurve"), constructionFor("curve", "bezier")!, [

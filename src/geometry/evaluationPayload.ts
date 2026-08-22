@@ -12,6 +12,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingVersionId } from "../scalars/bindingVersions";
 import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
 import { parseScalarEvaluationJson } from "../scalars/scalarJson";
+import { parseConditionEvaluationTraceJson, type ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 import type { ScalarEvaluation } from "../scalars/types";
 
 export type ScalarBindingEvaluationPayload = { bindingId: BindingId; evaluation: ScalarEvaluation };
@@ -84,6 +85,29 @@ const parseComputedScalarBindingVersions = (value: unknown): Map<BindingVersionI
   return history;
 };
 
+
+const parseConditionEvaluationTraces = (value: unknown): Map<ElementId, ConditionEvaluationTrace> => {
+  if (!Array.isArray(value)) return failScalarOutput("conditionEvaluationTraces must be an array");
+  const traces = new Map<ElementId, ConditionEvaluationTrace>();
+  for (const [index, entry] of value.entries()) {
+    if (!isPlainObject(entry) || Object.keys(entry).length !== 2 || !("elementId" in entry) || !("trace" in entry)) {
+      return failScalarOutput(`conditionEvaluationTraces entry at index ${index} must contain only elementId && trace`);
+    }
+    if (typeof entry.elementId !== "string" || entry.elementId.length === 0) {
+      return failScalarOutput(`conditionEvaluationTraces entry at index ${index} has an invalid elementId`);
+    }
+    if (traces.has(entry.elementId)) {
+      return failScalarOutput(`conditionEvaluationTraces duplicates elementId ${entry.elementId}`);
+    }
+    try {
+      traces.set(entry.elementId, parseConditionEvaluationTraceJson(entry.trace));
+    } catch (error) {
+      return failScalarOutput(`conditionEvaluationTraces entry at index ${index} has an invalid trace: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return traces;
+};
+
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
   preMutationGeometry?: ComputedGeometry[];
@@ -97,6 +121,7 @@ export type EvaluationPayload = {
   effectiveEnabledElementIds: ElementId[];
   effectiveDrawingModifierStrokes?: Array<{ elementId: ElementId; stroke: DrawingModifierStroke }>;
   conditionInactiveElementIds?: ElementId[];
+  conditionEvaluationTraces?: Array<{ elementId: ElementId; trace: ConditionEvaluationTrace }>;
   forGroupGeneratedRows?: ForGroupGeneratedRow[];
   /** Task 25: `forGroup` ids whose generated-result presentation is enabled. */
   forGroupEffectiveShowGeneratedIds?: ElementId[];
@@ -126,6 +151,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
     ? Array.from(result.effectiveDrawingModifierStrokes, ([elementId, stroke]) => ({ elementId, stroke }))
     : undefined,
   conditionInactiveElementIds: Array.from(result.conditionInactiveElementIds ?? []),
+  conditionEvaluationTraces: result.conditionEvaluationTraces?.size
+    ? Array.from(result.conditionEvaluationTraces, ([elementId, trace]) => ({ elementId, trace }))
+    : undefined,
   forGroupGeneratedRows: result.forGroupGeneratedRows?.length
     ? result.forGroupGeneratedRows
     : undefined,
@@ -157,6 +185,9 @@ export const evaluationPayloadToResult = (payload: EvaluationPayload): Evaluatio
     (payload.effectiveDrawingModifierStrokes ?? []).map(({ elementId, stroke }) => [elementId, stroke])
   ),
   conditionInactiveElementIds: new Set(payload.conditionInactiveElementIds ?? []),
+  conditionEvaluationTraces: payload.conditionEvaluationTraces !== undefined
+    ? parseConditionEvaluationTraces(payload.conditionEvaluationTraces)
+    : new Map(),
   forGroupGeneratedRows: payload.forGroupGeneratedRows ?? [],
   forGroupEffectiveShowGeneratedIds: new Set(payload.forGroupEffectiveShowGeneratedIds ?? []),
   ...(payload.computedScalarBindings !== undefined

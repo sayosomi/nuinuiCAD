@@ -7,7 +7,7 @@ import {
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { createCadElementId } from "../model/cadIds";
-import { elementTypeSupportsHiddenActivity, elementTypesWithoutOwnDrawableGeometry } from "../model/elementActivity";
+import { elementTypeSupportsHiddenActivity } from "../model/elementActivity";
 import { isLineLikeElement } from "../model/pointAnchors";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
@@ -281,17 +281,7 @@ export const applyArgs = (
       next = { ...next, activity } as CadElement;
       continue;
     }
-    // `color` is a common argument even for element definitions that omit it
-    // from their Inspector parameter list.
-    if (!parameter) {
-      // Defence in depth: dslCallParser.ts's validateArgs already rejects this
-      // at parse time with a spanned diagnostic (color-unsupported); this
-      // guard only matters for a caller that skips that parse-time gate.
-      if (parameterKey === "colorId" && !elementTypesWithoutOwnDrawableGeometry.has(next.type)) {
-        next = { ...next, colorId: unquoteDslString(value) } as CadElement;
-      }
-      continue;
-    }
+    if (!parameter) continue;
     switch (parameter.kind) {
       case "boolean": {
         const parsed = booleanValue(value);
@@ -340,7 +330,6 @@ export const applyArgs = (
         break;
       case "text":
       case "choice":
-      case "color":
         next = setParameterValue(next, parameterKey, unquoteDslString(value));
         break;
     }

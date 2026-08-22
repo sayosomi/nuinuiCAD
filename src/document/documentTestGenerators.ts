@@ -38,10 +38,6 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
   const sections: string[][] = [];
   sections.push(["nui 4"]);
   sections.push([
-    'color main ("#31322f", name: "基本線", default: true)',
-    'color accent ("#b42318", name: "裁断線")'
-  ]);
-  sections.push([
     'role seam (name: "縫い代")',
     "view 通常 (default: true, seam: false)",
     "view 印刷 (default: true, seam: true)",
@@ -57,12 +53,12 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("point Ref0 = offset(from: @P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
-    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。palette側で
-    // 定義済みの"main"色を参照する(パースはcolorIdの存在検証をしない)。
+    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。
+    // common state引数を使い、旧Document Paletteには依存しない。
     elementLines.push("point PC = coordinate(");
     elementLines.push("  x: 5,");
     elementLines.push("  y: 5,");
-    elementLines.push("  color: main");
+    elementLines.push("  state: hidden");
     elementLines.push(")");
   }
   for (let index = 0; index < params.groupCount; index += 1) {
@@ -150,7 +146,6 @@ export type RandomOp = {
     | "ungroup"
     | "move"
     | "reparent"
-    | "paletteEdit"
     | "stopMove"
     | "profileToggle"
     | "layoutEdit";
@@ -434,24 +429,6 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
       };
     }
 
-    case "paletteEdit": {
-      const color = pick(document.palette.colors, op.a);
-      if (!color) return fallbackUpdate();
-      const hex = `#${(op.b % 0xffffff).toString(16).padStart(6, "0")}`;
-      return {
-        document: {
-          ...document,
-          palette: {
-            ...document.palette,
-            colors: document.palette.colors.map((item) =>
-              item.id === color.id ? { ...item, hex } : item
-            )
-          }
-        },
-        insertedIds: [],
-        description: `paletteEdit ${color.id}`
-      };
-    }
 
     case "stopMove":
       return {

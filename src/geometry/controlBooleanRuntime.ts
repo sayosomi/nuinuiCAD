@@ -20,6 +20,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import { evaluateConditionExpressionWithTrace, type ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 import type { ScalarEvaluation } from "../scalars/types";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
@@ -138,6 +139,30 @@ export const resolveForGroupEffectiveShowGenerated = (
   );
 };
 
+
+export type ResolvedConditionalGroupCondition = {
+  activeBranch: "then" | "else" | null;
+  trace: ConditionEvaluationTrace;
+};
+
+const activeBranchForConditionEvaluation = (evaluation: ScalarEvaluation): "then" | "else" | null => {
+  if (evaluation.status !== "ok" || evaluation.type.kind !== "boolean" || evaluation.value.kind !== "boolean") return null;
+  return evaluation.value.value ? "then" : "else";
+};
+
+/** Evaluates a typed condition exactly once and returns both branch state and exact reached-node trace. */
+export const resolveConditionalGroupCondition = (
+  expression: TypedScalarExpression,
+  resolveBinding: ControlBooleanResolveFn,
+  resolveGeometryProperty?: ControlBooleanGeometryResolveFn
+): ResolvedConditionalGroupCondition => {
+  const { evaluation, trace } = evaluateConditionExpressionWithTrace(expression, {
+    lookupBinding: resolveBinding,
+    ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
+  });
+  return { activeBranch: activeBranchForConditionEvaluation(evaluation), trace };
+};
+
 /**
  * A `conditionalGroup`'s active branch from its typed boolean condition:
  * `undefined` means no compiled typed expression exists for this occurrence
@@ -159,6 +184,5 @@ export const resolveConditionalGroupBranch = (
     lookupBinding: resolveBinding,
     ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
   });
-  if (evaluation.status !== "ok" || evaluation.type.kind !== "boolean") return null;
-  return evaluation.value.value ? "then" : "else";
+  return activeBranchForConditionEvaluation(evaluation);
 };

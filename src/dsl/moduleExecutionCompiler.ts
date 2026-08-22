@@ -2,7 +2,8 @@ import { createCadElement } from "../model/elementFactory";
 import { createNameIndex, resolveId } from "./dslReferences";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { parseElementActivityLiteral } from "./dslActivity";
-import type { ElementNameContext } from "../model/elementNames";
+import type {
+  ElementNameContext } from "../model/elementNames";
 import type { NameIndex } from "./dslReferences";
 import type {
   CompileDslContext,
@@ -13,7 +14,6 @@ import type {
 } from "./dslTypes";
 import type {
   CadElement,
-  DocumentPalette,
   Layout,
   PrintOutput,
   SvgOutput,
@@ -59,7 +59,6 @@ type MaterializedVisibilitySettings = {
   visibilityRoles: VisibilityRole[];
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId?: string;
-  palette?: DocumentPalette;
   layouts?: Layout[];
   printOutputs?: PrintOutput[];
   svgOutputs?: SvgOutput[];
@@ -234,7 +233,6 @@ export const compileMaterializedExecution = ({
     visibilityRoles: visibilitySettings.visibilityRoles,
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     activeVisibilityProfileId: visibilitySettings.activeVisibilityProfileId,
-    palette: visibilitySettings.palette,
     layouts: outputModel.layouts,
     printOutputs: outputModel.printOutputs,
     svgOutputs: outputModel.svgOutputs,

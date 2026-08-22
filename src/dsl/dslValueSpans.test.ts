@@ -187,9 +187,9 @@ describe("adjacentDslValueSpan", () => {
   });
 
   it("walks a mixed payload/attribute line in source order", () => {
-    const source = "line AB = segment(start: A, end: B, color: red, state: hidden)";
+    const source = "line AB = segment(start: A, end: B, state: hidden)";
     const spans = dslLineValueSpans(source);
-    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "red", "hidden"]);
+    expect(spans.map((span) => textOf(source, span))).toEqual(["A", "B", "hidden"]);
 
     let current = spans[0].start;
     const order: string[] = [];
@@ -198,7 +198,7 @@ describe("adjacentDslValueSpan", () => {
       order.push(textOf(source, next));
       current = next.start;
     }
-    expect(order).toEqual(["B", "red", "hidden", "A", "B"]);
+    expect(order).toEqual(["B", "hidden", "A", "B"]);
   });
 
   it("resolves from a caret inside a value, an exact-match selection, and a caret outside every value", () => {

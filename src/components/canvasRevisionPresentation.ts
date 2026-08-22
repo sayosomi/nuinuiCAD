@@ -1,9 +1,10 @@
+import type { LegacyDocumentPalette } from "../palette/palette";
 import { useLayoutEffect, useState } from "react";
-import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import type {
+  EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
 import type {
   CadElement,
-  DocumentPalette,
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
@@ -13,7 +14,7 @@ export type CanvasRevisionPresentationInputs = {
   elements: CadElement[];
   canonicalElements: CadElement[];
   evaluationLimitIndex: number | undefined;
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;

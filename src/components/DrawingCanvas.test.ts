@@ -788,7 +788,7 @@ describe("DrawingCanvas rendering", () => {
   it("uses the semantic Canvas selection color for selected line overlays", () => {
     useCadStore.setState({
       elements: sampleElements.map((element): CadElement =>
-        element.id === "line-ab" ? { ...element, colorId: "cut-red" } : element
+        element.id === "line-ab" ? ({ ...element, colorId: "cut-red" } as unknown as CadElement) : element
       ),
       selectedElementId: "line-ab",
       selectedElementIds: ["line-ab"]
@@ -806,7 +806,7 @@ describe("DrawingCanvas rendering", () => {
   it("uses the semantic Canvas selection color for selected point overlays", () => {
     useCadStore.setState({
       elements: sampleElements.map((element): CadElement =>
-        element.id === "point-a" ? { ...element, colorId: "guide-blue" } : element
+        element.id === "point-a" ? ({ ...element, colorId: "guide-blue" } as unknown as CadElement) : element
       ),
       selectedElementId: "point-a",
       selectedElementIds: ["point-a"]
@@ -2080,7 +2080,7 @@ describe("DrawingCanvas point dragging", () => {
       hasPendingText: () => true,
       isComposing: () => false,
       flush: () => {
-        useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0, color: cut-red)", "editor");
+        useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 1, y: 0)\npoint B = coordinate(x: 100, y: 0)", "editor");
         return "flushed";
       }
     });

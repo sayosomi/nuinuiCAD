@@ -1,3 +1,4 @@
+import type { LegacyDocumentPalette } from "../palette/palette";
 import {
   effectiveEnabledElementIds,
   effectiveVisibleElementIds,
@@ -11,7 +12,6 @@ import {
 import { resolvedElementColorMap } from "../palette/elementColors";
 import type {
   CadElement,
-  DocumentPalette,
   ElementId,
   EvaluationResult,
   VisibilityProfile
@@ -64,7 +64,7 @@ export const createElementPresentationStatusIndex = ({
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   groupFoldById: GroupFoldById;
-  palette: DocumentPalette;
+  palette: LegacyDocumentPalette;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string;
 }) => {

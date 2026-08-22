@@ -1,17 +1,16 @@
 import { makeNumericExpression, normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { createCadElement } from "../model/elementFactory";
 import { isPointElement } from "../model/pointAnchors";
-import type { ElementNameContext } from "../model/elementNames";
+import type {
+  ElementNameContext } from "../model/elementNames";
 import type {
   CadElement,
   CadElementType,
-  DocumentPalette,
   DrawingModifierProperties,
   DrawingModifierDefinition,
   DrawingModifierProfileDelta,
   DrawingProfile,
   ElementId,
-  PaletteColor,
   Layout,
   LayoutOrigin,
   LayoutPlacement,
@@ -287,57 +286,6 @@ export const applyStatement = (
   return next;
 };
 
-const applyPaletteStatements = ({
-  statements,
-  context,
-  diagnostics,
-  includeStatement
-}: {
-  statements: DslStatement[];
-  context: CompileDslContext;
-  diagnostics: DslDiagnostic[];
-  includeStatement: DslStatementInclusion;
-}): DocumentPalette | undefined => {
-  const colorStatements = statements.filter(
-    (statement, statementIndex): statement is Extract<DslStatement, { kind: "color" }> =>
-      statement.kind === "color" && includeStatement(statement, statementIndex)
-  );
-  if (colorStatements.length === 0) return context.palette;
-
-  const colors: PaletteColor[] = context.palette ? [...context.palette.colors] : [];
-  let defaultColorId = context.palette?.defaultColorId;
-  let defaultCount = 0;
-  for (const statement of colorStatements) {
-    const id = statement.name;
-    const existing = colors.find((color) => color.id === id);
-    const nextColor: PaletteColor = {
-      id,
-      name: unquoteName(attr(statement.attrs, "name")) ?? existing?.name ?? id,
-      hex: statement.hex
-    };
-    const existingIndex = colors.findIndex((color) => color.id === id);
-    if (existingIndex >= 0) {
-      colors[existingIndex] = nextColor;
-    } else {
-      colors.push(nextColor);
-    }
-    if (statement.isDefault) {
-      defaultCount += 1;
-      if (defaultCount > 1) {
-        diagnostics.push(diagnostic(statement.line, "default は1つの色にのみ指定できます。"));
-      }
-      defaultColorId = id;
-    }
-  }
-  return {
-    colors,
-    defaultColorId:
-      defaultColorId && colors.some((color) => color.id === defaultColorId)
-        ? defaultColorId
-        : colors[0]?.id ?? ""
-  };
-};
-
 export const applyVisibilitySettings = ({
   statements,
   context,
@@ -419,13 +367,10 @@ export const applyVisibilitySettings = ({
     }
   }
 
-  const palette = applyPaletteStatements({ statements, context, diagnostics, includeStatement });
-
   return {
     visibilityRoles,
     visibilityProfiles,
-    activeVisibilityProfileId,
-    palette
+    activeVisibilityProfileId
   };
 };
 
@@ -738,7 +683,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       layouts: context.layouts,
       printOutputs: context.printOutputs,
       svgOutputs: context.svgOutputs,
-      palette: context.palette,
       diagnostics,
       changedCount: 0
     };
@@ -969,7 +913,6 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     visibilityRoles: visibilitySettings.visibilityRoles,
     visibilityProfiles: visibilitySettings.visibilityProfiles,
     activeVisibilityProfileId: visibilitySettings.activeVisibilityProfileId,
-    palette: visibilitySettings.palette,
     layouts: outputModel.layouts,
     printOutputs: outputModel.printOutputs,
     svgOutputs: outputModel.svgOutputs,

@@ -48,10 +48,11 @@ import {
   type NumericBindingRuntimeEntry
 } from "./numericBindingRuntime";
 import {
-  resolveConditionalGroupBranch,
+  resolveConditionalGroupCondition,
   resolveForGroupEffectiveShowGenerated
 } from "./controlBooleanRuntime";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
+import type { ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -248,6 +249,7 @@ export const evaluateElements = (
   );
   const conditionalGroupStates = new Map<ElementId, "then" | "else" | null>();
   const conditionInactiveElementIds = new Set<ElementId>();
+  const conditionEvaluationTraces = new Map<ElementId, ConditionEvaluationTrace>();
   const effectiveEnabledIds = new Set<ElementId>();
   const forGroupEffectiveShowGeneratedIds = new Set<ElementId>();
   const templateDescendantIds = forGroupTemplateDescendantIds(elements);
@@ -463,12 +465,16 @@ export const evaluateElements = (
       // a conditionalGroup written inside a forGroup template resolves the
       // same active branch on every generated iteration.
       const typedCondition = conditionalGroupConditionsByElementId?.get((sourceElement ?? element).id);
-      const activeBranch = typedCondition
-        ? resolveConditionalGroupBranch(
+      const resolvedTypedCondition = typedCondition
+        ? resolveConditionalGroupCondition(
             typedCondition,
             scalarBindingResolver!.resolveBinding,
             resolveScalarGeometryProperty
           )
+        : undefined;
+      if (resolvedTypedCondition) conditionEvaluationTraces.set(element.id, resolvedTypedCondition.trace);
+      const activeBranch = resolvedTypedCondition
+        ? resolvedTypedCondition.activeBranch
         : (() => {
             const conditionValue = numericError(
               element,
@@ -778,6 +784,7 @@ export const evaluateElements = (
     effectiveEnabledElementIds: effectiveEnabledIds,
     effectiveDrawingModifierStrokes,
     conditionInactiveElementIds,
+    conditionEvaluationTraces,
     forGroupGeneratedRows,
     forGroupEffectiveShowGeneratedIds,
     ...(computedScalarBindings ? { computedScalarBindings } : {}),

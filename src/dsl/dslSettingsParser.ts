@@ -8,7 +8,6 @@ export type DslSettingsDiagnostic = { message: string; span: DslSpan };
 
 export type DslSettingsKind =
   | "version"
-  | "color"
   | "role"
   | "view"
   | "activeView"
@@ -39,8 +38,8 @@ export type ParseDslSettingsOptions = { opensBlock?: boolean };
 
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const whitespace = /\s/;
-const callKeywords = new Set(["color", "role", "view", "layout", "print", "svg", "place"]);
-const namedCallKeywords = new Set(["color", "role", "view", "layout", "print", "svg"]);
+const callKeywords = new Set(["role", "view", "layout", "print", "svg", "place"]);
+const namedCallKeywords = new Set(["role", "view", "layout", "print", "svg"]);
 
 const trimSpan = (source: string, start: number, end: number): DslSpan => {
   while (start < end && whitespace.test(source[start])) start += 1;
@@ -273,7 +272,7 @@ export const parseDslSettingsStatement = (
   validateArgs(keyword, spec, scanned.args, diagnostics, payloadSpans);
   return {
     statement: {
-      kind: keyword as Extract<DslSettingsKind, "color" | "role" | "view" | "layout" | "print" | "svg" | "place">,
+      kind: keyword as Extract<DslSettingsKind, "role" | "view" | "layout" | "print" | "svg" | "place">,
       ...name,
       keywordSpan,
       args: scanned.args,

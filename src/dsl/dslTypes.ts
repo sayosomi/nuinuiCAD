@@ -1,7 +1,6 @@
 import type {
   CadElement,
   CadElementType,
-  DocumentPalette,
   DrawingModifierStrokeColor,
   DrawingModifierStrokeStyle,
   DrawingModifierDefinition,
@@ -252,7 +251,6 @@ export type DslStatement =
       exportPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & { kind: "version"; value: string })
-  | (DslStatementBase & { kind: "color"; hex: string; isDefault: boolean })
   | (DslStatementBase & { kind: "atStop" })
   | (DslStatementBase & { kind: "place"; group: string })
   | (DslStatementBase & {
@@ -306,7 +304,6 @@ export type CompileDslContext = {
   layouts?: Layout[];
   printOutputs?: PrintOutput[];
   svgOutputs?: SvgOutput[];
-  palette?: DocumentPalette;
   insertionIndex?: number;
   mode?: "edit" | "document";
   selectedElementIds?: ElementId[];
@@ -341,7 +338,6 @@ export type CompileDslResult = {
   layouts?: Layout[];
   printOutputs?: PrintOutput[];
   svgOutputs?: SvgOutput[];
-  palette?: DocumentPalette;
   evaluationLimitIndex?: number;
   diagnostics: DslDiagnostic[];
   changedCount: number;
