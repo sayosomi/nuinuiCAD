@@ -214,6 +214,51 @@ jobs:
         if: ${{ needs.classification.outputs.parity == 'true' }}
         run: npm run test:parity
 
+  say165_normalize:
+    name: SAY-165 branch normalization
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 460 && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Normalize lockfile and Canvas test host name
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'src/components/DrawingCanvas.test.ts';
+          let text = fs.readFileSync(path, 'utf8');
+          text = text.replace('import { TauriDrawingCanvas } from "./TauriDrawingCanvas";', 'import { DrawingCanvasTestHost } from "./DrawingCanvas.testHost";');
+          text = text.replaceAll('TauriDrawingCanvas', 'DrawingCanvasTestHost');
+          fs.writeFileSync(path, text);
+          NODE
+          rm src/components/TauriDrawingCanvas.tsx
+          git diff --check
+          git add package-lock.json src/components/DrawingCanvas.test.ts src/components/TauriDrawingCanvas.tsx
+          if git diff --cached --quiet; then
+            echo "No normalization changes needed."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "SAY-165: finish Tauri package and test surface removal"
+          git push origin "HEAD:${HEAD_REF}"
+
   ci:
     name: CI
     if: ${{ always() }}
