@@ -10,10 +10,6 @@ const STORAGE_KEY = "nuinuiCAD.shortcutSettings.v1";
  * replacement keyboard scope || command.
  */
 export const legacyBindingIdMap: Readonly<Record<string, string>> = {
-  "global.newDocument": "crossFocus.newDocument",
-  "global.openDocument": "crossFocus.openDocument",
-  "global.saveDocument": "crossFocus.saveDocument",
-  "global.saveDocumentAs": "crossFocus.saveDocumentAs",
   "global.openCommandPalette": "crossFocus.openCommandPalette",
   "global.focusElementSearch": "crossFocus.focusElementSearch",
   "global.undo": "normal.undo",
@@ -53,6 +49,10 @@ export const legacyBindingIdMap: Readonly<Record<string, string>> = {
 };
 
 export const retiredCommandIds = [
+  "newDocument",
+  "openDocument",
+  "saveDocument",
+  "saveDocumentAs",
   "openDslPanel",
   "exportDslSelection",
   "validateDslPanel",
