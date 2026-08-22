@@ -15,6 +15,15 @@ export const registerNuiHoverFeature = ({
   rustProcessOwner: Pick<RustEvaluationProcessOwner, "get">;
   sessionFor: NuiHoverFeatureSessionFor;
 }): vscode.Disposable => {
+  // Some focused Extension Host tests provide only the language APIs they
+  // exercise. Production VS Code always supplies registerHoverProvider.
+  const registerHoverProvider = (vscode.languages as typeof vscode.languages & {
+    registerHoverProvider?: typeof vscode.languages.registerHoverProvider;
+  }).registerHoverProvider;
+  if (typeof registerHoverProvider !== "function") {
+    return { dispose: () => {} };
+  }
+
   const runtimeEvaluation = createNuiRuntimeEvaluationService({
     rustProcessOwner,
     isDocumentCurrent: (documentKey, documentVersion) =>
@@ -22,19 +31,11 @@ export const registerNuiHoverFeature = ({
         document.uri.toString() === documentKey && document.version === documentVersion
       )
   });
-
-  // Some focused Extension Host tests provide only the language APIs they
-  // exercise. Production VS Code always supplies registerHoverProvider.
-  const registerHoverProvider = (vscode.languages as typeof vscode.languages & {
-    registerHoverProvider?: typeof vscode.languages.registerHoverProvider;
-  }).registerHoverProvider;
-  const hoverProvider = typeof registerHoverProvider === "function"
-    ? registerHoverProvider.call(
-        vscode.languages,
-        nuiHoverSelector,
-        createNuiHoverProvider(sessionFor, runtimeEvaluation)
-      )
-    : undefined;
+  const hoverProvider = registerHoverProvider.call(
+    vscode.languages,
+    nuiHoverSelector,
+    createNuiHoverProvider(sessionFor, runtimeEvaluation)
+  );
 
   const changeListener = vscode.workspace.onDidChangeTextDocument((event) => {
     if (event.document.uri.scheme !== "file" || !event.document.fileName.endsWith(".nui")) return;
@@ -47,7 +48,7 @@ export const registerNuiHoverFeature = ({
 
   return {
     dispose: () => {
-      hoverProvider?.dispose();
+      hoverProvider.dispose();
       changeListener.dispose();
       closeListener.dispose();
       runtimeEvaluation.dispose();
