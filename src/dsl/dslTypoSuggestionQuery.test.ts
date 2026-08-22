@@ -106,22 +106,24 @@ describe("queryDslTypoSuggestions", () => {
     expect(result!.replacementRange.from).toBe(diagnosticRange.from + 1);
   });
 
-  it("filters geometry suggestions through current kind, scope, and source order", () => {
+  it("filters threshold-eligible geometry suggestions through current kind, scope, and source order", () => {
     const source = [
       "nui 4",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "line WrongKind = segment(start: @Anchor, end: @Anchor)",
+      "line Anchur = segment(start: @Anchor, end: @Anchor)",
       "group HiddenGroup {",
-      "  point HiddenPoint = coordinate(x: 5, y: 5)",
+      "  point Anchra = coordinate(x: 5, y: 5)",
       "}",
-      "line Use = segment(start: @Anchro, end: @Anchor)"
+      "line Use = segment(start: @Anchro, end: @Anchor)",
+      "point Anchre = coordinate(x: 10, y: 10)"
     ].join("\n");
     const { result } = queryFor(source, "undefined-geometry-reference");
     expect(result?.targetKind).toBe("geometryReference");
     expect(result?.typedText).toBe("Anchro");
     expect(result?.candidates[0]).toMatchObject({ kind: "geometry", label: "Anchor", distance: 1 });
-    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("WrongKind");
-    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("HiddenPoint");
+    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchur");
+    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchra");
+    expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Anchre");
   });
 
   it("reuses Module callee and argument candidates", () => {
