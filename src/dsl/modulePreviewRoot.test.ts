@@ -163,7 +163,8 @@ describe("compileModulePreviewRoot", () => {
       "module Safe(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
-      "point Broken = offset(from: @Missing, dx: 1, dy: 0)"
+      "module Broken(input: unknown) {",
+      "}"
     ].join("\n");
     const compiled = compileWithIds(source);
     expect(compiled.document).toBeNull();
