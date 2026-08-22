@@ -15,6 +15,8 @@ import {
 } from "./referencePickProtocol";
 
 const REVISION = 93;
+const DOCUMENT_URI = "file:///pick.nui";
+const DOCUMENT_VERSION = 7;
 
 const compile = (source: string): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: REVISION });
@@ -46,16 +48,37 @@ const setup = (source: string, fragment: string) => {
   const request: VscodeReferencePickStartRequest = {
     type: "referencePickStartRequest",
     requestId: 44,
-    documentUri: "file:///pick.nui",
-    documentVersion: 7,
+    documentUri: DOCUMENT_URI,
+    documentVersion: DOCUMENT_VERSION,
     normalizedSourceOffset: position,
     targetProof: proof
   };
   return { compiled, evaluation, request };
 };
 
+const startSession = ({
+  source,
+  compiled,
+  evaluation,
+  request,
+  authoritativeDocumentUri = DOCUMENT_URI,
+  authoritativeDocumentVersion = DOCUMENT_VERSION
+}: ReturnType<typeof setup> & {
+  source: string;
+  authoritativeDocumentUri?: string;
+  authoritativeDocumentVersion?: number;
+}) => startVscodeReferencePickCanvasSession({
+  request,
+  authoritativeDocumentUri,
+  authoritativeDocumentVersion,
+  source: { normalizedSource: source, sourceRevision: REVISION },
+  compiled,
+  evaluation,
+  evaluationIsCurrent: true
+});
+
 describe("VS Code Canvas reference pick session bridge", () => {
-  it("reproduces the Source proof before starting and reports the current candidate snapshot", () => {
+  it("requires the matching authoritative Canvas document and reproduces the Source proof", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -65,14 +88,8 @@ describe("VS Code Canvas reference pick session bridge", () => {
       "module M(straight: line) {}",
       "instance X = M(straight: @Straight)"
     ].join("\n");
-    const { compiled, evaluation, request } = setup(source, "straight: @Straight");
-    const started = startVscodeReferencePickCanvasSession({
-      request,
-      source: { normalizedSource: source, sourceRevision: REVISION },
-      compiled,
-      evaluation,
-      evaluationIsCurrent: true
-    });
+    const setupResult = setup(source, "straight: @Straight");
+    const started = startSession({ source, ...setupResult });
 
     expect(started.session).not.toBeNull();
     expect(started.result.status).toBe("started");
@@ -81,15 +98,27 @@ describe("VS Code Canvas reference pick session bridge", () => {
       expect(started.result.candidateReferences).not.toContainEqual({ base: "Curve" });
     }
 
-    const stale = startVscodeReferencePickCanvasSession({
-      request: { ...request, targetProof: { ...request.targetProof, oldText: "@Other" } },
-      source: { normalizedSource: source, sourceRevision: REVISION },
-      compiled,
-      evaluation,
-      evaluationIsCurrent: true
+    expect(startSession({
+      source,
+      ...setupResult,
+      authoritativeDocumentVersion: DOCUMENT_VERSION + 1
+    }).result.status).toBe("stale");
+    expect(startSession({
+      source,
+      ...setupResult,
+      authoritativeDocumentUri: "file:///other.nui"
+    }).result.status).toBe("stale");
+
+    const staleProof = startSession({
+      source,
+      ...setupResult,
+      request: {
+        ...setupResult.request,
+        targetProof: { ...setupResult.request.targetProof, oldText: "@Other" }
+      }
     });
-    expect(stale.session).toBeNull();
-    expect(stale.result.status).toBe("stale");
+    expect(staleProof.session).toBeNull();
+    expect(staleProof.result.status).toBe("stale");
   });
 
   it("seeds a multiple draft, toggles candidates, and confirms without mutating Source", () => {
@@ -100,14 +129,8 @@ describe("VS Code Canvas reference pick session bridge", () => {
       "line C = segment(start: (0, 20), end: (10, 20))",
       "line Seam = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
-    const { compiled, evaluation, request } = setup(source, "[@A, @B]");
-    const started = startVscodeReferencePickCanvasSession({
-      request,
-      source: { normalizedSource: source, sourceRevision: REVISION },
-      compiled,
-      evaluation,
-      evaluationIsCurrent: true
-    });
+    const setupResult = setup(source, "[@A, @B]");
+    const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
     expect(started.session.draft.draftReferences).toEqual([{ base: "A" }, { base: "B" }]);
 
