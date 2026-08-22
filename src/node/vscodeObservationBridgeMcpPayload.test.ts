@@ -22,17 +22,16 @@ afterEach(() => {
 });
 
 describe("VS Code observation MCP payload", () => {
-  it("keeps exact source text and observation state JSON-friendly over the read-only protocol", async () => {
+  it("keeps source text opt-in and observation state JSON-friendly over the read-only protocol", async () => {
     const descriptorDirectory = mkdtempSync(join(tmpdir(), "nuinuicad-observation-mcp-payload-"));
     directories.push(descriptorDirectory);
     const sourceText = "nui 4\nline AB = segment(start: (0, 0), end: (10, 0))\n";
-    const observation = {
+    const compactObservation = {
       activeDocumentUri: "file:///tmp/pattern.nui",
       documents: [{
         documentUri: "file:///tmp/pattern.nui",
         documentPath: "/tmp/pattern.nui",
         documentVersion: 4,
-        sourceText,
         canvas: null
       }]
     };
@@ -40,14 +39,25 @@ describe("VS Code observation MCP payload", () => {
       descriptorDirectory,
       randomBytesFn: deterministicRandom(11),
       workspaceFolderPaths: ["/tmp"],
-      observationProvider: () => observation
+      observationProvider: ({ includeSourceText }) => ({
+        ...compactObservation,
+        documents: compactObservation.documents.map((document) => ({
+          ...document,
+          ...(includeSourceText ? { sourceText } : {})
+        }))
+      })
     });
     bridges.push(bridge);
     const descriptor = await bridge.ready;
 
-    const received = await requestVscodeObservation(descriptor);
+    const compact = await requestVscodeObservation(descriptor);
+    const withSource = await requestVscodeObservation(descriptor, { includeSourceText: true });
 
-    expect(received).toEqual(observation);
-    expect(JSON.parse(JSON.stringify(received))).toEqual(observation);
+    expect(compact).toEqual(compactObservation);
+    expect(withSource).toEqual({
+      ...compactObservation,
+      documents: [{ ...compactObservation.documents[0], sourceText }]
+    });
+    expect(JSON.parse(JSON.stringify(withSource))).toEqual(withSource);
   });
 });
