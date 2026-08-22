@@ -1,5 +1,8 @@
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
+import type {
+  CanvasDrawingBounds,
+  CanvasTextWidthMeasurer
+} from "../geometry/canvasDrawingBounds";
 import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import { isGroupElement } from "../model/groups";
@@ -9,7 +12,6 @@ import type {
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
-import type { CanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
 
 export type CanvasNavigationContainerTarget =
   | { status: "ordinary" }
