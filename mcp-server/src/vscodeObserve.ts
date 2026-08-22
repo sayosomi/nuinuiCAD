@@ -120,9 +120,11 @@ const projectObservation = (
 
   const documents = copied.documents.map((document) => {
     if (!isObject(document)) return document;
-    const projected = isObject(document.canvas)
-      ? { ...document, canvas: projectCanvasSelection(document.canvas, document.sourceText) }
-      : { ...document };
+    const sourceText = document.sourceText;
+    const projected: JsonObject = { ...document };
+    if (isObject(document.canvas)) {
+      projected.canvas = projectCanvasSelection(document.canvas, sourceText);
+    }
     if (includeSourceText) return projected;
     delete projected.sourceText;
     return projected;
