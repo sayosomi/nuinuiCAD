@@ -53,6 +53,6 @@ describe("Luna MCP E2E calibration fixture", () => {
     expect(inspectedControlled.map((element) => element.name).sort()).toEqual([...expectedNames].sort());
     expect(inspectedControlled.every((element) => element.type === "line")).toBe(true);
     expect(inspectedControlled.every((element) => /^line-mcp-/.test(element.id))).toBe(true);
-    expect(new Set(inspectedControlled.map((element) => element.id))).toHaveSize(3);
+    expect(new Set(inspectedControlled.map((element) => element.id)).size).toBe(3);
   });
 });
