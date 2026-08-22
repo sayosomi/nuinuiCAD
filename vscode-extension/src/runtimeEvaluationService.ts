@@ -1,7 +1,4 @@
-import {
-  isLastGoodDslDocument,
-  type LastGoodDslDocument
-} from "../../src/document/canonicalDocument";
+import type { LastGoodDslDocument } from "../../src/document/canonicalDocument";
 import {
   evaluateElementsReference
 } from "../../src/geometry/evaluationEngine";
@@ -27,6 +24,8 @@ export type NuiRuntimeEvaluationProof = {
   documentVersion: number;
   sourceRevision: number;
   normalizedSource: string;
+  documentRevision: number;
+  compiledDocumentRevision: number;
 };
 
 export type NuiRuntimeEvaluationSnapshot = {
@@ -75,7 +74,9 @@ const sameProof = (left: NuiRuntimeEvaluationProof, right: NuiRuntimeEvaluationP
   left.documentKey === right.documentKey &&
   left.documentVersion === right.documentVersion &&
   left.sourceRevision === right.sourceRevision &&
-  left.normalizedSource === right.normalizedSource;
+  left.normalizedSource === right.normalizedSource &&
+  left.documentRevision === right.documentRevision &&
+  left.compiledDocumentRevision === right.compiledDocumentRevision;
 
 const sameCapturedDocument = (left: CapturedDocument, right: CapturedDocument): boolean =>
   left.session === right.session && left.compiled === right.compiled && sameProof(left.proof, right.proof);
@@ -162,25 +163,19 @@ export class NuiRuntimeEvaluationService {
       return undefined;
     }
 
-    // Reuse the language session's exact-current source/revision gate. The
-    // returned compile attempt may be partial under fatal source, so runtime
-    // evaluation additionally requires a complete current document here.
-    const semantic = request.session.choiceQuickFixSemanticSnapshot(request.source);
-    if (!semantic || !isLastGoodDslDocument(semantic.currentCompiled)) return undefined;
-    if (
-      semantic.sourceText !== request.source.normalizedSource ||
-      semantic.currentCompiled.spans.sourceMap.source !== request.source.normalizedSource ||
-      semantic.currentCompiled.spans.sourceMap.sourceRevision !== request.source.sourceRevision
-    ) return undefined;
+    const semantic = request.session.runtimeEvaluationSemanticSnapshot(request.source);
+    if (!semantic) return undefined;
 
     return {
       proof: {
         documentKey: request.documentKey,
         documentVersion: request.documentVersion,
-        sourceRevision: request.source.sourceRevision,
-        normalizedSource: request.source.normalizedSource
+        sourceRevision: semantic.sourceRevision,
+        normalizedSource: semantic.sourceText,
+        documentRevision: semantic.documentRevision,
+        compiledDocumentRevision: semantic.compiledDocumentRevision
       },
-      compiled: semantic.currentCompiled,
+      compiled: semantic.compiled,
       session: request.session
     };
   }
