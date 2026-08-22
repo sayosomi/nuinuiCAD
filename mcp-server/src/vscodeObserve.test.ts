@@ -49,7 +49,8 @@ const bridgeFor = async (
   descriptorDirectory: string,
   value: number,
   documentPath: string,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
+  sourceRequestLog?: boolean[]
 ) => {
   const bridge = new VscodeObservationBridge({
     descriptorDirectory,
@@ -57,7 +58,18 @@ const bridgeFor = async (
     pid: 2000 + value,
     now: () => new Date(`2026-08-22T01:00:${String(value).padStart(2, "0")}.000Z`),
     workspaceFolderPaths: [descriptorDirectory],
-    observationProvider: () => observationFor(documentPath, overrides)
+    observationProvider: ({ includeSourceText }) => {
+      sourceRequestLog?.push(includeSourceText);
+      const observation = observationFor(documentPath, overrides);
+      if (includeSourceText) return observation;
+      return {
+        ...observation,
+        documents: observation.documents.map((document) => {
+          const { sourceText: _sourceText, ...compact } = document;
+          return compact;
+        })
+      };
+    }
   });
   bridges.push(bridge);
   const descriptor = await bridge.ready;
@@ -108,10 +120,11 @@ describe("vscode_observe", () => {
     expect(result.instance).not.toHaveProperty("authToken");
   });
 
-  it("includes exact current source text only when requested", async () => {
+  it("fetches exact current source text only after compact instance resolution", async () => {
     const descriptorDirectory = temporaryDirectory();
     const documentPath = join(descriptorDirectory, "source.nui");
-    await bridgeFor(descriptorDirectory, 2, documentPath);
+    const sourceRequests: boolean[] = [];
+    await bridgeFor(descriptorDirectory, 2, documentPath, {}, sourceRequests);
 
     const result = await observeVscode(
       { includeSourceText: true },
@@ -123,6 +136,7 @@ describe("vscode_observe", () => {
     expect(observation.documents[0]?.sourceText).toBe(
       "nui 4\npoint A = coordinate(x: 0, y: 0)\n"
     );
+    expect(sourceRequests).toEqual([false, true]);
   });
 
   it("uses explicit instanceId before other candidates", async () => {
