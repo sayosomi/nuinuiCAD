@@ -29,7 +29,7 @@ const targetAt = (source: string, fragment: string) => {
 };
 
 describe("reference pick VS Code protocol proof", () => {
-  it("captures exact target identity and old source text", () => {
+  it("captures cross-process-stable target identity and old source text", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -43,6 +43,19 @@ describe("reference pick VS Code protocol proof", () => {
     expect(proof).not.toBeNull();
     expect(proof?.oldText).toBe("@Base.start");
     expect(referencePickTargetMatchesProof(source, target, proof!)).toBe(true);
+
+    const equivalentTargetFromAnotherCompilerSession = {
+      ...target,
+      sourceAnchor: {
+        ...target.sourceAnchor,
+        sourceRevision: target.sourceAnchor.sourceRevision + 1000,
+        statementId: "other-session-statement",
+        sourceOrderIndex: target.sourceAnchor.sourceOrderIndex + 1000,
+        scopeId: "other-session-scope"
+      }
+    };
+    expect(referencePickTargetMatchesProof(source, equivalentTargetFromAnotherCompilerSession, proof!)).toBe(true);
+
     expect(referencePickTargetMatchesProof(`${source} `, target, proof!)).toBe(true);
     expect(referencePickTargetMatchesProof(
       source.slice(0, target.range.from) + "@A" + source.slice(target.range.to),
