@@ -225,17 +225,16 @@ export const registerVscodeReferencePickFeature = ({
   const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
     if (
       active &&
-      !active.bridge &&
       sameDocument(event.document, active.editor.document) &&
       event.contentChanges.length > 0
     ) {
-      clearActive(false);
+      cancelActive();
     }
     const editor = vscode.window.activeTextEditor;
     if (editor && sameDocument(editor.document, event.document)) refreshContext(editor);
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
-    if (active && sameDocument(document, active.editor.document)) clearActive(true);
+    if (active && sameDocument(document, active.editor.document)) cancelActive();
     refreshContext(vscode.window.activeTextEditor);
   });
 
