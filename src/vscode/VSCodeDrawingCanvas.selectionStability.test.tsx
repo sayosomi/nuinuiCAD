@@ -1,6 +1,7 @@
 import { createRef } from "react";
 import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { selectElement } from "../commands/selectionCommands";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
@@ -121,7 +122,7 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
-    act(() => useCadUiStore.getState().setSelectedElementId(initialA!.id));
+    act(() => selectElement(initialA!.id, "replace", true));
     expect(adapter().selectedElementIds).toEqual([initialA!.id]);
 
     act(() => useCadDocumentStore.getState().commitText(errorfulWithoutA, "editor"));
