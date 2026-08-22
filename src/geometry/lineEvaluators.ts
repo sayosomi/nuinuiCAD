@@ -2,13 +2,14 @@ import type { CadElement, ComputedPoint } from "../types/geometry";
 import { anchorReferenceElementId } from "../model/pointAnchors";
 import {
   approximateBezierSegmentLength,
+  CIRCLE_EPSILON,
   circleThroughThreePoints,
   degreesToRadians,
   handlePoint,
   normalizeDegrees,
   positiveSweepDegrees
 } from "./evaluateGeometryPrimitives";
-import { geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
+import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
 
@@ -128,6 +129,102 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           },
           end,
           length: Math.hypot(end.x - start.x, end.y - start.y),
+          ...angles
+        });
+        break;
+      }
+      case "commonTangentLine": {
+        const firstGeometry = computedGeometry.get(element.firstLineId);
+        const secondGeometry = computedGeometry.get(element.secondLineId);
+        if (!firstGeometry) {
+          errors.push(dependencyError(element, element.firstLineId, elementsById, disabledByGroupId, errors));
+        } else if (firstGeometry.kind !== "arcLine") {
+          errors.push(geometryError(element, "first に円弧が指定されていません。共通接線には円弧を指定してください。"));
+        }
+        if (!secondGeometry) {
+          errors.push(dependencyError(element, element.secondLineId, elementsById, disabledByGroupId, errors));
+        } else if (secondGeometry.kind !== "arcLine") {
+          errors.push(geometryError(element, "second に円弧が指定されていません。共通接線には円弧を指定してください。"));
+        }
+        if (firstGeometry?.kind !== "arcLine" || secondGeometry?.kind !== "arcLine") break;
+
+        const r1 = firstGeometry.radius;
+        const r2 = secondGeometry.radius;
+        if (!(r1 > CIRCLE_EPSILON)) {
+          errors.push(geometryError(element, "first の半径が0以下です。共通接線には半径のある円弧を指定してください。"));
+        }
+        if (!(r2 > CIRCLE_EPSILON)) {
+          errors.push(geometryError(element, "second の半径が0以下です。共通接線には半径のある円弧を指定してください。"));
+        }
+        if (!(r1 > CIRCLE_EPSILON) || !(r2 > CIRCLE_EPSILON)) break;
+
+        const dx = secondGeometry.center.x - firstGeometry.center.x;
+        const dy = secondGeometry.center.y - firstGeometry.center.y;
+        const centerDistance = Math.hypot(dx, dy);
+        if (centerDistance <= CIRCLE_EPSILON) {
+          errors.push(geometryError(
+            element,
+            Math.abs(r1 - r2) <= CIRCLE_EPSILON
+              ? "2つの円が同一円のため、共通接線を1本に決定できません。"
+              : "2つの円が同心円のため、共通接線は存在しません。"
+          ));
+          break;
+        }
+
+        const threshold = element.kind === "external" ? Math.abs(r1 - r2) : r1 + r2;
+        if (centerDistance < threshold - CIRCLE_EPSILON) {
+          errors.push(geometryError(
+            element,
+            `kind: ${element.kind} の共通接線は存在しません。2つの円の位置・半径または kind を変更してください。`
+          ));
+          break;
+        }
+        if (centerDistance <= threshold + CIRCLE_EPSILON) {
+          errors.push(geometryError(element, "2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。"));
+          break;
+        }
+
+        const secondRadiusSign = element.kind === "external" ? 1 : -1;
+        const cosine = (r1 - secondRadiusSign * r2) / centerDistance;
+        const clampedCosine = Math.max(-1, Math.min(1, cosine));
+        const sineSquared = 1 - clampedCosine * clampedCosine;
+        const sine = Math.sqrt(sineSquared < 0 && sineSquared > -CIRCLE_EPSILON ? 0 : Math.max(0, sineSquared));
+        const ux = dx / centerDistance;
+        const uy = dy / centerDistance;
+        const vx = -uy;
+        const vy = ux;
+        const sideSign = element.side === "left" ? 1 : -1;
+        const nx = clampedCosine * ux + sideSign * sine * vx;
+        const ny = clampedCosine * uy + sideSign * sine * vy;
+        const start: ComputedPoint = {
+          kind: "point",
+          elementId: `${element.id}:start`,
+          name: `${element.name}.始点`,
+          x: firstGeometry.center.x + r1 * nx,
+          y: firstGeometry.center.y + r1 * ny
+        };
+        const end: ComputedPoint = {
+          kind: "point",
+          elementId: `${element.id}:end`,
+          name: `${element.name}.終点`,
+          x: secondGeometry.center.x + secondRadiusSign * r2 * nx,
+          y: secondGeometry.center.y + secondRadiusSign * r2 * ny
+        };
+        const length = Math.hypot(end.x - start.x, end.y - start.y);
+        if (length <= CIRCLE_EPSILON) {
+          errors.push(geometryError(element, "2つの接点が一致するため、有限長の共通接線として表現できません。2つの円の位置・半径または kind を変更してください。"));
+          break;
+        }
+        const angles = lineTangentAngles(start, end);
+        computedGeometry.set(element.id, {
+          kind: "line",
+          elementId: element.id,
+          name: element.name,
+          startPointId: null,
+          endPointId: null,
+          start,
+          end,
+          length,
           ...angles
         });
         break;

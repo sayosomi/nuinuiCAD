@@ -63,6 +63,11 @@ const cases = [
     expected: flags({ node: true, full_node: true, vscode: true })
   },
   {
+    name: "shared Node host runtime",
+    paths: ["src/node/rustEvaluationProcess.ts"],
+    expected: flags({ node: true, full_node: true, vscode: true })
+  },
+  {
     name: "VS Code host source",
     paths: ["src/vscode/host.ts", "vscode-extension/src/extension.ts", "scripts/vscode/build.mjs"],
     expected: flags({ node: true, vscode: true })

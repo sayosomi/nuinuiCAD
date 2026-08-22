@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { AutomationDocument } from "../../src/document/automationDocument";
-import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument } from "../../src/dsl/dslDocument";
 import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "../../src/dsl/dslTypes";
 import type { DslPhysicalSpan, SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { CadElement } from "../../src/types/geometry";
+import type { CadElement, ElementId } from "../../src/types/geometry";
 
 export type SourcePositionDto = {
   offset: number;
@@ -97,6 +97,55 @@ export type DocumentInspectDto = {
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+
+const stableSnapshotElementId = (
+  sourceHash: string,
+  statementIndex: number,
+  elementType: string
+): ElementId => `${elementType}-mcp-${sourceHash}-${statementIndex}`;
+
+const stableSnapshotStatementId = (
+  sourceHash: string,
+  statementIndex: number
+): string => `statement:mcp:${sourceHash}:${statementIndex}`;
+
+const recompileWithStableSnapshotIds = (
+  sourceText: string,
+  sourceHash: string,
+  compiled: CompiledDslDocument
+): CompiledDslDocument => {
+  if (!compiled.document || !compiled.statementMap) return compiled;
+
+  const elementTypeById = new Map(
+    compiled.document.elements.map((element) => [element.id, element.type] as const)
+  );
+  const assignedElementIds = new Map<number, ElementId>();
+  const assignedStatementIds = new Map<number, string>();
+
+  for (const statementIndex of compiled.statementMap.statementIdByStatementIndex?.keys() ?? []) {
+    assignedStatementIds.set(statementIndex, stableSnapshotStatementId(sourceHash, statementIndex));
+  }
+  for (const [statementIndex, currentElementId] of compiled.statementMap.elementIdByStatementIndex) {
+    const stableElementId = stableSnapshotElementId(
+      sourceHash,
+      statementIndex,
+      elementTypeById.get(currentElementId) ?? "element"
+    );
+    assignedElementIds.set(statementIndex, stableElementId);
+    assignedStatementIds.set(statementIndex, stableElementId);
+  }
+
+  return compileDslDocument(sourceText, {
+    assignedElementIds,
+    assignedStatementIds,
+    sourceRevision: compiled.spans.sourceMap.sourceRevision
+  });
+};
+
+const compileStatusFor = (compiled: CompiledDslDocument): "valid" | "warning" | "fatal" => {
+  if (!compiled.document || !compiled.statementMap) return "fatal";
+  return compiled.diagnostics.some((item) => item.severity === "warning") ? "warning" : "valid";
+};
 
 const lineStartsFor = (source: string): number[] => {
   const starts = [0];
@@ -247,20 +296,19 @@ export const loadFreshNuiDocumentSnapshot = async (
   const bytes = await readFile(canonicalPath);
   const sourceText = bytes.toString("utf8");
   const normalizedSource = normalizedSourceFor(sourceText);
+  const sourceHash = createHash("sha256").update(bytes).digest("hex");
   const document = AutomationDocument.fromSource(sourceText);
   const state = document.getState();
-  const currentCompiled = state.currentCompiled;
+  const currentCompiled = recompileWithStableSnapshotIds(sourceText, sourceHash, state.currentCompiled);
   const currentSourceRevision = currentCompiled.spans.sourceMap.sourceRevision;
-  const currentSemanticsAvailable =
-    state.status !== "fatal" &&
-    currentCompiled.document !== null &&
-    currentCompiled.statementMap !== null;
+  const compileStatus = compileStatusFor(currentCompiled);
+  const currentSemanticsAvailable = compileStatus !== "fatal";
 
   return {
     path: canonicalPath,
     sourceIdentity: {
       algorithm: "sha256",
-      hash: createHash("sha256").update(bytes).digest("hex"),
+      hash: sourceHash,
       byteLength: bytes.byteLength,
       normalizedLength: normalizedSource.length
     },
@@ -269,7 +317,7 @@ export const loadFreshNuiDocumentSnapshot = async (
       sourceRevision: currentSourceRevision
     },
     currentCompiled,
-    compileStatus: state.status,
+    compileStatus,
     currentSemanticsAvailable,
     automationRevision: state.revision,
     automationCompiledRevision: state.compiledRevision,

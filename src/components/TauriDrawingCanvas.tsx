@@ -52,6 +52,12 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
     const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
     const currentFilePath = useCadDocumentStore((state) => state.currentFilePath);
+    const holdLastStableCanvasPresentation = useCadDocumentStore((state) =>
+      state.sourceUpdate.kind === "editor" && (
+        state.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+        state.bindingIssueDiagnostics.some((diagnostic) => diagnostic.severity === "error")
+      )
+    );
     const selectedElementId = useCadUiStore((state) => state.selectedElementId);
     const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
     const selectionAnchorElementId = useCadUiStore((state) => state.selectionAnchorElementId);
@@ -63,7 +69,6 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
-    useModuleInstanceSelectionReconciliation({ evaluation, evaluationState });
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
@@ -89,8 +94,14 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
     ]);
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
+      evaluation,
       compiledDocumentRevision,
-      evaluationState
+      evaluationState,
+      holdLastStable: holdLastStableCanvasPresentation
+    });
+    useModuleInstanceSelectionReconciliation({
+      evaluation: canvasPresentation.renderEvaluation,
+      evaluationState: canvasPresentation.renderEvaluationState
     });
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
       elements: canvasPresentation.elements,
@@ -164,34 +175,27 @@ export const TauriDrawingCanvas = forwardRef<DrawingCanvasHandle, TauriDrawingCa
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,
-      activeVisibilityProfileId,
       canvasPresentation,
       canvasViewport,
-      canonicalElements,
       commandContext,
       commandLineSession,
       compiledDocumentRevision,
       currentFilePath,
-      elements,
-      evaluationLimitIndex,
       leftPanelDockRef,
       measureCanvasTextWidth,
-      moduleSemanticContext,
-      palette,
       selectedElementId,
       selectedElementIds,
       selectionAnchorElementId,
       showCanvasPointNames,
       showCanvasGeometryNames,
-      showCanvasPoints,
-      visibilityProfiles
+      showCanvasPoints
     ]);
 
     return (
       <DrawingCanvas
         ref={ref}
-        evaluation={evaluation}
-        evaluationState={evaluationState}
+        evaluation={canvasPresentation.renderEvaluation}
+        evaluationState={canvasPresentation.renderEvaluationState}
         canvasFocusRef={canvasFocusRef}
         hostAdapter={hostAdapter}
       />

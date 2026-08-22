@@ -20,6 +20,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "intersectionPoint",
   "line",
   "angleLengthLine",
+  "commonTangentLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",
@@ -42,6 +43,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
 const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "line",
   "angleLengthLine",
+  "commonTangentLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",
@@ -67,6 +69,7 @@ const rustSupportedPointReferenceTypes = new Set<CadElement["type"]>([
 const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
   "line",
   "angleLengthLine",
+  "commonTangentLine",
   "arcLine",
   "threePointArcLine",
   "cornerRadiusArcLine",

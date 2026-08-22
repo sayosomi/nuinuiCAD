@@ -305,6 +305,14 @@ const parameterDefinitionsForElement = (
         },
         { key: "length", label: "長さ", kind: "number" },
       ];
+    case "commonTangentLine":
+      return [
+        ...commonParameters,
+        { key: "firstLineId", label: "1つ目の円弧", kind: "lineReference" },
+        { key: "secondLineId", label: "2つ目の円弧", kind: "lineReference" },
+        { key: "kind", label: "接線種別", kind: "choice", choiceOptions: ["external", "internal"] },
+        { key: "side", label: "側", kind: "choice", choiceOptions: ["left", "right"] },
+      ];
     case "arcLine":
       return [
         ...commonParameters,
