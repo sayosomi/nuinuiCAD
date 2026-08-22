@@ -55,7 +55,7 @@ describe("shared RustEvaluationProcess", () => {
     expect(resolveRustEvaluationBinaryPath("/repo", {
       NUINUICAD_RUST_EVALUATION_BINARY: "/custom/evaluation_stdio"
     })).toBe("/custom/evaluation_stdio");
-    expect(resolveRustEvaluationBinaryPath("/repo", {})).toContain("src-tauri");
+    expect(resolveRustEvaluationBinaryPath("/repo", {})).toContain("rust-evaluator");
     expect(resolveRustEvaluationBinaryPath("/repo", {})).toContain("evaluation_stdio");
   });
 });

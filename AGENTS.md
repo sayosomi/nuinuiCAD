@@ -289,6 +289,39 @@ desired production path for new user-facing behavior.
 Keep changes local to the relevant subsystem. Avoid broad architectural
 rewrites unless the requested feature or bug fix genuinely requires them.
 
+### Parallel-friendly change shape
+
+When independent Tasks may be implemented in parallel, preserve the established
+architecture instead of optimizing solely for textual merge convenience. These
+rules refine the ownership and narrow-adapter rules above; they do not override
+an existing source-of-truth or ordering contract.
+
+- Prefer feature-owned modules, hooks, and pure functions over adding
+  feature-specific logic to shared orchestration or composition roots when the
+  behavior can be isolated without duplicating semantics.
+- Avoid creating or enlarging a central switch, registry, or list that every
+  unrelated feature must edit when the same authority can be partitioned by
+  semantic owner or exposed through an existing narrow contribution boundary.
+  Conversely, do not split an intentionally centralized source of truth merely
+  to avoid merge conflicts; centralized ordering, validation, identity, or
+  semantics stay centralized unless the Task justifies a real architecture
+  change.
+- Prefer additive feature-owned files plus stable narrow adapters/contracts over
+  broad edits to shared owners when both shapes preserve the same architecture.
+  New files are not a goal by themselves; do not add indirection that obscures
+  the actual owner.
+- Keep feature-specific tests and fixtures with their semantic owner when they
+  can verify the behavior independently. Use shared tests or fixtures when the
+  acceptance is genuinely cross-cutting; do not duplicate a shared oracle merely
+  to reduce textual overlap.
+- Avoid scope-unrelated renames, moves, import reordering, whole-file formatting,
+  and cleanup that create broad diff churn. If such a refactor is actually
+  required for the Task, make that change explicit in the Task scope rather than
+  mixing it into unrelated feature work.
+- Repeated unrelated edits to the same shared file, symbol, registry, fixture, or
+  contract are a signal to investigate ownership decomposition. Do not perform
+  that decomposition opportunistically inside an unrelated feature Task.
+
 ## Rendering and performance
 
 The application should remain viable for roughly 1,000 editable geometry

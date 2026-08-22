@@ -33,7 +33,7 @@ AppLayout / parity consumers
         ↓
 useEvaluationEngine / rustEvaluationRunner / Rust input
         ↓
-Tauri production: Rust evaluate_document
+Tauri production: command adapter → host-neutral Rust evaluate_document
 TS: reference / parity / test
         ↓
 EvaluationResult
@@ -61,7 +61,8 @@ Tauri production evaluation follows:
 ```text
 AppLayout
 → Tauri transport
-→ existing Rust evaluate_document
+→ src-tauri thin command adapter
+→ rust-evaluator::evaluate_document
 ```
 
 The VS Code host path follows a separate bridge while reusing the same Webview
@@ -72,7 +73,8 @@ VS Code TextDocument / Extension Host
 → Webview production document/evaluation/Canvas
 → Extension Host persistent stdio transport
 → shared Node evaluation_stdio process client
-→ existing Rust evaluate_document
+→ rust-evaluator evaluation_stdio binary
+→ rust-evaluator::evaluate_document
 ```
 
 Native Hover uses an Extension Host-only current-document path, so Canvas may be
@@ -190,7 +192,8 @@ internal `EvaluationResult` 全体は公開しない。Rust完了後にはdisk s
 MCPとVS Code Extension Hostは`src/node/rustEvaluationProcess.ts`の同じNode-only
 `evaluation_stdio` NDJSON client / lazy owner実装を利用する。各hostは独立したowner
 instanceを持つがprotocol implementationは複製しない。binaryは既存の
-`NUINUICAD_RUST_EVALUATION_BINARY` overrideまたはrepository debug fallbackで解決し、
+`NUINUICAD_RUST_EVALUATION_BINARY` overrideまたは
+`rust-evaluator/target/debug/evaluation_stdio` のrepository debug fallbackで解決し、
 MCP startup時にCargo buildは起動しない。Mutable document registry、VS Code
 attached observation、source mutationはHeadless MCP boundaryのownerではない。
 
@@ -489,27 +492,37 @@ physical Y-up page coordinates. Tauri command registration remains in
 
 Primary:
 
-- `src-tauri/src/evaluation/`
+- `rust-evaluator/src/evaluation/`
+- `rust-evaluator/src/bin/evaluation_stdio.rs`
+- `rust-evaluator/examples/evaluate_fixture.rs`
 - `src/geometry/rustEvaluationRunner.ts` (request boundary)
 - `src/node/rustEvaluationProcess.ts` (shared Node stdio process boundary)
 
-Production Tauri evaluator。
+`rust-evaluator/` is the host-neutral production Rust evaluator owner. Its
+`Cargo.toml` contains evaluator-only dependencies (`kurbo`, `serde`, `serde_json`)
+and does not depend on Tauri, WebKit, or desktop host APIs. The ordinary Rust
+API is:
 
-Public command boundary:
-
-- `evaluate_document(input)`
+- `nuinuicad_rust_evaluator::evaluate_document(input)`
 
 Rust evaluator は `.nui` source text を parse したり source name resolution を
 やり直す owner ではない。TypeScript compile / lowering 側で構築された resolved
 runtime payload を decode / validate / evaluate する。
 
 Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
-から既存の `evaluation::evaluate_document` を呼び出す。VS CodeとHeadless MCPの
-Node hostsはshared `RustEvaluationProcess`から既存`evaluation_stdio` protocolへ接続し、
-同じRust evaluatorを利用する。Parityのcargo exampleは同じRust evaluatorと
-`buildRustEvaluationInput` のprojectionを利用する。Parity harnessはRust evaluator
-自体のcorrectness検証のため、production Rust eligibilityとは独立してRust inputを
-構築できる。Current-release fixtureは別途production Rust eligibilityをassertする。
+から `src-tauri/src/lib.rs` のthin `#[tauri::command]` adapterを通り、
+`nuinuicad_rust_evaluator::evaluate_document`を呼び出す。`src-tauri` はevaluator
+implementationやevaluator testsを所有しない。VS CodeとHeadless MCPのNode hostsは
+shared `RustEvaluationProcess`から `rust-evaluator` が所有する `evaluation_stdio`
+NDJSON protocolへ接続し、同じRust evaluatorを利用する。既定binary discoveryは
+`rust-evaluator/target/debug/evaluation_stdio`で、
+`NUINUICAD_RUST_EVALUATION_BINARY` overrideは維持する。
+
+Parityのcargo exampleは `rust-evaluator/examples/evaluate_fixture.rs` から同じ
+Rust evaluatorと `buildRustEvaluationInput` のprojectionを利用する。Parity harnessは
+Rust evaluator自体のcorrectness検証のため、production Rust eligibilityとは独立して
+Rust inputを構築できる。Current-release fixtureは別途production Rust eligibilityを
+assertする。
 
 ### Rendering / hit testing
 
@@ -591,13 +604,13 @@ Representative:
 - Colocated TypeScript tests
 - `test/evaluationParitySupport.ts`
 - `test/fixtures/evaluation/`
-- Rust evaluator tests in `src-tauri/src/evaluation/`
+- Rust evaluator tests in `rust-evaluator/src/evaluation/`
 
 `test/evaluationParitySupport.ts` の`optionsFor`は同じshared production
 evaluation context builderを呼ぶthin wrapperである。Rust parityは既存の
 `buildRustEvaluationInput(fixture.elements, optionsFor(fixture))`から
-`evaluate_fixture`、`evaluate_document`へ進み、Rust payload boundaryやbenchmark
-protocolはこのloweringの外側にある。
+`rust-evaluator/examples/evaluate_fixture.rs`、`evaluate_document`へ進み、Rust payload
+boundaryやbenchmark protocolはこのloweringの外側にある。
 
 ### Performance comparison foundation
 
@@ -729,8 +742,9 @@ Hover runtime evaluation regardless of document or surface identity. A panel
 does not own or kill the process. Unexpected process death rejects pending work,
 clears the dead owner, and allows the next evaluation request to respawn it.
 Headless MCP owns a separate lazy owner instance but uses the same client/protocol
-implementation. The existing bounded latest-wins Rust transport, stale evaluation
-discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
+implementation. The process binary is produced by `rust-evaluator`, not the Tauri
+crate. The existing bounded latest-wins Rust transport, stale evaluation discard,
+`VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
 evaluator remain reused from the performance PoC path.
 
 `src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
@@ -809,7 +823,7 @@ choice-replacement descriptors; it does not use the CodeMirror adapter. The
 internal apply command is authoritative only for the current open file
 document/version/source and fails closed before creating a `WorkspaceEdit`.
 
-`src-tauri/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
+`rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
 
 ## Core architecture invariants
@@ -820,7 +834,7 @@ test であり、cross-host UI comparison foundation とは別責務。
   `evaluationRequestRevision` は同じ revision として扱わない。
 - Stable statement / element / binding identity を維持する。
 - Model mutation は canonical source-text patch boundary を通す。
-- Tauri production evaluation は Rust。
+- Tauri production evaluation は host-neutral `rust-evaluator` crate を使う。
 - TypeScript evaluator は reference / parity / test。
 - Rust は resolved runtime payload を受け取り、source parsing / source-name
   resolution を再実装しない。
