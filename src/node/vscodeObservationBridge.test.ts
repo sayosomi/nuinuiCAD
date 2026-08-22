@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { once } from "node:events";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
@@ -119,6 +120,19 @@ describe("VscodeObservationBridge", () => {
     bridge.dispose();
     expect(existsSync(bridge.descriptorPath)).toBe(false);
     await expect(requestVscodeObservation(descriptor, { timeoutMs: 100 })).rejects.toThrow();
+  });
+
+  it("destroys a connection that was already open when the bridge is disposed", async () => {
+    const bridge = bridgeFor(temporaryDirectory(), 9);
+    const descriptor = await bridge.ready;
+    const socket = connect({ host: "127.0.0.1", port: descriptor.port });
+    await once(socket, "connect");
+    const closed = once(socket, "close");
+
+    bridge.dispose();
+
+    await closed;
+    expect(socket.destroyed).toBe(true);
   });
 });
 
