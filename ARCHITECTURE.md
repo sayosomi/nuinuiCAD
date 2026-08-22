@@ -281,8 +281,6 @@ children を source representation として flatten しない。
 
 ### TypeScript evaluation
 
-### Runtime geometry source-flow inspection
-
 `EvaluationResult.geometryMutationExecutions` is the production/reference parity fact for successful in-place geometry mutations. It contains only the runtime mutation occurrence ID and the target geometry IDs, in actual execution order; disabled, inactive, skipped, or failed mutations are absent. Rust emits the same JSON-friendly field through the ordinary evaluation payload.
 
 `src/geometry/geometrySourceFlow.ts` joins those runtime facts with the exact-current `CompiledDslDocument`. Construction and mutation steps resolve through `sourceOwnership`; `forGroupGeneratedRows` maps generated runtime occurrences back to their source templates. The resulting host-neutral steps carry reconciler-owned source statement identity and exact physical source span. Consumers must use this structured join rather than parsing runtime IDs, searching source text, or reconstructing evaluator semantics.
