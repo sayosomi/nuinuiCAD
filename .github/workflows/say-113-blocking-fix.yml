@@ -1,0 +1,74 @@
+name: SAY-113 blocking fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-rust-test-state:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'sayosomi/say-113-runtime-inspection-geometry-source-flow-metadata'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Patch missing EvaluationState test initialization
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          targets = {
+              "src-tauri/src/evaluation/bezier_feature_point_evaluator.rs": 2,
+              "src-tauri/src/evaluation/numeric_binding_runtime.rs": 2,
+              "src-tauri/src/evaluation/scalars/bindings_tests.rs": 1,
+              "src-tauri/src/evaluation/scalars/geometry_builtin_runtime_tests.rs": 1,
+          }
+          old = (
+              "            pre_mutation_geometry: HashMap::new(),\n"
+              "            instance_base_geometry: HashMap::new(),"
+          )
+          new = (
+              "            pre_mutation_geometry: HashMap::new(),\n"
+              "            geometry_mutation_executions: Vec::new(),\n"
+              "            instance_base_geometry: HashMap::new(),"
+          )
+
+          total = 0
+          for path_text, expected in targets.items():
+              path = Path(path_text)
+              text = path.read_text()
+              actual = text.count(old)
+              if actual != expected:
+                  raise SystemExit(
+                      f"{path_text}: expected {expected} initializer match(es), found {actual}"
+                  )
+              path.write_text(text.replace(old, new))
+              total += actual
+
+          if total != 6:
+              raise SystemExit(f"expected 6 total replacements, got {total}")
+          PY
+          git diff --check
+
+      - name: Commit blocking fix and remove bootstrap workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/say-113-blocking-fix.yml
+          git add \
+            src-tauri/src/evaluation/bezier_feature_point_evaluator.rs \
+            src-tauri/src/evaluation/numeric_binding_runtime.rs \
+            src-tauri/src/evaluation/scalars/bindings_tests.rs \
+            src-tauri/src/evaluation/scalars/geometry_builtin_runtime_tests.rs
+          git diff --cached --check
+          git commit -m "fix(SAY-113): initialize mutation history in Rust tests"
+          git push origin HEAD:${{ github.head_ref }}
