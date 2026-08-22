@@ -68,10 +68,13 @@ describe("editor selection stability across transient invalid source", () => {
   it("preserves the last stable selection when an errorful editor snapshot temporarily drops its element", () => {
     useCadDocumentStore.getState().commitText(errorfulWithoutA, "editor");
 
-    expect(useCadDocumentStore.getState().diagnostics).toContainEqual(
+    const documentState = useCadDocumentStore.getState();
+    expect(documentState.sourceText).toBe(errorfulWithoutA);
+    expect(documentState.sourceUpdate.kind).toBe("editor");
+    expect(documentState.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-attribute-value", severity: "error" })
     );
-    expect(useCadDocumentStore.getState().elements.some((element) => element.id === "selection-a")).toBe(false);
+    expect(documentState.elements.some((element) => element.id === "selection-a")).toBe(false);
     expect(selection()).toEqual({
       selectedElementId: "selection-a",
       selectedElementIds: ["selection-a"],
