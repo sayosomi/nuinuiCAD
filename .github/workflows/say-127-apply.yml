@@ -98,7 +98,7 @@ jobs:
         run: npm run lint
 
       - name: Remove temporary apply helpers
-        run: git rm automation/say-127-apply.py .github/workflows/say-127-apply.yml
+        run: git rm -f automation/say-127-apply.py .github/workflows/say-127-apply.yml
 
       - name: Commit and push implementation
         run: |
