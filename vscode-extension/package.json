@@ -15,6 +15,23 @@
         "editor.wordBasedSuggestions": "off"
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nuinuiCAD.explorer",
+          "title": "nuinuiCAD Explorer",
+          "icon": "media/spline.svg"
+        }
+      ]
+    },
+    "views": {
+      "nuinuiCAD.explorer": [
+        {
+          "id": "nuinuiCAD.elements",
+          "name": "Elements"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "nuinuiCAD.canvasUndo",
@@ -100,6 +117,18 @@
           "when": "false"
         }
       ],
+      "view/title": [
+        {
+          "command": "nuinuiCAD.openCanvas",
+          "when": "view == nuinuiCAD.elements",
+          "group": "navigation@1"
+        },
+        {
+          "command": "nuinuiCAD.openOutputPreview",
+          "when": "view == nuinuiCAD.elements",
+          "group": "navigation@2"
+        }
+      ],
       "webview/context": [
         {
           "command": "nuinuiCAD.fitDrawing",
@@ -152,11 +181,21 @@
     "commands": [
       {
         "command": "nuinuiCAD.openCanvas",
-        "title": "nuinuiCAD: Open Canvas"
+        "title": "nuinuiCAD: Open Canvas",
+        "shortTitle": "Open Canvas",
+        "icon": {
+          "light": "media/spline.svg",
+          "dark": "media/spline.svg"
+        }
       },
       {
         "command": "nuinuiCAD.openOutputPreview",
-        "title": "nuinuiCAD: Open Output Preview"
+        "title": "nuinuiCAD: Open Output Preview",
+        "shortTitle": "Open Output Preview",
+        "icon": {
+          "light": "media/printer.svg",
+          "dark": "media/printer.svg"
+        }
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",

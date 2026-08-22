@@ -18,6 +18,11 @@ export const nuiDocumentSymbolSelector: vscode.DocumentSelector = {
 
 export type NuiDocumentSymbolSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 
+export type NuiDocumentSymbolSnapshot = {
+  rawSource: string;
+  symbols: DslDocumentSymbol[];
+};
+
 const vscodeSymbolKindFor: Record<DslDocumentSymbolKind, vscode.SymbolKind> = {
   module: vscode.SymbolKind.Module,
   object: vscode.SymbolKind.Object,
@@ -48,28 +53,40 @@ const toVscodeDocumentSymbol = (
   return result;
 };
 
+export const currentNuiDocumentSymbolSnapshot = (
+  document: vscode.TextDocument,
+  sessionFor: NuiDocumentSymbolSessionFor
+): NuiDocumentSymbolSnapshot | null => {
+  if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return null;
+
+  const rawSource = document.getText();
+  const session = sessionFor(document);
+  if (session.getSource() !== rawSource) session.replaceSource(rawSource);
+
+  const normalizedSource = normalizedSourceFor(rawSource);
+  const source: SourceSnapshot = {
+    normalizedSource,
+    sourceRevision: session.getSourceRevision()
+  };
+  const snapshot = session.documentSymbolSyntaxSnapshot(source);
+  if (!snapshot || snapshot.sourceText !== normalizedSource || snapshot.sourceRevision !== source.sourceRevision) return null;
+
+  return {
+    rawSource,
+    symbols: queryDslDocumentSymbols({
+      source,
+      statements: snapshot.statements,
+      sourceMap: snapshot.sourceMap
+    })
+  };
+};
+
 export const createNuiDocumentSymbolProvider = (
   sessionFor: NuiDocumentSymbolSessionFor
 ): vscode.DocumentSymbolProvider => ({
   provideDocumentSymbols: (document) => {
-    if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return [];
-
-    const rawSource = document.getText();
-    const session = sessionFor(document);
-    if (session.getSource() !== rawSource) session.replaceSource(rawSource);
-
-    const normalizedSource = normalizedSourceFor(rawSource);
-    const source: SourceSnapshot = {
-      normalizedSource,
-      sourceRevision: session.getSourceRevision()
-    };
-    const snapshot = session.documentSymbolSyntaxSnapshot(source);
-    if (!snapshot || snapshot.sourceText !== normalizedSource || snapshot.sourceRevision !== source.sourceRevision) return [];
-
-    return queryDslDocumentSymbols({
-      source,
-      statements: snapshot.statements,
-      sourceMap: snapshot.sourceMap
-    }).map((symbol) => toVscodeDocumentSymbol(document, rawSource, symbol));
+    const snapshot = currentNuiDocumentSymbolSnapshot(document, sessionFor);
+    if (!snapshot) return [];
+    return snapshot.symbols.map((symbol) => toVscodeDocumentSymbol(document, snapshot.rawSource, symbol));
   }
 });
