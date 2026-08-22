@@ -54,16 +54,8 @@ jobs:
           from pathlib import Path
           path = Path("src-tauri/src/evaluation/mod.rs")
           text = path.read_text()
-          old = '''                Some(expression) => {
-                      let resolver = active_scalar_binding_resolver.expect(
-                          "scalar_binding_resolver must exist when condition_expressions exist",
-                      );
-                      resolve_conditional_group_branch(expression, resolver, &state)
-                  }'''
-          new = '''                Some(expression) => {
-                      let resolver = active_scalar_binding_resolver.expect(
-                          "scalar_binding_resolver must exist when condition_expressions exist",
-                      );
+          old = "resolve_conditional_group_branch(expression, resolver, &state)"
+          new = '''{
                       let (active_branch, trace) =
                           resolve_conditional_group_condition(expression, resolver, &state);
                       state.condition_evaluation_traces.push(serde_json::json!({
@@ -73,7 +65,7 @@ jobs:
                       active_branch
                   }'''
           if text.count(old) != 1:
-              raise SystemExit(f"top-level condition target count={text.count(old)}")
+              raise SystemExit(f"top-level resolver call count={text.count(old)}")
           path.write_text(text.replace(old, new, 1))
           PY
 
