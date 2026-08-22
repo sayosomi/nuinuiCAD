@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
   executeCommand: vi.fn(),
   showTextDocument: vi.fn(),
+  showErrorMessage: vi.fn(),
   activeTextEditor: undefined as TestEditor | undefined,
   activeEditorListeners: [] as Array<(editor: TestEditor | undefined) => void>,
   selectionListeners: [] as Array<(event: { textEditor: TestEditor }) => void>,
@@ -63,6 +64,7 @@ vi.mock("vscode", () => ({
       return mocks.activeTextEditor;
     },
     showTextDocument: mocks.showTextDocument,
+    showErrorMessage: mocks.showErrorMessage,
     onDidChangeActiveTextEditor: (listener: (editor: TestEditor | undefined) => void) => {
       mocks.activeEditorListeners.push(listener);
       return disposableFor(() => removeListener(mocks.activeEditorListeners, listener));
@@ -158,6 +160,8 @@ beforeEach(() => {
   mocks.executeCommand.mockReset();
   mocks.executeCommand.mockResolvedValue(undefined);
   mocks.showTextDocument.mockReset();
+  mocks.showErrorMessage.mockReset();
+  mocks.showErrorMessage.mockResolvedValue(undefined);
   mocks.activeTextEditor = undefined;
   mocks.activeEditorListeners = [];
   mocks.selectionListeners = [];
@@ -190,6 +194,30 @@ describe("registerVscodeReferencePickFeature", () => {
       "setContext",
       VSCODE_REFERENCE_PICK_CONTEXT_KEY,
       false
+    );
+
+    feature.dispose();
+  });
+
+  it("keeps Palette execution fail-closed and explains a non-pickable Source caret", async () => {
+    const editor = createEditor();
+    editor.selection = { active: { offset: 0 } };
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(source);
+    const ensureCanvas = vi.fn();
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas
+    });
+
+    const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
+    if (!command) throw new Error("reference pick command was not registered");
+    await command();
+
+    expect(ensureCanvas).not.toHaveBeenCalled();
+    expect(mocks.bridgeFactory).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Source Editorのカーソル位置にCanvasから選択できる参照先がありません。"
     );
 
     feature.dispose();
