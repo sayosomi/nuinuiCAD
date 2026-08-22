@@ -44,6 +44,18 @@
         "key": "ctrl+y",
         "mac": "cmd+shift+z",
         "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
+      },
+      {
+        "command": "nuinuiCAD.outputPreviewUndo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+      },
+      {
+        "command": "nuinuiCAD.outputPreviewRedo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
       }
     ],
     "menus": {
@@ -114,6 +126,14 @@
         },
         {
           "command": "nuinuiCAD.canvasRedo",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.outputPreviewUndo",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.outputPreviewRedo",
           "when": "false"
         }
       ],
@@ -212,6 +232,14 @@
       {
         "command": "nuinuiCAD.canvasRedo",
         "title": "nuinuiCAD: Redo Canvas Transition"
+      },
+      {
+        "command": "nuinuiCAD.outputPreviewUndo",
+        "title": "nuinuiCAD: Undo Output Preview Source Edit"
+      },
+      {
+        "command": "nuinuiCAD.outputPreviewRedo",
+        "title": "nuinuiCAD: Redo Output Preview Source Edit"
       },
       {
         "command": "nuinuiCAD.clearCanvasSelection",

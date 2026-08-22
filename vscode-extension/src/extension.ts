@@ -56,6 +56,10 @@ import {
   NUI_ELEMENTS_VIEW_ID
 } from "./elementsTreeProvider";
 import { registerNuiHoverFeature } from "./hoverFeature";
+import {
+  handoffOutputPreviewHistory,
+  type OutputPreviewHistoryDirection
+} from "./outputPreviewHistory";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -237,7 +241,7 @@ const webviewHtml = (
 };
 
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
-  process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "src-tauri", "target", "debug", "evaluation_stdio");
+  process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(context.extensionPath, "..", "rust-evaluator", "target", "debug", "evaluation_stdio");
 
 const postDocumentText = (
   panel: vscode.WebviewPanel,
@@ -1488,6 +1492,38 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
+  const executeOutputPreviewHistory = async (
+    direction: OutputPreviewHistoryDirection
+  ): Promise<void> => {
+    const session = activeOutputPreviewSessionForOpenCommand();
+    if (!session) return;
+
+    await handoffOutputPreviewHistory(direction, {
+      isSessionCurrent: () => sessions.get(session.documentUri, "outputPreview") === session,
+      isPanelActive: () => session.panel.active,
+      isDocumentOpen: () => isOpenDocument(session.document),
+      documentVersion: () => session.document.version,
+      activateMatchingSource: async () => {
+        const editor = visibleEditorFor(session.document);
+        if (!editor) return false;
+        try {
+          const activatedEditor = await vscode.window.showTextDocument(session.document, {
+            viewColumn: editor.viewColumn,
+            preserveFocus: false,
+            preview: false
+          });
+          return sameDocument(activatedEditor.document, session.document);
+        } catch {
+          return false;
+        }
+      },
+      executeNativeHistory: async (nativeDirection) => {
+        await vscode.commands.executeCommand(nativeDirection);
+      },
+      restorePreviewFocus: () => session.panel.reveal(undefined, false)
+    });
+  };
+
   const bakeSettings = () => {
     const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
     return {
@@ -1639,6 +1675,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     "nuinuiCAD.fitOutputPreview",
     executeFitOutputPreview
   );
+  const outputPreviewUndoCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.outputPreviewUndo",
+    () => executeOutputPreviewHistory("undo")
+  );
+  const outputPreviewRedoCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.outputPreviewRedo",
+    () => executeOutputPreviewHistory("redo")
+  );
   const goToSourceDefinitionCommand = vscode.commands.registerCommand(
     "nuinuiCAD.goToSourceDefinition",
     goToSourceDefinition
@@ -1702,6 +1746,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     command,
     openOutputPreviewCommand,
     fitOutputPreviewCommand,
+    outputPreviewUndoCommand,
+    outputPreviewRedoCommand,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     choiceQuickFixApplyCommand,

@@ -1,4 +1,4 @@
-use nuinuicad_lib::evaluation::{evaluate_document, EvaluationInput, EvaluationPayload};
+use nuinuicad_rust_evaluator::{evaluate_document, EvaluationInput, EvaluationPayload};
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
