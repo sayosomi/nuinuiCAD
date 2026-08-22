@@ -141,24 +141,26 @@ Action:
 1. Return to Source for the same run-unique document.
 2. Change exactly one literal in exactly one user-level edit: the `CAL_UNIQUE` endpoint from `end: (40, 0)` to `end: (55, 0)`.
 3. Do not perform a second corrective edit and do not edit the repository fixture.
-4. Wait for the production host to reach a stable post-action state, then take a new `vscode_observe`.
+4. Re-activate/open Canvas for the same run document so a post-edit Canvas publication is required.
+5. Wait for the production host to reach a stable post-action Canvas/evaluation state, then take a new `vscode_observe`.
 
 Oracle:
 
 - live `documentVersion` is greater than the captured pre-edit version;
 - the post-action evidence is a fresh observation, not the C1/pre-edit snapshot;
-- Canvas evidence, when present for the active session, is current/not stale and belongs to the current live document version;
-- compilation/evaluation has reached the stable current state required by the published Canvas fields; record compiled/evaluation revisions and evaluation status;
+- `activeSurface == "canvas"` and `canvasSessionPresent == true`;
+- a Canvas snapshot is present, current/not stale, and its `documentVersion` equals the current live document version;
+- Canvas compilation/evaluation has reached a stable current state; record the published compiled/evaluation revisions and evaluation status, with evaluation ready/current according to the current observation contract;
 - no pre-edit headless stable ID is reused as a post-edit identity oracle.
 
-If the current observation explicitly reports stale state, keep waiting only within the normal bounded settling procedure and re-observe. Do not call a stale snapshot PASS. If exact-current state cannot be established reliably, return `BLOCKED`.
+If the current observation explicitly reports stale state, keep waiting only within the normal bounded settling procedure and re-observe. Do not call a stale snapshot PASS. If an exact-current Canvas/evaluation snapshot cannot be established reliably, return `BLOCKED`.
 
 Required evidence:
 
 - pre/post `documentVersion`;
 - post-action dirty/source identity fields available from live observation;
 - pre/post Canvas document/compiled/evaluation revisions that are published;
-- post-action current/stale and evaluation status;
+- post-action Canvas current/stale and evaluation status;
 - exact edited Source span/text evidence.
 
 ## C3 — production-surface identity
