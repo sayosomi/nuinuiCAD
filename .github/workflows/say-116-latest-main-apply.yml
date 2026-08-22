@@ -1,0 +1,147 @@
+name: SAY-116 Latest Main Apply
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'sayosomi/say-116-latest-main-final'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-116-latest-main-final
+          fetch-depth: 0
+
+      - name: Apply verified SAY-116 source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics
+          git show origin/sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics:src/dsl/dslCallParser.ts > src/dsl/dslCallParser.ts
+          git show origin/sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics:src/dsl/dslTypeParser.ts > src/dsl/dslTypeParser.ts
+          git show origin/sayosomi/say-116-typo-suggestions-matcher-stable-unknown-name-diagnostics:src/dsl/dslReferences.ts > src/dsl/dslReferences.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one patch target, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '''const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(physicalSpan ? { physicalSpan } : {})
+          });''',
+              '''const exactUnknownNameDiagnosticCodes = new Set([
+            "unknown-dsl-keyword",
+            "unknown-type",
+            "unknown-construction",
+            "unknown-construction-argument"
+          ]);
+
+          const diagnostic = (
+            line: number,
+            message: string,
+            code?: string,
+            physicalSpan?: DslPhysicalSpan
+          ): DslDiagnostic => ({
+            severity: "error",
+            line,
+            column: 1,
+            message,
+            ...(code ? { code } : {}),
+            ...(physicalSpan ? { physicalSpan } : {}),
+            ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
+          });'''
+          )
+
+          replace_once(
+              'src/dsl/dslParser.ts',
+              '''  return {
+            diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
+          };''',
+              '''  return {
+            diagnostics: keyword
+              ? [diagnostic(
+                  line,
+                  `未対応のDSLキーワードです: ${keyword}`,
+                  "unknown-dsl-keyword",
+                  project({ start: 0, end: keyword.length }) ?? undefined
+                )]
+              : [diagnostic(line, "文はキーワードから始めてください。")]
+          };'''
+          )
+
+          replace_once(
+              'src/dsl/dslDocument.ts',
+              '''  const allDiagnostics = [
+            ...versionValidation.diagnostics,
+            ...sourceOutputPlacementDiagnostics,
+            ...compiled.diagnostics,
+            ...(sourceLexicalNamespace?.diagnostics ?? []),''',
+              '''  const allDiagnostics = [
+            ...versionValidation.diagnostics,
+            ...sourceOutputPlacementDiagnostics,
+            ...compiled.diagnostics.map((diagnostic, index) =>
+              diagnostic.code === "undefined-geometry-reference"
+                ? (projectedCompilerDiagnostics[index] ?? diagnostic)
+                : diagnostic
+            ),
+            ...(sourceLexicalNamespace?.diagnostics ?? []),'''
+          )
+          PY
+          git diff --check
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focused tests
+        run: npm test -- src/dsl/dslTypoMatcher.test.ts src/dsl/dslUnknownNameDiagnostics.test.ts src/dsl/dslMultiDocumentSyntax.test.ts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Build VS Code extension
+        run: npm run build:vscode
+
+      - name: Commit verified latest-main implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/say-116-latest-main-apply.yml
+          git add src/dsl/dslCallParser.ts src/dsl/dslDocument.ts src/dsl/dslParser.ts src/dsl/dslReferences.ts src/dsl/dslTypeParser.ts
+          git diff --cached --check
+          git commit -m "feat: add SAY-116 stable diagnostics on latest main"
+          git push origin HEAD:sayosomi/say-116-latest-main-final
