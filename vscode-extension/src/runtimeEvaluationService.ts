@@ -198,7 +198,7 @@ export class NuiRuntimeEvaluationService {
     const elements = captured.compiled.document.elements;
     const options = buildEvaluationOptions({
       compiledDocument: captured.compiled,
-      evaluationLimitIndex: undefined
+      evaluationLimitIndex: captured.compiled.document.evaluationLimitIndex
     });
     const prepared = prepareRustEvaluation(elements, options);
 
