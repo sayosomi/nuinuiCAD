@@ -11,7 +11,9 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import { useCadUiStore } from "../state/cadUiStore";
 export type { BezierHandleRole, Command, CommandContext, CommandId } from "./commandTypes";
 
-export const commands: Partial<Record<CommandId, Command>> = {
+// CommandId remains a durable identifier type for persisted settings, while the
+// host-neutral registry contains only commands implemented by the shared core.
+export const commands = {
   ...viewModeCommandDefinitions,
   ...selectionCommandDefinitions,
   ...pickCommandDefinitions,
@@ -19,11 +21,7 @@ export const commands: Partial<Record<CommandId, Command>> = {
   ...commandLineCommandDefinitions,
   ...sourceEditorCommandDefinitions,
   ...bakeCommandDefinitions
-};
-
-const registeredCommands = Object.values(commands).filter(
-  (command): command is Command => command !== undefined
-);
+} as Record<CommandId, Command>;
 
 export const dispatchCommand = (commandId: CommandId, context?: CommandContext) => {
   const command = commands[commandId];
@@ -40,18 +38,18 @@ export const dispatchCommand = (commandId: CommandId, context?: CommandContext) 
 
 export type { CommandPaletteItem } from "./commandPalette";
 
-export const paletteCommandIds = registeredCommands
+export const paletteCommandIds = Object.values(commands)
   .filter((command) => command.palette)
   .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
   .map((command) => command.id);
 
 export const paletteKeywords = Object.fromEntries(
-  registeredCommands
+  Object.values(commands)
     .filter((command) => command.palette?.keywords)
     .map((command) => [command.id, command.palette?.keywords ?? []])
 ) as Partial<Record<CommandId, string[]>>;
 
-export const commandPaletteItems = registeredCommands
+export const commandPaletteItems = Object.values(commands)
   .filter((command) => command.palette)
   .sort((a, b) => (a.palette?.order ?? Number.MAX_SAFE_INTEGER) - (b.palette?.order ?? Number.MAX_SAFE_INTEGER))
   .map((command) => ({
