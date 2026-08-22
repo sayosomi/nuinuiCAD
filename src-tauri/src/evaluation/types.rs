@@ -157,6 +157,8 @@ pub struct EvaluationPayload {
     pub(crate) effective_drawing_modifier_strokes: Vec<EffectiveDrawingModifierStroke>,
     pub(crate) condition_inactive_element_ids: Vec<ElementId>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) condition_evaluation_traces: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
     /// `forGroup` ids whose generated-result presentation is enabled. Never
     /// affects iteration count/rows - `for_group_generated_rows` above is
@@ -218,6 +220,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
+    pub(crate) condition_evaluation_traces: Vec<Value>,
     pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,
     pub(crate) errors: Vec<DependencyError>,
     pub(crate) warnings: Vec<EvaluationWarning>,

@@ -43,6 +43,9 @@ export interface ScalarEvaluationEnvironment {
   /** Resolves an already-resolved geometry builtin target to runtime geometry. */
   lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => GeometryBuiltinTargetLookupResult | undefined;
 
+  /** Optional inspection hook. Called once after each expression node actually reached by production evaluation. */
+  onExpressionEvaluated?: (node: TypedScalarExpression, evaluation: ScalarEvaluation) => void;
+
 }
 
 /**
@@ -404,7 +407,7 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
   return finiteNumberResult(type, result.value);
 };
 
-export const evaluateTypedExpression = (
+const evaluateTypedExpressionNode = (
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
@@ -436,4 +439,14 @@ export const evaluateTypedExpression = (
     case "call":
       return evaluateCall(node, environment);
   }
+};
+
+
+export const evaluateTypedExpression = (
+  node: TypedScalarExpression,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluation => {
+  const evaluation = evaluateTypedExpressionNode(node, environment);
+  environment.onExpressionEvaluated?.(node, evaluation);
+  return evaluation;
 };

@@ -12,6 +12,7 @@
 mod angle_math;
 mod bindings;
 mod builtin_function_semantics;
+mod condition_evaluation_trace;
 mod condition_expression_payload;
 mod control_boolean_payload;
 #[allow(dead_code)]
@@ -43,6 +44,8 @@ mod bindings_tests;
 #[cfg(test)]
 mod builtin_function_semantics_tests;
 #[cfg(test)]
+mod condition_evaluation_trace_tests;
+#[cfg(test)]
 mod condition_expression_payload_tests;
 #[cfg(test)]
 mod control_boolean_payload_tests;
@@ -68,6 +71,7 @@ mod text_template_payload_tests;
 mod text_tests;
 
 pub(crate) use bindings::{ScalarBindingResolver, ScalarDocumentBindingResolver};
+pub(crate) use condition_evaluation_trace::evaluate_condition_expression_with_trace;
 pub(crate) use condition_expression_payload::{
     validate_condition_expressions_payload, ValidatedConditionExpression,
 };

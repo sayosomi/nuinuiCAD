@@ -77,6 +77,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
 /// once it decides the short-circuit doesn't apply.
 pub(super) enum EvalWork<'a> {
     Eval(&'a TypedScalarExpression),
+    Record(&'a TypedScalarExpression),
     FinishUnary {
         operator: ScalarUnaryOperator,
         r#type: ScalarType,
@@ -118,12 +119,51 @@ pub(crate) fn evaluate_typed_expression(
     node: &TypedScalarExpression,
     environment: &impl ScalarEvaluationEnvironment,
 ) -> ScalarEvaluation {
+    evaluate_typed_expression_internal::<fn(&TypedScalarExpression, &ScalarEvaluation)>(
+        node,
+        environment,
+        None,
+    )
+}
+
+pub(crate) fn evaluate_typed_expression_with_observer<F>(
+    node: &TypedScalarExpression,
+    environment: &impl ScalarEvaluationEnvironment,
+    observer: &mut F,
+) -> ScalarEvaluation
+where
+    F: FnMut(&TypedScalarExpression, &ScalarEvaluation),
+{
+    evaluate_typed_expression_internal(node, environment, Some(observer))
+}
+
+fn evaluate_typed_expression_internal<F>(
+    node: &TypedScalarExpression,
+    environment: &impl ScalarEvaluationEnvironment,
+    mut observer: Option<&mut F>,
+) -> ScalarEvaluation
+where
+    F: FnMut(&TypedScalarExpression, &ScalarEvaluation),
+{
     let mut work: Vec<EvalWork> = vec![EvalWork::Eval(node)];
     let mut output: Vec<ScalarEvaluation> = Vec::new();
 
     while let Some(item) = work.pop() {
         match item {
-            EvalWork::Eval(node) => eval_node(node, environment, &mut work, &mut output),
+            EvalWork::Eval(node) => {
+                if observer.is_some() {
+                    work.push(EvalWork::Record(node));
+                }
+                eval_node(node, environment, &mut work, &mut output);
+            }
+            EvalWork::Record(node) => {
+                if let Some(observer) = observer.as_deref_mut() {
+                    observer(
+                        node,
+                        output.last().expect("recorded node result must be present"),
+                    );
+                }
+            }
             EvalWork::FinishUnary { operator, r#type } => {
                 finish_unary(operator, r#type, &mut output)
             }

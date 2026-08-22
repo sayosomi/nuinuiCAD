@@ -119,7 +119,7 @@ use bezier_evaluator::evaluate_bezier_curve;
 use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezier_extreme_point};
 use common_tangent_evaluator::evaluate_common_tangent_line;
 use control_boolean_runtime::{
-    resolve_conditional_group_branch, resolve_for_group_effective_show_generated,
+    resolve_conditional_group_condition, resolve_for_group_effective_show_generated,
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
@@ -552,7 +552,13 @@ fn evaluate_element_by_type(
                     let resolver = condition_context.scalar_binding_resolver.expect(
                         "scalar_binding_resolver must exist when condition_expressions exist",
                     );
-                    resolve_conditional_group_branch(expression, resolver, state)
+                    let (active_branch, trace) =
+                        resolve_conditional_group_condition(expression, resolver, state);
+                    state.condition_evaluation_traces.push(serde_json::json!({
+                        "elementId": id.clone(),
+                        "trace": trace,
+                    }));
+                    active_branch
                 }
                 None => {
                     let condition = element.get("condition").unwrap_or(&Value::Null).clone();
@@ -751,6 +757,7 @@ fn evaluate_document_input_with_scalar_program(
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
@@ -909,7 +916,15 @@ fn evaluate_document_input_with_scalar_program(
                     let resolver = active_scalar_binding_resolver.expect(
                         "scalar_binding_resolver must exist when condition_expressions exist",
                     );
-                    resolve_conditional_group_branch(expression, resolver, &state)
+                    {
+                        let (active_branch, trace) =
+                            resolve_conditional_group_condition(expression, resolver, &state);
+                        state.condition_evaluation_traces.push(serde_json::json!({
+                            "elementId": id.clone(),
+                            "trace": trace,
+                        }));
+                        active_branch
+                    }
                 }
                 None => evaluate_numeric_or_push(
                     element.get("condition").unwrap_or(&Value::Null),
@@ -1201,6 +1216,7 @@ fn evaluate_document_input_with_scalar_program(
             .filter_map(element_id)
             .filter(|id| condition_inactive_ids.contains(id))
             .collect(),
+        condition_evaluation_traces: state.condition_evaluation_traces,
         for_group_generated_rows,
         for_group_effective_show_generated_ids,
         computed_scalar_bindings,
