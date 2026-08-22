@@ -257,7 +257,6 @@ inclusive range `0..180` degrees. `spread = 0` returns `0`, and
 `spread = 2 * length` returns `180`. Invalid or non-finite arguments produce an
 evaluation error. Named source order has no meaning; runtime lowering uses the
 canonical `[length, spread]` positional order.
-
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns
 the direction from its first point to its second point in degrees, normalized
@@ -582,10 +581,41 @@ Module definitions are non-hoisted. A definition must appear before the
 instance that uses it. Recursive and mutually recursive module definitions are
 forbidden.
 
-Module arguments are named-only. A parameter may be `point`, `line`, `path`,
-`number`, `string`, `boolean`, or `choice(...)` as appropriate. Geometry
-parameters are resolved external targets exposed inside the module as
-read-only aliases. A geometry parameter cannot be a mutation target.
+Module arguments are named-only. In a Module call only, an unlabeled simple
+caller-side value reference `@name` is shorthand for the same-name named
+argument `name: @name`. This is named-argument shorthand, not positional
+argument syntax. For example:
+
+```text
+instance foo = Foo(
+  @base,
+  seam: @seam,
+)
+```
+
+is semantically equivalent to:
+
+```text
+instance foo = Foo(
+  base: @base,
+  seam: @seam,
+)
+```
+
+The shorthand is valid only for a bare relative one-segment value reference
+exactly of the form `@name`. Literals, compound expressions, property access,
+qualified/module references, and other unlabeled values are not shorthand.
+Shorthand and explicit named arguments may be mixed. Duplicate and unknown
+shorthand-derived names use the same semantic validation and diagnostics as
+explicit named arguments. Defaults, optionality, lexical binding, and type
+checking are unchanged. After validation the shorthand is lowered through the
+ordinary named Module parameter binding path; no positional or shorthand kind
+exists in the runtime payload.
+
+A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`, or
+`choice(...)` as appropriate. Geometry parameters are resolved external targets
+exposed inside the module as read-only aliases. A geometry parameter cannot be
+a mutation target.
 
 Any scalar or geometry parameter may be optional by writing `name?: type`.
 Optional parameters cannot also have a default. Omission is an intentional
