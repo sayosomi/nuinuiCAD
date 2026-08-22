@@ -15,14 +15,38 @@ export const dslTypoSuggestionDiagnosticCodes = [
   "unknown-construction-argument",
   "undefined-geometry-reference",
   "undefined-binding",
+  "unknown-function",
+  "unknown-function-argument",
   "module-unresolved-callee",
-  "module-unknown-argument",
-  "module-undefined-reference",
-  "module-undefined-geometry-reference",
-  "module-undefined-export"
+  "module-unknown-argument"
 ] as const;
 
 export type DslTypoSuggestionDiagnosticCode = typeof dslTypoSuggestionDiagnosticCodes[number];
+
+export type DslTypoTargetKind =
+  | "keyword"
+  | "type"
+  | "construction"
+  | "constructionArgument"
+  | "geometryReference"
+  | "bindingReference"
+  | "builtinCallable"
+  | "builtinArgument"
+  | "moduleCallee"
+  | "moduleArgument";
+
+const targetKindByDiagnosticCode: Record<DslTypoSuggestionDiagnosticCode, DslTypoTargetKind> = {
+  "unknown-dsl-keyword": "keyword",
+  "unknown-type": "type",
+  "unknown-construction": "construction",
+  "unknown-construction-argument": "constructionArgument",
+  "undefined-geometry-reference": "geometryReference",
+  "undefined-binding": "bindingReference",
+  "unknown-function": "builtinCallable",
+  "unknown-function-argument": "builtinArgument",
+  "module-unresolved-callee": "moduleCallee",
+  "module-unknown-argument": "moduleArgument"
+};
 
 export type DslTypoSuggestionCandidate = {
   kind: DslCompletionCandidateKind;
@@ -33,6 +57,7 @@ export type DslTypoSuggestionCandidate = {
 };
 
 export type DslTypoSuggestionQueryResult = {
+  targetKind: DslTypoTargetKind;
   typedText: string;
   replacementRange: DslCompletionRange;
   candidates: readonly DslTypoSuggestionCandidate[];
@@ -106,24 +131,23 @@ export const queryDslTypoSuggestions = ({
   );
   if (!typedText) return null;
 
-  const candidates = completion.candidates
+  const rankedCandidates = completion.candidates
     .flatMap((candidate, sourceIndex) => {
       const match = matchDslTypoCandidate(typedText, candidate.label, sourceIndex);
-      return match
-        ? [{
-            kind: candidate.kind,
-            label: candidate.label,
-            ...(candidate.identity ? { identity: candidate.identity } : {}),
-            distance: match.distance,
-            caseOnly: match.caseOnly,
-            sourceIndex
-          }]
-        : [];
+      return match ? [{ candidate, match }] : [];
     })
-    .sort((left, right) => left.distance - right.distance || left.sourceIndex - right.sourceIndex)
-    .map(({ sourceIndex: _sourceIndex, ...candidate }) => candidate);
+    .sort((left, right) => left.match.distance - right.match.distance || left.match.sourceIndex - right.match.sourceIndex);
+
+  const candidates: DslTypoSuggestionCandidate[] = rankedCandidates.map(({ candidate, match }) => ({
+    kind: candidate.kind,
+    label: candidate.label,
+    ...(candidate.identity ? { identity: candidate.identity } : {}),
+    distance: match.distance,
+    caseOnly: match.caseOnly
+  }));
 
   return {
+    targetKind: targetKindByDiagnosticCode[diagnostic.code],
     typedText,
     replacementRange: completion.replacementRange,
     candidates
