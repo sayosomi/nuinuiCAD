@@ -1,0 +1,144 @@
+import { describe, expect, it } from "vitest";
+import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
+import { parseDslSnapshot } from "./dslParser";
+import { compileModulePreviewRoot } from "./modulePreviewRoot";
+import { queryModulePreviewTarget } from "./modulePreviewTarget";
+
+const compileWithIds = (source: string, sourceRevision = 41): CompiledDslDocument => {
+  const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    sourceRevision,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `preview-root:${index}`]))
+  });
+};
+
+const targetAt = (source: string, compiled: CompiledDslDocument, needle: string, sourceRevision = 41) =>
+  queryModulePreviewTarget({
+    source: { normalizedSource: source, sourceRevision },
+    position: source.indexOf(needle) + Math.max(1, needle.length - 1),
+    semantic: { sourceRevision, compiled }
+  });
+
+describe("compileModulePreviewRoot", () => {
+  it("materializes a top-level preview through the existing compiler/runtime path with omission semantics and provenance", () => {
+    const source = [
+      "nui 4",
+      "module Pocket(base: number, width: number = @base * 2, note?: string) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "point Outside = coordinate(x: 100, y: 100)"
+    ].join("\n");
+    const original = source;
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point P");
+    expect(target).not.toBeNull();
+
+    const result = target && compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      arguments: [{ name: "base", expression: "3" }]
+    });
+
+    expect(result).not.toBeNull();
+    expect(source).toBe(original);
+    expect(result?.targetRuntimeElementIds).toContain(result?.targetRuntimeElementId);
+    expect(result?.compileResult.elements.some((element) => element.id === result?.targetRuntimeElementId)).toBe(true);
+    expect(result?.moduleScalarRuntime.scalarProgram).toBeDefined();
+
+    const previewInstance = result?.moduleSemanticAnalysis.instancesByStatementId.get(
+      `module-preview-call:${target?.definitionStatementId}:0`
+    );
+    expect(previewInstance?.parameterBindings.map((binding) => [binding.parameterName, binding.state])).toEqual([
+      ["base", "requiredSupplied"],
+      ["width", "defaultedOmitted"],
+      ["note", "optionalOmitted"]
+    ]);
+
+    const bodyEntry = result?.moduleMaterialization.executionStatements.find((entry) =>
+      entry.origin?.kind === "moduleBody" && entry.sourceStatementIndex === 2 &&
+      result.targetRuntimeElementIds.includes(entry.runtimeElementId)
+    );
+    expect(bodyEntry?.origin?.sourceStatementId).toBe("preview-root:2");
+  });
+
+  it("evaluates nested preview arguments in the ancestor parameter context without granting body outer capture", () => {
+    const source = [
+      "nui 4",
+      "module Outer(scale: number) {",
+      "  module Inner(width: number) {",
+      "    point P = coordinate(x: @width, y: 0)",
+      "  }",
+      "}",
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point P");
+    expect(target?.name).toBe("Inner");
+    const outer = compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Outer");
+    expect(outer).toBeDefined();
+
+    const result = target && outer && compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      ancestorContexts: [{
+        definitionStatementId: outer.statementId,
+        arguments: [{ name: "scale", expression: "2" }]
+      }],
+      arguments: [{ name: "width", expression: "@scale + 1" }]
+    });
+    expect(result).not.toBeNull();
+
+    const innerPreview = result?.moduleSemanticAnalysis.instancesByStatementId.get(
+      `module-preview-call:${target?.definitionStatementId}:1`
+    );
+    const width = innerPreview?.parameterBindings.find((binding) => binding.parameterName === "width");
+    expect(width?.value?.kind).toBe("scalar");
+    if (width?.value?.kind === "scalar") {
+      expect(width.value.expression.references[0]?.target).toMatchObject({
+        kind: "parameter",
+        definitionStatementId: outer?.statementId,
+        parameterIndex: 0
+      });
+    }
+
+    const illegalSource = source.replace("@width", "@scale");
+    const illegalCompiled = compileWithIds(illegalSource);
+    const illegalTarget = targetAt(illegalSource, illegalCompiled, "point P");
+    const illegalOuter = illegalCompiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Outer");
+    expect(illegalTarget && illegalOuter && compileModulePreviewRoot({
+      source: { normalizedSource: illegalSource, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled: illegalCompiled },
+      target: illegalTarget,
+      ancestorContexts: [{
+        definitionStatementId: illegalOuter.statementId,
+        arguments: [{ name: "scale", expression: "2" }]
+      }],
+      arguments: [{ name: "width", expression: "1" }]
+    })).toBeNull();
+  });
+
+  it("does not let an unrelated fatal root diagnostic block a safe selected Module", () => {
+    const source = [
+      "nui 4",
+      "module Safe(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "point Broken = offset(from: @Missing, dx: 1, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    expect(compiled.document).toBeNull();
+    const target = targetAt(source, compiled, "point P");
+    expect(target).not.toBeNull();
+
+    const result = target && compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      arguments: [{ name: "width", expression: "5" }]
+    });
+    expect(result).not.toBeNull();
+    expect(result?.targetRuntimeElementIds.length).toBeGreaterThan(1);
+  });
+});
