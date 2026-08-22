@@ -38,7 +38,7 @@ const projection = ({
     at: {
       text: draggable ? "(10, 20)" : "(@x, 20)",
       sourceSpan: { sourceRevision: 3, segments: [{ from: 12, to: 20 }] },
-      references: draggable ? [] : [{ sourceRange: { from: 13, to: 14 }, targetRange: { from: 60, to: 61 } }],
+      references: draggable ? [] : [{ sourceRange: { from: 14, to: 15 }, targetRange: { from: 60, to: 61 } }],
       x: null,
       y: null
     }
@@ -83,7 +83,7 @@ describe("Output Preview place interaction model", () => {
   });
 
   it("fails closed for non-contiguous authored spans and preserves exact reference navigation", () => {
-    const sourceText = "............(@x, 20).......................................x";
+    const sourceText = `............(@x, 20)${".".repeat(50)}x`;
     const nonDraggable = projection({ placeId: "a", x: 0, y: 0, draggable: false });
     const rows = outputPreviewPlacePropertyRows(nonDraggable, sourceText);
 
