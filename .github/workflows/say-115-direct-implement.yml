@@ -25,6 +25,7 @@ jobs:
       - name: Apply SAY-115 preview patch
         run: |
           python scripts/say115_transform.py
+          python scripts/say115_fixup.py
           git diff --check
 
       - name: Setup Node
