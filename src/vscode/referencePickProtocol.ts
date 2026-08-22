@@ -5,14 +5,20 @@ import type {
 import {
   formatDslReferencePath,
   parseDslSourceReference,
-  parseDslSourceReferenceAt
+  parseDslSourceReferenceAt,
+  type DslSourceReference
 } from "../dsl/dslReferenceTokens";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 
+/**
+ * Only source-position facts that are stable across Extension Host and Webview
+ * compiler sessions belong in the protocol proof. Semantic source revisions,
+ * statement IDs and scope IDs are deliberately local-session facts and are
+ * re-derived independently on each side from the matching document version.
+ */
 export type VscodeReferencePickTargetProof = {
-  sourceRevision: number;
-  sourceAnchor: Omit<DslReferencePickSourceAnchor, "sourceRevision">;
+  sourceAnchor: Pick<DslReferencePickSourceAnchor, "statementIndex" | "statementRange">;
   expectedGeometryInterface: ModuleGeometryInterfaceType;
   role: DslReferencePickTarget["role"];
   multiplicity: DslReferencePickTarget["multiplicity"];
@@ -89,10 +95,11 @@ export const referencePickTargetProofFor = (
     to < from ||
     to > normalizedSource.length
   ) return null;
-  const { sourceRevision, ...sourceAnchor } = target.sourceAnchor;
   return {
-    sourceRevision,
-    sourceAnchor,
+    sourceAnchor: {
+      statementIndex: target.sourceAnchor.statementIndex,
+      statementRange: { ...target.sourceAnchor.statementRange }
+    },
     expectedGeometryInterface: target.expectedGeometryInterface,
     role: target.role,
     multiplicity: target.multiplicity,
@@ -109,11 +116,7 @@ export const referencePickTargetMatchesProof = (
   const anchor = target.sourceAnchor;
   const expectedAnchor = proof.sourceAnchor;
   return (
-    anchor.sourceRevision === proof.sourceRevision &&
-    anchor.statementId === expectedAnchor.statementId &&
     anchor.statementIndex === expectedAnchor.statementIndex &&
-    anchor.sourceOrderIndex === expectedAnchor.sourceOrderIndex &&
-    anchor.scopeId === expectedAnchor.scopeId &&
     sameStatementRange(anchor.statementRange, expectedAnchor.statementRange) &&
     target.expectedGeometryInterface === proof.expectedGeometryInterface &&
     target.role === proof.role &&
@@ -147,11 +150,7 @@ export const isCanonicalReferencePickReference = (
 };
 
 const referenceFromParsedSource = (
-  reference: ReturnType<typeof parseDslSourceReferenceAt> extends infer Result
-    ? Result extends { kind: "valid"; reference: infer Reference }
-      ? Reference
-      : never
-    : never
+  reference: DslSourceReference
 ): CanonicalGeometrySourceReference => ({
   base: formatDslReferencePath(reference.path),
   ...(reference.property === null ? {} : { pointKey: reference.property })
@@ -209,11 +208,7 @@ export const sameReferencePickTargetProof = (
   left: VscodeReferencePickTargetProof,
   right: VscodeReferencePickTargetProof
 ): boolean =>
-  left.sourceRevision === right.sourceRevision &&
-  left.sourceAnchor.statementId === right.sourceAnchor.statementId &&
   left.sourceAnchor.statementIndex === right.sourceAnchor.statementIndex &&
-  left.sourceAnchor.sourceOrderIndex === right.sourceAnchor.sourceOrderIndex &&
-  left.sourceAnchor.scopeId === right.sourceAnchor.scopeId &&
   sameStatementRange(left.sourceAnchor.statementRange, right.sourceAnchor.statementRange) &&
   left.expectedGeometryInterface === right.expectedGeometryInterface &&
   left.role === right.role &&
