@@ -1,4 +1,6 @@
 import {
+  canonicalizeObservationDocumentPath,
+  requestVscodeObservation,
   resolveVscodeObservationInstance,
   type VscodeObservationCandidateMetadata,
   type VscodeObservationDiscoveryOptions,
@@ -55,6 +57,25 @@ const projectObservation = (
   return { ...copied, documents };
 };
 
+const observationDocumentPaths = (observation: unknown): string[] => {
+  if (!isObject(observation) || !Array.isArray(observation.documents)) return [];
+  return observation.documents.flatMap((document) =>
+    isObject(document) && typeof document.documentPath === "string"
+      ? [document.documentPath]
+      : []
+  );
+};
+
+const observationStillMatchesDocument = (
+  observation: unknown,
+  documentPath: string
+): boolean => {
+  const requested = canonicalizeObservationDocumentPath(documentPath);
+  return observationDocumentPaths(observation).some(
+    (path) => canonicalizeObservationDocumentPath(path) === requested
+  );
+};
+
 type StaleDocument = {
   documentPath: string | null;
   documentVersion: number | null;
@@ -98,6 +119,15 @@ const staleDocumentsFor = (observation: JsonObject): StaleDocument[] | null => {
   return stale;
 };
 
+const staleAfterResolution = (
+  instance: VscodeObservationCandidateMetadata,
+  reason: "instance-changed-during-source-read" | "document-selection-changed-during-source-read"
+): Record<string, unknown> => ({
+  status: "stale",
+  reason,
+  instance
+});
+
 export const observeVscode = async (
   input: VscodeObserveInput,
   options: VscodeObserveOptions = {}
@@ -127,12 +157,37 @@ export const observeVscode = async (
   }
 
   const instance = candidateMetadata(resolution.instance);
+  let rawObservation = resolution.instance.observation;
+
+  if (input.includeSourceText === true) {
+    try {
+      const sourceObservation = await requestVscodeObservation(
+        resolution.instance.descriptor,
+        {
+          ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+          includeSourceText: true
+        }
+      );
+      if (sourceObservation === null) {
+        return staleAfterResolution(instance, "instance-changed-during-source-read");
+      }
+      rawObservation = sourceObservation;
+    } catch {
+      return staleAfterResolution(instance, "instance-changed-during-source-read");
+    }
+
+    if (
+      input.documentPath &&
+      !input.instanceId &&
+      !observationStillMatchesDocument(rawObservation, input.documentPath)
+    ) {
+      return staleAfterResolution(instance, "document-selection-changed-during-source-read");
+    }
+  }
+
   let observation: JsonObject | null;
   try {
-    observation = projectObservation(
-      resolution.instance.observation,
-      input.includeSourceText === true
-    );
+    observation = projectObservation(rawObservation, input.includeSourceText === true);
   } catch {
     observation = null;
   }
