@@ -4,6 +4,7 @@ import {
   beginOutputPreviewPlaceDrag,
   outputPreviewPlaceCoordinatePatchesFor,
   outputPreviewPlaceDragCoordinatesFor,
+  outputPreviewPlaceDragProofIsCurrent,
   outputPreviewPlacePreviewSourceFor
 } from "./outputPreviewPlaceDrag";
 
@@ -50,13 +51,15 @@ const projection = (): OutputPlaceProjection => ({
   dragability: { draggable: true, literals: { x: 10, y: 20 } }
 });
 
+const plan = { kind: "print" as const, outputId: "print-1", layoutId: "layout-1" };
+
 const begin = (overrides: Partial<Parameters<typeof beginOutputPreviewPlaceDrag>[0]> = {}) =>
   beginOutputPreviewPlaceDrag({
     projection: projection(),
     normalizedSource: source,
     currentSourceRevision: 7,
     documentVersion: 12,
-    plan: { kind: "print", outputId: "print-1", layoutId: "layout-1" },
+    plan,
     ...overrides
   });
 
@@ -79,6 +82,48 @@ describe("Output Preview place drag proof", () => {
     expect(begin({ documentVersion: null })).toBeNull();
     expect(begin({ plan: { kind: "print", outputId: "print-1", layoutId: "other" } })).toBeNull();
     expect(begin({ normalizedSource: source.replace("10", "11") })).toBeNull();
+  });
+
+  it("revalidates host/source/plan identity before preview or commit", () => {
+    const proof = begin();
+    expect(proof).not.toBeNull();
+    if (!proof) return;
+
+    expect(outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: source,
+      currentSourceRevision: 7,
+      documentVersion: 12,
+      plan
+    })).toBe(true);
+    expect(outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: source.replace("20", "21"),
+      currentSourceRevision: 7,
+      documentVersion: 12,
+      plan
+    })).toBe(false);
+    expect(outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: source,
+      currentSourceRevision: 8,
+      documentVersion: 12,
+      plan
+    })).toBe(false);
+    expect(outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: source,
+      currentSourceRevision: 7,
+      documentVersion: 13,
+      plan
+    })).toBe(false);
+    expect(outputPreviewPlaceDragProofIsCurrent({
+      proof,
+      normalizedSource: source,
+      currentSourceRevision: 7,
+      documentVersion: 12,
+      plan: { ...plan, outputId: "print-2" }
+    })).toBe(false);
   });
 
   it("reuses Canvas world-delta X/Y lock semantics", () => {
@@ -123,5 +168,17 @@ describe("Output Preview place drag proof", () => {
       source.replace("10, 20", "15.5, -4")
     );
     expect(proof.normalizedSourceSnapshot).toBe(source);
+  });
+
+  it("does not rewrite an unchanged or locked coordinate spelling", () => {
+    const proof = begin();
+    expect(proof).not.toBeNull();
+    if (!proof) return;
+
+    expect(outputPreviewPlaceCoordinatePatchesFor(proof, { x: 10, y: 25 })).toEqual([
+      { range: { from: yFrom, to: yFrom + 2 }, expectedText: "20", replacement: "25" }
+    ]);
+    expect(outputPreviewPlaceCoordinatePatchesFor(proof, { x: 10, y: 20 })).toEqual([]);
+    expect(outputPreviewPlacePreviewSourceFor(proof, { x: 10, y: 20 })).toBe(source);
   });
 });
