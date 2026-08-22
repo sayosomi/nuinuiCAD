@@ -40,6 +40,12 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 
 const source = ["nui 4", "const x: number = 1"].join("\n");
 
+const emptyEvaluation = (): EvaluationResult => ({
+  computedGeometry: new Map(),
+  errors: [],
+  warnings: []
+} as EvaluationResult);
+
 const evaluationResult = (
   bindingId: string,
   status: "error" | "ok"
@@ -57,18 +63,14 @@ const evaluationResult = (
   ])
 } as EvaluationResult);
 
-const prepareCurrentEvaluation = (status: "error" | "ok" = "error", requestRevision = 1) => {
-  useCadDocumentStore.getState().replaceTextDocument(source, {
-    currentFilePath: null,
-    dirtySinceSave: false
-  });
+const setEvaluationState = (
+  evaluation: EvaluationResult,
+  requestRevision: number,
+  overrides: Partial<EvaluationEngineState> = {}
+) => {
   const documentState = useCadDocumentStore.getState();
-  const binding = documentState.doc.bindingAnalysis?.catalog.bindings.find(
-    (candidate) => candidate.kind === "typed" && candidate.name === "x"
-  );
-  if (!binding) throw new Error("expected typed binding x");
   evaluationHarness.state = {
-    evaluation: evaluationResult(binding.id, status),
+    evaluation,
     evaluationRevision: documentState.compiledDocumentRevision,
     evaluationRequestRevision: requestRevision,
     mode: "rust",
@@ -76,9 +78,25 @@ const prepareCurrentEvaluation = (status: "error" | "ok" = "error", requestRevis
     status: "ready",
     rustEligible: true,
     isStale: false,
-    error: null
+    error: null,
+    ...overrides
   };
+};
+
+const currentBindingId = () => {
+  const binding = useCadDocumentStore.getState().doc.bindingAnalysis?.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === "x"
+  );
+  if (!binding) throw new Error("expected typed binding x");
   return binding.id;
+};
+
+const acceptHostDocument = async (documentVersion: number) => {
+  await act(async () => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "replaceTextDocument", sourceText: source, documentVersion }
+    }));
+  });
 };
 
 const publications = (postMessage: ReturnType<typeof vi.fn>) => postMessage.mock.calls
@@ -89,18 +107,18 @@ describe("VSCodeApp runtime diagnostics publication", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    evaluationHarness.state = null;
+    setEvaluationState(emptyEvaluation(), 0);
   });
 
   it("publishes the current canonical runtime diagnostic with host documentVersion as JSON-safe structured data", async () => {
-    const bindingId = prepareCurrentEvaluation("error");
     const api = { postMessage: vi.fn() };
-    render(<VSCodeApp api={api} />);
+    const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(7);
 
+    const bindingId = currentBindingId();
+    setEvaluationState(evaluationResult(bindingId, "error"), 1);
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
-      }));
+      view.rerender(<VSCodeApp api={api} />);
     });
 
     const publication = publications(api.postMessage).at(-1);
@@ -120,41 +138,33 @@ describe("VSCodeApp runtime diagnostics publication", () => {
   });
 
   it("does not publish a stale evaluation even when the host source itself is authoritative", async () => {
-    prepareCurrentEvaluation("error");
-    evaluationHarness.state = { ...evaluationHarness.state!, isStale: true };
     const api = { postMessage: vi.fn() };
-    render(<VSCodeApp api={api} />);
+    const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(8);
+    api.postMessage.mockClear();
 
+    const bindingId = currentBindingId();
+    setEvaluationState(evaluationResult(bindingId, "error"), 1, { isStale: true });
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 8 }
-      }));
+      view.rerender(<VSCodeApp api={api} />);
     });
 
     expect(publications(api.postMessage)).toEqual([]);
   });
 
   it("publishes an empty current-version runtime layer when a later evaluation recovers", async () => {
-    const bindingId = prepareCurrentEvaluation("error");
     const api = { postMessage: vi.fn() };
     const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(9);
 
+    const bindingId = currentBindingId();
+    setEvaluationState(evaluationResult(bindingId, "error"), 1);
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 9 }
-      }));
+      view.rerender(<VSCodeApp api={api} />);
     });
     expect(publications(api.postMessage).at(-1)?.diagnostics).toHaveLength(1);
 
-    const revision = useCadDocumentStore.getState().compiledDocumentRevision;
-    evaluationHarness.state = {
-      ...evaluationHarness.state!,
-      evaluation: evaluationResult(bindingId, "ok"),
-      evaluationRevision: revision,
-      evaluationRequestRevision: 2,
-      isStale: false,
-      status: "ready"
-    };
+    setEvaluationState(evaluationResult(bindingId, "ok"), 2);
     api.postMessage.mockClear();
     await act(async () => {
       view.rerender(<VSCodeApp api={api} />);
@@ -168,24 +178,20 @@ describe("VSCodeApp runtime diagnostics publication", () => {
   });
 
   it("suppresses publication while previewElements is active", async () => {
-    const bindingId = prepareCurrentEvaluation("error");
     const api = { postMessage: vi.fn() };
     const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(10);
 
+    const bindingId = currentBindingId();
+    setEvaluationState(evaluationResult(bindingId, "error"), 1);
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 10 }
-      }));
+      view.rerender(<VSCodeApp api={api} />);
     });
     expect(publications(api.postMessage).length).toBeGreaterThan(0);
     api.postMessage.mockClear();
 
     const documentState = useCadDocumentStore.getState();
-    evaluationHarness.state = {
-      ...evaluationHarness.state!,
-      evaluation: evaluationResult(bindingId, "error"),
-      evaluationRequestRevision: 2
-    };
+    setEvaluationState(evaluationResult(bindingId, "error"), 2);
     await act(async () => {
       useCadDocumentStore.setState({ previewElements: [...documentState.elements] });
       view.rerender(<VSCodeApp api={api} />);
