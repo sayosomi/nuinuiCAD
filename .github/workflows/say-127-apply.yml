@@ -1,11 +1,6 @@
 name: SAY-127 Apply Runtime Trace Wiring
 
 on:
-  push:
-    branches:
-      - sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
-    paths:
-      - .github/workflows/say-127-apply.yml
   pull_request:
     branches:
       - main
@@ -24,6 +19,31 @@ jobs:
         with:
           ref: sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
           fetch-depth: 0
+
+      - name: Repair staged patch target
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("automation/say-127-apply.py")
+          text = path.read_text()
+          old = '''replace_once(
+              "src-tauri/src/evaluation/types.rs",
+              "    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,",
+              "    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,\\n"
+              "    pub(crate) condition_evaluation_traces: Vec<Value>,"
+          )'''
+          new = '''replace_once(
+              "src-tauri/src/evaluation/types.rs",
+              "    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,\\n"
+              "    pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,",
+              "    pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,\\n"
+              "    pub(crate) condition_evaluation_traces: Vec<Value>,\\n"
+              "    pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,"
+          )'''
+          if text.count(old) != 1:
+              raise SystemExit(f"repair target count={text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Apply wiring
         run: python3 automation/say-127-apply.py
