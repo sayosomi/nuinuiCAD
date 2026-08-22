@@ -43,7 +43,6 @@ jobs:
                         '[activeProfileId, elements, evaluation, groupFoldById, profiles]'))
           edit('src/components/SourceEditorPane.tsx', lambda s: s
                .replace('import { Layers3, Palette } from "lucide-react";\n', 'import { Layers3 } from "lucide-react";\n')
-               .replace('import { dispatchCommand } from "../commands/commands";\n', '')
                .replace('          <button type="button" className="palette-open-button" onClick={() => dispatchCommand("openPaletteSettings")}>\n            <Palette size={15} aria-hidden="true" />\n            <span className="source-editor-icon-button-label">パレット</span>\n          </button>\n', ''))
           edit('src/document/documentFile.ts', lambda s: s
                .replace('import { defaultDocumentPalette } from "../palette/palette";\n', '')
@@ -60,6 +59,8 @@ jobs:
               'src/editor/sourceEditorEvaluationDecorations.test.ts',
           ]:
               edit(path, lambda s: re.sub(r'^\s*(?:elementColors|palette):[^\n]*\n', '', s, flags=re.M))
+          edit('src/components/CanvasOverlay.test.tsx', lambda s: re.sub(
+              r'^\s*elementColors=\{new Map\(\)\}\n', '', s, flags=re.M))
 
           # Store fixtures which used removed compatibility/UI fields.
           fixture_paths = [
