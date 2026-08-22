@@ -117,6 +117,13 @@ export const isElementDslStatement = (statement: DslStatement) =>
 const attrValue = (attrs: DslAttribute[], key: string) =>
   attrs.find((attr) => attr.key === key)?.value;
 
+const exactUnknownNameDiagnosticCodes = new Set([
+  "unknown-dsl-keyword",
+  "unknown-type",
+  "unknown-construction",
+  "unknown-construction-argument"
+]);
+
 const diagnostic = (
   line: number,
   message: string,
@@ -128,7 +135,8 @@ const diagnostic = (
   column: 1,
   message,
   ...(code ? { code } : {}),
-  ...(physicalSpan ? { physicalSpan } : {})
+  ...(physicalSpan ? { physicalSpan } : {}),
+  ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
 });
 
 type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
@@ -759,7 +767,14 @@ const parseLine = (
     return fromSet(parseDslSetStatement(logicalText), line, endLine, project);
   }
   return {
-    diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
+    diagnostics: keyword
+    ? [diagnostic(
+        line,
+        `未対応のDSLキーワードです: ${keyword}`,
+        "unknown-dsl-keyword",
+        project({ start: 0, end: keyword.length }) ?? undefined
+      )]
+    : [diagnostic(line, "文はキーワードから始めてください。")]
   };
 };
 
