@@ -148,30 +148,15 @@ fn drawing_modifier_contributions(
             Some((
                 name,
                 DrawingModifierContribution {
-                    state: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "state",
-                    ),
+                    state: property_contribution(modifier, delta, delta_identity.as_ref(), "state"),
                     width_px: property_contribution(
                         modifier,
                         delta,
                         delta_identity.as_ref(),
                         "widthPx",
                     ),
-                    style: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "style",
-                    ),
-                    color: property_contribution(
-                        modifier,
-                        delta,
-                        delta_identity.as_ref(),
-                        "color",
-                    ),
+                    style: property_contribution(modifier, delta, delta_identity.as_ref(), "style"),
+                    color: property_contribution(modifier, delta, delta_identity.as_ref(), "color"),
                 },
             ))
         })
@@ -586,7 +571,10 @@ mod provenance_tests {
             runtime["line"].resolution["widthPx"]["winner"]["ownerElementId"],
             Value::from("group")
         );
-        assert_eq!(runtime["plain"].resolution["widthPx"]["value"], Value::from(1.0));
+        assert_eq!(
+            runtime["plain"].resolution["widthPx"]["value"],
+            Value::from(1.0)
+        );
         assert!(runtime["plain"].resolution["widthPx"]["winner"].is_null());
     }
 }
