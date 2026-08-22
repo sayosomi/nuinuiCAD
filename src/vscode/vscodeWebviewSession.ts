@@ -5,25 +5,6 @@ export type VscodeWebviewSessionBase = {
   surfaceKind: VscodeWebviewSurfaceKind;
 };
 
-export type VscodeWebviewSessionRegistryEvent =
-  | { type: "set"; session: VscodeWebviewSessionBase }
-  | { type: "delete"; session: VscodeWebviewSessionBase };
-
-type VscodeWebviewSessionRegistryListener = (event: VscodeWebviewSessionRegistryEvent) => void;
-
-const sessionRegistryListeners = new Set<VscodeWebviewSessionRegistryListener>();
-
-export const onVscodeWebviewSessionRegistryEvent = (
-  listener: VscodeWebviewSessionRegistryListener
-): (() => void) => {
-  sessionRegistryListeners.add(listener);
-  return () => sessionRegistryListeners.delete(listener);
-};
-
-const publishSessionRegistryEvent = (event: VscodeWebviewSessionRegistryEvent): void => {
-  for (const listener of sessionRegistryListeners) listener(event);
-};
-
 export const vscodeWebviewSessionKey = (
   documentUri: string,
   surfaceKind: VscodeWebviewSurfaceKind
@@ -40,21 +21,11 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
   }
 
   set(session: T): void {
-    const key = vscodeWebviewSessionKey(session.documentUri, session.surfaceKind);
-    const previous = this.byKey.get(key);
-    if (previous === session) return;
-    if (previous) publishSessionRegistryEvent({ type: "delete", session: previous });
-    this.byKey.set(key, session);
-    publishSessionRegistryEvent({ type: "set", session });
+    this.byKey.set(vscodeWebviewSessionKey(session.documentUri, session.surfaceKind), session);
   }
 
   delete(documentUri: string, surfaceKind: VscodeWebviewSurfaceKind): boolean {
-    const key = vscodeWebviewSessionKey(documentUri, surfaceKind);
-    const session = this.byKey.get(key);
-    if (!session) return false;
-    const deleted = this.byKey.delete(key);
-    if (deleted) publishSessionRegistryEvent({ type: "delete", session });
-    return deleted;
+    return this.byKey.delete(vscodeWebviewSessionKey(documentUri, surfaceKind));
   }
 
   forDocument(documentUri: string): T[] {
@@ -70,8 +41,6 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
   }
 
   clear(): void {
-    const sessions = [...this.byKey.values()];
     this.byKey.clear();
-    for (const session of sessions) publishSessionRegistryEvent({ type: "delete", session });
   }
 }
