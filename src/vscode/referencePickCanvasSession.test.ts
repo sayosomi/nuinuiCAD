@@ -85,7 +85,8 @@ describe("VS Code Canvas reference pick session bridge", () => {
       "point B = coordinate(x: 10, y: 0)",
       "line Straight = segment(start: @A, end: @B)",
       "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
-      "module M(straight: line) {}",
+      "module M(straight: line) {",
+      "}",
       "instance X = M(straight: @Straight)"
     ].join("\n");
     const setupResult = setup(source, "straight: @Straight");
