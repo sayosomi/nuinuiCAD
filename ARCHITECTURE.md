@@ -183,6 +183,7 @@ Primary:
 - `vscode-extension/src/mcpObservationBridge.ts`
 - `vscode-extension/src/extensionEntry.ts`
 - `src/node/vscodeObservationBridge.ts`
+- `mcp-server/src/vscodeObserve.ts`
 
 The Extension Host keeps the exact-current observation facts in
 `vscodeObservationState`; the bridge reads that owner and does not reconstruct
@@ -190,7 +191,10 @@ Canvas, evaluation, selection, or diagnostic semantics. `extensionEntry.ts` is
 the packaged Extension Host entry and starts the private bridge only when
 `NUINUICAD_MCP_OBSERVATION=1` or the application-scoped developer setting
 `nuinuiCAD.developer.mcpObservation.enabled` is enabled. The bridge is disabled
-by default and setting changes require an Extension Host reload.
+by default and setting changes require an Extension Host reload. The developer-only
+bridge snapshot also carries current `TextDocument` source text for supported
+open `.nui` documents so dirty in-memory source can be returned exactly when the
+MCP caller explicitly opts into that larger field.
 
 `src/node/vscodeObservationBridge.ts` owns the shared Node-only transport and
 discovery boundary: loopback-only ephemeral TCP, authenticated observe-only
@@ -198,9 +202,16 @@ NDJSON, restrictive temporary descriptor lifecycle, canonical file-path matching
 and deterministic instance resolution. Resolution uses explicit instance ID,
 then an exactly-one-open-document match, then the sole live instance; remaining
 multiple candidates are reported as ambiguity rather than guessed by PID,
-timestamp, or window order. Candidate metadata omits the auth token. The current
-Headless MCP tool surface remains separate; MCP registration of `vscode_observe`
-belongs to the next integration child.
+timestamp, or window order. Candidate metadata omits the auth token.
+
+`mcp-server/src/vscodeObserve.ts` is the read-only MCP projection boundary.
+`vscode_observe` maps discovery failures to explicit `unavailable` / `ambiguous`
+results, rejects a non-current Canvas runtime snapshot as `stale`, keeps the
+protocol result JSON-friendly, and declares Source selection indexing as zero-based
+UTF-16 line/character coordinates. Full `sourceText` is stripped from the default
+MCP response and retained only for `includeSourceText: true`; no command, mutation,
+shell, keyboard, pointer, screenshot, HTTP, OAuth, or Tauri-attach surface is
+introduced.
 
 ### Compilation / source mutation
 
@@ -497,7 +508,6 @@ Primary:
 - `src/commands/`
 - `src/keyboard/shortcuts.ts`
 - `src/parameters/parameterDefinitions.ts`
-
 Major business operations は command に集約する。Keyboard mapping と editable
 parameter metadata はそれぞれ既存 owner を使う。
 
