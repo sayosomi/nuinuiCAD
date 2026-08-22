@@ -2,6 +2,7 @@ import { AutomationDocument, type AutomationDocumentState } from "../../src/docu
 import type { DslCompletionRecoveryInput, DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
 import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
+import type { DslHoverSemanticSnapshot } from "../../src/dsl/dslHoverQuery";
 import type { DslReferencesSemanticSnapshot } from "../../src/dsl/dslReferencesQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
 import type { DslSignatureHelpSemanticSnapshot } from "../../src/dsl/dslSignatureHelpQuery";
@@ -66,6 +67,9 @@ export type NuiLanguageAnalysisSession = {
   definitionSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslDefinitionSemanticSnapshot | undefined;
+  hoverSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslHoverSemanticSnapshot | undefined;
   referencesSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslReferencesSemanticSnapshot | undefined;
@@ -116,7 +120,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
 
   const semanticSnapshotFor = (
     source: SourceSnapshot
-  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot & DslReferencesSemanticSnapshot & DslRenameSemanticSnapshot | undefined => {
+  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot & DslHoverSemanticSnapshot & DslReferencesSemanticSnapshot & DslRenameSemanticSnapshot | undefined => {
     const state = document.getState();
     const currentRawSource = document.getSource();
     const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
@@ -254,6 +258,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     },
     signatureHelpSemanticSnapshot,
     definitionSemanticSnapshot: semanticSnapshotFor,
+    hoverSemanticSnapshot: semanticSnapshotFor,
     referencesSemanticSnapshot: semanticSnapshotFor,
     renameSemanticSnapshot: semanticSnapshotFor,
     foldingSyntaxSnapshot,
