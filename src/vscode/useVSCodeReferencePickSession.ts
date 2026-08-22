@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CompiledDslDocument, SourceSnapshot } from "../dsl/dslDocument";
+import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type { ReferencePickHover } from "../model/referencePickSession";
 import type { EvaluationResult } from "../types/geometry";
 import {
@@ -49,16 +50,14 @@ export const useVSCodeReferencePickSession = ({
         }
         const current = currentContextFor(message.documentVersion);
         if (!current) {
-          const stale = startVscodeReferencePickCanvasSession({
-            request: message,
-            authoritativeDocumentUri: message.documentUri,
-            authoritativeDocumentVersion: message.documentVersion + 1,
-            source: { normalizedSource: "", sourceRevision: -1 },
-            compiled: current?.compiled as never,
-            evaluation: current?.evaluation as never,
-            evaluationIsCurrent: false
+          api.postMessage({
+            type: "referencePickResult",
+            requestId: message.requestId,
+            documentUri: message.documentUri,
+            documentVersion: message.documentVersion,
+            targetProof: message.targetProof,
+            status: "stale"
           });
-          api.postMessage(stale.result);
           return;
         }
         const started = startVscodeReferencePickCanvasSession({
