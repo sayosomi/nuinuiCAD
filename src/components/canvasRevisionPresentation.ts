@@ -57,6 +57,16 @@ const pinnedEvaluationState = (
     }
   : undefined;
 
+const pinnedStablePresentation = (
+  evaluationState: EvaluationEngineState | undefined,
+  snapshot: CanvasRevisionPresentationSnapshot
+): CanvasRevisionPresentation => ({
+  ...snapshot.inputs,
+  renderEvaluation: snapshot.evaluation,
+  renderEvaluationState: pinnedEvaluationState(evaluationState, snapshot),
+  isPinned: true
+});
+
 export const resolveRevisionCoherentCanvasPresentation = ({
   current,
   evaluation,
@@ -73,14 +83,7 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   holdLastStable?: boolean;
 }): CanvasRevisionPresentation => {
   if (holdLastStable) {
-    if (lastStable) {
-      return {
-        ...lastStable.inputs,
-        renderEvaluation: lastStable.evaluation,
-        renderEvaluationState: pinnedEvaluationState(evaluationState, lastStable),
-        isPinned: true
-      };
-    }
+    if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
     return {
       ...current,
       renderEvaluation: evaluation,
@@ -107,21 +110,16 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       isPinned: false
     };
   }
-  if (
-    lastStable &&
-    lastStable.evaluationRevision === evaluationState.evaluationRevision &&
-    lastStable.evaluationRequestRevision === evaluationState.evaluationRequestRevision
-  ) {
-    return {
-      ...lastStable.inputs,
-      renderEvaluation: lastStable.evaluation,
-      renderEvaluationState: pinnedEvaluationState(evaluationState, lastStable),
-      isPinned: true
-    };
-  }
-  // Never pair a stale evaluation with unrelated current-document metadata.
-  // Normal transitions have an exact lastStable match; a remount or otherwise
-  // unidentified stale request fails closed until a coherent evaluation arrives.
+  // Once a complete presentation has been accepted, it is safe to keep that
+  // entire snapshot while any newer evaluation is pending. The snapshot owns
+  // both its document metadata and its evaluation, so unlike the pre-SAY-102
+  // path this never pairs geometry from one revision with metadata from another.
+  // This also covers recovery from an errorful editor revision whose evaluation
+  // completed but was deliberately never promoted to Canvas authority.
+  if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
+
+  // A remount or first-load stale request has no coherent previous presentation.
+  // Fail closed until a coherent current evaluation arrives.
   return {
     ...EMPTY_CANVAS_PRESENTATION,
     renderEvaluation: evaluation,
