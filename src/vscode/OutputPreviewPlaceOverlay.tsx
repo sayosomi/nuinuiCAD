@@ -27,9 +27,6 @@ type OutputPreviewPlaceOverlayProps = {
   onHighlightPlaceIdChange: (placeId: string | null) => void;
 };
 
-const placeExists = (projections: readonly OutputPlaceProjection[], placeId: string | null): boolean =>
-  placeId !== null && projections.some((projection) => projection.placeId === placeId);
-
 export const OutputPreviewPlaceOverlay = ({
   projections,
   sourceText,
@@ -62,15 +59,9 @@ export const OutputPreviewPlaceOverlay = ({
     }, 120);
   };
 
-  useEffect(() => () => cancelHoverClear(), []);
-
-  useEffect(() => {
-    if (hoveredPlaceId && !placeExists(projections, hoveredPlaceId)) setHoveredPlaceId(null);
-    if (activePlaceId && !placeExists(projections, activePlaceId)) setActivePlaceId(null);
-    if (candidateSession && candidateSession.candidates.some(({ placeId }) => !placeExists(projections, placeId))) {
-      setCandidateSession(null);
-    }
-  }, [activePlaceId, candidateSession, hoveredPlaceId, projections]);
+  useEffect(() => () => {
+    if (hoverLeaveTimerRef.current !== null) clearTimeout(hoverLeaveTimerRef.current);
+  }, []);
 
   const candidatePlaceId = candidateSession?.candidates[candidateSession.activeIndex]?.placeId ?? null;
   const highlightedPlaceId = candidatePlaceId ?? hoveredPlaceId ?? activePlaceId;
