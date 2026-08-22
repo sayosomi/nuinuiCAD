@@ -14,12 +14,9 @@ import {
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
-import {
-  createTranslator,
-  resolveLocale,
-  typoSuggestionTranslationCatalog
-} from "./localization";
+import { createTranslator, resolveLocale } from "./localization";
 import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
+import { typoSuggestionTranslationCatalog } from "./typoSuggestionLocalization";
 
 export const nuiTypoQuickFixSelector: vscode.DocumentSelector = {
   language: "nui",
