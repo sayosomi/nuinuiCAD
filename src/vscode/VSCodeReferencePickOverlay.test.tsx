@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
+import type { ReferencePickHover } from "../model/referencePickSession";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 
@@ -33,23 +34,24 @@ const sessionFor = ({
   }
 } as unknown as VscodeReferencePickCanvasSession);
 
+type OverlayCallbacks = {
+  onHover: (hover: ReferencePickHover | null) => void;
+  onSelect: (selection: ReferencePickHover | null) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
-  overrides: Partial<{
-    onHover: ReturnType<typeof vi.fn>;
-    onSelect: ReturnType<typeof vi.fn>;
-    onConfirm: ReturnType<typeof vi.fn>;
-    onCancel: ReturnType<typeof vi.fn>;
-  }> = {}
+  overrides: Partial<OverlayCallbacks> = {}
 ) => {
   const viewport = document.createElement("div");
   document.body.append(viewport);
-  const callbacks = {
-    onHover: vi.fn(),
-    onSelect: vi.fn(),
-    onConfirm: vi.fn(),
-    onCancel: vi.fn(),
-    ...overrides
+  const callbacks: OverlayCallbacks = {
+    onHover: overrides.onHover ?? vi.fn<(hover: ReferencePickHover | null) => void>(),
+    onSelect: overrides.onSelect ?? vi.fn<(selection: ReferencePickHover | null) => void>(),
+    onConfirm: overrides.onConfirm ?? vi.fn<() => void>(),
+    onCancel: overrides.onCancel ?? vi.fn<() => void>()
   };
   const view = render(
     <VSCodeReferencePickOverlay
@@ -62,7 +64,10 @@ const renderOverlay = (
       visibilityProfiles={[]}
       activeVisibilityProfileId={null}
       session={session}
-      {...callbacks}
+      onHover={callbacks.onHover}
+      onSelect={callbacks.onSelect}
+      onConfirm={callbacks.onConfirm}
+      onCancel={callbacks.onCancel}
     />
   );
   return { viewport, callbacks, view };
@@ -77,8 +82,8 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(status.style.position).toBe("absolute");
     expect(status.style.right).toBe("0px");
     expect(status.style.bottom).toBe("0px");
-    expect(status.style.background).toBe(LEGACY_CANVAS_THEME.background);
-    expect(status.style.color).toBe(LEGACY_CANVAS_THEME.foreground);
+    expect(status).toHaveStyle({ background: LEGACY_CANVAS_THEME.background });
+    expect(status).toHaveStyle({ color: LEGACY_CANVAS_THEME.foreground });
     expect(screen.getByText("Line target")).toBeInTheDocument();
     expect(screen.getByText("Enter")).toBeInTheDocument();
     expect(screen.getAllByText("Done").length).toBeGreaterThanOrEqual(1);
@@ -91,8 +96,8 @@ describe("VSCodeReferencePickOverlay", () => {
   });
 
   it("routes Enter confirm and Escape cancel through the active Canvas session", () => {
-    const onConfirm = vi.fn();
-    const onCancel = vi.fn();
+    const onConfirm = vi.fn<() => void>();
+    const onCancel = vi.fn<() => void>();
     const { viewport, view } = renderOverlay(
       sessionFor({ draftReferences: [{ base: "Straight" }] }),
       { onConfirm, onCancel }
