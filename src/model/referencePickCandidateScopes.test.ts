@@ -21,7 +21,7 @@ const targetAt = (source: string, compiled: CompiledDslDocument, fragment: strin
   if (from < 0 || at < 0) throw new Error(`missing target fragment: ${fragment}`);
   const target = queryDslReferencePickTarget({
     source: { normalizedSource: source, sourceRevision: REVISION },
-    position: from + at + 1,
+    position: from + at + 2,
     semantic: { sourceRevision: REVISION, compiled }
   });
   if (!target) throw new Error(`no target for fragment: ${fragment}`);
