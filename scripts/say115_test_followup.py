@@ -96,6 +96,12 @@ text = text.replace(
     '  "// legacy palette source removed",\n  "// retained source-noise line",\n',
     1,
 )
+# The empty-elements insertion test still needs a valid non-element statement to
+# anchor after; a visibility role exercises the same section-boundary behavior.
+text = text.replace(
+    'color main ("#112233", name: "本体", default: true)',
+    'role seam (name: "縫い代")',
+)
 text = text.replace("color: main", "state: hidden")
 text = text.replace("color: accent", "state: disabled")
 text = text.replace("colorId: \"accent\"", "activity: \"disabled\"")
