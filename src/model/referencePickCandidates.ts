@@ -8,10 +8,9 @@ import {
 import { formatDslReferencePath } from "../dsl/dslReferenceTokens";
 import {
   resolveSourceLexicalPath,
-  type SourceLexicalDeclaration,
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
-import type { MaterializedExecutionStatement, ModuleOrigin } from "../dsl/moduleMaterialization";
+import type { MaterializedExecutionStatement } from "../dsl/moduleMaterialization";
 import { effectiveEnabledElementIds, effectiveVisibleElementIds } from "./groups";
 import {
   effectiveVisibleElementIdsForProfile,
@@ -29,7 +28,11 @@ import type {
   EvaluationResult,
   PointAnchor
 } from "../types/geometry";
-import type { CanonicalGeometrySourceReference } from "./moduleSemanticCandidateBoundary";
+import type {
+  CanonicalGeometrySourceReference,
+  ModuleSemanticCandidateContext
+} from "./moduleSemanticCandidateBoundary";
+import { sourceReferenceForRuntimeElementAtSourceAnchor } from "./sourceAnchoredModuleSemanticCandidate";
 
 export type ReferencePickPointOption = {
   kind: "point";
@@ -56,7 +59,7 @@ export type ReferencePickCandidate = {
 type CandidateContext = {
   target: DslReferencePickTarget;
   namespace: SourceLexicalNamespaceIndex;
-  compiled: CompiledDslDocument;
+  moduleSemanticContext: ModuleSemanticCandidateContext;
   elements: readonly CadElement[];
 };
 
@@ -76,20 +79,6 @@ const declarationByStatementId = (
   namespace: SourceLexicalNamespaceIndex,
   statementId: string
 ) => namespace.allDeclarations.find((declaration) => declaration.statementId === statementId);
-
-const lexicallyVisibleFromTarget = (
-  declaration: Pick<SourceLexicalDeclaration, "scopeId" | "statementIndex">,
-  target: DslReferencePickTarget,
-  namespace: SourceLexicalNamespaceIndex
-) => {
-  if (declaration.statementIndex >= target.sourceAnchor.sourceOrderIndex) return false;
-  let current: string | null = target.sourceAnchor.scopeId;
-  while (current) {
-    if (current === declaration.scopeId) return true;
-    current = namespace.scopeIndex.scopes.get(current)?.parentId ?? null;
-  }
-  return false;
-};
 
 const ordinarySourceReference = (
   entry: MaterializedExecutionStatement,
@@ -124,77 +113,16 @@ const ordinarySourceReference = (
   return null;
 };
 
-const exportedSourceReference = (
-  origin: ModuleOrigin,
-  targetModuleDefinitionStatementId: string | null,
-  context: CandidateContext
-): CanonicalGeometrySourceReference | null => {
-  const analysis = context.compiled.moduleSemanticAnalysis;
-  if (!analysis) return null;
-  const definition = analysis.definitionsByStatementId.get(origin.moduleDefinitionStatementId);
-  const exported = definition?.exports.find(
-    (candidate) => candidate.exportedStatementId === origin.sourceStatementId
-  );
-  if (!exported) return null;
-
-  const instanceStatementId = origin.instancePath.at(-1);
-  const instance = instanceStatementId
-    ? analysis.instancesByStatementId.get(instanceStatementId)
-    : undefined;
-  if (!instance) return null;
-
-  if (targetModuleDefinitionStatementId === null) {
-    if (
-      origin.instancePath.length !== 1 ||
-      instance.callerModuleDefinitionStatementId !== null
-    ) return null;
-  } else if (instance.callerModuleDefinitionStatementId !== targetModuleDefinitionStatementId) {
-    return null;
-  }
-
-  const instanceDeclaration = declarationByStatementId(context.namespace, instance.statementId);
-  if (!instanceDeclaration || !lexicallyVisibleFromTarget(instanceDeclaration, context.target, context.namespace)) {
-    return null;
-  }
-
-  return {
-    base: formatDslReferencePath({
-      absolute: false,
-      segments: [instance.name, exported.name]
-    })
-  };
-};
-
-const moduleSourceReference = (
-  origin: ModuleOrigin,
-  context: CandidateContext
-): CanonicalGeometrySourceReference | null => {
-  if (origin.kind !== "moduleBody") return null;
-  const targetModuleDefinitionStatementId = moduleDefinitionForScope(
-    context.namespace,
-    context.target.sourceAnchor.scopeId
-  );
-  const sourceDeclaration = declarationByStatementId(context.namespace, origin.sourceStatementId);
-  if (!sourceDeclaration || sourceDeclaration.kind !== "geometry") return null;
-
-  if (
-    targetModuleDefinitionStatementId === origin.moduleDefinitionStatementId &&
-    lexicallyVisibleFromTarget(sourceDeclaration, context.target, context.namespace)
-  ) {
-    return {
-      base: formatDslReferencePath({ absolute: false, segments: [sourceDeclaration.name] })
-    };
-  }
-
-  return exportedSourceReference(origin, targetModuleDefinitionStatementId, context);
-};
-
 const canonicalReferenceForEntry = (
   entry: MaterializedExecutionStatement,
   element: CadElement,
   context: CandidateContext
 ): CanonicalGeometrySourceReference | null => entry.origin?.kind === "moduleBody"
-  ? moduleSourceReference(entry.origin, context)
+  ? sourceReferenceForRuntimeElementAtSourceAnchor({
+      runtimeElementId: entry.runtimeElementId,
+      target: context.target.sourceAnchor,
+      context: context.moduleSemanticContext
+    })
   : ordinarySourceReference(entry, element, context);
 
 const candidateVisibility = (
@@ -250,7 +178,18 @@ export const referencePickCandidates = ({
     materialization.executionStatements.map((entry) => [entry.runtimeElementId, entry])
   );
   const isVisible = candidateVisibility(elements, evaluation, compiled);
-  const context: CandidateContext = { target, namespace, compiled, elements };
+  const moduleSemanticContext: ModuleSemanticCandidateContext = {
+    moduleMaterialization: materialization,
+    moduleSemanticAnalysis: compiled.moduleSemanticAnalysis,
+    sourceLexicalNamespace: namespace,
+    statementInfoByElementId: compiled.statementMap?.byElementId
+  };
+  const context: CandidateContext = {
+    target,
+    namespace,
+    moduleSemanticContext,
+    elements
+  };
   const candidates: ReferencePickCandidate[] = [];
 
   for (const element of elements) {
