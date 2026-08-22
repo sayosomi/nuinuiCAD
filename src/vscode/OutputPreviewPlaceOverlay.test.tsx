@@ -80,12 +80,12 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(onHighlight).toHaveBeenLastCalledWith("b");
   });
 
-  it("skips the picker for one hit but opens the shared overlap presentation for multiple hits", () => {
+  it("skips the picker for a single handle hit", () => {
     render(
       <OutputPreviewPlaceOverlay
         projections={[
           projection({ placeId: "a", groupName: "Front" }),
-          projection({ placeId: "b", groupName: "Back" })
+          projection({ placeId: "b", groupName: "Back", x: 30 })
         ]}
         sourceText={sourceText}
         viewportSize={{ width: 400, height: 300 }}
@@ -96,8 +96,44 @@ describe("OutputPreviewPlaceOverlay", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
-    expect(screen.getByRole("listbox", { name: "Overlapping place handles" })).toBeTruthy();
+    expect(screen.queryByRole("listbox", { name: "Overlapping place handles" })).toBeNull();
+    expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
+  });
+
+  it("opens the shared overlap presentation for multiple hits and resolves candidates from current handles", () => {
+    const projections = [
+      projection({ placeId: "a", groupName: "Front" }),
+      projection({ placeId: "b", groupName: "Back" })
+    ];
+    const onNavigate = vi.fn();
+    const onHighlight = vi.fn();
+    const { rerender } = render(
+      <OutputPreviewPlaceOverlay
+        projections={projections}
+        sourceText={sourceText}
+        viewportSize={{ width: 800, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={onNavigate}
+        onHighlightPlaceIdChange={onHighlight}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
+    const picker = screen.getByRole("listbox", { name: "Overlapping place handles" });
     expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(picker).toHaveStyle({ left: "412px" });
+
+    rerender(
+      <OutputPreviewPlaceOverlay
+        projections={projections}
+        sourceText={sourceText}
+        viewportSize={{ width: 800, height: 300 }}
+        viewport={{ panX: 40, panY: 0, zoom: 1 }}
+        onNavigate={onNavigate}
+        onHighlightPlaceIdChange={onHighlight}
+      />
+    );
+    expect(screen.getByRole("listbox", { name: "Overlapping place handles" })).toHaveStyle({ left: "452px" });
 
     fireEvent.click(screen.getByRole("option", { name: /Back/ }));
     expect(screen.queryByRole("listbox", { name: "Overlapping place handles" })).toBeNull();
