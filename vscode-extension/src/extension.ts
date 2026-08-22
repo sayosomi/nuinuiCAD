@@ -57,6 +57,10 @@ import {
 } from "./elementsTreeProvider";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
+  registerVscodeReferencePickFeature,
+  type VscodeReferencePickCanvasEndpoint
+} from "./referencePickCommandFeature";
+import {
   handoffOutputPreviewHistory,
   type OutputPreviewHistoryDirection
 } from "./outputPreviewHistory";
@@ -1290,6 +1294,28 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return session;
   };
 
+  const referencePickFeature = registerVscodeReferencePickFeature({
+    languageAnalysisSessionFor,
+    ensureCanvas: (document): VscodeReferencePickCanvasEndpoint | null => {
+      const key = documentKey(document);
+      let session = sessions.get(key, "canvas");
+      if (canvasHistoryHandoffSession !== null || (session && session.inFlightCanvasHistory !== null)) return null;
+      if (!session) session = createCanvasPanel(document, true);
+      if (!session || !sameDocument(session.document, document)) return null;
+      const matchingSession = session;
+      return {
+        document: matchingSession.document,
+        panel: matchingSession.panel,
+        isAuthoritativeReady: () =>
+          canvasHistoryHandoffSession === null &&
+          sessions.get(key, "canvas") === matchingSession &&
+          matchingSession.webviewReady &&
+          matchingSession.authoritativeDocumentVersion === matchingSession.document.version &&
+          matchingSession.inFlightCanvasHistory === null
+      };
+    }
+  });
+
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
     const activeSession = canvasSessionForCommand();
     const session = activeSession ?? (
@@ -1750,6 +1776,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     outputPreviewRedoCommand,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
+    referencePickFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,
