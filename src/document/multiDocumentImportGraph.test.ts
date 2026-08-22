@@ -152,6 +152,41 @@ describe("multi-document import graph", () => {
     })).toEqual({ kind: "undefined" });
   });
 
+  it("flattens an explicit parsed file re-export to the original semantic identity", async () => {
+    const root = rootSource("root", [
+      "nui 4",
+      "import \"./facade.nui\" as facade",
+      "const after: number = 0"
+    ].join("\n"));
+    const facade = savedSource("facade", "sha256:facade", [
+      "nui 4",
+      "import \"./leaf.nui\" as leaf",
+      "export leaf::Pocket"
+    ].join("\n"));
+    const leaf = savedSource("leaf", "sha256:leaf", [
+      "nui 4",
+      "module Pocket() {",
+      "}"
+    ].join("\n"));
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([
+        [`${root.documentId}|./facade.nui`, facade],
+        [`${facade.documentId}|./leaf.nui`, leaf]
+      ])),
+      declarationContributors: [moduleContributor]
+    });
+
+    expect(graph.valid).toBe(true);
+    const facadeEntry = graph.nodes.get(facade.documentId)?.publicApi.publicEntriesByName.get("Pocket");
+    expect(facadeEntry).toMatchObject({
+      name: "Pocket",
+      identity: { documentId: leaf.documentId },
+      metadata: { docs: "Pocket docs" }
+    });
+    expect(facadeEntry?.reExportPath).toHaveLength(1);
+  });
+
   it("marks every participating cycle edge and never resolves through it", async () => {
     const root = rootSource("A", [
       "nui 4",
@@ -246,6 +281,42 @@ describe("multi-document import graph", () => {
     expect(changed.nodes.has(valid.documentId)).toBe(false);
   });
 
+  it("fails closed when one graph observes two fingerprints for the same DocumentId", async () => {
+    const root = rootSource("root", [
+      "nui 4",
+      "import \"./left.nui\" as left",
+      "import \"./right.nui\" as right"
+    ].join("\n"));
+    const left = savedSource("left", "sha256:left", [
+      "nui 4",
+      "import \"./shared.nui\" as shared"
+    ].join("\n"));
+    const right = savedSource("right", "sha256:right", [
+      "nui 4",
+      "import \"./shared.nui\" as shared"
+    ].join("\n"));
+    const sharedV1 = savedSource("shared", "sha256:shared-v1", "nui 4\n");
+    const sharedV2 = savedSource("shared", "sha256:shared-v2", "nui 4\n");
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([
+        [`${root.documentId}|./left.nui`, left],
+        [`${root.documentId}|./right.nui`, right],
+        [`${left.documentId}|./shared.nui`, sharedV1],
+        [`${right.documentId}|./shared.nui`, sharedV2]
+      ]))
+    });
+
+    expect(graph.valid).toBe(false);
+    expect(graph.dependencyFingerprints.get(sharedV1.documentId)).toBe(sharedV1.savedSourceFingerprint);
+    expect(graph.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "import-load-stale" })
+    ]));
+    expect(graph.edges.find(
+      (edge) => edge.importerDocumentId === right.documentId && edge.alias === "shared"
+    )).toMatchObject({ status: "failed", failureReason: "stale" });
+  });
+
   it("discards a slower previous build for the same root", async () => {
     const root = rootSource("root", [
       "nui 4",
@@ -301,5 +372,25 @@ describe("multi-document import graph", () => {
     expect(new Set(affected)).toEqual(new Set(roots.map((root) => root.documentId)));
     expect(roots.every((root) => coordinator.graphForRoot(root.documentId) === undefined)).toBe(true);
     expect(coordinator.graphForRoot(unrelated.documentId)).toBeDefined();
+  });
+
+  it("tracks a loaded invalid dependency so a later saved change invalidates its active root", async () => {
+    const root = rootSource("root", [
+      "nui 4",
+      "import \"./invalid.nui\" as invalid"
+    ].join("\n"));
+    const invalid = savedSource("invalid", "sha256:invalid-v1", "nui 3\n");
+    const coordinator = new MultiDocumentGraphCoordinator();
+
+    const result = await coordinator.rebuild({
+      root,
+      loader: loaderFrom(new Map([[`${root.documentId}|./invalid.nui`, invalid]]))
+    });
+
+    expect(result.status).toBe("current");
+    expect(result.status === "current" && result.graph.valid).toBe(false);
+    expect(coordinator.graphForRoot(root.documentId)).toBeDefined();
+    expect(coordinator.invalidateSavedDependency(invalid.documentId)).toEqual([root.documentId]);
+    expect(coordinator.graphForRoot(root.documentId)).toBeUndefined();
   });
 });
