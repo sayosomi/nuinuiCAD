@@ -75,6 +75,25 @@ VS Code TextDocument / Extension Host
 → existing Rust evaluate_document
 ```
 
+Native Hover uses an Extension Host-only current-document path, so Canvas may be
+closed and no Webview protocol is involved:
+
+```text
+VS Code TextDocument
+→ exact-current NuiLanguageAnalysisSession snapshot
+→ queryDslGeometryHoverTarget
+→ NuiRuntimeEvaluationService
+→ shared productionEvaluationContext / rustEvaluationRunner
+→ existing RustEvaluationProcessOwner
+→ EvaluationResult
+→ native HoverProvider
+```
+
+The Hover path is exact-current only. It resolves a compiler-owned semantic target
+before starting runtime work, preserves the document evaluation limit and runtime
+activity state, and drops cancelled or stale completions rather than falling back
+to last-good geometry.
+
 The supported commands are `nuinuiCAD: Open Canvas` and
 `nuinuiCAD: Open Output Preview`, and the document lifecycle is
 production-oriented for file-scheme `.nui` documents. Canvas and Output
@@ -532,6 +551,10 @@ Primary:
 - `vscode-extension/src/documentSymbolProvider.ts`
 - `vscode-extension/src/renameProvider.ts`
 - `vscode-extension/src/choiceQuickFixProvider.ts`
+- `vscode-extension/src/hoverFeature.ts`
+- `vscode-extension/src/hoverProvider.ts`
+- `vscode-extension/src/runtimeEvaluationService.ts`
+- `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
@@ -622,14 +645,14 @@ used by navigation.
 `RustEvaluationProcess` and `RustEvaluationProcessOwner` are implemented in the
 shared Node-only `src/node/rustEvaluationProcess.ts` boundary. The VS Code
 compatibility modules re-export that implementation; Extension Host still owns
-one lazy process instance shared by all Canvas / Output Preview sessions regardless
-of document or surface identity. A panel does not own or kill the process.
-Unexpected process death rejects pending work, clears the dead owner, and allows
-the next evaluation request to respawn it. Headless MCP owns a separate lazy owner
-instance but uses the same client/protocol implementation. The existing bounded
-latest-wins Rust transport, stale evaluation discard, `VscodeDragPreviewScheduler`,
-shared DrawingCanvas, and production compiler / evaluator remain reused from the
-performance PoC path.
+one lazy process instance shared by Canvas / Output Preview sessions and native
+Hover runtime evaluation regardless of document or surface identity. A panel
+does not own or kill the process. Unexpected process death rejects pending work,
+clears the dead owner, and allows the next evaluation request to respawn it.
+Headless MCP owns a separate lazy owner instance but uses the same client/protocol
+implementation. The existing bounded latest-wins Rust transport, stale evaluation
+discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
+evaluator remain reused from the performance PoC path.
 
 `src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
 Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
@@ -647,9 +670,8 @@ Command Palette and Ribbon host-action invocations to the normal VS Code
 Settings surface.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
-`AutomationDocument` per supported document URI. Diagnostics, native
-completion, definition navigation, document symbols, rename, and references
-share that session:
+`AutomationDocument` per supported document URI. Diagnostics and native language
+features share that session:
 
 ```text
 VS Code TextDocument
@@ -661,6 +683,8 @@ VS Code TextDocument
 ├→ queryDslReferences → ReferenceProvider
 ├→ queryDslDocumentSymbols → DocumentSymbolProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
+├→ queryDslGeometryHoverTarget → NuiRuntimeEvaluationService → EvaluationResult
+│  → geometryHoverPresentation → HoverProvider
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
    → CodeActionProvider → guarded internal apply command → WorkspaceEdit
 ```
@@ -684,10 +708,23 @@ same-document `Location`s. `documentSymbolProvider.ts` delegates to the
 host-neutral `queryDslDocumentSymbols` projection and recursively converts its
 normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
 remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
-registrations are adapter boundaries, not second resolvers. Neither diagnostics,
-completion, definition navigation, references, document symbols, rename planning,
-nor choice Quick Fix generation performs runtime
-evaluation or starts the Rust process. Choice Quick Fix reuses the current
+registrations are adapter boundaries, not second resolvers.
+
+Native Hover is the runtime-valued exception among these language features.
+`hoverProvider.ts` synchronizes the TextDocument and resolves only a current
+compiler-owned geometry target before invoking `NuiRuntimeEvaluationService`.
+The service owns document-keyed current-result/in-flight reuse and delegates to
+the shared production evaluation context, Rust eligibility/runner and the same
+Extension Host Rust process owner. `geometryHoverPresentation.ts` consumes only
+the current `CadElement` plus `EvaluationResult` to project visible/hidden,
+disabled/inactive/not-evaluated/error/unavailable states and reuses
+`geometryDisplay.ts` for geometry formatting. Cancellation, document-version or
+source-revision changes, and target changes after await all fail closed; no
+last-good runtime geometry is shown.
+
+Diagnostics, completion, definition navigation, references, document symbols,
+rename planning, and choice Quick Fix generation do not perform runtime
+evaluation or start the Rust process. Choice Quick Fix reuses the current
 compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
 choice-replacement descriptors; it does not use the CodeMirror adapter. The
 internal apply command is authoritative only for the current open file
