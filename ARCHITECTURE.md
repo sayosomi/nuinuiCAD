@@ -96,20 +96,24 @@ before starting runtime work, preserves the document evaluation limit and runtim
 activity state, and drops cancelled or stale completions rather than falling back
 to last-good geometry.
 
-The supported commands are `nuinuiCAD: Open Canvas` and
-`nuinuiCAD: Open Output Preview`, and the document lifecycle is
-production-oriented for file-scheme `.nui` documents. Canvas and Output
-Preview are independent sessions keyed by document URI and surface kind in
-`src/vscode/vscodeWebviewSession.ts`; both use the one Extension Host Rust
-process owner and the shared `replaceTextDocument` / `commitText` hydration
-protocol. Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
+The explicit cross-surface open commands remain `nuinuiCAD: Open Canvas` and
+`nuinuiCAD: Open Output Preview`; the same production-oriented lifecycle also
+supports Source → Canvas commands such as `nuinuiCAD: Pick Reference from Canvas`
+for file-scheme `.nui` documents. Reference Pick resolves an exact-current Source
+target in the Extension Host, reuses or opens the URI-matched Canvas without
+stealing focus, waits for authoritative Webview hydration, and then starts the
+shared host-neutral pick session. Canvas and Output Preview are independent
+sessions keyed by document URI and surface kind in
+`src/vscode/vscodeWebviewSession.ts`; both use the one Extension Host Rust process
+owner and the shared `replaceTextDocument` / `commitText` hydration protocol.
+Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
 `webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
 Webview state. It derives current print/svg candidates from the compiled
-`StatementMap`, passes the selected compiled output to `evaluateOutputPlan`
-with `VscodeRustTransport`, and renders the resolved `OutputPlan` as a
-read-only physical plane. Source navigation crosses the host boundary only
-as the current document version plus a normalized source range, which the
-Extension Host validates before revealing the declaration.
+`StatementMap`, passes the selected compiled output to `evaluateOutputPlan` with
+`VscodeRustTransport`, and renders the resolved `OutputPlan` as a read-only
+physical plane. Source navigation crosses the host boundary only as the current
+document version plus a normalized source range, which the Extension Host
+validates before revealing the declaration.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -605,10 +609,14 @@ Primary:
 - `vscode-extension/src/hoverFeature.ts`
 - `vscode-extension/src/hoverProvider.ts`
 - `vscode-extension/src/runtimeEvaluationService.ts`
+- `vscode-extension/src/referencePickCommandFeature.ts`
+- `vscode-extension/src/referencePickSourceBridge.ts`
 - `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/vscode/useVSCodeReferencePickSession.ts`
+- `src/vscode/VSCodeReferencePickOverlay.tsx`
 - `src/vscode/protocol.ts`
 - `src/vscode/vscodeWebviewSession.ts`
 - `src/vscode/webviewSurfaceRouter.tsx`
@@ -645,6 +653,27 @@ before opening Canvas, so non-runtime source never creates a panel. Canvas →
 Editor resolves the selected runtime element through the same source-ownership
 query and exact compiled physical spans. Both directions fail closed on stale
 source, version, compilation, or session state.
+
+Source → Canvas Reference Pick is an explicit Source command, not cursor-follow
+behavior. `referencePickCommandFeature.ts` uses the same exact host-neutral
+`queryDslReferencePickTarget` for context-menu eligibility and command execution,
+while Command Palette visibility remains at Source scope. It reuses the existing
+URI-scoped `NuiLanguageAnalysisSession` and `VscodeWebviewSessionRegistry`, creates
+or reveals the matching Canvas through `createCanvasPanel(document, true)`, and
+waits until that session has acknowledged the current authoritative document
+version before starting Pick Mode. Canvas history handoff or in-flight Canvas
+history prevents a Pick from starting.
+
+`referencePickSourceBridge.ts` captures document URI/version plus target proof and
+owns final one-edit Source mutation and Source focus/caret restoration. In the
+Webview, `useVSCodeReferencePickSession.ts` independently checks the current
+canonical source, compiled source/revision, and evaluation freshness before
+starting the shared reference-pick session. `VSCodeReferencePickOverlay.tsx`
+projects the existing candidate/hit-test/session semantics into hover, draft,
+Done/Enter, and Esc UI using the established Canvas bottom-right transient hint
+and Canvas theme variables. Source changes, document close, stale proof/version,
+panel disposal, stale responses, or invalidated targets cancel or fail closed
+without source mutation.
 
 The Webview keeps the last authoritative host source snapshot separately from
 its latest host version. Navigation is allowed only when that snapshot, the
@@ -735,6 +764,7 @@ VS Code TextDocument
 ├→ queryDslReferences → ReferenceProvider
 ├→ queryDslDocumentSymbols → DocumentSymbolProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
+├→ queryDslReferencePickTarget → Reference Pick command/context adapter
 ├→ queryDslGeometryHoverTarget → NuiRuntimeEvaluationService → EvaluationResult
 │  → geometryHoverPresentation → HoverProvider
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
