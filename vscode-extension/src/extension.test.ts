@@ -1587,8 +1587,8 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTextEditor = editorFor();
     mocks.visibleTextEditors = [mocks.activeTextEditor];
     mocks.textDocuments = [mocks.activeTextEditor.document];
-    mocks.activeEditorListeners[0]?.();
-    mocks.activeEditorListeners[0]?.();
+    emitActiveEditorChange(mocks.activeTextEditor);
+    emitActiveEditorChange(mocks.activeTextEditor);
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
   });
 
@@ -2599,8 +2599,7 @@ describe("VS Code native definition lifecycle", () => {
     const document = documentFor("/tmp/definition.nui", "file:///tmp/definition.nui", source);
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
     setup(false, null, [document]);
-    const registration = mocks.definitionRegistrations[0]!;
-    const provider = registration.provider as {
+    const registration = mocks.definitionRegistrations[0]!.provider as {
       provideDefinition: (
         document: TestDocument,
         position: { line: number; character: number },
@@ -2608,7 +2607,7 @@ describe("VS Code native definition lifecycle", () => {
       ) => unknown;
     };
     const referenceLine = source.split("\n")[2]!;
-    const links = provider.provideDefinition(
+    const links = registration.provideDefinition(
       document,
       { line: 2, character: referenceLine.indexOf("@A") + "@A".length },
       undefined
