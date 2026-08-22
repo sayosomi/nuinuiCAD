@@ -5,7 +5,6 @@ pub mod document_file;
 pub mod evaluation;
 pub mod image_metadata;
 pub mod layout_settings;
-pub mod palette_settings;
 pub mod print_output;
 pub mod print_pdf;
 pub mod print_svg;
@@ -37,8 +36,6 @@ pub fn run() {
             command_ribbon_settings::save_command_ribbon_settings,
             layout_settings::load_layout_settings,
             layout_settings::save_layout_settings,
-            palette_settings::load_palette_template,
-            palette_settings::save_palette_template,
             shortcut_settings::load_shortcut_settings,
             shortcut_settings::save_shortcut_settings
         ])
