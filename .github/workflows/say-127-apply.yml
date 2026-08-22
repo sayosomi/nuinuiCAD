@@ -1,0 +1,54 @@
+name: SAY-127 Apply Runtime Trace Wiring
+
+on:
+  push:
+    branches:
+      - sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
+    paths:
+      - .github/workflows/say-127-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout task branch
+        uses: actions/checkout@v7
+        with:
+          ref: sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
+          fetch-depth: 0
+
+      - name: Apply wiring
+        run: python3 automation/say-127-apply.py
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Format Rust
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml
+
+      - name: Focused TypeScript trace tests
+        run: npx vitest run src/scalars/conditionEvaluationTrace.test.ts
+
+      - name: Focused Rust trace tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml condition_evaluation_trace
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Remove temporary apply helpers
+        run: git rm automation/say-127-apply.py .github/workflows/say-127-apply.yml
+
+      - name: Commit and push implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "SAY-127: wire short-circuit condition traces"
+          git push origin HEAD:sayosomi/say-127-runtime-inspection-short-circuit-condition-trace
