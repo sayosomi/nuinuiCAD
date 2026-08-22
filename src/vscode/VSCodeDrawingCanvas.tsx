@@ -73,6 +73,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const moduleSemanticAnalysis = useCadDocumentStore((state) => state.doc.moduleSemanticAnalysis);
     const sourceLexicalNamespace = useCadDocumentStore((state) => state.doc.sourceLexicalNamespace);
     const statementInfoByElementId = useCadDocumentStore((state) => state.doc.statementMap?.byElementId);
+    const holdLastStableCanvasPresentation = useCadDocumentStore((state) =>
+      state.sourceUpdate.kind === "editor" && (
+        state.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+        state.bindingIssueDiagnostics.some((diagnostic) => diagnostic.severity === "error")
+      )
+    );
     const selectedElementId = useCadUiStore((state) => state.selectedElementId);
     const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
     const selectionAnchorElementId = useCadUiStore((state) => state.selectionAnchorElementId);
@@ -84,11 +90,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
-    useModuleInstanceSelectionReconciliation({
-      evaluation,
-      evaluationState,
-      measureCanvasTextWidth
-    });
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
@@ -114,8 +115,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     ]);
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
+      evaluation,
       compiledDocumentRevision,
-      evaluationState
+      evaluationState,
+      holdLastStable: holdLastStableCanvasPresentation
+    });
+    useModuleInstanceSelectionReconciliation({
+      evaluation: canvasPresentation.renderEvaluation,
+      evaluationState: canvasPresentation.renderEvaluationState,
+      measureCanvasTextWidth
     });
 
     const ribbonCommandContext = useMemo(() => ({
@@ -286,28 +294,21 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeLinePickTarget,
       activeNumericReferencePickTarget,
       activePointPickTarget,
-      activeVisibilityProfileId,
       canvasPresentation,
       canvasViewport,
-      canonicalElements,
       commandLineSession,
       commitGeometryCommand,
       compiledDocumentRevision,
       canvasTheme,
       dragPreviewScheduler,
-      elements,
-      evaluationLimitIndex,
       evaluationState,
-      moduleSemanticContext,
       measureCanvasTextWidth,
-      palette,
       selectedElementId,
       selectedElementIds,
       selectionAnchorElementId,
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
-      visibilityProfiles,
       executeRibbonCommand,
       onCanvasRibbonPositionCommit,
       canvasRibbonRibbons,
@@ -324,8 +325,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     return (
       <DrawingCanvas
         ref={drawingCanvasRef}
-        evaluation={evaluation}
-        evaluationState={evaluationState}
+        evaluation={canvasPresentation.renderEvaluation}
+        evaluationState={canvasPresentation.renderEvaluationState}
         canvasFocusRef={canvasFocusRef}
         hostAdapter={hostAdapter}
       />
