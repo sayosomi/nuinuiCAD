@@ -7,7 +7,6 @@ import { tokenizeScalarExpression, type ScalarExpressionToken } from "../scalars
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs, matchingDslDelimiter, scanDslNesting, type ScannedArg } from "./dslArgScanner";
 import { dslCallAuthoringContextAt, type DslCallAuthoringContext } from "./dslCallAuthoringContext";
-import { dslCallCompletionContextAt } from "./dslCallCompletionContext";
 import { dslCompletionMetadataForType, type DslCompletionParameter } from "./dslCompletionMetadata";
 import type { CompiledDslDocument } from "./dslDocument";
 import {
@@ -301,16 +300,16 @@ const numericOperandTarget = (
 };
 
 const constructionParameter = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
   call: DslCallAuthoringContext,
   argument: ActiveCallArgument
 ): DslCompletionParameter | null => {
   const key = argument.scanned?.key;
   if (!key) return null;
-  const context = dslCallCompletionContextAt(call.logicalText, call.callee.logicalOpenParen + 1);
-  if (context?.kind !== "argument") return null;
-  const argSpec = context.spec.args.find((candidate) => candidate.arg === key);
-  if (!argSpec) return null;
-  const parameters = dslCompletionMetadataForType(context.spec.elementType).parameters.filter((parameter) =>
+  const statement = compiled.statements[statementIndex];
+  if (statement?.kind !== "element" || !statement.type || statement.construction !== call.callee.name) return null;
+  const parameters = dslCompletionMetadataForType(statement.type).parameters.filter((parameter) =>
     parameter.source === "attr" && parameter.key === key
   );
   return parameters.length === 1 ? parameters[0]! : null;
@@ -389,7 +388,7 @@ const targetForCall = (
 
   const expectation = call.kind === "construction"
     ? (() => {
-        const parameter = constructionParameter(call, argument);
+        const parameter = constructionParameter(compiled, exact.statementIndex, call, argument);
         return parameter ? expectationForParameter(parameter) : null;
       })()
     : call.kind === "module"
