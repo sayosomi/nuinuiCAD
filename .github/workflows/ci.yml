@@ -158,19 +158,35 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      - name: Check Rust formatting
+      - name: Check evaluator Rust formatting
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        run: cargo fmt --manifest-path rust-evaluator/Cargo.toml --check
+
+      - name: Check evaluator crate
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        run: cargo check --manifest-path rust-evaluator/Cargo.toml
+
+      - name: Test evaluator crate
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        run: cargo test --manifest-path rust-evaluator/Cargo.toml
+
+      - name: Clippy evaluator crate
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        run: cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings
+
+      - name: Check Tauri Rust formatting
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
-      - name: Cargo check
+      - name: Check Tauri crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Cargo test
+      - name: Test Tauri crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      - name: Cargo clippy
+      - name: Clippy Tauri crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
@@ -187,7 +203,7 @@ jobs:
 
       - name: Build Rust evaluation fixture
         if: ${{ needs.classification.outputs.full_node == 'true' }}
-        run: cargo build --quiet --manifest-path src-tauri/Cargo.toml --example evaluate_fixture
+        run: cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --example evaluate_fixture
 
       - name: Full Node tests
         if: ${{ needs.classification.outputs.full_node == 'true' }}
