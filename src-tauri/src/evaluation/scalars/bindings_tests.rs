@@ -66,6 +66,7 @@ fn empty_state() -> EvaluationState {
         computed_geometry: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
         warnings: Vec::new(),
