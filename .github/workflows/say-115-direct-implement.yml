@@ -57,12 +57,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify transformed tree
+      - name: Verify SAY-115 transformed tree
         run: |
           npm run lint
           npm run build
-          npm test -- src/dsl/dslSettingsParser.test.ts src/dsl/dslCompiler.test.ts src/dsl/dslDocument.test.ts src/dsl/dslSerializeElement.test.ts src/document/textPatch.test.ts
+          npm test -- src/dsl/dslSettingsParser.test.ts src/dsl/dslCompiler.test.ts src/dsl/dslDocument.test.ts src/dsl/dslSerializeElement.test.ts src/document/textPatch.test.ts src/dsl/dslDrawingModifier.test.ts
           cargo build --quiet --manifest-path src-tauri/Cargo.toml --example evaluate_fixture
+
+      - name: Recheck canvas selection test in isolation
+        run: npm test -- src/components/DrawingCanvas.test.ts -t "finishes a released dirty click only after the matching evaluation arrives"
+
+      - name: Full Node regression
+        run: |
           set +e
           npm test > /tmp/say115-full-test.log 2>&1
           status=$?
