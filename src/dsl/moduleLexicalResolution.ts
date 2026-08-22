@@ -112,13 +112,17 @@ export const resolveModuleLexicalPath = <T, D = unknown>(
     };
   }
   if (first.kind !== "resolved") return first;
-  return resolveSourceLexicalPathFromDeclaration(
+  const lookup = resolveSourceLexicalPathFromDeclaration(
     input.sourceNamespace,
     statementIndex,
     first.declaration,
     path.segments.slice(1),
     position.sourceOrderIndex ?? statementIndex
   );
+  // Module lexical resolution does not supply an external namespace resolver.
+  // Keep an imported namespace fail-closed here instead of widening the
+  // established module lookup contract to multi-document catalog payloads.
+  return lookup.kind === "external" ? { kind: "undefined" } : lookup;
 };
 
 const isDescendantOrSelf = (index: SourceLexicalNamespaceIndex, child: ScopeId, ancestor: ScopeId): boolean => {

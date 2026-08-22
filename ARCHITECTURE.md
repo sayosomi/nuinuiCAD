@@ -292,6 +292,47 @@ profile resolution comes from `sourceLexicalNamespaceIndex`; numeric fields use
 the shared scalar binding compiler. `DslDocumentData` stores these three source
 models and does not own an active output selection or an export/preview runtime.
 
+### Multi-document import graph / public API
+
+Primary:
+
+- `src/document/multiDocumentPrimitives.ts`
+- `src/document/multiDocumentImportGraph.ts`
+- `src/document/multiDocumentPublicApi.ts`
+- `src/dsl/dslMultiDocumentSyntax.ts`
+- `src/dsl/sourceLexicalNamespaceIndex.ts`
+
+`multiDocumentImportGraph.ts` is the host-neutral owner of saved dependency graph
+construction. Hosts provide an async saved-source loader and canonical
+`DocumentId` / saved-source fingerprint facts; path resolution, filesystem I/O,
+watchers, and host lifecycle stay outside this subsystem. Roots use current source
+snapshots while imported dependencies use exact saved snapshots. Dependency
+artifacts are cached only by exact `(DocumentId, savedSourceFingerprint)`, and an
+invalid changed dependency never falls back to an older saved artifact.
+
+Graph construction preserves source-ordered import edges, reports structured
+missing/unreadable/stale/canceled/invalid failures, marks every participating
+edge of an import cycle, and fails closed. `MultiDocumentGraphCoordinator` owns
+per-root latest-request-wins installation plus the reverse dependency index used
+to invalidate exactly the active root graphs that transitively contain a changed
+saved dependency; the host decides when and how to rebuild those roots.
+
+`multiDocumentPublicApi.ts` owns the family-neutral exportable declaration catalog
+for module/modifier/profile/layout/layoutTemplate consumers. Generic file
+re-exports flatten to the original document-qualified semantic identity rather
+than manufacturing a new identity, and public/private/missing or duplicate public
+names remain explicit catalog results/diagnostics. Family-specific export syntax
+or semantics are supplied by later declaration contributors, not by this owner.
+
+Import aliases participate in the existing source lexical namespace only when the
+multi-document caller supplies their stable statement identities. The ordinary
+lexical resolver still owns alias visibility, source order, and collisions. For
+`alias::member`, only the member lookup is delegated through the optional external
+namespace resolver to the imported public catalog. Existing single-document
+callers do not receive external lookup variants and remain fail-closed for import
+members. This subsystem does not own concrete VS Code/Tauri watcher adapters or
+cross-file Definition/References/Rename.
+
 ### Lexical / name resolution
 
 Representative owners:

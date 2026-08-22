@@ -22,9 +22,10 @@ import { createStatementIdentity, type StatementIdentity } from "./statementIden
 //  6. 残りの追加は新規ID、削除は消滅。リネーム+移動の同時実行と型変更は
 //     対応不能で新規ID(許容制約)。
 //
-// 対象は要素文とsource-level identity-bearing文。typed declaration/set/module文は
-// CadElementにはしないが、binding・lexical scope・module namespaceのownerになるため、
-// 同じ照合規則でopaque statement identityを継承する。
+// 対象は要素文とsource-level identity-bearing文。typed declaration/set/module文、
+// import / file re-exportなどはCadElementにはしないが、binding・lexical scope・
+// module/import namespaceのownerになるため、同じ照合規則でopaque statement
+// identityを継承する。
 
 export type ReconcileInput = {
   oldStatements: readonly DslStatement[];
@@ -43,9 +44,20 @@ export type ReconcileStage = 1 | 2 | 3 | 4 | 5 | 6;
 export type ReconcileOptions = {
   /** 段階6の新規ID生成器。省略時は createCadElementId。テストでは決定論的生成器を注入する。 */
   createId?: (type: CadElementType) => ElementId;
-  /** typed declaration/set/module用のopaque identity生成器。 */
+  /** source-level non-element statement用のopaque identity生成器。 */
   createStatementId?: (
-    kind: "typedDeclaration" | "set" | "moduleDefinition" | "moduleInstance" | "layout" | "print" | "svg" | "place" | "profileDeclaration"
+    kind:
+      | "typedDeclaration"
+      | "set"
+      | "moduleDefinition"
+      | "moduleInstance"
+      | "layout"
+      | "print"
+      | "svg"
+      | "place"
+      | "profileDeclaration"
+      | "import"
+      | "fileReExport"
   ) => StatementIdentity;
 };
 
@@ -177,7 +189,9 @@ export const reconcileStatements = (
     statement.kind === "print" ||
     statement.kind === "svg" ||
     statement.kind === "place" ||
-    statement.kind === "profileDeclaration";
+    statement.kind === "profileDeclaration" ||
+    statement.kind === "import" ||
+    statement.kind === "fileReExport";
   const identityKindOf = (statement: DslStatement) =>
     statement.kind === "typedDeclaration" ||
     statement.kind === "set" ||
@@ -187,7 +201,9 @@ export const reconcileStatements = (
     statement.kind === "print" ||
     statement.kind === "svg" ||
     statement.kind === "place" ||
-    statement.kind === "profileDeclaration"
+    statement.kind === "profileDeclaration" ||
+    statement.kind === "import" ||
+    statement.kind === "fileReExport"
       ? statement.kind
       : statementTypeOf(statement);
 
@@ -390,7 +406,9 @@ export const reconcileStatements = (
       statement.kind === "print" ||
       statement.kind === "svg" ||
       statement.kind === "place" ||
-      statement.kind === "profileDeclaration"
+      statement.kind === "profileDeclaration" ||
+      statement.kind === "import" ||
+      statement.kind === "fileReExport"
       ? createStatementId(statement.kind)
       : createId(statementTypeOf(statement));
     assignedIds.set(index, id);
