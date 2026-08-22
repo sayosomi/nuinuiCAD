@@ -116,7 +116,7 @@ path = "src/state/cadDocumentStore.test.ts"
 text = read(path)
 text, n = re.subn(
     r'  it\("tracks palette edits in document history", \(\) => \{.*?\n  \}\);\n\n  it\("clears element color ids when deleting a palette color", \(\) => \{.*?\n  \}\);',
-    '''  it("keeps legacy palette UI edits outside canonical document history", () => {\n    useCadDocumentStore.getState().setDefaultColorId("cut-red");\n    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("cut-red");\n    expect(useCadDocumentStore.getState().past).toHaveLength(0);\n\n    useCadDocumentStore.getState().deletePaletteColor("cut-red");\n    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "cut-red")).toBe(false);\n  });''',
+    '''  it("keeps legacy palette UI edits outside canonical document history", () => {\n    useCadDocumentStore.getState().setDefaultColorId("cut-red");\n    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("cut-red");\n    expect(useCadDocumentStore.getState().past).toHaveLength(0);\n\n    useCadDocumentStore.getState().deletePaletteColor("guide-blue");\n    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "guide-blue")).toBe(false);\n    expect(useCadDocumentStore.getState().past).toHaveLength(0);\n  });''',
     text,
     count=1,
     flags=re.S,
