@@ -2,6 +2,8 @@ node_modules
 dist
 src-tauri/gen
 src-tauri/target
+rust-evaluator/target
+rust-evaluator/Cargo.lock
 .npm-cache
 .DS_Store
 *.local

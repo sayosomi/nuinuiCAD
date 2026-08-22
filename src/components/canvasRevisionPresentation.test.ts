@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
-import type { LegacyDocumentPalette } from "../palette/palette";
 import {
   resolveRevisionCoherentCanvasPresentation,
   type CanvasRevisionPresentationInputs,
@@ -21,7 +20,6 @@ const inputs = (id: string): CanvasRevisionPresentationInputs => ({
   elements: [point(id, id.toUpperCase(), id === "old" ? 0 : 10)],
   canonicalElements: [point(id, id.toUpperCase(), id === "old" ? 0 : 10)],
   evaluationLimitIndex: undefined,
-  palette: { colors: [], defaultColorId: "" } as LegacyDocumentPalette,
   visibilityProfiles: [] as VisibilityProfile[],
   activeVisibilityProfileId: null,
   moduleSemanticContext: {}

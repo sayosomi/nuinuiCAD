@@ -36,6 +36,12 @@ import {
   type DslModuleParseResult
 } from "./dslModuleParser";
 import { parseDslExportStatement } from "./dslExportParser";
+import {
+  parseDslFileReExportStatement,
+  parseDslImportStatement,
+  type DslFileReExportParsedStatement,
+  type DslImportParsedStatement
+} from "./dslMultiDocumentSyntax";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { dslStatementKeywords } from "./dslStatementKeywords";
@@ -95,6 +101,8 @@ const nonElementKinds = new Set<DslStatement["kind"]>([
   "layout",
   "print",
   "svg",
+  "import",
+  "fileReExport",
   "version",
   "atStop",
   "place",
@@ -115,6 +123,13 @@ export const isElementDslStatement = (statement: DslStatement) =>
 const attrValue = (attrs: DslAttribute[], key: string) =>
   attrs.find((attr) => attr.key === key)?.value;
 
+const exactUnknownNameDiagnosticCodes = new Set([
+  "unknown-dsl-keyword",
+  "unknown-type",
+  "unknown-construction",
+  "unknown-construction-argument"
+]);
+
 const diagnostic = (
   line: number,
   message: string,
@@ -126,7 +141,8 @@ const diagnostic = (
   column: 1,
   message,
   ...(code ? { code } : {}),
-  ...(physicalSpan ? { physicalSpan } : {})
+  ...(physicalSpan ? { physicalSpan } : {}),
+  ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
 });
 
 type ParsedLine = { statement?: DslStatement; diagnostics: DslDiagnostic[] };
@@ -221,6 +237,34 @@ const moduleStatementToDslStatement = (
     moduleNameSpan: parsed.moduleNameSpan,
     options: parsed.options,
     arguments: parsed.arguments
+  };
+};
+
+const multiDocumentStatementToDslStatement = (
+  parsed: DslImportParsedStatement | DslFileReExportParsedStatement,
+  line: number,
+  endLine: number
+): DslStatement => {
+  const base = baseFrom(parsed, line, endLine);
+  if (parsed.kind === "import") {
+    return {
+      ...base,
+      kind: "import",
+      importPath: parsed.importPath,
+      importPathSpan: parsed.importPathSpan,
+      alias: parsed.alias,
+      aliasSpan: parsed.aliasSpan
+    };
+  }
+  return {
+    ...base,
+    kind: "fileReExport",
+    targetReference: parsed.targetReference,
+    targetSpan: parsed.targetSpan,
+    importAlias: parsed.importAlias,
+    importAliasSpan: parsed.importAliasSpan,
+    exportedName: parsed.exportedName,
+    exportedNameSpan: parsed.exportedNameSpan
   };
 };
 
@@ -627,6 +671,34 @@ const fromSet = (
   return { statement: setStatementToDslStatement(result.statement, line, endLine), diagnostics };
 };
 
+const fromImport = (
+  logicalText: string,
+  line: number,
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
+  const parsed = parseDslImportStatement(logicalText);
+  const diagnostics = parsed.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+  );
+  if (!parsed.statement) return { diagnostics };
+  return { statement: multiDocumentStatementToDslStatement(parsed.statement, line, endLine), diagnostics };
+};
+
+const fromFileReExport = (
+  logicalText: string,
+  line: number,
+  endLine: number,
+  project: (span: DslSpan) => DslPhysicalSpan | null
+): ParsedLine => {
+  const parsed = parseDslFileReExportStatement(logicalText);
+  const diagnostics = parsed.diagnostics.map((item) =>
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+  );
+  if (!parsed.statement) return { diagnostics };
+  return { statement: multiDocumentStatementToDslStatement(parsed.statement, line, endLine), diagnostics };
+};
+
 const leadingIdentifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 
 const parseDrawingProfileDeclaration = (
@@ -676,6 +748,9 @@ const parseLine = (
     return fromSettings(parseDslSettingsStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine);
   }
   const keyword = logicalText.match(leadingIdentifier)?.[0] ?? "";
+  if (keyword === dslStatementKeywords.import) {
+    return fromImport(logicalText, line, endLine, project);
+  }
   if (keyword === dslStatementKeywords.module) {
     return fromModule(parseDslModuleStatement(logicalText, { opensBlock: opensOnNextLine }), line, endLine, project);
   }
@@ -704,6 +779,9 @@ const parseLine = (
       statement: modifierProfileBlockToDslStatement(parsed, line, endLine),
       diagnostics: profileDiagnostics
     };
+  }
+  if (keyword === dslStatementKeywords.export && /^export\s+@/.test(logicalText)) {
+    return fromFileReExport(logicalText, line, endLine, project);
   }
   if (keyword === dslStatementKeywords.export) {
     const parsed = parseDslExportStatement(logicalText, { opensBlock: opensOnNextLine });
@@ -744,7 +822,14 @@ const parseLine = (
     return fromSet(parseDslSetStatement(logicalText), line, endLine, project);
   }
   return {
-    diagnostics: [diagnostic(line, keyword ? `未対応のDSLキーワードです: ${keyword}` : "文はキーワードから始めてください。")]
+    diagnostics: keyword
+      ? [diagnostic(
+          line,
+          `未対応のDSLキーワードです: ${keyword}`,
+          "unknown-dsl-keyword",
+          project({ start: 0, end: keyword.length }) ?? undefined
+        )]
+      : [diagnostic(line, "文はキーワードから始めてください。")]
   };
 };
 
@@ -801,6 +886,12 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     if (statement.kind === "profileDeclaration" && statement.enclosing) {
       diagnostics.push(diagnostic(statement.line, "profile 定義は文書のトップレベルにのみ書けます。"));
+    }
+    if (statement.kind === "import" && statement.enclosing) {
+      diagnostics.push(diagnostic(statement.line, "import は文書のトップレベルにのみ書けます。", "import-top-level-only"));
+    }
+    if (statement.kind === "fileReExport" && statement.enclosing) {
+      diagnostics.push(diagnostic(statement.line, "file re-export は文書のトップレベルにのみ書けます。", "file-reexport-top-level-only"));
     }
     const modifierPropertyInBlock = statement.kind === "modifierProperty" &&
       (top?.kind === "modifier" || top?.kind === "modifierProfile");

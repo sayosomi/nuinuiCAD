@@ -91,11 +91,12 @@ const isRootNodeInput = (path) =>
   path === "index.html" ||
   path.startsWith("public/");
 
-const isRustPath = (path) => path.startsWith("src-tauri/");
+const isRustPath = (path) =>
+  path.startsWith("src-tauri/") || path.startsWith("rust-evaluator/");
 
 const isRustParityPath = (path) =>
-  path.startsWith("src-tauri/src/evaluation/") ||
-  path === "src-tauri/examples/evaluate_fixture.rs";
+  path.startsWith("rust-evaluator/src/evaluation/") ||
+  path === "rust-evaluator/examples/evaluate_fixture.rs";
 
 const isSharedRustFixturePath = (path) =>
   path === "test/fixtures/typed-expressions.json" ||

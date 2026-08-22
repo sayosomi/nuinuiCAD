@@ -58,6 +58,8 @@ const commandIds = [
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.canvasUndo",
   "nuinuiCAD.canvasRedo",
+  "nuinuiCAD.outputPreviewUndo",
+  "nuinuiCAD.outputPreviewRedo",
   "nuinuiCAD.clearCanvasSelection",
   "nuinuiCAD.resetCanvasView",
   "nuinuiCAD.fitDrawing",
@@ -76,6 +78,7 @@ const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
+const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasRibbonWhen = "webviewId == 'nuinuiCAD.canvas' && (webviewSection == 'blank' || webviewSection == 'ribbon')";
@@ -111,6 +114,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Undo Canvas Transition",
       "nuinuiCAD: Redo Canvas Transition",
+      "nuinuiCAD: Undo Output Preview Source Edit",
+      "nuinuiCAD: Redo Output Preview Source Edit",
       "nuinuiCAD: Clear Canvas Selection",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
@@ -146,7 +151,9 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.bakeCurrentShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: bakePaletteWhen },
       { command: "nuinuiCAD.canvasUndo", when: "false" },
-      { command: "nuinuiCAD.canvasRedo", when: "false" }
+      { command: "nuinuiCAD.canvasRedo", when: "false" },
+      { command: "nuinuiCAD.outputPreviewUndo", when: "false" },
+      { command: "nuinuiCAD.outputPreviewRedo", when: "false" }
     ]);
   });
 
@@ -178,19 +185,24 @@ describe("VS Code extension manifest command contributions", () => {
       command: "nuinuiCAD.toggleCanvasElementNames",
       when: "false"
     });
+    for (const command of ["nuinuiCAD.outputPreviewUndo", "nuinuiCAD.outputPreviewRedo"] as const) {
+      expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({ command, when: "false" });
+    }
     for (const menuId of ["webview/context", "editor/context"] as const) {
       const contextCommands = (manifest.contributes?.menus?.[menuId] ?? []).map(({ command }) => command);
       expect(contextCommands).not.toContain("nuinuiCAD.toggleCanvasElementNames");
+      expect(contextCommands).not.toContain("nuinuiCAD.outputPreviewUndo");
+      expect(contextCommands).not.toContain("nuinuiCAD.outputPreviewRedo");
     }
   });
 });
 
 describe("VS Code extension manifest keybindings", () => {
-  it("uses macOS overrides for Canvas history commands", async () => {
+  it("uses platform-standard history chords for Canvas and Output Preview", async () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(2);
+    expect(keybindings).toHaveLength(4);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.canvasUndo",
       key: "ctrl+z",
@@ -202,6 +214,18 @@ describe("VS Code extension manifest keybindings", () => {
       key: "ctrl+y",
       mac: "cmd+shift+z",
       when: canvasHistoryWhen
+    });
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.outputPreviewUndo",
+      key: "ctrl+z",
+      mac: "cmd+z",
+      when: outputPreviewHistoryWhen
+    });
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.outputPreviewRedo",
+      key: "ctrl+y",
+      mac: "cmd+shift+z",
+      when: outputPreviewHistoryWhen
     });
     expect(keybindings.some(({ key }) => key === "cmd+z")).toBe(false);
     expect(keybindings.some(({ key }) => key === "cmd+shift+z")).toBe(false);

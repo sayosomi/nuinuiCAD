@@ -168,7 +168,6 @@ describe("cadDocumentStore file state", () => {
     useCadDocumentStore.getState().replaceDocument(
       {
         elements: [sampleElements[1]],
-        palette: useCadDocumentStore.getState().palette,
         visibilityRoles: [],
         visibilityProfiles: [defaultVisibilityProfile()],
         activeVisibilityProfileId: defaultVisibilityProfile().id,
@@ -351,13 +350,4 @@ describe("cadDocumentStore file state", () => {
     expectPreviewCleared();
   });
 
-  it("keeps legacy palette UI edits outside canonical document history", () => {
-    useCadDocumentStore.getState().setDefaultColorId("cut-red");
-    expect(useCadDocumentStore.getState().palette.defaultColorId).toBe("cut-red");
-    expect(useCadDocumentStore.getState().past).toHaveLength(0);
-
-    useCadDocumentStore.getState().deletePaletteColor("guide-blue");
-    expect(useCadDocumentStore.getState().palette.colors.some((color) => color.id === "guide-blue")).toBe(false);
-    expect(useCadDocumentStore.getState().past).toHaveLength(0);
-  });
 });

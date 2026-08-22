@@ -1,8 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { isTauriRuntime } from "../geometry/evaluationEngine";
-import { defaultDocumentPalette } from "../palette/palette";
-import { loadPaletteTemplateSettings } from "../palette/paletteSettingsStorage";
 import {
   initialCadDocumentState,
   useCadDocumentStore
@@ -84,17 +82,8 @@ export const newDocument = async () => {
   if (!await confirmDiscardUnsavedChanges("新規ドキュメントを作成し")) return;
 
   const initialDocument = initialCadDocumentState();
-  const palette = await loadPaletteTemplateSettings()
-    .then((settings) => settings.palette)
-    .catch(() => defaultDocumentPalette());
   if (!flushSourceEditForFileOperation()) return;
-  useCadDocumentStore.getState().replaceDocument(
-    {
-      ...initialDocument.doc.document,
-      palette
-    },
-    null
-  );
+  useCadDocumentStore.getState().replaceDocument(initialDocument.doc.document, null);
 };
 
 export const saveDocumentAs = async () => {

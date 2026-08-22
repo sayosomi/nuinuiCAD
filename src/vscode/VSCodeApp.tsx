@@ -22,7 +22,6 @@ import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../d
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
-import { moduleInstanceCanvasGeometry } from "../geometry/moduleInstanceCanvasGeometry";
 import {
   normalizeVscodeCanvasRibbons,
   type VscodeCanvasRibbon
@@ -33,6 +32,7 @@ import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
 import { replaceCanvasSelection } from "../commands/selectionCommands";
 import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import { canvasObservationSnapshot } from "./canvasObservation";
+import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -537,42 +537,41 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
-        const runtimeElementById = new Map(runtimeElements.map((element) => [element.id, element]));
-        const instanceId = runtimeElementIds.find((id) => runtimeElementById.get(id)?.type === "moduleInstance") ?? null;
         const currentEvaluation = evaluationRef.current;
         const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
           evaluationStateRef.current,
           current.state.compiledDocumentRevision
         );
+        const containerTarget = canvasNavigationContainerTarget({
+          runtimeElementIds,
+          elements: runtimeElements,
+          evaluation: currentEvaluation,
+          evaluationIsCurrent: currentEvaluationIsCurrent,
+          moduleMaterialization: current.state.doc.moduleMaterialization,
+          visibilityProfiles: current.state.visibilityProfiles,
+          activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+          measureCanvasTextWidth
+        });
+        if (containerTarget.status === "stale") {
+          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+          return;
+        }
+        if (containerTarget.status === "no-renderable-geometry") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "no-renderable-geometry"
+          });
+          return;
+        }
+
         let selectionIds = runtimeElementIds;
         let primarySelectionId = runtimeElementIds[0]!;
         let revealBounds = null;
-
-        if (instanceId) {
-          if (!currentEvaluationIsCurrent || !(currentEvaluation.computedGeometry instanceof Map)) {
-            api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
-            return;
-          }
-          const instanceGeometry = moduleInstanceCanvasGeometry({
-            instanceId,
-            elements: runtimeElements,
-            evaluation: currentEvaluation,
-            moduleMaterialization: current.state.doc.moduleMaterialization,
-            visibilityProfiles: current.state.visibilityProfiles,
-            activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-            measureCanvasTextWidth
-          });
-          if (!instanceGeometry?.bounds || instanceGeometry.renderableDescendantIds.length === 0) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "no-renderable-geometry"
-            });
-            return;
-          }
-          selectionIds = [instanceId];
-          primarySelectionId = instanceId;
-          revealBounds = instanceGeometry.bounds;
+        if (containerTarget.status === "ready") {
+          selectionIds = [containerTarget.containerId];
+          primarySelectionId = containerTarget.containerId;
+          revealBounds = containerTarget.bounds;
         }
 
         if (!replaceCanvasSelection(selectionIds, primarySelectionId, true)) {

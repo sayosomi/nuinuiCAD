@@ -119,4 +119,4 @@ export const resolveRustEvaluationBinaryPath = (
   repositoryRoot: string,
   environment: NodeJS.ProcessEnv = process.env
 ): string => environment.NUINUICAD_RUST_EVALUATION_BINARY ??
-  resolve(repositoryRoot, "src-tauri", "target", "debug", "evaluation_stdio");
+  resolve(repositoryRoot, "rust-evaluator", "target", "debug", "evaluation_stdio");

@@ -1,4 +1,3 @@
-import type { LegacyDocumentPalette } from "../palette/palette";
 import type {
   ReactNode } from "react";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
@@ -69,7 +68,6 @@ export type CanvasHostAdapter = {
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
   canvasTheme: CanvasTheme;
-  palette: LegacyDocumentPalette;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;

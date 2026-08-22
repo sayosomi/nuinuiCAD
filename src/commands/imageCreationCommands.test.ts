@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addImage, commitPendingImageImport } from "./imageCreationCommands";
-import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 
@@ -28,7 +27,6 @@ const clearTauriRuntime = () => {
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
-    palette: defaultDocumentPalette(),
     evaluationLimitIndex: sampleElements.length,
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
@@ -51,8 +49,6 @@ const resetStore = () => {
     showElementListColorAccents: false,
     showShortcutHelp: false,
     showShortcutSettings: false,
-    showPaletteSettings: false,
-    showSelectionColorPicker: false,
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,

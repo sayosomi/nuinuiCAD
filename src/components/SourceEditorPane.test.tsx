@@ -6,7 +6,6 @@ import type { SourceEditorHandle } from "../editor/sourceEditorTypes";
 import { initialCadDocumentState, useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
-import { PaletteSettingsDialog } from "./PalettePanel";
 import { SourceEditorPane } from "./SourceEditorPane";
 import { VisibilityProfileSettingsDialog } from "./VisibilityProfilePanel";
 
@@ -76,21 +75,6 @@ describe("SourceEditorPane", () => {
     screen.unmount();
   });
 
-  it("opens palette settings from the header button", () => {
-    const screen = render(
-      <>
-        <SourceEditorPane />
-        <PaletteSettingsDialog />
-      </>
-    );
-
-    expect(globalScreen.queryByRole("dialog", { name: "パレット設定" })).not.toBeInTheDocument();
-
-    fireEvent.click(globalScreen.getByRole("button", { name: "パレット" }));
-
-    expect(globalScreen.getByRole("dialog", { name: "パレット設定" })).toBeInTheDocument();
-    screen.unmount();
-  });
 
   it("opens visibility profile settings from the header button", () => {
     const screen = render(

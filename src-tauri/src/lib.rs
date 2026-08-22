@@ -2,16 +2,20 @@ pub mod app_menu;
 pub mod bake_settings;
 pub mod command_ribbon_settings;
 pub mod document_file;
-pub mod evaluation;
 pub mod image_metadata;
 pub mod layout_settings;
-pub mod palette_settings;
 pub mod print_output;
 pub mod print_pdf;
 pub mod print_svg;
 pub mod shortcut_settings;
 
+use nuinuicad_rust_evaluator::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 use tauri::Emitter;
+
+#[tauri::command]
+fn evaluate_document(input: EvaluationInput) -> Result<EvaluationPayload, EvaluationCommandError> {
+    nuinuicad_rust_evaluator::evaluate_document(input)
+}
 
 pub fn run() {
     tauri::Builder::default()
@@ -25,7 +29,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            evaluation::evaluate_document,
+            evaluate_document,
             image_metadata::read_image_metadata,
             document_file::read_document_file,
             document_file::write_document_file,
@@ -37,8 +41,6 @@ pub fn run() {
             command_ribbon_settings::save_command_ribbon_settings,
             layout_settings::load_layout_settings,
             layout_settings::save_layout_settings,
-            palette_settings::load_palette_template,
-            palette_settings::save_palette_template,
             shortcut_settings::load_shortcut_settings,
             shortcut_settings::save_shortcut_settings
         ])

@@ -32,7 +32,6 @@ import {
   moveEvaluationDividerToEnd,
   moveEvaluationDividerToSelectedElement,
   outdentSelectedElements,
-  applyDisplayColorToSelection,
   selectAllElements,
   selectElement,
   selectElementByOffset,
@@ -326,30 +325,6 @@ export const selectionCommandDefinitions = {
       if (context?.evaluationLimitIndex === undefined) return;
       setEvaluationLimitIndex(context.evaluationLimitIndex);
     }
-  },
-  openSelectionColorPicker: {
-    id: "openSelectionColorPicker",
-    label: "選択範囲の表示色を一括変更",
-    palette: {
-      order: 46,
-      keywords: ["color", "selection", "batch", "表示色", "色", "選択範囲", "一括"]
-    },
-    run: () => {
-      useCadUiStore.setState({
-        showSelectionColorPicker: true,
-        showCommandPalette: false
-      });
-    }
-  },
-  closeSelectionColorPicker: {
-    id: "closeSelectionColorPicker",
-    label: "選択範囲の表示色選択を閉じる",
-    run: () => useCadUiStore.getState().setShowSelectionColorPicker(false)
-  },
-  applyDisplayColorToSelection: {
-    id: "applyDisplayColorToSelection",
-    label: "選択範囲へ表示色を適用",
-    run: (context) => applyDisplayColorToSelection(context?.colorId)
   },
   renameSelectedElement: {
     id: "renameSelectedElement",

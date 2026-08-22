@@ -221,22 +221,6 @@ export const viewModeCommandDefinitions = {
     label: "ショートカット設定を閉じる",
     run: () => useCadUiStore.getState().setShowShortcutSettings(false)
   },
-  openPaletteSettings: {
-    id: "openPaletteSettings",
-    label: "パレットを編集",
-    palette: { order: 45, keywords: ["palette", "color", "settings", "パレット", "色", "設定"] },
-    run: () => {
-      useCadUiStore.setState({
-        showPaletteSettings: true,
-        showCommandPalette: false
-      });
-    }
-  },
-  closePaletteSettings: {
-    id: "closePaletteSettings",
-    label: "パレット設定を閉じる",
-    run: () => useCadUiStore.getState().setShowPaletteSettings(false)
-  },
   openVisibilityProfileSettings: {
     id: "openVisibilityProfileSettings",
     label: "表示プロファイルを開く",

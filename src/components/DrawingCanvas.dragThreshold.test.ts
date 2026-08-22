@@ -2,7 +2,6 @@ import { fireEvent, render } from "@testing-library/react";
 import { createElement, createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
-import { defaultDocumentPalette } from "../palette/palette";
 import { DEFAULT_CANVAS_VIEWPORT } from "../state/useCadStore";
 import type { CadElement } from "../types/geometry";
 import { DrawingCanvas } from "./DrawingCanvas";
@@ -49,7 +48,6 @@ const createHostAdapter = (
   evaluationLimitIndex: undefined,
   compiledDocumentRevision: 0,
   canvasTheme: LEGACY_CANVAS_THEME,
-  palette: defaultDocumentPalette(),
   visibilityProfiles: [],
   activeVisibilityProfileId: null,
   moduleSemanticContext: {},

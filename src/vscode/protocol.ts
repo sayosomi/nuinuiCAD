@@ -5,6 +5,21 @@ import type { LineSplice } from "../document/textPatch";
 import type { RuntimeScalarDiagnostic } from "../scalars/runtimeScalarDiagnostics";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import type {
+  VscodeReferencePickCancelRequest,
+  VscodeReferencePickResult,
+  VscodeReferencePickStartRequest
+} from "./referencePickProtocol";
+
+export type {
+  VscodeReferencePickCancelRequest,
+  VscodeReferencePickConfirmedResult,
+  VscodeReferencePickResult,
+  VscodeReferencePickStartedResult,
+  VscodeReferencePickStartRequest,
+  VscodeReferencePickTargetProof,
+  VscodeReferencePickTerminalResult
+} from "./referencePickProtocol";
 
 export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
@@ -86,6 +101,20 @@ export type VscodeBakeOperationResult = {
   summary: BakeOperationSummary;
 };
 
+export type VscodeOutputPreviewPlaceCoordinatePatch = {
+  range: NormalizedSourceRange;
+  expectedText: string;
+  replacement: string;
+};
+
+export type VscodeOutputPreviewPlaceCommit = {
+  type: "outputPreviewPlaceCommit";
+  documentVersion: number;
+  normalizedSourceSnapshot: string;
+  statementRange: NormalizedSourceRange;
+  patches: readonly VscodeOutputPreviewPlaceCoordinatePatch[];
+};
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
@@ -93,6 +122,7 @@ export type VscodeToExtensionMessage =
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsPublication
   | VscodeCanvasObservationPublication
+  | VscodeReferencePickResult
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | { type: "canvasNavigationResult"; requestId: number; status: "ready" | "no-target" | "no-renderable-geometry" | "stale" | "focused" }
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
@@ -118,7 +148,8 @@ export type VscodeToExtensionMessage =
       type: "outputPreviewSourceNavigation";
       documentVersion: number;
       range: NormalizedSourceRange;
-    };
+    }
+  | VscodeOutputPreviewPlaceCommit;
 
 export type VscodeCanvasCommandId =
   | "undo"
@@ -152,6 +183,8 @@ export type VscodeBenchmarkConfig = {
 export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
+  | VscodeReferencePickStartRequest
+  | VscodeReferencePickCancelRequest
   | { type: "canvasSourceDefinitionRequest"; requestId: number }
   | { type: "canvasNavigationRequest"; requestId: number; documentVersion: number; normalizedSourceOffset: number }
   | { type: "focusCanvas"; requestId: number }

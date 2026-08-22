@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { defaultDocumentPalette } from "../palette/palette";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
 import { ImageImportDialog } from "./ImageImportDialog";
@@ -8,7 +7,6 @@ import { ImageImportDialog } from "./ImageImportDialog";
 const resetStore = () => {
   useCadStore.setState({
     elements: sampleElements,
-    palette: defaultDocumentPalette(),
     evaluationLimitIndex: sampleElements.length,
     selectedElementId: sampleElements[0].id,
     selectedElementIds: [sampleElements[0].id],
@@ -31,8 +29,6 @@ const resetStore = () => {
     showElementListColorAccents: false,
     showShortcutHelp: false,
     showShortcutSettings: false,
-    showPaletteSettings: false,
-    showSelectionColorPicker: false,
     pendingImageImport: null,
     imageImportError: null,
     showCommandPalette: false,

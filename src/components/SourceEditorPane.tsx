@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Layers3, Palette } from "lucide-react";
+import { Layers3 } from "lucide-react";
 import { SourceEditorController } from "../editor/sourceEditorController";
 import type { SourceEditorHandle, SourceEvaluationPublication } from "../editor/sourceEditorTypes";
 import type { DslDiagnostic, DslDiagnosticNavigationTarget } from "../dsl/dslTypes";
@@ -178,10 +178,6 @@ export const SourceEditorPane = forwardRef<SourceEditorHandle, SourceEditorPaneP
     <div className="source-editor-pane-wrapper" data-source-editor-scope="true" inert={inert || undefined}>
       <header className="source-editor-header">
         <div className="source-editor-header-actions">
-          <button type="button" className="palette-open-button" onClick={() => dispatchCommand("openPaletteSettings")}>
-            <Palette size={15} aria-hidden="true" />
-            <span className="source-editor-icon-button-label">パレット</span>
-          </button>
           <button
             type="button"
             className="visibility-profile-open-button"

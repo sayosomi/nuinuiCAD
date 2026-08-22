@@ -66,7 +66,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const canonicalElements = useCadDocumentStore((state) => state.elements);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
-    const palette = useCadDocumentStore((state) => state.palette);
     const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
     const activeVisibilityProfileId = useCadDocumentStore((state) => state.activeVisibilityProfileId);
     const moduleMaterialization = useCadDocumentStore((state) => state.doc.moduleMaterialization);
@@ -100,7 +99,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       elements,
       canonicalElements,
       evaluationLimitIndex,
-      palette,
       visibilityProfiles,
       activeVisibilityProfileId,
       moduleSemanticContext
@@ -110,7 +108,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       elements,
       evaluationLimitIndex,
       moduleSemanticContext,
-      palette,
       visibilityProfiles
     ]);
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
@@ -209,7 +206,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
       compiledDocumentRevision,
       canvasTheme,
-      palette: canvasPresentation.palette,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
