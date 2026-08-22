@@ -15,31 +15,42 @@ const baseElements = (): CadElement[] => [
   }
 ];
 
+const conditionalReverse = (condition: number, branch: "then" | "else"): CadElement[] => [
+  ...baseElements(),
+  {
+    id: "condition",
+    name: "Condition",
+    type: "conditionalGroup",
+    activity: "visible",
+    condition
+  },
+  {
+    id: "reverse",
+    name: "",
+    type: "pathReverse",
+    activity: "visible",
+    parentGroupId: "condition",
+    conditionalBranch: branch,
+    targetLineId: "line"
+  }
+];
+
 describe("geometry mutation execution eligibility", () => {
   it("does not record a mutation in an inactive conditional branch", () => {
-    const evaluation = evaluateElements([
-      ...baseElements(),
-      {
-        id: "condition",
-        name: "Condition",
-        type: "conditionalGroup",
-        activity: "visible",
-        condition: 0
-      },
-      {
-        id: "reverse",
-        name: "",
-        type: "pathReverse",
-        activity: "visible",
-        parentGroupId: "condition",
-        conditionalBranch: "then",
-        targetLineId: "line"
-      }
-    ]);
+    const evaluation = evaluateElements(conditionalReverse(0, "then"));
 
     expect(evaluation.errors).toEqual([]);
     expect(evaluation.geometryMutationExecutions).toEqual([]);
     expect(evaluation.conditionInactiveElementIds?.has("reverse")).toBe(true);
+  });
+
+  it("records the runtime mutation when its conditional branch is active", () => {
+    const evaluation = evaluateElements(conditionalReverse(1, "then"));
+
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryMutationExecutions).toEqual([
+      { mutationElementId: "reverse", targetElementIds: ["line"] }
+    ]);
   });
 
   it("does not record a mutation after the evaluation limit", () => {
