@@ -132,9 +132,10 @@ export const queryDslGeometryHoverTarget = ({
 /**
  * Resolve one runtime geometry id back to its single exact current source
  * declaration. This is the navigation companion for structured geometry
- * references rendered inside Hover. It deliberately reuses semantic occurrence
- * identity and the same runtime-uniqueness proof as Hover targeting; generated
- * or multiply-materialized references fail closed.
+ * references rendered inside Hover. It deliberately reuses compiler semantic
+ * occurrences plus source ownership, while requiring the same single-runtime
+ * proof as Hover targeting; generated or multiply-materialized references fail
+ * closed.
  */
 export const queryDslGeometryHoverDeclarationRange = ({
   source,
@@ -144,16 +145,37 @@ export const queryDslGeometryHoverDeclarationRange = ({
   if (!semanticIsExact(source, semantic)) return null;
 
   const compiled = semantic.compiled;
+  if (!compiled.document || !compiled.statementMap) return null;
+  const owners = sourceOwnerByRuntimeElementId({
+    statementMap: compiled.statementMap,
+    moduleMaterialization: compiled.moduleMaterialization
+  });
+  const owner = owners.get(elementId);
+  if (!owner || isInsideGeneratedForGroup(compiled, owner)) return null;
+
+  const runtimeIds = [...owners.values()]
+    .filter((candidate) => candidate.sourceStatementId === owner.sourceStatementId)
+    .map((candidate) => candidate.runtimeElementId);
+  const uniqueIds = [...new Set(runtimeIds)];
+  if (uniqueIds.length !== 1 || uniqueIds[0] !== elementId) return null;
+  if (!isSupportedNamedGeometry(compiled.document.elements.find((candidate) => candidate.id === elementId))) {
+    return null;
+  }
+
   const occurrenceIndex = createDslSemanticOccurrenceIndex(
     compiled,
     semantic.bindingAnalysis ?? compiled.bindingAnalysis
   );
   const ranges = occurrenceIndex.occurrences
-    .filter((occurrence) => occurrence.kind === "declaration" && occurrence.identity.kind === "element")
-    .filter((occurrence) =>
-      occurrence.identity.kind === "element" &&
-      uniqueRuntimeElement(compiled, occurrence.identity.elementId)?.id === elementId
-    )
+    .filter((occurrence) => occurrence.kind === "declaration")
+    .filter((occurrence) => {
+      const identity = occurrence.identity;
+      if (identity.kind === "module" && identity.target.kind === "moduleSource") {
+        return identity.target.statementId === owner.sourceStatementId;
+      }
+      if (identity.kind !== "element") return false;
+      return owners.get(identity.elementId)?.sourceStatementId === owner.sourceStatementId;
+    })
     .map((occurrence) => ({ from: occurrence.from, to: occurrence.to }));
   const uniqueRanges = ranges.filter((range, index) =>
     ranges.findIndex((candidate) => candidate.from === range.from && candidate.to === range.to) === index
