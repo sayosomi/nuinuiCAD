@@ -13,6 +13,8 @@ import {
   type CompilerDiagnostic
 } from "./compilerDiagnostics";
 import { projectConfiguredCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
+import { createRuntimeDiagnosticsSidecar, type RuntimeDiagnosticsSidecarSnapshot } from "./runtimeDiagnosticsSidecar";
+import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/protocol";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -53,6 +55,14 @@ export type NuiLanguageAnalysisSession = {
   getSourceRevision: () => number;
   replaceSource: (sourceText: string) => void;
   getDiagnostics: () => CompilerDiagnostic[];
+  acceptRuntimeDiagnostics: (
+    currentDocumentVersion: number,
+    publication: VscodeRuntimeDiagnosticsPublication
+  ) => boolean;
+  clearRuntimeDiagnostics: () => void;
+  runtimeDiagnosticsSnapshotFor: (
+    currentDocumentVersion: number
+  ) => RuntimeDiagnosticsSidecarSnapshot | null;
   runtimeEvaluationSemanticSnapshot: (
     source: SourceSnapshot
   ) => NuiRuntimeEvaluationSemanticSnapshot | undefined;
@@ -115,6 +125,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
   const document = AutomationDocument.fromSource(sourceText);
   let diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
   let completionRecovery = completionRecoveryFor(document.getState());
+  const runtimeDiagnostics = createRuntimeDiagnosticsSidecar();
 
   const currentSourceRevision = (): number =>
     document.getState().currentCompiled.spans.sourceMap.sourceRevision;
@@ -240,6 +251,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     getSource: () => document.getSource(),
     getSourceRevision: currentSourceRevision,
     replaceSource: (nextSourceText) => {
+      if (nextSourceText !== document.getSource()) runtimeDiagnostics.clear();
       document.replaceSource(nextSourceText);
       diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
       completionRecovery = completionRecoveryFor(document.getState());
@@ -255,6 +267,9 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
         ? projectConfiguredCompilerDiagnosticsWithTypoSuggestions(diagnostics, source, semantic)
         : diagnostics;
     },
+    acceptRuntimeDiagnostics: runtimeDiagnostics.accept,
+    clearRuntimeDiagnostics: runtimeDiagnostics.clear,
+    runtimeDiagnosticsSnapshotFor: runtimeDiagnostics.snapshotFor,
     runtimeEvaluationSemanticSnapshot,
     completionSemanticSnapshot: semanticSnapshotFor,
     completionRecoverySnapshot: (source) => {
