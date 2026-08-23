@@ -1,0 +1,425 @@
+from pathlib import Path
+
+
+def replace_once(path: str, old: str, new: str) -> None:
+    target = Path(path)
+    text = target.read_text()
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{path}: expected one match, found {count}\n--- old ---\n{old}")
+    target.write_text(text.replace(old, new, 1))
+
+
+def replace_count(path: str, old: str, new: str, expected: int) -> None:
+    target = Path(path)
+    text = target.read_text()
+    count = text.count(old)
+    if count != expected:
+        raise SystemExit(f"{path}: expected {expected} matches, found {count}\n--- old ---\n{old}")
+    target.write_text(text.replace(old, new))
+
+
+path = "src/dsl/moduleCompletionCandidates.ts"
+replace_once(path,
+'''import { formatDslReferencePath, parseDslSourceReference } from "./dslReferenceTokens";
+import {
+  isModuleGeometryInterfaceAssignable,''',
+'''import { formatDslReferencePath, parseDslSourceReference } from "./dslReferenceTokens";
+import {
+  buildModuleDocumentationIndex,
+  documentationForModuleDefinition,
+  documentationForModuleExport,
+  documentationForModuleParameter,
+  type ModuleDocumentation,
+  type ModuleDocumentationIndex
+} from "./moduleDocumentation";
+import {
+  isModuleGeometryInterfaceAssignable,''')
+
+replace_once(path,
+'''export type ModuleCompletionCandidate = {
+  kind: "binding" | "builtin" | "geometry" | "literal" | "module" | "argumentName";
+  label: string;
+  detail?: string;
+  identity?: string;
+};
+
+const parameterGeometryKind = moduleRuntimeGeometryKindOf;''',
+'''export type ModuleCompletionCandidate = {
+  kind: "binding" | "builtin" | "geometry" | "literal" | "module" | "argumentName";
+  label: string;
+  detail?: string;
+  identity?: string;
+  documentation?: ModuleDocumentation;
+};
+
+const moduleDocumentationIndexFor = (request: ModuleCompletionRequest): ModuleDocumentationIndex | null => {
+  const analysis = request.compiled.moduleSemanticAnalysis;
+  if (!analysis || request.sourceText !== request.compiled.spans.sourceMap.source) return null;
+  return buildModuleDocumentationIndex({
+    statements: request.compiled.statements,
+    spans: request.compiled.spans,
+    semanticAnalysis: analysis
+  });
+};
+
+const parameterGeometryKind = moduleRuntimeGeometryKindOf;''')
+
+replace_once(path,
+'''const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
+  const input = lexicalInput(compiled, owner);
+  if (!namespace || !input) return [];
+  return namespace.allDeclarations
+    .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < (request.sourceOrderIndex ?? statementIndex))
+    .filter((declaration) => {
+      const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
+      return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
+    })
+    .map((declaration) => ({ kind: "module" as const, label: declaration.name, identity: declaration.statementId }));
+};''',
+'''const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
+  const input = lexicalInput(compiled, owner);
+  if (!namespace || !input) return [];
+  const documentationIndex = moduleDocumentationIndexFor(request);
+  return namespace.allDeclarations
+    .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < (request.sourceOrderIndex ?? statementIndex))
+    .filter((declaration) => {
+      const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
+      return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
+    })
+    .map((declaration) => {
+      const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(declaration.statementId);
+      const documentation = definition && documentationIndex
+        ? documentationForModuleDefinition(documentationIndex, definition)
+        : null;
+      return {
+        kind: "module" as const,
+        label: declaration.name,
+        identity: declaration.statementId,
+        ...(documentation ? { documentation } : {})
+      };
+    });
+};''')
+
+replace_once(path,
+'''  const explicit = remaining.map((parameter) => ({ kind: "argumentName" as const, label: parameter.name }));
+  return [...shorthand, ...explicit];''',
+'''  const documentationIndex = moduleDocumentationIndexFor(request);
+  const explicit = remaining.map((parameter) => {
+    const documentation = documentationIndex
+      ? documentationForModuleParameter(documentationIndex, parameter)
+      : null;
+    return {
+      kind: "argumentName" as const,
+      label: parameter.name,
+      ...(documentation ? { documentation } : {})
+    };
+  });
+  return [...shorthand, ...explicit];''')
+
+replace_once(path,
+'''  const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) return [];
+  if (request.argumentIndex !== undefined) {''',
+'''  const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) return [];
+  const documentationIndex = moduleDocumentationIndexFor(request);
+  if (request.argumentIndex !== undefined) {''')
+
+replace_count(path,
+'''        .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));''',
+'''        .map((entry) => {
+          const documentation = documentationIndex
+            ? documentationForModuleExport(documentationIndex, entry)
+            : null;
+          return {
+            kind: "geometry" as const,
+            label: entry.name,
+            identity: entry.name,
+            ...(documentation ? { documentation } : {})
+          };
+        });''', 2)
+
+replace_count(path,
+'''      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: entry.name }));''',
+'''      .map((entry) => {
+        const documentation = documentationIndex
+          ? documentationForModuleExport(documentationIndex, entry)
+          : null;
+        return {
+          kind: "binding" as const,
+          label: entry.name,
+          identity: entry.name,
+          ...(documentation ? { documentation } : {})
+        };
+      });''', 2)
+
+path = "src/dsl/dslCompletionQuery.ts"
+replace_once(path,
+'''} from "./moduleCompletionCandidates";
+import type { CompiledDslDocument } from "./dslDocument";''',
+'''} from "./moduleCompletionCandidates";
+import type { ModuleDocumentation } from "./moduleDocumentation";
+import type { CompiledDslDocument } from "./dslDocument";''')
+
+replace_once(path,
+'''export type DslCompletionCandidate = {
+  kind: DslCompletionCandidateKind;
+  label: string;
+  detail?: string;
+  identity?: string;
+};''',
+'''export type DslCompletionCandidate = {
+  kind: DslCompletionCandidateKind;
+  label: string;
+  detail?: string;
+  identity?: string;
+  documentation?: ModuleDocumentation;
+};''')
+
+replace_once(path,
+'''const moduleCandidate = (candidate: ModuleCompletionCandidate): DslCompletionCandidate => ({
+  kind: candidate.kind,
+  label: candidate.label,
+  ...(candidate.detail ? { detail: candidate.detail } : {}),
+  ...(candidate.identity ? { identity: candidate.identity } : {})
+});''',
+'''const moduleCandidate = (candidate: ModuleCompletionCandidate): DslCompletionCandidate => ({
+  kind: candidate.kind,
+  label: candidate.label,
+  ...(candidate.detail ? { detail: candidate.detail } : {}),
+  ...(candidate.identity ? { identity: candidate.identity } : {}),
+  ...(candidate.documentation ? { documentation: candidate.documentation } : {})
+});''')
+
+path = "src/dsl/dslSignatureHelpQuery.ts"
+replace_once(path,
+'''import type { ScalarType } from "../scalars/types";
+
+export type DslSignatureHelpDocumentation = {''',
+'''import type { ScalarType } from "../scalars/types";
+import {
+  buildModuleDocumentationIndex,
+  documentationForModuleDefinition,
+  documentationForModuleParameter,
+  type ModuleDocumentation
+} from "./moduleDocumentation";
+
+export type DslSignatureHelpDocumentation = {''')
+
+replace_once(path,
+'''export type DslSignatureHelpParameter = {
+  identity: string;
+  name: string;
+  type?: string;
+  optional: boolean;
+  defaultValue?: string;
+  allowedValues?: readonly string[];
+  positional?: boolean;
+  documentation?: DslSignatureHelpDocumentation;
+};
+
+export type DslSignatureHelpSignature = {
+  identity: string;
+  name: string;
+  parameters: readonly DslSignatureHelpParameter[];
+  returnType?: string;
+  documentation?: DslSignatureHelpDocumentation;
+  callingStyle: "positional" | "named" | "construction" | "module";
+};''',
+'''export type DslSignatureHelpParameter = {
+  identity: string;
+  name: string;
+  type?: string;
+  optional: boolean;
+  defaultValue?: string;
+  allowedValues?: readonly string[];
+  positional?: boolean;
+  documentation?: DslSignatureHelpDocumentation;
+  authoredDocumentation?: ModuleDocumentation;
+};
+
+export type DslSignatureHelpSignature = {
+  identity: string;
+  name: string;
+  parameters: readonly DslSignatureHelpParameter[];
+  returnType?: string;
+  documentation?: DslSignatureHelpDocumentation;
+  authoredDocumentation?: ModuleDocumentation;
+  callingStyle: "positional" | "named" | "construction" | "module";
+};''')
+
+replace_once(path,
+'''  const definition = analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) return null;
+
+  return {
+    identity: `module:${definition.statementId}`,
+    name: definition.name,
+    callingStyle: "module",
+    documentation: { key: "signatureHelp.module" },
+    parameters: definition.parameters.map((parameter) => ({
+      identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
+      name: parameter.name,
+      type: moduleTypeName(parameter.type),
+      optional: parameter.optional,
+      ...(parameter.defaultValue !== null ? { defaultValue: parameter.defaultValue } : {}),
+      ...(allowedValuesFor(scalarModuleType(parameter.type))
+        ? { allowedValues: allowedValuesFor(scalarModuleType(parameter.type)) }
+        : {}),
+      documentation: { key: "signatureHelp.module.parameter" }
+    }))
+  };''',
+'''  const definition = analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) return null;
+  const documentationIndex = buildModuleDocumentationIndex({
+    statements: compiled.statements,
+    spans: compiled.spans,
+    semanticAnalysis: analysis
+  });
+  const authoredDocumentation = documentationForModuleDefinition(documentationIndex, definition);
+
+  return {
+    identity: `module:${definition.statementId}`,
+    name: definition.name,
+    callingStyle: "module",
+    documentation: { key: "signatureHelp.module" },
+    ...(authoredDocumentation ? { authoredDocumentation } : {}),
+    parameters: definition.parameters.map((parameter) => {
+      const parameterDocumentation = documentationForModuleParameter(documentationIndex, parameter);
+      return {
+        identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
+        name: parameter.name,
+        type: moduleTypeName(parameter.type),
+        optional: parameter.optional,
+        ...(parameter.defaultValue !== null ? { defaultValue: parameter.defaultValue } : {}),
+        ...(allowedValuesFor(scalarModuleType(parameter.type))
+          ? { allowedValues: allowedValuesFor(scalarModuleType(parameter.type)) }
+          : {}),
+        documentation: { key: "signatureHelp.module.parameter" },
+        ...(parameterDocumentation ? { authoredDocumentation: parameterDocumentation } : {})
+      };
+    })
+  };''')
+
+path = "vscode-extension/src/completionProvider.ts"
+replace_once(path,
+'''import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";''',
+'''import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
+import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";''')
+
+replace_once(path,
+'''const completionItemFor = (
+  candidate: DslCompletionCandidate,
+  result: DslCompletionQueryResult,
+  normalizedSource: string,
+  range: vscode.Range
+): vscode.CompletionItem => {''',
+'''const completionItemFor = (
+  candidate: DslCompletionCandidate,
+  result: DslCompletionQueryResult,
+  normalizedSource: string,
+  range: vscode.Range,
+  displayLanguage: string
+): vscode.CompletionItem => {''')
+
+replace_once(path,
+'''  if (candidate.detail !== undefined) item.detail = candidate.detail;
+  item.insertText = insertionFor(candidate, result, normalizedSource);
+  return item;''',
+'''  if (candidate.detail !== undefined) item.detail = candidate.detail;
+  item.insertText = insertionFor(candidate, result, normalizedSource);
+  const markdown = selectModuleDocumentationMarkdown(candidate.documentation, displayLanguage);
+  if (markdown !== null) {
+    const documentation = new vscode.MarkdownString(markdown);
+    documentation.isTrusted = false;
+    documentation.supportHtml = false;
+    item.documentation = documentation;
+  }
+  return item;''')
+
+replace_once(path,
+'''export const projectDslCompletionItems = (
+  normalizedSource: string,
+  result: DslCompletionQueryResult
+): vscode.CompletionItem[] => {''',
+'''export const projectDslCompletionItems = (
+  normalizedSource: string,
+  result: DslCompletionQueryResult,
+  displayLanguage = "en"
+): vscode.CompletionItem[] => {''')
+
+replace_once(path,
+'''  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range));''',
+'''  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range, displayLanguage));''')
+
+replace_once(path,
+'''export const createNuiCompletionProvider = (
+  sessionFor: NuiCompletionSessionFor
+): vscode.CompletionItemProvider => ({''',
+'''export const createNuiCompletionProvider = (
+  sessionFor: NuiCompletionSessionFor,
+  displayLanguageFor: () => string = () => vscode.env?.language ?? "en"
+): vscode.CompletionItemProvider => ({''')
+
+replace_once(path,
+'''    return projectDslCompletionItems(normalizedSource, result);''',
+'''    return projectDslCompletionItems(normalizedSource, result, displayLanguageFor());''')
+
+path = "vscode-extension/src/signatureHelpProvider.ts"
+replace_once(path,
+'''} from "../../src/dsl/dslSignatureHelpQuery";
+import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";''',
+'''} from "../../src/dsl/dslSignatureHelpQuery";
+import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";''')
+
+replace_once(path,
+'''const parameterDocumentation = (
+  parameter: DslSignatureHelpParameter,
+  translate: ReturnType<typeof createTranslator>
+): string | undefined => localizedDocumentation(parameter.documentation, translate);''',
+'''const authoredDocumentation = (
+  documentation: DslSignatureHelpSignature["authoredDocumentation"],
+  displayLanguage: string
+): vscode.MarkdownString | undefined => {
+  const markdown = selectModuleDocumentationMarkdown(documentation, displayLanguage);
+  if (markdown === null) return undefined;
+  const result = new vscode.MarkdownString(markdown);
+  result.isTrusted = false;
+  result.supportHtml = false;
+  return result;
+};
+
+const parameterDocumentation = (
+  parameter: DslSignatureHelpParameter,
+  translate: ReturnType<typeof createTranslator>,
+  displayLanguage: string
+): string | vscode.MarkdownString | undefined =>
+  authoredDocumentation(parameter.authoredDocumentation, displayLanguage)
+    ?? localizedDocumentation(parameter.documentation, translate);''')
+
+replace_once(path,
+'''    const information = new vscode.SignatureInformation(
+      labelParts.label,
+      localizedDocumentation(signature.documentation, translate)
+    );
+    information.parameters = signature.parameters.map((parameter, index) => new vscode.ParameterInformation(
+      labelParts.parameterRanges[index]!,
+      parameterDocumentation(parameter, translate)
+    ));''',
+'''    const information = new vscode.SignatureInformation(
+      labelParts.label,
+      authoredDocumentation(signature.authoredDocumentation, displayLanguage)
+        ?? localizedDocumentation(signature.documentation, translate)
+    );
+    information.parameters = signature.parameters.map((parameter, index) => new vscode.ParameterInformation(
+      labelParts.parameterRanges[index]!,
+      parameterDocumentation(parameter, translate, displayLanguage)
+    ));''')
