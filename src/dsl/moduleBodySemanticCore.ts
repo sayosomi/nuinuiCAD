@@ -43,7 +43,16 @@ export type ModuleBodyDefinition = {
   bodyStatementIndexes: readonly number[];
 };
 
-type AddLocalDiagnostic = (statementIndex: number, diagnostic: ModuleScalarLocalDiagnostic) => void;
+type AddLocalDiagnostic = (
+  statementIndex: number,
+  diagnostic: ModuleScalarLocalDiagnostic & {
+    relatedSources?: readonly {
+      statementIndex: number;
+      span: DslSpan;
+      message: string;
+    }[];
+  }
+) => void;
 type AnalyzeExpression = (
   statementIndex: number,
   raw: string,
@@ -192,11 +201,22 @@ export const analyzeModuleBody = ({
   );
 
   const registerExport = (entry: ResolvedModuleExport, span: DslSpan) => {
-    if (exportByName.has(entry.name)) {
+    const previous = exportByName.get(entry.name);
+    if (previous) {
+      const previousStatement = statements[previous.exportedStatementIndex];
       addLocal(entry.exportedStatementIndex, {
         code: "module-duplicate-export",
         span,
-        message: `module export「${entry.name}」が重複しています。`
+        message: `module export「${entry.name}」が重複しています。`,
+        ...(previousStatement?.nameSpan
+          ? {
+              relatedSources: [{
+                statementIndex: previous.exportedStatementIndex,
+                span: previousStatement.nameSpan,
+                message: "First export with this name"
+              }]
+            }
+          : {})
       });
       return;
     }
