@@ -34,13 +34,21 @@ export const dslStatementKeywords = {
   image: "image",
   group: "group",
   module: "module",
+  record: "record",
   modifier: "modifier",
   instance: "instance",
   import: "import",
   export: "export"
 } as const;
 
-export const dslStatementKeywordCompletions = Object.values(dslStatementKeywords);
+const dslStatementKeywordSpellings = Object.values(dslStatementKeywords);
+
+// SAY-114 owns record syntax/nominal semantics only. Keep `record` recognized
+// as a parser/continuation boundary without silently adding an editor provider;
+// record authoring completion belongs to the later editor child.
+export const dslStatementKeywordCompletions = dslStatementKeywordSpellings.filter(
+  (keyword) => keyword !== dslStatementKeywords.record
+);
 
 export type DslContinuationSafetyOptions = {
   /**
@@ -78,7 +86,7 @@ export const isUnsafeDslContinuationFragment = (
   const leadingKeyword = /^[A-Za-z_][A-Za-z0-9_]*/.exec(trimmed)?.[0];
   return !moduleParameterFragment &&
     leadingKeyword !== undefined &&
-    dslStatementKeywordCompletions.some((keyword) => keyword === leadingKeyword);
+    dslStatementKeywordSpellings.some((keyword) => keyword === leadingKeyword);
 };
 
 /**
