@@ -124,4 +124,40 @@ describe("record nominal semantic analysis", () => {
       targetTypeIdentity: "stable-1"
     });
   });
+
+  it("lets a visible local declaration shadow a record Module parameter", () => {
+    const { records, namespace } = analyze([
+      "nui 4",
+      "record Pair(x: number)",
+      "module Copy(input: Pair) {",
+      "  const input: number = 1",
+      "  const copy: Pair = @input",
+      "  set input = 2",
+      "}"
+    ].join("\n"));
+
+    expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).toContain("record-reference-not-record");
+    expect(namespace.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("record-set-unsupported");
+    expect(records.valuesByStatementId.get("stable-4")?.reference).toMatchObject({
+      name: "input",
+      targetTypeIdentity: null
+    });
+  });
+
+  it("uses a record Module parameter before a later local shadow becomes visible", () => {
+    const { records, namespace } = analyze([
+      "nui 4",
+      "record Pair(x: number)",
+      "module Copy(input: Pair) {",
+      "  const copy: Pair = @input",
+      "  const input: number = 1",
+      "}"
+    ].join("\n"));
+
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith("record-reference"))).toEqual([]);
+    expect(records.valuesByStatementId.get("stable-3")?.reference).toMatchObject({
+      name: "input",
+      targetTypeIdentity: "stable-1"
+    });
+  });
 });
