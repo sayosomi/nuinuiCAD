@@ -249,6 +249,40 @@ const elementRenameRejection = (analysis: RenameAnalysisRejected): DslRenameReje
   }
 };
 
+const elementRenameEdit = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  candidate: RenameCandidate,
+  replacementIdentifier: string
+): DslRenameEdit => {
+  const regular = {
+    from: candidate.from,
+    to: candidate.to,
+    expectedText: sourceText.slice(candidate.from, candidate.to),
+    newText: replacementIdentifier
+  };
+  if (candidate.from <= 0 || sourceText[candidate.from - 1] !== "@") return regular;
+  const statementIndex = compiled.statements.findIndex((statement) =>
+    statement.physicalSpan.segments.some((segment) => candidate.from >= segment.from && candidate.to <= segment.to)
+  );
+  const statement = compiled.statements[statementIndex];
+  if (statement?.kind !== "moduleInstance") return regular;
+  const argumentIndex = statement.arguments.findIndex((argument) => {
+    const physical = argument.labelPhysicalSpan?.segments;
+    return physical?.length === 1 && physical[0]?.from === candidate.from && physical[0]?.to === candidate.to;
+  });
+  if (argumentIndex < 0) return regular;
+  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidateInstance) => candidateInstance.statementIndex === statementIndex);
+  if (!instance?.parameterBindings.some((binding) => binding.argumentIndex === argumentIndex)) return regular;
+  const rawLabel = sourceText.slice(candidate.from, candidate.to);
+  return {
+    from: candidate.from - 1,
+    to: candidate.to,
+    expectedText: `@${rawLabel}`,
+    newText: `${rawLabel}: @${replacementIdentifier}`
+  };
+};
+
 const projectModuleElementRenameEdits = (
   sourceText: string,
   compiled: CompiledDslDocument,
@@ -266,32 +300,29 @@ const projectModuleElementRenameEdits = (
   const replacementIdentifier = formatDslName(validation.newName);
   if (targetIdentifier === replacementIdentifier) return { ok: true, edits: [] };
 
-  const ranges = new Map<string, { from: number; to: number }>();
+  const replacements = new Map<string, DslRenameEdit>();
   for (const candidate of candidateRanges) {
     if (candidate.identity.kind !== "element" || candidate.identity.elementId !== elementId) continue;
     if (candidate.from < 0 || candidate.to <= candidate.from || candidate.to > sourceText.length) {
       return { ok: false, rejection: unavailableRenameRejection() };
     }
     if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) continue;
-    ranges.set(`${candidate.from}:${candidate.to}`, { from: candidate.from, to: candidate.to });
+    const edit = elementRenameEdit(sourceText, compiled, candidate, replacementIdentifier);
+    replacements.set(`${edit.from}:${edit.to}`, edit);
   }
-  if (ranges.size === 0) return { ok: false, rejection: unavailableRenameRejection() };
+  if (replacements.size === 0) return { ok: false, rejection: unavailableRenameRejection() };
   const declarationStatement = compiled.statements[owner.sourceStatementIndex];
   const declarationPhysical = declarationStatement?.nameSpan
     ? physicalRange(compiled, owner.sourceStatementIndex, declarationStatement.nameSpan)
     : null;
-  if (!declarationPhysical || !ranges.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) {
+  if (!declarationPhysical || !replacements.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
 
-  const orderedRanges = [...ranges.values()].sort((left, right) => left.from - right.from || left.to - right.to);
-  for (let index = 1; index < orderedRanges.length; index += 1) {
-    if (orderedRanges[index]!.from < orderedRanges[index - 1]!.to) {
-      return { ok: false, rejection: unavailableRenameRejection() };
-    }
-  }
-  const candidateSource = orderedRanges.reduceRight(
-    (source, range) => `${source.slice(0, range.from)}${replacementIdentifier}${source.slice(range.to)}`,
+  const orderedReplacements = [...replacements.values()].sort((left, right) => left.from - right.from || left.to - right.to);
+  if (!editsAreSafe(orderedReplacements)) return { ok: false, rejection: unavailableRenameRejection() };
+  const candidateSource = orderedReplacements.reduceRight(
+    (source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`,
     sourceText
   );
   const beforeStatementMap = compiled.statementMap;
@@ -333,15 +364,7 @@ const projectModuleElementRenameEdits = (
     return { ok: false, rejection: unavailableRenameRejection() };
   }
 
-  return {
-    ok: true,
-    edits: orderedRanges.map((range) => ({
-      from: range.from,
-      to: range.to,
-      expectedText: sourceText.slice(range.from, range.to),
-      newText: replacementIdentifier
-    }))
-  };
+  return { ok: true, edits: orderedReplacements };
 };
 
 const projectElementSemanticRenameEdits = (
@@ -360,33 +383,30 @@ const projectElementSemanticRenameEdits = (
   const replacementIdentifier = formatDslName(newName);
   if (targetIdentifier === replacementIdentifier) return { ok: true, edits: [] };
 
-  const ranges = new Map<string, { from: number; to: number }>();
+  const replacements = new Map<string, DslRenameEdit>();
   for (const candidate of candidatesFor(compiled)) {
     if (candidate.identity.kind !== "element" || candidate.identity.elementId !== elementId) continue;
     if (candidate.from < 0 || candidate.to <= candidate.from || candidate.to > sourceText.length) {
       return { ok: false, rejection: unavailableRenameRejection() };
     }
     if (sourceText.slice(candidate.from, candidate.to) !== targetIdentifier) continue;
-    ranges.set(`${candidate.from}:${candidate.to}`, { from: candidate.from, to: candidate.to });
+    const edit = elementRenameEdit(sourceText, compiled, candidate, replacementIdentifier);
+    replacements.set(`${edit.from}:${edit.to}`, edit);
   }
-  if (ranges.size === 0) return { ok: false, rejection: unavailableRenameRejection() };
+  if (replacements.size === 0) return { ok: false, rejection: unavailableRenameRejection() };
 
   const declarationStatement = compiled.statements[beforeStatementMap.byElementId.get(elementId)?.statementIndex ?? -1];
   const declarationPhysical = declarationStatement?.nameSpan
     ? physicalRange(compiled, beforeStatementMap.byElementId.get(elementId)?.statementIndex ?? -1, declarationStatement.nameSpan)
     : null;
-  if (!declarationPhysical || !ranges.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) {
+  if (!declarationPhysical || !replacements.has(`${declarationPhysical.from}:${declarationPhysical.to}`)) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
 
-  const orderedRanges = [...ranges.values()].sort((left, right) => left.from - right.from || left.to - right.to);
-  for (let index = 1; index < orderedRanges.length; index += 1) {
-    if (orderedRanges[index]!.from < orderedRanges[index - 1]!.to) {
-      return { ok: false, rejection: unavailableRenameRejection() };
-    }
-  }
-  const candidateSource = orderedRanges.reduceRight(
-    (source, range) => `${source.slice(0, range.from)}${replacementIdentifier}${source.slice(range.to)}`,
+  const orderedReplacements = [...replacements.values()].sort((left, right) => left.from - right.from || left.to - right.to);
+  if (!editsAreSafe(orderedReplacements)) return { ok: false, rejection: unavailableRenameRejection() };
+  const candidateSource = orderedReplacements.reduceRight(
+    (source, edit) => `${source.slice(0, edit.from)}${edit.newText}${source.slice(edit.to)}`,
     sourceText
   );
   const after = compileDslDocument(candidateSource, {
@@ -405,15 +425,7 @@ const projectElementSemanticRenameEdits = (
         !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
   ) return { ok: false, rejection: unavailableRenameRejection() };
 
-  return {
-    ok: true,
-    edits: orderedRanges.map((range) => ({
-      from: range.from,
-      to: range.to,
-      expectedText: sourceText.slice(range.from, range.to),
-      newText: replacementIdentifier
-    }))
-  };
+  return { ok: true, edits: orderedReplacements };
 };
 
 const projectSourceRenameEdits = (
@@ -547,10 +559,17 @@ export const planDslRenameEditsResult = (
         identity.elementId,
         analysis.newName
       );
+      const projectionsDiffer = projection.ok && semanticProjection.ok && (
+        semanticProjection.edits.length !== projection.edits.length ||
+        semanticProjection.edits.some((edit, index) => {
+          const ordinary = projection.edits[index];
+          return !ordinary || edit.from !== ordinary.from || edit.to !== ordinary.to || edit.newText !== ordinary.newText;
+        })
+      );
       if (!semanticProjection.ok) {
         if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
         edits = projection.edits.map((edit) => ({ ...edit }));
-      } else if (!projection.ok || semanticProjection.edits.length !== projection.edits.length) {
+      } else if (!projection.ok || projectionsDiffer) {
         edits = semanticProjection.edits;
       } else {
         edits = projection.edits.map((edit) => ({ ...edit }));

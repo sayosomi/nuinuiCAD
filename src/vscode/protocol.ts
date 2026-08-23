@@ -63,6 +63,12 @@ export type VscodeCanvasObservationSelectionSubject =
   | { kind: "elements" }
   | { kind: "binding"; bindingId: string };
 
+export type VscodeCanvasObservationElementSource = {
+  runtimeElementId: string;
+  sourceStatementIndex: number;
+  elementType: string;
+};
+
 export type VscodeCanvasObservationIssueSummary = {
   elementId: string;
   elementName: string;
@@ -73,6 +79,8 @@ export type VscodeCanvasObservationIssueSummary = {
 export type VscodeCanvasObservationSnapshot = {
   documentVersion: number;
   selectedElementIds: readonly string[];
+  /** Source ownership used by agent-facing adapters to project runtime IDs into stable snapshot IDs. */
+  selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
   selectionSubject: VscodeCanvasObservationSelectionSubject;
   compiledDocumentRevision: number;
   previewActive: boolean;
