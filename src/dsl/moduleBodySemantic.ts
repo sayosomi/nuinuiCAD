@@ -11,7 +11,7 @@ const isSourceOnlyTypedDeclaration = (
 ) => {
   if (statement.recordTypeReference) return true;
   const typeSpan = statement.payloadSpans.type;
-  const logicalText = input.logicalTextByStatementIndex?.get(statementIndex);
+  const logicalText = input.input.logicalTextByStatementIndex?.get(statementIndex);
   if (!typeSpan || !logicalText) return false;
   const diagnostics: { message: string; span: { start: number; end: number }; code?: string }[] = [];
   return parseDslDeclaredValueType(logicalText, typeSpan, diagnostics).geometryArrayType !== null;
