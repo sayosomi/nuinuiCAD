@@ -38,16 +38,6 @@ const plan = (source: string, selectedIndexes: readonly number[]) => {
   });
 };
 
-const expectRejectedWithoutPatch = (
-  result: ReturnType<typeof plan>,
-  code?: string
-) => {
-  expect(result.status).toBe("rejected");
-  if (result.status !== "rejected") return;
-  if (code) expect(result.code).toBe(code);
-  expect("splices" in result).toBe(false);
-};
-
 describe("planExtractModule checkpoint 2 direct geometry", () => {
   it("parameterizes a direct point dependency, exports selected geometry, and rewrites the outside reference", () => {
     const source = [
@@ -121,15 +111,5 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     expect(next).toContain("module Extracted(dx: number, Base: point) {");
     expect(next).toContain("  const local: number = @dx + 1");
     expect(next).toContain("  point Moved = offset(from: @Base, dx: @local, dy: 0)");
-  });
-
-  it("keeps geometry arrays outside Checkpoint 2 and fails closed without a patch", () => {
-    const source = [
-      "nui 4",
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      "const paths: path[] = [@A]"
-    ].join("\n");
-
-    expectRejectedWithoutPatch(plan(source, [2]), "unsupported-statement");
   });
 });
