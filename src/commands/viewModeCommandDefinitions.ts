@@ -1,6 +1,7 @@
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import { visibleCanvasDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import type { Command, CommandContext, CommandId } from "./commandTypes";
 
 const canvasZoomAnchor = (context?: CommandContext) => {
@@ -14,32 +15,10 @@ const canvasZoomAnchor = (context?: CommandContext) => {
   };
 };
 
-const CANVAS_FIT_PADDING_PX = 32;
-
-const finitePositiveFitZoom = (
-  candidateZoom: number,
-  centerX: number,
-  centerY: number
-): number | null => {
-  if (!(Number.isFinite(candidateZoom) && candidateZoom > 0)) return null;
-  const maxZoomForFinitePan = Math.min(
-    centerX === 0 ? Number.POSITIVE_INFINITY : Number.MAX_VALUE / Math.abs(centerX),
-    centerY === 0 ? Number.POSITIVE_INFINITY : Number.MAX_VALUE / Math.abs(centerY)
-  );
-  const zoom = Math.min(candidateZoom, maxZoomForFinitePan);
-  return Number.isFinite(zoom) && zoom > 0 ? zoom : null;
-};
-
 const fitDrawing = (context?: CommandContext) => {
   const rect = context?.getCanvasViewportRect?.();
   const evaluation = context?.evaluation;
   if (!rect || !evaluation) return;
-
-  const width = rect.width;
-  const height = rect.height;
-  const availableWidth = width - CANVAS_FIT_PADDING_PX * 2;
-  const availableHeight = height - CANVAS_FIT_PADDING_PX * 2;
-  if (!(Number.isFinite(availableWidth) && Number.isFinite(availableHeight)) || availableWidth <= 0 || availableHeight <= 0) return;
 
   const documentState = useCadDocumentStore.getState();
   const uiState = useCadUiStore.getState();
@@ -53,26 +32,13 @@ const fitDrawing = (context?: CommandContext) => {
   });
   if (!bounds) return;
 
-  const drawingWidth = bounds.maxX - bounds.minX;
-  const drawingHeight = bounds.maxY - bounds.minY;
-  const currentZoom = uiState.canvasViewport.zoom;
-  const candidateRatios = [
-    drawingWidth > 0 ? availableWidth / drawingWidth : null,
-    drawingHeight > 0 ? availableHeight / drawingHeight : null
-  ].filter((ratio): ratio is number => ratio !== null);
-  const rawCandidateZoom = candidateRatios.length > 0
-    ? Math.min(...candidateRatios)
-    : currentZoom;
-  const candidateZoom = rawCandidateZoom === Number.POSITIVE_INFINITY ? Number.MAX_VALUE : rawCandidateZoom;
-  const centerX = (bounds.minX + bounds.maxX) / 2;
-  const centerY = (bounds.minY + bounds.maxY) / 2;
-  const zoom = finitePositiveFitZoom(candidateZoom, centerX, centerY);
-  if (zoom === null || !Number.isFinite(centerX) || !Number.isFinite(centerY)) return;
-
-  const panX = -centerX * zoom;
-  const panY = centerY * zoom;
-  if (!Number.isFinite(panX) || !Number.isFinite(panY)) return;
-  uiState.setCanvasViewport({ panX, panY, zoom });
+  const viewport = fitCanvasViewportToBounds({
+    bounds,
+    size: { width: rect.width, height: rect.height },
+    currentZoom: uiState.canvasViewport.zoom,
+    paddingPx: CANVAS_FIT_PADDING_PX
+  });
+  if (viewport) uiState.setCanvasViewport(viewport);
 };
 
 export const viewModeCommandDefinitions = {
