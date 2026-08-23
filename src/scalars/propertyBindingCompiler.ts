@@ -25,6 +25,12 @@ import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import type { RecordSemanticAnalysis } from "../dsl/recordSemanticAnalysis";
+import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import {
+  prepareRecordScalarExpression,
+  type RecordScalarLoweringPlan
+} from "./recordScalarLowering";
 
 /**
  * The compiled source of a property's value. `binding` keeps the existing
@@ -82,6 +88,11 @@ export type CompilePropertyBindingsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
+  recordScalar?: {
+    analysis: RecordSemanticAnalysis;
+    sourceNamespace: SourceLexicalNamespaceIndex;
+    plan: RecordScalarLoweringPlan;
+  };
 };
 
 export type PropertyBindingCompilation = {
@@ -157,7 +168,8 @@ export const compilePropertyBindings = ({
   elements,
   bindingAnalysis,
   spans,
-  includeStatement
+  includeStatement,
+  recordScalar
 }: CompilePropertyBindingsInput): PropertyBindingCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -238,9 +250,24 @@ export const compilePropertyBindings = ({
     });
     if (invalidReference) continue;
 
-    const checked = typecheckScalarExpression(candidate.ast, {
+    const prepared = recordScalar
+      ? prepareRecordScalarExpression({
+          ast: candidate.ast,
+          statementIndex: candidate.statementIndex,
+          ...recordScalar,
+          referenceResolutions: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+        })
+      : null;
+    if (prepared?.issues.length) {
+      diagnostics.push(...prepared.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+      ));
+      continue;
+    }
+
+    const checked = typecheckScalarExpression(prepared?.ast ?? candidate.ast, {
       expectedType: candidate.expectedType,
-      references: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+      references: prepared?.references ?? referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
     });
     if (checked.diagnostics.length > 0 || checked.type === null) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(
