@@ -464,11 +464,11 @@ const editsSafelyCoverOccurrences = (
     ) return false;
     if (index > 0 && edit.from < ordered[index - 1]!.to) return false;
     if (!occurrences.some((occurrence) =>
-      edit.from <= occurrence.location.range.from && edit.to >= occurrence.location.range.to
+      edit.from === occurrence.location.range.from && edit.to === occurrence.location.range.to
     )) return false;
   }
   return occurrences.every((occurrence) => ordered.some((edit) =>
-    edit.from <= occurrence.location.range.from && edit.to >= occurrence.location.range.to
+    edit.from === occurrence.location.range.from && edit.to === occurrence.location.range.to
   ));
 };
 
