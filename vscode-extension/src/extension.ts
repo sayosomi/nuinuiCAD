@@ -18,10 +18,6 @@ import {
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
-  createRuntimeDiagnosticsSidecar,
-  type RuntimeDiagnosticsSidecar
-} from "./runtimeDiagnosticsSidecar";
-import {
   createNuiCompletionProvider,
   nuiCompletionSelector,
   nuiCompletionTriggerCharacters
@@ -408,7 +404,6 @@ const disposeSessionListeners = (session: WebviewSession): void => {
 export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
-  const runtimeDiagnosticsSidecars = new Map<string, RuntimeDiagnosticsSidecar>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   let bakeOutputChannel: vscode.OutputChannel | null = null;
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
@@ -550,15 +545,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return null;
   };
 
-  const runtimeDiagnosticsSidecarFor = (document: vscode.TextDocument): RuntimeDiagnosticsSidecar => {
-    const key = documentKey(document);
-    const existing = runtimeDiagnosticsSidecars.get(key);
-    if (existing) return existing;
-    const sidecar = createRuntimeDiagnosticsSidecar();
-    runtimeDiagnosticsSidecars.set(key, sidecar);
-    return sidecar;
-  };
-
   const publishCurrentDiagnostics = (
     document: vscode.TextDocument,
     session: NuiLanguageAnalysisSession
@@ -571,9 +557,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       session.getSource() !== sourceText
     ) return;
 
-    const runtimeDiagnostics = runtimeDiagnosticsSidecars
-      .get(key)
-      ?.snapshotFor(document.version)
+    const runtimeDiagnostics = session
+      .runtimeDiagnosticsSnapshotFor(document.version)
       ?.diagnostics ?? [];
     const projectedRuntimeDiagnostics = runtimeDiagnostics
       .map((diagnostic) => toCompilerDiagnostic(sourceText, diagnostic))
@@ -631,8 +616,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     const analysis = languageAnalysisSessions.get(session.documentUri);
     if (!analysis || analysis.getSource() !== session.document.getText()) return;
-    const sidecar = runtimeDiagnosticsSidecarFor(session.document);
-    if (!sidecar.accept(session.document.version, message)) return;
+    if (!analysis.acceptRuntimeDiagnostics(session.document.version, message)) return;
     publishCurrentDiagnostics(session.document, analysis);
   };
 
@@ -695,7 +679,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const compilerDiagnosticChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
     if (isSupportedNuiDocument(event.document) && event.contentChanges.length > 0) {
       const key = documentKey(event.document);
-      runtimeDiagnosticsSidecars.get(key)?.clear();
+      languageAnalysisSessions.get(key)?.clearRuntimeDiagnostics();
       vscodeObservationState.invalidateCanvasRuntime(key);
     }
     publishCompilerDiagnostics(event.document);
@@ -704,15 +688,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!isSupportedNuiDocument(document)) return;
     const key = documentKey(document);
     languageAnalysisSessions.delete(key);
-    runtimeDiagnosticsSidecars.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
     vscodeObservationState.removeDocument(key);
   });
   const disposeCompilerDiagnosticSessions = {
-    dispose: () => {
-      languageAnalysisSessions.clear();
-      runtimeDiagnosticsSidecars.clear();
-    }
+    dispose: () => languageAnalysisSessions.clear()
   };
   const completionProvider = vscode.languages.registerCompletionItemProvider(
     nuiCompletionSelector,
