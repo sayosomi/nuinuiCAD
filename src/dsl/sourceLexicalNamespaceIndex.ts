@@ -4,6 +4,7 @@ import type { DslReferencePath } from "./dslReferenceTokens";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
+import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Named declarations that participate in the source-level lexical namespace. */
@@ -48,6 +49,8 @@ export type SourceLexicalNamespaceIndex = {
   diagnostics: readonly DslDiagnostic[];
   /** Source-only nominal record model. Whole record values never enter the scalar catalog/runtime. */
   recordSemanticAnalysis: RecordSemanticAnalysis | null;
+  /** Source-only immutable geometry arrays. Whole array values never enter ScalarValue/runtime. */
+  geometryArraySemanticAnalysis: GeometryArraySemanticAnalysis | null;
 };
 
 /** Opaque payload returned by a document/import owner for one external namespace member. */
@@ -269,18 +272,25 @@ export const buildSourceLexicalNamespaceIndex = (
     allDeclarations,
     collisions,
     diagnostics,
-    recordSemanticAnalysis: null
+    recordSemanticAnalysis: null,
+    geometryArraySemanticAnalysis: null
   };
   const recordSemanticAnalysis = analyzeRecordSemantics({
     statements,
     stableStatementIdByIndex,
     resolveDeclaration: (statementIndex, name) => resolveSourceLexicalDeclaration(baseIndex, statementIndex, name)
   });
+  const geometryArraySemanticAnalysis = analyzeGeometryArraySemantics({
+    statements,
+    stableStatementIdByIndex,
+    resolvePath: (statementIndex, path) => resolveSourceLexicalPath(baseIndex, statementIndex, path)
+  });
 
   return {
     ...baseIndex,
-    diagnostics: [...diagnostics, ...recordSemanticAnalysis.diagnostics],
-    recordSemanticAnalysis
+    diagnostics: [...diagnostics, ...recordSemanticAnalysis.diagnostics, ...geometryArraySemanticAnalysis.diagnostics],
+    recordSemanticAnalysis,
+    geometryArraySemanticAnalysis
   };
 };
 
