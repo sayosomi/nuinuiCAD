@@ -1,0 +1,29 @@
+name: SAY-33 merge latest main
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    if: github.actor == 'sayosomi' && github.head_ref == 'sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path
+          fetch-depth: 0
+      - name: Merge current main and remove helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-commit --no-ff origin/main
+          rm .github/workflows/say33-merge-main.yml
+          git add -A
+          git commit -m "Merge latest main into SAY-33"
+          git push origin HEAD:sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path
