@@ -8,7 +8,7 @@ import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { compileModulePreviewRoot, type ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
-import { useEvaluationEngine, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
@@ -53,6 +53,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
   const evaluationRef = useRef<EvaluationResult | null>(null);
+  const previewRef = useRef<ValidModulePreview | null>(null);
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
   const [statusMessages, setStatusMessages] = useState<string[]>([
     "Open Module Preview from a Module definition in the Source Editor."
@@ -118,7 +119,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       compiledDocumentRevision: revision
     });
     useCadUiStore.getState().reconcileSelectionWithElements(nextRenderElements);
-    setPreview({ root, evaluationOptions, revision });
+    const nextPreview = { root, evaluationOptions, revision };
+    previewRef.current = nextPreview;
+    setPreview(nextPreview);
     setStatusMessages(root.diagnostics.map((diagnostic) => diagnostic.message));
   }, []);
 
@@ -176,7 +179,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
         documentVersionRef.current = message.documentVersion;
-        setStatusMessages(preview
+        setStatusMessages(previewRef.current
           ? ["Module Preview is waiting for the exact current target."]
           : ["No valid Module Preview is available yet."]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
@@ -188,7 +191,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
         documentVersionRef.current = message.documentVersion;
-        setStatusMessages(preview
+        setStatusMessages(previewRef.current
           ? ["Module Preview is waiting for the exact current target."]
           : ["No valid Module Preview is available yet."]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
@@ -224,7 +227,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, compileTargetAt, executeSharedCanvasCommand, preview, rustTransport]);
+  }, [api, compileTargetAt, executeSharedCanvasCommand, rustTransport]);
 
   const moduleSemanticContext = useMemo(() => ({
     moduleMaterialization: preview?.root.moduleMaterialization,
@@ -362,7 +365,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         <DrawingCanvas
           ref={drawingCanvasRef}
           evaluation={evaluationState.evaluation}
-          evaluationState={evaluationState as EvaluationEngineState}
+          evaluationState={evaluationState}
           canvasFocusRef={canvasFocusRef}
           hostAdapter={hostAdapter}
         />
