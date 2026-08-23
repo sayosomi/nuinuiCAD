@@ -8,7 +8,7 @@ import {
   effectiveEvaluationLimitIndex,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
-import { useCadUiStore } from "../state/cadUiStore";
+import { MAX_CANVAS_ZOOM, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import { dispatchCommand } from "../commands/commands";
@@ -23,11 +23,11 @@ import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
 import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
   normalizeVscodeCanvasRibbons,
   type VscodeCanvasRibbon
 } from "./vscodeCanvasRibbonConfig";
-import { minimumCanvasPanForBounds } from "../geometry/canvasViewportReveal";
 import { getSelectedElementIds } from "../commands/commandRuntime";
 import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
 import { replaceCanvasSelection } from "../commands/selectionCommands";
@@ -639,14 +639,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
                 })
               : null
           );
-          if (bounds && Number.isFinite(rect.width) && Number.isFinite(rect.height)) {
-            const pan = minimumCanvasPanForBounds(bounds, useCadUiStore.getState().canvasViewport, {
-              width: rect.width,
-              height: rect.height
+          if (bounds) {
+            const uiState = useCadUiStore.getState();
+            const fittedViewport = fitCanvasViewportToBounds({
+              bounds,
+              size: { width: rect.width, height: rect.height },
+              currentZoom: uiState.canvasViewport.zoom,
+              paddingPx: CANVAS_FIT_PADDING_PX,
+              maxZoom: MAX_CANVAS_ZOOM
             });
-            if (pan && (pan.dx !== 0 || pan.dy !== 0)) {
-              useCadUiStore.getState().panCanvasViewport(pan.dx, pan.dy);
-            }
+            if (fittedViewport) uiState.setCanvasViewport(fittedViewport);
           }
         }
         api.postMessage({
