@@ -102,8 +102,28 @@ export type DslEnclosing = {
   branch: "then" | "else";
 };
 
+/** Source-only unresolved nominal type reference. Never enters ScalarType/runtime. */
+export type DslRecordTypeReference = {
+  kind: "record";
+  name: string;
+};
+
+export type DslDeclaredValueType = ScalarType | DslRecordTypeReference;
+
+export type DslRecordField = {
+  kind: "recordField";
+  name: string;
+  nameSpan: DslSpan;
+  type: ScalarType | null;
+  typeSpan: DslSpan | null;
+  choiceOptionSpans: readonly DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  typePhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslModuleParameterType =
-  | ScalarType
+  | DslDeclaredValueType
   | { kind: "point" }
   | { kind: "line" }
   | { kind: "path" };
@@ -229,6 +249,10 @@ export type DslStatement =
       parameters: readonly DslModuleParameter[];
     })
   | (DslStatementBase & {
+      kind: "recordDefinition";
+      fields: readonly DslRecordField[];
+    })
+  | (DslStatementBase & {
       kind: "modifierDefinition";
       state: DrawingModifierState | null;
       widthPx: number | null;
@@ -273,8 +297,8 @@ export type DslStatement =
       kind: "typedDeclaration";
       bindingKind: "const" | "let";
       /** `null` when the type annotation itself failed to parse. */
-      declaredType: ScalarType | null;
-      /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
+      declaredType: DslDeclaredValueType | null;
+      /** Per-option spans, index-aligned with scalar `choice` options. */
       choiceOptionSpans: readonly DslSpan[];
       /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
       numericTypeOptions?: DslNumericTypeOptions;
