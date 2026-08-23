@@ -41,7 +41,7 @@ describe("nui4 string(choice) builtin", () => {
     const definition = getBuiltinFunctionDefinition("string");
     expect(definition).not.toBeNull();
     expect(isBuiltinFunctionName("string")).toBe(true);
-    expect(formatBuiltinFunctionSignatures(definition!)).toBe("string(choice) -> string");
+    expect(formatBuiltinFunctionSignatures(definition!)).toBe("string(choice(...)) -> string");
     expect(definition?.signatures).toEqual([{
       callingStyle: "positional",
       parameters: [{ type: { kind: "anyChoice" } }],
