@@ -34,6 +34,11 @@ jobs:
               raise SystemExit('could not extract embedded SAY-33 patch script')
           lines = match.group('body').splitlines()
           body = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          needle = '''    if actual != count:\n        raise SystemExit(f"{path}: expected {count} occurrence(s), found {actual}: {old[:100]!r}")\n    p.write_text(text.replace(old, new, count))'''
+          replacement = '''    if actual != count:\n        if (\n            path == "src/editor/cmAutocomplete.ts"\n            and count == 1\n            and actual == 2\n            and old.startswith('    if (candidate.kind === "argumentName")')\n        ):\n            index = text.rfind(old)\n            p.write_text(text[:index] + new + text[index + len(old):])\n            return\n        raise SystemExit(f"{path}: expected {count} occurrence(s), found {actual}: {old[:100]!r}")\n    p.write_text(text.replace(old, new, count))'''
+          if needle not in body:
+              raise SystemExit('could not locate patch helper body')
+          body = body.replace(needle, replacement, 1)
           Path('/tmp/say33_completion_patch.py').write_text(body)
           PY
           python3 /tmp/say33_completion_patch.py
