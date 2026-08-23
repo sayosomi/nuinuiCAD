@@ -303,6 +303,7 @@ Primary:
 - `src/document/multiDocumentPrimitives.ts`
 - `src/document/multiDocumentImportGraph.ts`
 - `src/document/multiDocumentPublicApi.ts`
+- `src/document/multiDocumentLanguageQueries.ts`
 - `src/dsl/dslMultiDocumentSyntax.ts`
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
 
@@ -334,8 +335,26 @@ lexical resolver still owns alias visibility, source order, and collisions. For
 `alias::member`, only the member lookup is delegated through the optional external
 namespace resolver to the imported public catalog. Existing single-document
 callers do not receive external lookup variants and remain fail-closed for import
-members. This subsystem does not own concrete VS Code/Tauri watcher adapters or
-cross-file Definition/References/Rename.
+members.
+
+`multiDocumentLanguageQueries.ts` is the host-neutral document-qualified
+Definition / References / Rename layer over that graph and the existing semantic
+owners. It projects exact declaration/reference occurrences onto stable
+`DocumentId`-qualified identities, preserves re-exported members as occurrences
+of the original public identity, and never recovers cross-file semantics through
+workspace text search. An open dirty document may replace a saved target only when
+the supplied current semantic view re-proves the same identity and exact range;
+otherwise navigation fails closed.
+
+Public References and Rename consume a host-supplied complete reverse-importer
+query universe. The core prefers a single exact current snapshot over saved
+snapshots for an open document, rejects conflicting/stale source proof, and
+deduplicates repeated importer candidates. Rename additionally requires each
+document semantic owner to prove the complete non-overlapping edit set against
+exact expected source text; any rejected document rejects the whole plan. Import
+alias rename remains importer-local. Concrete VS Code/Tauri filesystem discovery,
+watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
+outside this subsystem.
 
 ### Lexical / name resolution
 
