@@ -144,7 +144,7 @@ const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScal
 };
 
 const isBuiltinGeometryParameterType = (
-  type: string | ScalarType
+  type: unknown
 ): type is Extract<ModuleGeometryInterfaceType, "point" | "line"> => type === "point" || type === "line";
 
 const resolveAndTypecheck = ({
