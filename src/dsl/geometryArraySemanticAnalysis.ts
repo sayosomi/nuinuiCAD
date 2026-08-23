@@ -1,6 +1,8 @@
+import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { SourceLexicalLookupWithExternal } from "./sourceLexicalNamespaceIndex";
 import { geometryArrayTypeOfModuleParameter, geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
 import { parseGeometryArrayExpression, type GeometryArrayExpression } from "./geometryArrayExpression";
@@ -9,8 +11,8 @@ import type { GeometryArrayType } from "./geometryArrayTypes";
 import { moduleGeometryInterfaceTypeOf, moduleGeometryInterfaceTypeOfElement, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 
 export type GeometryArraySourceTarget =
-  | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType }
-  | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType }
+  | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
+  | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
   | { kind: "coordinate"; source: string };
 
 export type GeometryArrayValueSemantic = {
@@ -139,16 +141,23 @@ const moduleParameterByName = (
   };
 };
 
-const referencePath = (text: string) => {
+const parsedSourceReference = (text: string) => {
   const parsed = parseDslSourceReference(text);
-  if (parsed.kind !== "valid" || parsed.reference.property) return null;
-  return parseDslReferenceToken(parsed.reference.pathText);
+  return parsed.kind === "valid" ? parsed.reference : null;
+};
+
+const referencePath = (text: string) => {
+  const reference = parsedSourceReference(text);
+  if (!reference || reference.property) return null;
+  return parseDslReferenceToken(reference.pathText);
 };
 
 const coordinateMember = (text: string) => {
-  const trimmed = text.trim();
-  return /^coordinate\s*\([\s\S]*\)$/.test(trimmed) ? trimmed : null;
+  const span = { start: 0, end: text.length };
+  return coordinateComponent(text, span, "x") && coordinateComponent(text, span, "y") ? text.trim() : null;
 };
+
+const isLineEndpointPointKey = (value: string) => value === "start" || value === "end";
 
 export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalysisInput): GeometryArraySemanticAnalysis => {
   const { statements, stableStatementIdByIndex } = input;
@@ -224,19 +233,34 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           if (type.elementType !== "point") {
             return {
               kind: "invalid",
-              diagnostic: { code: "geometry-array-member-type-mismatch", message: "coordinate(...) は point[] の member としてのみ使用できます。", span: member.span }
+              diagnostic: { code: "geometry-array-member-type-mismatch", message: "coordinate point は point[] の member としてのみ使用できます。", span: member.span }
             };
           }
           return { kind: "resolved", value: { interfaceType: "point", target: { kind: "coordinate", source: coordinate } } };
         }
 
-        const path = referencePath(member.text);
-        if (!path || path.segments.length === 0) {
+        const sourceReference = parsedSourceReference(member.text);
+        if (!sourceReference) {
           return {
             kind: "invalid",
-            diagnostic: { code: "geometry-array-invalid-member", message: "geometry array member は geometry reference または point の coordinate(...) で指定してください。", span: member.span }
+            diagnostic: { code: "geometry-array-invalid-member", message: "geometry array member は geometry reference または coordinate point で指定してください。", span: member.span }
           };
         }
+        const path = parseDslReferenceToken(sourceReference.pathText);
+        if (path.segments.length === 0) {
+          return {
+            kind: "invalid",
+            diagnostic: { code: "geometry-array-invalid-member", message: "geometry array member の参照が不正です。", span: member.span }
+          };
+        }
+        const pointKey = sourceReference.property;
+        if (pointKey && type.elementType !== "point") {
+          return {
+            kind: "invalid",
+            diagnostic: { code: "geometry-array-member-type-mismatch", message: "derived point reference は point[] の member としてのみ使用できます。", span: member.span }
+          };
+        }
+
         if (path.segments.length === 1 && !path.absolute) {
           const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
           if (moduleParameter) {
@@ -249,6 +273,27 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             }
             const interfaceType = moduleGeometryInterfaceTypeOf(moduleParameter.parameter.type);
             if (interfaceType) {
+              if (pointKey) {
+                if ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey)) {
+                  return {
+                    kind: "invalid",
+                    diagnostic: { code: "geometry-array-member-type-mismatch", message: `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`, span: member.span }
+                  };
+                }
+                return {
+                  kind: "resolved",
+                  value: {
+                    interfaceType: "point",
+                    target: {
+                      kind: "moduleParameter",
+                      definitionStatementId: moduleParameter.definitionStatementId,
+                      parameterIndex: moduleParameter.parameterIndex,
+                      interfaceType,
+                      pointKey
+                    }
+                  }
+                };
+              }
               return {
                 kind: "resolved",
                 value: {
@@ -274,22 +319,47 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
               : `未解決の geometry array member です: ${member.text}`;
           return { kind: "invalid", diagnostic: { code: `geometry-array-member-${lookup.kind}`, message, span: member.span } };
         }
-        const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
-        if (!interfaceType) {
+        const baseInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+        if (!baseInterfaceType) {
           return {
             kind: "invalid",
             diagnostic: { code: "geometry-array-member-not-geometry", message: `参照先「${member.text}」は geometry value ではありません。`, span: member.span }
           };
         }
+        if (pointKey) {
+          const targetStatement = lookup.declaration.statement;
+          if (
+            targetStatement.kind !== "element" ||
+            !isDerivedPointKeyForGeometryCategory(targetStatement.category, pointKey)
+          ) {
+            return {
+              kind: "invalid",
+              diagnostic: { code: "geometry-array-member-type-mismatch", message: `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`, span: member.span }
+            };
+          }
+          return {
+            kind: "resolved",
+            value: {
+              interfaceType: "point",
+              target: {
+                kind: "geometry",
+                statementId: lookup.declaration.statementId,
+                statementIndex: lookup.declaration.statementIndex,
+                interfaceType: baseInterfaceType,
+                pointKey
+              }
+            }
+          };
+        }
         return {
           kind: "resolved",
           value: {
-            interfaceType,
+            interfaceType: baseInterfaceType,
             target: {
               kind: "geometry",
               statementId: lookup.declaration.statementId,
               statementIndex: lookup.declaration.statementIndex,
-              interfaceType
+              interfaceType: baseInterfaceType
             }
           }
         };
