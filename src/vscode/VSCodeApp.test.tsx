@@ -266,7 +266,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 12,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     const canvas = screen.getByTestId("canvas");
@@ -585,7 +586,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 15,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
   });
 
@@ -898,7 +900,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 311,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
   });
 

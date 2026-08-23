@@ -98,6 +98,7 @@ const mocks = vi.hoisted(() => ({
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
+  showWarningMessage: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
@@ -195,6 +196,7 @@ vi.mock("vscode", () => {
       onDidChangeTextEditorSelection: mocks.onDidChangeTextEditorSelection,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
+      showWarningMessage: mocks.showWarningMessage,
       showTextDocument: mocks.showTextDocument,
       tabGroups: {
         get activeTabGroup() {
@@ -618,6 +620,7 @@ afterEach(() => {
   mocks.foldingRegistrations.length = 0;
   mocks.documentSymbolRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.showWarningMessage.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
@@ -1915,7 +1918,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
@@ -1930,7 +1934,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     panel.active = true;
@@ -1950,7 +1955,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     panel.active = true;
@@ -1969,7 +1975,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
@@ -1989,7 +1996,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
@@ -2011,7 +2019,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: firstRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
     const secondRequest = panel.webview.postMessage.mock.calls
@@ -2026,14 +2035,16 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: firstRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     expect(focusMessagesFor(panel)).toHaveLength(0);
 
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: secondRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     expect(focusMessagesFor(panel)).toEqual([{
       type: "focusCanvas",
@@ -2049,7 +2060,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     document.version = 2;
     emitDocumentChange(document);
@@ -2068,7 +2080,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
@@ -2192,7 +2205,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).not.toHaveBeenCalledWith(2, false);
