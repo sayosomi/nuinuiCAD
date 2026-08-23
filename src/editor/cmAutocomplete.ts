@@ -218,7 +218,7 @@ const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "n
  * boundary. Marker/colon/parenthesis insertion remains an editor concern. */
 const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], bareReferences = false): Completion[] =>
   candidates.map((candidate) => {
-    if (candidate.kind === "binding") {
+    if (candidate.kind === "binding" || candidate.kind === "geometry") {
       const label = bareReferences ? candidate.label : `@${candidate.label}`;
       return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
     }
@@ -226,7 +226,7 @@ const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], b
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
     if (candidate.kind === "literal") return { label: candidate.label, detail: candidate.detail, type: candidate.label === '""' ? "text" : "constant" };
-    return { label: candidate.label, type: candidate.kind === "geometry" ? "constant" : "property" };
+    return { label: candidate.label, type: "property" };
   });
 
 const asQueryCompletions = (
@@ -250,6 +250,10 @@ const asQueryCompletions = (
           ? { label: `@${candidate.label}`, apply: `@${candidate.label}`, type: "constant" }
           : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
     }
+    if (candidate.kind === "geometry") {
+      const label = bareReferences ? candidate.label : `@${candidate.label}`;
+      return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
+    }
     if (candidate.kind === "argumentName") return { label: candidate.label, apply: `${candidate.label}: `, type: "property" };
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "keyword") return { label: candidate.label, type: "keyword" };
@@ -271,7 +275,9 @@ const asQueryCompletions = (
     return { label: candidate.label, type: "enum" };
   });
 
-const declaredTypeCompletions = (): Completion[] => dslTypedDeclarationTypeNames.map((label) =>
+const declaredTypeCompletions = (allowGeometryArrays: boolean): Completion[] => dslTypedDeclarationTypeNames
+  .filter((label) => allowGeometryArrays || !label.endsWith("[]"))
+  .map((label) =>
   label === dslChoiceTypeName
     ? {
       label,
@@ -655,7 +661,8 @@ const typedReferenceToken = (input: DslAutocompleteDocumentInput, completionCont
     completionContext.kind === "typedInitializer" ||
     completionContext.kind === "conditionExpression" ||
     completionContext.kind === "propertyScalarValue" ||
-    completionContext.kind === "templateHole"
+    completionContext.kind === "templateHole" ||
+    completionContext.kind === "geometryArrayValue"
   )
     ? input.lineText.slice(completionContext.from, completionContext.to)
     : null;
@@ -923,7 +930,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = neutralQuery ? neutralCompletions : moduleParameterTypeCompletions();
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "declaredType") {
-    completions = neutralQuery ? neutralCompletions : declaredTypeCompletions();
+    completions = neutralQuery ? neutralCompletions : declaredTypeCompletions(completionContext.bindingKind === "const");
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "numericTypeOption") {
     completions = neutralQuery ? neutralCompletions : completionContext.options.map((label, index) => ({
@@ -952,6 +959,31 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       errors: options.evaluationErrors() ?? [],
       evaluationIsCurrent: options.evaluationIsCurrent?.() ?? true
     });
+  } else if (completionContext.kind === "geometryArrayValue") {
+    disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
+    if (neutralQuery && neutralCompletions.length > 0 &&
+      (!semanticInput.semantic || neutralSemanticIsCurrent || neutralHasSourceCandidates)) {
+      completions = neutralCompletions;
+      usesNeutralQuery = true;
+    } else {
+      const metadata = options.moduleSemanticMetadata?.();
+      const site = moduleSiteAt(options, context.pos, "moduleBody");
+      completions = metadata
+        ? asModuleCompletions(moduleCompletionCandidates({
+            compiled: metadata,
+            cursorPosition: context.pos,
+            kind: "reference",
+            sourceText: input.source,
+            logicalCursorPosition: input.localPos,
+            liveStatementText: input.lineText,
+            ...(site ? {
+              statementIndex: site.statementIndex,
+              scopeId: site.scopeId,
+              sourceOrderIndex: site.sourceOrderIndex
+            } : {})
+          }))
+        : [];
+    }
   } else if (completionContext.kind === "typedInitializer" || completionContext.kind === "conditionExpression") {
     disablesCompletionFiltering = referenceToken?.startsWith("@") ?? false;
     if (neutralQuery && neutralCompletions.length > 0 &&

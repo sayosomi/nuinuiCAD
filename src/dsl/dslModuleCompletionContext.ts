@@ -102,6 +102,29 @@ const qualifiedMemberContextAt = (source: string, from: number, pos: number, arg
   };
 };
 
+
+const currentInlineListMemberStart = (source: string, valueStart: number, pos: number) => {
+  let first = valueStart;
+  while (first < pos && /\s/.test(source[first] ?? "")) first += 1;
+  if (source[first] !== "[") return valueStart;
+  let start = first + 1;
+  let quote: string | null = null;
+  let depth = 0;
+  for (let index = first + 1; index < pos; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "(" || char === "[" || char === "{") depth += 1;
+    else if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+    else if (char === "," && depth === 0) start = index + 1;
+  }
+  while (start < pos && /\s/.test(source[start] ?? "")) start += 1;
+  return start;
+};
+
 /** Module calls use the ordinary module parser's spelling. This classifier is
  * only a cursor-shape adapter; semantic visibility && types stay in the
  * compiled ModuleSemanticAnalysis completion adapter. */
@@ -147,9 +170,10 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
   if (containing?.keySpan) {
     if (pos <= containing.keySpan.end) return { kind: "moduleArgumentLabel", from: containing.keySpan.start, to: pos, argumentIndex: scanned.indexOf(containing) };
     const valueFrom = containing.valueSpan.start === containing.valueSpan.end ? pos : containing.valueSpan.start;
-    const qualifiedMember = qualifiedMemberContextAt(code, valueFrom, pos, scanned.indexOf(containing));
+    const memberFrom = currentInlineListMemberStart(code, valueFrom, pos);
+    const qualifiedMember = qualifiedMemberContextAt(code, memberFrom, pos, scanned.indexOf(containing));
     if (qualifiedMember) return qualifiedMember;
-    return { kind: "moduleArgumentValue", from: valueFrom, to: pos, argumentIndex: scanned.indexOf(containing) };
+    return { kind: "moduleArgumentValue", from: memberFrom, to: pos, argumentIndex: scanned.indexOf(containing) };
   }
   const segmentStart = (() => {
     let start = contentStart;
@@ -175,7 +199,7 @@ export const dslModuleCompletionContextAt = (code: string, pos: number): DslComp
   while (valueStart < pos && /\s/.test(code[valueStart])) valueStart += 1;
   return {
     kind: "moduleArgumentValue",
-    from: valueStart,
+    from: currentInlineListMemberStart(code, valueStart, pos),
     to: pos,
     argumentIndex: Math.max(0, scanned.length - 1)
   };

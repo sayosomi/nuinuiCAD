@@ -695,10 +695,15 @@ const queryCandidates = (
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
-  if (context.kind === "declaredType") return dslTypedDeclarationTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
+  if (context.kind === "declaredType") {
+    const names = context.bindingKind === "const"
+      ? dslTypedDeclarationTypeNames
+      : dslTypedDeclarationTypeNames.filter((label) => !label.endsWith("[]"));
+    return names.map((label) => ({ kind: "type" as const, label, identity: label }));
+  }
   if (context.kind === "moduleParameterType") return dslModuleParameterTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
   if (context.kind === "numericTypeOption") return context.options.map((label) => ({ kind: "argumentName" as const, label, identity: label }));
-  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference") {
+  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference" || context.kind === "geometryArrayValue") {
     return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
   }
   if (context.kind === "elementParameter") {
