@@ -168,6 +168,56 @@ const documentationBeforeLine = (
 const statementIsCurrent = (statement: DslStatement | undefined, spans: DiagnosticSpanContext) =>
   Boolean(statement && statement.sourceRevision === spans.sourceMap.sourceRevision);
 
+/**
+ * Resolve already-associated authored docs directly from a current source
+ * declaration. Callers must establish Module identity first; this helper does
+ * no name lookup and therefore remains usable while a neighboring authoring
+ * statement is temporarily invalid.
+ */
+export const documentationForModuleDefinitionSource = (
+  statement: DslStatement | undefined,
+  spans: DiagnosticSpanContext
+): ModuleDocumentation | null => {
+  if (!statementIsCurrent(statement, spans) || statement?.kind !== "moduleDefinition") return null;
+  return documentationBeforeLine(spans, statement.line - 1, 0);
+};
+
+export const documentationForModuleParameterSource = (
+  statement: DslStatement | undefined,
+  parameterIndex: number,
+  spans: DiagnosticSpanContext
+): ModuleDocumentation | null => {
+  if (!statementIsCurrent(statement, spans) || statement?.kind !== "moduleDefinition") return null;
+  const sourceParameter = statement.parameters[parameterIndex];
+  if (!sourceParameter) return null;
+  const physical = sourceParameter.namePhysicalSpan ?? (
+    sourceParameter.nameSpan
+      ? exactPhysicalSpan(spans, statement, sourceParameter.nameSpan)
+      : null
+  );
+  const offset = firstPhysicalOffset(physical);
+  if (offset === null) return null;
+  return documentationBeforeLine(
+    spans,
+    lineIndexAtOffset(sourceLineStarts(spans.sourceMap.source), offset),
+    Math.max(0, statement.line - 1)
+  );
+};
+
+export const documentationForModuleExportSource = (
+  definitionStatement: DslStatement | undefined,
+  exportedStatement: DslStatement | undefined,
+  spans: DiagnosticSpanContext
+): ModuleDocumentation | null => {
+  if (!statementIsCurrent(definitionStatement, spans) || definitionStatement?.kind !== "moduleDefinition") return null;
+  if (!statementIsCurrent(exportedStatement, spans)) return null;
+  return documentationBeforeLine(
+    spans,
+    exportedStatement!.line - 1,
+    Math.max(0, definitionStatement.line - 1)
+  );
+};
+
 const setNested = <K1, K2, V>(
   outer: Map<K1, Map<K2, V>>,
   first: K1,
@@ -191,35 +241,19 @@ export const buildModuleDocumentationIndex = ({
   const definitions = new Map<StatementIdentity, ModuleDocumentation>();
   const parameters = new Map<StatementIdentity, Map<number, ModuleDocumentation>>();
   const exports = new Map<StatementIdentity, Map<StatementIdentity, ModuleDocumentation>>();
-  const lineStarts = sourceLineStarts(spans.sourceMap.source);
 
   for (const definition of semanticAnalysis.definitions) {
     const statement = statements[definition.statementIndex];
     if (!statementIsCurrent(statement, spans) || statement?.kind !== "moduleDefinition") continue;
-    const moduleMinimumLine = Math.max(0, statement.line - 1);
 
-    const definitionDocumentation = documentationBeforeLine(
-      spans,
-      statement.line - 1,
-      0
-    );
+    const definitionDocumentation = documentationForModuleDefinitionSource(statement, spans);
     if (definitionDocumentation) definitions.set(definition.statementId, definitionDocumentation);
 
     for (const parameter of definition.parameters) {
-      const sourceParameter = statement.parameters[parameter.parameterIndex];
-      if (!sourceParameter) continue;
-      const physical = sourceParameter.namePhysicalSpan ?? (
-        sourceParameter.nameSpan
-          ? exactPhysicalSpan(spans, statement, sourceParameter.nameSpan)
-          : null
-      );
-      const offset = firstPhysicalOffset(physical);
-      if (offset === null) continue;
-      const targetLineIndex = lineIndexAtOffset(lineStarts, offset);
-      const parameterDocumentation = documentationBeforeLine(
-        spans,
-        targetLineIndex,
-        moduleMinimumLine
+      const parameterDocumentation = documentationForModuleParameterSource(
+        statement,
+        parameter.parameterIndex,
+        spans
       );
       if (parameterDocumentation) {
         setNested(parameters, definition.statementId, parameter.parameterIndex, parameterDocumentation);
@@ -227,12 +261,10 @@ export const buildModuleDocumentationIndex = ({
     }
 
     for (const exported of definition.exports) {
-      const exportedStatement = statements[exported.exportedStatementIndex];
-      if (!statementIsCurrent(exportedStatement, spans)) continue;
-      const exportDocumentation = documentationBeforeLine(
-        spans,
-        exportedStatement!.line - 1,
-        moduleMinimumLine
+      const exportDocumentation = documentationForModuleExportSource(
+        statement,
+        statements[exported.exportedStatementIndex],
+        spans
       );
       if (exportDocumentation) {
         setNested(exports, definition.statementId, exported.exportedStatementId, exportDocumentation);
