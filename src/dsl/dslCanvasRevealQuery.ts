@@ -256,7 +256,19 @@ export const queryDslCanvasRevealSourceTarget = ({
       );
     const semantic = matches[0];
     if (semantic) {
-      const { range: _range, ...target } = semantic;
+      const target: DslCanvasRevealSemanticTarget = semantic.kind === "geometry-reference"
+        ? {
+            kind: semantic.kind,
+            sourceStatementIndex: semantic.sourceStatementIndex,
+            reference: semantic.reference,
+            referenceText: semantic.referenceText
+          }
+        : {
+            kind: semantic.kind,
+            sourceStatementIndex: semantic.sourceStatementIndex,
+            reference: semantic.reference,
+            referenceText: semantic.referenceText
+          };
       return {
         status: "resolved",
         target: { kind: "semantic", semantic: target, ownerSourceStatementIndex }
