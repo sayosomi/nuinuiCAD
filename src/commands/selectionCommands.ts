@@ -171,18 +171,21 @@ export const finalizeCanvasSelectionSession = (previousSelection: SelectionSnaps
   useCadDocumentStore.getState().recordCanvasSelection(previousSelection);
 };
 
-/** Replace Canvas selection in document order through the shared history owner. */
+/** Replace Canvas selection through the shared history owner. Document order remains the default. */
 export const replaceCanvasSelection = (
   elementIds: readonly ElementId[],
   primaryElementId?: ElementId,
-  recordHistory = false
+  recordHistory = false,
+  ordering: "document" | "requested" = "document"
 ) => {
   const elements = useCadDocumentStore.getState().elements;
   const selectableIds = selectionEligibleElementIds(elements);
   const requested = new Set(elementIds);
-  const orderedIds = elements
-    .filter((element) => requested.has(element.id) && selectableIds.has(element.id))
-    .map((element) => element.id);
+  const orderedIds = ordering === "requested"
+    ? Array.from(requested).filter((id) => selectableIds.has(id))
+    : elements
+        .filter((element) => requested.has(element.id) && selectableIds.has(element.id))
+        .map((element) => element.id);
   if (orderedIds.length === 0) return false;
   const primaryId = primaryElementId && orderedIds.includes(primaryElementId)
     ? primaryElementId
