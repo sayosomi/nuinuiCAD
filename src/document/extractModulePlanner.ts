@@ -135,6 +135,12 @@ type DirectGeometryArrayStatement = {
 
 type DirectValueStatement = DirectScalarStatement | DirectGeometryStatement | DirectGeometryArrayStatement;
 
+type MovedStatement = {
+  statementId: StatementIdentity;
+  statementIndex: number;
+  statement: DslStatement;
+};
+
 const reject = (
   code: ExtractModuleRejectCode,
   message: string,
@@ -388,16 +394,23 @@ const geometryDependencyDescriptor = (
   };
 };
 
-const directGeometryArrayStatementForIdentity = (
+const geometryArrayStatementForIdentity = (
   compiled: CompiledDslDocument,
-  identity: DslSemanticIdentity
+  identity: DslSemanticIdentity,
+  requireRoot: boolean
 ): DirectGeometryArrayStatement | null => {
   if (identity.kind !== "module" || identity.target.kind !== "moduleSource") return null;
   const statementId = identity.target.statementId;
   const statementIndex = statementIndexForId(compiled, statementId);
   if (statementIndex === undefined) return null;
   const statement = compiled.statements[statementIndex];
-  if (statement?.kind !== "typedDeclaration" || statement.enclosing !== null || !statement.name) return null;
+  if (
+    statement?.kind !== "typedDeclaration" ||
+    (requireRoot && statement.enclosing !== null) ||
+    !statement.name
+  ) {
+    return null;
+  }
   const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
   const semantic = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.get(statementId);
   if (
@@ -411,6 +424,12 @@ const directGeometryArrayStatementForIdentity = (
   }
   return { statementId, statementIndex, statement, arrayType };
 };
+
+const directGeometryArrayStatementForIdentity = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity
+): DirectGeometryArrayStatement | null =>
+  geometryArrayStatementForIdentity(compiled, identity, true);
 
 const geometryArrayDependencyDescriptor = (
   compiled: CompiledDslDocument,
@@ -478,7 +497,7 @@ const directSelectedGeometryArrayStatement = (
   identity: DslSemanticIdentity,
   selectedIndexes: ReadonlySet<number>
 ): DirectGeometryArrayStatement | null => {
-  const direct = directGeometryArrayStatementForIdentity(compiled, identity);
+  const direct = geometryArrayStatementForIdentity(compiled, identity, false);
   return direct && selectedIndexes.has(direct.statementIndex) ? direct : null;
 };
 
@@ -582,31 +601,19 @@ const cleanCompile = (compiled: CompiledDslDocument): boolean =>
   !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
   !(compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
-const checkpointStatementRejection = (
+const valueStatementRejection = (
   statement: DslStatement,
   statementId: StatementIdentity,
-  statementIndex: number
+  statementIndex: number,
+  context: "selected" | "group-descendant"
 ): ExtractModuleRejection | null => {
-  if (statement.kind === "import" || statement.kind === "fileReExport") {
-    return reject(
-      "unsupported-statement",
-      `「${statement.kind}」statement は local-source Extract Module v1 の対象外です。`,
-      { statementId, statementIndex }
-    );
-  }
-  if (statement.enclosing !== null) {
-    return reject(
-      "unsupported-statement",
-      "Checkpoint 3 は root lexical scope の direct scalar / single-geometry / geometry-array statement だけを安全に Extract します。",
-      { statementId, statementIndex }
-    );
-  }
+  const where = context === "selected" ? "選択statement" : "group descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
     if (!arrayType && (!statement.declaredType || statement.recordTypeReference)) {
       return reject(
         "unsupported-statement",
-        `declaration「${statement.name}」は Checkpoint 3 の scalar / geometry-array scope 外です。`,
+        `${where} declaration「${statement.name}」は Checkpoint 4 の scalar / geometry-array scope 外です。`,
         { statementId, statementIndex }
       );
     }
@@ -623,7 +630,7 @@ const checkpointStatementRejection = (
     if (!moduleGeometryInterfaceTypeOfElement(statement)) {
       return reject(
         "unsupported-statement",
-        `geometry declaration「${statement.name}」は Checkpoint 3 の point / line / path interface で表現できません。`,
+        `${where} geometry declaration「${statement.name}」は Checkpoint 4 の point / line / path interface で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -637,12 +644,43 @@ const checkpointStatementRejection = (
     return null;
   }
   if (statement.kind === "set") return null;
-
   return reject(
     "unsupported-statement",
-    `「${statement.kind}」statement は direct scalar / single-geometry / geometry-array Checkpoint 3 の対象外です。`,
+    `「${statement.kind}」statement は Checkpoint 4 の scalar / single-geometry / geometry-array value scope 外です。`,
     { statementId, statementIndex }
   );
+};
+
+const checkpointStatementRejection = (
+  statement: DslStatement,
+  statementId: StatementIdentity,
+  statementIndex: number
+): ExtractModuleRejection | null => {
+  if (statement.kind === "import" || statement.kind === "fileReExport") {
+    return reject(
+      "unsupported-statement",
+      `「${statement.kind}」statement は local-source Extract Module v1 の対象外です。`,
+      { statementId, statementIndex }
+    );
+  }
+  if (statement.enclosing !== null) {
+    return reject(
+      "unsupported-statement",
+      "Checkpoint 4 は root lexical scope の direct value statement または complete plain group だけを安全に Extract します。",
+      { statementId, statementIndex }
+    );
+  }
+  if (statement.kind === "group") return null;
+  return valueStatementRejection(statement, statementId, statementIndex, "selected");
+};
+
+const checkpointGroupDescendantRejection = (
+  statement: DslStatement,
+  statementId: StatementIdentity,
+  statementIndex: number
+): ExtractModuleRejection | null => {
+  if (statement.kind === "group") return null;
+  return valueStatementRejection(statement, statementId, statementIndex, "group-descendant");
 };
 
 const lexicalTieBreak = (left: string, right: string): number =>
@@ -689,11 +727,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
   }
 
-  const ordered = (selected as {
-    statementId: StatementIdentity;
-    statementIndex: number;
-    statement: DslStatement;
-  }[]).sort((left, right) => left.statementIndex - right.statementIndex);
+  const ordered = (selected as MovedStatement[]).sort((left, right) => left.statementIndex - right.statementIndex);
   const first = ordered[0]!;
   const firstScope = namespace.scopeIndex.scopeOfStatement.get(first.statementIndex);
   if (!firstScope) {
@@ -777,6 +811,29 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("invalid-target", "選択statementの物理 source range を確定できません。");
   }
 
+  const hasGroupTarget = ordered.some((entry) => entry.statement.kind === "group");
+  const movedEntries: MovedStatement[] = [];
+  for (let statementIndex = 0; statementIndex < compiled.statements.length; statementIndex += 1) {
+    const statement = compiled.statements[statementIndex]!;
+    if (isStructuralStatement(statement) || !statementInsideOffsets(statement, selectedFrom, selectedTo)) continue;
+    const statementId = statementMap.statementIdByStatementIndex?.get(statementIndex);
+    if (!statementId) {
+      return reject(
+        "non-authored-target",
+        "Extract 範囲内の authored statement identity を exact-current StatementMap から取得できません。",
+        { statementIndex }
+      );
+    }
+    movedEntries.push({ statementId, statementIndex, statement });
+  }
+  const movedIndexSet = new Set(movedEntries.map((entry) => entry.statementIndex));
+  if (hasGroupTarget) {
+    for (const entry of movedEntries) {
+      const rejection = checkpointGroupDescendantRejection(entry.statement, entry.statementId, entry.statementIndex);
+      if (rejection) return rejection;
+    }
+  }
+
   const mutationRejection = validateMutationBoundaries(compiled, selectedFrom, selectedTo);
   if (mutationRejection) return mutationRejection;
 
@@ -801,10 +858,10 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
     const declaration = declarationRanges[0]!;
     if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
-      if (!directSelectedValueStatement(compiled, occurrence.identity, selectedIndexSet)) {
+      if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
         return reject(
           "unrepresentable-dependency",
-          "選択範囲内の reference が Checkpoint 3 の direct scalar / single-geometry / geometry-array owner として証明できません。"
+          "選択範囲内の reference が Checkpoint 4 の moved scalar / single-geometry / geometry-array owner として証明できません。"
         );
       }
       continue;
@@ -814,7 +871,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (!descriptor) {
       return reject(
         "unrepresentable-dependency",
-        "Checkpoint 3 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
+        "Checkpoint 4 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
       );
     }
 
@@ -859,7 +916,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
 
   const selectedDeclarationNames = new Set(
     ordered
-      .filter((entry) => entry.statement.kind === "typedDeclaration" || entry.statement.kind === "element")
+      .filter((entry) =>
+        entry.statement.kind === "typedDeclaration" ||
+        entry.statement.kind === "element" ||
+        entry.statement.kind === "group"
+      )
       .map((entry) => entry.statement.name)
   );
   for (const dependency of dependencies) {
@@ -900,11 +961,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
     if (outsideReferences.length === 0) continue;
 
+    // Keep export eligibility tied to the explicitly selected direct siblings.
+    // A declaration nested under a moved group may move internally, but exposing it
+    // through the generated Module would change its existing group namespace.
     const direct = directSelectedValueStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
     if (!direct) {
       return reject(
         "unrepresentable-export",
-        "Checkpoint 3 では direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
+        "Checkpoint 4 では明示選択された direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
       );
     }
 
@@ -914,14 +978,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       if ((!arrayType && (!statement.declaredType || statement.recordTypeReference)) || !statement.name) {
         return reject(
           "unrepresentable-export",
-          `statement「${statement.name || statement.kind}」は Checkpoint 3 の direct scalar / geometry-array export で表現できません。`,
+          `statement「${statement.name || statement.kind}」は Checkpoint 4 の direct scalar / geometry-array export で表現できません。`,
           { statementId, statementIndex }
         );
       }
     } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
         "unrepresentable-export",
-        `geometry statement「${statement.name || statement.kind}」は Checkpoint 3 の direct geometry export で表現できません。`,
+        `geometry statement「${statement.name || statement.kind}」は Checkpoint 4 の direct geometry export で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -1022,8 +1086,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
   }
 
-  const movedIds = new Set<StatementIdentity>(ordered.map((entry) => entry.statementId));
-  for (const entry of ordered) {
+  const movedIds = new Set<StatementIdentity>(movedEntries.map((entry) => entry.statementId));
+  for (const entry of movedEntries) {
     const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
     const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
     if (
@@ -1051,15 +1115,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("unsafe-rewrite", "生成した Module / instance を target lexical scope で再解決できません。");
   }
 
-  // Checkpoint 3 remains intentionally direct/root-only. For scalar + single-geometry +
-  // immutable geometry-array statements, moved-reference safety is established before
-  // apply: every internal reference resolves to a selected direct value declaration;
-  // every outside dependency is compiler/source-semantically resolved and rewritten to
-  // one explicit scalar/point/line/path/geometry-array parameter; parameter names are
-  // checked against moved declarations; then the candidate must compile cleanly.
-  // Groups/blocks, records, and nested/advanced binders stay fail-closed. Root document
-  // identities and Module-owned identities use different canonical forms, so only
-  // outside/unmoved statement owner sequences are compared here.
+  // Checkpoint 4 extends the direct/root value proof with one structural owner:
+  // a complete plain group may move as authored text. Every non-structural descendant
+  // must still be a C1-C3 value/set/plain-group form. Internal references are proven
+  // against the complete moved subtree; dependencies remain explicit Module parameters;
+  // nested descendants are never promoted to exports, and unsupported binders/records/
+  // Module constructs remain fail closed. Candidate compilation and outside-resolution
+  // comparison remain the final semantic guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
