@@ -287,7 +287,7 @@ describe("Canvas identity labels", () => {
 
 
 describe("Module instance selection frame", () => {
-  it("renders a background halo plus selection stroke/name without pointer targets", () => {
+  it("renders the frame and name with the Canvas selection semantic and no pointer target", () => {
     const { container } = render(
       <CanvasOverlay
         viewportSize={{ width: 500, height: 400 }}
@@ -325,22 +325,12 @@ describe("Module instance selection frame", () => {
     );
 
     const frame = container.querySelector("[data-module-instance-selection-frame='instance']");
-    const halo = container.querySelector("[data-module-instance-selection-frame-halo='instance']");
-    const stroke = container.querySelector("[data-module-instance-selection-frame-stroke='instance']");
+    const rect = frame?.querySelector("rect");
     const label = container.querySelector("[data-module-instance-selection-label='instance']");
     expect(frame).toHaveStyle({ pointerEvents: "none" });
-    expect(halo).toHaveAttribute("stroke", "var(--canvas-background)");
-    expect(halo).toHaveAttribute("stroke-width", "5");
-    expect(halo).toHaveStyle({ pointerEvents: "none" });
-    expect(stroke).toHaveAttribute("stroke", "var(--canvas-selection)");
-    expect(stroke).toHaveAttribute("stroke-width", "2");
-    expect(stroke).toHaveAttribute("stroke-dasharray", "6 4");
-    expect(stroke).toHaveStyle({ pointerEvents: "none" });
+    expect(rect).toHaveAttribute("stroke", "var(--canvas-selection)");
+    expect(rect).toHaveStyle({ pointerEvents: "none" });
     expect(label).toHaveTextContent("InstanceOne");
     expect(label).toHaveAttribute("fill", "var(--canvas-selection)");
-    expect(label).toHaveAttribute("stroke", "var(--canvas-background)");
-    expect(label).toHaveAttribute("stroke-width", "3");
-    expect(label).toHaveAttribute("paint-order", "stroke");
-    expect(label).toHaveStyle({ pointerEvents: "none" });
   });
 });
