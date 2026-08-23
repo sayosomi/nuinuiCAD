@@ -100,6 +100,6 @@ describe("DSL completion Module documentation metadata", () => {
       position: live.length,
       semantic: snapshot
     });
-    expect(result?.candidates.some((entry) => entry.documentation)).toBe(false);
+    expect(result?.candidates.some((entry) => entry.documentation) ?? false).toBe(false);
   });
 });
