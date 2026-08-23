@@ -40,27 +40,25 @@ const currentArrayMemberStart = (source: string, contentStart: number, pos: numb
 };
 
 /**
- * Tolerant source-only completion context for immutable geometry-array
- * declaration initializers. The scalar completion classifier intentionally
- * remains scalar-only; this adapter owns only `const name: point[]/line[]/path[]`
- * initializer positions and never widens ScalarType.
+ * Source-shape adapter shared by declaration and Module-argument completion.
+ * It determines whether the cursor is completing one member of an inline
+ * literal or a whole named array reference. Type/visibility resolution stays
+ * in the source/Module semantic owners.
  */
-export const geometryArrayDeclarationCompletionContextAt = (
+export const geometryArrayValueCompletionContextAt = (
   source: string,
-  pos: number
+  pos: number,
+  valueSpan: DslSpan,
+  expectedType: GeometryArrayType
 ): GeometryArrayCompletionContext | null => {
-  const { statement } = parseDslTypedDeclarationStatement(source);
-  if (!statement?.geometryArrayType || statement.bindingKind !== "const") return null;
-  const initializerSpan = initializerSpanIncludingEmpty(source, statement.payloadSpans.initializer);
-  if (!initializerSpan || pos < initializerSpan.start || pos > initializerSpan.end) return null;
-
-  const valueStart = firstNonWhitespace(source, initializerSpan.start, source.length);
+  if (pos < valueSpan.start || pos > valueSpan.end) return null;
+  const valueStart = firstNonWhitespace(source, valueSpan.start, valueSpan.end);
   if (source[valueStart] === "[") {
     const contentStart = valueStart + 1;
-    let close = source.length;
+    let close = valueSpan.end;
     let quote: string | null = null;
     let depth = 1;
-    for (let index = contentStart; index < source.length; index += 1) {
+    for (let index = contentStart; index < valueSpan.end; index += 1) {
       const char = source[index];
       if (quote) {
         if (char === quote && source[index - 1] !== "\\") quote = null;
@@ -75,18 +73,34 @@ export const geometryArrayDeclarationCompletionContextAt = (
     }
     if (pos >= contentStart && pos <= close) {
       return {
-        expectedType: statement.geometryArrayType,
+        expectedType,
         mode: "member",
         from: currentArrayMemberStart(source, contentStart, pos),
         to: pos
       };
     }
   }
-
   return {
-    expectedType: statement.geometryArrayType,
+    expectedType,
     mode: "arrayReference",
     from: Math.min(valueStart, pos),
     to: pos
   };
+};
+
+/**
+ * Tolerant source-only completion context for immutable geometry-array
+ * declaration initializers. The scalar completion classifier intentionally
+ * remains scalar-only; this adapter owns only `const name: point[]/line[]/path[]`
+ * initializer positions and never widens ScalarType.
+ */
+export const geometryArrayDeclarationCompletionContextAt = (
+  source: string,
+  pos: number
+): GeometryArrayCompletionContext | null => {
+  const { statement } = parseDslTypedDeclarationStatement(source);
+  if (!statement?.geometryArrayType || statement.bindingKind !== "const") return null;
+  const initializerSpan = initializerSpanIncludingEmpty(source, statement.payloadSpans.initializer);
+  if (!initializerSpan) return null;
+  return geometryArrayValueCompletionContextAt(source, pos, initializerSpan, statement.geometryArrayType);
 };
