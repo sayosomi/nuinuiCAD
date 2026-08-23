@@ -225,17 +225,18 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(contrastFor(lowContrast.selection, background)).toBeGreaterThanOrEqual(4.5);
     expect(fallback.selection).not.toBe("#444444");
     expect(hslFor(fallback.selection, background).saturation).toBeGreaterThanOrEqual(0.65);
-    expect(contrastFor(fallback.selection, background)).toBeGreaterThanOrEqual(3);
+    expect(contrastFor(fallback.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each([
-    ["dark", "#d4d4d4", "#1e1e1e", "#007fd4"],
-    ["light", "#333333", "#ffffff", "#0090f1"]
+    ["dark", "#d4d4d4", "#1e1e1e", "#007fd4", 3],
+    ["light", "#333333", "#ffffff", "#0066cc", 4.5]
   ])("uses the theme accent when %s selection is already chromatically distinct", (
     _label,
     foreground,
     background,
-    accent
+    accent,
+    minimumContrast
   ) => {
     const theme = resolveVSCodeCanvasTheme(stylesFor({
       "--vscode-editor-foreground": foreground,
@@ -246,7 +247,25 @@ describe("resolveVSCodeCanvasTheme", () => {
 
     expect(theme.selection).toBe(theme.accent);
     expect(hslFor(theme.selection, background).saturation).toBeGreaterThanOrEqual(0.65);
-    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(minimumContrast);
+  });
+
+  it("darkens a saturated light-theme selection that only clears 3:1 contrast", () => {
+    const foreground = "#657b83";
+    const background = "#fdf6e3";
+    const accent = "#07958a";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": accent,
+      "--vscode-editor-selectionHighlightBorder": accent
+    }));
+
+    expect(contrastFor(accent, background)).toBeGreaterThan(3);
+    expect(contrastFor(accent, background)).toBeLessThan(4.5);
+    expect(theme.selection).not.toBe(accent);
+    expect(hslFor(theme.selection, background).saturation).toBeGreaterThanOrEqual(0.65);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each([
@@ -268,7 +287,9 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(theme.selection).not.toBe(theme.accent);
     expect(hslFor(theme.selection, background).saturation).toBeGreaterThanOrEqual(0.8);
     expect(hueDistanceFor(theme.selection, theme.foreground, background)).toBeGreaterThanOrEqual(170);
-    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(
+      _label === "light" ? 4.5 : 3
+    );
   });
 
   it("derives a distinct selection when both theme selection tokens match geometry", () => {
@@ -284,7 +305,7 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(theme.selection).not.toBe(theme.foreground);
     expect(contrastBetweenFor(theme.selection, theme.foreground, background))
       .toBeGreaterThanOrEqual(2);
-    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("measures alpha colors after compositing over the Canvas background", () => {

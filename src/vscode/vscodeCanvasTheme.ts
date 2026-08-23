@@ -268,11 +268,17 @@ const softenContrast = (
   return formatAdjustedColor(mixRgb(seed, background, Math.min(high + 1e-7, 1)));
 };
 
-const SELECTION_MIN_BACKGROUND_CONTRAST = 3;
+const SELECTION_DARK_BACKGROUND_CONTRAST = 3;
+const SELECTION_LIGHT_BACKGROUND_CONTRAST = 4.5;
 const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
 const SELECTION_MIN_SATURATION = 0.65;
 const SELECTION_MIN_HUE_DISTANCE = 90;
 const FOREGROUND_CHROMATIC_SATURATION = 0.18;
+
+const selectionMinimumBackgroundContrast = (background: RgbaColor): number =>
+  relativeLuminance(background) < 0.35
+    ? SELECTION_DARK_BACKGROUND_CONTRAST
+    : SELECTION_LIGHT_BACKGROUND_CONTRAST;
 
 const selectionColorIsDistinct = (
   candidateValue: string,
@@ -287,7 +293,7 @@ const selectionColorIsDistinct = (
   const visibleCandidate = compositeCssColorOver(candidate, background);
   const visibleForeground = compositeCssColorOver(foreground, background);
   if (
-    contrastRatio(visibleCandidate, background) < SELECTION_MIN_BACKGROUND_CONTRAST
+    contrastRatio(visibleCandidate, background) < selectionMinimumBackgroundContrast(background)
   ) {
     return false;
   }
@@ -331,13 +337,14 @@ const deriveDistinctSelectionColor = (
   const saturation = Math.max(0.82, accentHsl.saturation);
   const backgroundIsDark = relativeLuminance(background) < 0.35;
   const initialLightness = backgroundIsDark ? 0.68 : 0.32;
+  const minimumContrast = selectionMinimumBackgroundContrast(background);
 
   for (let step = 0; step <= 24; step += 1) {
     const lightness = backgroundIsDark
       ? Math.min(0.92, initialLightness + step * 0.01)
       : Math.max(0.08, initialLightness - step * 0.01);
     const candidate = hslToRgb({ hue, saturation, lightness });
-    if (contrastRatio(candidate, background) >= SELECTION_MIN_BACKGROUND_CONTRAST) {
+    if (contrastRatio(candidate, background) >= minimumContrast) {
       return formatAdjustedColor(candidate);
     }
   }
