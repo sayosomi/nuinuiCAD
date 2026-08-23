@@ -156,18 +156,71 @@ const withoutCoreRecordUnknownDiagnostics = (
   item.message.includes("record")
 ));
 
+const unknownRecordTypeDiagnostics = (
+  base: ParseDslResult,
+  records: readonly RecordEntry[]
+): DslDiagnostic[] => {
+  // A bare identifier is valid record-type syntax. Preserve the existing
+  // unknown-type diagnostic/Quick Fix only when the source contains no
+  // declaration with that name at all; source-order, kind, ambiguity, and
+  // nominal resolution remain semantic responsibilities.
+  const declarationNames = new Set<string>();
+  for (const statement of base.statements) {
+    if (statement.name) declarationNames.add(statement.name);
+  }
+  for (const record of records) {
+    if (record.statement.name) declarationNames.add(record.statement.name);
+  }
+
+  const diagnostics: DslDiagnostic[] = [];
+  const add = (statement: DslStatement, span: DslSpan, name: string, moduleParameter: boolean) => {
+    if (declarationNames.has(name)) return;
+    const logical = base.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    const physicalSpan = logical ? physicalSpanForLogicalRange(base.sourceMap, logical, span) : null;
+    diagnostics.push({
+      severity: "error",
+      line: statement.line,
+      column: span.start + 1,
+      code: "unknown-type",
+      message: moduleParameter
+        ? `不明な型注釈です: ${name}。module parameter の型は number/string/boolean/choice(...)/point/line/path または record 型を指定してください。`
+        : `不明な型注釈です: ${name}`,
+      sourceRevision: base.sourceRevision,
+      exactSpanOnly: true,
+      ...(physicalSpan ? { physicalSpan } : {})
+    });
+  };
+
+  for (const statement of base.statements) {
+    if (statement.kind === "typedDeclaration" && statement.recordTypeReference) {
+      const span = statement.payloadSpans.type;
+      if (span) add(statement, span, statement.recordTypeReference.name, false);
+      continue;
+    }
+    if (statement.kind !== "moduleDefinition") continue;
+    for (const parameter of statement.parameters) {
+      if (parameter.recordTypeReference && parameter.typeSpan) {
+        add(statement, parameter.typeSpan, parameter.recordTypeReference.name, true);
+      }
+    }
+  }
+
+  return diagnostics;
+};
+
 export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const base = core.parseDslSnapshot(snapshot);
   attachRecordTypeReferences(base);
   const records = parseRecordEntries(base);
-  if (records.length === 0) return base;
   const recordLines = new Set(records.map((entry) => entry.logical.range.startLine));
+  const unknownTypes = unknownRecordTypeDiagnostics(base, records);
   return {
     ...base,
-    statements: mergeRecordStatements(base, records),
+    statements: records.length > 0 ? mergeRecordStatements(base, records) : base.statements,
     diagnostics: [
       ...withoutCoreRecordUnknownDiagnostics(base.diagnostics, recordLines),
-      ...records.flatMap((entry) => entry.diagnostics)
+      ...records.flatMap((entry) => entry.diagnostics),
+      ...unknownTypes
     ]
   };
 };
