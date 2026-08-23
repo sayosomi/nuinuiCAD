@@ -1649,7 +1649,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sourceRevision: sessionForDocument.getSourceRevision()
     };
     const semantic = sessionForDocument.definitionSemanticSnapshot(source);
-    if (!semantic?.compiled) {
+    if (!semantic?.compiled?.statementMap) {
       presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
       return;
     }

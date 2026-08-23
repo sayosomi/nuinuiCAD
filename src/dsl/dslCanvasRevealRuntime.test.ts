@@ -283,6 +283,18 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
         }]
       }),
       elements,
+      ...revealability(["Owner"])
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["Owner"],
+      primaryRuntimeElementId: "Owner",
+      degradations: [{ kind: "owner-fallback", cause: "ambiguous", referenceText: "@dup" }]
+    });
+
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: null, resolution: "undefined", referenceText: "@missing" }),
+      compiled: compiled({ direct: [[2, "Owner"]] }),
+      elements,
       ...revealability(["Owner"], { enabled: [] })
     })).toEqual({ status: "failed", reason: "no-revealable-runtime-target" });
   });

@@ -1876,6 +1876,21 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
   });
 
+  it("reports source analysis unavailable for a fatal exact-current source without opening Canvas", () => {
+    const source = "nui 4\npoint Broken = coordinate(";
+    const document = documentFor("/tmp/reveal-fatal.nui", "file:///tmp/reveal-fatal.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: 8 };
+    setup(false, editor, [document]);
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "Reveal in Canvas is unavailable because source analysis is not ready."
+    );
+  });
+
   it("waits for authoritative Webview hydration and latest request wins", async () => {
     const source = [
       "nui 4",
