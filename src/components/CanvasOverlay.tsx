@@ -178,22 +178,9 @@ export const CanvasOverlay = ({
           y={frame.top}
           width={frame.width}
           height={frame.height}
-          data-module-instance-selection-frame-halo={frame.instanceId}
-          fill="none"
-          stroke="var(--canvas-background)"
-          strokeWidth={5}
-          vectorEffect="non-scaling-stroke"
-          style={{ pointerEvents: "none" }}
-        />
-        <rect
-          x={frame.left}
-          y={frame.top}
-          width={frame.width}
-          height={frame.height}
-          data-module-instance-selection-frame-stroke={frame.instanceId}
           fill="none"
           stroke="var(--canvas-selection)"
-          strokeWidth={2}
+          strokeWidth={1.5}
           strokeDasharray="6 4"
           vectorEffect="non-scaling-stroke"
           style={{ pointerEvents: "none" }}
@@ -203,10 +190,6 @@ export const CanvasOverlay = ({
           y={Math.max(12, frame.top - 4)}
           data-module-instance-selection-label={frame.instanceId}
           fill="var(--canvas-selection)"
-          stroke="var(--canvas-background)"
-          strokeWidth={3}
-          strokeLinejoin="round"
-          paintOrder="stroke"
           style={{ fontSize: 12, fontWeight: 700, pointerEvents: "none" }}
         >
           {frame.name}

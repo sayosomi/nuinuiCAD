@@ -15,6 +15,12 @@ type RgbaColor = {
   hasExplicitAlpha: boolean;
 };
 
+type HslColor = {
+  hue: number;
+  saturation: number;
+  lightness: number;
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -135,6 +141,69 @@ const mixRgb = (from: RgbaColor, to: RgbaColor, amount: number): RgbaColor => ({
   hasExplicitAlpha: from.hasExplicitAlpha
 });
 
+const rgbToHsl = (color: RgbaColor): HslColor => {
+  const red = color.red / 255;
+  const green = color.green / 255;
+  const blue = color.blue / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+
+  if (delta === 0) {
+    return { hue: 0, saturation: 0, lightness };
+  }
+
+  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+  let hue: number;
+  if (max === red) {
+    hue = 60 * (((green - blue) / delta) % 6);
+  } else if (max === green) {
+    hue = 60 * ((blue - red) / delta + 2);
+  } else {
+    hue = 60 * ((red - green) / delta + 4);
+  }
+
+  return {
+    hue: hue < 0 ? hue + 360 : hue,
+    saturation,
+    lightness
+  };
+};
+
+const hslToRgb = ({ hue, saturation, lightness }: HslColor): RgbaColor => {
+  const normalizedHue = ((hue % 360) + 360) % 360;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const hueSector = normalizedHue / 60;
+  const x = chroma * (1 - Math.abs((hueSector % 2) - 1));
+  const channels: [number, number, number] = hueSector < 1
+    ? [chroma, x, 0]
+    : hueSector < 2
+      ? [x, chroma, 0]
+      : hueSector < 3
+        ? [0, chroma, x]
+        : hueSector < 4
+          ? [0, x, chroma]
+          : hueSector < 5
+            ? [x, 0, chroma]
+            : [chroma, 0, x];
+  const [red, green, blue] = channels;
+  const match = lightness - chroma / 2;
+
+  return {
+    red: (red + match) * 255,
+    green: (green + match) * 255,
+    blue: (blue + match) * 255,
+    alpha: 1,
+    hasExplicitAlpha: false
+  };
+};
+
+const hueDistance = (first: number, second: number) => {
+  const difference = Math.abs(first - second) % 360;
+  return Math.min(difference, 360 - difference);
+};
+
 const formatNumber = (value: number) => String(Number(value.toFixed(10)));
 
 const formatAdjustedColor = (color: RgbaColor): string => {
@@ -199,27 +268,88 @@ const softenContrast = (
   return formatAdjustedColor(mixRgb(seed, background, Math.min(high + 1e-7, 1)));
 };
 
-const contrastBetween = (
-  firstValue: string,
-  secondValue: string,
+const SELECTION_MIN_BACKGROUND_CONTRAST = 3;
+const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
+const SELECTION_MIN_SATURATION = 0.65;
+const SELECTION_MIN_HUE_DISTANCE = 90;
+const FOREGROUND_CHROMATIC_SATURATION = 0.18;
+
+const selectionColorIsDistinct = (
+  candidateValue: string,
+  foregroundValue: string,
   backgroundValue: string
-): number | null => {
-  const first = parseCssColor(firstValue);
-  const second = parseCssColor(secondValue);
+): boolean => {
+  const candidate = parseCssColor(candidateValue);
+  const foreground = parseCssColor(foregroundValue);
   const background = parseCssColor(backgroundValue);
-  if (!first || !second || !background) return null;
-  return contrastRatio(
-    compositeCssColorOver(first, background),
-    compositeCssColorOver(second, background)
-  );
+  if (!candidate || !foreground || !background) return true;
+
+  const visibleCandidate = compositeCssColorOver(candidate, background);
+  const visibleForeground = compositeCssColorOver(foreground, background);
+  if (
+    contrastRatio(visibleCandidate, background) < SELECTION_MIN_BACKGROUND_CONTRAST
+  ) {
+    return false;
+  }
+
+  if (
+    contrastRatio(visibleCandidate, visibleForeground) >=
+    SELECTION_STRONG_LUMINANCE_SEPARATION
+  ) {
+    return true;
+  }
+
+  const candidateHsl = rgbToHsl(visibleCandidate);
+  const foregroundHsl = rgbToHsl(visibleForeground);
+  if (candidateHsl.saturation < SELECTION_MIN_SATURATION) return false;
+  if (foregroundHsl.saturation < FOREGROUND_CHROMATIC_SATURATION) return true;
+
+  return hueDistance(candidateHsl.hue, foregroundHsl.hue) >= SELECTION_MIN_HUE_DISTANCE;
 };
 
-const SELECTION_MIN_FOREGROUND_CONTRAST = 2;
-const SELECTION_MIN_BACKGROUND_CONTRAST = 3;
+const deriveDistinctSelectionColor = (
+  accentValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): string => {
+  const accent = parseCssColor(accentValue);
+  const foreground = parseCssColor(foregroundValue);
+  const background = parseCssColor(backgroundValue);
+  if (!accent || !foreground || !background) return accentValue;
+
+  const visibleAccent = compositeCssColorOver(accent, background);
+  const visibleForeground = compositeCssColorOver(foreground, background);
+  const accentHsl = rgbToHsl(visibleAccent);
+  const foregroundHsl = rgbToHsl(visibleForeground);
+  const legacyAccent = parseCssColor(LEGACY_CANVAS_THEME.accent);
+  const fallbackHue = legacyAccent ? rgbToHsl(legacyAccent).hue : 180;
+  const hue = foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+    ? (foregroundHsl.hue + 180) % 360
+    : accentHsl.saturation >= 0.35
+      ? accentHsl.hue
+      : fallbackHue;
+  const saturation = Math.max(0.82, accentHsl.saturation);
+  const backgroundIsDark = relativeLuminance(background) < 0.35;
+  const initialLightness = backgroundIsDark ? 0.68 : 0.32;
+
+  for (let step = 0; step <= 24; step += 1) {
+    const lightness = backgroundIsDark
+      ? Math.min(0.92, initialLightness + step * 0.01)
+      : Math.max(0.08, initialLightness - step * 0.01);
+    const candidate = hslToRgb({ hue, saturation, lightness });
+    if (contrastRatio(candidate, background) >= SELECTION_MIN_BACKGROUND_CONTRAST) {
+      return formatAdjustedColor(candidate);
+    }
+  }
+
+  return formatAdjustedColor(hslToRgb({ hue, saturation, lightness: initialLightness }));
+};
 
 /**
- * Keep Canvas selection theme-derived, but do not allow a theme's selection
- * border token to collapse into the same visible color as ordinary geometry.
+ * Keep Canvas selection theme-derived when the theme already separates it from
+ * ordinary geometry. If the theme's selection and accent stay in the same
+ * visual family as geometry, derive a high-chroma complementary hue instead of
+ * changing selection stroke geometry.
  */
 const resolveSelectionColor = (
   seedValue: string,
@@ -228,56 +358,13 @@ const resolveSelectionColor = (
   backgroundValue: string
 ): string => {
   const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
-  const selectionForegroundContrast = contrastBetween(
-    selection,
-    foregroundValue,
-    backgroundValue
-  );
-  if (
-    selectionForegroundContrast === null ||
-    selectionForegroundContrast >= SELECTION_MIN_FOREGROUND_CONTRAST
-  ) {
+  if (selectionColorIsDistinct(selection, foregroundValue, backgroundValue)) {
     return selection;
   }
-
-  const accentForegroundContrast = contrastBetween(
-    accentValue,
-    foregroundValue,
-    backgroundValue
-  );
-  const accent = parseCssColor(accentValue);
-  const background = parseCssColor(backgroundValue);
-  if (
-    accentForegroundContrast !== null &&
-    accentForegroundContrast >= SELECTION_MIN_FOREGROUND_CONTRAST &&
-    accent &&
-    background &&
-    contrastAgainst(accent, background) >= SELECTION_MIN_BACKGROUND_CONTRAST
-  ) {
+  if (selectionColorIsDistinct(accentValue, foregroundValue, backgroundValue)) {
     return accentValue;
   }
-
-  const selectionColor = parseCssColor(selection);
-  const foreground = parseCssColor(foregroundValue);
-  if (selectionColor && foreground && background) {
-    const visibleSelection = compositeCssColorOver(selectionColor, background);
-    const visibleForeground = compositeCssColorOver(foreground, background);
-    for (let step = 1; step <= 64; step += 1) {
-      const candidate = mixRgb(visibleSelection, background, step / 64);
-      if (contrastRatio(candidate, background) < SELECTION_MIN_BACKGROUND_CONTRAST) break;
-      if (
-        contrastRatio(candidate, visibleForeground) >=
-        SELECTION_MIN_FOREGROUND_CONTRAST
-      ) {
-        return formatAdjustedColor(candidate);
-      }
-    }
-  }
-
-  return accentForegroundContrast !== null &&
-    accentForegroundContrast > selectionForegroundContrast
-    ? accentValue
-    : selection;
+  return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
 };
 
 const colorFrom = (
