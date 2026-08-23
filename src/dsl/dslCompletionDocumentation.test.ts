@@ -54,10 +54,14 @@ describe("DSL completion Module documentation metadata", () => {
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.kind === "module" && entry.label === "Pocket");
-    expect(candidate?.documentation?.variants).toEqual([
-      { locale: "ja", markdown: "ポケット。" },
-      { locale: "en", markdown: "Pocket." }
-    ]);
+    expect(candidate).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "ポケット。" },
+          { locale: "en", markdown: "Pocket." }
+        ]
+      }
+    });
   });
 
   it("attaches docs to explicit Module argument labels", () => {
@@ -69,10 +73,14 @@ describe("DSL completion Module documentation metadata", () => {
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.kind === "argumentName" && entry.label === "width");
-    expect(candidate?.documentation?.variants).toEqual([
-      { locale: "ja", markdown: "幅。" },
-      { locale: "en", markdown: "Width." }
-    ]);
+    expect(candidate).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "幅。" },
+          { locale: "en", markdown: "Width." }
+        ]
+      }
+    });
   });
 
   it("attaches docs to qualified Module exports", () => {
@@ -85,10 +93,14 @@ describe("DSL completion Module documentation metadata", () => {
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.label === "Public");
-    expect(candidate?.documentation?.variants).toEqual([
-      { locale: "ja", markdown: "公開点。" },
-      { locale: "en", markdown: "Public point." }
-    ]);
+    expect(candidate).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "公開点。" },
+          { locale: "en", markdown: "Public point." }
+        ]
+      }
+    });
   });
 
   it("does not project docs from a stale semantic snapshot", () => {
