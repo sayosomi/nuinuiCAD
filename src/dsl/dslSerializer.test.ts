@@ -98,6 +98,7 @@ describe("serializeElementsToDsl flat output", () => {
         radius: 120,
         start: 0,
         end: -90,
+        direction: counterclockwise,
         id: a1,
       )
       point D = between(

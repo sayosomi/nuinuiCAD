@@ -371,6 +371,24 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Directed concrete arcs
+
+The concrete `arc(...)` construction accepts the optional named argument
+`direction: counterclockwise | clockwise`. Omitting `direction` is semantically
+identical to `counterclockwise`; canonical serialization always writes the
+argument explicitly. Direction is represented at runtime only by the sign of
+`ComputedArcLine.sweepAngleDeg`: counterclockwise uses
+`+positiveSweep(start, end)`, while clockwise uses
+`-positiveSweep(end, start)`. Equal start and end angles produce zero sweep;
+an explicitly authored full turn such as `0 -> 360` produces `+360` or `-360`
+according to `direction`.
+
+`through(...)` and `corner(...)` do not gain a `direction` argument. Bake may
+materialize a non-zero evaluated arc exactly when the directed sweep recomputed
+from its start angle, end angle, and sign equals the evaluated signed sweep; a
+positive sweep serializes as `counterclockwise` and a negative sweep as
+`clockwise`.
+
 ### Tangent offsets by Bezier curvature side
 
 `tangentOffset` supports the existing tangent-angle mode and a curvature-side

@@ -246,12 +246,15 @@ export type CommonTangentLineElement = CadElementBase & {
   side: CommonTangentLineSide;
 };
 
+export type ArcDirection = "counterclockwise" | "clockwise";
+
 export type ArcLineElement = CadElementBase & {
   type: "arcLine";
   centerPoint: PointAnchor;
   radius: NumericValue;
   startAngleDeg: NumericValue;
   endAngleDeg: NumericValue;
+  direction?: ArcDirection;
 };
 
 export type ThreePointArcLineElement = CadElementBase & {

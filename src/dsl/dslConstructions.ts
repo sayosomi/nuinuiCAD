@@ -204,7 +204,7 @@ const constructionSpecs: DslConstructionSpec[] = [
       special("intermediates", "intermediates"),
     ],
   },
-  { category: "arc", construction: "arc", elementType: "arcLine", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg")] },
+  { category: "arc", construction: "arc", elementType: "arcLine", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg"), arg("direction")] },
   { category: "arc", construction: "through", elementType: "threePointArcLine", args: [required("point1"), required("point2"), required("point3"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg")] },
   { category: "arc", construction: "corner", elementType: "cornerRadiusArcLine", args: [required("end1", "endpoint1"), required("end2", "endpoint2"), arg("radius"), arg("index", "intersectionIndex")] },
   { category: "text", construction: "label", elementType: "text", args: [required("text"), arg("anchor"), arg("size", "fontSize")] },
