@@ -19,6 +19,16 @@ describe("revealInCanvasNotificationFor", () => {
       });
   });
 
+  it("presents a current-runtime failure without inventing a fallback", () => {
+    expect(revealInCanvasNotificationFor({
+      status: "failed",
+      reason: "no-revealable-runtime-target"
+    }, "en")).toEqual({
+      severity: "error",
+      message: "No current Canvas geometry can be revealed for this source target."
+    });
+  });
+
   it("reports semantic owner fallback as one Warning", () => {
     const notification = revealInCanvasNotificationFor({
       status: "resolved",
