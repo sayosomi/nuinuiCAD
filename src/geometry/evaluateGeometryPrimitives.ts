@@ -1,4 +1,4 @@
-import type { ComputedBezierSegment, ComputedPoint } from "../types/geometry";
+import type { ArcDirection, ComputedBezierSegment, ComputedPoint } from "../types/geometry";
 
 const CURVE_LENGTH_STEPS = 32;
 
@@ -20,7 +20,7 @@ export const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number)
 export const directedSweepDegrees = (
   startAngleDeg: number,
   endAngleDeg: number,
-  direction: "counterclockwise" | "clockwise"
+  direction: ArcDirection
 ) => {
   const sweep = direction === "clockwise"
     ? -positiveSweepDegrees(endAngleDeg, startAngleDeg)
