@@ -222,6 +222,26 @@ const referenceSpan = (initializer: string, initializerSpan: DslSpan): DslSpan =
   return { start: initializerSpan.start + startOffset, end: initializerSpan.start + endOffset };
 };
 
+const recordModuleParameterAt = (
+  statements: readonly DslStatement[],
+  stableStatementIdByIndex: ReadonlyMap<number, string>,
+  moduleParameterTypeByDefinitionAndIndex: ReadonlyMap<string, RecordModuleParameterSemantic>,
+  statementIndex: number,
+  name: string
+): RecordModuleParameterSemantic | null => {
+  const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+  if (ownerIndex === null) return null;
+  const owner = statements[ownerIndex];
+  if (owner?.kind !== "moduleDefinition") return null;
+  const parameterIndex = owner.parameters.findIndex(
+    (parameter) => parameter.name === name && parameter.recordTypeReference !== null && parameter.recordTypeReference !== undefined
+  );
+  const ownerId = stableStatementIdByIndex.get(ownerIndex);
+  return parameterIndex >= 0 && ownerId
+    ? moduleParameterTypeByDefinitionAndIndex.get(`${ownerId}:${parameterIndex}`) ?? null
+    : null;
+};
+
 export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): RecordSemanticAnalysis => {
   const { statements, stableStatementIdByIndex } = input;
   const diagnostics: DslDiagnostic[] = [];
@@ -315,26 +335,29 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         const name = parsedReference.reference.path.segments[0]!;
         let targetTypeIdentity: RecordTypeIdentity | null = null;
         const lookup = input.resolveDeclaration(statementIndex, name);
-        if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
-          targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
-        } else if (lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
-          diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`));
-        } else if (lookup.kind === "ambiguous") {
-          diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`));
-        } else {
-          const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
-          const owner = ownerIndex === null ? null : statements[ownerIndex];
-          if (owner?.kind === "moduleDefinition" && ownerIndex !== null) {
-            const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === name && parameter.recordTypeReference !== null && parameter.recordTypeReference !== undefined);
-            const ownerId = stableStatementIdByIndex.get(ownerIndex);
-            const parameterSemantic = parameterIndex >= 0 && ownerId
-              ? moduleParameterTypeByDefinitionAndIndex.get(`${ownerId}:${parameterIndex}`)
-              : undefined;
-            targetTypeIdentity = parameterSemantic?.typeIdentity ?? null;
-          }
-          if (!targetTypeIdentity) {
+        const parameterSemantic = lookup.kind === "resolved" || lookup.kind === "ambiguous"
+          ? null
+          : recordModuleParameterAt(
+              statements,
+              stableStatementIdByIndex,
+              moduleParameterTypeByDefinitionAndIndex,
+              statementIndex,
+              name
+            );
+        if (lookup.kind === "resolved") {
+          if (lookup.declaration.kind === "recordValue") {
+            targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
+          } else {
             diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
           }
+        } else if (lookup.kind === "ambiguous") {
+          diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`));
+        } else if (parameterSemantic) {
+          targetTypeIdentity = parameterSemantic.typeIdentity;
+        } else if (lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
+          diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`));
+        } else {
+          diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
         }
         if (targetTypeIdentity && typeReference.typeIdentity && targetTypeIdentity !== typeReference.typeIdentity) {
           diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`));
@@ -440,16 +463,14 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     const baseName = statement.name.split(".", 1)[0]!;
     const lookup = input.resolveDeclaration(statementIndex, baseName);
     let isRecordTarget = lookup.kind === "resolved" && lookup.declaration.kind === "recordValue";
-    if (!isRecordTarget) {
-      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
-      const owner = ownerIndex === null ? null : statements[ownerIndex];
-      if (owner?.kind === "moduleDefinition" && ownerIndex !== null) {
-        const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === baseName && parameter.recordTypeReference !== null && parameter.recordTypeReference !== undefined);
-        if (parameterIndex >= 0) {
-          const ownerId = stableStatementIdByIndex.get(ownerIndex);
-          isRecordTarget = Boolean(ownerId && moduleParameterTypeByDefinitionAndIndex.has(`${ownerId}:${parameterIndex}`));
-        }
-      }
+    if (lookup.kind !== "resolved" && lookup.kind !== "ambiguous") {
+      isRecordTarget = Boolean(recordModuleParameterAt(
+        statements,
+        stableStatementIdByIndex,
+        moduleParameterTypeByDefinitionAndIndex,
+        statementIndex,
+        baseName
+      ));
     }
     if (isRecordTarget) {
       diagnostics.push(diagnostic(statement, statement.nameSpan ?? statement.keywordSpan, "record-set-unsupported", "record 値または record field は v1 では set できません。"));
