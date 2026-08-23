@@ -56,7 +56,7 @@ const negative: number = 2 ^ -2    # 0.25
 
 剰余の 0 除算や、`^` の結果が有限値にならない計算は evaluation error です。
 
-### 組み込み数値関数
+### 組み込み関数
 
 nui4 の型付き式では、次の組み込み関数を使えます。
 
@@ -81,6 +81,7 @@ acos(number) -> number
 atan(number) -> number
 atan2(number, number) -> number
 spreadAngle(length: number, spread: number) -> number
+string(choice(...)) -> string
 distance(point, point) -> number
 angle(point, point) -> number
 lineDistance(point, line) -> number
@@ -100,9 +101,19 @@ const opening: number = spreadAngle(
   length: 100,
   spread: 20,
 )
+const side: choice(right, left) = right
+const sideText: string = string(@side)
 set angle = roundTo(@angle, 15)
 text note = label(text: "幅 ${round(@seam, 1)}mm", anchor: @A, size: 3)
+text sideNote = label(text: "side=${string(@side)}", anchor: none, size: 3)
 ```
+
+`string(choice(...)) -> string` は choice 値を明示的に文字列化する positional
+builtin です。任意の**具体的な** `choice(...)` 型を受け取り、現在選択されている
+canonical option token をそのまま `string` として返します。display label や locale
+には依存しません。`number` / `boolean` / `string` は受け付けず、暗黙変換も追加しません。
+また `string(right)` のような bare choice literal から option set を推論しないため、
+具体的な choice 型が確定している binding/reference などを渡します。
 
 例えば geometry measurement の結果を一度 typed scalar binding に入れます。
 
@@ -403,8 +414,9 @@ optional parameter を直接読めませんが、boolean default 内の `hasValu
 typed interpolation hole の結果型は `string`、`number`、または `boolean` です。
 `boolean` は text-template 内だけで lowercase の `true` / `false` に表示します。
 これは text-template-local な presentation behavior であり、nui4 全体の
-一般的な boolean -> string 暗黙変換ではありません。`choice(...)` の補間は
-引き続き未対応です。
+一般的な boolean -> string 暗黙変換ではありません。`choice(...)` の直接補間は
+引き続き未対応ですが、`string(@choiceValue)` で明示的に string へ変換した結果は
+通常の string hole として補間できます。
 
 ```text
 text note = label(
