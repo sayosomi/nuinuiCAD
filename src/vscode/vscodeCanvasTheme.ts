@@ -121,6 +121,39 @@ const relativeLuminance = (color: RgbaColor): number => {
     0.0722 * linearize(color.blue);
 };
 
+const oklabCoordinates = (color: RgbaColor) => {
+  const linearize = (channel: number) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  const red = linearize(color.red);
+  const green = linearize(color.green);
+  const blue = linearize(color.blue);
+  const l = 0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue;
+  const m = 0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue;
+  const s = 0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue;
+  const lRoot = Math.cbrt(l);
+  const mRoot = Math.cbrt(m);
+  const sRoot = Math.cbrt(s);
+  return {
+    lightness: 0.2104542553 * lRoot + 0.793617785 * mRoot - 0.0040720468 * sRoot,
+    a: 1.9779984951 * lRoot - 2.428592205 * mRoot + 0.4505937099 * sRoot,
+    b: 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.808675766 * sRoot
+  };
+};
+
+const perceptualColorDistance = (first: RgbaColor, second: RgbaColor): number => {
+  const firstLab = oklabCoordinates(first);
+  const secondLab = oklabCoordinates(second);
+  return Math.hypot(
+    firstLab.lightness - secondLab.lightness,
+    firstLab.a - secondLab.a,
+    firstLab.b - secondLab.b
+  );
+};
+
 /** Returns the WCAG contrast ratio between two opaque sRGB colors. */
 export const contrastRatio = (foreground: RgbaColor, background: RgbaColor): number => {
   const foregroundLuminance = relativeLuminance(foreground);
@@ -274,9 +307,15 @@ const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
 const SELECTION_MIN_SATURATION = 0.65;
 const SELECTION_MIN_HUE_DISTANCE = 90;
 const FOREGROUND_CHROMATIC_SATURATION = 0.18;
+const LIGHT_SELECTION_VIVID_SATURATION = 1;
+const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.58;
+const LIGHT_SELECTION_MIN_PERCEPTUAL_DISTANCE = 0.15;
+
+const backgroundIsDark = (background: RgbaColor): boolean =>
+  relativeLuminance(background) < 0.35;
 
 const selectionMinimumBackgroundContrast = (background: RgbaColor): number =>
-  relativeLuminance(background) < 0.35
+  backgroundIsDark(background)
     ? SELECTION_DARK_BACKGROUND_CONTRAST
     : SELECTION_LIGHT_BACKGROUND_CONTRAST;
 
@@ -305,6 +344,14 @@ const selectionColorIsDistinct = (
     return true;
   }
 
+  if (
+    !backgroundIsDark(background) &&
+    perceptualColorDistance(visibleCandidate, visibleForeground) <
+      LIGHT_SELECTION_MIN_PERCEPTUAL_DISTANCE
+  ) {
+    return false;
+  }
+
   const candidateHsl = rgbToHsl(visibleCandidate);
   const foregroundHsl = rgbToHsl(visibleForeground);
   if (candidateHsl.saturation < SELECTION_MIN_SATURATION) return false;
@@ -314,37 +361,49 @@ const selectionColorIsDistinct = (
 };
 
 const deriveDistinctSelectionColor = (
-  accentValue: string,
+  baseValue: string,
   foregroundValue: string,
   backgroundValue: string
 ): string => {
-  const accent = parseCssColor(accentValue);
+  const base = parseCssColor(baseValue);
   const foreground = parseCssColor(foregroundValue);
   const background = parseCssColor(backgroundValue);
-  if (!accent || !foreground || !background) return accentValue;
+  if (!base || !foreground || !background) return baseValue;
 
-  const visibleAccent = compositeCssColorOver(accent, background);
+  const visibleBase = compositeCssColorOver(base, background);
   const visibleForeground = compositeCssColorOver(foreground, background);
-  const accentHsl = rgbToHsl(visibleAccent);
+  const baseHsl = rgbToHsl(visibleBase);
   const foregroundHsl = rgbToHsl(visibleForeground);
   const legacyAccent = parseCssColor(LEGACY_CANVAS_THEME.accent);
   const fallbackHue = legacyAccent ? rgbToHsl(legacyAccent).hue : 180;
-  const hue = foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
-    ? (foregroundHsl.hue + 180) % 360
-    : accentHsl.saturation >= 0.35
-      ? accentHsl.hue
-      : fallbackHue;
-  const saturation = Math.max(0.82, accentHsl.saturation);
-  const backgroundIsDark = relativeLuminance(background) < 0.35;
-  const initialLightness = backgroundIsDark ? 0.68 : 0.32;
+  const darkBackground = backgroundIsDark(background);
+  const hue = darkBackground
+    ? foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+      ? (foregroundHsl.hue + 180) % 360
+      : baseHsl.saturation >= 0.35
+        ? baseHsl.hue
+        : fallbackHue
+    : baseHsl.saturation >= 0.35
+      ? baseHsl.hue
+      : foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+        ? (foregroundHsl.hue + 180) % 360
+        : fallbackHue;
+  const saturation = darkBackground
+    ? Math.max(0.82, baseHsl.saturation)
+    : LIGHT_SELECTION_VIVID_SATURATION;
+  const initialLightness = darkBackground ? 0.68 : LIGHT_SELECTION_INITIAL_LIGHTNESS;
   const minimumContrast = selectionMinimumBackgroundContrast(background);
 
-  for (let step = 0; step <= 24; step += 1) {
-    const lightness = backgroundIsDark
+  for (let step = 0; step <= 42; step += 1) {
+    const lightness = darkBackground
       ? Math.min(0.92, initialLightness + step * 0.01)
       : Math.max(0.08, initialLightness - step * 0.01);
     const candidate = hslToRgb({ hue, saturation, lightness });
-    if (contrastRatio(candidate, background) >= minimumContrast) {
+    const hasBackgroundContrast = contrastRatio(candidate, background) >= minimumContrast;
+    const hasForegroundSeparation = darkBackground ||
+      perceptualColorDistance(candidate, visibleForeground) >=
+        LIGHT_SELECTION_MIN_PERCEPTUAL_DISTANCE;
+    if (hasBackgroundContrast && hasForegroundSeparation) {
       return formatAdjustedColor(candidate);
     }
   }
@@ -354,9 +413,10 @@ const deriveDistinctSelectionColor = (
 
 /**
  * Keep Canvas selection theme-derived when the theme already separates it from
- * ordinary geometry. If the theme's selection and accent stay in the same
- * visual family as geometry, derive a high-chroma complementary hue instead of
- * changing selection stroke geometry.
+ * ordinary geometry. Dark backgrounds keep the established contrast-strengthening
+ * path. Light backgrounds keep the existing theme-token selection policy, preserve
+ * the chosen theme hue, and may change saturation/lightness until the selection is
+ * perceptually separated from ordinary geometry as well as the Canvas background.
  */
 const resolveSelectionColor = (
   seedValue: string,
@@ -364,6 +424,17 @@ const resolveSelectionColor = (
   foregroundValue: string,
   backgroundValue: string
 ): string => {
+  const background = parseCssColor(backgroundValue);
+  if (background && !backgroundIsDark(background)) {
+    if (selectionColorIsDistinct(seedValue, foregroundValue, backgroundValue)) {
+      return seedValue;
+    }
+    if (selectionColorIsDistinct(accentValue, foregroundValue, backgroundValue)) {
+      return accentValue;
+    }
+    return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
+  }
+
   const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
   if (selectionColorIsDistinct(selection, foregroundValue, backgroundValue)) {
     return selection;

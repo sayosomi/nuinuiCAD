@@ -167,6 +167,51 @@ lower され、argument name は runtime payload に入りません。
 
 論理演算子は `and`、`or`、`not` です。`var`、裸の名前参照、`&&` / `||` / `!` は nui4 の入力構文ではありません。型付き宣言は `const`、`let`、`set` を使います。
 
+## 不変 geometry 配列
+
+nui4 で名前を持つ geometry 配列型は、正確に `point[]`、`line[]`、`path[]` の3種類です。
+配列値は不変なので `const` だけで宣言し、`let` / `set` は使えません。
+
+```text
+const points: point[] = [@A, @B]
+const seamLines: line[] = [@AB]
+const outline: path[] = [@AB, @curve]
+const emptyPaths: path[] = []
+const copyOfOutline: path[] = @outline
+```
+
+配列 literal は source 順をそのまま保持し、同じ参照を複数回書いた場合も重複を保持します。
+空配列 `[]` は期待される配列型が分かる位置で有効です。配列そのものを参照するときも通常の
+value reference と同じく `@` が必要で、source order、lexical scope、Module private/export
+の規則に従います。
+
+- `point[]` の各 member は point interface を満たす必要があります。
+- `line[]` は strict `line` だけを受け付けます。
+- `path[]` は broad line-like geometry を受け付け、line、arc、Bezier などを格納できます。
+- `line[]` は `path[]` を期待する位置へ渡せます。逆方向の `path[] -> line[]` はできません。
+- point 配列と line/path 配列の間に暗黙変換はありません。
+
+既存の broad line-list consumer、たとえば `offset.sources`、`transformCopy.baseLines`、
+`mirrorCopy.baseLines`、`move.targets`、`mirrorMove.targets` は `path[]` を期待します。
+そのため inline literal と名前付き配列は同じ意味で使えます。
+
+```text
+const targets: path[] = [@肩線, @脇線]
+
+move(
+  targets: @targets,
+  from: @A,
+  to: @B,
+  scale: 1,
+  angleDeg: 0,
+  mirrorX: false,
+)
+```
+
+名前付き配列を consumer へ渡しても source は `@targets` のまま保持され、保存時に
+inline literal へ展開されません。一般-purpose collection API、index access、spread、
+nested array、scalar array はこの geometry 配列機能には含まれません。
+
 ## 要素、グループ、制御
 
 代表的な要素の宣言は category、名前、construction の順です。construction の参照値にも `@` を付けます。
@@ -418,7 +463,13 @@ explicit named form は常に利用できます。同じ parameter が shorthand
 
 モジュールは外側の値を暗黙 capture しません。必要な値は signature の parameter として渡します。`export` された値は `@front::name` で参照できます。
 
-scalar / geometry parameter は `name?: type` で optional にできます。optional と
+Module parameter には scalar / 単体 geometry に加えて `point[]`、`line[]`、`path[]` を指定できます。
+geometry 配列 parameter は read-only で、literal または名前付き配列を named argument として渡します。
+配列 parameter に default は指定できません。`line[]` は `path[]` parameter へ渡せますが、
+`path[]` を `line[]` parameter へ渡すことはできません。Module body では local `const` 配列を宣言でき、
+`export const name: path[] = ...` のように export した配列は instance 外から `@instance::name` で参照できます。
+
+scalar / geometry / geometry 配列 parameter は `name?: type` で optional にできます。optional と
 default (`=`) は併用できません。instance の named argument は parameter の
 宣言順に揃える必要がなく、未指定 optional は意図的な absent value になります。
 これは `none`、`null`、または runtime の値ではなく、scalar の initializer / binding
@@ -427,8 +478,8 @@ default (`=`) は併用できません。instance の named argument は paramet
 module body では `hasValue(@parameter)` が optional parameter 1つだけを受け取り、
 presence を boolean で返します。`if` の true branch、`and` の右辺、`or` の false
 branch ではその parameter を参照できます。`not` は条件を反転します。presence は
-branch の外へ漏れず、boolean alias 経由では narrowing されません。scalar / geometry
-reference、geometry property、builtin operand、construction parameter、template hole、
+branch の外へ漏れず、boolean alias 経由では narrowing されません。scalar / geometry /
+geometry 配列 reference、geometry property、builtin operand、construction parameter、template hole、
 別 module への optional argument には同じ presence proof が必要です。default では
 optional parameter を直接読めませんが、boolean default 内の `hasValue` は使えます。
 
