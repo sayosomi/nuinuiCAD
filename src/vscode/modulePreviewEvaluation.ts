@@ -39,11 +39,10 @@ export const buildModulePreviewEvaluationOptions = (
     materializedNumericBindings: runtime.materializedNumericBindings
   }, elements);
   const controlBooleanEntries = buildControlBooleanRuntimeEntries(propertySource, elements);
-  const conditionalGroupConditionsByElementId = buildConditionalGroupConditionsByElementId(
-    new Map(),
-    elementIdByStatementIndex,
-    runtime.materializedConditionalGroupConditions
-  );
+  const conditionalGroupConditionsByElementId = new Map([
+    ...buildConditionalGroupConditionsByElementId(new Map(), elementIdByStatementIndex),
+    ...runtime.materializedConditionalGroupConditions.map((entry) => [entry.elementId, entry.expression] as const)
+  ]);
   const textTemplateEntriesByElementId = buildTextTemplateEntriesByElementId({
     textTemplates: new Map(),
     elementIdByStatementIndex,
