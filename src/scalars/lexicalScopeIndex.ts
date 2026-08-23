@@ -195,7 +195,7 @@ export const buildLexicalScopeIndex = (
     else memberIndices.set(scopeId, [index]);
 
     // Whole record values belong to the source nominal model, not ScalarType.
-    if (statement.kind === "typedDeclaration" && statement.declaredType?.kind !== "record") {
+    if (statement.kind === "typedDeclaration" && !statement.recordTypeReference) {
       const declaration: ScopeDeclaration = {
         scopeId,
         statementIndex: index,
