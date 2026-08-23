@@ -108,7 +108,7 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "recordDefinition") return "recordDefinition";
   if (statement.kind === "group") return "group";
   if (statement.kind === "typedDeclaration") {
-    return statement.declaredType?.kind === "record" ? "recordValue" : "typedDeclaration";
+    return statement.recordTypeReference ? "recordValue" : "typedDeclaration";
   }
   if (statement.kind === "layout") return "layout";
   if (statement.kind === "print") return "print";
