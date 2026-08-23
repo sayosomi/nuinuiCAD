@@ -119,3 +119,22 @@ test("malformed watchdog records are isolated from valid records", () => {
   assert.equal(result.decisions[0].commentId, 202);
   assert.equal(result.decisions[0].updatedRecord.state, "timed_out");
 });
+
+
+test("watchdog ignores records authored by anyone except the repository owner", () => {
+  const expired = makeRecord({ heartbeat_at: "2026-08-23T08:40:00.000Z" });
+
+  const result = planWatchdogRun(
+    [
+      { ...makeComment(expired, 301), user: { login: "outsider" } },
+      { ...makeComment(expired, 302), user: { login: "sayosomi" } }
+    ],
+    NOW,
+    WATCHDOG_TIMEOUT_MS,
+    "sayosomi"
+  );
+
+  assert.equal(result.malformed.length, 0);
+  assert.equal(result.decisions.length, 1);
+  assert.equal(result.decisions[0].commentId, 302);
+});

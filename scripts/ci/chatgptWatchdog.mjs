@@ -163,7 +163,8 @@ export const isWatchdogExpired = (
 export const planWatchdogRun = (
   comments,
   now,
-  timeoutMs = WATCHDOG_TIMEOUT_MS
+  timeoutMs = WATCHDOG_TIMEOUT_MS,
+  allowedAuthor = null
 ) => {
   const nowMs = toEpochMs(now, "current time");
   const decisions = [];
@@ -171,6 +172,10 @@ export const planWatchdogRun = (
 
   for (const comment of comments) {
     if (!comment || typeof comment.body !== "string") {
+      continue;
+    }
+
+    if (allowedAuthor && comment.user?.login !== allowedAuthor) {
       continue;
     }
 
@@ -302,7 +307,13 @@ export const runRemoteWatchdog = async ({
     repository,
     issueNumber
   });
-  const { decisions, malformed } = planWatchdogRun(comments, now, timeoutMs);
+  const repositoryOwner = repository.split("/")[0];
+  const { decisions, malformed } = planWatchdogRun(
+    comments,
+    now,
+    timeoutMs,
+    repositoryOwner
+  );
 
   for (const item of malformed) {
     console.warn(
