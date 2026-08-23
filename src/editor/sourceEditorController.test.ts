@@ -1715,7 +1715,7 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     // 同一statement内に3個以上の数値を持つ要素(arc: radius/start/end)を使う。
     const arcSource = dslTextForElements([
       freePoint("a", "A", 0, 0),
-      { id: "arc", name: "Arc", type: "arcLine", activity: "visible", centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 0, startAngleDeg: 0, endAngleDeg: 120 }
+      { id: "arc", name: "Arc", type: "arcLine", activity: "visible", centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 0, startAngleDeg: 0, endAngleDeg: 120, direction: "counterclockwise" }
     ]);
     useCadDocumentStore.getState().commitText(arcSource, "test");
     const parent = document.createElement("div");
@@ -1730,13 +1730,14 @@ describe("SourceEditorController Tab/Shift-Tab value-span navigation", () => {
     internals.view.dispatch({ changes: { from: endValueEnd, insert: "0" } });
     const text = internals.view.state.doc.toString();
     expect(text).toContain("end: 1200");
-    // arc's own "center: (0, 0)" tuple is the first value span in its
-    // enclosing statement.
-    const firstZero = text.indexOf("(0, 0)") + 1;
-    internals.view.dispatch({ selection: EditorSelection.cursor(firstZero) });
+    // `direction` is the canonical value immediately after `end`, so moving
+    // backward from it must still resolve the whole dirty `end` value.
+    const directionValue = text.indexOf("counterclockwise");
+    expect(directionValue).toBeGreaterThanOrEqual(0);
+    internals.view.dispatch({ selection: EditorSelection.cursor(directionValue + 1) });
 
-    // Wrapping backward from the first coordinate should land on the whole dirty,
-    // now-4-character value — a stale 3-character "120" span would clip it short.
+    // The dirty value is four characters long; a stale three-character span
+    // from the last-good parse would clip it short.
     expect(internals.navigateValueSpan("previous")).toBe(true);
 
     const main = internals.view.state.selection.main;

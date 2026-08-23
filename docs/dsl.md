@@ -247,6 +247,30 @@ modifier のプロパティは独立しており、`state`（`visible` / `hidden
 のときだけ modifier の state を適用し、hidden は評価するが描画せず、disabled
 は評価も参照もできません。
 
+### arc の進行方向
+
+concrete `arc(...)` は `direction: counterclockwise | clockwise` で始角度から終角度への進行方向を指定できます。省略時は `counterclockwise` と同じ意味ですが、canonical serializer は常に `direction` を明示します。
+
+```nui
+arc A = arc(
+  center: @C,
+  radius: 20,
+  start: 0,
+  end: 90,
+  direction: counterclockwise,
+)
+
+arc B = arc(
+  center: @C,
+  radius: 20,
+  start: 90,
+  end: 0,
+  direction: clockwise,
+)
+```
+
+runtime の方向は signed `sweepAngleDeg` が正です。反時計回りは正、時計回りは負です。`start == end` は 0 sweep で、`0 -> 360` のように明示した full turn は `counterclockwise` なら `+360`、`clockwise` なら `-360` になります。`through(...)` と `corner(...)` には `direction` 引数を追加しません。
+
 ### tangentOffset の曲率側
 
 `tangentOffset` は、接線からの角度で方向を指定する既存の angle mode に加えて、

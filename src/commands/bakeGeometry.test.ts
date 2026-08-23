@@ -160,7 +160,7 @@ describe("Bake geometry", () => {
     expect(applyLineSplices(compiled.sourceText, plan?.splices ?? [])).toBe(compiled.sourceText);
   });
 
-  it("rejects reversed arcs without inserting an approximation", () => {
+  it("bakes a reversed arc exactly as an explicit clockwise arc", () => {
     const current = compile([
       "nui 4",
       "point C = coordinate(x: 0, y: 0)",
@@ -177,8 +177,11 @@ describe("Bake geometry", () => {
       selectedElementIds: [arc.id],
       emitSkippedComments: true
     });
-    expect(plan?.generatedElementIds).toEqual([]);
-    expect(applyLineSplices(current.sourceText, plan!.splices)).toContain("// Bake skipped: arc A — not losslessly representable");
+    expect(plan?.generatedElementIds).toHaveLength(1);
+    expect(plan?.skippedTargets).toEqual([]);
+    expect(applyLineSplices(current.sourceText, plan!.splices)).toContain(
+      "arc A_bake = arc(center: (0, 0), radius: 10, start: 90, end: 0, direction: clockwise)"
+    );
   });
 
   it("bakes a representable positive arc exactly", () => {
@@ -196,7 +199,7 @@ describe("Bake geometry", () => {
       selectedElementIds: [arc.id]
     });
     expect(applyLineSplices(compiled.sourceText, plan!.splices)).toContain(
-      "arc A_bake = arc(center: (0, 0), radius: 12, start: 30, end: 150)"
+      "arc A_bake = arc(center: (0, 0), radius: 12, start: 30, end: 150, direction: counterclockwise)"
     );
   });
 
