@@ -199,6 +199,87 @@ const softenContrast = (
   return formatAdjustedColor(mixRgb(seed, background, Math.min(high + 1e-7, 1)));
 };
 
+const contrastBetween = (
+  firstValue: string,
+  secondValue: string,
+  backgroundValue: string
+): number | null => {
+  const first = parseCssColor(firstValue);
+  const second = parseCssColor(secondValue);
+  const background = parseCssColor(backgroundValue);
+  if (!first || !second || !background) return null;
+  return contrastRatio(
+    compositeCssColorOver(first, background),
+    compositeCssColorOver(second, background)
+  );
+};
+
+const SELECTION_MIN_FOREGROUND_CONTRAST = 2;
+const SELECTION_MIN_BACKGROUND_CONTRAST = 3;
+
+/**
+ * Keep Canvas selection theme-derived, but do not allow a theme's selection
+ * border token to collapse into the same visible color as ordinary geometry.
+ */
+const resolveSelectionColor = (
+  seedValue: string,
+  accentValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): string => {
+  const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
+  const selectionForegroundContrast = contrastBetween(
+    selection,
+    foregroundValue,
+    backgroundValue
+  );
+  if (
+    selectionForegroundContrast === null ||
+    selectionForegroundContrast >= SELECTION_MIN_FOREGROUND_CONTRAST
+  ) {
+    return selection;
+  }
+
+  const accentForegroundContrast = contrastBetween(
+    accentValue,
+    foregroundValue,
+    backgroundValue
+  );
+  const accent = parseCssColor(accentValue);
+  const background = parseCssColor(backgroundValue);
+  if (
+    accentForegroundContrast !== null &&
+    accentForegroundContrast >= SELECTION_MIN_FOREGROUND_CONTRAST &&
+    accent &&
+    background &&
+    contrastAgainst(accent, background) >= SELECTION_MIN_BACKGROUND_CONTRAST
+  ) {
+    return accentValue;
+  }
+
+  const selectionColor = parseCssColor(selection);
+  const foreground = parseCssColor(foregroundValue);
+  if (selectionColor && foreground && background) {
+    const visibleSelection = compositeCssColorOver(selectionColor, background);
+    const visibleForeground = compositeCssColorOver(foreground, background);
+    for (let step = 1; step <= 64; step += 1) {
+      const candidate = mixRgb(visibleSelection, background, step / 64);
+      if (contrastRatio(candidate, background) < SELECTION_MIN_BACKGROUND_CONTRAST) break;
+      if (
+        contrastRatio(candidate, visibleForeground) >=
+        SELECTION_MIN_FOREGROUND_CONTRAST
+      ) {
+        return formatAdjustedColor(candidate);
+      }
+    }
+  }
+
+  return accentForegroundContrast !== null &&
+    accentForegroundContrast > selectionForegroundContrast
+    ? accentValue
+    : selection;
+};
+
 const colorFrom = (
   styles: CssVariableSource,
   variableName: string,
@@ -216,7 +297,7 @@ export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme
   const background = colorFrom(styles, "--vscode-editor-background", LEGACY_CANVAS_THEME.background);
   const accent = strengthenContrast(accentSeed, foreground, background, 3);
   const selectionSeed = colorFrom(styles, "--vscode-editor-selectionHighlightBorder", accentSeed);
-  const selection = strengthenContrast(selectionSeed, foreground, background, 4.5);
+  const selection = resolveSelectionColor(selectionSeed, accent, foreground, background);
 
   return {
     foreground,
