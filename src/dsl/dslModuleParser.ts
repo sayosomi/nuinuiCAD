@@ -1,5 +1,5 @@
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import { parseDslScalarType } from "./dslTypeParser";
+import { parseDslDeclaredValueType } from "./dslTypeParser";
 import type {
   DslAttribute,
   DslModuleArgument,
@@ -132,9 +132,7 @@ const moduleParameterType = (
     return { type: { kind: text }, choiceOptionSpans: [] };
   }
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
-  const parsed = parseDslScalarType(source, typeSpan, parsedDiagnostics, {
-    acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path"
-  });
+  const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
   return {
     type: parsed.declaredType,
