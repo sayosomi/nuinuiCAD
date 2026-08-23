@@ -25,12 +25,7 @@ import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
-import type { RecordSemanticAnalysis } from "../dsl/recordSemanticAnalysis";
-import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
-import {
-  prepareRecordScalarExpression,
-  type RecordScalarLoweringPlan
-} from "./recordScalarLowering";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 /**
  * The compiled source of a property's value. `binding` keeps the existing
@@ -63,16 +58,9 @@ export const PROPERTY_BINDING_UNRESOLVED_CODE = "property-binding-unresolved";
 export const PROPERTY_BINDING_INVALID_CODE = "property-binding-invalid";
 export const PROPERTY_BINDING_TYPE_MISMATCH_CODE = "property-binding-type-mismatch";
 
-/** Shared key format between this module's output map && any later reader
- * (Tasks 23-26), so the format is never re-derived at a second call site. */
 export const propertyBindingOccurrenceKey = (statementIndex: number, parameterKey: string): string =>
   `${statementIndex}:${parameterKey}`;
 
-/** Inverse of propertyBindingOccurrenceKey - split on the first `:` only, since
- * every parameterKey is a plain identifier with no `:` of its own. Task 45 uses this to resolve a
- * `doc.propertyBindings`/`conditionalGroupConditions`/`textTemplates` entry that
- * matches a selected binding back to its owning statement/parameter without a
- * second document scan || re-parse. */
 export const parsePropertyBindingOccurrenceKey = (occurrenceKey: string): { statementIndex: number; parameterKey: string } | null => {
   const separator = occurrenceKey.indexOf(":");
   if (separator < 0) return null;
@@ -88,20 +76,10 @@ export type CompilePropertyBindingsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
-  recordScalar?: {
-    analysis: RecordSemanticAnalysis;
-    sourceNamespace: SourceLexicalNamespaceIndex;
-    plan: RecordScalarLoweringPlan;
-  };
 };
 
 export type PropertyBindingCompilation = {
   sourcesByOccurrenceKey: ReadonlyMap<string, ScalarValueSource>;
-  /** Task 48: every occurrenceKey whose resolved source is `{kind:"binding"}`,
-   * grouped by bindingId in the same single pass that builds
-   * sourcesByOccurrenceKey - so a runtime-diagnostic consumer lookup for one
-   * binding is an O(1) map get, never a scan over every property binding in
-   * the document. */
   occurrenceKeysByBindingId: ReadonlyMap<BindingId, readonly string[]>;
   diagnostics: readonly DslDiagnostic[];
 };
@@ -117,12 +95,6 @@ type Candidate = {
   references: readonly { name: string; span: DslSpan }[];
 };
 
-/** Exact-span-or-nothing (Task 48): see typedDeclarationAnalysis.ts's
- * compileDiagnostic for the shared rationale. This module's own diagnostic
- * codes (property-binding-*) are about an occurrence that itself failed to
- * resolve, so - unlike a BindingIssue || runtime diagnostic - there is no
- * separately-resolved index entry to navigate to; these carry an exact span
- * for the gutter but no navigationTarget. */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -168,8 +140,7 @@ export const compilePropertyBindings = ({
   elements,
   bindingAnalysis,
   spans,
-  includeStatement,
-  recordScalar
+  includeStatement
 }: CompilePropertyBindingsInput): PropertyBindingCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const diagnostics: DslDiagnostic[] = [];
@@ -181,10 +152,6 @@ export const compilePropertyBindings = ({
 
   statements.forEach((statement, statementIndex) => {
     if (includeStatement && !includeStatement(statement, statementIndex)) return;
-    // "group" is its own DslStatement kind (elementType is implicitly
-    // "group", never stored on the statement); every other element type,
-    // including forGroup/conditionalGroup, parses as "element" with `.type`
-    // set. Both carry `.attrs` via DslStatementBase.
     if (statement.kind !== "element" && statement.kind !== "group") return;
     const elementId = elementIdByStatementIndex.get(statementIndex);
     const element = elementId ? elementsById.get(elementId) : undefined;
@@ -195,10 +162,6 @@ export const compilePropertyBindings = ({
       const definition = findParameterDefinition(element, parameterKey);
       const expectedType = scalarTypeForParameterDefinition(definition);
       if (!definition || !expectedType || expectedType.kind === "number") continue;
-      // Quoted literals && ordinary bare literals remain owned by
-      // dslApplyArgs. Compound typed values must reach the common frontend
-      // regardless of whether their first token is `@`, `(`, `not`, || a
-      // boolean literal followed by `and`/`or`.
       if (!isScalarExpressionCandidateSource(attr.value)) continue;
 
       const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
@@ -213,22 +176,11 @@ export const compilePropertyBindings = ({
       const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex)
         ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
       const references = collectPropertyReferences(parsed.ast);
-      candidates.push({
-        key,
-        statement,
-        statementIndex,
-        parameterKey,
-        expectedType,
-        span,
-        ast: parsed.ast,
-        references
-      });
+      candidates.push({ key, statement, statementIndex, parameterKey, expectedType, span, ast: parsed.ast, references });
       references.forEach((reference, index) => requests.push({ key: `${key}:${index}`, name: reference.name, site: { scopeId, statementIndex } }));
     }
   });
 
-  // One batch sweep for every candidate in the document, not one lookup per
-  // occurrence - see resolveReferencesAtSites's own O(n) batching contract.
   const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
   const sourcesByOccurrenceKey = new Map<string, ScalarValueSource>();
 
@@ -250,24 +202,22 @@ export const compilePropertyBindings = ({
     });
     if (invalidReference) continue;
 
-    const prepared = recordScalar
-      ? prepareRecordScalarExpression({
-          ast: candidate.ast,
-          statementIndex: candidate.statementIndex,
-          ...recordScalar,
-          referenceResolutions: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
-        })
-      : null;
-    if (prepared?.issues.length) {
+    const prepared = prepareRecordScalarExpressionFromCatalog({
+      ast: candidate.ast,
+      statementIndex: candidate.statementIndex,
+      catalog: bindingAnalysis.catalog,
+      referenceResolutions: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+    });
+    if (prepared.issues.length) {
       diagnostics.push(...prepared.issues.map((issue) =>
         diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
       ));
       continue;
     }
 
-    const checked = typecheckScalarExpression(prepared?.ast ?? candidate.ast, {
+    const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: candidate.expectedType,
-      references: prepared?.references ?? referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+      references: prepared.references
     });
     if (checked.diagnostics.length > 0 || checked.type === null) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(
@@ -288,11 +238,7 @@ export const compilePropertyBindings = ({
       checked.typed,
       elements,
       sourceOrderByElementId,
-      {
-        currentElement: element,
-        nameContext,
-        currentSourceOrder: candidate.statementIndex
-      }
+      { currentElement: element, nameContext, currentSourceOrder: candidate.statementIndex }
     );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
@@ -321,9 +267,6 @@ export const compilePropertyBindings = ({
     }
   }
 
-  // Task 48: grouped in the same pass that builds sourcesByOccurrenceKey, in
-  // source order (statements.forEach/candidates order is already statement
-  // order) - never a second scan || a comparison sort.
   const occurrenceKeysByBindingId = new Map<BindingId, string[]>();
   for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
     const bindingIds = source.kind === "binding"
