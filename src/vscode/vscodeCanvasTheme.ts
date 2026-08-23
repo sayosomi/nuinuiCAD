@@ -368,8 +368,8 @@ const deriveDistinctSelectionColor = (
 /**
  * Keep Canvas selection theme-derived when the theme already separates it from
  * ordinary geometry. Dark backgrounds keep the established contrast-strengthening
- * path. Light backgrounds keep the active theme selection/focus hue as the base,
- * then increase chroma/lightness only within the existing contrast constraint.
+ * path. Light backgrounds keep the existing theme-token selection policy, and any
+ * derived fallback preserves the chosen theme accent hue while strengthening it.
  */
 const resolveSelectionColor = (
   seedValue: string,
@@ -382,7 +382,10 @@ const resolveSelectionColor = (
     if (selectionColorIsDistinct(seedValue, foregroundValue, backgroundValue)) {
       return seedValue;
     }
-    return deriveDistinctSelectionColor(seedValue, foregroundValue, backgroundValue);
+    if (selectionColorIsDistinct(accentValue, foregroundValue, backgroundValue)) {
+      return accentValue;
+    }
+    return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
   }
 
   const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
