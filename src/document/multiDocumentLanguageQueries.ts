@@ -47,6 +47,13 @@ export type DslSemanticIdentityResolver = (
   identity: DslSemanticIdentity
 ) => DocumentQualifiedSemanticIdentity<string> | null;
 
+const sourceRangeIsExact = (source: string, range: DocumentTextRange) =>
+  Number.isInteger(range.from) &&
+  Number.isInteger(range.to) &&
+  range.from >= 0 &&
+  range.to > range.from &&
+  range.to <= source.length;
+
 /**
  * Adapt the existing single-document semantic occurrence owner into one exact
  * document view. Cross-file family owners may override identity projection so
@@ -62,19 +69,23 @@ export const projectDslSemanticDocumentView = (input: {
   const index = input.occurrenceIndex ?? createDslSemanticOccurrenceIndex(input.compiled);
   const identityFor = input.identityFor ?? ((identity: DslSemanticIdentity) =>
     qualifySemanticIdentity(input.source.documentId, dslSemanticIdentityKey(identity)));
+  const compiledSource = input.compiled.spans.sourceMap;
+  const compiledIsExact =
+    compiledSource.source === input.source.normalizedSource &&
+    (input.source.kind !== "root-current" || compiledSource.sourceRevision === input.source.sourceRevision);
+  const occurrences = index.occurrences.flatMap((occurrence) => {
+    const identity = identityFor(occurrence.identity);
+    const range = { from: occurrence.from, to: occurrence.to };
+    return identity && sourceRangeIsExact(input.source.normalizedSource, range)
+      ? [{ kind: occurrence.kind, identity, range }]
+      : [];
+  });
   return {
     source: input.source,
-    valid: input.valid ?? !input.compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error"),
-    occurrences: index.occurrences.flatMap((occurrence) => {
-      const identity = identityFor(occurrence.identity);
-      return identity
-        ? [{
-            kind: occurrence.kind,
-            identity,
-            range: { from: occurrence.from, to: occurrence.to }
-          }]
-        : [];
-    })
+    valid: (input.valid ?? !input.compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")) &&
+      compiledIsExact &&
+      !input.source.normalizedSource.includes("\r"),
+    occurrences
   };
 };
 
@@ -198,7 +209,7 @@ export const buildMultiDocumentSemanticOccurrenceIndex = (input: {
   for (const view of input.documentViews ?? []) {
     if (suppliedViews.has(view.source.documentId)) valid = false;
     suppliedViews.set(view.source.documentId, view);
-    if (!view.valid) valid = false;
+    if (!view.valid || view.source.normalizedSource.includes("\r")) valid = false;
   }
 
   const sourceByDocument = new Map<DocumentId, MultiDocumentSourceSnapshot>();
@@ -218,7 +229,7 @@ export const buildMultiDocumentSemanticOccurrenceIndex = (input: {
     }
     if (supplied) {
       for (const occurrence of supplied.occurrences) {
-        if (occurrence.identity.documentId !== occurrence.identity.documentId) {
+        if (!sourceRangeIsExact(supplied.source.normalizedSource, occurrence.range)) {
           valid = false;
           continue;
         }
@@ -494,8 +505,8 @@ export const planMultiDocumentRename = (input: {
   const byDocument = new Map<DocumentId, MultiDocumentSemanticOccurrence[]>();
   for (const occurrence of matches) {
     const documentId = occurrence.location.source.documentId;
-    const occurrences = byDocument.get(documentId);
-    if (occurrences) occurrences.push(occurrence);
+    const occurrencesForDocument = byDocument.get(documentId);
+    if (occurrencesForDocument) occurrencesForDocument.push(occurrence);
     else byDocument.set(documentId, [occurrence]);
   }
 
