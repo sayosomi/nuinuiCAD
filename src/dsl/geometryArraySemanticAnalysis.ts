@@ -48,7 +48,18 @@ export type GeometryArraySemanticAnalysisInput = {
 };
 
 export const geometryArrayDeferredModuleExportId = (instanceStatementId: string, exportName: string) =>
-  `module-array-export:${instanceStatementId}:${exportName}`;
+  JSON.stringify(["module-array-export", instanceStatementId, exportName]);
+
+export const parseGeometryArrayDeferredModuleExportId = (valueId: string): { instanceStatementId: string; exportName: string } | null => {
+  try {
+    const value = JSON.parse(valueId) as unknown;
+    return Array.isArray(value) && value.length === 3 && value[0] === "module-array-export" && typeof value[1] === "string" && typeof value[2] === "string"
+      ? { instanceStatementId: value[1], exportName: value[2] }
+      : null;
+  } catch {
+    return null;
+  }
+};
 
 const projectSpan = (statement: DslStatement, span: DslSpan): DslPhysicalSpan | null => {
   const segments: { from: number; to: number }[] = [];
