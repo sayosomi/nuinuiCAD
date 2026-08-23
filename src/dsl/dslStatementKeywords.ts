@@ -34,6 +34,7 @@ export const dslStatementKeywords = {
   image: "image",
   group: "group",
   module: "module",
+  record: "record",
   modifier: "modifier",
   instance: "instance",
   import: "import",
