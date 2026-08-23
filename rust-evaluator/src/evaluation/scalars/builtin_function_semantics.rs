@@ -382,7 +382,8 @@ pub(crate) fn evaluate_builtin_function(
             }
             finite_number_result(2.0 * radians_to_degrees((ratio / 2.0).asin()))
         }
-        BuiltinFunctionName::Distance
+        BuiltinFunctionName::String
+        | BuiltinFunctionName::Distance
         | BuiltinFunctionName::Angle
         | BuiltinFunctionName::LineDistance
         | BuiltinFunctionName::LineAngle => invalid_argument(),

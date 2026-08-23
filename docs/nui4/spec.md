@@ -225,6 +225,7 @@ The current builtin catalog is:
 | `atan` | `atan(number) -> number` |
 | `atan2` | `atan2(number, number) -> number` |
 | `spreadAngle` | `spreadAngle(length: number, spread: number) -> number` (named-only) |
+| `string` | `string(choice(...)) -> string` |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
@@ -257,6 +258,17 @@ inclusive range `0..180` degrees. `spread = 0` returns `0`, and
 `spread = 2 * length` returns `180`. Invalid or non-finite arguments produce an
 evaluation error. Named source order has no meaning; runtime lowering uses the
 canonical `[length, spread]` positional order.
+
+`string(choice(...))` is the explicit choice-to-string conversion. Its
+parameter is a builtin-only constraint meaning any already-concrete
+`choice(...)` type; it is not a new scalar type and does not weaken choice type
+identity. The result is the selected choice's canonical option token exactly as
+stored in the document/runtime, independent of display labels or locale. The
+initial overload accepts choice values only: number, boolean, and string inputs
+are type errors. `string(right)` is also invalid because a context-free bare
+choice literal has no concrete option set for the builtin to infer. No implicit
+choice-to-string conversion is introduced.
+
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns
 the direction from its first point to its second point in degrees, normalized
@@ -743,8 +755,9 @@ text note = label(
 The root type of a typed interpolation hole must be `string`, `number`, or
 `boolean`. A boolean hole is rendered as the lowercase text `true` or `false`.
 This is text-template-local presentation behavior, not a general implicit
-boolean-to-string conversion in nui4. `choice(...)` interpolation remains
-unsupported.
+boolean-to-string conversion in nui4. Direct `choice(...)` interpolation
+remains unsupported. A choice can be interpolated only after explicit
+conversion, for example `${string(@side)}`, whose root result type is `string`.
 
 The old `{@name}` interpolation is removed. Ordinary `{` and `}` in text are
 literal characters; nui4 does not require a special escape merely to write
@@ -908,6 +921,7 @@ const mirror: boolean = false
 const isDraft: boolean = true
 const showDetail: boolean = @seam > 0 and (not @mirror or @isDraft)
 const side: choice(left, right) = left
+const sideText: string = string(@side)
 
 point A = coordinate(
   x: 0,
@@ -990,7 +1004,7 @@ group 前身頃 {
 
   if (@showDetail) {
     text label = label(
-      text: "${@side} 前身頃 ${@front::actualHeight} mm",
+      text: "${string(@side)} 前身頃 ${@front::actualHeight} mm",
       anchor: @A,
       size: 3,
     )

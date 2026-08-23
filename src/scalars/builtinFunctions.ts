@@ -19,12 +19,16 @@ export type BuiltinFunctionName =
   | "atan"
   | "atan2"
   | "spreadAngle"
+  | "string"
   | "distance"
   | "angle"
   | "lineDistance"
   | "lineAngle";
 
-export type BuiltinParameterType = ScalarType | ModuleGeometryInterfaceType;
+/** Builtin-only constraint matching any concrete choice type without weakening ScalarType identity. */
+export type BuiltinAnyChoiceParameterType = { readonly kind: "anyChoice" };
+export type BuiltinScalarParameterType = ScalarType | BuiltinAnyChoiceParameterType;
+export type BuiltinParameterType = BuiltinScalarParameterType | ModuleGeometryInterfaceType;
 
 export type BuiltinFunctionSignature = {
   readonly callingStyle: "positional";
@@ -42,10 +46,18 @@ export type BuiltinFunctionDefinition = {
 };
 
 const builtinParameterTypeDisplayName = (type: BuiltinParameterType): string =>
-  typeof type === "string" ? type : type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+  typeof type === "string"
+    ? type
+    : type.kind === "anyChoice"
+      ? "choice(...)"
+      : type.kind === "choice"
+        ? `choice(${type.options.join(", ")})`
+        : type.kind;
 
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
+const STRING_TYPE: Extract<ScalarType, { kind: "string" }> = { kind: "string" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
+const ANY_CHOICE_PARAMETER_TYPE: BuiltinAnyChoiceParameterType = { kind: "anyChoice" };
 
 const numeric = (argumentCount: number): BuiltinFunctionSignature => ({
   callingStyle: "positional",
@@ -84,6 +96,7 @@ export const BUILTIN_FUNCTION_DEFINITIONS: readonly BuiltinFunctionDefinition[] 
       returnType: NUMBER_TYPE
     }]
   },
+  { name: "string", signatures: [positional([ANY_CHOICE_PARAMETER_TYPE], STRING_TYPE)] },
   { name: "distance", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "angle", signatures: [positional(["point", "point"], NUMBER_TYPE)] },
   { name: "lineDistance", signatures: [positional(["point", "line"], NUMBER_TYPE)] },
@@ -100,7 +113,7 @@ export const getBuiltinFunctionDefinition = (name: string): BuiltinFunctionDefin
 export const isBuiltinFunctionName = (name: string): name is BuiltinFunctionName =>
   BUILTIN_FUNCTIONS.has(name as BuiltinFunctionName);
 
-export const isScalarBuiltinParameterType = (type: BuiltinParameterType): type is ScalarType => typeof type !== "string";
+export const isScalarBuiltinParameterType = (type: BuiltinParameterType): type is BuiltinScalarParameterType => typeof type !== "string";
 
 /** Formats the editor-facing signature detail directly from the semantic registry. */
 export const formatBuiltinFunctionSignatures = (definition: BuiltinFunctionDefinition): string =>
@@ -118,6 +131,7 @@ const formatBuiltinArgumentExample = (type: BuiltinParameterType, index: number)
   if (type.kind === "number") return index === 0 ? "100" : "20";
   if (type.kind === "boolean") return "true";
   if (type.kind === "string") return '"value"';
+  if (type.kind === "anyChoice") return "@choiceValue";
   return type.options[0] ?? "value";
 };
 

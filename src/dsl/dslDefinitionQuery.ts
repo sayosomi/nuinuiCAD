@@ -124,7 +124,13 @@ const directShorthandValueOccurrenceAt = (
     for (const [argumentIndex, argument] of statement.arguments.entries()) {
       const physical = argument.labelPhysicalSpan?.segments;
       const label = physical?.length === 1 ? physical[0] : null;
-      if (!label || position < label.from || position > label.to || label.from <= 0 || source[label.from - 1] !== "@") continue;
+      if (
+        !label ||
+        label.from <= 0 ||
+        source[label.from - 1] !== "@" ||
+        position < label.from - 1 ||
+        position > label.to
+      ) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
       if (!binding?.value || !argument.labelSpan) continue;
       let target: ModuleSourceTarget | null = null;

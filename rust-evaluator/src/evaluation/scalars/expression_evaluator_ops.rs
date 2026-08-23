@@ -165,7 +165,9 @@ fn finish_builtin_call(
 
 /// Evaluates call arguments one at a time from left to right. A continuation
 /// is re-pushed only after the current argument succeeds, so an argument
-/// error prevents every later argument from being evaluated.
+/// error prevents every later argument from being evaluated. The explicit
+/// `string` builtin consumes its validated choice value here before the
+/// numeric-only builtin semantics path.
 pub(crate) fn continue_builtin_call<'a>(
     target: TypedScalarCallTarget,
     r#type: ScalarType,
@@ -187,6 +189,30 @@ pub(crate) fn continue_builtin_call<'a>(
         output.push(propagate_error(r#type, argument));
         return;
     };
+
+    if matches!(
+        target,
+        TypedScalarCallTarget::Builtin(BuiltinFunctionName::String)
+    ) {
+        if args.len() != 1 || next_index != 0 {
+            output.push(ScalarEvaluation::Error {
+                r#type,
+                issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                binding_id: None,
+                context: None,
+            });
+            return;
+        }
+        output.push(match value {
+            ScalarValue::Choice { value, .. } => ScalarEvaluation::Ok {
+                r#type,
+                value: ScalarValue::String(value.clone()),
+            },
+            _ => runtime_value_type_mismatch(r#type),
+        });
+        return;
+    }
+
     let Some(number) = number_value_of(value) else {
         output.push(runtime_value_type_mismatch(r#type));
         return;
