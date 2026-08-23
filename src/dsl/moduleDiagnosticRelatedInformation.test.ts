@@ -41,8 +41,8 @@ describe("Module diagnostic related source information", () => {
     const source = [
       "nui 4",
       "module M() {",
-      "  export const shared: number = 1",
-      "  export const shared: number = 2",
+      "  export const Output: number = 1",
+      "  export point Output = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
     const matches = compileWithIds(source).diagnostics.filter((diagnostic) => diagnostic.code === "module-duplicate-export");
@@ -50,9 +50,9 @@ describe("Module diagnostic related source information", () => {
     expect(matches).toHaveLength(1);
     const diagnostic = matches[0]!;
     expect(spanText(source, diagnostic)).toBe("export");
-    expect(diagnostic.message).toBe("module export「shared」が重複しています。");
+    expect(diagnostic.message).toBe("module export「Output」が重複しています。");
     expect(diagnostic.severity).toBe("error");
-    expect(relatedTexts(source, diagnostic)).toEqual(["shared"]);
+    expect(relatedTexts(source, diagnostic)).toEqual(["Output"]);
     expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["First export with this name"]);
   });
 
