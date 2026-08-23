@@ -1,4 +1,5 @@
 import type { ElementId } from "../types/geometry";
+import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
@@ -151,10 +152,11 @@ export const buildModuleGeometryArrayRuntime = ({
       acceptsDeferredLineListExport: () => false
     };
   }
+  const arrayAnalysis: GeometryArraySemanticAnalysis = analysis;
 
   const definitionIdByIndex = new Map(moduleSemanticAnalysis.definitions.map((definition) => [definition.statementIndex, definition.statementId] as const));
   const arrayExportsByDefinition = new Map<string, Map<string, GeometryArrayValueSemantic>>();
-  for (const value of analysis.values) {
+  for (const value of arrayAnalysis.values) {
     if (!value.exported || value.ownerModuleDefinitionStatementIndex === null) continue;
     const definitionId = definitionIdByIndex.get(value.ownerModuleDefinitionStatementIndex);
     if (!definitionId) continue;
@@ -190,7 +192,7 @@ export const buildModuleGeometryArrayRuntime = ({
     }
     if (target.kind !== "geometry") return null;
     const statement = statements[target.statementIndex];
-    if (statement?.kind !== "element") return null;
+    if (statement?.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return null;
     return {
       kind: "sourceGeometry" as const,
       statementId: target.statementId,
@@ -230,7 +232,7 @@ export const buildModuleGeometryArrayRuntime = ({
     if (parameterValueCache.has(key)) return parameterValueCache.get(key) ?? null;
     const instance = moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
     const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
-    const parameter = analysis.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
+    const parameter = arrayAnalysis.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
     if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "optionalOmitted" || binding.state === "requiredOmitted") {
       parameterValueCache.set(key, null);
       return null;
@@ -337,7 +339,7 @@ export const buildModuleGeometryArrayRuntime = ({
             continue;
           }
           const sourceStatement = lookup.declaration.statement;
-          if (sourceStatement.kind !== "element") continue;
+          if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;
           const alias = sourceAliasForTarget({
             kind: "sourceGeometry",
             statementId: lookup.declaration.statementId,
@@ -398,7 +400,7 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
-    const targetSemantic = analysis.valuesByStatementId.get(semantic.value.targetValueId);
+    const targetSemantic = arrayAnalysis.valuesByStatementId.get(semantic.value.targetValueId);
     if (targetSemantic) {
       if (
         semantic.ownerModuleDefinitionStatementIndex !== null &&
@@ -415,7 +417,7 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
-    const parameter = parameterSlotFromValueId(analysis, semantic.value.targetValueId);
+    const parameter = parameterSlotFromValueId(arrayAnalysis, semantic.value.targetValueId);
     if (parameter) {
       const parameterValue = lowerParameter(currentPath, parameter.definitionStatementId, parameter.parameterIndex, nextVisited);
       const value = parameterValue ? { type: semantic.type, members: parameterValue.members } : null;
@@ -474,7 +476,7 @@ export const buildModuleGeometryArrayRuntime = ({
 
     const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
     if (lookup.kind === "resolved") {
-      const semantic = analysis.valuesByStatementIndex.get(lookup.declaration.statementIndex);
+      const semantic = arrayAnalysis.valuesByStatementIndex.get(lookup.declaration.statementIndex);
       return semantic
         ? { value: lowerSemantic(semantic, currentPath, visited), actualType: semantic.type }
         : { value: null, actualType: null };
@@ -490,13 +492,13 @@ export const buildModuleGeometryArrayRuntime = ({
   // source diagnostics independent from whether a particular list consumer
   // happens to execute.
   for (const context of contextsByPath.values()) {
-    const parameters = analysis.moduleParameters.filter((parameter) => parameter.definitionStatementId === context.definitionStatementId);
+    const parameters = arrayAnalysis.moduleParameters.filter((parameter) => parameter.definitionStatementId === context.definitionStatementId);
     for (const parameter of parameters) lowerParameter(context.path, parameter.definitionStatementId, parameter.parameterIndex, new Set());
-    for (const semantic of analysis.values) {
+    for (const semantic of arrayAnalysis.values) {
       if (semantic.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) lowerSemantic(semantic, context.path, new Set());
     }
   }
-  for (const semantic of analysis.values) {
+  for (const semantic of arrayAnalysis.values) {
     if (semantic.ownerModuleDefinitionStatementIndex === null) lowerSemantic(semantic, [], new Set());
   }
 
