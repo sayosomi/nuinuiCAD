@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { parseDsl } from "../dsl/dslParser";
 import { buildSourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { parseScalarExpression } from "./expressionParser";
 import {
   planRecordScalarLowering,
+  prepareRecordScalarExpression,
   recordScalarBindingIdFor,
   recordScalarDeclarationVersionIdFor
 } from "./recordScalarLowering";
@@ -16,6 +18,12 @@ const analyze = (source: string) => {
     sourceNamespace,
     records: sourceNamespace.recordSemanticAnalysis!
   };
+};
+
+const expression = (source: string) => {
+  const parsed = parseScalarExpression(source, { start: 0, end: source.length });
+  if (!parsed.ast) throw new Error(parsed.diagnostics[0]?.message ?? "expression parse failed");
+  return parsed.ast;
 };
 
 describe("record scalar lowering planner", () => {
@@ -99,6 +107,98 @@ describe("record scalar lowering planner", () => {
     expect(first).toBeDefined();
     expect(second).toBeDefined();
     expect(first).not.toBe(second);
+  });
+
+  it("prepares a record field as an ordinary typed scalar reference while preserving field identity and spans", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 4",
+      "record Pair(left: number, label: string)",
+      'const pair: Pair = Pair(left: 10, label: "base")',
+      'const after: string = "unused"'
+    ].join("\n"));
+    const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
+    const ast = expression("@pair.label");
+
+    const prepared = prepareRecordScalarExpression({
+      ast,
+      statementIndex: 3,
+      analysis: records,
+      sourceNamespace,
+      plan,
+      referenceResolutions: []
+    });
+
+    const definition = records.definitionsByStatementId.get("stable-1")!;
+    const expectedBindingId = recordScalarBindingIdFor("stable-2", definition.fields[1]!.identity);
+    expect(prepared.issues).toEqual([]);
+    expect(prepared.ast).toMatchObject({
+      kind: "reference",
+      name: "pair.label",
+      span: { start: 0, end: 11 },
+      nameSpan: { start: 1, end: 11 }
+    });
+    expect(prepared.references).toEqual([
+      { kind: "resolvedType", bindingId: expectedBindingId, type: { kind: "string" } }
+    ]);
+    expect(prepared.accesses).toEqual([
+      {
+        recordValueStatementId: "stable-2",
+        field: definition.fields[1]!.identity,
+        fieldName: "label",
+        bindingId: expectedBindingId,
+        span: { start: 0, end: 11 },
+        baseSpan: { start: 1, end: 5 },
+        propertySpan: { start: 6, end: 11 }
+      }
+    ]);
+  });
+
+  it("leaves geometry dotted properties on the existing geometry owner", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "record Pair(x: number)",
+      "const pair: Pair = Pair(x: 1)"
+    ].join("\n"));
+    const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
+    const ast = expression("@A.x");
+
+    const prepared = prepareRecordScalarExpression({
+      ast,
+      statementIndex: 3,
+      analysis: records,
+      sourceNamespace,
+      plan,
+      referenceResolutions: []
+    });
+
+    expect(prepared.issues).toEqual([]);
+    expect(prepared.references).toEqual([]);
+    expect(prepared.ast.kind).toBe("geometryProperty");
+  });
+
+  it("claims unknown record fields and fails them without falling through to geometry resolution", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 4",
+      "record Pair(x: number)",
+      "const pair: Pair = Pair(x: 1)",
+      "const after: number = 0"
+    ].join("\n"));
+    const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
+    const prepared = prepareRecordScalarExpression({
+      ast: expression("@pair.missing"),
+      statementIndex: 3,
+      analysis: records,
+      sourceNamespace,
+      plan,
+      referenceResolutions: []
+    });
+
+    expect(prepared.issues).toEqual([
+      expect.objectContaining({ code: "record-field-unknown", span: { start: 6, end: 13 } })
+    ]);
+    expect(prepared.ast.kind).toBe("reference");
+    expect(prepared.references).toEqual([{ kind: "resolvedType", bindingId: null, type: null }]);
   });
 
   it("fails closed for Module-parameter aliases because Module record integration is outside SAY-128", () => {
