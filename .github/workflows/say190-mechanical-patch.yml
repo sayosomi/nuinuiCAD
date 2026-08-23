@@ -1,0 +1,163 @@
+name: SAY-190 mechanical patch
+
+on:
+  push:
+    branches:
+      - sayosomi/say-190-nui4-arc-direction-explicit-clockwise-counterclockwise
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact SAY-190 edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, got {count}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          def replace_after(path, marker, old, new):
+              p = Path(path)
+              text = p.read_text()
+              head, sep, tail = text.partition(marker)
+              if not sep:
+                  raise SystemExit(f"{path}: missing marker {marker!r}")
+              count = tail.count(old)
+              if count < 1:
+                  raise SystemExit(f"{path}: missing post-marker match: {old[:80]!r}")
+              tail = tail.replace(old, new, 1)
+              p.write_text(head + sep + tail)
+
+          replace_once(
+              "src/types/geometry.ts",
+              '''export type ArcLineElement = CadElementBase & {\n  type: "arcLine";\n  centerPoint: PointAnchor;\n  radius: NumericValue;\n  startAngleDeg: NumericValue;\n  endAngleDeg: NumericValue;\n};''',
+              '''export type ArcDirection = "counterclockwise" | "clockwise";\n\nexport type ArcLineElement = CadElementBase & {\n  type: "arcLine";\n  centerPoint: PointAnchor;\n  radius: NumericValue;\n  startAngleDeg: NumericValue;\n  endAngleDeg: NumericValue;\n  direction?: ArcDirection;\n};'''
+          )
+
+          replace_once(
+              "src/geometry/evaluateGeometryPrimitives.ts",
+              'import type { ComputedBezierSegment, ComputedPoint } from "../types/geometry";',
+              'import type { ArcDirection, ComputedBezierSegment, ComputedPoint } from "../types/geometry";'
+          )
+          replace_once(
+              "src/geometry/evaluateGeometryPrimitives.ts",
+              '  direction: "counterclockwise" | "clockwise"\n) => {',
+              '  direction: ArcDirection\n) => {'
+          )
+
+          replace_once(
+              "src/model/elementFactory.ts",
+              '''        radius: 30,\n        startAngleDeg: 0,\n        endAngleDeg: 90\n      };\n    }\n    case "threePointArcLine": {''',
+              '''        radius: 30,\n        startAngleDeg: 0,\n        endAngleDeg: 90,\n        direction: "counterclockwise"\n      };\n    }\n    case "threePointArcLine": {'''
+          )
+
+          replace_once(
+              "src/parameters/parameterDefinitions.ts",
+              '''        {\n          key: "endAngleDeg",\n          label: "終角度",\n          kind: "number",\n          stepLevels: angleNumericParameterStepLevels,\n        },\n      ];\n    case "threePointArcLine":''',
+              '''        {\n          key: "endAngleDeg",\n          label: "終角度",\n          kind: "number",\n          stepLevels: angleNumericParameterStepLevels,\n        },\n        {\n          key: "direction",\n          label: "進行方向",\n          kind: "choice",\n          choiceOptions: ["counterclockwise", "clockwise"],\n        },\n      ];\n    case "threePointArcLine":'''
+          )
+
+          replace_once(
+              "src/dsl/dslConstructions.ts",
+              '  { category: "arc", construction: "arc", elementType: "arcLine", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg")] },',
+              '  { category: "arc", construction: "arc", elementType: "arcLine", args: [required("center", "centerPoint"), arg("radius"), arg("start", "startAngleDeg"), arg("end", "endAngleDeg"), arg("direction")] },'
+          )
+
+          replace_once(
+              "src/geometry/lineEvaluators.ts",
+              '''  circleThroughThreePoints,\n  degreesToRadians,\n  handlePoint,''',
+              '''  circleThroughThreePoints,\n  degreesToRadians,\n  directedSweepDegrees,\n  handlePoint,'''
+          )
+          replace_after(
+              "src/geometry/lineEvaluators.ts",
+              '      case "arcLine": {',
+              '        const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);',
+              '        const sweepAngleDeg = directedSweepDegrees(startAngleDeg, endAngleDeg, element.direction ?? "counterclockwise");'
+          )
+          replace_after(
+              "src/geometry/lineEvaluators.ts",
+              '      case "arcLine": {',
+              '          length: safeRadius * degreesToRadians(sweepAngleDeg)',
+              '          length: safeRadius * Math.abs(degreesToRadians(sweepAngleDeg))'
+          )
+
+          replace_once(
+              "rust-evaluator/src/evaluation/line_evaluators.rs",
+              '''pub(crate) fn evaluate_arc_line(\n    element: &Value,''',
+              '''fn directed_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64, direction: &str) -> f64 {\n    let sweep = if direction == "clockwise" {\n        -positive_sweep_degrees(end_angle_deg, start_angle_deg)\n    } else {\n        positive_sweep_degrees(start_angle_deg, end_angle_deg)\n    };\n    if sweep == 0.0 { 0.0 } else { sweep }\n}\n\npub(crate) fn evaluate_arc_line(\n    element: &Value,'''
+          )
+          replace_after(
+              "rust-evaluator/src/evaluation/line_evaluators.rs",
+              'pub(crate) fn evaluate_arc_line(',
+              '    let sweep_angle_deg = positive_sweep_degrees(start_angle_deg, end_angle_deg);',
+              '''    let direction = element\n        .get("direction")\n        .and_then(Value::as_str)\n        .unwrap_or("counterclockwise");\n    let sweep_angle_deg = directed_sweep_degrees(start_angle_deg, end_angle_deg, direction);'''
+          )
+          replace_once(
+              "rust-evaluator/src/evaluation/line_evaluators.rs",
+              '            "length": arc.safe_radius * arc.sweep_angle_deg.to_radians()',
+              '            "length": arc.safe_radius * arc.sweep_angle_deg.to_radians().abs()'
+          )
+
+          replace_once(
+              "src/geometry/geometryHoverPresentation.ts",
+              '''  valueRow("スイープ", `${formatNumber(arc.sweepAngleDeg)}°`),\n  valueRow("長さ", formatMillimeters(arc.length)),''',
+              '''  valueRow("スイープ", `${formatNumber(arc.sweepAngleDeg)}°`),\n  valueRow("進行方向", arc.sweepAngleDeg > 0 ? "反時計回り" : arc.sweepAngleDeg < 0 ? "時計回り" : "なし"),\n  valueRow("長さ", formatMillimeters(arc.length)),'''
+          )
+
+          replace_once(
+              "src/commands/bakeGeometry.ts",
+              'import { constructionForElementType, MUTATION_CATEGORY } from "../dsl/dslConstructions";',
+              'import { constructionForElementType, MUTATION_CATEGORY } from "../dsl/dslConstructions";\nimport { directedSweepDegrees } from "../geometry/evaluateGeometryPrimitives";'
+          )
+          replace_once(
+              "src/commands/bakeGeometry.ts",
+              '  | { kind: "arc"; center: { x: number; y: number }; radius: number; startAngleDeg: number; endAngleDeg: number }',
+              '  | { kind: "arc"; center: { x: number; y: number }; radius: number; startAngleDeg: number; endAngleDeg: number; direction: "counterclockwise" | "clockwise" }'
+          )
+          replace_once(
+              "src/commands/bakeGeometry.ts",
+              '''const directedPositiveSweep = (start: number, end: number) => {\n  const value = ((end - start) % 360 + 360) % 360;\n  return Math.abs(value) < EPSILON ? 360 : value;\n};\n\n''',
+              ''
+          )
+          replace_once(
+              "src/commands/bakeGeometry.ts",
+              '''  if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(sweepAngleDeg) || sweepAngleDeg <= EPSILON) return null;\n  if (Math.abs(directedPositiveSweep(startAngleDeg, endAngleDeg) - sweepAngleDeg) > EPSILON) return null;\n  return { kind: "arc", center, radius, startAngleDeg, endAngleDeg };''',
+              '''  if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(sweepAngleDeg) || Math.abs(sweepAngleDeg) <= EPSILON) return null;\n  const direction = sweepAngleDeg < 0 ? "clockwise" : "counterclockwise";\n  if (Math.abs(directedSweepDegrees(startAngleDeg, endAngleDeg, direction) - sweepAngleDeg) > EPSILON) return null;\n  return { kind: "arc", center, radius, startAngleDeg, endAngleDeg, direction };'''
+          )
+          replace_once(
+              "src/commands/bakeGeometry.ts",
+              '''    radius: primitive.radius,\n    startAngleDeg: primitive.startAngleDeg,\n    endAngleDeg: primitive.endAngleDeg\n  };''',
+              '''    radius: primitive.radius,\n    startAngleDeg: primitive.startAngleDeg,\n    endAngleDeg: primitive.endAngleDeg,\n    direction: primitive.direction\n  };'''
+          )
+
+          Path('.github/workflows/say190-mechanical-patch.yml').unlink()
+          PY
+      - name: Verify focused TypeScript and Rust build
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+          npm test -- --run src/geometry/evaluateGeometryPrimitives.test.ts
+          cargo test --manifest-path rust-evaluator/Cargo.toml
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "SAY-190: wire directed arc semantics"
+          git push origin HEAD:${GITHUB_REF_NAME}
