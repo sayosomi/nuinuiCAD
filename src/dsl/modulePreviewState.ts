@@ -164,10 +164,8 @@ const definitionChainFor = (
 const storageKeyFor = (parameter: ResolvedModuleParameter) =>
   `${parameter.parameterIndex}\u0000${parameter.name}`;
 
-const previewKeyFor = (active: ActivePreview) => JSON.stringify([
-  active.source.sourceRevision,
-  ...active.chain.map((definition) => definition.statementId)
-]);
+const previewKeyFor = (active: ActivePreview) =>
+  JSON.stringify(active.chain.map((definition) => definition.statementId));
 
 const isOmitted = (expression: string) => expression.trim().length === 0;
 
@@ -357,6 +355,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
   ): ModulePreviewDefaultActionResult => {
     const resolved = parameterFor(definitionStatementId, parameterIndex);
     if (!active || !resolved || resolved.parameter.defaultValue === null) return { applied: false, state };
+    const currentActive = active;
     const type = resolved.parameter.type;
     if (!type || (type.kind !== "number" && type.kind !== "string" && type.kind !== "boolean" && type.kind !== "choice")) {
       return { applied: false, state };
@@ -367,7 +366,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     if (!preview) return { applied: false, state };
 
     const syntheticInstance = preview.moduleSemanticAnalysis.instances.find((instance) =>
-      instance.statementIndex >= active.compiled.statements.length &&
+      instance.statementIndex >= currentActive.compiled.statements.length &&
       instance.callee?.definitionStatementId === definitionStatementId
     );
     if (!syntheticInstance) return { applied: false, state };
