@@ -123,6 +123,57 @@ describe("VSCodeApp Reveal viewport fitting", () => {
     });
   });
 
+  it("fits a group from its existing aggregate descendant bounds", async () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "  point Q = coordinate(x: 100, y: 50)",
+      "}"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    setViewportRect();
+    useCadUiStore.getState().setCanvasViewport({ panX: 30, panY: 10, zoom: 2 });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 54 }
+      }));
+    });
+
+    const state = useCadDocumentStore.getState();
+    const group = state.elements.find((element) => element.type === "group" && element.name === "G")!;
+    const childP = state.elements.find((element) => element.parentGroupId === group.id && element.name === "P")!;
+    const childQ = state.elements.find((element) => element.parentGroupId === group.id && element.name === "Q")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(
+      childP.id,
+      pointGeometry(childP.id, childP.name, 0, 0)
+    );
+    drawingCanvasProps.evaluation.computedGeometry.set(
+      childQ.id,
+      pointGeometry(childQ.id, childQ.name, 100, 50)
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 541,
+          documentVersion: 54,
+          normalizedSourceOffset: source.indexOf("G {")
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
+    expect(useCadUiStore.getState().canvasViewport).toEqual({
+      zoom: 3.36,
+      panX: -168,
+      panY: 84
+    });
+  });
+
   it("fits a concrete Module instance from its existing aggregate descendant bounds", async () => {
     const source = [
       "nui 4",
