@@ -27,13 +27,14 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
           import re
-          import textwrap
 
           source = Path('.github/workflows/say33-completion-patch.yml').read_text()
           match = re.search(r"(?ms)^\s{10}python3 <<'PY'\n(?P<body>.*?)^\s{10}PY\s*$", source)
           if not match:
               raise SystemExit('could not extract embedded SAY-33 patch script')
-          Path('/tmp/say33_completion_patch.py').write_text(textwrap.dedent(match.group('body')))
+          lines = match.group('body').splitlines()
+          body = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/say33_completion_patch.py').write_text(body)
           PY
           python3 /tmp/say33_completion_patch.py
       - name: Focused completion verification
