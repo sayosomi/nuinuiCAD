@@ -86,7 +86,7 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("uses the theme focus token when no explicit light selection token exists", () => {
+  it("uses an already-distinct theme focus token unchanged when no selection token exists", () => {
     const foreground = "#333333";
     const background = "#ffffff";
     const focusAccent = "#8a2be2";
@@ -96,11 +96,7 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
       "--vscode-focusBorder": focusAccent
     }));
 
-    const baseHsl = visibleHslFor(focusAccent, background);
-    const selectionHsl = visibleHslFor(theme.selection, background);
-
-    expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
-    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
+    expect(theme.selection).toBe(focusAccent);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
