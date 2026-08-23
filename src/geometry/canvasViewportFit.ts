@@ -70,10 +70,12 @@ export const fitCanvasViewportToBounds = ({
     targetHeight > 0 ? availableHeight / targetHeight : null
   ].filter((ratio): ratio is number => ratio !== null);
   const hasFittableExtent = candidateRatios.length > 0;
+  if (!hasFittableExtent && !(Number.isFinite(currentZoom) && currentZoom > 0)) return null;
+
   const rawCandidateZoom = hasFittableExtent
     ? Math.min(...candidateRatios)
     : currentZoom;
-  const finiteCandidateZoom = rawCandidateZoom === Number.POSITIVE_INFINITY
+  const finiteCandidateZoom = hasFittableExtent && rawCandidateZoom === Number.POSITIVE_INFINITY
     ? Number.MAX_VALUE
     : rawCandidateZoom;
   const candidateZoom = maxZoom !== undefined && hasFittableExtent
