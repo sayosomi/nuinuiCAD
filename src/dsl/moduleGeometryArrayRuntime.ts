@@ -202,21 +202,7 @@ export const buildModuleGeometryArrayRuntime = ({
 
   const sourceValueCache = new Map<string, RuntimeArrayValue | null>();
   const parameterValueCache = new Map<string, RuntimeArrayValue | null>();
-
   const cacheKey = (path: readonly string[], id: string) => `${pathKey(path)}:${id}`;
-
-  let lowerSemantic: (
-    semantic: GeometryArrayValueSemantic,
-    currentPath: readonly string[],
-    visited: ReadonlySet<string>
-  ) => RuntimeArrayValue | null;
-
-  let resolveWholeReference: (
-    source: string,
-    statementIndex: number,
-    currentPath: readonly string[],
-    visited: ReadonlySet<string>
-  ) => RuntimeResult;
 
   const lowerArrayExport = (
     currentPath: readonly string[],
@@ -388,7 +374,11 @@ export const buildModuleGeometryArrayRuntime = ({
     return value;
   };
 
-  lowerSemantic = (semantic, currentPath, visited) => {
+  function lowerSemantic(
+    semantic: GeometryArrayValueSemantic,
+    currentPath: readonly string[],
+    visited: ReadonlySet<string>
+  ): RuntimeArrayValue | null {
     const key = cacheKey(currentPath, semantic.statementId);
     if (sourceValueCache.has(key)) return sourceValueCache.get(key) ?? null;
     if (!semantic.value || visited.has(key)) return null;
@@ -454,9 +444,14 @@ export const buildModuleGeometryArrayRuntime = ({
 
     sourceValueCache.set(key, null);
     return null;
-  };
+  }
 
-  resolveWholeReference = (source, statementIndex, currentPath, visited) => {
+  function resolveWholeReference(
+    source: string,
+    statementIndex: number,
+    currentPath: readonly string[],
+    visited: ReadonlySet<string>
+  ): RuntimeResult {
     const path = referencePath(source);
     if (!path || path.segments.length === 0) return { value: null, actualType: null };
     const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
@@ -488,7 +483,7 @@ export const buildModuleGeometryArrayRuntime = ({
       return lowerArrayExport(currentPath, lookup.declaration.statementId, path.segments[1]!, visited);
     }
     return { value: null, actualType: null };
-  };
+  }
 
   // Validate supplied array parameter arguments once per concrete instance and
   // deferred export aliases once per reachable instance path. This keeps
