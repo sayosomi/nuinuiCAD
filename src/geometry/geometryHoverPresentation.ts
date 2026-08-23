@@ -135,7 +135,7 @@ const bezierHoverTable = (curve: ComputedBezierCurve): GeometryHoverTable | unde
   if (!first || !last) return undefined;
 
   const rows: string[][] = [[
-    "Start",
+    "P0",
     formatCoordinate(first.start),
     "—",
     formatAngleDeg(curve.startHandleAngleDeg),
@@ -156,7 +156,7 @@ const bezierHoverTable = (curve: ComputedBezierCurve): GeometryHoverTable | unde
   }
 
   rows.push([
-    "End",
+    `P${curve.segments.length}`,
     formatCoordinate(last.end),
     formatMillimeters(curve.endHandleLength),
     formatAngleDeg(curve.endHandleAngleDeg),
