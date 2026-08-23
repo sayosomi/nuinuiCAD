@@ -1,4 +1,5 @@
 import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
+import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
@@ -330,6 +331,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           const targetStatement = lookup.declaration.statement;
           if (
             targetStatement.kind !== "element" ||
+            !isGeometryDeclarationCategory(targetStatement.category) ||
             !isDerivedPointKeyForGeometryCategory(targetStatement.category, pointKey)
           ) {
             return {
