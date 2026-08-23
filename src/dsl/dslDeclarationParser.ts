@@ -1,9 +1,8 @@
-import type { ScalarType } from "../scalars/types";
-import type { DslSpan } from "./dslTypes";
+import type { DslDeclaredValueType, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
-  parseDslScalarType,
-  type DslScalarTypeParseResult,
+  parseDslDeclaredValueType,
+  type DslDeclaredValueTypeParseResult,
   type DslTypeDiagnostic
 } from "./dslTypeParser";
 
@@ -32,11 +31,11 @@ export type DslTypedDeclarationStatement = {
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
   /** `null` when the type annotation itself failed to parse. */
-  declaredType: ScalarType | null;
-  /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
+  declaredType: DslDeclaredValueType | null;
+  /** Per-option spans, index-aligned with scalar choice options. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
-  numericTypeOptions?: DslScalarTypeParseResult["numericTypeOptions"];
+  numericTypeOptions?: DslDeclaredValueTypeParseResult["numericTypeOptions"];
   /** Raw, unparsed initializer source text - never evaluated || re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
@@ -136,8 +135,8 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
 
   const { declaredType, choiceOptionSpans, numericTypeOptions } =
     typeSpan.start === typeSpan.end
-      ? { declaredType: null as ScalarType | null, choiceOptionSpans: [] as DslSpan[] }
-      : parseDslScalarType(logicalText, typeSpan, diagnostics);
+      ? { declaredType: null as DslDeclaredValueType | null, choiceOptionSpans: [] as DslSpan[] }
+      : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
 
   const payloadSpans: Record<string, DslSpan> = {};
   if (name.nameSpan) payloadSpans.name = name.nameSpan;
