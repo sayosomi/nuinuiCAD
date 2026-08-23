@@ -1,0 +1,30 @@
+name: SAY-145 runtime diagnostics integration
+
+on:
+  push:
+    branches:
+      - sayosomi/say-145-runtime-diagnostics-native-problems-runtime-layer
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-runtime-diagnostics:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout SAY-145 branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Integrate runtime diagnostics and verify
+        run: python3 scripts/say145-runtime-diagnostics-integration.py
