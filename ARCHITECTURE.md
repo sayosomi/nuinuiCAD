@@ -222,15 +222,21 @@ attached observation、source mutationはHeadless MCP boundaryのownerではな�
 
 Primary:
 
+- `vscode-extension/src/vscodeObservationFeature.ts`
 - `vscode-extension/src/vscodeObservationState.ts`
 - `vscode-extension/src/mcpObservationBridge.ts`
 - `vscode-extension/src/extensionEntry.ts`
 - `src/node/vscodeObservationBridge.ts`
 - `mcp-server/src/vscodeObserve.ts`
 
-The Extension Host keeps the exact-current observation facts in
-`vscodeObservationState`; the bridge reads that owner and does not reconstruct
-Canvas, evaluation, selection, or diagnostic semantics. `extensionEntry.ts` is
+`vscodeObservationFeature.ts` owns Extension Host observation lifecycle and
+Canvas publication delegation. The root `extension.ts` composition supplies the
+existing host-document projection and the authoritative current Canvas session
+proof/document version facts. `vscodeObservationState.ts` remains the exact-
+current observation state and acceptance owner; the feature delegates to it and
+does not duplicate its freshness checks. The bridge reads that owner and does
+not reconstruct Canvas, evaluation, selection, or diagnostic semantics.
+`extensionEntry.ts` is
 the packaged Extension Host entry and starts the private bridge only when
 `NUINUICAD_MCP_OBSERVATION=1` or the application-scoped developer setting
 `nuinuiCAD.developer.mcpObservation.enabled` is enabled. The bridge is disabled

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
+import type { VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
+import { vscodeObservationState } from "./vscodeObservationState";
 
 type MockPosition = { line: number; character: number };
 type MockSelection = {
@@ -613,6 +615,35 @@ const runtimeDiagnosticFor = (
   navigationTarget: { kind: "binding" as const, bindingId: `binding:${code}` }
 });
 
+const canvasObservationSnapshotFor = (
+  documentVersion: number
+): VscodeCanvasObservationSnapshot => ({
+  documentVersion,
+  selectedElementIds: ["point-a"],
+  selectionSubject: { kind: "elements" },
+  compiledDocumentRevision: 8,
+  previewActive: false,
+  evaluationRevision: 8,
+  evaluationRequestRevision: 13,
+  evaluationStatus: "ready",
+  evaluationSource: "rust",
+  rustEligible: true,
+  isStale: false,
+  isCurrent: true,
+  errorCount: 0,
+  warningCount: 0,
+  errorSummaries: [],
+  warningSummaries: []
+});
+
+const publishCanvasObservation = (
+  panel: TestPanel,
+  snapshot: VscodeCanvasObservationSnapshot
+): Promise<void> => messageHandlerFor(panel)({
+  type: "canvasObservationPublication",
+  snapshot
+});
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -867,6 +898,81 @@ describe("VS Code production document lifecycle", () => {
 
     const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
     expect(published.map((item) => item.code)).not.toContain("runtime-no-span");
+  });
+
+  it("invalidates the exact-current Canvas runtime through the root source-change path", async () => {
+    const document = documentFor("/tmp/observation-change.nui", "file:///tmp/observation-change.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas).not.toBeNull();
+
+    document.version += 1;
+    emitDocumentChange(document);
+
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+  });
+
+  it("removes the closed document through the root close lifecycle", async () => {
+    const document = documentFor("/tmp/observation-close.nui", "file:///tmp/observation-close.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+
+    mocks.textDocuments = [];
+    emitDocumentClose(document);
+
+    expect(vscodeObservationState.snapshot()).toEqual({ activeDocumentUri: null, documents: [] });
+  });
+
+  it("invalidates Canvas observation when the production Canvas session is disposed", async () => {
+    const document = documentFor("/tmp/observation-canvas-close.nui", "file:///tmp/observation-canvas-close.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+
+    panel.dispose();
+
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+  });
+
+  it("accepts current Canvas publication and rejects stale root-supplied versions", async () => {
+    const document = documentFor("/tmp/observation-freshness.nui", "file:///tmp/observation-freshness.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas?.documentVersion).toBe(1);
+
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version - 1));
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas?.documentVersion).toBe(1);
+
+    document.version += 1;
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version - 1));
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+
+    panel.dispose();
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+    expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+  });
+
+  it("resets observation state and detaches the host projection on Extension Host disposal", async () => {
+    const document = documentFor("/tmp/observation-dispose.nui", "file:///tmp/observation-dispose.nui");
+    const editor = editorFor(document);
+    const context = setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
+    expect(vscodeObservationState.snapshot().documents).toHaveLength(1);
+
+    for (const subscription of context.subscriptions) subscription.dispose();
+    mocks.textDocuments = [document];
+
+    expect(vscodeObservationState.snapshot()).toEqual({ activeDocumentUri: null, documents: [] });
   });
 
   it("registers and opens the Output Preview production surface", () => {
