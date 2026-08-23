@@ -5,10 +5,10 @@ import { currentModulePreviewTargetByIdentity } from "../../src/vscode/modulePre
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
-  VscodeCanvasRibbon,
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 
