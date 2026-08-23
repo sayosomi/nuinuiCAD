@@ -28,6 +28,12 @@ export type DslGeometryHoverQueryInput = {
   semantic?: DslHoverSemanticSnapshot;
 };
 
+export type DslGeometryHoverDeclarationQueryInput = {
+  source: SourceSnapshot;
+  elementId: ElementId;
+  semantic?: DslHoverSemanticSnapshot;
+};
+
 const semanticSourceText = (semantic: DslHoverSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
 
@@ -121,6 +127,39 @@ export const queryDslGeometryHoverTarget = ({
     range: { from: occurrence.from, to: occurrence.to },
     elementId: element.id
   };
+};
+
+/**
+ * Resolve one runtime geometry id back to its single exact current source
+ * declaration. This is the navigation companion for structured geometry
+ * references rendered inside Hover. It deliberately reuses semantic occurrence
+ * identity and the same runtime-uniqueness proof as Hover targeting; generated
+ * or multiply-materialized references fail closed.
+ */
+export const queryDslGeometryHoverDeclarationRange = ({
+  source,
+  elementId,
+  semantic
+}: DslGeometryHoverDeclarationQueryInput): DslGeometryHoverRange | null => {
+  if (!semanticIsExact(source, semantic)) return null;
+
+  const compiled = semantic.compiled;
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(
+    compiled,
+    semantic.bindingAnalysis ?? compiled.bindingAnalysis
+  );
+  const ranges = occurrenceIndex.occurrences
+    .filter((occurrence) => occurrence.kind === "declaration" && occurrence.identity.kind === "element")
+    .filter((occurrence) =>
+      occurrence.identity.kind === "element" &&
+      uniqueRuntimeElement(compiled, occurrence.identity.elementId)?.id === elementId
+    )
+    .map((occurrence) => ({ from: occurrence.from, to: occurrence.to }));
+  const uniqueRanges = ranges.filter((range, index) =>
+    ranges.findIndex((candidate) => candidate.from === range.from && candidate.to === range.to) === index
+  );
+
+  return uniqueRanges.length === 1 ? uniqueRanges[0]! : null;
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
