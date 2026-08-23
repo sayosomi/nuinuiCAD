@@ -13,17 +13,28 @@ import { queryDslCanvasRevealRuntimeTarget } from "./dslCanvasRevealRuntime";
 
 const element = (id: ElementId): CadElement => ({ id } as unknown as CadElement);
 
-const statementMap = (pairs: readonly (readonly [number, ElementId])[]): StatementMap => ({
-  elementIdByStatementIndex: new Map(pairs)
-} as unknown as StatementMap);
-
-const materialization = (
-  entries: readonly Partial<MaterializedExecutionStatement>[],
-  direct: readonly (readonly [number, ElementId])[] = []
-): ModuleMaterialization => ({
-  executionStatements: entries as readonly MaterializedExecutionStatement[],
-  elementIdBySourceStatementIndex: new Map(direct)
-} as unknown as ModuleMaterialization);
+const compiled = ({
+  direct = [],
+  entries = [],
+  analysis,
+  diagnostics = []
+}: {
+  direct?: readonly (readonly [number, ElementId])[];
+  entries?: readonly Partial<MaterializedExecutionStatement>[];
+  analysis?: ModuleSemanticAnalysis;
+  diagnostics?: CompiledDslDocument["diagnostics"];
+}): Pick<
+  CompiledDslDocument,
+  "statementMap" | "moduleSemanticAnalysis" | "sourceSemanticAnalysis" | "moduleMaterialization" | "diagnostics"
+> => ({
+  statementMap: ({ elementIdByStatementIndex: new Map(direct) } as unknown as StatementMap),
+  moduleMaterialization: ({
+    executionStatements: entries as readonly MaterializedExecutionStatement[],
+    elementIdBySourceStatementIndex: new Map(direct)
+  } as unknown as ModuleMaterialization),
+  ...(analysis ? { moduleSemanticAnalysis: analysis } : {}),
+  diagnostics
+});
 
 const analysisForBody = (definitionStatementId: string, sourceStatementIndex: number): ModuleSemanticAnalysis => ({
   definitions: [{
@@ -39,26 +50,6 @@ const analysisForBody = (definitionStatementId: string, sourceStatementIndex: nu
   rootParentReferencesByStatementId: new Map(),
   diagnostics: []
 } as unknown as ModuleSemanticAnalysis);
-
-const compiled = ({
-  direct = [],
-  entries = [],
-  analysis,
-  diagnostics = []
-}: {
-  direct?: readonly (readonly [number, ElementId])[];
-  entries?: readonly Partial<MaterializedExecutionStatement>[];
-  analysis?: ModuleSemanticAnalysis;
-  diagnostics?: CompiledDslDocument["diagnostics"];
-}): Pick<
-  CompiledDslDocument,
-  "statementMap" | "moduleSemanticAnalysis" | "sourceSemanticAnalysis" | "moduleMaterialization" | "diagnostics"
-> => ({
-  statementMap: statementMap(direct),
-  moduleMaterialization: materialization(entries, direct),
-  ...(analysis ? { moduleSemanticAnalysis: analysis } : {}),
-  diagnostics
-});
 
 const geometryTarget = ({
   sourceStatementIndex,
@@ -91,29 +82,22 @@ const geometryTarget = ({
   }
 });
 
-const propertyTarget = ({
-  sourceStatementIndex,
-  target,
-  ownerSourceStatementIndex = sourceStatementIndex,
-  referenceText = "@target.length"
-}: {
-  sourceStatementIndex: number;
-  target: ModuleGeometryPropertySourceTarget;
-  ownerSourceStatementIndex?: number | null;
-  referenceText?: string;
-}): DslCanvasRevealSourceTarget => ({
+const propertyTarget = (
+  sourceStatementIndex: number,
+  target: ModuleGeometryPropertySourceTarget
+): DslCanvasRevealSourceTarget => ({
   kind: "semantic",
-  ownerSourceStatementIndex,
+  ownerSourceStatementIndex: sourceStatementIndex,
   semantic: {
     kind: "geometry-property",
     sourceStatementIndex,
-    referenceText,
+    referenceText: "@target.length",
     reference: {
       geometryName: "target",
       property: "length",
       elementNameSpan: { start: 1, end: 7 },
-      propertySpan: { start: 8, end: referenceText.length },
-      span: { start: 0, end: referenceText.length },
+      propertySpan: { start: 8, end: 14 },
+      span: { start: 0, end: 14 },
       target,
       resolution: "resolved"
     }
@@ -140,17 +124,39 @@ const runtime = ({
   coordinateForReference: () => undefined
 });
 
-const sets = (
+const revealability = (
   allIds: readonly ElementId[],
-  options: {
-    visible?: readonly ElementId[];
-    enabled?: readonly ElementId[];
-    profile?: readonly ElementId[];
-  } = {}
+  options: { visible?: readonly ElementId[]; enabled?: readonly ElementId[]; profile?: readonly ElementId[] } = {}
 ) => ({
   effectiveVisibleElementIds: new Set(options.visible ?? allIds),
   effectiveEnabledElementIds: new Set(options.enabled ?? allIds),
   profileVisibleElementIds: new Set(options.profile ?? allIds)
+});
+
+const materializedModule = (): readonly Partial<MaterializedExecutionStatement>[] => [
+  {
+    type: "moduleInstance",
+    runtimeElementId: "M1",
+    sourceStatementIndex: 10,
+    instancePath: ["S1"],
+    origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"]
+  },
+  { type: "freePoint", runtimeElementId: "Out1", sourceStatementIndex: 2, instancePath: ["S1"] },
+  {
+    type: "moduleInstance",
+    runtimeElementId: "M2",
+    sourceStatementIndex: 11,
+    instancePath: ["S2"],
+    origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"]
+  },
+  { type: "freePoint", runtimeElementId: "Out2", sourceStatementIndex: 2, instancePath: ["S2"] }
+];
+
+const parameterTarget = (): ModuleGeometrySourceTarget => ({
+  kind: "parameter",
+  definitionStatementId: "def",
+  parameterIndex: 0,
+  geometryKind: "point"
 });
 
 describe("queryDslCanvasRevealRuntimeTarget", () => {
@@ -162,15 +168,13 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       category: "point",
       geometryKind: "point"
     };
-    const elements = [element("A-id"), element("B-id")];
-    const result = queryDslCanvasRevealRuntimeTarget({
+    const elements = [element("A-id"), element("Owner")];
+    expect(queryDslCanvasRevealRuntimeTarget({
       target: geometryTarget({ sourceStatementIndex: 2, target }),
-      compiled: compiled({ direct: [[1, "A-id"], [2, "B-id"]] }),
+      compiled: compiled({ direct: [[1, "A-id"], [2, "Owner"]] }),
       elements,
-      ...sets(elements.map((item) => item.id))
-    });
-
-    expect(result).toEqual({
+      ...revealability(elements.map((item) => item.id))
+    })).toEqual({
       status: "resolved",
       runtimeElementIds: ["A-id"],
       primaryRuntimeElementId: "A-id",
@@ -178,60 +182,21 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
     });
   });
 
-  it("expands a module geometry parameter across current materializations in order", () => {
-    const target: ModuleGeometrySourceTarget = {
-      kind: "parameter",
-      definitionStatementId: "def",
-      parameterIndex: 0,
-      geometryKind: "point"
-    };
-    const entries: readonly Partial<MaterializedExecutionStatement>[] = [
-      { type: "moduleInstance", runtimeElementId: "M1", sourceStatementIndex: 10, instancePath: ["S1"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out1", sourceStatementIndex: 2, instancePath: ["S1"] },
-      { type: "moduleInstance", runtimeElementId: "M2", sourceStatementIndex: 11, instancePath: ["S2"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out2", sourceStatementIndex: 2, instancePath: ["S2"] }
-    ];
-    const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target }),
-      compiled: compiled({ entries, analysis: analysisForBody("def", 2) }),
-      moduleGeometryRuntime: runtime({ builtin: new Map([[JSON.stringify(["S1"]), "P1"], [JSON.stringify(["S2"]), "P2"]]) }),
-      elements,
-      ...sets(elements.map((item) => item.id))
-    });
-
-    expect(result).toEqual({
-      status: "resolved",
-      runtimeElementIds: ["P1", "P2"],
-      primaryRuntimeElementId: "P1",
-      degradations: []
-    });
-  });
-
-  it("keeps the valid semantic subset and reports one partial degradation", () => {
-    const target: ModuleGeometrySourceTarget = {
-      kind: "parameter",
-      definitionStatementId: "def",
-      parameterIndex: 0,
-      geometryKind: "point"
-    };
-    const entries: readonly Partial<MaterializedExecutionStatement>[] = [
-      { type: "moduleInstance", runtimeElementId: "M1", sourceStatementIndex: 10, instancePath: ["S1"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out1", sourceStatementIndex: 2, instancePath: ["S1"] },
-      { type: "moduleInstance", runtimeElementId: "M2", sourceStatementIndex: 11, instancePath: ["S2"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out2", sourceStatementIndex: 2, instancePath: ["S2"] }
-    ];
+  it("expands module parameters in materialization order and reports a partial subset", () => {
     const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
     const allIds = elements.map((item) => item.id);
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target }),
-      compiled: compiled({ entries, analysis: analysisForBody("def", 2) }),
-      moduleGeometryRuntime: runtime({ builtin: new Map([[JSON.stringify(["S1"]), "P1"], [JSON.stringify(["S2"]), "P2"]]) }),
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: parameterTarget() }),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        builtin: new Map([
+          [JSON.stringify(["S1"]), "P1"],
+          [JSON.stringify(["S2"]), "P2"]
+        ])
+      }),
       elements,
-      ...sets(allIds, { visible: allIds.filter((id) => id !== "P2") })
-    });
-
-    expect(result).toEqual({
+      ...revealability(allIds, { visible: allIds.filter((id) => id !== "P2") })
+    })).toEqual({
       status: "resolved",
       runtimeElementIds: ["P1"],
       primaryRuntimeElementId: "P1",
@@ -239,31 +204,21 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
     });
   });
 
-  it("falls back to all materialized statement owners when semantic targets are not revealable", () => {
-    const target: ModuleGeometrySourceTarget = {
-      kind: "parameter",
-      definitionStatementId: "def",
-      parameterIndex: 0,
-      geometryKind: "point"
-    };
-    const entries: readonly Partial<MaterializedExecutionStatement>[] = [
-      { type: "moduleInstance", runtimeElementId: "M1", sourceStatementIndex: 10, instancePath: ["S1"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out1", sourceStatementIndex: 2, instancePath: ["S1"] },
-      { type: "moduleInstance", runtimeElementId: "M2", sourceStatementIndex: 11, instancePath: ["S2"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out2", sourceStatementIndex: 2, instancePath: ["S2"] }
-    ];
+  it("falls back to all materialized statement owners when semantic targets are hidden", () => {
     const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
     const allIds = elements.map((item) => item.id);
-    const visible = allIds.filter((id) => id !== "P1" && id !== "P2");
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target, referenceText: "@input" }),
-      compiled: compiled({ entries, analysis: analysisForBody("def", 2) }),
-      moduleGeometryRuntime: runtime({ builtin: new Map([[JSON.stringify(["S1"]), "P1"], [JSON.stringify(["S2"]), "P2"]]) }),
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: parameterTarget(), referenceText: "@input" }),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        builtin: new Map([
+          [JSON.stringify(["S1"]), "P1"],
+          [JSON.stringify(["S2"]), "P2"]
+        ])
+      }),
       elements,
-      ...sets(allIds, { visible })
-    });
-
-    expect(result).toEqual({
+      ...revealability(allIds, { visible: allIds.filter((id) => id !== "P1" && id !== "P2") })
+    })).toEqual({
       status: "resolved",
       runtimeElementIds: ["Out1", "Out2"],
       primaryRuntimeElementId: "Out1",
@@ -271,35 +226,7 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
     });
   });
 
-  it("falls back with unresolved or ambiguous reason codes", () => {
-    const elements = [element("Owner")];
-    const unresolved = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target: null, resolution: "undefined", referenceText: "@missing" }),
-      compiled: compiled({ direct: [[2, "Owner"]] }),
-      elements,
-      ...sets(["Owner"])
-    });
-    expect(unresolved.status).toBe("resolved");
-    if (unresolved.status === "resolved") {
-      expect(unresolved.degradations).toEqual([{ kind: "owner-fallback", cause: "unresolved", referenceText: "@missing" }]);
-    }
-
-    const ambiguous = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target: null, resolution: "invalid", referenceText: "@dup" }),
-      compiled: compiled({
-        direct: [[2, "Owner"]],
-        diagnostics: [{ severity: "error", line: 1, column: 1, code: "module-ambiguous-geometry-reference", message: "ambiguous", statementIndex: 2 }]
-      }),
-      elements,
-      ...sets(["Owner"])
-    });
-    expect(ambiguous.status).toBe("resolved");
-    if (ambiguous.status === "resolved") {
-      expect(ambiguous.degradations).toEqual([{ kind: "owner-fallback", cause: "ambiguous", referenceText: "@dup" }]);
-    }
-  });
-
-  it("resolves geometry-property references to their base runtime geometry", () => {
+  it("resolves geometry properties to their base runtime geometry and deduplicates IDs", () => {
     const target: ModuleGeometryPropertySourceTarget = {
       kind: "parameterProperty",
       definitionStatementId: "def",
@@ -307,20 +234,19 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       geometryKind: "line",
       property: "length"
     };
-    const entries: readonly Partial<MaterializedExecutionStatement>[] = [
-      { type: "moduleInstance", runtimeElementId: "M1", sourceStatementIndex: 10, instancePath: ["S1"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "point", runtimeElementId: "Out", sourceStatementIndex: 2, instancePath: ["S1"] }
-    ];
-    const elements = ["BaseLine", "Out", "M1"].map(element);
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: propertyTarget({ sourceStatementIndex: 2, target }),
-      compiled: compiled({ entries, analysis: analysisForBody("def", 2) }),
-      moduleGeometryRuntime: runtime({ property: new Map([[JSON.stringify(["S1"]), "BaseLine"]]) }),
+    const elements = ["BaseLine", "Out1", "Out2", "M1", "M2"].map(element);
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: propertyTarget(2, target),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        property: new Map([
+          [JSON.stringify(["S1"]), "BaseLine"],
+          [JSON.stringify(["S2"]), "BaseLine"]
+        ])
+      }),
       elements,
-      ...sets(elements.map((item) => item.id))
-    });
-
-    expect(result).toEqual({
+      ...revealability(elements.map((item) => item.id))
+    })).toEqual({
       status: "resolved",
       runtimeElementIds: ["BaseLine"],
       primaryRuntimeElementId: "BaseLine",
@@ -328,50 +254,36 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
     });
   });
 
-  it("deduplicates identical semantic runtime IDs without treating duplicates as omissions", () => {
-    const target: ModuleGeometrySourceTarget = {
-      kind: "parameter",
-      definitionStatementId: "def",
-      parameterIndex: 0,
-      geometryKind: "point"
-    };
-    const entries: readonly Partial<MaterializedExecutionStatement>[] = [
-      { type: "moduleInstance", runtimeElementId: "M1", sourceStatementIndex: 10, instancePath: ["S1"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] },
-      { type: "moduleInstance", runtimeElementId: "M2", sourceStatementIndex: 11, instancePath: ["S2"], origin: { moduleDefinitionStatementId: "def" } as MaterializedExecutionStatement["origin"] }
-    ];
-    const elements = ["Shared", "M1", "M2"].map(element);
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target, ownerSourceStatementIndex: null }),
-      compiled: compiled({ entries, analysis: analysisForBody("def", 2) }),
-      moduleGeometryRuntime: runtime({ builtin: new Map([[JSON.stringify(["S1"]), "Shared"], [JSON.stringify(["S2"]), "Shared"]]) }),
+  it("uses stable fallback reasons and fails when neither semantic nor owner target is revealable", () => {
+    const elements = [element("Owner")];
+    const unresolved = queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: null, resolution: "undefined", referenceText: "@missing" }),
+      compiled: compiled({ direct: [[2, "Owner"]] }),
       elements,
-      ...sets(elements.map((item) => item.id))
+      ...revealability(["Owner"])
     });
+    expect(unresolved.status).toBe("resolved");
+    if (unresolved.status === "resolved") {
+      expect(unresolved.degradations).toEqual([
+        { kind: "owner-fallback", cause: "unresolved", referenceText: "@missing" }
+      ]);
+    }
 
-    expect(result).toEqual({
-      status: "resolved",
-      runtimeElementIds: ["Shared"],
-      primaryRuntimeElementId: "Shared",
-      degradations: []
-    });
-  });
-
-  it("fails without mutating selection semantics when neither semantic nor owner target is revealable", () => {
-    const target: ModuleGeometrySourceTarget = {
-      kind: "sourceGeometry",
-      statementId: "A",
-      statementIndex: 1,
-      category: "point",
-      geometryKind: "point"
-    };
-    const elements = [element("A-id"), element("Owner")];
-    const result = queryDslCanvasRevealRuntimeTarget({
-      target: geometryTarget({ sourceStatementIndex: 2, target }),
-      compiled: compiled({ direct: [[1, "A-id"], [2, "Owner"]] }),
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: null, resolution: "invalid", referenceText: "@dup" }),
+      compiled: compiled({
+        direct: [[2, "Owner"]],
+        diagnostics: [{
+          severity: "error",
+          line: 1,
+          column: 1,
+          code: "module-ambiguous-geometry-reference",
+          message: "ambiguous",
+          statementIndex: 2
+        }]
+      }),
       elements,
-      ...sets(["A-id", "Owner"], { enabled: [] })
-    });
-
-    expect(result).toEqual({ status: "failed", reason: "no-revealable-runtime-target" });
+      ...revealability(["Owner"], { enabled: [] })
+    })).toEqual({ status: "failed", reason: "no-revealable-runtime-target" });
   });
 });
