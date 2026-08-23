@@ -96,16 +96,21 @@ before starting runtime work, preserves the document evaluation limit and runtim
 activity state, and drops cancelled or stale completions rather than falling back
 to last-good geometry.
 
-The explicit cross-surface open commands remain `nuinuiCAD: Open Canvas` and
-`nuinuiCAD: Open Output Preview`; the same production-oriented lifecycle also
-supports Source → Canvas commands such as `nuinuiCAD: Pick Reference from Canvas`
-for file-scheme `.nui` documents. Reference Pick resolves an exact-current Source
-target in the Extension Host, reuses or opens the URI-matched Canvas without
-stealing focus, waits for authoritative Webview hydration, and then starts the
-shared host-neutral pick session. Canvas and Output Preview are independent
-sessions keyed by document URI and surface kind in
-`src/vscode/vscodeWebviewSession.ts`; both use the one Extension Host Rust process
-owner and the shared `replaceTextDocument` / `commitText` hydration protocol.
+The explicit VS Code surface open commands are `nuinuiCAD: Open Canvas`,
+`nuinuiCAD: Open Output Preview`, and `nuinuiCAD: Open Module Preview`. The same
+production-oriented lifecycle also supports Source → Canvas commands such as
+`nuinuiCAD: Pick Reference from Canvas` for file-scheme `.nui` documents.
+Reference Pick resolves an exact-current Source target in the Extension Host,
+reuses or opens the URI-matched Canvas without stealing focus, waits for
+authoritative Webview hydration, and then starts the shared host-neutral pick
+session. Canvas and Output Preview remain independent sessions keyed by document
+URI and surface kind in `src/vscode/vscodeWebviewSession.ts`. Module Preview owns
+a separate one-panel-per-document target lifecycle in
+`vscode-extension/src/modulePreviewFeature.ts`: opening it again reveals and
+retargets the existing panel using the exact-current Module definition identity.
+All three surfaces reuse the one Extension Host Rust process owner and the shared
+`replaceTextDocument` / `commitText` hydration protocol.
+
 Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
 `webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
 Webview state. It derives current print/svg candidates from the compiled
@@ -114,6 +119,18 @@ Webview state. It derives current print/svg candidates from the compiled
 physical plane. Source navigation crosses the host boundary only as the current
 document version plus a normalized source range, which the Extension Host
 validates before revealing the declaration.
+
+Module Preview is routed to `src/vscode/ModulePreviewApp.tsx`. The Extension Host
+resolves the exact-current innermost Module through `queryModulePreviewTarget`,
+then the Webview re-proves that target against its authoritative source mirror and
+uses `createModulePreviewSession` / `compileModulePreviewRoot` for ephemeral
+parameter/default/last-good semantics and preview-root materialization. It
+evaluates through the existing Rust transport and renders only the target runtime
+elements through the shared `DrawingCanvas` / `CanvasHostAdapter` path. The
+surface is read-only for authored source: source-writing Canvas gestures are not
+routed, temporary target/input invalidity keeps the session's last-good preview,
+and loss of exact target identity fails closed rather than rebinding by name or
+ancestor.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -585,6 +602,7 @@ Primary:
 - `src/components/AppLayout.tsx`
 - `src/components/TauriDrawingCanvas.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/vscode/ModulePreviewApp.tsx`
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
@@ -599,7 +617,10 @@ CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。TauriDr
 接続し、DrawingCanvasはhost-neutralなinteraction/rendering ownerとして
 canvasとoverlayを描画する。VSCodeDrawingCanvasは同じstore、command、CanvasHostAdapter、
 DrawingCanvasを使い、Webviewからのcanonical source commitだけをExtension Hostへ
-中継する。VS Code側に別のrendererやdrag transformは持たない。
+中継する。ModulePreviewAppも同じDrawingCanvas / CanvasHostAdapterを使うが、preview
+rootのtarget runtime elementsだけを描画し、source-writing adapter operationsを
+no-opにしてread-only surfaceとして構成する。VS Code側に別のrendererやdrag
+transformは持たない。
 
 Current invariants:
 
@@ -689,6 +710,8 @@ Tauri / VS Code capture orchestration、result assembly を owner とする。
 Primary:
 
 - `vscode-extension/src/extension.ts`
+- `vscode-extension/src/extensionEntry.ts`
+- `vscode-extension/src/modulePreviewFeature.ts`
 - `vscode-extension/src/languageAnalysisSession.ts`
 - `vscode-extension/src/completionProvider.ts`
 - `vscode-extension/src/signatureHelpProvider.ts`
@@ -706,6 +729,9 @@ Primary:
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/vscode/ModulePreviewApp.tsx`
+- `src/vscode/modulePreviewLifecycle.ts`
+- `src/vscode/modulePreviewEvaluation.ts`
 - `src/vscode/useVSCodeReferencePickSession.ts`
 - `src/vscode/VSCodeReferencePickOverlay.tsx`
 - `src/vscode/protocol.ts`
@@ -719,20 +745,41 @@ document and is never restored as a host-side source. The current scope is
 files and dirty in-memory content; untitled and non-file documents are not
 supported.
 
-Webview sessions are keyed by document URI plus surface kind through the shared
-`VscodeWebviewSessionRegistry`. The semantic surface kinds are `canvas` and
-`outputPreview`; Canvas is the currently exposed production surface. Reopening
-Canvas for an existing URI reveals its existing Canvas session, while the
-identity boundary leaves a different surface for that URI independent. An
-active-editor change never rebinds an existing session. Disposing one surface
-removes only that surface's panel/listener ownership, and closing a
-`TextDocument` disposes every surface session belonging to that URI.
+Canvas and Output Preview sessions are keyed by document URI plus surface kind
+through the shared `VscodeWebviewSessionRegistry`. Module Preview has distinct
+lifecycle ownership in `modulePreviewFeature.ts`: it keeps one panel per document
+URI and stores the stable target Module definition identity so a repeated open can
+reveal and retarget the same panel without rebinding an existing panel to another
+document. The semantic Webview surface kinds are `canvas`, `outputPreview`, and
+`modulePreview`; the three surfaces are independent and may coexist for the same
+document. Closing the source `TextDocument` disposes the associated Module Preview
+panel as well as the registry-owned document surfaces.
 
 The production host still ships one `webview.js` bundle. Extension Host HTML
 bootstrap places the surface kind in explicit static metadata, and
 `webviewSurfaceRouter.tsx` validates that value before routing `canvas` to
-`VSCodeApp`. `outputPreview` and malformed or unknown values fail closed; no
-Output Preview renderer or user-facing surface exists yet.
+`VSCodeApp`, `outputPreview` to `OutputPreviewApp`, and `modulePreview` to
+`ModulePreviewApp`. Malformed or unknown values fail closed.
+
+Module Preview command eligibility and execution are exact-current. Command
+Palette visibility is Source-scoped for file-scheme `.nui` documents, while the
+Source context menu uses the exact current caret target. `modulePreviewFeature.ts`
+resolves the innermost current Module using the same `queryModulePreviewTarget`
+authority as the Webview. It preserves that definition's reconciler-owned stable
+identity across source changes through `currentModulePreviewTargetByIdentity`;
+when the identity disappears or the current semantic proof is stale, it sends an
+unavailable target instead of falling back to a name or ancestor. Target delivery
+waits until the Webview has acknowledged the exact authoritative TextDocument
+version.
+
+Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
+`AutomationDocument` for the authoritative source mirror,
+`createModulePreviewSession` for the host-neutral ephemeral input/default/last-good
+state, `buildModulePreviewEvaluationOptions` plus `VscodeRustTransport` for the
+existing production evaluation path, and the shared `DrawingCanvas` /
+`CanvasHostAdapter` for rendering and non-writing interactions. Canonical source
+mutation, Bake, Reference Pick, and other authored-source gestures are outside
+this surface lifecycle.
 
 Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
@@ -813,22 +860,24 @@ Source Editor focus where possible, rejects reusable module-definition bodies, a
 is accepted only after the same authoritative source/revision/evaluation checks
 used by navigation.
 
-`RustEvaluationProcess` and `RustEvaluationProcessOwner` are implemented in the
-shared Node-only `src/node/rustEvaluationProcess.ts` boundary. The VS Code
-compatibility modules re-export that implementation; Extension Host still owns
-one lazy process instance shared by Canvas / Output Preview sessions and native
-Hover runtime evaluation regardless of document or surface identity. A panel
-does not own or kill the process. Unexpected process death rejects pending work,
-clears the dead owner, and allows the next evaluation request to respawn it.
-Headless MCP owns a separate lazy owner instance but uses the same client/protocol
-implementation. The process binary is produced by `rust-evaluator`, not the Tauri
-crate. The existing bounded latest-wins Rust transport, stale evaluation discard,
-`VscodeDragPreviewScheduler`, shared DrawingCanvas, and production compiler /
-evaluator remain reused from the performance PoC path.
+`RustEvaluationProcess` and the shared lazy owner implementation live in
+`src/node/rustEvaluationProcess.ts`. The VS Code compatibility wrapper in
+`vscode-extension/src/rustEvaluationProcessOwner.ts` exposes the one active
+Extension Host owner so independently registered production features can reuse it.
+That one lazy process instance is shared by Canvas, Output Preview, Module Preview,
+and native Hover runtime evaluation regardless of document or surface identity.
+A panel does not own or kill the process. Unexpected process death rejects pending
+work, clears the dead process, and allows the next evaluation request to respawn
+it. Headless MCP owns a separate lazy owner instance but uses the same
+client/protocol implementation. The process binary is produced by `rust-evaluator`,
+not the Tauri crate. The existing bounded latest-wins Rust transport, stale
+evaluation discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and
+production compiler/evaluator remain reused from the performance PoC path.
 
-`src/vscode/` owns the local Webview / Extension Host message bridge, VS Code
-Canvas adapter, app, and benchmark result handoff. `vscode-extension/` owns the
-desktop-local extension host, Canvas session registry, TextDocument edit bridge,
+`src/vscode/` owns the Webview-side message bridge, Canvas and Module Preview
+surface composition/adapters, and benchmark result handoff. `vscode-extension/`
+owns the desktop-local Extension Host, Canvas/Output Preview registry lifecycle,
+Module Preview's per-document panel/target lifecycle, TextDocument edit bridge,
 URI-scoped language analysis sessions, and its adapter into the shared persistent
 Rust stdio process boundary.
 

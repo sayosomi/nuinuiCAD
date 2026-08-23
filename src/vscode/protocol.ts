@@ -30,7 +30,7 @@ export type {
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
 
-export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview"] as const;
+export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
 
 export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";
@@ -240,7 +240,9 @@ export type ExtensionToVscodeMessage =
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
   | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
-  | { type: "outputPreviewFit" };
+  | { type: "outputPreviewFit" }
+  | { type: "modulePreviewTarget"; documentVersion: number; normalizedSourceOffset: number }
+  | { type: "modulePreviewTargetUnavailable"; documentVersion: number };
 
 export type VscodeWebviewApi = {
   postMessage: (message: VscodeToExtensionMessage) => void;
