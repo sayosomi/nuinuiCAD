@@ -32,6 +32,13 @@ import {
   type ModuleCompletionCandidate,
   type ModuleCompletionParameterMetadata
 } from "./moduleCompletionCandidates";
+import {
+  buildModuleDocumentationIndex,
+  documentationForModuleDefinition,
+  documentationForModuleExport,
+  documentationForModuleParameter,
+  type ModuleDocumentation
+} from "./moduleDocumentation";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
@@ -73,6 +80,7 @@ export type DslCompletionCandidate = {
   label: string;
   detail?: string;
   identity?: string;
+  documentation?: ModuleDocumentation;
 };
 
 export type DslCompletionRange = { from: number; to: number };
@@ -755,6 +763,79 @@ const queryCandidates = (
   return [];
 };
 
+const attachModuleDocumentation = (
+  context: Exclude<DslCompletionContext, null>,
+  input: LogicalInput,
+  compiled: CompiledDslDocument | undefined,
+  exact: boolean,
+  statementIndex: number,
+  candidates: readonly DslCompletionCandidate[]
+): readonly DslCompletionCandidate[] => {
+  const analysis = compiled?.moduleSemanticAnalysis ?? compiled?.sourceSemanticAnalysis;
+  if (!compiled || !analysis || !exact || statementIndex < 0) return candidates;
+  if (
+    context.kind !== "moduleCallee" &&
+    context.kind !== "moduleArgumentLabel" &&
+    context.kind !== "moduleQualifiedMember"
+  ) return candidates;
+
+  const documentationIndex = buildModuleDocumentationIndex({
+    statements: compiled.statements,
+    spans: compiled.spans,
+    semanticAnalysis: analysis
+  });
+  const withDocumentation = (
+    candidate: DslCompletionCandidate,
+    documentation: ModuleDocumentation | null
+  ): DslCompletionCandidate => documentation
+    ? { ...candidate, documentation }
+    : candidate;
+
+  if (context.kind === "moduleCallee") {
+    return candidates.map((candidate) => {
+      if (candidate.kind !== "module" || !candidate.identity) return candidate;
+      const definition = analysis.definitionsByStatementId.get(candidate.identity);
+      return definition
+        ? withDocumentation(candidate, documentationForModuleDefinition(documentationIndex, definition))
+        : candidate;
+    });
+  }
+
+  if (context.kind === "moduleArgumentLabel") {
+    const parameters = currentModuleDefinitionParametersAt(compiled, input, statementIndex, true);
+    if (!parameters) return candidates;
+    return candidates.map((candidate) => {
+      if (candidate.kind !== "argumentName") return candidate;
+      const parameter = parameters.find((entry) => entry.name === candidate.label);
+      return parameter
+        ? withDocumentation(candidate, documentationForModuleParameter(documentationIndex, parameter))
+        : candidate;
+    });
+  }
+
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return candidates;
+  const qualifier = resolveSourceLexicalPath(
+    namespace,
+    statementIndex,
+    parseDslReferenceToken(context.qualifiedInstanceName)
+  );
+  if (qualifier.kind !== "resolved" || qualifier.declaration.kind !== "moduleInstance") return candidates;
+  const instance = analysis.instancesByStatementId.get(qualifier.declaration.statementId);
+  const definition = instance?.callee
+    ? analysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+    : undefined;
+  if (!definition) return candidates;
+
+  return candidates.map((candidate) => {
+    if (candidate.kind !== "binding" && candidate.kind !== "geometry") return candidate;
+    const exported = definition.exports.find((entry) => entry.name === candidate.label);
+    return exported
+      ? withDocumentation(candidate, documentationForModuleExport(documentationIndex, exported))
+      : candidate;
+  });
+};
+
 /**
  * Query source completion semantics without importing an editor host.
  *
@@ -841,6 +922,8 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
       ...moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, { kind: "number" })
     ]);
   }
+
+  candidates = [...attachModuleDocumentation(context, input, compiled, exact, statementIndex, candidates)];
 
   const logicalRange = replacementRangeInLogicalText(input.lineText, context);
   const replacementRange = input.authoring

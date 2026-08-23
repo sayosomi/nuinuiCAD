@@ -38,7 +38,8 @@ vi.mock("vscode", () => {
     Position,
     Range,
     SnippetString,
-    CompletionItem
+    CompletionItem,
+    env: { language: "en" }
   };
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });

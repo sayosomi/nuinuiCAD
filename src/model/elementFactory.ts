@@ -303,7 +303,8 @@ export const createCadElement = (
         centerPoint: referenceAnchor(firstPointId),
         radius: 30,
         startAngleDeg: 0,
-        endAngleDeg: 90
+        endAngleDeg: 90,
+        direction: "counterclockwise"
       };
     }
     case "threePointArcLine": {

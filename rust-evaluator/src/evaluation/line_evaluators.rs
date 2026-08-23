@@ -134,6 +134,19 @@ pub(crate) fn evaluate_angle_length_line(
     );
 }
 
+fn directed_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64, direction: &str) -> f64 {
+    let sweep = if direction == "clockwise" {
+        -positive_sweep_degrees(end_angle_deg, start_angle_deg)
+    } else {
+        positive_sweep_degrees(start_angle_deg, end_angle_deg)
+    };
+    if sweep == 0.0 {
+        0.0
+    } else {
+        sweep
+    }
+}
+
 pub(crate) fn evaluate_arc_line(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
@@ -180,7 +193,11 @@ pub(crate) fn evaluate_arc_line(
         return;
     };
     let safe_radius = if radius > 0.0 { radius } else { 0.0 };
-    let sweep_angle_deg = positive_sweep_degrees(start_angle_deg, end_angle_deg);
+    let direction = element
+        .get("direction")
+        .and_then(Value::as_str)
+        .unwrap_or("counterclockwise");
+    let sweep_angle_deg = directed_sweep_degrees(start_angle_deg, end_angle_deg, direction);
     let (start_tangent_angle_deg, end_tangent_angle_deg) =
         arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);
     let id = element_id(element).unwrap_or_default();
@@ -327,7 +344,7 @@ fn insert_arc_line_geometry(state: &mut EvaluationState, arc: ArcGeometry) {
             "startTangentAngleDeg": arc.start_tangent_angle_deg,
             "endTangentAngleDeg": arc.end_tangent_angle_deg,
             "sweepAngleDeg": arc.sweep_angle_deg,
-            "length": arc.safe_radius * arc.sweep_angle_deg.to_radians()
+            "length": arc.safe_radius * arc.sweep_angle_deg.to_radians().abs()
         }),
     );
 }

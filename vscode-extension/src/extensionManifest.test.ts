@@ -54,6 +54,7 @@ const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const commandIds = [
   "nuinuiCAD.openCanvas",
   "nuinuiCAD.openOutputPreview",
+  "nuinuiCAD.openModulePreview",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.pickReferenceFromCanvas",
@@ -71,10 +72,17 @@ const commandIds = [
   "nuinuiCAD.toggleCanvasPoints",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
-  "nuinuiCAD.editCanvasRibbon"
+  "nuinuiCAD.editCanvasRibbon",
+  "nuinuiCAD.modulePreview.clearSelection",
+  "nuinuiCAD.modulePreview.resetView",
+  "nuinuiCAD.modulePreview.fitDrawing",
+  "nuinuiCAD.modulePreview.togglePointNames",
+  "nuinuiCAD.modulePreview.toggleGeometryNames",
+  "nuinuiCAD.modulePreview.togglePoints"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
@@ -83,7 +91,8 @@ const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editor
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
-const canvasRibbonWhen = "webviewId == 'nuinuiCAD.canvas' && (webviewSection == 'blank' || webviewSection == 'ribbon')";
+const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
+const modulePreviewBlankWhen = "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'";
 
 async function readManifest(): Promise<ExtensionManifest> {
   return JSON.parse(await readFile(manifestPath, "utf8")) as ExtensionManifest;
@@ -112,6 +121,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(commands.map(({ title }) => title)).toEqual([
       "nuinuiCAD: Open Canvas",
       "nuinuiCAD: Open Output Preview",
+      "nuinuiCAD: Open Module Preview",
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Pick Reference from Canvas",
@@ -129,17 +139,24 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Canvas Points",
       "nuinuiCAD: Bake Current Shape",
       "nuinuiCAD: Bake Base Shape",
-      "nuinuiCAD: Edit Canvas Ribbon"
+      "nuinuiCAD: Edit Canvas Ribbon",
+      "nuinuiCAD: Clear Module Preview Selection",
+      "nuinuiCAD: Reset Module Preview View",
+      "nuinuiCAD: Fit Module Preview Drawing",
+      "nuinuiCAD: Toggle Module Preview Point Names",
+      "nuinuiCAD: Toggle Module Preview Geometry Names",
+      "nuinuiCAD: Toggle Module Preview Points"
     ]);
   });
 
-  it("scopes the cross-surface open commands to their exact surfaces", async () => {
+  it("scopes open commands without making Module Preview Palette visibility caret-dependent", async () => {
     const manifest = await readManifest();
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
 
     expect(commandPalette).toEqual([
       { command: "nuinuiCAD.openCanvas", when: sourceOrOutputPreviewPaletteWhen },
       { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
+      { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
@@ -157,15 +174,24 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.canvasUndo", when: "false" },
       { command: "nuinuiCAD.canvasRedo", when: "false" },
       { command: "nuinuiCAD.outputPreviewUndo", when: "false" },
-      { command: "nuinuiCAD.outputPreviewRedo", when: "false" }
+      { command: "nuinuiCAD.outputPreviewRedo", when: "false" },
+      { command: "nuinuiCAD.modulePreview.clearSelection", when: "false" },
+      { command: "nuinuiCAD.modulePreview.resetView", when: "false" },
+      { command: "nuinuiCAD.modulePreview.fitDrawing", when: "false" },
+      { command: "nuinuiCAD.modulePreview.togglePointNames", when: "false" },
+      { command: "nuinuiCAD.modulePreview.toggleGeometryNames", when: "false" },
+      { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" }
     ]);
+    expect(commandPalette.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.when)
+      .not.toContain("modulePreviewSourceTarget");
   });
 
-  it("adds the exact Source and Canvas context menu conditions", async () => {
+  it("adds exact Source, Canvas, and non-writing Module Preview context menus", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus).toMatchObject({
       "editor/context": [
         { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
+        { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen },
         { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen }
       ]
     });
@@ -175,19 +201,29 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasBlankWhen },
       { command: "nuinuiCAD.toggleCanvasGeometryNames", when: canvasBlankWhen },
       { command: "nuinuiCAD.toggleCanvasPoints", when: canvasBlankWhen },
-      { command: "nuinuiCAD.editCanvasRibbon", when: canvasRibbonWhen },
+      { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection` },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
-      { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen }
+      { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen },
+      { command: "nuinuiCAD.modulePreview.fitDrawing", when: modulePreviewBlankWhen },
+      { command: "nuinuiCAD.modulePreview.resetView", when: modulePreviewBlankWhen },
+      { command: "nuinuiCAD.modulePreview.togglePointNames", when: modulePreviewBlankWhen },
+      { command: "nuinuiCAD.modulePreview.toggleGeometryNames", when: modulePreviewBlankWhen },
+      { command: "nuinuiCAD.modulePreview.togglePoints", when: modulePreviewBlankWhen },
+      { command: "nuinuiCAD.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection` }
     ]);
     for (const menuId of ["webview/context", "editor/context"] as const) {
       const contextCommands = (manifest.contributes?.menus?.[menuId] ?? []).map(({ command }) => command);
       expect(contextCommands).not.toContain("nuinuiCAD.openOutputPreview");
       expect(contextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
     }
-    expect(manifest.contributes?.menus?.commandPalette?.some(({ command }) =>
-      command === "nuinuiCAD.toggleCanvasElementNames")).toBe(true);
+    const modulePreviewContextCommands = (manifest.contributes?.menus?.["webview/context"] ?? [])
+      .filter(({ when }) => when.includes("nuinuiCAD.modulePreview"))
+      .map(({ command }) => command);
+    expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.bakeCurrentShape");
+    expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.bakeBaseShape");
+    expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.goToSourceDefinition");
     expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({
       command: "nuinuiCAD.toggleCanvasElementNames",
       when: "false"
@@ -205,7 +241,7 @@ describe("VS Code extension manifest command contributions", () => {
 });
 
 describe("VS Code extension manifest keybindings", () => {
-  it("uses platform-standard history chords for Canvas and Output Preview", async () => {
+  it("uses platform-standard history chords for Canvas and Output Preview only", async () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
@@ -241,6 +277,7 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
+    expect(keybindings.some(({ command }) => command.includes("modulePreview"))).toBe(false);
   });
 });
 

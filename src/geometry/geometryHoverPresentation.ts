@@ -94,6 +94,7 @@ const arcHoverRows = (arc: ComputedArcLine): GeometryHoverRow[] => [
   valueRow("始角度", formatAngleDeg(arc.startAngleDeg)),
   valueRow("終角度", formatAngleDeg(arc.endAngleDeg)),
   valueRow("スイープ", `${formatNumber(arc.sweepAngleDeg)}°`),
+  valueRow("進行方向", arc.sweepAngleDeg > 0 ? "反時計回り" : arc.sweepAngleDeg < 0 ? "時計回り" : "なし"),
   valueRow("長さ", formatMillimeters(arc.length)),
   valueRow("始点", formatCoordinate(arc.start)),
   valueRow("終点", formatCoordinate(arc.end))

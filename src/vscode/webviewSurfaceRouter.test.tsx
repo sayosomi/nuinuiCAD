@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VSCodeApp } from "./VSCodeApp";
 import { OutputPreviewApp } from "./OutputPreviewApp";
+import { ModulePreviewApp } from "./ModulePreviewApp";
 import { routeVscodeWebviewSurface } from "./webviewSurfaceRouter";
 import type { VscodeWebviewApi } from "./protocol";
 
@@ -13,6 +14,10 @@ describe("VS Code Webview surface routing", () => {
 
   it("routes the Output Preview surface to its dedicated application", () => {
     expect(routeVscodeWebviewSurface("outputPreview", api).type).toBe(OutputPreviewApp);
+  });
+
+  it("routes Module Preview through its dedicated surface entry point", () => {
+    expect(routeVscodeWebviewSurface("modulePreview", api).type).toBe(ModulePreviewApp);
   });
 
   it.each([undefined, null, "", "unknown", "Canvas", { kind: "canvas" }])(

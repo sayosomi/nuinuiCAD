@@ -159,6 +159,7 @@ describe("geometry Hover runtime presentation", () => {
         { label: "始角度", value: "0°" },
         { label: "終角度", value: "270°" },
         { label: "スイープ", value: "-90°" },
+        { label: "進行方向", value: "時計回り" },
         { label: "長さ", value: "78.54 mm" },
         { label: "始点", value: "(50, 0)" },
         { label: "終点", value: "(0, -50)" }

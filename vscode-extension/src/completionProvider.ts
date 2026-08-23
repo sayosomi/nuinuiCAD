@@ -6,6 +6,7 @@ import {
   type DslCompletionQueryResult
 } from "../../src/dsl/dslCompletionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
@@ -80,30 +81,40 @@ const completionItemFor = (
   candidate: DslCompletionCandidate,
   result: DslCompletionQueryResult,
   normalizedSource: string,
-  range: vscode.Range
+  range: vscode.Range,
+  displayLanguage: string
 ): vscode.CompletionItem => {
   const item = new vscode.CompletionItem(candidate.label, completionItemKindFor[candidate.kind]);
   item.range = range;
   if (candidate.detail !== undefined) item.detail = candidate.detail;
   item.insertText = insertionFor(candidate, result, normalizedSource);
+  const markdown = selectModuleDocumentationMarkdown(candidate.documentation, displayLanguage);
+  if (markdown !== null) {
+    const documentation = new vscode.MarkdownString(markdown);
+    documentation.isTrusted = false;
+    documentation.supportHtml = false;
+    item.documentation = documentation;
+  }
   return item;
 };
 
 export const projectDslCompletionItems = (
   normalizedSource: string,
-  result: DslCompletionQueryResult
+  result: DslCompletionQueryResult,
+  displayLanguage = "en"
 ): vscode.CompletionItem[] => {
   const range = new vscode.Range(
     normalizedPositionAt(normalizedSource, result.replacementRange.from),
     normalizedPositionAt(normalizedSource, result.replacementRange.to)
   );
-  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range));
+  return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range, displayLanguage));
 };
 
 export type NuiCompletionSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 
 export const createNuiCompletionProvider = (
-  sessionFor: NuiCompletionSessionFor
+  sessionFor: NuiCompletionSessionFor,
+  displayLanguageFor: () => string = () => vscode.env?.language ?? "en"
 ): vscode.CompletionItemProvider => ({
   provideCompletionItems: (document, position) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return [];
@@ -127,6 +138,6 @@ export const createNuiCompletionProvider = (
     });
     if (!result) return [];
 
-    return projectDslCompletionItems(normalizedSource, result);
+    return projectDslCompletionItems(normalizedSource, result, displayLanguageFor());
   }
 });

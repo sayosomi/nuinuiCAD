@@ -19,7 +19,8 @@ import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
+import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import {
@@ -33,6 +34,8 @@ import { replaceCanvasSelection } from "../commands/selectionCommands";
 import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
+import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
+import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -62,6 +65,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
   const latestCanvasNavigationRequestRef = useRef<number | null>(null);
+  const deferredCanvasNavigationRequestRef = useRef<
+    Extract<ExtensionToVscodeMessage, { type: "canvasNavigationRequest" }> | null
+  >(null);
   const pendingCanvasFocusRequestRef = useRef<number | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
@@ -89,6 +95,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
     evaluationStateRef.current = evaluationState;
+    const deferredCanvasNavigation = deferredCanvasNavigationRequestRef.current;
+    if (!deferredCanvasNavigation) return;
+    if (latestCanvasNavigationRequestRef.current !== deferredCanvasNavigation.requestId) {
+      deferredCanvasNavigationRequestRef.current = null;
+      return;
+    }
+    deferredCanvasNavigationRequestRef.current = null;
+    window.dispatchEvent(new MessageEvent("message", { data: deferredCanvasNavigation }));
   }, [evaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
@@ -148,6 +162,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const requestCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
     pendingCanvasFocusRequestRef.current = null;
     latestCanvasNavigationRequestRef.current = null;
+    deferredCanvasNavigationRequestRef.current = null;
     drawingCanvasRef.current?.finalizeCanvasInteraction();
     pendingCanvasHistoryRef.current.push(direction);
     pumpCanvasHistory();
@@ -479,6 +494,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (canvasHistoryInFlightRef.current !== message.direction) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         canvasHistoryInFlightRef.current = null;
         if (message.status !== "completed") {
           pendingCanvasHistoryRef.current = [];
@@ -512,28 +528,61 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
       } else if (message.type === "canvasNavigationRequest") {
         pendingCanvasFocusRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = message.requestId;
         const current = currentAuthoritativeDocument(message.documentVersion);
         if (!current || canvasHistoryInFlightRef.current !== null) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: "source-mismatch"
+          });
           return;
         }
-        const target = queryDslCanvasSourceTarget({
+        const sourceTarget = queryDslCanvasRevealSourceTarget({
           source: current.source,
           compiled: current.compiled,
           position: message.normalizedSourceOffset
         });
-        if (!target) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+        if (sourceTarget.status === "failed") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: sourceTarget.reason
+          });
           return;
         }
-        const owners = sourceOwnerByRuntimeElementId(current.compiled);
+
         const runtimeElements = effectiveElements(current.state);
-        const runtimeElementIds = current.state.elements
-          .filter((element) => owners.get(element.id)?.sourceStatementIndex === target.sourceStatementIndex)
-          .map((element) => element.id);
-        if (runtimeElementIds.length === 0) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+        const drawingModifiers = current.state.modifiers ?? [];
+        const effectiveVisibleElementIds = effectiveDrawElementIds(runtimeElements, drawingModifiers);
+        const effectiveEnabledElementIds = effectiveEvaluationElementIds(runtimeElements, drawingModifiers);
+        const activeVisibilityProfile = visibilityProfileById(
+          current.state.visibilityProfiles,
+          current.state.activeVisibilityProfileId
+        );
+        const profileVisibleElementIds = effectiveVisibleElementIdsForProfile({
+          elements: [...runtimeElements],
+          profile: activeVisibilityProfile
+        });
+        const revealResult = queryDslCanvasRevealRuntimeTarget({
+          target: sourceTarget.target,
+          compiled: current.compiled,
+          moduleGeometryRuntime: current.compiled.moduleGeometryRuntime,
+          elements: runtimeElements,
+          effectiveVisibleElementIds,
+          effectiveEnabledElementIds,
+          profileVisibleElementIds
+        });
+        if (revealResult.status === "failed") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: revealResult.reason
+          });
           return;
         }
 
@@ -542,40 +591,34 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           evaluationStateRef.current,
           current.state.compiledDocumentRevision
         );
-        const containerTarget = canvasNavigationContainerTarget({
-          runtimeElementIds,
-          elements: runtimeElements,
-          evaluation: currentEvaluation,
-          evaluationIsCurrent: currentEvaluationIsCurrent,
-          moduleMaterialization: current.state.doc.moduleMaterialization,
-          visibilityProfiles: current.state.visibilityProfiles,
-          activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-          measureCanvasTextWidth
-        });
-        if (containerTarget.status === "stale") {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
-          return;
+        const selectionIds = [...revealResult.runtimeElementIds];
+        const primarySelectionId = revealResult.primaryRuntimeElementId;
+        let revealBounds = null;
+        if (selectionIds.length === 1) {
+          const containerTarget = canvasNavigationContainerTarget({
+            runtimeElementIds: selectionIds,
+            elements: runtimeElements,
+            evaluation: currentEvaluation,
+            evaluationIsCurrent: currentEvaluationIsCurrent,
+            moduleMaterialization: current.compiled.moduleMaterialization,
+            visibilityProfiles: current.state.visibilityProfiles,
+            activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+            measureCanvasTextWidth
+          });
+          if (containerTarget.status === "stale") {
+            deferredCanvasNavigationRequestRef.current = message;
+            return;
+          }
+          if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
         }
-        if (containerTarget.status === "no-renderable-geometry") {
+
+        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true, "requested")) {
           api.postMessage({
             type: "canvasNavigationResult",
             requestId: message.requestId,
-            status: "no-renderable-geometry"
+            status: "failed",
+            reason: "no-revealable-runtime-target"
           });
-          return;
-        }
-
-        let selectionIds = runtimeElementIds;
-        let primarySelectionId = runtimeElementIds[0]!;
-        let revealBounds = null;
-        if (containerTarget.status === "ready") {
-          selectionIds = [containerTarget.containerId];
-          primarySelectionId = containerTarget.containerId;
-          revealBounds = containerTarget.bounds;
-        }
-
-        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true)) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
           return;
         }
 
@@ -606,7 +649,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             }
           }
         }
-        api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "ready" });
+        api.postMessage({
+          type: "canvasNavigationResult",
+          requestId: message.requestId,
+          status: "resolved",
+          degradations: revealResult.degradations
+        });
       } else if (message.type === "focusCanvas") {
         if (latestCanvasNavigationRequestRef.current !== message.requestId) return;
         drawingCanvasRef.current?.finalizeCanvasInteraction();
@@ -616,6 +664,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestHostDocumentVersionRef.current = message.documentVersion;
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
@@ -632,6 +681,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestHostDocumentVersionRef.current = message.documentVersion;
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
@@ -655,6 +705,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     api.postMessage({ type: "webviewReady" });
     return () => {
       window.removeEventListener("message", onMessage);
+      deferredCanvasNavigationRequestRef.current = null;
       rustTransport.dispose();
     };
   }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);

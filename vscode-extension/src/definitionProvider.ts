@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { queryDslDefinition, type DslDefinitionRange } from "../../src/dsl/dslDefinitionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -27,34 +28,43 @@ export const createNuiDefinitionProvider = (
   provideDefinition: (document, position) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
-    const rawSource = document.getText();
-    const session = sessionFor(document);
-    if (session.getSource() !== rawSource) session.replaceSource(rawSource);
+    const provideSingleDocument = (): vscode.DefinitionLink[] | undefined => {
+      const rawSource = document.getText();
+      const session = sessionFor(document);
+      if (session.getSource() !== rawSource) session.replaceSource(rawSource);
 
-    const normalizedSource = normalizedSourceFor(rawSource);
-    const source: SourceSnapshot = {
-      normalizedSource,
-      sourceRevision: session.getSourceRevision()
+      const normalizedSource = normalizedSourceFor(rawSource);
+      const source: SourceSnapshot = {
+        normalizedSource,
+        sourceRevision: session.getSourceRevision()
+      };
+      const semantic = session.definitionSemanticSnapshot(source);
+      if (!semantic) return undefined;
+
+      const normalizedOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(position));
+      const result = queryDslDefinition({
+        source,
+        position: normalizedOffset,
+        semantic
+      });
+      if (!result) return undefined;
+
+      const originSelectionRange = vscodeRangeFor(document, rawSource, result.referenceRange);
+      const targetSelectionRange = vscodeRangeFor(document, rawSource, result.declarationRange);
+      const targetRange = document.lineAt(targetSelectionRange.start.line).range;
+      return [{
+        originSelectionRange,
+        targetUri: document.uri,
+        targetRange,
+        targetSelectionRange
+      }];
     };
-    const semantic = session.definitionSemanticSnapshot(source);
-    if (!semantic) return undefined;
 
-    const normalizedOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(position));
-    const result = queryDslDefinition({
-      source,
-      position: normalizedOffset,
-      semantic
-    });
-    if (!result) return undefined;
-
-    const originSelectionRange = vscodeRangeFor(document, rawSource, result.referenceRange);
-    const targetSelectionRange = vscodeRangeFor(document, rawSource, result.declarationRange);
-    const targetRange = document.lineAt(targetSelectionRange.start.line).range;
-    return [{
-      originSelectionRange,
-      targetUri: document.uri,
-      targetRange,
-      targetSelectionRange
-    }];
+    const multiDocument = activeVscodeMultiDocumentHost();
+    return multiDocument
+      ? multiDocument.provideDefinition(document, position).then((handled) =>
+          handled.handled ? handled.value : provideSingleDocument()
+        )
+      : provideSingleDocument();
   }
 });
