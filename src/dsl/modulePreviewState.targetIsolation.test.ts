@@ -10,10 +10,10 @@ describe("Module Preview target-scoped context state", () => {
       "nui 4",
       "module Outer(scale: number) {",
       "  module A(width: number) {",
-      "    point PA = coordinate(x: @scale, y: @width)",
+      "    point PA = coordinate(x: @width, y: 0)",
       "  }",
       "  module B(width: number) {",
-      "    point PB = coordinate(x: @scale, y: @width)",
+      "    point PB = coordinate(x: @width, y: 0)",
       "  }",
       "}"
     ].join("\n");
