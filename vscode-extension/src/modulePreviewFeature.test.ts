@@ -240,7 +240,7 @@ describe("registerModulePreviewFeature", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewTarget",
       documentVersion: 1,
-      normalizedSourceOffset: source.indexOf("module Inner")
+      normalizedSourceOffset: source.indexOf("  module Inner")
     }));
 
     await panel.receive({ type: "rustEvaluationRequest", id: 7, input: { document: "preview" } });
