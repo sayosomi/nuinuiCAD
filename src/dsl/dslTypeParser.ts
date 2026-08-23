@@ -1,12 +1,19 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslSpan } from "./dslTypes";
+import type { DslDeclaredValueType, DslSpan } from "./dslTypes";
+import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 
 export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string };
 
 export type DslScalarTypeParseResult = {
   declaredType: ScalarType | null;
+  choiceOptionSpans: DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
+};
+
+export type DslDeclaredValueTypeParseResult = {
+  declaredType: DslDeclaredValueType | null;
   choiceOptionSpans: DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;
 };
@@ -22,7 +29,8 @@ const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
 /**
  * The scalar type names accepted by typed declarations && module parameters.
  * Source Editor completion consumes the declaration-facing re-export instead
- * of maintaining a second list.
+ * of maintaining a second list. Named record types are source declarations,
+ * not a fixed completion vocabulary here.
  */
 export const dslTypedDeclarationTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
@@ -105,8 +113,9 @@ export type DslScalarTypeParseOptions = {
 };
 
 /**
- * Parses the source-owned scalar type annotation used by `const`/`let` &&
- * module parameters. No initializer || default expression is interpreted.
+ * Parses the source-owned scalar type annotation used by scalar declarations,
+ * record fields, && scalar Module parameters. No initializer || default
+ * expression is interpreted.
  */
 export const parseDslScalarType = (
   source: string,
@@ -208,4 +217,29 @@ export const parseDslScalarType = (
 
   if (hasError) return { declaredType: null, choiceOptionSpans: optionSpansByName };
   return { declaredType: { kind: "choice", options: optionsByName }, choiceOptionSpans: optionSpansByName };
+};
+
+const isBareTypeName = (text: string) =>
+  text.length > 0 && [...text].every((character) => isBareDslIdentifierChar(character));
+
+/**
+ * Parses a declaration-facing value type. Built-in scalar spellings retain
+ * their existing parser/diagnostics; any other bare identifier remains an
+ * unresolved nominal record type for the source-semantic resolver. This is a
+ * source model only and never widens ScalarType.
+ */
+export const parseDslDeclaredValueType = (
+  source: string,
+  typeSpan: DslSpan,
+  diagnostics: DslTypeDiagnostic[]
+): DslDeclaredValueTypeParseResult => {
+  const text = source.slice(typeSpan.start, typeSpan.end);
+  const builtInScalarSyntax =
+    text === NUMBER_TYPE_NAME ||
+    text === dslChoiceTypeName ||
+    Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, text) ||
+    NUMBER_HEAD.test(text) ||
+    CHOICE_HEAD.test(text);
+  if (builtInScalarSyntax || !isBareTypeName(text)) return parseDslScalarType(source, typeSpan, diagnostics);
+  return { declaredType: { kind: "record", name: text }, choiceOptionSpans: [] };
 };
