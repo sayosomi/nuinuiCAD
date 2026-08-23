@@ -92,10 +92,37 @@ export const analyzeModuleBody = (
   });
   const capturedDiagnostics: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic }[] = [];
   const originalResolveBodyHasValue = input.resolveBodyHasValue;
+  const originalResolveGeometry = input.resolveGeometry;
 
   const result = core.analyzeModuleBody({
     ...input,
     addLocal: (statementIndex, diagnostic) => capturedDiagnostics.push({ statementIndex, diagnostic }),
+    resolveGeometry: (statementIndex, ownerIndex, rawValue, span, expected, options) => {
+      if (
+        expected === "line" &&
+        options?.role === "lineReferenceList" &&
+        geometryArrayWholeReference(input, statementIndex, rawValue)
+      ) {
+        const parsed = parseDslSourceReference(rawValue.trim());
+        const nameSpan = parsed.kind === "valid"
+          ? {
+              start: span.start + parsed.reference.pathRange.start,
+              end: span.start + parsed.reference.pathRange.end
+            }
+          : undefined;
+        return {
+          source: rawValue,
+          span,
+          ...(nameSpan ? { nameSpan } : {}),
+          expectedGeometryKind: "line",
+          role: "lineReferenceList",
+          target: null,
+          coordinate: null,
+          resolution: "resolved"
+        };
+      }
+      return originalResolveGeometry(statementIndex, ownerIndex, rawValue, span, expected, options);
+    },
     resolveBodyHasValue: (statementIndex, reference) => {
       const existing = originalResolveBodyHasValue(statementIndex, reference);
       if (!existing.diagnostic) return existing;
