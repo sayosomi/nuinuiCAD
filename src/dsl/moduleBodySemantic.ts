@@ -1,4 +1,4 @@
-import type { DslStatement } from "./dslTypes";
+import type { DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import {
   geometryArrayTypeOfModuleParameter,
@@ -65,14 +65,15 @@ const geometryArrayWholeReference = (
     : null;
 };
 
-type ArrayListSite = { statementIndex: number; start: number; end: number };
+type ArrayListSite = { statementIndex: number; spans: readonly DslSpan[] };
 
 const diagnosticIsInsideSite = (
   diagnostic: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic },
   site: ArrayListSite
-) => diagnostic.statementIndex === site.statementIndex &&
-  diagnostic.diagnostic.span.start >= site.start &&
-  diagnostic.diagnostic.span.end <= site.end;
+) => diagnostic.statementIndex === site.statementIndex && site.spans.some((span) =>
+  diagnostic.diagnostic.span.start >= span.start &&
+  diagnostic.diagnostic.span.end <= span.end
+);
 
 /**
  * Record-valued declarations and immutable geometry arrays are source-semantic
@@ -129,8 +130,10 @@ export const analyzeModuleBody = (
       if (!arrayReference) return true;
       arrayListSites.push({
         statementIndex: body.statementIndex,
-        start: site.reference.span.start,
-        end: site.reference.span.end
+        spans: [
+          site.reference.span,
+          ...(site.reference.nameSpan ? [site.reference.nameSpan] : [])
+        ]
       });
       if (
         arrayReference.kind === "parameter" &&
