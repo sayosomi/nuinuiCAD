@@ -31,6 +31,11 @@ const visibleHslFor = (value: string, backgroundValue: string) => {
   return { hue: hue < 0 ? hue + 360 : hue, saturation, lightness };
 };
 
+const hueDistance = (first: number, second: number) => {
+  const difference = Math.abs(first - second) % 360;
+  return Math.min(difference, 360 - difference);
+};
+
 const contrastFor = (value: string, backgroundValue: string) => {
   const color = parseCssColor(value);
   const background = parseCssColor(backgroundValue);
@@ -39,26 +44,63 @@ const contrastFor = (value: string, backgroundValue: string) => {
 };
 
 describe("resolveVSCodeCanvasTheme light selection correction", () => {
-  it("uses a materially brighter near-full-chroma blue on a weak light-theme teal", () => {
+  it("keeps a weak light-theme selection hue instead of replacing it with fixed blue", () => {
     const foreground = "#657b83";
     const background = "#fdf6e3";
-    const accent = "#07958a";
+    const themeSelection = "#07958a";
     const theme = resolveVSCodeCanvasTheme(stylesFor({
       "--vscode-editor-foreground": foreground,
       "--vscode-editor-background": background,
-      "--vscode-focusBorder": accent,
-      "--vscode-editor-selectionHighlightBorder": accent
+      "--vscode-focusBorder": themeSelection,
+      "--vscode-editor-selectionHighlightBorder": themeSelection
     }));
 
-    const accentHsl = visibleHslFor(accent, background);
+    const baseHsl = visibleHslFor(themeSelection, background);
     const selectionHsl = visibleHslFor(theme.selection, background);
 
-    expect(theme.selection).not.toBe(accent);
-    expect(selectionHsl.lightness).toBeGreaterThanOrEqual(0.56);
-    expect(selectionHsl.lightness - accentHsl.lightness).toBeGreaterThanOrEqual(0.2);
+    expect(theme.selection).not.toBe(themeSelection);
+    expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
     expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
-    expect(selectionHsl.hue).toBeGreaterThanOrEqual(220);
-    expect(selectionHsl.hue).toBeLessThanOrEqual(230);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("uses the theme selection token as the light correction base before focus accent", () => {
+    const foreground = "#333333";
+    const background = "#ffffff";
+    const focusAccent = "#007acc";
+    const themeSelection = "#d95ba5";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": focusAccent,
+      "--vscode-editor-selectionHighlightBorder": themeSelection
+    }));
+
+    const baseHsl = visibleHslFor(themeSelection, background);
+    const focusHsl = visibleHslFor(focusAccent, background);
+    const selectionHsl = visibleHslFor(theme.selection, background);
+
+    expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
+    expect(hueDistance(selectionHsl.hue, focusHsl.hue)).toBeGreaterThan(60);
+    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("uses the theme focus token when no explicit light selection token exists", () => {
+    const foreground = "#333333";
+    const background = "#ffffff";
+    const focusAccent = "#8a2be2";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": focusAccent
+    }));
+
+    const baseHsl = visibleHslFor(focusAccent, background);
+    const selectionHsl = visibleHslFor(theme.selection, background);
+
+    expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
+    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
