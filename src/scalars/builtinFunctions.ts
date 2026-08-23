@@ -49,7 +49,7 @@ const builtinParameterTypeDisplayName = (type: BuiltinParameterType): string =>
   typeof type === "string"
     ? type
     : type.kind === "anyChoice"
-      ? "choice"
+      ? "choice(...)"
       : type.kind === "choice"
         ? `choice(${type.options.join(", ")})`
         : type.kind;
