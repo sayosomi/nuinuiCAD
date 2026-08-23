@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { queryDslReferences } from "../../src/dsl/dslReferencesQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -21,30 +22,40 @@ export const createNuiReferenceProvider = (
   provideReferences: (document, position, context) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return [];
 
-    const rawSource = document.getText();
-    const session = sessionFor(document);
-    if (session.getSource() !== rawSource) session.replaceSource(rawSource);
+    const provideSingleDocument = (): vscode.Location[] => {
+      const rawSource = document.getText();
+      const session = sessionFor(document);
+      if (session.getSource() !== rawSource) session.replaceSource(rawSource);
 
-    const source: SourceSnapshot = {
-      normalizedSource: normalizedSourceFor(rawSource),
-      sourceRevision: session.getSourceRevision()
+      const normalizedSource = normalizedSourceFor(rawSource);
+      const source: SourceSnapshot = {
+        normalizedSource,
+        sourceRevision: session.getSourceRevision()
+      };
+      const semantic = session.referencesSemanticSnapshot(source);
+      if (!semantic) return [];
+
+      const result = queryDslReferences({
+        source,
+        position: normalizedOffsetFromRaw(rawSource, document.offsetAt(position)),
+        semantic
+      });
+      if (!result) return [];
+
+      const ranges = context.includeDeclaration
+        ? [result.declarationRange, ...result.referenceRanges]
+        : result.referenceRanges;
+      return ranges.map((range) => new vscode.Location(
+        document.uri,
+        vscodeRangeForNormalized(document, rawSource, range)
+      ));
     };
-    const semantic = session.referencesSemanticSnapshot(source);
-    if (!semantic) return [];
 
-    const result = queryDslReferences({
-      source,
-      position: normalizedOffsetFromRaw(rawSource, document.offsetAt(position)),
-      semantic
-    });
-    if (!result) return [];
-
-    const ranges = context.includeDeclaration
-      ? [result.declarationRange, ...result.referenceRanges]
-      : result.referenceRanges;
-    return ranges.map((range) => new vscode.Location(
-      document.uri,
-      vscodeRangeForNormalized(document, rawSource, range)
-    ));
+    const multiDocument = activeVscodeMultiDocumentHost();
+    return multiDocument
+      ? multiDocument.provideReferences(document, position, context.includeDeclaration).then((handled) =>
+          handled.handled ? handled.value : provideSingleDocument()
+        )
+      : provideSingleDocument();
   }
 });
