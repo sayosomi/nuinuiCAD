@@ -39,7 +39,7 @@ const contrastFor = (value: string, backgroundValue: string) => {
 };
 
 describe("resolveVSCodeCanvasTheme light selection correction", () => {
-  it("uses a brighter high-chroma cool selection on a weak light-theme teal", () => {
+  it("uses a materially brighter near-full-chroma blue on a weak light-theme teal", () => {
     const foreground = "#657b83";
     const background = "#fdf6e3";
     const accent = "#07958a";
@@ -54,10 +54,11 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     const selectionHsl = visibleHslFor(theme.selection, background);
 
     expect(theme.selection).not.toBe(accent);
-    expect(selectionHsl.lightness).toBeGreaterThan(accentHsl.lightness);
-    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.82);
-    expect(selectionHsl.hue).toBeGreaterThanOrEqual(195);
-    expect(selectionHsl.hue).toBeLessThanOrEqual(225);
+    expect(selectionHsl.lightness).toBeGreaterThanOrEqual(0.56);
+    expect(selectionHsl.lightness - accentHsl.lightness).toBeGreaterThanOrEqual(0.2);
+    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
+    expect(selectionHsl.hue).toBeGreaterThanOrEqual(220);
+    expect(selectionHsl.hue).toBeLessThanOrEqual(230);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
