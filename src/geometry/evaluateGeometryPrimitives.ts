@@ -17,6 +17,17 @@ export const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number)
   return isFullCircle && Math.abs(rawSweep) > CIRCLE_EPSILON ? 360 : normalized;
 };
 
+export const directedSweepDegrees = (
+  startAngleDeg: number,
+  endAngleDeg: number,
+  direction: "counterclockwise" | "clockwise"
+) => {
+  const sweep = direction === "clockwise"
+    ? -positiveSweepDegrees(endAngleDeg, startAngleDeg)
+    : positiveSweepDegrees(startAngleDeg, endAngleDeg);
+  return sweep === 0 ? 0 : sweep;
+};
+
 export const circleThroughThreePoints = (
   point1: ComputedPoint,
   point2: ComputedPoint,
