@@ -53,6 +53,13 @@ export type GeometryArrayMemberResolution<TTarget> =
 
 export type GeometryArrayReferenceResolution =
   | { kind: "resolved"; targetValueId: string; type: GeometryArrayType }
+  /**
+   * Module instance export namespaces are owned by the Module semantic pass,
+   * which runs after the ordinary source namespace. Preserve only the
+   * definition-backed identity here; that later owner validates the actual
+   * export type before runtime lowering.
+   */
+  | { kind: "deferred"; targetValueId: string }
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 
 export type ResolveGeometryArrayExpressionInput<TTarget> = {
@@ -89,7 +96,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
   if (input.expression.kind === "reference") {
     const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
     if (resolution.kind === "invalid") return { value: null, diagnostics: [resolution.diagnostic] };
-    if (!isGeometryArrayTypeAssignable(resolution.type, input.expectedType)) {
+    if (resolution.kind === "resolved" && !isGeometryArrayTypeAssignable(resolution.type, input.expectedType)) {
       return {
         value: null,
         diagnostics: [{
