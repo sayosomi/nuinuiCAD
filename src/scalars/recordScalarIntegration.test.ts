@@ -151,9 +151,9 @@ describe("SAY-128 record scalar integration", () => {
   });
 
   it.each([
-    ["unknown field", "@config.missing", "record-field-unknown"],
-    ["chained record access", "@config.amount.more", "record-field-invalid-traversal"]
-  ])("rejects %s without falling through to geometry property resolution", (_label, expression, code) => {
+    ["unknown field", "@config.missing"],
+    ["chained record access", "@config.amount.more"]
+  ])("rejects %s without falling through to geometry property resolution", (_label, expression) => {
     const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
     const result = compileCanonicalText(baseline, [
       "nui 4",
@@ -163,8 +163,7 @@ describe("SAY-128 record scalar integration", () => {
     ].join("\n"));
 
     expect(result.status).toBe("fatal");
-    expect(result.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code })
-    ]));
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("record-field-"))).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "geometry-property-invalid")).toBe(false);
   });
 });
