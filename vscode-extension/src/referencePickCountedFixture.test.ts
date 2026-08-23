@@ -73,6 +73,11 @@ const atEndOf = (fragment: string, after = 0): number => {
 };
 
 describe("SAY-99 counted-run Reference Pick fixture", () => {
+  it("has an exact-current semantic snapshot suitable for Reference Pick", () => {
+    const languageSession = createLanguageAnalysisSession(source);
+    expect(languageSession.getDiagnostics()).toEqual([]);
+  });
+
   it("resolves the production VS Code adapter target at representative contracted sites", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const offsetPointLine = source.indexOf("point OffsetPoint");
