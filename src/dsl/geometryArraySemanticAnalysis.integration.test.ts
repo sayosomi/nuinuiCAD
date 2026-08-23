@@ -14,7 +14,7 @@ describe("geometry array source semantic integration", () => {
     const { parsed, namespace, analysis } = analyze([
       "nui 4",
       "line L = segment(start: A, end: B)",
-      "curve C = bezier(start: A, control1: A, control2: B, end: B)",
+      "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
       "const straight: line[] = [@L, @L]",
       "const paths: path[] = [@L, @C, @L]",
       "const alias: path[] = @straight"
@@ -59,7 +59,7 @@ describe("geometry array source semantic integration", () => {
   it("reports strict member mismatches, forward array aliases, and Module defaults", () => {
     const { namespace } = analyze([
       "nui 4",
-      "curve C = bezier(start: A, control1: A, control2: B, end: B)",
+      "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
       "const badLine: line[] = [@C]",
       "const forward: path[] = @later",
       "const later: path[] = []",
