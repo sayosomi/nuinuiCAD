@@ -37,6 +37,25 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(source, diagnostic)).toEqual(["required"]);
   });
 
+  it("points a duplicate export back to the first export name without changing the primary diagnostic", () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  export const shared: number = 1",
+      "  export const shared: number = 2",
+      "}"
+    ].join("\n");
+    const matches = compileWithIds(source).diagnostics.filter((diagnostic) => diagnostic.code === "module-duplicate-export");
+
+    expect(matches).toHaveLength(1);
+    const diagnostic = matches[0]!;
+    expect(spanText(source, diagnostic)).toBe("export");
+    expect(diagnostic.message).toBe("module export「shared」が重複しています。");
+    expect(diagnostic.severity).toBe("error");
+    expect(relatedTexts(source, diagnostic)).toEqual(["shared"]);
+    expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["First export with this name"]);
+  });
+
   it("points scalar and geometry call mismatches to the expected parameter type", () => {
     const scalarSource = [
       "nui 4",
