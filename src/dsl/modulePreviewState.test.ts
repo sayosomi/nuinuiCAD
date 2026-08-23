@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
-import { createModulePreviewSession } from "./modulePreviewState";
+import {
+  createModulePreviewSession,
+  type ModulePreviewSessionSnapshot
+} from "./modulePreviewState";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 
 const compileWithIds = (source: string, sourceRevision = 41): CompiledDslDocument => {
@@ -20,8 +23,20 @@ const targetAt = (source: string, compiled: CompiledDslDocument, needle: string,
     semantic: { sourceRevision, compiled }
   });
 
-const targetParameter = (state: NonNullable<ReturnType<ReturnType<typeof createModulePreviewSession>["getState"]>>, name: string) =>
+const targetParameter = (state: ModulePreviewSessionSnapshot, name: string) =>
   state.parameters.parameters.find((parameter) => parameter.name === name);
+
+const previewBindingStates = (
+  state: ModulePreviewSessionSnapshot,
+  definitionStatementId: string
+) => {
+  if (state.preview.kind === "noValidPreview") return null;
+  const instance = state.preview.result.moduleSemanticAnalysis.instances.find((candidate) =>
+    candidate.callee?.definitionStatementId === definitionStatementId &&
+    candidate.statementId.startsWith("module-preview-call:")
+  );
+  return instance?.parameterBindings.map((binding) => [binding.parameterName, binding.state]) ?? null;
+};
 
 describe("createModulePreviewSession", () => {
   it("restores expression text per exact Module definition and keeps last-good data across invalid input", () => {
@@ -51,11 +66,32 @@ describe("createModulePreviewSession", () => {
     expect(state?.preview.kind).toBe("noValidPreview");
     expect(state?.inputDiagnostics.map((diagnostic) => diagnostic.code)).toEqual(["required-value-missing"]);
 
+    state = session.setValue(targetA.definitionStatementId, 0, "(");
+    expect(state?.preview.kind).toBe("noValidPreview");
+    expect(state?.inputDiagnostics[0]).toMatchObject({ code: "invalid-expression", parameterIndex: 0 });
+
     state = session.setValue(targetA.definitionStatementId, 0, "1 + 2");
     expect(state?.preview.kind).toBe("current");
     expect(targetParameter(state!, "width")?.value).toBe("1 + 2");
     expect(targetParameter(state!, "doubled")).toMatchObject({ value: "", defaultSourceText: "@width * 2" });
     expect(targetParameter(state!, "note")?.value).toBe("");
+    expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
+      ["width", "requiredSupplied"],
+      ["doubled", "defaultedOmitted"],
+      ["note", "optionalOmitted"]
+    ]);
+
+    state = session.setValue(targetA.definitionStatementId, 1, "8");
+    state = session.setValue(targetA.definitionStatementId, 2, '"memo"');
+    expect(state?.preview.kind).toBe("current");
+    state = session.setValue(targetA.definitionStatementId, 1, "");
+    state = session.setValue(targetA.definitionStatementId, 2, "");
+    expect(state?.preview.kind).toBe("current");
+    expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
+      ["width", "requiredSupplied"],
+      ["doubled", "defaultedOmitted"],
+      ["note", "optionalOmitted"]
+    ]);
 
     state = session.activate({
       source: { normalizedSource: source, sourceRevision: 41 },
@@ -173,7 +209,7 @@ describe("createModulePreviewSession", () => {
       semantic: { sourceRevision: 41, compiled },
       target
     });
-    state = session.setValue(target.definitionStatementId, 0, "Origin");
+    state = session.setValue(target.definitionStatementId, 0, "@Origin");
     expect(state?.preview.kind).toBe("current");
     const action = session.useDefaultExplicitly(target.definitionStatementId, 1);
     expect(action.applied).toBe(false);
