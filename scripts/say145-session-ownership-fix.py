@@ -90,7 +90,7 @@ def main() -> None:
     run("git", "add", "vscode-extension/src/extension.ts", "vscode-extension/src/languageAnalysisSession.ts", "vscode-extension/src/languageAnalysisSession.test.ts")
     run("git", "rm", "-f", WORKFLOW, SCRIPT)
     run("git", "commit", "-m", "fix(SAY-145): keep runtime diagnostics in language session")
-    head_ref = os.environ.get("GITHUB_REF_NAME")
+    head_ref = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME")
     if not head_ref:
         raise RuntimeError("cannot determine branch ref")
     run("git", "push", "origin", f"HEAD:{head_ref}")
