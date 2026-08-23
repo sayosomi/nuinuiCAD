@@ -40,7 +40,9 @@ const queryIncomplete = (source: string, position = source.length) => queryDslCo
 describe("queryDslCompletion", () => {
   it("returns keyword, declaration type, module parameter type, construction, and argument candidates", () => {
     expect(labels(queryIncomplete("poi", 3))).toContain("point");
-    expect(labels(queryIncomplete("const value: cho"))).toEqual(["number", "string", "boolean", "choice"]);
+    expect(labels(queryIncomplete("const value: cho"))).toEqual([
+      "number", "string", "boolean", "choice", "point[]", "line[]", "path[]"
+    ]);
     expect(labels(queryIncomplete("nui 4\nmodule M(input: pa"))).toContain("path");
     expect(labels(queryIncomplete("point P = co"))).toContain("coordinate");
     const lineConstructions = labels(queryIncomplete("line L = tran"));
