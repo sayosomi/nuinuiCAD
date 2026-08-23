@@ -153,7 +153,8 @@ export const planRecordScalarLowering = ({
           mutability: "const",
           declaredType: field.expectedType,
           declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, field.field),
-          resolutionMode: "preResolvedOnly"
+          resolutionMode: "preResolvedOnly",
+          catalogOrder: "source"
         });
         initializers.push({
           bindingId,
