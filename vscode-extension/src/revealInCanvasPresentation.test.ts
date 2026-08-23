@@ -19,6 +19,14 @@ describe("revealInCanvasNotificationFor", () => {
       });
   });
 
+  it("distinguishes source-analysis unavailability from an ordinary no-target caret", () => {
+    expect(revealInCanvasNotificationFor({ status: "failed", reason: "analysis-unavailable" }, "en"))
+      .toEqual({
+        severity: "error",
+        message: "Reveal in Canvas is unavailable because source analysis is not ready."
+      });
+  });
+
   it("presents a current-runtime failure without inventing a fallback", () => {
     expect(revealInCanvasNotificationFor({
       status: "failed",
