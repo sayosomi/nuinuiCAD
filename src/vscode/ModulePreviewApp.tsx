@@ -251,8 +251,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, [api, compileTargetAt, executeSharedCanvasCommand, rustTransport]);
 
-  const moduleSemanticContext = preview?.moduleSemanticContext ?? {};
-
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
     const selection = canvasSelectionForElement(renderElements, before, elementId, selectionMode);
@@ -281,7 +279,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     canvasTheme,
     visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? [],
     activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? null,
-    moduleSemanticContext,
+    moduleSemanticContext: preview?.moduleSemanticContext ?? {},
     measureCanvasTextWidth,
     selectedElementId,
     selectedElementIds,
@@ -362,7 +360,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     canvasViewport,
     executeSharedCanvasCommand,
     measureCanvasTextWidth,
-    moduleSemanticContext,
     preview,
     previewCanvasSelection,
     renderElements,
