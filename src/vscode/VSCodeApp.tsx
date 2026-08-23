@@ -65,6 +65,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
   const latestCanvasNavigationRequestRef = useRef<number | null>(null);
+  const deferredCanvasNavigationRequestRef = useRef<
+    Extract<ExtensionToVscodeMessage, { type: "canvasNavigationRequest" }> | null
+  >(null);
   const pendingCanvasFocusRequestRef = useRef<number | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
@@ -92,6 +95,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
     evaluationStateRef.current = evaluationState;
+    const deferredCanvasNavigation = deferredCanvasNavigationRequestRef.current;
+    if (!deferredCanvasNavigation) return;
+    if (latestCanvasNavigationRequestRef.current !== deferredCanvasNavigation.requestId) {
+      deferredCanvasNavigationRequestRef.current = null;
+      return;
+    }
+    deferredCanvasNavigationRequestRef.current = null;
+    window.dispatchEvent(new MessageEvent("message", { data: deferredCanvasNavigation }));
   }, [evaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
@@ -151,6 +162,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const requestCanvasHistory = useCallback((direction: CanvasHistoryDirection) => {
     pendingCanvasFocusRequestRef.current = null;
     latestCanvasNavigationRequestRef.current = null;
+    deferredCanvasNavigationRequestRef.current = null;
     drawingCanvasRef.current?.finalizeCanvasInteraction();
     pendingCanvasHistoryRef.current.push(direction);
     pumpCanvasHistory();
@@ -482,6 +494,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (canvasHistoryInFlightRef.current !== message.direction) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         canvasHistoryInFlightRef.current = null;
         if (message.status !== "completed") {
           pendingCanvasHistoryRef.current = [];
@@ -515,6 +528,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
       } else if (message.type === "canvasNavigationRequest") {
         pendingCanvasFocusRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = message.requestId;
         const current = currentAuthoritativeDocument(message.documentVersion);
         if (!current || canvasHistoryInFlightRef.current !== null) {
@@ -592,12 +606,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             measureCanvasTextWidth
           });
           if (containerTarget.status === "stale") {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
+            deferredCanvasNavigationRequestRef.current = message;
             return;
           }
           if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
@@ -655,6 +664,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestHostDocumentVersionRef.current = message.documentVersion;
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
@@ -671,6 +681,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         pendingCanvasFocusRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = null;
+        deferredCanvasNavigationRequestRef.current = null;
         latestHostDocumentVersionRef.current = message.documentVersion;
         lastAuthoritativeHostSourceSnapshotRef.current = {
           documentVersion: message.documentVersion,
@@ -694,6 +705,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     api.postMessage({ type: "webviewReady" });
     return () => {
       window.removeEventListener("message", onMessage);
+      deferredCanvasNavigationRequestRef.current = null;
       rustTransport.dispose();
     };
   }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
