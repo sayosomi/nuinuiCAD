@@ -76,6 +76,43 @@ describe("planExtractModule", () => {
     ].join("\n"));
   });
 
+  it("preserves numeric parameter refinements from the resolved declaration", () => {
+    const source = [
+      "nui 4",
+      "const stepper: number(step: 0.5, min: 0, max: 10) = 2",
+      "const inside: number = @stepper + 1"
+    ].join("\n");
+    const { result } = plan(source, [2]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText])).toEqual([
+      ["stepper", "number(step: 0.5, min: 0, max: 10)"]
+    ]);
+  });
+
+  it("infers point, strict-line, and broad-path geometry parameter types from compiler-resolved references", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: A, end: B)",
+      "curve Shape = bezier(start: A, end: B)",
+      "point FromPoint = offset(from: A, dx: 1, dy: 2)",
+      "point FromLine = onLine(from: Base, distance: 1)",
+      "point FromPath = bezierExtremePoint(source: Shape, direction: 0)"
+    ].join("\n");
+    const { result } = plan(source, [5, 6, 7]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["A", "point", "A"],
+      ["Base", "line", "Base"],
+      ["Shape", "path", "Shape"]
+    ]);
+  });
+
   it("treats namespace prefixes as path structure rather than independent dependencies", () => {
     const source = [
       "nui 4",
@@ -95,6 +132,67 @@ describe("planExtractModule", () => {
     expect(next).toContain("module Extracted(width: number) {");
     expect(next).toContain("  const inside: number = @width + 1");
     expect(next).toContain("instance Part = Extracted(width: @G::width)");
+  });
+
+  it("preserves rooted namespace syntax in call arguments while localizing the moved reference", () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "  const width: number = 10",
+      "}",
+      "group H {",
+      "  const inside: number = @::G::width + 1",
+      "}"
+    ].join("\n");
+    const { result } = plan(source, [5]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.argumentSource])).toEqual([
+      ["width", "@::G::width"]
+    ]);
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("    const inside: number = @width + 1");
+    expect(next).toContain("  instance Part = Extracted(width: @::G::width)");
+    expect(next).not.toContain("@::width");
+  });
+
+  it("moves a selected block-opening statement as one complete authored statement including its body and closer", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "group G {",
+      "  const inside: number = @width + 1",
+      "}",
+      "const after: number = 0"
+    ].join("\n");
+    const { result } = plan(source, [2]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => dependency.name)).toEqual(["width"]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(width: number) {",
+      "  group G {",
+      "    const inside: number = @width + 1",
+      "  }",
+      "}",
+      "instance Part = Extracted(width: @width)",
+      "const after: number = 0"
+    ].join("\n"));
+  });
+
+  it("rejects a selected container when an externally referenced nested declaration cannot become a direct Module export", () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "  const inside: number = 1",
+      "}",
+      "const after: number = @G::inside + 1"
+    ].join("\n");
+    const { result } = plan(source, [1]);
+
+    expect(result).toMatchObject({ status: "rejected", code: "unrepresentable-export" });
   });
 
   it("moves interstitial comments and blank lines with a contiguous sibling selection", () => {
@@ -173,6 +271,21 @@ describe("planExtractModule", () => {
     const { result } = plan(source, [3], { moduleName: "Existing" });
 
     expect(result).toMatchObject({ status: "rejected", code: "name-collision" });
+  });
+
+  it("rejects non-authored or stale statement identities before producing any mutation", () => {
+    const source = ["nui 4", "const value: number = 1"].join("\n");
+    const compiled = compileCurrent(source);
+    const result = planExtractModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      statementIds: ["materialized:descendant"],
+      moduleName: "Extracted",
+      instanceName: "Part"
+    });
+
+    expect(result).toMatchObject({ status: "rejected", code: "non-authored-target" });
+    expect("splices" in result).toBe(false);
   });
 
   it("rejects cross-boundary set writes but allows a moved let/set pair to stay internal", () => {
