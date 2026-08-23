@@ -14,7 +14,10 @@ export type DrawingModifierBatchOperation =
 
 export type DrawingModifierTargetEligibility =
   | { readonly eligible: true }
-  | { readonly eligible: false; readonly reason: "unsupported-statement-kind" };
+  | {
+      readonly eligible: false;
+      readonly reason: "unsupported-statement-kind" | "unnamed-target";
+    };
 
 export type DrawingModifierBatchPlanInput = {
   readonly source: SourceSnapshot;
@@ -60,10 +63,13 @@ type ModifierBracketRange = {
 
 export const analyzeDrawingModifierAssignmentTarget = (
   statement: DslStatement
-): DrawingModifierTargetEligibility =>
-  statement.kind === "element" || statement.kind === "group"
-    ? { eligible: true }
-    : { eligible: false, reason: "unsupported-statement-kind" };
+): DrawingModifierTargetEligibility => {
+  if (statement.kind !== "element" && statement.kind !== "group") {
+    return { eligible: false, reason: "unsupported-statement-kind" };
+  }
+  if (!statement.name) return { eligible: false, reason: "unnamed-target" };
+  return { eligible: true };
+};
 
 const safeSingleSegment = (
   source: SourceSnapshot,
@@ -182,13 +188,13 @@ const addEditsForStatement = (
   const head = statementHeadRange(source, statement);
   if (!head) return null;
   const formatted = formatDslName(modifierName);
+  const brackets = findModifierBrackets(codeMask, statement, head.to);
 
-  if (statement.modifierNames === undefined) {
+  if (!brackets) {
+    if ((statement.modifierNames?.length ?? 0) !== 0) return null;
     return [{ from: head.to, to: head.to, text: ` [${formatted}]` }];
   }
 
-  const brackets = findModifierBrackets(codeMask, statement, head.to);
-  if (!brackets) return null;
   const ranges = modifierNameRanges(source, statement);
   if (!ranges) return null;
   if (ranges.length === 0) return [{ from: brackets.close, to: brackets.close, text: formatted }];
