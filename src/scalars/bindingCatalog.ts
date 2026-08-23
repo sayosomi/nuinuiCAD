@@ -14,6 +14,8 @@ export type BindingVisibility =
   | { kind: "iteration"; rootScopeId: ScopeId };
 /** Whether a binding participates in ordinary source-name resolution. */
 export type BindingResolutionMode = "sourceLookup" | "preResolvedOnly";
+/** Whether a synthetic binding belongs in its source statement's catalog lane or an appended runtime lane. */
+export type BindingCatalogOrder = "source" | "append";
 
 /** A narrow adapter from the canonical source namespace into the existing
  * scalar binding sweep. `null` means the source namespace has no declaration
@@ -51,6 +53,8 @@ export type BindingSeed = {
   declarationVersionId?: string;
   /** Synthetic bindings can remain in the combined graph without entering source lookup. */
   resolutionMode?: BindingResolutionMode;
+  /** Source-owned synthetic bindings opt into statement-lane ordering; runtime/materialized bindings stay appended. */
+  catalogOrder?: BindingCatalogOrder;
 };
 
 export type Binding = {
@@ -69,13 +73,15 @@ export type Binding = {
   declarationVersionId?: string;
   /** Source-name candidates are explicitly separated from pre-resolved edges. */
   resolutionMode?: BindingResolutionMode;
+  /** Retained so a combined catalog can preserve a source-owned synthetic binding's ordering contract. */
+  catalogOrder?: BindingCatalogOrder;
 };
 
 export type BuildBindingCatalogInput = {
   scopeIndex: LexicalScopeIndex;
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   iterationBindings?: readonly BindingSeed[];
-  /** Additional already-resolved typed bindings, such as module instances. */
+  /** Additional already-resolved typed bindings, such as source-owned synthetic slots or module instances. */
   additionalBindings?: readonly BindingSeed[];
   containerIndex?: CadContainerIndex;
   sourceNamespaceBindingResolver?: SourceNamespaceBindingResolver;
@@ -159,6 +165,17 @@ export const buildBindingCatalog = ({
     enqueue({ ...seed, mutability: seed.mutability ?? "readonly", declaredType: seed.declaredType ?? null,
       resolutionMode: seed.resolutionMode ?? "sourceLookup" });
   }
+  for (const seed of additionalBindings) {
+    if (seed.catalogOrder !== "source") continue;
+    if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
+    enqueue({
+      ...seed,
+      mutability: seed.mutability ?? "const",
+      declaredType: seed.declaredType ?? null,
+      resolutionMode: seed.resolutionMode ?? "preResolvedOnly",
+      catalogOrder: "source"
+    });
+  }
 
   const bindings: Binding[] = [];
   for (const statementLanes of lanes) {
@@ -174,16 +191,19 @@ export const buildBindingCatalog = ({
     }
   }
 
-  // Synthetic module bindings have no entry in the document-only scope
-  // index. They are already ordered by the module execution planner && are
-  // appended as an explicit catalog lane; no source name lookup uses them.
+  // Synthetic module/runtime bindings have no document statement-lane
+  // ownership. They are already ordered by their runtime planner && remain an
+  // explicit appended catalog lane; source-owned synthetic slots opted into
+  // the document lanes above instead.
   for (const seed of additionalBindings) {
+    if (seed.catalogOrder === "source") continue;
     if (!Number.isInteger(seed.sourceOrder) || seed.sourceOrder < 0) throw new Error(`bindingCatalog: invalid sourceOrder for ${seed.id}`);
     bindings.push({
       ...seed,
       mutability: seed.mutability ?? "const",
       declaredType: seed.declaredType ?? null,
       resolutionMode: seed.resolutionMode ?? "sourceLookup",
+      catalogOrder: seed.catalogOrder ?? "append",
       visibility: seed.visibility,
       rank: bindings.length,
       ...(seed.declarationVersionId ? { declarationVersionId: seed.declarationVersionId } : {})

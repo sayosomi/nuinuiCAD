@@ -225,6 +225,7 @@ The current builtin catalog is:
 | `atan` | `atan(number) -> number` |
 | `atan2` | `atan2(number, number) -> number` |
 | `spreadAngle` | `spreadAngle(length: number, spread: number) -> number` (named-only) |
+| `string` | `string(choice(...)) -> string` |
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
@@ -257,6 +258,17 @@ inclusive range `0..180` degrees. `spread = 0` returns `0`, and
 `spread = 2 * length` returns `180`. Invalid or non-finite arguments produce an
 evaluation error. Named source order has no meaning; runtime lowering uses the
 canonical `[length, spread]` positional order.
+
+`string(choice(...))` is the explicit choice-to-string conversion. Its
+parameter is a builtin-only constraint meaning any already-concrete
+`choice(...)` type; it is not a new scalar type and does not weaken choice type
+identity. The result is the selected choice's canonical option token exactly as
+stored in the document/runtime, independent of display labels or locale. The
+initial overload accepts choice values only: number, boolean, and string inputs
+are type errors. `string(right)` is also invalid because a context-free bare
+choice literal has no concrete option set for the builtin to infer. No implicit
+choice-to-string conversion is introduced.
+
 The geometry measurement builtins use the existing geometry interface types.
 `distance` returns the Euclidean distance between two points. `angle` returns
 the direction from its first point to its second point in degrees, normalized
@@ -358,6 +370,24 @@ The construction call is named-argument-first. In canonical multi-line form,
 the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
+
+### Directed concrete arcs
+
+The concrete `arc(...)` construction accepts the optional named argument
+`direction: counterclockwise | clockwise`. Omitting `direction` is semantically
+identical to `counterclockwise`; canonical serialization always writes the
+argument explicitly. Direction is represented at runtime only by the sign of
+`ComputedArcLine.sweepAngleDeg`: counterclockwise uses
+`+positiveSweep(start, end)`, while clockwise uses
+`-positiveSweep(end, start)`. Equal start and end angles produce zero sweep;
+an explicitly authored full turn such as `0 -> 360` produces `+360` or `-360`
+according to `direction`.
+
+`through(...)` and `corner(...)` do not gain a `direction` argument. Bake may
+materialize a non-zero evaluated arc exactly when the directed sweep recomputed
+from its start angle, end angle, and sign equals the evaluated signed sweep; a
+positive sweep serializes as `counterclockwise` and a negative sweep as
+`clockwise`.
 
 ### Tangent offsets by Bezier curvature side
 
@@ -612,17 +642,19 @@ checking are unchanged. After validation the shorthand is lowered through the
 ordinary named Module parameter binding path; no positional or shorthand kind
 exists in the runtime payload.
 
-A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`, or
-`choice(...)` as appropriate. Geometry parameters are resolved external targets
-exposed inside the module as read-only aliases. A geometry parameter cannot be
-a mutation target.
+A parameter may be `point`, `line`, `path`, `number`, `string`, `boolean`,
+`choice(...)`, `point[]`, `line[]`, or `path[]` as appropriate. Singular geometry
+parameters are resolved external targets exposed inside the module as read-only
+aliases. A singular geometry parameter cannot be a mutation target. Geometry-array
+parameters are immutable ordered values; they may be passed as inline literals or
+named array references and do not have defaults.
 
-Any scalar or geometry parameter may be optional by writing `name?: type`.
-Optional parameters cannot also have a default. Omission is an intentional
-absent value: it is not `none`, `null`, or a runtime value, and an omitted
-scalar has no eager initializer or binding. Required, defaulted, and optional
-parameters retain their source-order slots; named instance arguments may be
-written in any order.
+Any scalar, geometry, or geometry-array parameter may be optional by writing
+`name?: type`. Optional parameters cannot also have a default. Omission is an
+intentional absent value: it is not `none`, `null`, or a runtime value, and an
+omitted scalar has no eager initializer or binding. Required, defaulted, and
+optional parameters retain their source-order slots; named instance arguments
+may be written in any order.
 
 Only non-optional scalar parameters may have defaults. A scalar default may
 reference only earlier parameters in the same signature, and an optional
@@ -630,16 +662,16 @@ parameter cannot be read directly from a default. `hasValue(@parameter)` is
 valid in a boolean default and is the only presence test for an optional
 parameter.
 
-Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar
-or geometry parameter and returns `boolean`. Its result may narrow presence in
-the same lexical descendant: a true `if` branch, the right-hand side of `and`,
-and the false branch of `or` prove presence. `not` reverses the fact. Facts do
-not escape the branch, do not flow through boolean aliases, and do not prove
-presence in the other branch. Scalar reads, geometry reads and properties,
-builtin operands, construction values, templates, and passing an optional
-value to another module require such proof. Supplying an optional argument
-materializes the ordinary value with its declared type; omitting it remains
-absent.
+Inside a module body, `hasValue(@parameter)` accepts exactly one optional scalar,
+geometry, or geometry-array parameter and returns `boolean`. Its result may
+narrow presence in the same lexical descendant: a true `if` branch, the
+right-hand side of `and`, and the false branch of `or` prove presence. `not`
+reverses the fact. Facts do not escape the branch, do not flow through boolean
+aliases, and do not prove presence in the other branch. Scalar reads, geometry
+reads and properties, geometry-array reads, builtin operands, construction
+values, templates, and passing an optional value to another module require such
+proof. Supplying an optional argument materializes the ordinary value with its
+declared type; omitting it remains absent.
 
 The existing Module v1 evaluation-limit atomicity is retained: an instance is
 evaluated as an atomic module operation within its evaluation limit, and a
@@ -662,7 +694,8 @@ of the activity choices `visible`, `hidden`, or `disabled`.
 ### Visibility and exports
 
 Module members are private by default. `export` is a visibility modifier on the
-member declaration itself and is valid for both geometry and scalars:
+member declaration itself and is valid for geometry, scalars, and immutable
+geometry arrays:
 
 ```text
 export point 頂点 = tangentOffset(
@@ -670,6 +703,7 @@ export point 頂点 = tangentOffset(
 )
 
 export const 実高さ: number = @サイド.length
+export const 輪郭: path[] = [@サイド, @裾]
 ```
 
 An exported member is referenced from outside through the instance/container:
@@ -677,6 +711,7 @@ An exported member is referenced from outside through the instance/container:
 ```text
 @foo::頂点
 @foo::実高さ
+@foo::輪郭
 ```
 
 An explicit reference to a private member is a dedicated visibility diagnostic.
@@ -684,17 +719,19 @@ An explicit reference to a private member is a dedicated visibility diagnostic.
 
 ### Geometry aliases
 
-The initial nui4 language does not introduce a geometry alias declaration such
-as:
+The initial nui4 language does not introduce a singular geometry alias
+declaration such as:
 
 ```text
 export point P = @Q
 ```
 
-`export` belongs on the declaration that creates the member. A general geometry
-expression or alias system is outside this specification. This keeps module
-origin mapping, materialization, and read-only geometry parameters aligned with
-the existing Module v1 architecture.
+`export` belongs on the declaration that creates the member. Immutable geometry
+arrays do have their explicitly typed array alias form, for example
+`const copy: path[] = @paths`; this does not introduce a general singular
+geometry expression or alias system. Module origin mapping, materialization,
+and read-only singular geometry parameters remain aligned with the existing
+Module v1 architecture.
 
 ## Mutations
 
@@ -743,8 +780,9 @@ text note = label(
 The root type of a typed interpolation hole must be `string`, `number`, or
 `boolean`. A boolean hole is rendered as the lowercase text `true` or `false`.
 This is text-template-local presentation behavior, not a general implicit
-boolean-to-string conversion in nui4. `choice(...)` interpolation remains
-unsupported.
+boolean-to-string conversion in nui4. Direct `choice(...)` interpolation
+remains unsupported. A choice can be interpolated only after explicit
+conversion, for example `${string(@side)}`, whose root result type is `string`.
 
 The old `{@name}` interpolation is removed. Ordinary `{` and `}` in text are
 literal characters; nui4 does not require a special escape merely to write
@@ -839,20 +877,61 @@ are choice literals when the surrounding typed position expects the
 corresponding `choice(...)` type. They are not references. A reference to a
 named value always includes `@`.
 
-Array literals are part of the typed-expression model:
+nui4 implements exactly three first-class immutable geometry-array types:
+`point[]`, `line[]`, and `path[]`. Named arrays are `const` only; `let`, `set`,
+mutable collection operations, scalar arrays, nested arrays, indexing, spread,
+and a general-purpose collection API are not part of this contract.
 
 ```text
-sources: [
-  @肩線,
-  @脇線,
-  @裾線,
-]
+const points: point[] = [@A, @B]
+const strictLines: line[] = [@AB]
+const paths: path[] = [@AB, @curve]
+const emptyPaths: path[] = []
+const copiedPaths: path[] = @paths
 ```
 
-All members must satisfy the expected element type. nui4 v1 does not introduce
-a general-purpose collection API or collection language. The type model should
-remain extensible to future `path[]` and `point[]` values without adding an
-untyped escape hatch.
+Array literals preserve source order and duplicates exactly. `[]` is valid when
+the expected geometry-array type is known. Every member is validated against
+the expected interface: `point[]` accepts point geometry (including the normal
+qualified/derived/coordinate point forms), `line[]` accepts only the strict
+`line` interface, and `path[]` accepts the broad line-like `path` interface.
+Array aliases and array references use the ordinary lexical/source-order/private
+and export rules; references always retain their `@` marker.
+
+Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
+`line[] -> line[]`, `path[] -> path[]`, and `line[] -> path[]` are valid. The
+reverse `path[] -> line[]`, point/non-point conversions, and implicit untyped
+conversion are invalid.
+
+Module signatures may declare required or optional geometry-array parameters.
+They have no defaults. Optional arrays use the same `hasValue(@parameter)`
+presence narrowing as other optional Module parameters. Module bodies may
+create local immutable arrays and may export them with `export const`; private,
+source-order, and instance-member visibility rules are unchanged.
+
+Existing broad line-list consumers treat their list value as `path[]`. This
+includes `offset.sources`, `transformCopy.baseLines`, `mirrorCopy.baseLines`,
+`move.targets`, and `mirrorMove.targets`. An inline literal and a named `path[]`
+value are semantically equivalent at these sites:
+
+```text
+const targets: path[] = [@肩線, @脇線]
+
+move(
+  targets: @targets,
+  from: @A,
+  to: @B,
+  scale: 1,
+  angleDeg: 0,
+  mirrorX: false,
+)
+```
+
+A named array reference remains a named reference in source; canonical
+formatting does not flatten it into an inline literal. Runtime lowering feeds
+the resolved ordered geometry members into the existing geometry-list paths;
+this feature does not add geometry arrays to scalar `ScalarType` / `ScalarValue`
+or introduce a generic Rust/runtime collection value.
 
 ## Canonical formatting
 
@@ -908,6 +987,7 @@ const mirror: boolean = false
 const isDraft: boolean = true
 const showDetail: boolean = @seam > 0 and (not @mirror or @isDraft)
 const side: choice(left, right) = left
+const sideText: string = string(@side)
 
 point A = coordinate(
   x: 0,
@@ -990,7 +1070,7 @@ group 前身頃 {
 
   if (@showDetail) {
     text label = label(
-      text: "${@side} 前身頃 ${@front::actualHeight} mm",
+      text: "${string(@side)} 前身頃 ${@front::actualHeight} mm",
       anchor: @A,
       size: 3,
     )

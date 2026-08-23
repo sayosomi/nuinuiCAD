@@ -11,6 +11,12 @@ import { userFacingConstructionArgumentSpecs } from "./dslCallCompletionCandidat
 import type { CompiledDslDocument } from "./dslDocument";
 import type { DslModuleParameterType } from "./dslTypes";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
+import {
+  buildModuleDocumentationIndex,
+  documentationForModuleDefinition,
+  documentationForModuleParameter,
+  type ModuleDocumentation
+} from "./moduleDocumentation";
 import { createCadElement } from "../model/elementFactory";
 import {
   getBuiltinFunctionDefinition,
@@ -41,6 +47,7 @@ export type DslSignatureHelpParameter = {
   allowedValues?: readonly string[];
   positional?: boolean;
   documentation?: DslSignatureHelpDocumentation;
+  authoredDocumentation?: ModuleDocumentation;
 };
 
 export type DslSignatureHelpSignature = {
@@ -49,6 +56,7 @@ export type DslSignatureHelpSignature = {
   parameters: readonly DslSignatureHelpParameter[];
   returnType?: string;
   documentation?: DslSignatureHelpDocumentation;
+  authoredDocumentation?: ModuleDocumentation;
   callingStyle: "positional" | "named" | "construction" | "module";
 };
 
@@ -74,7 +82,11 @@ const scalarTypeName = (type: ScalarType): string =>
   type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
 
 const builtinTypeName = (type: BuiltinParameterType): string =>
-  typeof type === "string" ? type : scalarTypeName(type);
+  typeof type === "string"
+    ? type
+    : type.kind === "anyChoice"
+      ? "choice(...)"
+      : scalarTypeName(type);
 
 const moduleTypeName = (type: DslModuleParameterType | null): string | undefined => {
   if (!type) return undefined;
@@ -217,12 +229,14 @@ const builtinParameter = (
   parameter: BuiltinFunctionSignature["parameters"][number]
 ): DslSignatureHelpParameter => {
   const named = "name" in parameter ? parameter.name : `arg${parameterIndex + 1}`;
-  const scalarType = typeof parameter.type === "string" ? null : parameter.type;
+  const scalarType = typeof parameter.type === "string" || parameter.type.kind === "anyChoice"
+    ? null
+    : parameter.type;
   const documentationKey = "name" in parameter
     ? `signatureHelp.builtin.${callableName}.${named}`
     : typeof parameter.type === "string"
       ? `signatureHelp.parameter.${parameter.type}`
-      : `signatureHelp.parameter.${parameter.type.kind}`;
+      : `signatureHelp.parameter.${parameter.type.kind === "anyChoice" ? "choice" : parameter.type.kind}`;
   return {
     identity: `builtin:${callableName}:${signatureIndex}:${parameterIndex}`,
     name: named,
@@ -328,23 +342,34 @@ const moduleSignatureFor = (
   ) return null;
   const definition = analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return null;
+  const documentationIndex = buildModuleDocumentationIndex({
+    statements: compiled.statements,
+    spans: compiled.spans,
+    semanticAnalysis: analysis
+  });
+  const authoredDocumentation = documentationForModuleDefinition(documentationIndex, definition);
 
   return {
     identity: `module:${definition.statementId}`,
     name: definition.name,
     callingStyle: "module",
     documentation: { key: "signatureHelp.module" },
-    parameters: definition.parameters.map((parameter) => ({
-      identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
-      name: parameter.name,
-      type: moduleTypeName(parameter.type),
-      optional: parameter.optional,
-      ...(parameter.defaultValue !== null ? { defaultValue: parameter.defaultValue } : {}),
-      ...(allowedValuesFor(scalarModuleType(parameter.type))
-        ? { allowedValues: allowedValuesFor(scalarModuleType(parameter.type)) }
-        : {}),
-      documentation: { key: "signatureHelp.module.parameter" }
-    }))
+    ...(authoredDocumentation ? { authoredDocumentation } : {}),
+    parameters: definition.parameters.map((parameter) => {
+      const parameterDocumentation = documentationForModuleParameter(documentationIndex, parameter);
+      return {
+        identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
+        name: parameter.name,
+        type: moduleTypeName(parameter.type),
+        optional: parameter.optional,
+        ...(parameter.defaultValue !== null ? { defaultValue: parameter.defaultValue } : {}),
+        ...(allowedValuesFor(scalarModuleType(parameter.type))
+          ? { allowedValues: allowedValuesFor(scalarModuleType(parameter.type)) }
+          : {}),
+        documentation: { key: "signatureHelp.module.parameter" },
+        ...(parameterDocumentation ? { authoredDocumentation: parameterDocumentation } : {})
+      };
+    })
   };
 };
 

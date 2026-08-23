@@ -36,6 +36,7 @@ import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolutio
 import { createElementNameContext } from "../model/elementNames";
 import { resolveBuiltinGeometryArguments } from "./builtinGeometryArgumentResolution";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
@@ -348,9 +349,24 @@ export const compileSetStatements = ({
     });
     if (hasReferenceDiagnostic || builtinGeometryResolution?.issues.length) continue;
 
-    const checked = typecheckScalarExpression(candidate.ast, {
+    const prepared = prepareRecordScalarExpressionFromCatalog({
+      ast: candidate.ast,
+      statementIndex: candidate.statementIndex,
+      catalog: bindingAnalysis.catalog,
+      referenceResolutions,
+      skipPropertySpanStarts: new Set(builtinGeometryResolution?.geometryPropertyTargets.keys() ?? [])
+    });
+    if (prepared.issues.length > 0) {
+      diagnostics.push(...prepared.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, SET_RHS_INVALID_REFERENCE_CODE, issue.message)
+      ));
+      continue;
+    }
+
+    const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: binding.declaredType,
-      references: referenceResolutions
+      references: prepared.references,
+      geometryBuiltinArguments: builtinGeometryResolution?.geometryPropertyTargets
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>

@@ -377,11 +377,28 @@ const builtinFunctionIssueCode = (reason: Exclude<ReturnType<typeof evaluateBuil
   }
 };
 
+const evaluateStringBuiltin = (
+  node: TypedScalarCallExpressionNode,
+  environment: ScalarEvaluationEnvironment,
+  type: ScalarType
+): ScalarEvaluation => {
+  if (node.args.length !== 1 || node.args[0]?.kind !== "scalar") {
+    return { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" };
+  }
+  const argument = evaluateTypedExpression(node.args[0].expression, environment);
+  if (argument.status === "error") return propagateError(type, argument);
+  if (argument.value.kind !== "choice") {
+    return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+  }
+  return { status: "ok", type, value: { kind: "string", value: argument.value.value } };
+};
+
 const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
   const type = node.type;
   if (type === null || node.target === null) return staticTypeNullError();
 
   if (isGeometryBuiltin(node.target.name)) return evaluateGeometryBuiltin(node, environment, node.target.name);
+  if (node.target.name === "string") return evaluateStringBuiltin(node, environment, type);
 
   const args: number[] = [];
   for (const argumentNode of node.args) {
@@ -440,7 +457,6 @@ const evaluateTypedExpressionNode = (
       return evaluateCall(node, environment);
   }
 };
-
 
 export const evaluateTypedExpression = (
   node: TypedScalarExpression,

@@ -7,6 +7,7 @@ import {
   type DslSignatureHelpSignature
 } from "../../src/dsl/dslSignatureHelpQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
 import {
   createTranslator,
   resolveLocale,
@@ -51,10 +52,25 @@ const parameterLabel = (
   return `${prefix}${renderedType}${defaultValue}${allowedValues}`;
 };
 
+const authoredDocumentation = (
+  documentation: DslSignatureHelpSignature["authoredDocumentation"],
+  displayLanguage: string
+): vscode.MarkdownString | undefined => {
+  const markdown = selectModuleDocumentationMarkdown(documentation, displayLanguage);
+  if (markdown === null) return undefined;
+  const result = new vscode.MarkdownString(markdown);
+  result.isTrusted = false;
+  result.supportHtml = false;
+  return result;
+};
+
 const parameterDocumentation = (
   parameter: DslSignatureHelpParameter,
-  translate: ReturnType<typeof createTranslator>
-): string | undefined => localizedDocumentation(parameter.documentation, translate);
+  translate: ReturnType<typeof createTranslator>,
+  displayLanguage: string
+): string | vscode.MarkdownString | undefined =>
+  authoredDocumentation(parameter.authoredDocumentation, displayLanguage)
+    ?? localizedDocumentation(parameter.documentation, translate);
 
 const signatureLabelParts = (
   signature: DslSignatureHelpSignature
@@ -81,11 +97,12 @@ export const projectDslSignatureHelp = (
     const labelParts = signatureLabelParts(signature);
     const information = new vscode.SignatureInformation(
       labelParts.label,
-      localizedDocumentation(signature.documentation, translate)
+      authoredDocumentation(signature.authoredDocumentation, displayLanguage)
+        ?? localizedDocumentation(signature.documentation, translate)
     );
     information.parameters = signature.parameters.map((parameter, index) => new vscode.ParameterInformation(
       labelParts.parameterRanges[index]!,
-      parameterDocumentation(parameter, translate)
+      parameterDocumentation(parameter, translate, displayLanguage)
     ));
     return information;
   });

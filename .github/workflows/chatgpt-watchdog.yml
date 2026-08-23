@@ -1,0 +1,37 @@
+name: ChatGPT watchdog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: chatgpt-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Test watchdog helper
+        run: node --test scripts/ci/chatgptWatchdog.node-test.mjs
+
+      - name: Check active ChatGPT sessions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MERGE_WEBHOOK_URL }}
+          WATCHDOG_ISSUE_NUMBER: "514"
+          WATCHDOG_TIMEOUT_MINUTES: "15"
+        run: node scripts/ci/chatgptWatchdog.mjs

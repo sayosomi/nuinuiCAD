@@ -1,7 +1,13 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslSpan } from "./dslTypes";
+import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
+import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
+import {
+  dslGeometryArrayTypeNames,
+  parseGeometryArrayTypeName,
+  type GeometryArrayType
+} from "./geometryArrayTypes";
 
 export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string };
 
@@ -9,6 +15,13 @@ export type DslScalarTypeParseResult = {
   declaredType: ScalarType | null;
   choiceOptionSpans: DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;
+};
+
+export type DslDeclaredValueTypeParseResult = DslScalarTypeParseResult & {
+  /** Source-only unresolved nominal record type; never enters ScalarType/runtime. */
+  recordTypeReference: DslRecordTypeReference | null;
+  /** Source-only immutable geometry-array type; never enters ScalarType/runtime. */
+  geometryArrayType: GeometryArrayType | null;
 };
 
 export const dslChoiceTypeName = "choice";
@@ -20,21 +33,25 @@ const KNOWN_SIMPLE_TYPES: Record<string, ScalarType> = {
 };
 
 /**
- * The scalar type names accepted by typed declarations && module parameters.
- * Source Editor completion consumes the declaration-facing re-export instead
- * of maintaining a second list.
+ * The value type names accepted by typed declarations. Source Editor
+ * completion consumes this declaration-facing list instead of maintaining a
+ * second vocabulary. Named record types remain source declarations.
  */
 export const dslTypedDeclarationTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
-  dslChoiceTypeName
+  dslChoiceTypeName,
+  ...dslGeometryArrayTypeNames
 ];
 
 export const dslModuleParameterTypeNames: readonly string[] = [
-  ...dslTypedDeclarationTypeNames,
+  NUMBER_TYPE_NAME,
+  ...Object.keys(KNOWN_SIMPLE_TYPES),
+  dslChoiceTypeName,
   "point",
   "line",
-  "path"
+  "path",
+  ...dslGeometryArrayTypeNames
 ];
 
 const NUMBER_HEAD = new RegExp(`^${NUMBER_TYPE_NAME}\\s*\\(`);
@@ -105,8 +122,9 @@ export type DslScalarTypeParseOptions = {
 };
 
 /**
- * Parses the source-owned scalar type annotation used by `const`/`let` &&
- * module parameters. No initializer || default expression is interpreted.
+ * Parses the source-owned scalar type annotation used by scalar declarations,
+ * record fields, && scalar Module parameters. No initializer || default
+ * expression is interpreted.
  */
 export const parseDslScalarType = (
   source: string,
@@ -208,4 +226,52 @@ export const parseDslScalarType = (
 
   if (hasError) return { declaredType: null, choiceOptionSpans: optionSpansByName };
   return { declaredType: { kind: "choice", options: optionsByName }, choiceOptionSpans: optionSpansByName };
+};
+
+const isBareTypeName = (text: string) =>
+  text.length > 0 && [...text].every((character) => isBareDslIdentifierChar(character));
+
+/**
+ * Parses a declaration-facing value type. Built-in scalar spellings retain
+ * their existing parser/diagnostics; geometry arrays stay in their own
+ * source-only field; any other bare identifier remains an unresolved nominal
+ * record type. Scalar/runtime consumers therefore remain on ScalarType.
+ */
+export const parseDslDeclaredValueType = (
+  source: string,
+  typeSpan: DslSpan,
+  diagnostics: DslTypeDiagnostic[]
+): DslDeclaredValueTypeParseResult => {
+  const text = source.slice(typeSpan.start, typeSpan.end);
+  const geometryArrayType = parseGeometryArrayTypeName(text);
+  if (geometryArrayType) {
+    return {
+      declaredType: null,
+      recordTypeReference: null,
+      geometryArrayType,
+      choiceOptionSpans: []
+    };
+  }
+
+  const builtInScalarSyntax =
+    text === NUMBER_TYPE_NAME ||
+    text === dslChoiceTypeName ||
+    Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, text) ||
+    NUMBER_HEAD.test(text) ||
+    CHOICE_HEAD.test(text);
+  if (builtInScalarSyntax || !isBareTypeName(text)) {
+    return {
+      ...parseDslScalarType(source, typeSpan, diagnostics, {
+        acceptedTypeDescription: "number/string/boolean/choice(...)/point[]/line[]/path[]"
+      }),
+      recordTypeReference: null,
+      geometryArrayType: null
+    };
+  }
+  return {
+    declaredType: null,
+    recordTypeReference: { kind: "record", name: text },
+    geometryArrayType: null,
+    choiceOptionSpans: []
+  };
 };

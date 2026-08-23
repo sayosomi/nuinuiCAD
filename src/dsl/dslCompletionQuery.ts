@@ -32,6 +32,14 @@ import {
   type ModuleCompletionCandidate,
   type ModuleCompletionParameterMetadata
 } from "./moduleCompletionCandidates";
+import { geometryArrayDeclarationCompletionContextAt } from "./dslGeometryArrayCompletionContext";
+import {
+  buildModuleDocumentationIndex,
+  documentationForModuleDefinition,
+  documentationForModuleExport,
+  documentationForModuleParameter,
+  type ModuleDocumentation
+} from "./moduleDocumentation";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import {
@@ -73,6 +81,7 @@ export type DslCompletionCandidate = {
   label: string;
   detail?: string;
   identity?: string;
+  documentation?: ModuleDocumentation;
 };
 
 export type DslCompletionRange = { from: number; to: number };
@@ -576,10 +585,20 @@ const moduleCandidatesAt = (
     } : {})
   }).map(moduleCandidate);
 
+  const sourceOnlyGeometryArrayContext = context.kind === "geometryArrayValue" || (
+    context.kind === "moduleQualifiedMember" &&
+    geometryArrayDeclarationCompletionContextAt(input.lineText, input.localPosition) !== null
+  );
+
   // Exact semantic snapshots remain authoritative whenever they can answer.
-  // A fatal current compile may still be exact in source/revision but lack the
-  // Module semantic instance needed for a transient argument-label site.
-  if (compiled && semantic && exact && (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || compiled.moduleSemanticAnalysis)) {
+  // Geometry-array completion is source-owned and remains available even when
+  // a dirty array initializer makes Module semantic analysis fail closed.
+  if (compiled && semantic && exact && (
+    context.kind === "moduleCallee" ||
+    context.kind === "moduleArgumentLabel" ||
+    compiled.moduleSemanticAnalysis ||
+    sourceOnlyGeometryArrayContext
+  )) {
     const currentDefinitionParameters = context.kind === "moduleArgumentLabel"
       ? currentModuleDefinitionParametersAt(compiled, input, statementIndex, exact)
       : undefined;
@@ -651,7 +670,8 @@ const replacementRangeInLogicalText = (
     context.kind === "typedInitializer" ||
     context.kind === "conditionExpression" ||
     context.kind === "propertyScalarValue" ||
-    context.kind === "templateHole"
+    context.kind === "templateHole" ||
+    context.kind === "geometryArrayValue"
   )) from += 1;
   return { from, to };
 };
@@ -695,10 +715,15 @@ const queryCandidates = (
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
-  if (context.kind === "declaredType") return dslTypedDeclarationTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
+  if (context.kind === "declaredType") {
+    const names = context.bindingKind === "const"
+      ? dslTypedDeclarationTypeNames
+      : dslTypedDeclarationTypeNames.filter((label) => !label.endsWith("[]"));
+    return names.map((label) => ({ kind: "type" as const, label, identity: label }));
+  }
   if (context.kind === "moduleParameterType") return dslModuleParameterTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
   if (context.kind === "numericTypeOption") return context.options.map((label) => ({ kind: "argumentName" as const, label, identity: label }));
-  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference") {
+  if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference" || context.kind === "geometryArrayValue") {
     return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
   }
   if (context.kind === "elementParameter") {
@@ -748,6 +773,79 @@ const queryCandidates = (
     return statementElementReferenceCandidates(context, compiled, statementIndex);
   }
   return [];
+};
+
+const attachModuleDocumentation = (
+  context: Exclude<DslCompletionContext, null>,
+  input: LogicalInput,
+  compiled: CompiledDslDocument | undefined,
+  exact: boolean,
+  statementIndex: number,
+  candidates: readonly DslCompletionCandidate[]
+): readonly DslCompletionCandidate[] => {
+  const analysis = compiled?.moduleSemanticAnalysis ?? compiled?.sourceSemanticAnalysis;
+  if (!compiled || !analysis || !exact || statementIndex < 0) return candidates;
+  if (
+    context.kind !== "moduleCallee" &&
+    context.kind !== "moduleArgumentLabel" &&
+    context.kind !== "moduleQualifiedMember"
+  ) return candidates;
+
+  const documentationIndex = buildModuleDocumentationIndex({
+    statements: compiled.statements,
+    spans: compiled.spans,
+    semanticAnalysis: analysis
+  });
+  const withDocumentation = (
+    candidate: DslCompletionCandidate,
+    documentation: ModuleDocumentation | null
+  ): DslCompletionCandidate => documentation
+    ? { ...candidate, documentation }
+    : candidate;
+
+  if (context.kind === "moduleCallee") {
+    return candidates.map((candidate) => {
+      if (candidate.kind !== "module" || !candidate.identity) return candidate;
+      const definition = analysis.definitionsByStatementId.get(candidate.identity);
+      return definition
+        ? withDocumentation(candidate, documentationForModuleDefinition(documentationIndex, definition))
+        : candidate;
+    });
+  }
+
+  if (context.kind === "moduleArgumentLabel") {
+    const parameters = currentModuleDefinitionParametersAt(compiled, input, statementIndex, true);
+    if (!parameters) return candidates;
+    return candidates.map((candidate) => {
+      if (candidate.kind !== "argumentName") return candidate;
+      const parameter = parameters.find((entry) => entry.name === candidate.label);
+      return parameter
+        ? withDocumentation(candidate, documentationForModuleParameter(documentationIndex, parameter))
+        : candidate;
+    });
+  }
+
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return candidates;
+  const qualifier = resolveSourceLexicalPath(
+    namespace,
+    statementIndex,
+    parseDslReferenceToken(context.qualifiedInstanceName)
+  );
+  if (qualifier.kind !== "resolved" || qualifier.declaration.kind !== "moduleInstance") return candidates;
+  const instance = analysis.instancesByStatementId.get(qualifier.declaration.statementId);
+  const definition = instance?.callee
+    ? analysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+    : undefined;
+  if (!definition) return candidates;
+
+  return candidates.map((candidate) => {
+    if (candidate.kind !== "binding" && candidate.kind !== "geometry") return candidate;
+    const exported = definition.exports.find((entry) => entry.name === candidate.label);
+    return exported
+      ? withDocumentation(candidate, documentationForModuleExport(documentationIndex, exported))
+      : candidate;
+  });
 };
 
 /**
@@ -836,6 +934,8 @@ export const queryDslCompletion = ({ source, position, semantic, recovery: reque
       ...moduleBodyReferenceCandidates(input, position, semantic, compiled, exact, statementIndex, { kind: "number" })
     ]);
   }
+
+  candidates = [...attachModuleDocumentation(context, input, compiled, exact, statementIndex, candidates)];
 
   const logicalRange = replacementRangeInLogicalText(input.lineText, context);
   const replacementRange = input.authoring

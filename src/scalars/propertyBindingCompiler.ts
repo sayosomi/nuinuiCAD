@@ -25,6 +25,7 @@ import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 /**
  * The compiled source of a property's value. `binding` keeps the existing
@@ -238,9 +239,22 @@ export const compilePropertyBindings = ({
     });
     if (invalidReference) continue;
 
-    const checked = typecheckScalarExpression(candidate.ast, {
+    const prepared = prepareRecordScalarExpressionFromCatalog({
+      ast: candidate.ast,
+      statementIndex: candidate.statementIndex,
+      catalog: bindingAnalysis.catalog,
+      referenceResolutions: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+    });
+    if (prepared.issues.length > 0) {
+      diagnostics.push(...prepared.issues.map((issue) =>
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+      ));
+      continue;
+    }
+
+    const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: candidate.expectedType,
-      references: referenceResolutions as NonNullable<typeof referenceResolutions[number]>[]
+      references: prepared.references
     });
     if (checked.diagnostics.length > 0 || checked.type === null) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(

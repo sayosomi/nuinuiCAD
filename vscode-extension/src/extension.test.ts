@@ -98,6 +98,7 @@ const mocks = vi.hoisted(() => ({
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
+  showWarningMessage: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
@@ -183,6 +184,7 @@ vi.mock("vscode", () => {
     ) {}
   }
   return {
+    env: { language: "en" },
     window: {
       get activeTextEditor() {
         return mocks.activeTextEditor;
@@ -195,6 +197,7 @@ vi.mock("vscode", () => {
       onDidChangeTextEditorSelection: mocks.onDidChangeTextEditorSelection,
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
+      showWarningMessage: mocks.showWarningMessage,
       showTextDocument: mocks.showTextDocument,
       tabGroups: {
         get activeTabGroup() {
@@ -589,6 +592,27 @@ const openOutputPreviewPanelFor = (editor = mocks.activeTextEditor!): TestPanel 
   return mocks.panels.at(-1)!;
 };
 
+const runtimeDiagnosticFor = (
+  code = "runtime-test",
+  options: { exactSpan?: boolean } = {}
+) => ({
+  severity: "error" as const,
+  line: 2,
+  column: 7,
+  code,
+  message: `runtime ${code}`,
+  exactSpanOnly: true as const,
+  ...(options.exactSpan === false ? {} : {
+    physicalSpan: {
+      segments: [{ from: 12, to: 13 }],
+      sourceRevision: 1
+    }
+  }),
+  origin: "runtime" as const,
+  bindingId: `binding:${code}`,
+  navigationTarget: { kind: "binding" as const, bindingId: `binding:${code}` }
+});
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -618,6 +642,7 @@ afterEach(() => {
   mocks.foldingRegistrations.length = 0;
   mocks.documentSymbolRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
+  mocks.showWarningMessage.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
@@ -685,6 +710,163 @@ describe("VS Code production document lifecycle", () => {
       }
     });
     expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
+  });
+
+  it("aggregates exact-current runtime diagnostics after compiler diagnostics", async () => {
+    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const document = documentFor("/tmp/runtime-diagnostics.nui", "file:///tmp/runtime-diagnostics.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const collection = mocks.diagnosticCollections[0]!;
+    const compilerPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(compilerPublished.length).toBeGreaterThan(0);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    collection.set.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-current")]
+    });
+
+    const published = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(published.slice(0, compilerPublished.length).map(({ code, message }) => ({ code, message }))).toEqual(
+      compilerPublished.map(({ code, message }) => ({ code, message }))
+    );
+    expect(published.at(-1)?.code).toBe("runtime-current");
+  });
+
+  it("ignores stale and non-current-session runtime diagnostic publications", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-stale.nui", "file:///tmp/runtime-stale.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-current")]
+    });
+    const collection = mocks.diagnosticCollections[0]!;
+    collection.set.mockClear();
+
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version - 1,
+      diagnostics: [runtimeDiagnosticFor("runtime-stale")]
+    });
+    expect(collection.set).not.toHaveBeenCalled();
+
+    panel.dispose();
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-after-dispose")]
+    });
+    expect(collection.set).not.toHaveBeenCalled();
+  });
+
+  it("clears runtime diagnostics synchronously on source change", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-change.nui", "file:///tmp/runtime-change.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-before-change")]
+    });
+
+    document.setSourceText("nui 4\nconst y: number = 2\n");
+    document.version += 1;
+    emitDocumentChange(document);
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(published.map((item) => item.code)).not.toContain("runtime-before-change");
+  });
+
+  it("treats a current empty runtime publication as clearing only the runtime layer", async () => {
+    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const document = documentFor("/tmp/runtime-empty.nui", "file:///tmp/runtime-empty.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const collection = mocks.diagnosticCollections[0]!;
+    const compilerPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-to-clear")]
+    });
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: []
+    });
+
+    const published = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(published.map(({ code, message }) => ({ code, message }))).toEqual(
+      compilerPublished.map(({ code, message }) => ({ code, message }))
+    );
+  });
+
+  it("retains runtime diagnostics across Canvas close but clears them on document close", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-close.nui", "file:///tmp/runtime-close.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-retained")]
+    });
+    const collection = mocks.diagnosticCollections[0]!;
+
+    panel.dispose();
+    collection.set.mockClear();
+    emitDocumentChange(document, undefined, []);
+    const retained = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(retained.map((item) => item.code)).toContain("runtime-retained");
+
+    emitDocumentClose(document);
+    const reopened = documentFor("/tmp/runtime-close.nui", "file:///tmp/runtime-close.nui", source);
+    mocks.textDocuments = [reopened];
+    emitDocumentOpen(reopened);
+    const reopenedPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(reopenedPublished.map((item) => item.code)).not.toContain("runtime-retained");
+  });
+
+  it("preserves exactSpanOnly fail-closed projection for runtime diagnostics", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-span.nui", "file:///tmp/runtime-span.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-no-span", { exactSpan: false })]
+    });
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(published.map((item) => item.code)).not.toContain("runtime-no-span");
   });
 
   it("registers and opens the Output Preview production surface", () => {
@@ -1872,6 +2054,21 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
   });
 
+  it("reports source analysis unavailable for a fatal exact-current source without opening Canvas", () => {
+    const source = "nui 4\npoint Broken = coordinate(";
+    const document = documentFor("/tmp/reveal-fatal.nui", "file:///tmp/reveal-fatal.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 1, character: 8 };
+    setup(false, editor, [document]);
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "Reveal in Canvas is unavailable because source analysis is not ready."
+    );
+  });
+
   it("waits for authoritative Webview hydration and latest request wins", async () => {
     const source = [
       "nui 4",
@@ -1915,7 +2112,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
@@ -1930,7 +2128,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     panel.active = true;
@@ -1950,7 +2149,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     panel.active = true;
@@ -1969,7 +2169,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
@@ -1989,7 +2190,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
@@ -2011,7 +2213,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: firstRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
     const secondRequest = panel.webview.postMessage.mock.calls
@@ -2026,14 +2229,16 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: firstRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     expect(focusMessagesFor(panel)).toHaveLength(0);
 
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: secondRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     expect(focusMessagesFor(panel)).toEqual([{
       type: "focusCanvas",
@@ -2049,7 +2254,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     document.version = 2;
     emitDocumentChange(document);
@@ -2060,7 +2266,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(focusMessagesFor(panel)).toHaveLength(0);
   });
 
-  it("clears deferred Canvas focus when navigation becomes stale", async () => {
+  it("clears deferred Canvas focus when navigation fails", async () => {
     const { panel, navigationRequest } = await prepareNavigation();
     panel.active = false;
     panel.webview.postMessage.mockClear();
@@ -2068,12 +2274,14 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "stale"
+      status: "failed",
+      reason: "source-mismatch"
     });
 
     panel.active = true;
@@ -2192,7 +2400,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     expect(panel.reveal).not.toHaveBeenCalledWith(2, false);
@@ -2850,8 +3059,8 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 });
 
 
-describe("SAY-125 Module instance Reveal feedback", () => {
-  it("reports a no-renderable result without asking the Canvas to take focus", async () => {
+describe("SAY-81 Module instance Reveal feedback", () => {
+  it("treats a resolved Module instance as selectable even when viewport pan has no bounds", async () => {
     const source = [
       "nui 4",
       "module M() {",
@@ -2878,14 +3087,14 @@ describe("SAY-125 Module instance Reveal feedback", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: request!.requestId,
-      status: "no-renderable-geometry"
+      status: "resolved",
+      degradations: []
     });
 
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
-    );
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "focusCanvas", requestId: request!.requestId })
-    );
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "focusCanvas",
+      requestId: request!.requestId
+    });
   });
 });

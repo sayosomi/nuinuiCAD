@@ -15,6 +15,12 @@ type RgbaColor = {
   hasExplicitAlpha: boolean;
 };
 
+type HslColor = {
+  hue: number;
+  saturation: number;
+  lightness: number;
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -135,6 +141,69 @@ const mixRgb = (from: RgbaColor, to: RgbaColor, amount: number): RgbaColor => ({
   hasExplicitAlpha: from.hasExplicitAlpha
 });
 
+const rgbToHsl = (color: RgbaColor): HslColor => {
+  const red = color.red / 255;
+  const green = color.green / 255;
+  const blue = color.blue / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+
+  if (delta === 0) {
+    return { hue: 0, saturation: 0, lightness };
+  }
+
+  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+  let hue: number;
+  if (max === red) {
+    hue = 60 * (((green - blue) / delta) % 6);
+  } else if (max === green) {
+    hue = 60 * ((blue - red) / delta + 2);
+  } else {
+    hue = 60 * ((red - green) / delta + 4);
+  }
+
+  return {
+    hue: hue < 0 ? hue + 360 : hue,
+    saturation,
+    lightness
+  };
+};
+
+const hslToRgb = ({ hue, saturation, lightness }: HslColor): RgbaColor => {
+  const normalizedHue = ((hue % 360) + 360) % 360;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const hueSector = normalizedHue / 60;
+  const x = chroma * (1 - Math.abs((hueSector % 2) - 1));
+  const channels: [number, number, number] = hueSector < 1
+    ? [chroma, x, 0]
+    : hueSector < 2
+      ? [x, chroma, 0]
+      : hueSector < 3
+        ? [0, chroma, x]
+        : hueSector < 4
+          ? [0, x, chroma]
+          : hueSector < 5
+            ? [x, 0, chroma]
+            : [chroma, 0, x];
+  const [red, green, blue] = channels;
+  const match = lightness - chroma / 2;
+
+  return {
+    red: (red + match) * 255,
+    green: (green + match) * 255,
+    blue: (blue + match) * 255,
+    alpha: 1,
+    hasExplicitAlpha: false
+  };
+};
+
+const hueDistance = (first: number, second: number) => {
+  const difference = Math.abs(first - second) % 360;
+  return Math.min(difference, 360 - difference);
+};
+
 const formatNumber = (value: number) => String(Number(value.toFixed(10)));
 
 const formatAdjustedColor = (color: RgbaColor): string => {
@@ -199,6 +268,112 @@ const softenContrast = (
   return formatAdjustedColor(mixRgb(seed, background, Math.min(high + 1e-7, 1)));
 };
 
+const SELECTION_DARK_BACKGROUND_CONTRAST = 3;
+const SELECTION_LIGHT_BACKGROUND_CONTRAST = 4.5;
+const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
+const SELECTION_MIN_SATURATION = 0.65;
+const SELECTION_MIN_HUE_DISTANCE = 90;
+const FOREGROUND_CHROMATIC_SATURATION = 0.18;
+
+const selectionMinimumBackgroundContrast = (background: RgbaColor): number =>
+  relativeLuminance(background) < 0.35
+    ? SELECTION_DARK_BACKGROUND_CONTRAST
+    : SELECTION_LIGHT_BACKGROUND_CONTRAST;
+
+const selectionColorIsDistinct = (
+  candidateValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): boolean => {
+  const candidate = parseCssColor(candidateValue);
+  const foreground = parseCssColor(foregroundValue);
+  const background = parseCssColor(backgroundValue);
+  if (!candidate || !foreground || !background) return true;
+
+  const visibleCandidate = compositeCssColorOver(candidate, background);
+  const visibleForeground = compositeCssColorOver(foreground, background);
+  if (
+    contrastRatio(visibleCandidate, background) < selectionMinimumBackgroundContrast(background)
+  ) {
+    return false;
+  }
+
+  if (
+    contrastRatio(visibleCandidate, visibleForeground) >=
+    SELECTION_STRONG_LUMINANCE_SEPARATION
+  ) {
+    return true;
+  }
+
+  const candidateHsl = rgbToHsl(visibleCandidate);
+  const foregroundHsl = rgbToHsl(visibleForeground);
+  if (candidateHsl.saturation < SELECTION_MIN_SATURATION) return false;
+  if (foregroundHsl.saturation < FOREGROUND_CHROMATIC_SATURATION) return true;
+
+  return hueDistance(candidateHsl.hue, foregroundHsl.hue) >= SELECTION_MIN_HUE_DISTANCE;
+};
+
+const deriveDistinctSelectionColor = (
+  accentValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): string => {
+  const accent = parseCssColor(accentValue);
+  const foreground = parseCssColor(foregroundValue);
+  const background = parseCssColor(backgroundValue);
+  if (!accent || !foreground || !background) return accentValue;
+
+  const visibleAccent = compositeCssColorOver(accent, background);
+  const visibleForeground = compositeCssColorOver(foreground, background);
+  const accentHsl = rgbToHsl(visibleAccent);
+  const foregroundHsl = rgbToHsl(visibleForeground);
+  const legacyAccent = parseCssColor(LEGACY_CANVAS_THEME.accent);
+  const fallbackHue = legacyAccent ? rgbToHsl(legacyAccent).hue : 180;
+  const hue = foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+    ? (foregroundHsl.hue + 180) % 360
+    : accentHsl.saturation >= 0.35
+      ? accentHsl.hue
+      : fallbackHue;
+  const saturation = Math.max(0.82, accentHsl.saturation);
+  const backgroundIsDark = relativeLuminance(background) < 0.35;
+  const initialLightness = backgroundIsDark ? 0.68 : 0.32;
+  const minimumContrast = selectionMinimumBackgroundContrast(background);
+
+  for (let step = 0; step <= 24; step += 1) {
+    const lightness = backgroundIsDark
+      ? Math.min(0.92, initialLightness + step * 0.01)
+      : Math.max(0.08, initialLightness - step * 0.01);
+    const candidate = hslToRgb({ hue, saturation, lightness });
+    if (contrastRatio(candidate, background) >= minimumContrast) {
+      return formatAdjustedColor(candidate);
+    }
+  }
+
+  return formatAdjustedColor(hslToRgb({ hue, saturation, lightness: initialLightness }));
+};
+
+/**
+ * Keep Canvas selection theme-derived when the theme already separates it from
+ * ordinary geometry. If the theme's selection and accent stay in the same
+ * visual family as geometry, derive a high-chroma complementary hue instead of
+ * changing selection stroke geometry.
+ */
+const resolveSelectionColor = (
+  seedValue: string,
+  accentValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): string => {
+  const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
+  if (selectionColorIsDistinct(selection, foregroundValue, backgroundValue)) {
+    return selection;
+  }
+  if (selectionColorIsDistinct(accentValue, foregroundValue, backgroundValue)) {
+    return accentValue;
+  }
+  return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
+};
+
 const colorFrom = (
   styles: CssVariableSource,
   variableName: string,
@@ -216,7 +391,7 @@ export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme
   const background = colorFrom(styles, "--vscode-editor-background", LEGACY_CANVAS_THEME.background);
   const accent = strengthenContrast(accentSeed, foreground, background, 3);
   const selectionSeed = colorFrom(styles, "--vscode-editor-selectionHighlightBorder", accentSeed);
-  const selection = strengthenContrast(selectionSeed, foreground, background, 4.5);
+  const selection = resolveSelectionColor(selectionSeed, accent, foreground, background);
 
   return {
     foreground,

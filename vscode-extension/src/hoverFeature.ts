@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import type { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
-import { createNuiHoverProvider, nuiHoverSelector } from "./hoverProvider";
+import {
+  createNuiHoverProvider,
+  nuiHoverRevealSourceReferenceCommand,
+  nuiHoverSelector,
+  revealNuiHoverSourceReference,
+  type NuiHoverRevealSourceReferenceArgs
+} from "./hoverProvider";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
 export type NuiHoverFeatureSessionFor = (
@@ -37,6 +43,17 @@ export const registerNuiHoverFeature = ({
     createNuiHoverProvider(sessionFor, runtimeEvaluation)
   );
 
+  const registerCommand = (vscode.commands as typeof vscode.commands & {
+    registerCommand?: typeof vscode.commands.registerCommand;
+  }).registerCommand;
+  const navigationCommand = typeof registerCommand === "function"
+    ? registerCommand.call(
+        vscode.commands,
+        nuiHoverRevealSourceReferenceCommand,
+        (args: NuiHoverRevealSourceReferenceArgs) => revealNuiHoverSourceReference(args)
+      )
+    : { dispose: () => {} };
+
   const changeListener = vscode.workspace.onDidChangeTextDocument((event) => {
     if (event.document.uri.scheme !== "file" || !event.document.fileName.endsWith(".nui")) return;
     runtimeEvaluation.invalidateDocument(event.document.uri.toString());
@@ -49,6 +66,7 @@ export const registerNuiHoverFeature = ({
   return {
     dispose: () => {
       hoverProvider.dispose();
+      navigationCommand.dispose();
       changeListener.dispose();
       closeListener.dispose();
       runtimeEvaluation.dispose();

@@ -25,6 +25,7 @@ import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
 import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
+import { lowerSourceGeometryArrayLineReferenceList } from "./geometryArrayRuntimeLowering";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -66,10 +67,25 @@ export type DslEndpointResolver = (
   sourceSpan?: DslSpan
 ) => NonNullable<ReturnType<typeof resolveEndpointFromDsl>>;
 
+/**
+ * Consumer-boundary lowering hook for a whole immutable geometry-array value.
+ * Returning `null` delegates to the existing source-array/ordinary list path,
+ * so Module runtime overrides can handle only instance-local values.
+ */
+export type DslLineReferenceListResolver = (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
+) => readonly ElementId[] | null;
+
 export type DslGeometryResolverOverrides = {
   resolveId?: DslIdResolver;
   resolveAnchor?: DslAnchorResolver;
   resolveEndpoint?: DslEndpointResolver;
+  resolveLineReferenceList?: DslLineReferenceListResolver;
 };
 
 /** Dependencies supplied by the compiler skeleton when it connects P6 in C1. */
@@ -321,11 +337,20 @@ export const applyArgs = (
         break;
       case "lineReferenceList":
         {
-          const refs = referenceListItems(value).map((item) => {
+          const moduleLowered = resolvers.resolveLineReferenceList?.(
+            value,
+            resolvers.index,
+            resolvers.line,
+            diagnostics,
+            next,
+            scanned.valueSpan
+          ) ?? null;
+          const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayLineReferenceList(value, resolvers.index, next);
+          const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
             return lineReferenceId(item.text, itemSpan);
           });
-          next = setParameterValue(next, parameterKey, refs);
+          next = setParameterValue(next, parameterKey, [...refs]);
         }
         break;
       case "text":

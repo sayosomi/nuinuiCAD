@@ -5,6 +5,7 @@ import {
   CIRCLE_EPSILON,
   circleThroughThreePoints,
   degreesToRadians,
+  directedSweepDegrees,
   handlePoint,
   normalizeDegrees,
   positiveSweepDegrees
@@ -279,7 +280,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         const startAngleRad = degreesToRadians(startAngleDeg);
         const endAngleRad = degreesToRadians(endAngleDeg);
         const safeRadius = radius > 0 ? radius : 0;
-        const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
+        const sweepAngleDeg = directedSweepDegrees(startAngleDeg, endAngleDeg, element.direction ?? "counterclockwise");
         const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
         computedGeometry.set(element.id, {
           kind: "arcLine",
@@ -306,7 +307,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           endAngleDeg,
           ...tangentAngles,
           sweepAngleDeg,
-          length: safeRadius * degreesToRadians(sweepAngleDeg)
+          length: safeRadius * Math.abs(degreesToRadians(sweepAngleDeg))
         });
         break;
       }

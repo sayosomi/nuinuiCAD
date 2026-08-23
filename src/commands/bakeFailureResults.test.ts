@@ -152,7 +152,18 @@ describe("Bake structured failure results", () => {
       "reverse(target: @A)"
     ].join("\n"));
     const arc = compiled.doc.document.elements.find((element) => element.name === "A")!;
-    const plan = planFor(compiled, evaluate(compiled), [arc.id]);
+    const evaluation = evaluate(compiled);
+    const geometry = evaluation.computedGeometry.get(arc.id);
+    if (geometry?.kind !== "arcLine") throw new Error("expected arc geometry");
+    const mismatchedEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map(evaluation.computedGeometry).set(arc.id, {
+        ...geometry,
+        sweepAngleDeg: geometry.sweepAngleDeg / 2,
+        length: geometry.length / 2
+      })
+    };
+    const plan = planFor(compiled, mismatchedEvaluation, [arc.id]);
 
     expect(plan?.skippedTargets[0]?.reason).toMatchObject({
       code: "not-losslessly-representable",

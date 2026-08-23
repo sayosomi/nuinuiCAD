@@ -1,9 +1,10 @@
 import type { ScalarType } from "../scalars/types";
-import type { DslSpan } from "./dslTypes";
+import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
+import type { GeometryArrayType } from "./geometryArrayTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
-  parseDslScalarType,
-  type DslScalarTypeParseResult,
+  parseDslDeclaredValueType,
+  type DslDeclaredValueTypeParseResult,
   type DslTypeDiagnostic
 } from "./dslTypeParser";
 
@@ -31,12 +32,16 @@ export type DslTypedDeclarationStatement = {
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
-  /** `null` when the type annotation itself failed to parse. */
+  /** `null` when the scalar type annotation failed or this is source-only typed. */
   declaredType: ScalarType | null;
-  /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
+  /** Source-only unresolved nominal record type. Never enters ScalarType/runtime. */
+  recordTypeReference: DslRecordTypeReference | null;
+  /** Source-only immutable geometry-array type. Never enters ScalarType/runtime. */
+  geometryArrayType: GeometryArrayType | null;
+  /** Per-option spans, index-aligned with scalar choice options. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
-  numericTypeOptions?: DslScalarTypeParseResult["numericTypeOptions"];
+  numericTypeOptions?: DslDeclaredValueTypeParseResult["numericTypeOptions"];
   /** Raw, unparsed initializer source text - never evaluated || re-quoted. */
   initializer: string;
   payloadSpans: Record<string, DslSpan>;
@@ -134,10 +139,18 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
     diagnostics.push({ message: "初期化式には「=」の後に値が必要です。", span: initializerSpan });
   }
 
-  const { declaredType, choiceOptionSpans, numericTypeOptions } =
+  const parsedType: DslDeclaredValueTypeParseResult =
     typeSpan.start === typeSpan.end
-      ? { declaredType: null as ScalarType | null, choiceOptionSpans: [] as DslSpan[] }
-      : parseDslScalarType(logicalText, typeSpan, diagnostics);
+      ? { declaredType: null, recordTypeReference: null, geometryArrayType: null, choiceOptionSpans: [] }
+      : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
+
+  if (keyword === "let" && parsedType.geometryArrayType) {
+    diagnostics.push({
+      message: "geometry array は const で宣言してください。",
+      span: keywordSpan,
+      code: "geometry-array-const-only"
+    });
+  }
 
   const payloadSpans: Record<string, DslSpan> = {};
   if (name.nameSpan) payloadSpans.name = name.nameSpan;
@@ -150,9 +163,11 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       bindingKind: keyword,
       ...name,
       keywordSpan,
-      declaredType,
-      choiceOptionSpans,
-      ...(numericTypeOptions ? { numericTypeOptions } : {}),
+      declaredType: parsedType.declaredType,
+      recordTypeReference: parsedType.recordTypeReference,
+      geometryArrayType: parsedType.geometryArrayType,
+      choiceOptionSpans: parsedType.choiceOptionSpans,
+      ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
       initializer: logicalText.slice(initializerSpan.start, initializerSpan.end),
       payloadSpans,
       args: [],

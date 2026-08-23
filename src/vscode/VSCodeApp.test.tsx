@@ -266,7 +266,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 12,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
 
     const canvas = screen.getByTestId("canvas");
@@ -535,7 +536,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 13,
-      status: "stale"
+      status: "failed",
+      reason: "source-mismatch"
     });
   });
 
@@ -567,7 +569,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 14,
-      status: "stale"
+      status: "failed",
+      reason: "source-mismatch"
     });
 
     await act(async () => {
@@ -585,7 +588,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 15,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
   });
 
@@ -618,7 +622,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 16,
-      status: "stale"
+      status: "failed",
+      reason: "source-mismatch"
     });
   });
 
@@ -670,7 +675,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it.each([
     ["hidden", "nui 4\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
     ["disabled", "nui 4\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
-    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
+    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", true]
   ] as const)("handles a %s primary without changing activity or viewport", async (_label, source, token, shouldSelect) => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -898,11 +903,12 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 311,
-      status: "ready"
+      status: "resolved",
+      degradations: []
     });
   });
 
-  it("preserves selection and viewport when a Module instance has no currently renderable descendants", async () => {
+  it("selects a Module instance without moving the viewport when it has no renderable descendants", async () => {
     const source = [
       "nui 4",
       "point Existing = coordinate(x: 0, y: 0)",
@@ -932,11 +938,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     selectElement(existing.id, "replace", true);
     useCadUiStore.getState().setCanvasViewport({ panX: 17, panY: -9, zoom: 2 });
-    const selectionBefore = {
-      selectedElementId: useCadUiStore.getState().selectedElementId,
-      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
-      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
-    };
     const viewportBefore = { ...useCadUiStore.getState().canvasViewport };
 
     await act(async () => {
@@ -950,12 +951,17 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
 
-    expect(useCadUiStore.getState()).toMatchObject(selectionBefore);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: instance.id,
+      selectedElementIds: [instance.id],
+      selectionAnchorElementId: instance.id
+    });
     expect(useCadUiStore.getState().canvasViewport).toEqual(viewportBefore);
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 321,
-      status: "no-renderable-geometry"
+      status: "resolved",
+      degradations: []
     });
   });
 

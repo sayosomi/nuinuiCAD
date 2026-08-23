@@ -144,6 +144,7 @@ pub(crate) enum BuiltinFunctionName {
     Atan,
     Atan2,
     SpreadAngle,
+    String,
     Distance,
     Angle,
     LineDistance,
@@ -170,6 +171,7 @@ impl BuiltinFunctionName {
             "atan" => Some(Self::Atan),
             "atan2" => Some(Self::Atan2),
             "spreadAngle" => Some(Self::SpreadAngle),
+            "string" => Some(Self::String),
             "distance" => Some(Self::Distance),
             "angle" => Some(Self::Angle),
             "lineDistance" => Some(Self::LineDistance),
@@ -180,7 +182,7 @@ impl BuiltinFunctionName {
 
     pub(crate) fn argument_signatures(self) -> &'static [&'static [BuiltinArgumentType]] {
         match self {
-            Self::Abs | Self::Sqrt => &[&[BuiltinArgumentType::Scalar]],
+            Self::Abs | Self::Sqrt | Self::String => &[&[BuiltinArgumentType::Scalar]],
             Self::Min | Self::Max | Self::RoundTo | Self::SpreadAngle => {
                 &[&[BuiltinArgumentType::Scalar, BuiltinArgumentType::Scalar]]
             }

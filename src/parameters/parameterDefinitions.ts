@@ -333,6 +333,12 @@ const parameterDefinitionsForElement = (
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
+        {
+          key: "direction",
+          label: "進行方向",
+          kind: "choice",
+          choiceOptions: ["counterclockwise", "clockwise"],
+        },
       ];
     case "threePointArcLine":
       return [

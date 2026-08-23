@@ -8,7 +8,7 @@ vi.mock("vscode", () => {
     constructor(public readonly start: Position, public readonly end: Position) {}
   }
   class MarkdownString {
-    isTrusted: boolean | undefined;
+    isTrusted: boolean | { enabledCommands: readonly string[] } | undefined;
     constructor(public readonly value: string) {}
   }
   class Hover {
@@ -23,7 +23,11 @@ import type { EvaluationResult } from "../../src/types/geometry";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiHoverProvider,
+  currentNuiHoverReferenceRange,
+  nuiHoverReferenceCommandUri,
+  nuiHoverRevealSourceReferenceCommand,
   nuiHoverSelector,
+  type NuiHoverRevealSourceReferenceArgs,
   type NuiHoverRuntimeEvaluationService
 } from "./hoverProvider";
 import type { NuiRuntimeEvaluationSnapshot } from "./runtimeEvaluationService";
@@ -172,7 +176,31 @@ describe("VS Code native nui Hover provider", () => {
     const markdown = hover?.contents as vscode.MarkdownString | undefined;
     expect(markdown?.value).toContain("A · free point");
     expect(markdown?.value).toContain("**座標:** \\(1, 2\\)");
-    expect(markdown?.isTrusted).toBe(false);
+    expect(markdown?.isTrusted).toEqual({
+      enabledCommands: [nuiHoverRevealSourceReferenceCommand]
+    });
+  });
+
+  it("encodes only the internal source-reference command and rejects stale navigation proof", () => {
+    const source = "nui 4\npoint Base = coordinate(x: 1, y: 2)";
+    const document = documentFor(source);
+    const from = source.indexOf("Base");
+    const args: NuiHoverRevealSourceReferenceArgs = {
+      documentUri: document.uri.toString(),
+      documentVersion: document.version,
+      from,
+      to: from + "Base".length,
+      expectedText: "Base"
+    };
+    const commandUri = nuiHoverReferenceCommandUri(args);
+    const encodedArgs = commandUri.slice(commandUri.indexOf("?") + 1);
+
+    expect(commandUri.startsWith(`command:${nuiHoverRevealSourceReferenceCommand}?`)).toBe(true);
+    expect(JSON.parse(decodeURIComponent(encodedArgs))).toEqual([args]);
+    expect(currentNuiHoverReferenceRange(document as vscode.TextDocument, args)).not.toBeNull();
+
+    document.setSource(source.replace("Base", "Changed"));
+    expect(currentNuiHoverReferenceRange(document as vscode.TextDocument, args)).toBeNull();
   });
 
   it("does not start runtime evaluation outside a geometry semantic target", async () => {

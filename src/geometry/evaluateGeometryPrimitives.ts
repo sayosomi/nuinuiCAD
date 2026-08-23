@@ -1,4 +1,4 @@
-import type { ComputedBezierSegment, ComputedPoint } from "../types/geometry";
+import type { ArcDirection, ComputedBezierSegment, ComputedPoint } from "../types/geometry";
 
 const CURVE_LENGTH_STEPS = 32;
 
@@ -15,6 +15,17 @@ export const positiveSweepDegrees = (startAngleDeg: number, endAngleDeg: number)
   const normalized = normalizeDegrees(rawSweep);
   const isFullCircle = normalized <= CIRCLE_EPSILON || 360 - normalized <= CIRCLE_EPSILON;
   return isFullCircle && Math.abs(rawSweep) > CIRCLE_EPSILON ? 360 : normalized;
+};
+
+export const directedSweepDegrees = (
+  startAngleDeg: number,
+  endAngleDeg: number,
+  direction: ArcDirection
+) => {
+  const sweep = direction === "clockwise"
+    ? -positiveSweepDegrees(endAngleDeg, startAngleDeg)
+    : positiveSweepDegrees(startAngleDeg, endAngleDeg);
+  return sweep === 0 ? 0 : sweep;
 };
 
 export const circleThroughThreePoints = (

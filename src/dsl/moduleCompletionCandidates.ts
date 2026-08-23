@@ -24,6 +24,12 @@ import {
   moduleRuntimeGeometryKindOf,
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
+import {
+  geometryArrayDeclarationCompletionContextAt,
+  geometryArrayValueCompletionContextAt,
+  type GeometryArrayCompletionContext
+} from "./dslGeometryArrayCompletionContext";
+import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -285,6 +291,152 @@ const geometryInterfaceCompletions = (
   return result;
 };
 
+
+const geometryArrayTypeForSlot = (
+  compiled: CompiledDslDocument,
+  definitionStatementId: string,
+  parameterIndex: number
+): GeometryArrayType | null =>
+  compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.moduleParametersBySlot
+    .get(`${definitionStatementId}:${parameterIndex}`)?.type ?? null;
+
+const sourceModuleOwnerIndex = (compiled: CompiledDslDocument, statementIndex: number): number | null => {
+  const visited = new Set<number>();
+  let enclosing = compiled.statements[statementIndex]?.enclosing ?? null;
+  while (enclosing && !visited.has(enclosing.statementIndex)) {
+    visited.add(enclosing.statementIndex);
+    const owner = compiled.statements[enclosing.statementIndex];
+    if (owner?.kind === "moduleDefinition") return enclosing.statementIndex;
+    enclosing = owner?.enclosing ?? null;
+  }
+  return null;
+};
+
+const uniqueGeometryArrayCandidates = (candidates: readonly ModuleCompletionCandidate[]): ModuleCompletionCandidate[] => {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = candidate.identity ?? `${candidate.kind}:${candidate.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const sourceModuleArrayParameterCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: GeometryArrayType
+): ModuleCompletionCandidate[] => {
+  const analysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const ownerIndex = sourceModuleOwnerIndex(compiled, statementIndex);
+  if (!analysis || ownerIndex === null) return [];
+  return analysis.moduleParameters
+    .filter((parameter) => parameter.definitionStatementIndex === ownerIndex && !parameter.optional)
+    .filter((parameter) => isGeometryArrayTypeAssignable(parameter.type, expected))
+    .map((parameter) => ({
+      kind: "binding" as const,
+      label: parameter.name,
+      identity: `module-array-parameter:${parameter.definitionStatementId}:${parameter.parameterIndex}`
+    }));
+};
+
+const sourceModuleGeometryParameterCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: GeometryArrayType
+): ModuleCompletionCandidate[] => {
+  const ownerIndex = sourceModuleOwnerIndex(compiled, statementIndex);
+  const owner = ownerIndex === null ? null : compiled.statements[ownerIndex];
+  if (owner?.kind !== "moduleDefinition") return [];
+  const result: ModuleCompletionCandidate[] = [];
+  owner.parameters.forEach((parameter, parameterIndex) => {
+    if (parameter.optional) return;
+    const actual = moduleGeometryInterfaceTypeOf(parameter.type);
+    if (!actual) return;
+    const identity = `source-module-geometry:${ownerIndex}:${parameterIndex}`;
+    if (expected.elementType === "point") {
+      if (actual === "point") result.push({ kind: "geometry", label: parameter.name, identity });
+      else if (actual === "line" || actual === "path") {
+        result.push(
+          { kind: "geometry", label: `${parameter.name}.start`, identity: `${identity}:start` },
+          { kind: "geometry", label: `${parameter.name}.end`, identity: `${identity}:end` }
+        );
+      }
+      return;
+    }
+    if (isModuleGeometryInterfaceAssignable(actual, expected.elementType)) {
+      result.push({ kind: "geometry", label: parameter.name, identity });
+    }
+  });
+  return result;
+};
+
+const geometryArrayReferenceCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: GeometryArrayType,
+  request?: ModuleCompletionRequest
+): ModuleCompletionCandidate[] => {
+  const analysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  if (!analysis) return [];
+  const result: ModuleCompletionCandidate[] = [
+    ...sourceModuleArrayParameterCompletions(compiled, statementIndex, expected)
+  ];
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
+    if (!resolved) continue;
+    const { lookup } = resolved;
+    if (lookup.kind === "parameter") {
+      const actual = geometryArrayTypeForSlot(
+        compiled,
+        lookup.parameter.value.definitionStatementId,
+        lookup.parameter.value.parameterIndex
+      );
+      if (
+        isGeometryArrayTypeAssignable(actual, expected) &&
+        optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)
+      ) {
+        result.push({
+kind: "binding",
+label: name,
+identity: `module-array-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}`
+        });
+      }
+      continue;
+    }
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") continue;
+    const value = analysis.valuesByStatementIndex.get(lookup.declaration.statementIndex);
+    if (value && isGeometryArrayTypeAssignable(value.type, expected)) {
+      result.push({ kind: "binding", label: name, identity: value.statementId });
+    }
+  }
+  return uniqueGeometryArrayCandidates(result);
+};
+
+const geometryArrayMemberCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expected: GeometryArrayType,
+  request?: ModuleCompletionRequest
+): ModuleCompletionCandidate[] => {
+  const semantic = expected.elementType === "point"
+    ? geometryCompletions(compiled, statementIndex, "point", request)
+    : geometryInterfaceCompletions(compiled, statementIndex, expected.elementType, request);
+  return uniqueGeometryArrayCandidates([
+    ...semantic,
+    ...sourceModuleGeometryParameterCompletions(compiled, statementIndex, expected)
+  ]);
+};
+
+const geometryArrayCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  context: GeometryArrayCompletionContext,
+  request?: ModuleCompletionRequest
+) => context.mode === "member"
+  ? geometryArrayMemberCompletions(compiled, statementIndex, context.expectedType, request)
+  : geometryArrayReferenceCompletions(compiled, statementIndex, context.expectedType, request);
+
 const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const namespace = compiled.sourceLexicalNamespace;
   const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
@@ -382,12 +534,18 @@ const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: num
   return [...shorthand, ...explicit];
 };
 
-const moduleArgumentParameterType = (
+type ModuleArgumentParameterSlot = {
+  definitionStatementId: string;
+  parameterIndex: number;
+  type: DslModuleParameterType | null;
+};
+
+const moduleArgumentParameterSlot = (
   compiled: CompiledDslDocument,
   statementIndex: number,
   argumentIndex: number,
   request: ModuleCompletionRequest
-): DslModuleParameterType | null => {
+): ModuleArgumentParameterSlot | null => {
   const instance = currentInstance(compiled, statementIndex);
   const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return null;
@@ -396,13 +554,83 @@ const moduleArgumentParameterType = (
     const parameter = liveArgument?.key
       ? request.currentDefinitionParameters.find((candidate) => candidate.name === liveArgument.key)
       : request.currentDefinitionParameters[argumentIndex];
-    return parameter?.type ?? null;
+    return parameter
+      ? {
+definitionStatementId: parameter.definitionStatementId,
+parameterIndex: parameter.parameterIndex,
+type: parameter.type
+        }
+      : null;
   }
   const binding = instance?.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
   const parameter = liveArgument?.key
     ? definition.parameters.find((candidate) => candidate.name === liveArgument.key)
     : binding && definition.parameters[binding.parameterIndex];
-  return parameter?.type ?? binding?.parameterType ?? null;
+  if (parameter) {
+    return {
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex,
+      type: parameter.type
+    };
+  }
+  return binding
+    ? {
+        definitionStatementId: definition.statementId,
+        parameterIndex: binding.parameterIndex,
+        type: binding.parameterType
+      }
+    : null;
+};
+
+const moduleArgumentParameterType = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  argumentIndex: number,
+  request: ModuleCompletionRequest
+): DslModuleParameterType | null =>
+  moduleArgumentParameterSlot(compiled, statementIndex, argumentIndex, request)?.type ?? null;
+
+const moduleArgumentGeometryArrayContext = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  argumentIndex: number,
+  request: ModuleCompletionRequest
+): GeometryArrayCompletionContext | null => {
+  const slot = moduleArgumentParameterSlot(compiled, statementIndex, argumentIndex, request);
+  const expectedType = slot
+    ? geometryArrayTypeForSlot(compiled, slot.definitionStatementId, slot.parameterIndex)
+    : null;
+  if (!expectedType || !request.liveStatementText || request.logicalCursorPosition === undefined) return null;
+  const liveArgument = liveArguments(request)?.[argumentIndex];
+  const valueSpan = liveArgument
+    ? liveArgument.valueSpan.start === liveArgument.valueSpan.end && liveArgument.rawValueSpan
+      ? liveArgument.rawValueSpan
+      : liveArgument.valueSpan
+    : request.argumentValueSpan;
+  if (!valueSpan) return null;
+  return geometryArrayValueCompletionContextAt(
+    request.liveStatementText,
+    request.logicalCursorPosition,
+    { start: valueSpan.start, end: Math.max(valueSpan.end, request.logicalCursorPosition) },
+    expectedType
+  );
+};
+
+const geometryArrayContextForRequest = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  request: ModuleCompletionRequest
+): GeometryArrayCompletionContext | null => {
+  if (request.liveStatementText && request.logicalCursorPosition !== undefined) {
+    const declaration = geometryArrayDeclarationCompletionContextAt(
+      request.liveStatementText,
+      request.logicalCursorPosition
+    );
+    if (declaration) return declaration;
+  }
+  return request.argumentIndex !== undefined
+    ? moduleArgumentGeometryArrayContext(compiled, statementIndex, request.argumentIndex, request)
+    : null;
 };
 
 const moduleScalarExpectedType = (
@@ -429,6 +657,8 @@ const moduleScalarExpectedType = (
 };
 
 const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: number, argumentIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
+  const arrayContext = moduleArgumentGeometryArrayContext(compiled, statementIndex, argumentIndex, request);
+  if (arrayContext) return geometryArrayCandidates(compiled, statementIndex, arrayContext, request);
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
   if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
   const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
@@ -545,6 +775,101 @@ const stableQualifiedInstanceIdAt = (compiled: CompiledDslDocument, statementInd
   return null;
 };
 
+
+const qualifiedGeometryArrayMemberCompletions = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic,
+  expected: GeometryArrayType
+): ModuleCompletionCandidate[] => {
+  const result: ModuleCompletionCandidate[] = [];
+  for (const entry of definition.exports) {
+    if (entry.kind !== "geometry") continue;
+    const actual = moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]);
+    if (expected.elementType === "point") {
+      if (actual === "point") result.push({ kind: "geometry", label: entry.name, identity: entry.name });
+      else if (actual === "line" || actual === "path") {
+        result.push(
+{ kind: "geometry", label: `${entry.name}.start`, identity: `${entry.name}:start` },
+{ kind: "geometry", label: `${entry.name}.end`, identity: `${entry.name}:end` }
+        );
+      }
+      continue;
+    }
+    if (isModuleGeometryInterfaceAssignable(actual, expected.elementType)) {
+      result.push({ kind: "geometry", label: entry.name, identity: entry.name });
+    }
+  }
+  return result;
+};
+
+const qualifiedGeometryArrayReferenceCompletions = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic,
+  expected: GeometryArrayType
+): ModuleCompletionCandidate[] =>
+  (compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values ?? [])
+    .filter((value) => value.ownerModuleDefinitionStatementIndex === definition.statementIndex && value.exported)
+    .filter((value) => isGeometryArrayTypeAssignable(value.type, expected))
+    .map((value) => ({ kind: "binding" as const, label: value.name, identity: value.statementId }));
+
+const sourceQualifiedGeometryArrayCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  request: ModuleCompletionRequest
+): ModuleCompletionCandidate[] | null => {
+  const context = geometryArrayContextForRequest(compiled, statementIndex, request);
+  if (!context || !request.qualifiedInstanceName) return null;
+  const resolved = visibleLookup(
+    compiled,
+    statementIndex,
+    request.qualifiedInstanceName,
+    request.scopeId,
+    request.sourceOrderIndex
+  );
+  if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  const instanceStatement = compiled.statements[resolved.lookup.declaration.statementIndex];
+  const input = lexicalInput(compiled, null);
+  if (instanceStatement?.kind !== "moduleInstance" || !input) return [];
+  const callee = resolveModuleLexicalDeclaration(
+    input,
+    resolved.lookup.declaration.statementIndex,
+    instanceStatement.moduleName
+  );
+  if (callee.kind !== "resolved" || callee.declaration.kind !== "moduleDefinition") return [];
+  const definitionIndex = callee.declaration.statementIndex;
+  if (context.mode === "arrayReference") {
+    return (compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values ?? [])
+      .filter((value) => value.ownerModuleDefinitionStatementIndex === definitionIndex && value.exported)
+      .filter((value) => isGeometryArrayTypeAssignable(value.type, context.expectedType))
+      .map((value) => ({ kind: "binding" as const, label: value.name, identity: value.statementId }));
+  }
+  const result: ModuleCompletionCandidate[] = [];
+  compiled.statements.forEach((statement, candidateIndex) => {
+    if (
+      statement.kind !== "element" ||
+      !statement.exported ||
+      sourceModuleOwnerIndex(compiled, candidateIndex) !== definitionIndex
+    ) return;
+    const actual = moduleGeometryInterfaceTypeOfElement(statement);
+    if (!actual) return;
+    const identity = compiled.statementMap?.statementIdByStatementIndex?.get(candidateIndex) ?? `module-export:${candidateIndex}`;
+    if (context.expectedType.elementType === "point") {
+      if (actual === "point") result.push({ kind: "geometry", label: statement.name, identity });
+      else if (actual === "line" || actual === "path") {
+        result.push(
+          { kind: "geometry", label: `${statement.name}.start`, identity: `${identity}:start` },
+          { kind: "geometry", label: `${statement.name}.end`, identity: `${identity}:end` }
+        );
+      }
+      return;
+    }
+    if (isModuleGeometryInterfaceAssignable(actual, context.expectedType.elementType)) {
+      result.push({ kind: "geometry", label: statement.name, identity });
+    }
+  });
+  return result;
+};
+
 const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const analysis = compiled.moduleSemanticAnalysis;
   if (!analysis) return [];
@@ -561,6 +886,12 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
   const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return [];
+  const arrayContext = geometryArrayContextForRequest(compiled, statementIndex, request);
+  if (arrayContext) {
+    return arrayContext.mode === "member"
+      ? qualifiedGeometryArrayMemberCompletions(compiled, definition, arrayContext.expectedType)
+      : qualifiedGeometryArrayReferenceCompletions(compiled, definition, arrayContext.expectedType);
+  }
   if (request.argumentIndex !== undefined) {
     const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
     const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
@@ -601,6 +932,16 @@ export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Mo
   if (statementIndex < 0 || !request.compiled.sourceLexicalNamespace) return [];
   if (request.kind === "callee") return moduleCalleeCompletions(request.compiled, statementIndex, request);
   if (request.kind === "label") return moduleArgumentLabels(request.compiled, statementIndex, request);
+  const declarationArrayContext = request.liveStatementText && request.logicalCursorPosition !== undefined
+    ? geometryArrayDeclarationCompletionContextAt(request.liveStatementText, request.logicalCursorPosition)
+    : null;
+  if (declarationArrayContext && request.kind !== "qualifiedMember") {
+    return geometryArrayCandidates(request.compiled, statementIndex, declarationArrayContext, request);
+  }
+  if (request.kind === "qualifiedMember") {
+    const sourceArrayCandidates = sourceQualifiedGeometryArrayCompletions(request.compiled, statementIndex, request);
+    if (sourceArrayCandidates !== null) return sourceArrayCandidates;
+  }
   if (!request.compiled.moduleSemanticAnalysis) return [];
   if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0, request);
   if (request.kind === "qualifiedMember") return qualifiedMemberCompletions(request.compiled, statementIndex, request);

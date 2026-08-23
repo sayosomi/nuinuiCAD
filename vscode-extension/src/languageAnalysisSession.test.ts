@@ -33,6 +33,54 @@ describe("VS Code document-scoped language analysis session", () => {
     fromSource.mockRestore();
   });
 
+  it("owns exact-current structured runtime diagnostics inside the language-analysis session", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const diagnostics = [{
+      severity: "error" as const,
+      line: 2,
+      column: 1,
+      code: "geometry-builtin-target-unavailable",
+      message: "runtime failure",
+      exactSpanOnly: true as const,
+      physicalSpan: { segments: [{ from: 6, to: 7 }], sourceRevision: 1 },
+      origin: "runtime" as const,
+      bindingId: "binding:runtime",
+      navigationTarget: { kind: "binding" as const, bindingId: "binding:runtime" },
+      runtimeContext: { kind: "geometryBuiltinTarget" as const, targetElementId: "Target", pointKey: "center" }
+    }];
+
+    expect(session.acceptRuntimeDiagnostics(3, { type: "runtimeDiagnosticsPublication", documentVersion: 3, diagnostics })).toBe(true);
+    const snapshot = session.runtimeDiagnosticsSnapshotFor(3);
+    expect(snapshot?.diagnostics).toBe(diagnostics);
+    expect(snapshot?.diagnostics[0]).toMatchObject({
+      bindingId: "binding:runtime",
+      runtimeContext: { kind: "geometryBuiltinTarget", targetElementId: "Target", pointKey: "center" }
+    });
+  });
+
+  it("rejects stale runtime publications and clears the runtime layer when source changes", () => {
+    const session = createLanguageAnalysisSession(validSource);
+    const diagnostics = [{
+      severity: "error" as const,
+      line: 2,
+      column: 1,
+      code: "runtime-test",
+      message: "runtime failure",
+      exactSpanOnly: true as const,
+      physicalSpan: { segments: [{ from: 6, to: 7 }], sourceRevision: 1 },
+      origin: "runtime" as const,
+      bindingId: "binding:runtime",
+      navigationTarget: { kind: "binding" as const, bindingId: "binding:runtime" }
+    }];
+    expect(session.acceptRuntimeDiagnostics(5, { type: "runtimeDiagnosticsPublication", documentVersion: 5, diagnostics })).toBe(true);
+    expect(session.acceptRuntimeDiagnostics(5, { type: "runtimeDiagnosticsPublication", documentVersion: 4, diagnostics: [] })).toBe(false);
+    expect(session.runtimeDiagnosticsSnapshotFor(5)?.diagnostics).toBe(diagnostics);
+
+    session.replaceSource("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+
+    expect(session.runtimeDiagnosticsSnapshotFor(5)).toBeNull();
+  });
+
   it("updates diagnostics and source for unsaved text", () => {
     const session = createLanguageAnalysisSession(fatalSource);
     expect(session.getDiagnostics().length).toBeGreaterThan(0);

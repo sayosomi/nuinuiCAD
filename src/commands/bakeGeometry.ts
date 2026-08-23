@@ -22,13 +22,14 @@ import type {
 import type { LineSplice } from "../document/textPatch";
 import { makeUniqueElementName as uniqueNameInNamespace } from "../model/elementNames";
 import { constructionForElementType, MUTATION_CATEGORY } from "../dsl/dslConstructions";
+import { directedSweepDegrees } from "../geometry/evaluateGeometryPrimitives";
 
 export type BakeMode = "current" | "base";
 
 type BakePrimitive =
   | { kind: "point"; point: { x: number; y: number } }
   | { kind: "line"; start: { x: number; y: number }; end: { x: number; y: number } }
-  | { kind: "arc"; center: { x: number; y: number }; radius: number; startAngleDeg: number; endAngleDeg: number }
+  | { kind: "arc"; center: { x: number; y: number }; radius: number; startAngleDeg: number; endAngleDeg: number; direction: "counterclockwise" | "clockwise" }
   | {
       kind: "bezier";
       start: { x: number; y: number };
@@ -87,11 +88,6 @@ const coordinateAnchor = (point: { x: number; y: number }): PointAnchor => ({
   y: point.y
 });
 
-const directedPositiveSweep = (start: number, end: number) => {
-  const value = ((end - start) % 360 + 360) % 360;
-  return Math.abs(value) < EPSILON ? 360 : value;
-};
-
 const exactArc = (
   center: { x: number; y: number },
   radius: number,
@@ -99,9 +95,10 @@ const exactArc = (
   endAngleDeg: number,
   sweepAngleDeg: number
 ): BakePrimitive | null => {
-  if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(sweepAngleDeg) || sweepAngleDeg <= EPSILON) return null;
-  if (Math.abs(directedPositiveSweep(startAngleDeg, endAngleDeg) - sweepAngleDeg) > EPSILON) return null;
-  return { kind: "arc", center, radius, startAngleDeg, endAngleDeg };
+  if (!Number.isFinite(radius) || radius <= 0 || !Number.isFinite(sweepAngleDeg) || Math.abs(sweepAngleDeg) <= EPSILON) return null;
+  const direction = sweepAngleDeg < 0 ? "clockwise" : "counterclockwise";
+  if (Math.abs(directedSweepDegrees(startAngleDeg, endAngleDeg, direction) - sweepAngleDeg) > EPSILON) return null;
+  return { kind: "arc", center, radius, startAngleDeg, endAngleDeg, direction };
 };
 
 const bezierPrimitive = (segment: {
@@ -395,7 +392,8 @@ const primitiveToElement = (
     centerPoint: coordinateAnchor(primitive.center),
     radius: primitive.radius,
     startAngleDeg: primitive.startAngleDeg,
-    endAngleDeg: primitive.endAngleDeg
+    endAngleDeg: primitive.endAngleDeg,
+    direction: primitive.direction
   };
   const startLength = Math.hypot(primitive.control1.x - primitive.start.x, primitive.control1.y - primitive.start.y);
   const endLength = Math.hypot(primitive.end.x - primitive.control2.x, primitive.end.y - primitive.control2.y);

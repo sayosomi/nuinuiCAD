@@ -29,10 +29,12 @@ import {
   containsNonNumericScalarSyntax,
   unresolvedReferenceMessage
 } from "./typedDeclarationAnalysis";
+import type { ScalarExpressionAst } from "./expressionAst";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
 import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export type TextTemplateLiteralSegment = TextTemplateRawLiteralSegment;
 
@@ -101,6 +103,34 @@ type ParsedHole = {
   readonly raw: TextTemplateRawHoleSegment;
   readonly ast: ReturnType<typeof parseScalarExpression>["ast"];
   readonly references: ReturnType<typeof collectReferences>;
+};
+
+const hasRecordScalarProperty = (
+  ast: ScalarExpressionAst,
+  bindingAnalysis: BindingAnalysis | undefined,
+  statementIndex: number
+): boolean => {
+  if (!bindingAnalysis?.catalog.sourceNamespaceBindingResolver) return false;
+  const catalog = bindingAnalysis.catalog;
+  const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
+  let found = false;
+  const visit = (node: ScalarExpressionAst): void => {
+    if (found) return;
+    switch (node.kind) {
+      case "geometryProperty": {
+        const lookup = catalog.sourceNamespaceBindingResolver?.(`${node.elementName}.${node.property}`, statementIndex, scopeId);
+        found = lookup?.kind === "resolved" || (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue");
+        return;
+      }
+      case "unary": visit(node.operand); return;
+      case "binary": visit(node.left); visit(node.right); return;
+      case "group": visit(node.expression); return;
+      case "call": node.args.forEach((argument) => visit(argument.expression)); return;
+      default: return;
+    }
+  };
+  visit(ast);
+  return found;
 };
 
 /**
@@ -198,14 +228,18 @@ export const analyzeTextTemplate = (
       continue;
     }
     const ast = hole.ast;
+    const ownsRecordProperty = hasRecordScalarProperty(ast, bindingAnalysis, statementIndex);
 
     // A syntactically numeric hole with no references, whose every reference
     // resolves to a non-typed catalog kind (iteration), or whose references
     // cannot be resolved at all (no binding catalog present - canResolve is
     // false) stays in the numeric-expression path, exactly like a bare
     // numeric-expression property. A hole with typed-only syntax goes through
-    // strict typed-hole handling below even without references.
+    // strict typed-hole handling below even without references. Record dotted
+    // fields are also strict typed holes even though they contain no ordinary
+    // `reference` AST node before compile-time lowering.
     const isNumericEligible =
+      !ownsRecordProperty &&
       !containsNonNumericScalarSyntax(ast) &&
       (hole.references.length === 0 ||
         !canResolve ||
@@ -267,7 +301,38 @@ export const analyzeTextTemplate = (
     });
     if (hasReferenceDiagnostic) continue;
 
-    const checked = typecheckScalarExpression(ast, { expectedType: null, references: referenceResolutions });
+    const prepared = bindingAnalysis
+      ? prepareRecordScalarExpressionFromCatalog({
+          ast,
+          statementIndex,
+          catalog: bindingAnalysis.catalog,
+          referenceResolutions
+        })
+      : null;
+    if (prepared?.issues.length) {
+      diagnostics.push(...prepared.issues.map((issue) => ({
+        span: issue.span,
+        code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
+        message: issue.message
+      })));
+      continue;
+    }
+    if (prepared) {
+      for (const dependency of prepared.dependencies) {
+        dependencies.push({
+          holeSpan: hole.raw.span,
+          bindingId: dependency.bindingId,
+          name: dependency.name,
+          span: dependency.span,
+          ...(elementId !== undefined ? { elementId } : {})
+        });
+      }
+    }
+
+    const checked = typecheckScalarExpression(prepared?.ast ?? ast, {
+      expectedType: null,
+      references: prepared?.references ?? referenceResolutions
+    });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => ({ span: diagnostic.span, code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE, message: diagnostic.message })));
       continue;
