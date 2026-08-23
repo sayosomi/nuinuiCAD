@@ -11,7 +11,7 @@ import {
   type DslRecordDefinitionStatement,
   type DslRecordParseResult
 } from "./dslRecordParser";
-import { parseDslDeclaredValueType } from "./dslTypeParser";
+import { parseDslDeclaredValueType, type DslTypeDiagnostic } from "./dslTypeParser";
 import * as core from "./dslParserCore";
 
 export {
@@ -93,7 +93,7 @@ const attachRecordTypeReferences = (base: ParseDslResult) => {
     if (!typeSpan) continue;
     const logical = base.logicalStatementByRangeFrom.get(statement.documentRange.from);
     if (!logical) continue;
-    const diagnostics: DslDiagnostic[] = [];
+    const diagnostics: DslTypeDiagnostic[] = [];
     const parsed = parseDslDeclaredValueType(logical.logicalText, typeSpan, diagnostics);
     statement.recordTypeReference = parsed.recordTypeReference;
   }
