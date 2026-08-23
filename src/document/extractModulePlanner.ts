@@ -6,6 +6,10 @@ import {
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
+import {
+  moduleGeometryInterfaceTypeOfElement,
+  type ModuleGeometryInterfaceType
+} from "../dsl/moduleGeometryInterfaces";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { serializeDslNumericType, type DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
 import type { DslModuleParameterType, DslStatement } from "../dsl/dslTypes";
@@ -92,9 +96,9 @@ export type ExtractModulePlanInput = {
 
 type AbsoluteReplacement = { from: number; to: number; text: string };
 
-type ScalarDependencyDescriptor = {
+type DependencyDescriptor = {
   name: string;
-  type: ScalarType;
+  type: DslModuleParameterType;
   numericTypeOptions?: DslNumericTypeOptions;
   declarationFrom: number;
 };
@@ -110,6 +114,15 @@ type DirectScalarStatement = {
   statementIndex: number;
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>;
 };
+
+type DirectGeometryStatement = {
+  statementId: StatementIdentity;
+  statementIndex: number;
+  statement: Extract<DslStatement, { kind: "element" }>;
+  interfaceType: ModuleGeometryInterfaceType;
+};
+
+type DirectValueStatement = DirectScalarStatement | DirectGeometryStatement;
 
 const reject = (
   code: ExtractModuleRejectCode,
@@ -277,6 +290,20 @@ const scalarTypeText = (type: ScalarType, numericTypeOptions?: DslNumericTypeOpt
   return type.kind;
 };
 
+const moduleParameterTypeText = (
+  type: DslModuleParameterType,
+  numericTypeOptions?: DslNumericTypeOptions
+): string => {
+  if (type.kind === "point" || type.kind === "line" || type.kind === "path") return type.kind;
+  return scalarTypeText(type, numericTypeOptions);
+};
+
+const moduleGeometryParameterType = (type: ModuleGeometryInterfaceType): DslModuleParameterType => {
+  if (type === "point") return { kind: "point" };
+  if (type === "line") return { kind: "line" };
+  return { kind: "path" };
+};
+
 const numericOptionsForStatement = (
   statement: DslStatement | undefined
 ): DslNumericTypeOptions | undefined =>
@@ -288,18 +315,17 @@ const scalarDependencyDescriptor = (
   compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
   identity: DslSemanticIdentity
-): ScalarDependencyDescriptor | null => {
+): DependencyDescriptor | null => {
   const declarations = declarationRangesFor(index, identity);
   if (declarations.length !== 1) return null;
   const declarationFrom = declarations[0]!.from;
 
-  const descriptorForBinding = (bindingId: string): ScalarDependencyDescriptor | null => {
+  const descriptorForBinding = (bindingId: string): DependencyDescriptor | null => {
     const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(bindingId);
     if (!binding?.declaredType) return null;
     const statement = compiled.statements[binding.statementIndex];
-    // Checkpoint 1 accepts only direct authored scalar declarations. SAY-128 record-field
-    // slots point back to record-valued source declarations and fail closed here instead
-    // of being split into synthetic scalar parameters.
+    // Keep synthetic record-field scalar slots out of Extract dependency inference.
+    // Their source owner is record-valued and remains a later checkpoint boundary.
     if (
       statement?.kind !== "typedDeclaration" ||
       !statement.declaredType ||
@@ -323,6 +349,41 @@ const scalarDependencyDescriptor = (
   return null;
 };
 
+const geometryDependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null => {
+  if (identity.kind !== "element") return null;
+  const declarations = declarationRangesFor(index, identity);
+  if (declarations.length !== 1) return null;
+  const statementIndex = compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex;
+  if (statementIndex === undefined) return null;
+  const statement = compiled.statements[statementIndex];
+  const interfaceType = moduleGeometryInterfaceTypeOfElement(statement);
+  if (
+    statement?.kind !== "element" ||
+    statement.enclosing !== null ||
+    !statement.name ||
+    !interfaceType
+  ) {
+    return null;
+  }
+  return {
+    name: statement.name,
+    type: moduleGeometryParameterType(interfaceType),
+    declarationFrom: declarations[0]!.from
+  };
+};
+
+const dependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null =>
+  scalarDependencyDescriptor(compiled, index, identity) ??
+  geometryDependencyDescriptor(compiled, index, identity);
+
 const directSelectedScalarStatement = (
   compiled: CompiledDslDocument,
   identity: DslSemanticIdentity,
@@ -342,6 +403,30 @@ const directSelectedScalarStatement = (
     ? { statementId, statementIndex, statement }
     : null;
 };
+
+const directSelectedGeometryStatement = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  selectedIndexes: ReadonlySet<number>
+): DirectGeometryStatement | null => {
+  if (identity.kind !== "element") return null;
+  const statementIndex = compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex;
+  if (statementIndex === undefined || !selectedIndexes.has(statementIndex)) return null;
+  const statement = compiled.statements[statementIndex];
+  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+  const interfaceType = moduleGeometryInterfaceTypeOfElement(statement);
+  return statement?.kind === "element" && statementId && interfaceType
+    ? { statementId, statementIndex, statement, interfaceType }
+    : null;
+};
+
+const directSelectedValueStatement = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  selectedIndexes: ReadonlySet<number>
+): DirectValueStatement | null =>
+  directSelectedScalarStatement(compiled, identity, selectedIndexes) ??
+  directSelectedGeometryStatement(compiled, identity, selectedIndexes);
 
 const statementInsideOffsets = (
   statement: DslStatement | undefined,
@@ -449,7 +534,7 @@ const checkpointStatementRejection = (
   if (statement.enclosing !== null) {
     return reject(
       "unsupported-statement",
-      "Checkpoint 1 は root lexical scope の direct scalar statement だけを安全に Extract します。",
+      "Checkpoint 2 は root lexical scope の direct scalar / single-geometry statement だけを安全に Extract します。",
       { statementId, statementIndex }
     );
   }
@@ -457,7 +542,7 @@ const checkpointStatementRejection = (
     if (!statement.declaredType || statement.recordTypeReference) {
       return reject(
         "unsupported-statement",
-        `record-valued declaration「${statement.name}」は Checkpoint 1 の nominal-record scope 外です。`,
+        `declaration「${statement.name}」は Checkpoint 2 の scalar / single-geometry scope 外です。`,
         { statementId, statementIndex }
       );
     }
@@ -470,11 +555,28 @@ const checkpointStatementRejection = (
     }
     return null;
   }
+  if (statement.kind === "element") {
+    if (!moduleGeometryInterfaceTypeOfElement(statement)) {
+      return reject(
+        "unsupported-statement",
+        `geometry declaration「${statement.name}」は Checkpoint 2 の point / line / path interface で表現できません。`,
+        { statementId, statementIndex }
+      );
+    }
+    if (statement.exported) {
+      return reject(
+        "existing-public-interface",
+        "既存の export geometry declaration を nested Module へ移すと公開interfaceが変わるため Extract できません。",
+        { statementId, statementIndex }
+      );
+    }
+    return null;
+  }
   if (statement.kind === "set") return null;
 
   return reject(
     "unsupported-statement",
-    `「${statement.kind}」statement は scalar-first Checkpoint 1 の対象外です。`,
+    `「${statement.kind}」statement は direct scalar / single-geometry Checkpoint 2 の対象外です。`,
     { statementId, statementIndex }
   );
 };
@@ -620,7 +722,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     occurrence.from >= selectedFrom && occurrence.to <= selectedTo
   );
   const dependencyByIdentity = new Map<string, {
-    descriptor: ScalarDependencyDescriptor;
+    descriptor: DependencyDescriptor;
     occurrences: DslSemanticOccurrence[];
     argumentSource: string;
   }>();
@@ -635,22 +737,20 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
     const declaration = declarationRanges[0]!;
     if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
-      // With nested scopes excluded by Checkpoint 1, an internal reference must resolve
-      // directly to one of the authored scalar declarations that moves with the range.
-      if (!directSelectedScalarStatement(compiled, occurrence.identity, selectedIndexSet)) {
+      if (!directSelectedValueStatement(compiled, occurrence.identity, selectedIndexSet)) {
         return reject(
           "unrepresentable-dependency",
-          "選択範囲内の reference が Checkpoint 1 の direct scalar owner として証明できません。"
+          "選択範囲内の reference が Checkpoint 2 の direct scalar / single-geometry owner として証明できません。"
         );
       }
       continue;
     }
 
-    const descriptor = scalarDependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
+    const descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
     if (!descriptor) {
       return reject(
         "unrepresentable-dependency",
-        "Checkpoint 1 では direct authored scalar dependency 以外を Module parameter として安全に表現しません。"
+        "Checkpoint 2 では direct authored scalar / single-geometry dependency 以外を Module parameter として安全に表現しません。"
       );
     }
 
@@ -672,7 +772,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       identityKey,
       name: value.descriptor.name,
       type: value.descriptor.type,
-      typeText: scalarTypeText(value.descriptor.type, value.descriptor.numericTypeOptions),
+      typeText: moduleParameterTypeText(value.descriptor.type, value.descriptor.numericTypeOptions),
       argumentSource: value.argumentSource,
       declarationFrom: value.descriptor.declarationFrom
     }))
@@ -695,7 +795,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
 
   const selectedDeclarationNames = new Set(
     ordered
-      .filter((entry) => entry.statement.kind === "typedDeclaration")
+      .filter((entry) => entry.statement.kind === "typedDeclaration" || entry.statement.kind === "element")
       .map((entry) => entry.statement.name)
   );
   for (const dependency of dependencies) {
@@ -736,19 +836,27 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
     if (outsideReferences.length === 0) continue;
 
-    const direct = directSelectedScalarStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
+    const direct = directSelectedValueStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
     if (!direct) {
       return reject(
         "unrepresentable-export",
-        "Checkpoint 1 では direct scalar declaration 以外を Module export として公開しません。"
+        "Checkpoint 2 では direct scalar / single-geometry declaration 以外を Module export として公開しません。"
       );
     }
 
     const { statement, statementIndex, statementId } = direct;
-    if (!statement.declaredType || statement.recordTypeReference || !statement.name) {
+    if (statement.kind === "typedDeclaration") {
+      if (!statement.declaredType || statement.recordTypeReference || !statement.name) {
+        return reject(
+          "unrepresentable-export",
+          `statement「${statement.name || statement.kind}」は Checkpoint 2 の direct scalar export で表現できません。`,
+          { statementId, statementIndex }
+        );
+      }
+    } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
         "unrepresentable-export",
-        `statement「${statement.name || statement.kind}」は Checkpoint 1 の direct scalar export で表現できません。`,
+        `geometry statement「${statement.name || statement.kind}」は Checkpoint 2 の direct geometry export で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -878,14 +986,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("unsafe-rewrite", "生成した Module / instance を target lexical scope で再解決できません。");
   }
 
-  // Checkpoint 1 deliberately excludes nested binders, geometry, and records. For the
-  // remaining root-scalar language, moved-reference safety is established before apply:
-  // every internal reference resolves to a selected direct scalar declaration; every
-  // outside dependency is compiler-resolved, rewritten to one explicit parameter, and
-  // checked against moved declaration names. The candidate must then compile cleanly.
-  // A generic post-move identity comparison is intentionally not used here because root
-  // document bindings and Module-owned references have different canonical identity forms.
-  // Outside statements do not cross that representation boundary and are still compared.
+  // Checkpoint 2 remains intentionally direct/root-only. For scalar + single-geometry
+  // statements, moved-reference safety is established before apply: every internal
+  // reference resolves to a selected direct scalar/geometry declaration; every outside
+  // dependency is compiler-resolved and rewritten to one explicit scalar/point/line/path
+  // parameter; parameter names are checked against moved declarations; then the candidate
+  // must compile cleanly. Groups/blocks, records, geometry arrays, and nested binders stay
+  // fail-closed. Root document identities and Module-owned identities use different
+  // canonical forms, so only outside/unmoved statement owner sequences are compared here.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
