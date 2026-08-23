@@ -230,13 +230,16 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
   const valueFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
     active ? valueByInputKey.get(keyFor(definition, parameter)) ?? "" : "";
 
-  const activeParameters = (): ActiveParameter[] => active?.chain.flatMap((definition) =>
-    definition.parameters.map((parameter) => ({
-      definition,
-      parameter,
-      key: inputKeyFor(active.target.definitionStatementId, definition, parameter)
-    }))
-  ) ?? [];
+  const activeParameters = (): ActiveParameter[] => {
+    const currentActive = active;
+    return currentActive?.chain.flatMap((definition) =>
+      definition.parameters.map((parameter) => ({
+        definition,
+        parameter,
+        key: inputKeyFor(currentActive.target.definitionStatementId, definition, parameter)
+      }))
+    ) ?? [];
+  };
 
   const parameterFor = (
     definitionStatementId: StatementIdentity,
