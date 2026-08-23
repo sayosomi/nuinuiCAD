@@ -190,12 +190,11 @@ describe("createModulePreviewSession", () => {
     expect(state?.preview.kind).toBe("current");
   });
 
-  it("fails closed when a default cannot be safely serialized and rejects stale semantic snapshots", () => {
+  it("fails closed when a default cannot be safely evaluated and rejects stale semantic snapshots", () => {
     const source = [
       "nui 4",
-      "point Origin = coordinate(x: 7, y: 0)",
-      "module Project(p: point, x: number = @p.x) {",
-      "  point P = coordinate(x: @x, y: 0)",
+      "module Project(x: number = 1 / 0) {",
+      "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -204,14 +203,13 @@ describe("createModulePreviewSession", () => {
     if (!target) throw new Error("expected preview target");
 
     const session = createModulePreviewSession();
-    session.activate({
+    const state = session.activate({
       source: { normalizedSource: source, sourceRevision: 41 },
       semantic: { sourceRevision: 41, compiled },
       target
     });
-    const state = session.setValue(target.definitionStatementId, 0, "@Origin");
     expect(state?.preview.kind).toBe("current");
-    const action = session.useDefaultExplicitly(target.definitionStatementId, 1);
+    const action = session.useDefaultExplicitly(target.definitionStatementId, 0);
     expect(action.applied).toBe(false);
     expect(targetParameter(action.state!, "x")?.value).toBe("");
 
