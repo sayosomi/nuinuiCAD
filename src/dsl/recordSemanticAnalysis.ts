@@ -1,5 +1,7 @@
 import { matchingDslDelimiter, scanCallArgs } from "./dslArgScanner";
-import type { DslDiagnostic, DslPhysicalSpan, DslRecordTypeReference, DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnostic, DslRecordTypeReference, DslSpan, DslStatement } from "./dslTypes";
+import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
+import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarType } from "../scalars/types";
@@ -51,6 +53,12 @@ export type RecordConstructorSemantic = {
   fields: readonly RecordConstructorFieldSemantic[];
 };
 
+export type RecordValueReferenceSemantic = {
+  name: string;
+  span: DslSpan;
+  targetTypeIdentity: RecordTypeIdentity | null;
+};
+
 export type RecordValueSemantic = {
   statementId: RecordValueIdentity;
   statementIndex: number;
@@ -58,6 +66,7 @@ export type RecordValueSemantic = {
   typeReference: RecordTypeReferenceSemantic;
   typeIdentity: RecordTypeIdentity | null;
   constructor: RecordConstructorSemantic | null;
+  reference: RecordValueReferenceSemantic | null;
 };
 
 export type RecordModuleParameterSemantic = {
@@ -130,9 +139,6 @@ const definitionIdAt = (
   return id;
 };
 
-const isRecordType = (type: unknown): type is DslRecordTypeReference =>
-  typeof type === "object" && type !== null && (type as { kind?: unknown }).kind === "record";
-
 const resolveRecordType = (
   input: RecordSemanticAnalysisInput,
   definitionsByStatementIndex: ReadonlyMap<number, RecordDefinitionSemantic>,
@@ -146,42 +152,20 @@ const resolveRecordType = (
   if (lookup.kind === "resolved") {
     if (lookup.declaration.kind === "recordDefinition") {
       const definition = definitionsByStatementIndex.get(lookup.declaration.statementIndex);
-      if (definition) {
-        return { sourceName: type.name, span, typeIdentity: definition.statementId, resolution: "resolved" };
-      }
+      if (definition) return { sourceName: type.name, span, typeIdentity: definition.statementId, resolution: "resolved" };
     }
-    diagnostics.push(diagnostic(
-      statement,
-      span,
-      "record-type-not-record",
-      `型名「${type.name}」は record definition を参照していません。`
-    ));
+    diagnostics.push(diagnostic(statement, span, "record-type-not-record", `型名「${type.name}」は record definition を参照していません。`));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "notRecord" };
   }
   if (lookup.kind === "forward") {
-    diagnostics.push(diagnostic(
-      statement,
-      span,
-      "record-type-forward-reference",
-      `record 型「${type.name}」はこの位置より後で宣言されているため、まだ参照できません。`
-    ));
+    diagnostics.push(diagnostic(statement, span, "record-type-forward-reference", `record 型「${type.name}」はこの位置より後で宣言されているため、まだ参照できません。`));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "forward" };
   }
   if (lookup.kind === "ambiguous") {
-    diagnostics.push(diagnostic(
-      statement,
-      span,
-      "record-type-ambiguous",
-      `record 型「${type.name}」は複数の宣言と一致するため一意に解決できません。`
-    ));
+    diagnostics.push(diagnostic(statement, span, "record-type-ambiguous", `record 型「${type.name}」は複数の宣言と一致するため一意に解決できません。`));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "ambiguous" };
   }
-  diagnostics.push(diagnostic(
-    statement,
-    span,
-    "record-type-undefined",
-    `未定義の record 型「${type.name}」を参照しています。`
-  ));
+  diagnostics.push(diagnostic(statement, span, "record-type-undefined", `未定義の record 型「${type.name}」を参照しています。`));
   return { sourceName: type.name, span, typeIdentity: null, resolution: "undefined" };
 };
 
@@ -232,6 +216,12 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
+const referenceSpan = (initializer: string, initializerSpan: DslSpan): DslSpan => {
+  const startOffset = initializer.length - initializer.trimStart().length;
+  const endOffset = initializer.trimEnd().length;
+  return { start: initializerSpan.start + startOffset, end: initializerSpan.start + endOffset };
+};
+
 export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): RecordSemanticAnalysis => {
   const { statements, stableStatementIdByIndex } = input;
   const diagnostics: DslDiagnostic[] = [];
@@ -256,46 +246,28 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           }]
         : []
     );
-    const definition: RecordDefinitionSemantic = {
-      statementId,
-      statementIndex,
-      name: statement.name,
-      fields
-    };
+    const definition: RecordDefinitionSemantic = { statementId, statementIndex, name: statement.name, fields };
     definitionsByStatementId.set(statementId, definition);
     definitionsByStatementIndex.set(statementIndex, definition);
     if (statement.enclosing) {
-      diagnostics.push(diagnostic(
-        statement,
-        statement.keywordSpan,
-        "record-definition-not-top-level",
-        "record definition はトップレベルにのみ宣言できます。"
-      ));
+      diagnostics.push(diagnostic(statement, statement.keywordSpan, "record-definition-not-top-level", "record definition はトップレベルにのみ宣言できます。"));
     }
   }
 
   const moduleParameterTypeByDefinitionAndIndex = new Map<string, RecordModuleParameterSemantic>();
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleDefinition") continue;
+    const recordParameters = statement.parameters
+      .map((parameter, parameterIndex) => ({ parameter, parameterIndex }))
+      .filter(({ parameter }) => parameter.recordTypeReference && parameter.typeSpan);
+    if (recordParameters.length === 0) continue;
     const definitionStatementId = definitionIdAt(stableStatementIdByIndex, statementIndex, "module definition");
-    for (const [parameterIndex, parameter] of statement.parameters.entries()) {
-      if (!isRecordType(parameter.type) || !parameter.typeSpan) continue;
-      const typeReference = resolveRecordType(
-        input,
-        definitionsByStatementIndex,
-        statement,
-        statementIndex,
-        parameter.type,
-        parameter.typeSpan,
-        diagnostics
-      );
+    for (const { parameter, parameterIndex } of recordParameters) {
+      const recordTypeReference = parameter.recordTypeReference!;
+      const typeSpan = parameter.typeSpan!;
+      const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, recordTypeReference, typeSpan, diagnostics);
       if (parameter.defaultValue !== null) {
-        diagnostics.push(diagnostic(
-          statement,
-          parameter.defaultSpan ?? parameter.typeSpan,
-          "record-parameter-default-unsupported",
-          "record 型 Module parameter に default は指定できません。"
-        ));
+        diagnostics.push(diagnostic(statement, parameter.defaultSpan ?? typeSpan, "record-parameter-default-unsupported", "record 型 Module parameter に default は指定できません。"));
       }
       const semantic: RecordModuleParameterSemantic = {
         definitionStatementId,
@@ -310,7 +282,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
   }
 
   for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "typedDeclaration" || !isRecordType(statement.declaredType)) continue;
+    if (statement.kind !== "typedDeclaration" || !statement.recordTypeReference) continue;
     const statementId = definitionIdAt(stableStatementIdByIndex, statementIndex, "record value");
     const typeSpan = statement.payloadSpans.type ?? statement.nameSpan ?? statement.keywordSpan;
     const typeReference = resolveRecordType(
@@ -318,30 +290,61 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       definitionsByStatementIndex,
       statement,
       statementIndex,
-      statement.declaredType,
+      statement.recordTypeReference,
       typeSpan,
       diagnostics
     );
     if (statement.bindingKind === "let") {
-      diagnostics.push(diagnostic(
-        statement,
-        statement.keywordSpan,
-        "record-let-unsupported",
-        "record 型 binding は v1 では const のみです。let は使用できません。"
-      ));
+      diagnostics.push(diagnostic(statement, statement.keywordSpan, "record-let-unsupported", "record 型 binding は v1 では const のみです。let は使用できません。"));
     }
 
     const initializerSpan = statement.payloadSpans.initializer;
     let constructor: RecordConstructorSemantic | null = null;
-    if (initializerSpan && !statement.initializer.trimStart().startsWith("@")) {
+    let reference: RecordValueReferenceSemantic | null = null;
+    if (initializerSpan && statement.initializer.trimStart().startsWith("@")) {
+      const parsedReference = parseDslSourceReference(statement.initializer);
+      const span = referenceSpan(statement.initializer, initializerSpan);
+      if (
+        parsedReference.kind !== "valid" ||
+        parsedReference.reference.path.absolute ||
+        parsedReference.reference.path.segments.length !== 1 ||
+        parsedReference.reference.property !== null
+      ) {
+        diagnostics.push(diagnostic(statement, span, "record-reference-invalid", "record 値の参照は v1 では単一の whole-record `@name` 参照で指定してください。"));
+      } else {
+        const name = parsedReference.reference.path.segments[0]!;
+        let targetTypeIdentity: RecordTypeIdentity | null = null;
+        const lookup = input.resolveDeclaration(statementIndex, name);
+        if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
+          targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
+        } else if (lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
+          diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`));
+        } else if (lookup.kind === "ambiguous") {
+          diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`));
+        } else {
+          const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+          const owner = ownerIndex === null ? null : statements[ownerIndex];
+          if (owner?.kind === "moduleDefinition" && ownerIndex !== null) {
+            const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === name && parameter.recordTypeReference !== null && parameter.recordTypeReference !== undefined);
+            const ownerId = stableStatementIdByIndex.get(ownerIndex);
+            const parameterSemantic = parameterIndex >= 0 && ownerId
+              ? moduleParameterTypeByDefinitionAndIndex.get(`${ownerId}:${parameterIndex}`)
+              : undefined;
+            targetTypeIdentity = parameterSemantic?.typeIdentity ?? null;
+          }
+          if (!targetTypeIdentity) {
+            diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
+          }
+        }
+        if (targetTypeIdentity && typeReference.typeIdentity && targetTypeIdentity !== typeReference.typeIdentity) {
+          diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`));
+        }
+        reference = { name, span, targetTypeIdentity };
+      }
+    } else if (initializerSpan) {
       const candidate = constructorCandidate(statement.initializer, initializerSpan);
       if (!candidate) {
-        diagnostics.push(diagnostic(
-          statement,
-          initializerSpan,
-          "record-constructor-invalid",
-          "record 値の初期化には `RecordName(field: value, ...)` constructor または同型 record 参照を指定してください。"
-        ));
+        diagnostics.push(diagnostic(statement, initializerSpan, "record-constructor-invalid", "record 値の初期化には `RecordName(field: value, ...)` constructor または同型 record 参照を指定してください。"));
       } else {
         const targetLookup = input.resolveDeclaration(statementIndex, candidate.name);
         let targetDefinition: RecordDefinitionSemantic | null = null;
@@ -349,43 +352,18 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           if (targetLookup.declaration.kind === "recordDefinition") {
             targetDefinition = definitionsByStatementIndex.get(targetLookup.declaration.statementIndex) ?? null;
           } else {
-            diagnostics.push(diagnostic(
-              statement,
-              candidate.nameSpan,
-              "record-constructor-not-record",
-              `constructor target「${candidate.name}」は record definition ではありません。`
-            ));
+            diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-not-record", `constructor target「${candidate.name}」は record definition ではありません。`));
           }
         } else if (targetLookup.kind === "forward") {
-          diagnostics.push(diagnostic(
-            statement,
-            candidate.nameSpan,
-            "record-constructor-forward-reference",
-            `record constructor「${candidate.name}」はこの位置より後で宣言されているため、まだ使用できません。`
-          ));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-forward-reference", `record constructor「${candidate.name}」はこの位置より後で宣言されているため、まだ使用できません。`));
         } else if (targetLookup.kind === "ambiguous") {
-          diagnostics.push(diagnostic(
-            statement,
-            candidate.nameSpan,
-            "record-constructor-ambiguous",
-            `record constructor「${candidate.name}」は複数の宣言と一致するため一意に解決できません。`
-          ));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-ambiguous", `record constructor「${candidate.name}」は複数の宣言と一致するため一意に解決できません。`));
         } else {
-          diagnostics.push(diagnostic(
-            statement,
-            candidate.nameSpan,
-            "record-constructor-undefined",
-            `未定義の record constructor「${candidate.name}」を参照しています。`
-          ));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-undefined", `未定義の record constructor「${candidate.name}」を参照しています。`));
         }
 
         if (targetDefinition && typeReference.typeIdentity && targetDefinition.statementId !== typeReference.typeIdentity) {
-          diagnostics.push(diagnostic(
-            statement,
-            candidate.nameSpan,
-            "record-nominal-type-mismatch",
-            `constructor「${candidate.name}」の nominal record 型は宣言された型「${statement.declaredType.name}」と一致しません。`
-          ));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-nominal-type-mismatch", `constructor「${candidate.name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`));
         }
 
         const localArgsSpan = {
@@ -394,53 +372,27 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         };
         const scanned = scanCallArgs(statement.initializer, localArgsSpan);
         for (const error of scanned.errors) {
-          const span = {
-            start: initializerSpan.start + error.span.start,
-            end: initializerSpan.start + error.span.end
-          };
+          const span = { start: initializerSpan.start + error.span.start, end: initializerSpan.start + error.span.end };
           diagnostics.push(diagnostic(statement, span, error.code ?? "record-constructor-invalid-argument", error.message));
         }
         const knownFields = new Map(targetDefinition?.fields.map((field) => [field.name, field] as const) ?? []);
-        const firstLabel = new Map<string, number>();
+        const firstLabel = new Set<string>();
         const fields: RecordConstructorFieldSemantic[] = [];
-        for (const [argumentIndex, argument] of scanned.args.entries()) {
-          const valueSpan = {
-            start: initializerSpan.start + argument.valueSpan.start,
-            end: initializerSpan.start + argument.valueSpan.end
-          };
+        for (const argument of scanned.args) {
+          const valueSpan = { start: initializerSpan.start + argument.valueSpan.start, end: initializerSpan.start + argument.valueSpan.end };
           if (argument.key === null || !argument.keySpan) {
-            diagnostics.push(diagnostic(
-              statement,
-              valueSpan,
-              "record-constructor-positional-argument",
-              "record constructor の引数は named-only です。"
-            ));
+            diagnostics.push(diagnostic(statement, valueSpan, "record-constructor-positional-argument", "record constructor の引数は named-only です。"));
             continue;
           }
-          const labelSpan = {
-            start: initializerSpan.start + argument.keySpan.start,
-            end: initializerSpan.start + argument.keySpan.end
-          };
+          const labelSpan = { start: initializerSpan.start + argument.keySpan.start, end: initializerSpan.start + argument.keySpan.end };
           if (firstLabel.has(argument.key)) {
-            diagnostics.push(diagnostic(
-              statement,
-              labelSpan,
-              "record-constructor-duplicate-field",
-              `record constructor field「${argument.key}」が重複しています。`
-            ));
+            diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-duplicate-field", `record constructor field「${argument.key}」が重複しています。`));
             continue;
           }
-          firstLabel.set(argument.key, argumentIndex);
+          firstLabel.add(argument.key);
           const field = knownFields.get(argument.key);
           if (!field) {
-            if (targetDefinition) {
-              diagnostics.push(diagnostic(
-                statement,
-                labelSpan,
-                "record-constructor-unknown-field",
-                `record「${targetDefinition.name}」に field「${argument.key}」はありません。`
-              ));
-            }
+            if (targetDefinition) diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-unknown-field", `record「${targetDefinition.name}」に field「${argument.key}」はありません。`));
             continue;
           }
           fields.push({
@@ -454,13 +406,9 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         }
         if (targetDefinition) {
           for (const field of targetDefinition.fields) {
-            if (firstLabel.has(field.name)) continue;
-            diagnostics.push(diagnostic(
-              statement,
-              candidate.nameSpan,
-              "record-constructor-missing-field",
-              `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`
-            ));
+            if (!firstLabel.has(field.name)) {
+              diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-missing-field", `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`));
+            }
           }
         }
         constructor = {
@@ -480,7 +428,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       name: statement.name,
       typeReference,
       typeIdentity: typeReference.typeIdentity,
-      constructor
+      constructor,
+      reference
     };
     valuesByStatementId.set(statementId, value);
     valuesByStatementIndex.set(statementIndex, value);
@@ -494,8 +443,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     if (!isRecordTarget) {
       const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
       const owner = ownerIndex === null ? null : statements[ownerIndex];
-      if (owner?.kind === "moduleDefinition") {
-        const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === baseName && isRecordType(parameter.type));
+      if (owner?.kind === "moduleDefinition" && ownerIndex !== null) {
+        const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === baseName && parameter.recordTypeReference !== null && parameter.recordTypeReference !== undefined);
         if (parameterIndex >= 0) {
           const ownerId = stableStatementIdByIndex.get(ownerIndex);
           isRecordTarget = Boolean(ownerId && moduleParameterTypeByDefinitionAndIndex.has(`${ownerId}:${parameterIndex}`));
@@ -503,12 +452,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       }
     }
     if (isRecordTarget) {
-      diagnostics.push(diagnostic(
-        statement,
-        statement.nameSpan ?? statement.keywordSpan,
-        "record-set-unsupported",
-        "record 値または record field は v1 では set できません。"
-      ));
+      diagnostics.push(diagnostic(statement, statement.nameSpan ?? statement.keywordSpan, "record-set-unsupported", "record 値または record field は v1 では set できません。"));
     }
   }
 
