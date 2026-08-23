@@ -35,6 +35,34 @@ const contrastBetweenFor = (
   );
 };
 
+const hslFor = (value: string, backgroundValue: string) => {
+  const color = parseCssColor(value);
+  const background = parseCssColor(backgroundValue);
+  if (!color || !background) throw new Error("Expected test colors to parse");
+  const visible = compositeCssColorOver(color, background);
+  const red = visible.red / 255;
+  const green = visible.green / 255;
+  const blue = visible.blue / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+  if (delta === 0) return { hue: 0, saturation: 0 };
+  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+  let hue: number;
+  if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+  else if (max === green) hue = 60 * ((blue - red) / delta + 2);
+  else hue = 60 * ((red - green) / delta + 4);
+  return { hue: hue < 0 ? hue + 360 : hue, saturation };
+};
+
+const hueDistanceFor = (firstValue: string, secondValue: string, backgroundValue: string) => {
+  const first = hslFor(firstValue, backgroundValue);
+  const second = hslFor(secondValue, backgroundValue);
+  const difference = Math.abs(first.hue - second.hue) % 360;
+  return Math.min(difference, 360 - difference);
+};
+
 describe("resolveVSCodeCanvasTheme", () => {
   it("maps active VS Code CSS variables to the shared CanvasTheme DTO", () => {
     const theme = resolveVSCodeCanvasTheme(stylesFor({
@@ -180,7 +208,7 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(adequate.bezierHandleLine).toBe("#808080");
   });
 
-  it("strengthens low-contrast selection and keeps the focusBorder fallback", () => {
+  it("strengthens low-contrast selection and derives a chromatic neutral fallback", () => {
     const background = "#ffffff";
     const lowContrast = resolveVSCodeCanvasTheme(stylesFor({
       "--vscode-editor-foreground": "#000000",
@@ -195,13 +223,15 @@ describe("resolveVSCodeCanvasTheme", () => {
     }));
 
     expect(contrastFor(lowContrast.selection, background)).toBeGreaterThanOrEqual(4.5);
-    expect(fallback.selection).toBe("#444444");
+    expect(fallback.selection).not.toBe("#444444");
+    expect(hslFor(fallback.selection, background).saturation).toBeGreaterThanOrEqual(0.65);
+    expect(contrastFor(fallback.selection, background)).toBeGreaterThanOrEqual(3);
   });
 
   it.each([
     ["dark", "#d4d4d4", "#1e1e1e", "#007fd4"],
     ["light", "#333333", "#ffffff", "#0090f1"]
-  ])("uses the theme accent when %s selection would match geometry", (
+  ])("uses the theme accent when %s selection is already chromatically distinct", (
     _label,
     foreground,
     background,
@@ -215,8 +245,29 @@ describe("resolveVSCodeCanvasTheme", () => {
     }));
 
     expect(theme.selection).toBe(theme.accent);
-    expect(contrastBetweenFor(theme.selection, theme.foreground, background))
-      .toBeGreaterThanOrEqual(2);
+    expect(hslFor(theme.selection, background).saturation).toBeGreaterThanOrEqual(0.65);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([
+    ["dark", "#7aa2d6", "#07111d", "#5f91c7"],
+    ["light", "#55789f", "#fff8e8", "#6d8fb6"]
+  ])("rotates same-hue %s selection away from normal geometry", (
+    _label,
+    foreground,
+    background,
+    accent
+  ) => {
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": accent,
+      "--vscode-editor-selectionHighlightBorder": accent
+    }));
+
+    expect(theme.selection).not.toBe(theme.accent);
+    expect(hslFor(theme.selection, background).saturation).toBeGreaterThanOrEqual(0.8);
+    expect(hueDistanceFor(theme.selection, theme.foreground, background)).toBeGreaterThanOrEqual(170);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
   });
 
