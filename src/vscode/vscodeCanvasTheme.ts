@@ -176,18 +176,20 @@ const hslToRgb = ({ hue, saturation, lightness }: HslColor): RgbaColor => {
   const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
   const hueSector = normalizedHue / 60;
   const x = chroma * (1 - Math.abs((hueSector % 2) - 1));
-  let red = 0;
-  let green = 0;
-  let blue = 0;
-
-  if (hueSector < 1) [red, green, blue] = [chroma, x, 0];
-  else if (hueSector < 2) [red, green, blue] = [x, chroma, 0];
-  else if (hueSector < 3) [red, green, blue] = [0, chroma, x];
-  else if (hueSector < 4) [red, green, blue] = [0, x, chroma];
-  else if (hueSector < 5) [red, green, blue] = [x, 0, chroma];
-  else [red, green, blue] = [chroma, 0, x];
-
+  const channels: [number, number, number] = hueSector < 1
+    ? [chroma, x, 0]
+    : hueSector < 2
+      ? [x, chroma, 0]
+      : hueSector < 3
+        ? [0, chroma, x]
+        : hueSector < 4
+          ? [0, x, chroma]
+          : hueSector < 5
+            ? [x, 0, chroma]
+            : [chroma, 0, x];
+  const [red, green, blue] = channels;
   const match = lightness - chroma / 2;
+
   return {
     red: (red + match) * 255,
     green: (green + match) * 255,
