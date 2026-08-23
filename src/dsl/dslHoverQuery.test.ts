@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
-import { queryDslGeometryHoverTarget } from "./dslHoverQuery";
+import {
+  queryDslGeometryHoverDeclarationRange,
+  queryDslGeometryHoverTarget
+} from "./dslHoverQuery";
 import { parseDslSnapshot } from "./dslParser";
 
 const compileWithIds = (source: string, sourceRevision = 7): CompiledDslDocument => {
@@ -19,6 +22,17 @@ const queryAt = (
 ) => queryDslGeometryHoverTarget({
   source: { normalizedSource: source, sourceRevision },
   position,
+  semantic: { sourceRevision, compiled }
+});
+
+const declarationFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  elementId: string,
+  sourceRevision = 7
+) => queryDslGeometryHoverDeclarationRange({
+  source: { normalizedSource: source, sourceRevision },
+  elementId,
   semantic: { sourceRevision, compiled }
 });
 
@@ -45,6 +59,29 @@ describe("queryDslGeometryHoverTarget", () => {
     expect(reference).toEqual({
       range: { from: referenceFrom, to: referenceFrom + 1 },
       elementId: element!.id
+    });
+    expect(declarationFor(source, compiled, element!.id)).toEqual({
+      from: declarationFrom,
+      to: declarationFrom + 1
+    });
+  });
+
+  it("resolves a single materialized runtime geometry back to its authored declaration", () => {
+    const source = [
+      "nui 4",
+      "module Marker() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "instance Only = Marker()"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const point = compiled.document?.elements.find((element) => element.name === "P");
+    expect(point).toBeDefined();
+    const from = source.indexOf("point P") + "point ".length;
+
+    expect(declarationFor(source, compiled, point!.id)).toEqual({
+      from,
+      to: from + 1
     });
   });
 
@@ -119,9 +156,12 @@ describe("queryDslGeometryHoverTarget", () => {
     ].join("\n");
     const compiled = compileWithIds(source);
     const pointName = source.indexOf("point P") + "point ".length;
+    const runtimePoint = compiled.document?.elements.find((element) => element.name === "P");
 
     expect(compiled.document?.elements.filter((element) => element.name === "P")).toHaveLength(2);
     expect(queryAt(source, compiled, pointName + 1)).toBeNull();
+    expect(runtimePoint).toBeDefined();
+    expect(declarationFor(source, compiled, runtimePoint!.id)).toBeNull();
   });
 
   it("fails closed for geometry authored inside a for-generated source body", () => {
@@ -133,13 +173,16 @@ describe("queryDslGeometryHoverTarget", () => {
     ].join("\n");
     const compiled = compileWithIds(source);
     const pointName = source.indexOf("point P") + "point ".length;
+    const runtimePoint = compiled.document?.elements.find((element) => element.name === "P");
 
     expect(queryAt(source, compiled, pointName + 1)).toBeNull();
+    if (runtimePoint) expect(declarationFor(source, compiled, runtimePoint.id)).toBeNull();
   });
 
   it("fails closed for stale revisions and same-revision source mismatches", () => {
     const oldSource = "nui 4\npoint A = coordinate(x: 0, y: 0)";
     const compiled = compileWithIds(oldSource, 3);
+    const element = compiled.document?.elements.find((candidate) => candidate.name === "A");
     const liveSource = oldSource.replace("A", "Renamed");
 
     expect(queryDslGeometryHoverTarget({
@@ -150,6 +193,12 @@ describe("queryDslGeometryHoverTarget", () => {
     expect(queryDslGeometryHoverTarget({
       source: { normalizedSource: liveSource, sourceRevision: 3 },
       position: liveSource.indexOf("Renamed") + 1,
+      semantic: { sourceRevision: 3, compiled }
+    })).toBeNull();
+    expect(element).toBeDefined();
+    expect(queryDslGeometryHoverDeclarationRange({
+      source: { normalizedSource: liveSource, sourceRevision: 3 },
+      elementId: element!.id,
       semantic: { sourceRevision: 3, compiled }
     })).toBeNull();
   });

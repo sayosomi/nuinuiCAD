@@ -28,6 +28,12 @@ export type DslGeometryHoverQueryInput = {
   semantic?: DslHoverSemanticSnapshot;
 };
 
+export type DslGeometryHoverDeclarationQueryInput = {
+  source: SourceSnapshot;
+  elementId: ElementId;
+  semantic?: DslHoverSemanticSnapshot;
+};
+
 const semanticSourceText = (semantic: DslHoverSemanticSnapshot) =>
   semantic.sourceText ?? semantic.compiled?.spans.sourceMap.source;
 
@@ -121,6 +127,61 @@ export const queryDslGeometryHoverTarget = ({
     range: { from: occurrence.from, to: occurrence.to },
     elementId: element.id
   };
+};
+
+/**
+ * Resolve one runtime geometry id back to its single exact current source
+ * declaration. This is the navigation companion for structured geometry
+ * references rendered inside Hover. It deliberately reuses compiler semantic
+ * occurrences plus source ownership, while requiring the same single-runtime
+ * proof as Hover targeting; generated or multiply-materialized references fail
+ * closed.
+ */
+export const queryDslGeometryHoverDeclarationRange = ({
+  source,
+  elementId,
+  semantic
+}: DslGeometryHoverDeclarationQueryInput): DslGeometryHoverRange | null => {
+  if (!semanticIsExact(source, semantic)) return null;
+
+  const compiled = semantic.compiled;
+  if (!compiled.document || !compiled.statementMap) return null;
+  const owners = sourceOwnerByRuntimeElementId({
+    statementMap: compiled.statementMap,
+    moduleMaterialization: compiled.moduleMaterialization
+  });
+  const owner = owners.get(elementId);
+  if (!owner || isInsideGeneratedForGroup(compiled, owner)) return null;
+
+  const runtimeIds = [...owners.values()]
+    .filter((candidate) => candidate.sourceStatementId === owner.sourceStatementId)
+    .map((candidate) => candidate.runtimeElementId);
+  const uniqueIds = [...new Set(runtimeIds)];
+  if (uniqueIds.length !== 1 || uniqueIds[0] !== elementId) return null;
+  if (!isSupportedNamedGeometry(compiled.document.elements.find((candidate) => candidate.id === elementId))) {
+    return null;
+  }
+
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(
+    compiled,
+    semantic.bindingAnalysis ?? compiled.bindingAnalysis
+  );
+  const ranges = occurrenceIndex.occurrences
+    .filter((occurrence) => occurrence.kind === "declaration")
+    .filter((occurrence) => {
+      const identity = occurrence.identity;
+      if (identity.kind === "module" && identity.target.kind === "moduleSource") {
+        return identity.target.statementId === owner.sourceStatementId;
+      }
+      if (identity.kind !== "element") return false;
+      return owners.get(identity.elementId)?.sourceStatementId === owner.sourceStatementId;
+    })
+    .map((occurrence) => ({ from: occurrence.from, to: occurrence.to }));
+  const uniqueRanges = ranges.filter((range, index) =>
+    ranges.findIndex((candidate) => candidate.from === range.from && candidate.to === range.to) === index
+  );
+
+  return uniqueRanges.length === 1 ? uniqueRanges[0]! : null;
 };
 
 export type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
