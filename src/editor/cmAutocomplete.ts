@@ -1168,7 +1168,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     // host-neutral DTO keeps `@` outside its editable range. CodeMirror's
     // completion object still inserts the marker together with the name.
     if (
-      neutralQuery.candidates.some((candidate) => candidate.kind === "binding") &&
+      neutralQuery.candidates.some((candidate) => candidate.kind === "binding" || candidate.kind === "geometry") &&
       input.source[from - 1] === "@"
     ) from -= 1;
   } else if (projection && completionContext.from === completionContext.to) {
