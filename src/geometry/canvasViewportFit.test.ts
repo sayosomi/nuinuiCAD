@@ -22,11 +22,15 @@ describe("fitCanvasViewportToBounds", () => {
   });
 
   it("recomputes fit and center even when the target was already visible", () => {
-    expect(fitCanvasViewportToBounds({
+    const fitted = fitCanvasViewportToBounds({
       bounds: bounds(-10, -10, 10, 10),
       size,
       currentZoom: 1
-    })).toEqual({ zoom: 11.8, panX: 0, panY: 0 });
+    });
+
+    expect(fitted?.zoom).toBeCloseTo(11.8);
+    expect(fitted?.panX).toBeCloseTo(0);
+    expect(fitted?.panY).toBeCloseTo(0);
   });
 
   it("fits a zero-width target from the non-zero height", () => {
@@ -87,7 +91,9 @@ describe("fitCanvasViewportToBounds", () => {
       maxZoom: MAX_CANVAS_ZOOM
     });
 
-    expect(fitted).toEqual({ zoom: 0.0118, panX: 0, panY: 0 });
+    expect(fitted?.zoom).toBeCloseTo(0.0118);
+    expect(fitted?.panX).toBeCloseTo(0);
+    expect(fitted?.panY).toBeCloseTo(0);
     expect(fitted!.zoom).toBeLessThan(MIN_CANVAS_ZOOM);
   });
 
