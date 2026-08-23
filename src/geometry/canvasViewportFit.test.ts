@@ -53,6 +53,15 @@ describe("fitCanvasViewportToBounds", () => {
     })).toEqual({ zoom: 7, panX: -84, panY: -56 });
   });
 
+  it("preserves point-like current zoom even when a fit maximum is supplied", () => {
+    expect(fitCanvasViewportToBounds({
+      bounds: bounds(2, 3, 2, 3),
+      size,
+      currentZoom: 37,
+      maxZoom: MAX_CANVAS_ZOOM
+    })).toEqual({ zoom: 37, panX: -74, panY: 111 });
+  });
+
   it("caps tiny targets at the supplied maximum zoom", () => {
     expect(fitCanvasViewportToBounds({
       bounds: bounds(0, 0, 1, 1),
