@@ -274,9 +274,14 @@ const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
 const SELECTION_MIN_SATURATION = 0.65;
 const SELECTION_MIN_HUE_DISTANCE = 90;
 const FOREGROUND_CHROMATIC_SATURATION = 0.18;
+const LIGHT_SELECTION_VIVID_HUE = 210;
+const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.5;
+
+const backgroundIsDark = (background: RgbaColor): boolean =>
+  relativeLuminance(background) < 0.35;
 
 const selectionMinimumBackgroundContrast = (background: RgbaColor): number =>
-  relativeLuminance(background) < 0.35
+  backgroundIsDark(background)
     ? SELECTION_DARK_BACKGROUND_CONTRAST
     : SELECTION_LIGHT_BACKGROUND_CONTRAST;
 
@@ -329,18 +334,20 @@ const deriveDistinctSelectionColor = (
   const foregroundHsl = rgbToHsl(visibleForeground);
   const legacyAccent = parseCssColor(LEGACY_CANVAS_THEME.accent);
   const fallbackHue = legacyAccent ? rgbToHsl(legacyAccent).hue : 180;
+  const darkBackground = backgroundIsDark(background);
   const hue = foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
     ? (foregroundHsl.hue + 180) % 360
-    : accentHsl.saturation >= 0.35
-      ? accentHsl.hue
-      : fallbackHue;
+    : darkBackground
+      ? accentHsl.saturation >= 0.35
+        ? accentHsl.hue
+        : fallbackHue
+      : LIGHT_SELECTION_VIVID_HUE;
   const saturation = Math.max(0.82, accentHsl.saturation);
-  const backgroundIsDark = relativeLuminance(background) < 0.35;
-  const initialLightness = backgroundIsDark ? 0.68 : 0.32;
+  const initialLightness = darkBackground ? 0.68 : LIGHT_SELECTION_INITIAL_LIGHTNESS;
   const minimumContrast = selectionMinimumBackgroundContrast(background);
 
-  for (let step = 0; step <= 24; step += 1) {
-    const lightness = backgroundIsDark
+  for (let step = 0; step <= 42; step += 1) {
+    const lightness = darkBackground
       ? Math.min(0.92, initialLightness + step * 0.01)
       : Math.max(0.08, initialLightness - step * 0.01);
     const candidate = hslToRgb({ hue, saturation, lightness });
@@ -354,9 +361,10 @@ const deriveDistinctSelectionColor = (
 
 /**
  * Keep Canvas selection theme-derived when the theme already separates it from
- * ordinary geometry. If the theme's selection and accent stay in the same
- * visual family as geometry, derive a high-chroma complementary hue instead of
- * changing selection stroke geometry.
+ * ordinary geometry. Dark backgrounds keep the established contrast-strengthening
+ * path. Light backgrounds avoid darkening a weak theme teal toward foreground;
+ * instead they preserve an already-strong theme color or derive a vivid cool hue
+ * that can keep strong background contrast at a visibly higher lightness.
  */
 const resolveSelectionColor = (
   seedValue: string,
@@ -364,6 +372,17 @@ const resolveSelectionColor = (
   foregroundValue: string,
   backgroundValue: string
 ): string => {
+  const background = parseCssColor(backgroundValue);
+  if (background && !backgroundIsDark(background)) {
+    if (selectionColorIsDistinct(seedValue, foregroundValue, backgroundValue)) {
+      return seedValue;
+    }
+    if (selectionColorIsDistinct(accentValue, foregroundValue, backgroundValue)) {
+      return accentValue;
+    }
+    return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
+  }
+
   const selection = strengthenContrast(seedValue, foregroundValue, backgroundValue, 4.5);
   if (selectionColorIsDistinct(selection, foregroundValue, backgroundValue)) {
     return selection;
