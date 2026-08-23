@@ -13,6 +13,7 @@ import {
 } from "../dsl/sourceLexicalNamespaceIndex";
 import type { DslSpan } from "../dsl/dslTypes";
 import type { BindingId, BindingSeed } from "./bindingCatalog";
+import type { BindingResolution } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
@@ -74,6 +75,12 @@ export type RecordScalarPropertyResolution = {
   }[];
   accesses: readonly RecordScalarFieldAccess[];
   issues: readonly RecordScalarPropertyIssue[];
+};
+
+export type PreparedRecordScalarExpression = RecordScalarPropertyResolution & {
+  ast: ScalarExpressionAst;
+  /** One entry per transformed/reference AST node, in the AST's source traversal order. */
+  references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
 };
 
 const fieldIdentityTuple = (field: RecordFieldIdentity) => [
@@ -327,4 +334,86 @@ export const resolveRecordScalarProperties = ({
 
   visit(ast);
   return { referencesBySpanStart, dependencies, accesses, issues };
+};
+
+/**
+ * Rewrites only record-owned dotted property syntax to the ordinary scalar
+ * reference AST shape. Existing geometry properties remain unchanged.
+ * `referenceResolutions` corresponds only to the source AST's original
+ * `reference` nodes; record-property resolutions are inserted into the
+ * rewritten traversal at their source position.
+ */
+export const prepareRecordScalarExpression = ({
+  ast,
+  statementIndex,
+  analysis,
+  sourceNamespace,
+  plan,
+  referenceResolutions,
+  skipPropertySpanStarts
+}: {
+  ast: ScalarExpressionAst;
+  statementIndex: number;
+  analysis: RecordSemanticAnalysis;
+  sourceNamespace: SourceLexicalNamespaceIndex;
+  plan: RecordScalarLoweringPlan;
+  referenceResolutions: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  skipPropertySpanStarts?: ReadonlySet<number>;
+}): PreparedRecordScalarExpression => {
+  const propertyResolution = resolveRecordScalarProperties({
+    ast,
+    statementIndex,
+    analysis,
+    sourceNamespace,
+    plan,
+    ...(skipPropertySpanStarts ? { skipPropertySpanStarts } : {})
+  });
+  const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
+  let referenceCursor = 0;
+
+  const rewrite = (node: ScalarExpressionAst): ScalarExpressionAst => {
+    switch (node.kind) {
+      case "reference": {
+        const resolution = referenceResolutions[referenceCursor];
+        if (!resolution) {
+          throw new Error(`recordScalarLowering: no resolution supplied for @${node.name} at ${node.span.start}`);
+        }
+        referenceCursor += 1;
+        references.push(resolution);
+        return node;
+      }
+      case "geometryProperty": {
+        const resolution = propertyResolution.referencesBySpanStart.get(node.span.start);
+        if (!resolution || resolution.kind !== "resolvedType") return node;
+        references.push(resolution);
+        return {
+          kind: "reference",
+          span: node.span,
+          nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
+          name: `${node.elementName}.${node.property}`
+        };
+      }
+      case "unary":
+        return { ...node, operand: rewrite(node.operand) };
+      case "binary":
+        return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
+      case "group":
+        return { ...node, expression: rewrite(node.expression) };
+      case "call":
+        return {
+          ...node,
+          args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) }))
+        };
+      default:
+        return node;
+    }
+  };
+
+  const rewritten = rewrite(ast);
+  if (referenceCursor !== referenceResolutions.length) {
+    throw new Error(
+      `recordScalarLowering: ${referenceResolutions.length - referenceCursor} unconsumed scalar reference resolution(s)`
+    );
+  }
+  return { ...propertyResolution, ast: rewritten, references };
 };
