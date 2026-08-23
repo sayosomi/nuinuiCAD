@@ -1,5 +1,6 @@
 import type { ScalarType } from "../scalars/types";
 import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
+import type { GeometryArrayType } from "./geometryArrayTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
   parseDslDeclaredValueType,
@@ -31,10 +32,12 @@ export type DslTypedDeclarationStatement = {
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
-  /** `null` when the scalar type annotation failed or this is record-valued. */
+  /** `null` when the scalar type annotation failed or this is source-only typed. */
   declaredType: ScalarType | null;
   /** Source-only unresolved nominal record type. Never enters ScalarType/runtime. */
   recordTypeReference: DslRecordTypeReference | null;
+  /** Source-only immutable geometry-array type. Never enters ScalarType/runtime. */
+  geometryArrayType: GeometryArrayType | null;
   /** Per-option spans, index-aligned with scalar choice options. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
@@ -138,8 +141,16 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
 
   const parsedType: DslDeclaredValueTypeParseResult =
     typeSpan.start === typeSpan.end
-      ? { declaredType: null, recordTypeReference: null, choiceOptionSpans: [] }
+      ? { declaredType: null, recordTypeReference: null, geometryArrayType: null, choiceOptionSpans: [] }
       : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
+
+  if (keyword === "let" && parsedType.geometryArrayType) {
+    diagnostics.push({
+      message: "geometry array は const で宣言してください。",
+      span: keywordSpan,
+      code: "geometry-array-const-only"
+    });
+  }
 
   const payloadSpans: Record<string, DslSpan> = {};
   if (name.nameSpan) payloadSpans.name = name.nameSpan;
@@ -154,6 +165,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       keywordSpan,
       declaredType: parsedType.declaredType,
       recordTypeReference: parsedType.recordTypeReference,
+      geometryArrayType: parsedType.geometryArrayType,
       choiceOptionSpans: parsedType.choiceOptionSpans,
       ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
       initializer: logicalText.slice(initializerSpan.start, initializerSpan.end),
