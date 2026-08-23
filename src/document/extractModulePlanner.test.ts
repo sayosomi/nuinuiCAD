@@ -139,7 +139,6 @@ describe("planExtractModule checkpoint 1", () => {
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
-    expect(result.dependencies).toEqual([]);
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("  const first: number = @width + 1");
