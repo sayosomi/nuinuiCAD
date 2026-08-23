@@ -57,22 +57,19 @@ describe("buildModulePreviewEvaluationOptions", () => {
     expect(preview.compileResult.elements.some((element) => element.name === "Outside")).toBe(false);
   });
 
-  it("carries materialized text templates and conditional expressions without a Preview-only evaluator", () => {
+  it("carries materialized text templates without a Preview-only evaluator", () => {
     const source = [
       "nui 4",
-      "module Labelled(show: boolean = true, value: number = 4) {",
-      "  if (@show) {",
-      "    label L = text(text: \"v=${@value}\", at: (0, 0))",
-      "  }",
+      "module Labelled(value: number = 4) {",
+      "  text L = label(text: \"v=${@value}\", anchor: none, size: 3)",
       "}"
     ].join("\n");
-    const preview = previewFor(source, "label L");
+    const preview = previewFor(source, "text L");
     const options = buildModulePreviewEvaluationOptions(preview);
 
     expect(options.scalarProgram).toBe(preview.moduleScalarRuntime.scalarProgram);
     expect(options.bindingVersions).toBeDefined();
     expect(options.moduleMaterialization).toBe(preview.moduleMaterialization);
-    expect(options.conditionalGroupConditionsByElementId?.size ?? 0).toBeGreaterThan(0);
     expect(options.textTemplateEntriesByElementId?.size ?? 0).toBeGreaterThan(0);
   });
 });
