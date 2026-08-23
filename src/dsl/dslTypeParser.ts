@@ -50,7 +50,8 @@ export const dslModuleParameterTypeNames: readonly string[] = [
   dslChoiceTypeName,
   "point",
   "line",
-  "path"
+  "path",
+  ...dslGeometryArrayTypeNames
 ];
 
 const NUMBER_HEAD = new RegExp(`^${NUMBER_TYPE_NAME}\\s*\\(`);
