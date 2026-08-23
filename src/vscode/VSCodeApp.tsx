@@ -600,15 +600,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             });
             return;
           }
-          if (containerTarget.status === "no-renderable-geometry") {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "no-revealable-runtime-target"
-            });
-            return;
-          }
           if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
         }
 

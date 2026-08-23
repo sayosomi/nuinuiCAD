@@ -184,6 +184,7 @@ vi.mock("vscode", () => {
     ) {}
   }
   return {
+    env: { language: "en" },
     window: {
       get activeTextEditor() {
         return mocks.activeTextEditor;
@@ -2072,7 +2073,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     expect(focusMessagesFor(panel)).toHaveLength(0);
   });
 
-  it("clears deferred Canvas focus when navigation becomes stale", async () => {
+  it("clears deferred Canvas focus when navigation fails", async () => {
     const { panel, navigationRequest } = await prepareNavigation();
     panel.active = false;
     panel.webview.postMessage.mockClear();
@@ -2086,7 +2087,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: navigationRequest.requestId,
-      status: "stale"
+      status: "failed",
+      reason: "source-mismatch"
     });
 
     panel.active = true;
@@ -2864,8 +2866,8 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 });
 
 
-describe("SAY-125 Module instance Reveal feedback", () => {
-  it("reports a no-renderable result without asking the Canvas to take focus", async () => {
+describe("SAY-81 Module instance Reveal feedback", () => {
+  it("treats a resolved Module instance as selectable even when viewport pan has no bounds", async () => {
     const source = [
       "nui 4",
       "module M() {",
@@ -2892,14 +2894,14 @@ describe("SAY-125 Module instance Reveal feedback", () => {
     await messageHandlerFor(panel)({
       type: "canvasNavigationResult",
       requestId: request!.requestId,
-      status: "no-renderable-geometry"
+      status: "resolved",
+      degradations: []
     });
 
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
-    );
-    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "focusCanvas", requestId: request!.requestId })
-    );
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "focusCanvas",
+      requestId: request!.requestId
+    });
   });
 });
