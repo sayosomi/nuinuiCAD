@@ -34,7 +34,7 @@ const base = [
   "  /// 幅。",
   "  /// @en",
   "  /// Width.",
-  "  width: number",
+  "  width: number = 10",
   ") {",
   "  /// @ja",
   "  /// 公開点。",
@@ -45,71 +45,62 @@ const base = [
 ];
 
 describe("DSL completion Module documentation metadata", () => {
-  it("attaches docs to Module callees", () => {
-    const source = [...base, "instance Use = Poc"].join("\n");
+  it("attaches docs to Module callees from exact-current semantics", () => {
+    const source = [...base, "instance Use = Pocket()"].join("\n");
     const { compiled, snapshot } = semanticFor(source);
+    const position = source.lastIndexOf("Pocket") + 3;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: compiled.spans.sourceMap.sourceRevision },
-      position: source.length,
+      position,
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.kind === "module" && entry.label === "Pocket");
-    expect(candidate).toMatchObject({
-      documentation: {
-        variants: [
-          { locale: "ja", markdown: "ポケット。" },
-          { locale: "en", markdown: "Pocket." }
-        ]
-      }
-    });
+    expect(candidate?.documentation?.variants).toEqual([
+      { locale: "ja", markdown: "ポケット。" },
+      { locale: "en", markdown: "Pocket." }
+    ]);
   });
 
-  it("attaches docs to explicit Module argument labels", () => {
-    const source = [...base, "instance Use = Pocket("].join("\n");
+  it("attaches docs to explicit Module argument labels from exact-current semantics", () => {
+    const source = [...base, "instance Use = Pocket()"].join("\n");
     const { compiled, snapshot } = semanticFor(source);
+    const position = source.lastIndexOf("Pocket(") + "Pocket(".length;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: compiled.spans.sourceMap.sourceRevision },
-      position: source.length,
+      position,
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.kind === "argumentName" && entry.label === "width");
-    expect(candidate).toMatchObject({
-      documentation: {
-        variants: [
-          { locale: "ja", markdown: "幅。" },
-          { locale: "en", markdown: "Width." }
-        ]
-      }
-    });
+    expect(candidate?.documentation?.variants).toEqual([
+      { locale: "ja", markdown: "幅。" },
+      { locale: "en", markdown: "Width." }
+    ]);
   });
 
-  it("attaches docs to qualified Module exports", () => {
-    const source = [...base, "instance Use = Pocket(width: 20)", "point Copy = offset(from: @Use.Pub, dx: 1, dy: 0)"].join("\n");
+  it("attaches docs to qualified Module exports from exact-current semantics", () => {
+    const source = [...base, "instance Use = Pocket()", "point Copy = offset(from: @Use::Public, dx: 1, dy: 0)"].join("\n");
     const { compiled, snapshot } = semanticFor(source);
-    const position = source.lastIndexOf("Pub") + 3;
+    const position = source.lastIndexOf("Public") + 3;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: compiled.spans.sourceMap.sourceRevision },
       position,
       semantic: snapshot
     });
     const candidate = result?.candidates.find((entry) => entry.label === "Public");
-    expect(candidate).toMatchObject({
-      documentation: {
-        variants: [
-          { locale: "ja", markdown: "公開点。" },
-          { locale: "en", markdown: "Public point." }
-        ]
-      }
-    });
+    expect(candidate?.documentation?.variants).toEqual([
+      { locale: "ja", markdown: "公開点。" },
+      { locale: "en", markdown: "Public point." }
+    ]);
   });
 
   it("does not project docs from a stale semantic snapshot", () => {
-    const source = [...base, "instance Use = Poc"].join("\n");
+    const source = [...base, "instance Use = Pocket()"].join("\n");
     const { compiled, snapshot } = semanticFor(source);
-    const live = `${source}k`;
+    const live = `${source} // live edit`;
+    const position = source.lastIndexOf("Pocket") + 3;
     const result = queryDslCompletion({
       source: { normalizedSource: live, sourceRevision: compiled.spans.sourceMap.sourceRevision },
-      position: live.length,
+      position,
       semantic: snapshot
     });
     expect(result?.candidates.some((entry) => entry.documentation) ?? false).toBe(false);
