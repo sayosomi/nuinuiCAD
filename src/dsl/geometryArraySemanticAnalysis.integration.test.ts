@@ -74,12 +74,28 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
-  it("accepts coordinate(...) values only in point[] literals", () => {
-    const ok = analyze("nui 4\nconst points: point[] = [coordinate(x: 1, y: 2)]");
+  it("uses the existing coordinate-point and derived-point reference forms in point[] literals", () => {
+    const ok = analyze([
+      "nui 4",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "const points: point[] = [(1, 2), @L.start, @L.end]"
+    ].join("\n"));
     expect(ok.namespace.diagnostics).toEqual([]);
-    expect(ok.analysis.values[0]?.value?.kind).toBe("literal");
+    const value = ok.analysis.values.find((candidate) => candidate.name === "points")?.value;
+    expect(value?.kind).toBe("literal");
+    if (value?.kind === "literal") {
+      expect(value.members.map((member) => member.target.kind === "geometry" ? member.target.pointKey ?? member.target.kind : member.target.kind))
+        .toEqual(["coordinate", "start", "end"]);
+    }
 
-    const bad = analyze("nui 4\nconst paths: path[] = [coordinate(x: 1, y: 2)]");
-    expect(bad.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
+    const badCoordinate = analyze("nui 4\nconst paths: path[] = [(1, 2)]");
+    expect(badCoordinate.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
+
+    const badDerived = analyze([
+      "nui 4",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "const paths: path[] = [@L.start]"
+    ].join("\n"));
+    expect(badDerived.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
   });
 });
