@@ -1,13 +1,6 @@
 // Compiles every condition that the shared scalar parser can represent into a
 // typed boolean expression. Syntax outside that parser remains on the
 // migration-era numeric path until the final cleanup task.
-//
-// Unlike src/scalars/propertyBindingCompiler.ts (Task 22), this module does
-// not route through ParameterDefinition.kind/SCALAR_ELIGIBLE_PARAMETER_KINDS
-// at all: `condition`'s ParameterDefinition intentionally stays `kind:
-// "number"` (its literal/UI shape is unchanged), && the whole
-// attribute value here is a full expression - not a single `@name` token -
-// so Task 22's bare-reference-only compiler cannot represent it.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -22,6 +15,7 @@ import { collectReferences, unresolvedReferenceMessage } from "./typedDeclaratio
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
 export const CONDITIONAL_GROUP_CONDITION_INVALID_CODE = "conditional-group-condition-invalid";
@@ -41,11 +35,6 @@ export type ConditionalGroupConditionCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-/** Exact-span-or-nothing (Task 48) - see typedDeclarationAnalysis.ts's
- * compileDiagnostic. No navigationTarget: a conditionalGroup.condition
- * occurrence that failed to resolve has no separate resolved-index entry to
- * jump to (Task 45's own consumer rows already fall back to a whole-element
- * jump for this same reason - "no Task 43 span index of its own"). */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -85,7 +74,7 @@ export const compileConditionalGroupConditions = ({
 
     const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
     const parsed = parseScalarExpression(" ".repeat(attr.valueStart) + attr.value, span);
-    if (!parsed.ast) return; // Not scalar-expression syntax: numeric evaluation owns it.
+    if (!parsed.ast) return;
     const ast = parsed.ast;
 
     const references = collectReferences(ast);
@@ -101,8 +90,6 @@ export const compileConditionalGroupConditions = ({
     const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
     const resolutionAt = (index: number) => resolutions.get(requestKey(index));
 
-    // Typed candidate: every reference must resolve to a usable typed
-    // binding, || this occurrence fails closed with a diagnostic.
     let hasReferenceDiagnostic = false;
     references.forEach((reference, index) => {
       const resolution = resolutionAt(index);
@@ -125,9 +112,22 @@ export const compileConditionalGroupConditions = ({
     });
     if (hasReferenceDiagnostic) return;
 
-    const checked = typecheckScalarExpression(ast, {
+    const prepared = prepareRecordScalarExpressionFromCatalog({
+      ast,
+      statementIndex,
+      catalog: bindingAnalysis.catalog,
+      referenceResolutions: references.map((_, index) => resolutionAt(index)!)
+    });
+    if (prepared.issues.length > 0) {
+      diagnostics.push(...prepared.issues.map((issue) =>
+        diagnosticAt(spans, statement, issue.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE, issue.message)
+      ));
+      return;
+    }
+
+    const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: { kind: "boolean" },
-      references: references.map((_, index) => resolutionAt(index)!)
+      references: prepared.references
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
@@ -136,9 +136,6 @@ export const compileConditionalGroupConditions = ({
       return;
     }
     if (checked.type === null || checked.type.kind !== "boolean") {
-      // Defensive: every silent-null source (unresolved reference, null
-      // declaredType) was already diagnosed above, so this should be
-      // unreachable - kept fail-closed rather than assumed impossible.
       diagnostics.push(diagnosticAt(
         spans, statement, span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE,
         "条件式はboolean型である必要があります。"
@@ -151,11 +148,7 @@ export const compileConditionalGroupConditions = ({
       checked.typed,
       elements,
       sourceOrderByElementId,
-      {
-        currentElement: element,
-        nameContext,
-        currentSourceOrder: statementIndex
-      }
+      { currentElement: element, nameContext, currentSourceOrder: statementIndex }
     );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
