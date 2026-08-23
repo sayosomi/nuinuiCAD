@@ -1,1 +1,0 @@
-temporary SAY-81 CI trigger; delete via GitHub connector after helper completes
