@@ -43,6 +43,47 @@ const contrastFor = (value: string, backgroundValue: string) => {
   return contrastRatio(compositeCssColorOver(color, background), background);
 };
 
+const visibleOklabFor = (value: string, backgroundValue: string) => {
+  const color = parseCssColor(value);
+  const background = parseCssColor(backgroundValue);
+  if (!color || !background) throw new Error("Expected test colors to parse");
+  const visible = compositeCssColorOver(color, background);
+  const linearize = (channel: number) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  const red = linearize(visible.red);
+  const green = linearize(visible.green);
+  const blue = linearize(visible.blue);
+  const l = 0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue;
+  const m = 0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue;
+  const s = 0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue;
+  const lRoot = Math.cbrt(l);
+  const mRoot = Math.cbrt(m);
+  const sRoot = Math.cbrt(s);
+  return {
+    lightness: 0.2104542553 * lRoot + 0.793617785 * mRoot - 0.0040720468 * sRoot,
+    a: 1.9779984951 * lRoot - 2.428592205 * mRoot + 0.4505937099 * sRoot,
+    b: 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.808675766 * sRoot
+  };
+};
+
+const perceptualDistanceFor = (
+  firstValue: string,
+  secondValue: string,
+  backgroundValue: string
+) => {
+  const first = visibleOklabFor(firstValue, backgroundValue);
+  const second = visibleOklabFor(secondValue, backgroundValue);
+  return Math.hypot(
+    first.lightness - second.lightness,
+    first.a - second.a,
+    first.b - second.b
+  );
+};
+
 describe("resolveVSCodeCanvasTheme light selection correction", () => {
   it.each([
     ["teal", "#657b83", "#fdf6e3", "#07958a"],
@@ -65,6 +106,27 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
 
     expect(contrastFor(themeAccent, background)).toBeLessThan(4.5);
     expect(theme.selection).not.toBe(themeAccent);
+    expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
+    expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("adds material perceptual separation from ordinary geometry on the failing light palette", () => {
+    const foreground = "#657b83";
+    const background = "#fdf6e3";
+    const themeAccent = "#07958a";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": themeAccent,
+      "--vscode-editor-selectionHighlightBorder": themeAccent
+    }));
+
+    const baseHsl = visibleHslFor(themeAccent, background);
+    const selectionHsl = visibleHslFor(theme.selection, background);
+
+    expect(perceptualDistanceFor(themeAccent, foreground, background)).toBeLessThan(0.15);
+    expect(perceptualDistanceFor(theme.selection, foreground, background)).toBeGreaterThanOrEqual(0.15);
     expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
     expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
