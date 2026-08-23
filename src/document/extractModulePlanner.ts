@@ -853,7 +853,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
           { statementId, statementIndex }
         );
       }
-    } else if (!direct.interfaceType || !statement.name) {
+    } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
         "unrepresentable-export",
         `geometry statement「${statement.name || statement.kind}」は Checkpoint 2 の direct geometry export で表現できません。`,
