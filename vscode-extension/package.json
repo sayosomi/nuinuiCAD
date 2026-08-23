@@ -69,6 +69,10 @@
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.openModulePreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.editCanvasRibbon",
           "when": "true"
         },
@@ -139,6 +143,30 @@
         {
           "command": "nuinuiCAD.outputPreviewRedo",
           "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.clearSelection",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.resetView",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.fitDrawing",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.togglePointNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.toggleGeometryNames",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.togglePoints",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -176,7 +204,7 @@
         },
         {
           "command": "nuinuiCAD.editCanvasRibbon",
-          "when": "webviewId == 'nuinuiCAD.canvas' && (webviewSection == 'blank' || webviewSection == 'ribbon')"
+          "when": "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')"
         },
         {
           "command": "nuinuiCAD.clearCanvasSelection",
@@ -193,12 +221,40 @@
         {
           "command": "nuinuiCAD.bakeBaseShape",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.fitDrawing",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.resetView",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.togglePointNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.toggleGeometryNames",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.togglePoints",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.modulePreview.clearSelection",
+          "when": "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
         }
       ],
       "editor/context": [
         {
           "command": "nuinuiCAD.revealInCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.openModulePreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
@@ -224,6 +280,11 @@
           "light": "media/printer.svg",
           "dark": "media/printer.svg"
         }
+      },
+      {
+        "command": "nuinuiCAD.openModulePreview",
+        "title": "nuinuiCAD: Open Module Preview",
+        "shortTitle": "Open Module Preview"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
@@ -296,6 +357,30 @@
       {
         "command": "nuinuiCAD.editCanvasRibbon",
         "title": "nuinuiCAD: Edit Canvas Ribbon"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.clearSelection",
+        "title": "nuinuiCAD: Clear Module Preview Selection"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.resetView",
+        "title": "nuinuiCAD: Reset Module Preview View"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.fitDrawing",
+        "title": "nuinuiCAD: Fit Module Preview Drawing"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.togglePointNames",
+        "title": "nuinuiCAD: Toggle Module Preview Point Names"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.toggleGeometryNames",
+        "title": "nuinuiCAD: Toggle Module Preview Geometry Names"
+      },
+      {
+        "command": "nuinuiCAD.modulePreview.togglePoints",
+        "title": "nuinuiCAD: Toggle Module Preview Points"
       }
     ],
     "configuration": {
