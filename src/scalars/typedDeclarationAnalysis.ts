@@ -371,7 +371,7 @@ export const analyzeTypedDeclarations = ({
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)
       ? []
-      : [compileDiagnostic(spans, statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。 In a source line before binding lowering.")]
+      : [compileDiagnostic(spans, statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。")]
   );
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
