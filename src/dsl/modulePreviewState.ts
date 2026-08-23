@@ -334,7 +334,55 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     return input ? compileModulePreviewRoot(input) : null;
   };
 
-  const evaluate = (editedInput?: EditedInput): ModulePreviewSessionSnapshot | null => {
+  const fallbackExpressionFor = (entry: ActiveParameter): string | null => {
+    const lastGood = lastGoodValueByInputKey.get(entry.key);
+    if (lastGood !== undefined) return lastGood;
+    const current = valueFor(entry.definition, entry.parameter);
+    if (isOmitted(current) && (!entry.parameter.required || entry.parameter.defaultValue !== null)) return "";
+    const type = entry.parameter.type;
+    if (!type) return null;
+    switch (type.kind) {
+      case "number": return "0";
+      case "string": return '""';
+      case "boolean": return "false";
+      case "choice": {
+        const first = type.options[0];
+        return first === undefined ? null : choiceLiteralForExpression(first);
+      }
+      case "point":
+      case "line":
+      case "path": return null;
+    }
+  };
+
+  const recomputeInvalidDiagnostics = (parameters: readonly ActiveParameter[]) => {
+    for (const entry of parameters) invalidDiagnosticByInputKey.delete(entry.key);
+    for (const candidate of parameters) {
+      const current = valueFor(candidate.definition, candidate.parameter);
+      if (isOmitted(current)) continue;
+      const candidateFallback = fallbackExpressionFor(candidate);
+      if (candidateFallback === null) continue;
+
+      const overrides = new Map<string, string>();
+      let canIsolate = true;
+      for (const entry of parameters) {
+        if (entry.key === candidate.key) continue;
+        const fallback = fallbackExpressionFor(entry);
+        if (fallback === null) {
+          canIsolate = false;
+          break;
+        }
+        overrides.set(entry.key, fallback);
+      }
+      if (!canIsolate || compileWithOverrides(overrides)) continue;
+      overrides.set(candidate.key, candidateFallback);
+      if (compileWithOverrides(overrides)) {
+        invalidDiagnosticByInputKey.set(candidate.key, invalidDiagnosticFor(candidate.definition, candidate.parameter));
+      }
+    }
+  };
+
+  const evaluate = (): ModulePreviewSessionSnapshot | null => {
     if (!active) return null;
     const required = requiredDiagnostics();
     const input = rootInputFor();
@@ -346,40 +394,8 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
         invalidDiagnosticByInputKey.delete(entry.key);
         lastGoodValueByInputKey.set(entry.key, valueFor(entry.definition, entry.parameter));
       }
-    } else if (editedInput) {
-      const edited = parameterFor(editedInput.definitionStatementId, editedInput.parameterIndex);
-      if (edited) {
-        const editedKey = keyFor(edited.definition, edited.parameter);
-        invalidDiagnosticByInputKey.delete(editedKey);
-        if (required.length === 0 && !isOmitted(valueFor(edited.definition, edited.parameter))) {
-          const otherInvalid = parameters.filter((entry) =>
-            entry.key !== editedKey && invalidDiagnosticByInputKey.has(entry.key)
-          );
-          if (otherInvalid.length === 0) {
-            invalidDiagnosticByInputKey.set(editedKey, invalidDiagnosticFor(edited.definition, edited.parameter));
-          } else {
-            const overrides = new Map<string, string>();
-            let canIsolate = true;
-            for (const entry of otherInvalid) {
-              const lastGoodValue = lastGoodValueByInputKey.get(entry.key);
-              if (lastGoodValue === undefined) {
-                canIsolate = false;
-                break;
-              }
-              overrides.set(entry.key, lastGoodValue);
-            }
-            if (canIsolate && !compileWithOverrides(overrides)) {
-              const editedLastGoodValue = lastGoodValueByInputKey.get(editedKey);
-              if (editedLastGoodValue !== undefined) {
-                overrides.set(editedKey, editedLastGoodValue);
-                if (compileWithOverrides(overrides)) {
-                  invalidDiagnosticByInputKey.set(editedKey, invalidDiagnosticFor(edited.definition, edited.parameter));
-                }
-              }
-            }
-          }
-        }
-      }
+    } else {
+      recomputeInvalidDiagnostics(parameters);
     }
 
     const requiredKeys = new Set(required.flatMap((diagnostic) => {
@@ -432,7 +448,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const resolved = parameterFor(definitionStatementId, parameterIndex);
     if (!active || !resolved) return state;
     valueByInputKey.set(keyFor(resolved.definition, resolved.parameter), expression);
-    return evaluate({ definitionStatementId, parameterIndex });
+    return evaluate();
   };
 
   const useDefaultExplicitly = (
