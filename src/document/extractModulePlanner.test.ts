@@ -189,7 +189,8 @@ describe("planExtractModule checkpoint 1", () => {
     const reExportSource = [
       "nui 4",
       "import \"./common.nui\" as common",
-      "export @common::Pocket"
+      "export @common::Pocket",
+      "const value: number = 1"
     ].join("\n");
     expectRejectedWithoutPatch(plan(reExportSource, [2]).result, "unsupported-statement");
   });
