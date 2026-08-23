@@ -69,15 +69,16 @@ export const fitCanvasViewportToBounds = ({
     targetWidth > 0 ? availableWidth / targetWidth : null,
     targetHeight > 0 ? availableHeight / targetHeight : null
   ].filter((ratio): ratio is number => ratio !== null);
-  const rawCandidateZoom = candidateRatios.length > 0
+  const hasFittableExtent = candidateRatios.length > 0;
+  const rawCandidateZoom = hasFittableExtent
     ? Math.min(...candidateRatios)
     : currentZoom;
   const finiteCandidateZoom = rawCandidateZoom === Number.POSITIVE_INFINITY
     ? Number.MAX_VALUE
     : rawCandidateZoom;
-  const candidateZoom = maxZoom === undefined
-    ? finiteCandidateZoom
-    : Math.min(finiteCandidateZoom, maxZoom);
+  const candidateZoom = maxZoom !== undefined && hasFittableExtent
+    ? Math.min(finiteCandidateZoom, maxZoom)
+    : finiteCandidateZoom;
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerY = (bounds.minY + bounds.maxY) / 2;
   if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) return null;
