@@ -41,6 +41,8 @@ describe("record source-semantic document integration", () => {
         typeIdentity: "stable-1"
       })
     ]);
-    expect(compiled.moduleMaterialization).toBeUndefined();
+    expect(compiled.document?.elements).toEqual([]);
+    expect(compiled.moduleMaterialization?.executionStatements).toEqual([]);
+    expect(compiled.moduleMaterialization?.sourceExecutionUnits).toEqual([]);
   });
 });
