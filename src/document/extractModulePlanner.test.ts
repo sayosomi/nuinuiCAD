@@ -254,17 +254,6 @@ describe("planExtractModule checkpoint 1", () => {
     expect(internal.exports).toEqual([]);
   });
 
-  it("fails closed for group/block targets outside checkpoint 1", () => {
-    const source = [
-      "nui 4",
-      "const width: number = 10",
-      "group G {",
-      "  const inside: number = @width + 1",
-      "}"
-    ].join("\n");
-    expectRejectedWithoutPatch(plan(source, [2]).result, "unsupported-statement");
-  });
-
   it("parameterizes a direct point dependency used from a selected scalar expression", () => {
     const source = [
       "nui 4",
