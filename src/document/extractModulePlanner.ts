@@ -105,6 +105,12 @@ type SourcePathRange = {
   argumentFrom: number;
 };
 
+type DirectScalarStatement = {
+  statementId: StatementIdentity;
+  statementIndex: number;
+  statement: Extract<DslStatement, { kind: "typedDeclaration" }>;
+};
+
 const reject = (
   code: ExtractModuleRejectCode,
   message: string,
@@ -317,6 +323,26 @@ const scalarDependencyDescriptor = (
   return null;
 };
 
+const directSelectedScalarStatement = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  selectedIndexes: ReadonlySet<number>
+): DirectScalarStatement | null => {
+  let statementIndex: number | undefined;
+  if (identity.kind === "typed") {
+    statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
+  } else if (identity.kind === "module" && identity.target.kind === "documentBinding") {
+    statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.target.bindingId)?.statementIndex;
+  }
+  if (statementIndex === undefined || !selectedIndexes.has(statementIndex)) return null;
+
+  const statement = compiled.statements[statementIndex];
+  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+  return statement?.kind === "typedDeclaration" && statementId
+    ? { statementId, statementIndex, statement }
+    : null;
+};
+
 const statementInsideOffsets = (
   statement: DslStatement | undefined,
   from: number,
@@ -369,21 +395,6 @@ const sourceReferenceSequencesByStatementId = (
   return result;
 };
 
-const referenceOccurrencesForStatementId = (
-  compiled: CompiledDslDocument,
-  index: DslSemanticOccurrenceIndex,
-  statementId: StatementIdentity
-): readonly DslSemanticOccurrence[] => {
-  const statementIndex = statementIndexForId(compiled, statementId);
-  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
-  if (!statement) return [];
-  return canonicalFinalReferenceOccurrences(compiled.spans.sourceMap.source, index.occurrences)
-    .filter((occurrence) =>
-      occurrence.from >= statement.documentRange.from &&
-      occurrence.to <= statement.documentRange.to
-    );
-};
-
 const replacementSplicesOutsideSelection = (
   source: string,
   starts: readonly number[],
@@ -412,24 +423,6 @@ const replacementSplicesOutsideSelection = (
     splices.push({ startLine: line, endLine: line, replacementLines: [replacement] });
   }
   return splices;
-};
-
-const directScalarExportStatement = (
-  compiled: CompiledDslDocument,
-  identity: DslSemanticIdentity,
-  selectedIndexes: ReadonlySet<number>
-): { statementId: StatementIdentity; statementIndex: number; statement: DslStatement } | null => {
-  let statementIndex: number | undefined;
-  if (identity.kind === "typed") {
-    statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
-  } else if (identity.kind === "module" && identity.target.kind === "documentBinding") {
-    statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.target.bindingId)?.statementIndex;
-  }
-  if (statementIndex === undefined || !selectedIndexes.has(statementIndex)) return null;
-
-  const statement = compiled.statements[statementIndex];
-  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
-  return statement && statementId ? { statementId, statementIndex, statement } : null;
 };
 
 const exportInsertionPoint = (statement: DslStatement): number | null => {
@@ -641,7 +634,17 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       );
     }
     const declaration = declarationRanges[0]!;
-    if (declaration.from >= selectedFrom && declaration.to <= selectedTo) continue;
+    if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
+      // With nested scopes excluded by Checkpoint 1, an internal reference must resolve
+      // directly to one of the authored scalar declarations that moves with the range.
+      if (!directSelectedScalarStatement(compiled, occurrence.identity, selectedIndexSet)) {
+        return reject(
+          "unrepresentable-dependency",
+          "選択範囲内の reference が Checkpoint 1 の direct scalar owner として証明できません。"
+        );
+      }
+      continue;
+    }
 
     const descriptor = scalarDependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
     if (!descriptor) {
@@ -733,7 +736,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
     if (outsideReferences.length === 0) continue;
 
-    const direct = directScalarExportStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
+    const direct = directSelectedScalarStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
     if (!direct) {
       return reject(
         "unrepresentable-export",
@@ -742,12 +745,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
 
     const { statement, statementIndex, statementId } = direct;
-    if (
-      statement.kind !== "typedDeclaration" ||
-      !statement.declaredType ||
-      statement.recordTypeReference ||
-      !statement.name
-    ) {
+    if (!statement.declaredType || statement.recordTypeReference || !statement.name) {
       return reject(
         "unrepresentable-export",
         `statement「${statement.name || statement.kind}」は Checkpoint 1 の direct scalar export で表現できません。`,
@@ -851,12 +849,17 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
   }
 
-  const movedIds = new Set<StatementIdentity>();
-  for (const entry of ordered) movedIds.add(entry.statementId);
-  for (const statementId of movedIds) {
-    if (!nextCompiled.statementMap.statementIndexByStatementId?.has(statementId)) {
+  const movedIds = new Set<StatementIdentity>(ordered.map((entry) => entry.statementId));
+  for (const entry of ordered) {
+    const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
+    const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+    if (
+      !nextStatement ||
+      nextStatement.kind !== entry.statement.kind ||
+      nextStatement.name !== entry.statement.name
+    ) {
       return reject("identity-loss", "Extract 後に authored statement identity を保持できませんでした。", {
-        statementId
+        statementId: entry.statementId
       });
     }
   }
@@ -875,6 +878,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("unsafe-rewrite", "生成した Module / instance を target lexical scope で再解決できません。");
   }
 
+  // Checkpoint 1 deliberately excludes nested binders, geometry, and records. For the
+  // remaining root-scalar language, moved-reference safety is established before apply:
+  // every internal reference resolves to a selected direct scalar declaration; every
+  // outside dependency is compiler-resolved, rewritten to one explicit parameter, and
+  // checked against moved declaration names. The candidate must then compile cleanly.
+  // A generic post-move identity comparison is intentionally not used here because root
+  // document bindings and Module-owned references have different canonical identity forms.
+  // Outside statements do not cross that representation boundary and are still compared.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
@@ -888,31 +899,6 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       return reject(
         "unsafe-rewrite",
         "Extract 後に範囲外 statement の reference resolution が変化するため適用できません。",
-        { statementId }
-      );
-    }
-  }
-
-  const dependencyIndexByIdentity = new Map(
-    dependencies.map((dependency, index) => [dependency.identityKey, index] as const)
-  );
-  for (const statementId of movedIds) {
-    const before = referenceOccurrencesForStatementId(compiled, occurrenceIndex, statementId);
-    const after = referenceOccurrencesForStatementId(nextCompiled, nextOccurrenceIndex, statementId);
-    const expectedOwners = before.map((occurrence) => {
-      const dependencyIndex = dependencyIndexByIdentity.get(dslSemanticIdentityKey(occurrence.identity));
-      return dependencyIndex === undefined
-        ? semanticOwnerKey(compiled, occurrence.identity)
-        : `parameter:${generatedModule.statementId}:${dependencyIndex}`;
-    });
-    const actualOwners = after.map((occurrence) => semanticOwnerKey(nextCompiled, occurrence.identity));
-    if (
-      expectedOwners.length !== actualOwners.length ||
-      expectedOwners.some((owner, index) => owner !== actualOwners[index])
-    ) {
-      return reject(
-        "unsafe-rewrite",
-        "Extract 後に移動 statement 内の reference resolution が変化するため適用できません。",
         { statementId }
       );
     }
