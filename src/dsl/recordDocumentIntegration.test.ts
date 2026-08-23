@@ -9,6 +9,21 @@ const compile = (source: string) => {
 };
 
 describe("record source-semantic document integration", () => {
+  it("builds the nominal source-semantic model for a record-definition-only document", () => {
+    const compiled = compile([
+      "nui 4",
+      "record Pair(x: number, label: string)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document?.elements).toEqual([]);
+    expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get("stable-1")).toMatchObject({
+      statementId: "stable-1",
+      name: "Pair"
+    });
+    expect(compiled.statementMap?.statementIdByStatementIndex?.get(1)).toBe("stable-1");
+  });
+
   it("compiles record definitions and const constructors without creating runtime elements", () => {
     const compiled = compile([
       "nui 4",
