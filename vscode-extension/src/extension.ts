@@ -9,6 +9,7 @@ import { outputPreviewPlaceCoordinatePatchesAreSafe } from "../../src/vscode/out
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
+  toCompilerDiagnostic,
   type CompilerDiagnostic,
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
@@ -16,6 +17,10 @@ import {
   createLanguageAnalysisSession,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
+import {
+  createRuntimeDiagnosticsSidecar,
+  type RuntimeDiagnosticsSidecar
+} from "./runtimeDiagnosticsSidecar";
 import {
   createNuiCompletionProvider,
   nuiCompletionSelector,
@@ -403,6 +408,7 @@ const disposeSessionListeners = (session: WebviewSession): void => {
 export const activate = (context: vscode.ExtensionContext): void => {
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
+  const runtimeDiagnosticsSidecars = new Map<string, RuntimeDiagnosticsSidecar>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
   let bakeOutputChannel: vscode.OutputChannel | null = null;
   const rustProcessOwner = new RustEvaluationProcessOwner((onTerminated) => new RustEvaluationProcess(rustBinaryPath(context), { onTerminated }));
@@ -544,6 +550,41 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return null;
   };
 
+  const runtimeDiagnosticsSidecarFor = (document: vscode.TextDocument): RuntimeDiagnosticsSidecar => {
+    const key = documentKey(document);
+    const existing = runtimeDiagnosticsSidecars.get(key);
+    if (existing) return existing;
+    const sidecar = createRuntimeDiagnosticsSidecar();
+    runtimeDiagnosticsSidecars.set(key, sidecar);
+    return sidecar;
+  };
+
+  const publishCurrentDiagnostics = (
+    document: vscode.TextDocument,
+    session: NuiLanguageAnalysisSession
+  ): void => {
+    const key = documentKey(document);
+    const sourceText = document.getText();
+    if (
+      !isOpenDocument(document) ||
+      languageAnalysisSessions.get(key) !== session ||
+      session.getSource() !== sourceText
+    ) return;
+
+    const runtimeDiagnostics = runtimeDiagnosticsSidecars
+      .get(key)
+      ?.snapshotFor(document.version)
+      ?.diagnostics ?? [];
+    const projectedRuntimeDiagnostics = runtimeDiagnostics
+      .map((diagnostic) => toCompilerDiagnostic(sourceText, diagnostic))
+      .filter((diagnostic): diagnostic is CompilerDiagnostic => diagnostic !== null);
+    const diagnostics = [
+      ...session.getDiagnostics(),
+      ...projectedRuntimeDiagnostics
+    ].map((diagnostic) => toVscodeDiagnostic(document, diagnostic));
+    compilerDiagnosticCollection.set(document.uri, diagnostics);
+  };
+
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
     if (!isSupportedNuiDocument(document)) return;
 
@@ -565,7 +606,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       !isOpenDocument(document) ||
       document.version !== capturedVersion
     ) return;
-    compilerDiagnosticCollection.set(document.uri, session.getDiagnostics().map((diagnostic) => toVscodeDiagnostic(document, diagnostic)));
+    publishCurrentDiagnostics(document, session);
   };
 
   const languageAnalysisSessionFor = (document: vscode.TextDocument): NuiLanguageAnalysisSession => {
@@ -575,6 +616,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const session = createLanguageAnalysisSession(document.getText());
     languageAnalysisSessions.set(key, session);
     return session;
+  };
+
+  const acceptRuntimeDiagnosticsPublication = (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "runtimeDiagnosticsPublication" }>
+  ): void => {
+    if (
+      sessions.get(session.documentUri, "canvas") !== session ||
+      !isOpenDocument(session.document) ||
+      session.authoritativeDocumentVersion !== message.documentVersion ||
+      session.document.version !== message.documentVersion
+    ) return;
+
+    const analysis = languageAnalysisSessions.get(session.documentUri);
+    if (!analysis || analysis.getSource() !== session.document.getText()) return;
+    const sidecar = runtimeDiagnosticsSidecarFor(session.document);
+    if (!sidecar.accept(session.document.version, message)) return;
+    publishCurrentDiagnostics(session.document, analysis);
   };
 
   const hoverFeature = registerNuiHoverFeature({
@@ -635,7 +694,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
   });
   const compilerDiagnosticChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
     if (isSupportedNuiDocument(event.document) && event.contentChanges.length > 0) {
-      vscodeObservationState.invalidateCanvasRuntime(documentKey(event.document));
+      const key = documentKey(event.document);
+      runtimeDiagnosticsSidecars.get(key)?.clear();
+      vscodeObservationState.invalidateCanvasRuntime(key);
     }
     publishCompilerDiagnostics(event.document);
   });
@@ -643,11 +704,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (!isSupportedNuiDocument(document)) return;
     const key = documentKey(document);
     languageAnalysisSessions.delete(key);
+    runtimeDiagnosticsSidecars.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
     vscodeObservationState.removeDocument(key);
   });
   const disposeCompilerDiagnosticSessions = {
-    dispose: () => languageAnalysisSessions.clear()
+    dispose: () => {
+      languageAnalysisSessions.clear();
+      runtimeDiagnosticsSidecars.clear();
+    }
   };
   const completionProvider = vscode.languages.registerCompletionItemProvider(
     nuiCompletionSelector,
@@ -1196,6 +1261,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "runtimeDiagnosticsPublication") {
+        acceptRuntimeDiagnosticsPublication(session, message);
         return;
       }
       if (message.type === "canvasObservationPublication") {

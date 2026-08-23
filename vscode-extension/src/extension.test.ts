@@ -592,6 +592,27 @@ const openOutputPreviewPanelFor = (editor = mocks.activeTextEditor!): TestPanel 
   return mocks.panels.at(-1)!;
 };
 
+const runtimeDiagnosticFor = (
+  code = "runtime-test",
+  options: { exactSpan?: boolean } = {}
+) => ({
+  severity: "error" as const,
+  line: 2,
+  column: 7,
+  code,
+  message: `runtime ${code}`,
+  exactSpanOnly: true as const,
+  ...(options.exactSpan === false ? {} : {
+    physicalSpan: {
+      segments: [{ from: 12, to: 13 }],
+      sourceRevision: 1
+    }
+  }),
+  origin: "runtime" as const,
+  bindingId: `binding:${code}`,
+  navigationTarget: { kind: "binding" as const, bindingId: `binding:${code}` }
+});
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -689,6 +710,163 @@ describe("VS Code production document lifecycle", () => {
       }
     });
     expect(missing?.relatedInformation?.[0]?.message).toEqual(expect.any(String));
+  });
+
+  it("aggregates exact-current runtime diagnostics after compiler diagnostics", async () => {
+    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const document = documentFor("/tmp/runtime-diagnostics.nui", "file:///tmp/runtime-diagnostics.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const collection = mocks.diagnosticCollections[0]!;
+    const compilerPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(compilerPublished.length).toBeGreaterThan(0);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    collection.set.mockClear();
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-current")]
+    });
+
+    const published = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(published.slice(0, compilerPublished.length).map(({ code, message }) => ({ code, message }))).toEqual(
+      compilerPublished.map(({ code, message }) => ({ code, message }))
+    );
+    expect(published.at(-1)?.code).toBe("runtime-current");
+  });
+
+  it("ignores stale and non-current-session runtime diagnostic publications", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-stale.nui", "file:///tmp/runtime-stale.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-current")]
+    });
+    const collection = mocks.diagnosticCollections[0]!;
+    collection.set.mockClear();
+
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version - 1,
+      diagnostics: [runtimeDiagnosticFor("runtime-stale")]
+    });
+    expect(collection.set).not.toHaveBeenCalled();
+
+    panel.dispose();
+    await handler({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-after-dispose")]
+    });
+    expect(collection.set).not.toHaveBeenCalled();
+  });
+
+  it("clears runtime diagnostics synchronously on source change", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-change.nui", "file:///tmp/runtime-change.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-before-change")]
+    });
+
+    document.setSourceText("nui 4\nconst y: number = 2\n");
+    document.version += 1;
+    emitDocumentChange(document);
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(published.map((item) => item.code)).not.toContain("runtime-before-change");
+  });
+
+  it("treats a current empty runtime publication as clearing only the runtime layer", async () => {
+    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const document = documentFor("/tmp/runtime-empty.nui", "file:///tmp/runtime-empty.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const collection = mocks.diagnosticCollections[0]!;
+    const compilerPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-to-clear")]
+    });
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: []
+    });
+
+    const published = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number; message: string }>;
+    expect(published.map(({ code, message }) => ({ code, message }))).toEqual(
+      compilerPublished.map(({ code, message }) => ({ code, message }))
+    );
+  });
+
+  it("retains runtime diagnostics across Canvas close but clears them on document close", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-close.nui", "file:///tmp/runtime-close.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-retained")]
+    });
+    const collection = mocks.diagnosticCollections[0]!;
+
+    panel.dispose();
+    collection.set.mockClear();
+    emitDocumentChange(document, undefined, []);
+    const retained = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(retained.map((item) => item.code)).toContain("runtime-retained");
+
+    emitDocumentClose(document);
+    const reopened = documentFor("/tmp/runtime-close.nui", "file:///tmp/runtime-close.nui", source);
+    mocks.textDocuments = [reopened];
+    emitDocumentOpen(reopened);
+    const reopenedPublished = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(reopenedPublished.map((item) => item.code)).not.toContain("runtime-retained");
+  });
+
+  it("preserves exactSpanOnly fail-closed projection for runtime diagnostics", async () => {
+    const source = "nui 4\nconst x: number = 1\n";
+    const document = documentFor("/tmp/runtime-span.nui", "file:///tmp/runtime-span.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    await messageHandlerFor(panel)({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: document.version,
+      diagnostics: [runtimeDiagnosticFor("runtime-no-span", { exactSpan: false })]
+    });
+
+    const published = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }>;
+    expect(published.map((item) => item.code)).not.toContain("runtime-no-span");
   });
 
   it("registers and opens the Output Preview production surface", () => {
