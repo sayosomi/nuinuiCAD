@@ -193,7 +193,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
 
   start(): void {
     if (this.disposed) return;
-    activeHost = this;
+    registerActiveVscodeMultiDocumentHost(this);
     this.subscriptions.push(
       vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedDocument(document)) return;
@@ -866,6 +866,10 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
 }
 
 let activeHost: VscodeMultiDocumentHost | null = null;
+
+const registerActiveVscodeMultiDocumentHost = (host: VscodeMultiDocumentHost): void => {
+  activeHost = host;
+};
 
 export const activeVscodeMultiDocumentHost = (): VscodeMultiDocumentHost | null => activeHost;
 
