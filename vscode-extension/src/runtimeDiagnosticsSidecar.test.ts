@@ -10,7 +10,7 @@ const diagnostic = (bindingId: string): RuntimeScalarDiagnostic => ({
   code: "division-by-zero",
   message: "runtime failure",
   exactSpanOnly: true,
-  physicalSpan: { segments: [{ from: 6, to: 12 }] },
+  physicalSpan: { segments: [{ from: 6, to: 12 }], sourceRevision: 1 },
   origin: "runtime",
   bindingId,
   navigationTarget: { kind: "binding", bindingId }
