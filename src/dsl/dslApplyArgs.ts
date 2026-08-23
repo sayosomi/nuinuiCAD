@@ -25,6 +25,7 @@ import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
 import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
+import { lowerSourceGeometryArrayLineReferenceList } from "./geometryArrayRuntimeLowering";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -68,8 +69,8 @@ export type DslEndpointResolver = (
 
 /**
  * Consumer-boundary lowering hook for a whole immutable geometry-array value.
- * Returning `null` delegates to the existing authored list parser, so ordinary
- * `[@A, @B]` source remains byte-for-byte on the established path.
+ * Returning `null` delegates to the existing source-array/ordinary list path,
+ * so Module runtime overrides can handle only instance-local values.
  */
 export type DslLineReferenceListResolver = (
   token: string,
@@ -284,14 +285,9 @@ export const applyArgs = (
     if (parameterKey === "state") {
       const activity = parseElementActivityLiteral(value);
       if (activity === null) {
-        // Fail-closed: an invalid literal must not fall back to any activity value —
-        // lowering to the ElementActivity converter only happens for a valid one.
         diagnostics.push(diagnostic(resolvers.line, invalidElementActivityMessage));
         continue;
       }
-      // Defence in depth: dslCallParser.ts's validateArgs already rejects this
-      // at parse time with a spanned diagnostic (state-hidden-unsupported);
-      // this guard only matters for a caller that skips that parse-time gate.
       if (activity === "hidden" && !elementTypeSupportsHiddenActivity(next.type)) continue;
       next = { ...next, activity } as CadElement;
       continue;
@@ -300,12 +296,6 @@ export const applyArgs = (
     switch (parameter.kind) {
       case "boolean": {
         const parsed = booleanValue(value);
-        // A `@name` value is a Task 22 property binding attempt, not a
-        // malformed literal - src/scalars/propertyBindingCompiler.ts owns
-        // its diagnostics (not-supported/unresolved/invalid/type-mismatch);
-        // this stays silent here so a valid binding doesn't also get a
-        // spurious "must be true/false" error. Any other unparseable value
-        // still gets this diagnostic exactly as before.
         if (parsed === null && !isScalarExpressionCandidateSource(value)) {
           diagnostics.push(diagnostic(resolvers.line, `${parameterKey} は true/false で指定してください。`));
         }
@@ -313,9 +303,6 @@ export const applyArgs = (
         break;
       }
       case "number":
-        // distance/ratio on divisionPoint/lineDivisionPoint are resolved together below
-        // (exclusiveGroups), not written per-arg here, so that "distance wins when both
-        // are given" doesn't depend on which of the two args was scanned last.
         if (
           (parameterKey === "distance" || parameterKey === "ratio") &&
           (next.type === "divisionPoint" || next.type === "lineDivisionPoint")
@@ -336,7 +323,7 @@ export const applyArgs = (
         break;
       case "lineReferenceList":
         {
-          const lowered = resolvers.resolveLineReferenceList?.(
+          const moduleLowered = resolvers.resolveLineReferenceList?.(
             value,
             resolvers.index,
             resolvers.line,
@@ -344,7 +331,8 @@ export const applyArgs = (
             next,
             scanned.valueSpan
           ) ?? null;
-          const refs = lowered ?? referenceListItems(value).map((item) => {
+          const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayLineReferenceList(value, resolvers.index, next);
+          const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
             return lineReferenceId(item.text, itemSpan);
           });
