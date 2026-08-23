@@ -164,8 +164,7 @@ const semanticIsExact = (source: SourceSnapshot, semantic: DslCompletionSemantic
 
 const currentStatementIndex = (compiled: CompiledDslDocument, position: number): number =>
   compiled.statements.findIndex((statement) =>
-    statement.physicalSpan.segments.some((segment) => position >= segment.from && position <= segment.to) ||
-    (position >= statement.documentRange.from && position <= statement.documentRange.to)
+    position >= statement.documentRange.from && position <= statement.documentRange.to
   );
 
 const recoveredModuleStatementAt = (
