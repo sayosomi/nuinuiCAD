@@ -274,8 +274,9 @@ const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
 const SELECTION_MIN_SATURATION = 0.65;
 const SELECTION_MIN_HUE_DISTANCE = 90;
 const FOREGROUND_CHROMATIC_SATURATION = 0.18;
-const LIGHT_SELECTION_VIVID_HUE = 210;
-const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.5;
+const LIGHT_SELECTION_VIVID_HUE = 225;
+const LIGHT_SELECTION_VIVID_SATURATION = 1;
+const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.58;
 
 const backgroundIsDark = (background: RgbaColor): boolean =>
   relativeLuminance(background) < 0.35;
@@ -342,7 +343,9 @@ const deriveDistinctSelectionColor = (
         ? accentHsl.hue
         : fallbackHue
       : LIGHT_SELECTION_VIVID_HUE;
-  const saturation = Math.max(0.82, accentHsl.saturation);
+  const saturation = darkBackground
+    ? Math.max(0.82, accentHsl.saturation)
+    : LIGHT_SELECTION_VIVID_SATURATION;
   const initialLightness = darkBackground ? 0.68 : LIGHT_SELECTION_INITIAL_LIGHTNESS;
   const minimumContrast = selectionMinimumBackgroundContrast(background);
 
