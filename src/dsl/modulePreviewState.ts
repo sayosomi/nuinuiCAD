@@ -355,34 +355,36 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     }
   };
 
-  const recomputeInvalidDiagnostics = (parameters: readonly ActiveParameter[]) => {
-    for (const entry of parameters) invalidDiagnosticByInputKey.delete(entry.key);
-    for (const candidate of parameters) {
-      const current = valueFor(candidate.definition, candidate.parameter);
-      if (isOmitted(current)) continue;
-      const candidateFallback = fallbackExpressionFor(candidate);
-      if (candidateFallback === null) continue;
+  const refreshEditedDiagnostic = (
+    editedInput: EditedInput,
+    parameters: readonly ActiveParameter[]
+  ) => {
+    const edited = parameterFor(editedInput.definitionStatementId, editedInput.parameterIndex);
+    if (!edited) return;
+    const editedKey = keyFor(edited.definition, edited.parameter);
+    invalidDiagnosticByInputKey.delete(editedKey);
+    if (isOmitted(valueFor(edited.definition, edited.parameter))) return;
 
-      const overrides = new Map<string, string>();
-      let canIsolate = true;
-      for (const entry of parameters) {
-        if (entry.key === candidate.key) continue;
-        const fallback = fallbackExpressionFor(entry);
-        if (fallback === null) {
-          canIsolate = false;
-          break;
-        }
-        overrides.set(entry.key, fallback);
-      }
-      if (!canIsolate || compileWithOverrides(overrides)) continue;
-      overrides.set(candidate.key, candidateFallback);
-      if (compileWithOverrides(overrides)) {
-        invalidDiagnosticByInputKey.set(candidate.key, invalidDiagnosticFor(candidate.definition, candidate.parameter));
-      }
+    const editedEntry = parameters.find((entry) => entry.key === editedKey);
+    if (!editedEntry) return;
+    const overrides = new Map<string, string>();
+    for (const entry of parameters) {
+      if (entry.key === editedKey) continue;
+      const fallback = fallbackExpressionFor(entry);
+      if (fallback === null) return;
+      overrides.set(entry.key, fallback);
+    }
+
+    if (compileWithOverrides(overrides)) return;
+    const editedFallback = fallbackExpressionFor(editedEntry);
+    if (editedFallback === null) return;
+    overrides.set(editedKey, editedFallback);
+    if (compileWithOverrides(overrides)) {
+      invalidDiagnosticByInputKey.set(editedKey, invalidDiagnosticFor(edited.definition, edited.parameter));
     }
   };
 
-  const evaluate = (): ModulePreviewSessionSnapshot | null => {
+  const evaluate = (editedInput?: EditedInput): ModulePreviewSessionSnapshot | null => {
     if (!active) return null;
     const required = requiredDiagnostics();
     const input = rootInputFor();
@@ -394,8 +396,8 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
         invalidDiagnosticByInputKey.delete(entry.key);
         lastGoodValueByInputKey.set(entry.key, valueFor(entry.definition, entry.parameter));
       }
-    } else {
-      recomputeInvalidDiagnostics(parameters);
+    } else if (editedInput) {
+      refreshEditedDiagnostic(editedInput, parameters);
     }
 
     const requiredKeys = new Set(required.flatMap((diagnostic) => {
@@ -448,7 +450,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const resolved = parameterFor(definitionStatementId, parameterIndex);
     if (!active || !resolved) return state;
     valueByInputKey.set(keyFor(resolved.definition, resolved.parameter), expression);
-    return evaluate();
+    return evaluate({ definitionStatementId, parameterIndex });
   };
 
   const useDefaultExplicitly = (
