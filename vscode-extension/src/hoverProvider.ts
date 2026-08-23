@@ -1,11 +1,15 @@
 import * as vscode from "vscode";
-import { queryDslGeometryHoverTarget } from "../../src/dsl/dslHoverQuery";
+import {
+  queryDslGeometryHoverDeclarationRange,
+  queryDslGeometryHoverTarget
+} from "../../src/dsl/dslHoverQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
   geometryHoverMarkdown,
   geometryHoverPresentation,
   geometryHoverUnavailablePresentation,
-  type GeometryHoverPresentation
+  type GeometryHoverPresentation,
+  type GeometryHoverReference
 } from "../../src/geometry/geometryHoverPresentation";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import type { NuiRuntimeEvaluationService } from "./runtimeEvaluationService";
@@ -18,6 +22,16 @@ import {
 export const nuiHoverSelector: vscode.DocumentSelector = {
   language: "nui",
   scheme: "file"
+};
+
+export const nuiHoverRevealSourceReferenceCommand = "nuinuiCAD.hover.revealSourceReference";
+
+export type NuiHoverRevealSourceReferenceArgs = {
+  documentUri: string;
+  documentVersion: number;
+  from: number;
+  to: number;
+  expectedText: string;
 };
 
 export type NuiHoverSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
@@ -45,6 +59,83 @@ const sameTarget = (
 ): boolean => left.elementId === right.elementId &&
   left.range.from === right.range.from &&
   left.range.to === right.range.to;
+
+export const nuiHoverReferenceCommandUri = (
+  args: NuiHoverRevealSourceReferenceArgs
+): string => `command:${nuiHoverRevealSourceReferenceCommand}?${encodeURIComponent(JSON.stringify([args]))}`;
+
+const referenceHrefFor = ({
+  document,
+  rawSource,
+  source,
+  session,
+  reference
+}: {
+  document: vscode.TextDocument;
+  rawSource: string;
+  source: SourceSnapshot;
+  session: NuiLanguageAnalysisSession;
+  reference: GeometryHoverReference;
+}): string | null => {
+  const semantic = session.hoverSemanticSnapshot(source);
+  if (!semantic) return null;
+  const range = queryDslGeometryHoverDeclarationRange({
+    source,
+    elementId: reference.elementId,
+    semantic
+  });
+  if (!range) return null;
+  const expectedText = source.normalizedSource.slice(range.from, range.to);
+  if (!expectedText) return null;
+  return nuiHoverReferenceCommandUri({
+    documentUri: document.uri.toString(),
+    documentVersion: document.version,
+    from: range.from,
+    to: range.to,
+    expectedText
+  });
+};
+
+export const currentNuiHoverReferenceRange = (
+  document: vscode.TextDocument,
+  args: NuiHoverRevealSourceReferenceArgs
+): vscode.Range | null => {
+  if (
+    document.uri.scheme !== "file" ||
+    !document.fileName.endsWith(".nui") ||
+    document.uri.toString() !== args.documentUri ||
+    document.version !== args.documentVersion ||
+    !Number.isInteger(args.from) ||
+    !Number.isInteger(args.to) ||
+    args.from < 0 ||
+    args.to <= args.from
+  ) return null;
+
+  const rawSource = document.getText();
+  const normalizedSource = normalizedSourceFor(rawSource);
+  if (
+    args.to > normalizedSource.length ||
+    normalizedSource.slice(args.from, args.to) !== args.expectedText
+  ) return null;
+  return vscodeRangeForNormalized(document, rawSource, { from: args.from, to: args.to });
+};
+
+export const revealNuiHoverSourceReference = async (
+  args: NuiHoverRevealSourceReferenceArgs
+): Promise<void> => {
+  const document = vscode.workspace.textDocuments.find((candidate) =>
+    candidate.uri.toString() === args.documentUri
+  );
+  if (!document) return;
+  const range = currentNuiHoverReferenceRange(document, args);
+  if (!range) return;
+
+  const editor = await vscode.window.showTextDocument(document, { preview: false });
+  const currentRange = currentNuiHoverReferenceRange(document, args);
+  if (!currentRange) return;
+  editor.selection = new vscode.Selection(currentRange.start, currentRange.end);
+  editor.revealRange(currentRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+};
 
 export const createNuiHoverProvider = (
   sessionFor: NuiHoverSessionFor,
@@ -91,8 +182,17 @@ export const createNuiHoverProvider = (
       presentation = geometryHoverPresentation(element, snapshot.evaluation);
     }
 
-    const markdown = new vscode.MarkdownString(geometryHoverMarkdown(presentation));
-    markdown.isTrusted = false;
+    const markdown = new vscode.MarkdownString(geometryHoverMarkdown(
+      presentation,
+      (reference) => referenceHrefFor({
+        document,
+        rawSource: latestRawSource,
+        source: latest.source,
+        session,
+        reference
+      })
+    ));
+    markdown.isTrusted = { enabledCommands: [nuiHoverRevealSourceReferenceCommand] };
     return new vscode.Hover(
       markdown,
       vscodeRangeForNormalized(document, latestRawSource, latest.target.range)
