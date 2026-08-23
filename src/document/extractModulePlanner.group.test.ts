@@ -118,13 +118,13 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     expect(next).toContain("    const paths: path[] = @lines");
   });
 
-  it("fails closed when a declaration nested inside the selected group is referenced from outside", () => {
+  it("fails closed when a geometry declaration nested inside the selected group is referenced from outside", () => {
     const source = [
       "nui 4",
       "group Pocket {",
-      "  const inside: number = 1",
+      "  point Inside = coordinate(x: 0, y: 0)",
       "}",
-      "const after: number = @Pocket::inside + 1"
+      "point After = offset(from: @Pocket::Inside, dx: 1, dy: 0)"
     ].join("\n");
 
     expectRejectedWithoutPatch(planGroup(source), "unrepresentable-export");
