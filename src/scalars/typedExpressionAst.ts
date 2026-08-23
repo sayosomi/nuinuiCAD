@@ -194,16 +194,6 @@ export interface ScalarExpressionTypecheckContext {
    * operands. It is keyed by the parser-owned node span and never enters the
    * scalar reference occurrence sequence. */
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
-  /**
-   * Source dotted-property nodes claimed by a non-geometry semantic owner
-   * (currently typed records). Presence in this map converts that raw
-   * geometryProperty-shaped syntax node into an ordinary scalar reference;
-   * unclaimed nodes retain the existing geometry-property path unchanged.
-   */
-  readonly scalarPropertyReferences?: ReadonlyMap<
-    number,
-    Extract<ScalarExpressionResolvedReference, { kind: "resolvedType" }>
-  >;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (
