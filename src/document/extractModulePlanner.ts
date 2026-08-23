@@ -426,7 +426,7 @@ const sourceReferenceSequencesByStatementId = (
         occurrence.to <= statement.documentRange.to
       )
       .map((occurrence) => semanticOwnerKey(compiled, occurrence.identity));
-    result.set(statementId, identities);
+    if (identities.length > 0) result.set(statementId, identities);
   }
   return result;
 };
@@ -666,6 +666,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       .filter((declaration) => statementInsideOffsets(compiled.statements[declaration.statementIndex], selectedFrom, selectedTo))
       .map((declaration) => declaration.name)
   );
+  for (const slot of namespace.scopeIndex.forGroupIterationSlots.values()) {
+    if (slot.name && statementInsideOffsets(compiled.statements[slot.statementIndex], selectedFrom, selectedTo)) {
+      selectedDeclarationNames.add(slot.name);
+    }
+  }
   for (const dependency of dependencies) {
     if (selectedDeclarationNames.has(dependency.name)) {
       return reject("parameter-name-collision", `生成 parameter「${dependency.name}」が移動対象内の declaration と衝突します。`);
