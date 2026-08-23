@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { queryDslDefinition, type DslDefinitionRange } from "../../src/dsl/dslDefinitionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -24,8 +25,14 @@ export type NuiDefinitionSessionFor = (document: vscode.TextDocument) => NuiLang
 export const createNuiDefinitionProvider = (
   sessionFor: NuiDefinitionSessionFor
 ): vscode.DefinitionProvider => ({
-  provideDefinition: (document, position) => {
+  provideDefinition: async (document, position) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
+
+    const multiDocument = activeVscodeMultiDocumentHost();
+    if (multiDocument) {
+      const handled = await multiDocument.provideDefinition(document, position);
+      if (handled.handled) return handled.value;
+    }
 
     const rawSource = document.getText();
     const session = sessionFor(document);
