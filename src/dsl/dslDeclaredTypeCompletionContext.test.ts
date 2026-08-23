@@ -17,7 +17,9 @@ describe("declaredTypeCompletionContextAt", () => {
   });
 
   it("uses the grammar's declared type names as the completion catalog", () => {
-    expect(dslTypedDeclarationTypeNames).toEqual(["number", "string", "boolean", "choice"]);
+    expect(dslTypedDeclarationTypeNames).toEqual([
+      "number", "string", "boolean", "choice", "point[]", "line[]", "path[]"
+    ]);
   });
 
   it("does not offer a type completion after the type name, in type details, or in an initializer", () => {
