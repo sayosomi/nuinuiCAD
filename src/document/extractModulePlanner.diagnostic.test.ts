@@ -5,6 +5,7 @@ import { planExtractModule } from "./extractModulePlanner";
 
 const REVISION = 73;
 
+// Temporary CI diagnostic: removed once the fail-closed reason is identified.
 describe("extract module planner diagnostic", () => {
   it("prints the simple scalar rejection", () => {
     const source = [
