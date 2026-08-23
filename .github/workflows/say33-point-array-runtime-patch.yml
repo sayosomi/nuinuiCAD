@@ -1,0 +1,81 @@
+name: SAY-33 point array runtime patch
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor == 'sayosomi' && github.head_ref == 'sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Align Module inline point-array validation
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/dsl/moduleGeometryArrayRuntime.ts')
+          text = path.read_text()
+          old = 'import type { ElementId } from "../types/geometry";\n'
+          new = old + 'import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";\n'
+          if text.count(old) != 1:
+              raise SystemExit('runtime import anchor mismatch')
+          text = text.replace(old, new, 1)
+          old = 'import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";\n'
+          new = old + 'import { coordinateComponent } from "./dslParameterSpanScanner";\n'
+          if text.count(old) != 1:
+              raise SystemExit('coordinate import anchor mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''const referencePath = (text: string) => {\n  const parsed = parseDslSourceReference(text.trim());\n  if (parsed.kind !== "valid" || parsed.reference.property) return null;\n  return parseDslReferenceToken(parsed.reference.pathText);\n};\n'''
+          new = '''const parsedSourceReference = (text: string) => {\n  const parsed = parseDslSourceReference(text.trim());\n  return parsed.kind === "valid" ? parsed.reference : null;\n};\n\nconst referencePath = (text: string) => {\n  const reference = parsedSourceReference(text);\n  if (!reference || reference.property) return null;\n  return parseDslReferenceToken(reference.pathText);\n};\n\nconst coordinateMember = (text: string) => {\n  const span = { start: 0, end: text.length };\n  return coordinateComponent(text, span, "x") && coordinateComponent(text, span, "y") ? text.trim() : null;\n};\n\nconst isLineEndpointPointKey = (value: string) => value === "start" || value === "end";\n\nconst aliasWithPointKey = (alias: GeometryAlias | undefined, pointKey: string | null): GeometryAlias | null => {\n  if (!alias) return null;\n  if (!pointKey) return alias;\n  return alias.kind === "line" ? { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) } : null;\n};\n'''
+          if text.count(old) != 1:
+              raise SystemExit('reference helper anchor mismatch')
+          text = text.replace(old, new, 1)
+
+          pattern = re.compile(r'''        const trimmed = member\.text\.trim\(\);\n        if \(\/\^coordinate.*?        addDiagnostic\(runtimeDiagnostic\(statement, span, "geometry-array-member-unresolved", `未解決の geometry array member です: \$\{member\.text\}`\)\);''', re.S)
+          replacement = '''        const coordinate = coordinateMember(member.text);\n        if (coordinate) {\n          const actual: GeometryArrayType = { kind: "geometryArray", elementType: "point" };\n          if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」に point を渡せません。`));\n          } else members.push({ interfaceType: "point", alias: null });\n          continue;\n        }\n        const sourceReference = parsedSourceReference(member.text);\n        if (!sourceReference) {\n          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member は geometry reference または coordinate point で指定してください。"));\n          continue;\n        }\n        const path = parseDslReferenceToken(sourceReference.pathText);\n        if (path.segments.length === 0) {\n          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member の参照が不正です。"));\n          continue;\n        }\n        const pointKey = sourceReference.property;\n        if (pointKey && parameter.type.elementType !== "point") {\n          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", "derived point reference は point[] の member としてのみ使用できます。"));\n          continue;\n        }\n\n        const ownerIndex = moduleOwnerIndexOf(statements, instance.statementIndex);\n        if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {\n          const owner = statements[ownerIndex];\n          if (owner?.kind === "moduleDefinition") {\n            const parameterIndexInOwner = owner.parameters.findIndex((candidate) => candidate.name === path.segments[0]);\n            if (parameterIndexInOwner >= 0) {\n              const ownerParameter = owner.parameters[parameterIndexInOwner]!;\n              const nestedArray = geometryArrayTypeOfModuleParameter(ownerParameter);\n              if (nestedArray) {\n                addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-nested-array", "geometry array を literal member として入れ子にすることはできません。"));\n                continue;\n              }\n              const interfaceType = moduleGeometryInterfaceTypeOf(ownerParameter.type);\n              const ownerDefinitionId = stableStatementIdByIndex.get(ownerIndex);\n              if (interfaceType && ownerDefinitionId) {\n                if (pointKey && ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey))) {\n                  addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`));\n                  continue;\n                }\n                const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;\n                const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };\n                if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {\n                  addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));\n                  continue;\n                }\n                const baseAlias = sourceAliasForTarget({\n                  kind: "parameter",\n                  definitionStatementId: ownerDefinitionId,\n                  parameterIndex: parameterIndexInOwner,\n                  geometryKind: interfaceType === "point" ? "point" : "line"\n                }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);\n                members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });\n                continue;\n              }\n            }\n          }\n        }\n\n        const lookup = resolveSourceLexicalPath(sourceNamespace, instance.statementIndex, path);\n        if (lookup.kind === "resolved") {\n          const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);\n          if (!interfaceType) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-not-geometry", `参照先「${member.text}」は geometry value ではありません。`));\n            continue;\n          }\n          const sourceStatement = lookup.declaration.statement;\n          if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;\n          if (pointKey && !isDerivedPointKeyForGeometryCategory(sourceStatement.category, pointKey)) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`));\n            continue;\n          }\n          const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;\n          const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };\n          if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));\n            continue;\n          }\n          const baseAlias = sourceAliasForTarget({\n            kind: "sourceGeometry",\n            statementId: lookup.declaration.statementId,\n            statementIndex: lookup.declaration.statementIndex,\n            category: sourceStatement.category,\n            geometryKind: interfaceType === "point" ? "point" : "line"\n          }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);\n          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });\n          continue;\n        }\n        if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {\n          const childPath = [...callerPath, lookup.declaration.statementId];\n          const exportEntry = exportsByPath.get(pathKey(childPath))?.get(path.segments[1]!);\n          if (!exportEntry) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "module-undefined-export", `module export「${path.segments[1]}」が見つかりません。`));\n            continue;\n          }\n          const exportedStatement = statements[exportEntry.exported.exportedStatementIndex];\n          const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);\n          if (!interfaceType) continue;\n          if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `module export「${path.segments[1]}」の derived point「${pointKey}」を解決できません。`));\n            continue;\n          }\n          const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;\n          const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };\n          if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {\n            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));\n            continue;\n          }\n          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(exportEntry.alias, pointKey) });\n          continue;\n        }\n        addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-unresolved", `未解決の geometry array member です: ${member.text}`));'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'inline member block replacement count={count}')
+          path.write_text(text)
+
+          test_path = Path('src/dsl/moduleGeometryArrayRuntime.integration.test.ts')
+          tests = test_path.read_text()
+          anchor = '  it("checks array argument assignability directionally", () => {\n'
+          if tests.count(anchor) != 1:
+              raise SystemExit('test anchor mismatch')
+          case = '''  it("accepts coordinate and derived point members in inline point[] arguments", () => {\n    const compiled = compileWithIds([\n      "nui 4",\n      "line L = segment(start: (0, 0), end: (10, 0))",\n      "module M(points: point[]) {",\n      "}",\n      "instance Use = M(points: [@L.start, @L.end, (1, 2)])"\n    ].join("\\n"));\n\n    expect(errorsOf(compiled)).toEqual([]);\n    expect(compiled.document).not.toBeNull();\n  });\n\n'''
+          test_path.write_text(tests.replace(anchor, case + anchor, 1))
+          PY
+      - name: Focused verification
+        run: >-
+          npx vitest run
+          src/dsl/moduleGeometryArrayRuntime.integration.test.ts
+          src/dsl/geometryArraySemanticAnalysis.integration.test.ts
+          src/dsl/geometryArrayCompletion.integration.test.ts
+      - run: npm run build
+      - run: npm run lint
+      - name: Commit successful fix and remove helper
+        shell: bash
+        run: |
+          rm .github/workflows/say33-point-array-runtime-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(SAY-33): align Module point array members"
+          git push origin HEAD:sayosomi/say-33-nui4-typed-geometry-arrays-point-line-path
