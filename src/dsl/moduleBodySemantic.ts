@@ -50,7 +50,14 @@ const isGeometryArrayWholeReference = (
   return input.input.sourceNamespace.geometryArraySemanticAnalysis?.valuesByStatementIndex.has(lookup.declaration.statementIndex) === true;
 };
 
-const siteKey = (statementIndex: number, start: number, end: number) => `${statementIndex}:${start}:${end}`;
+type ArrayListSite = { statementIndex: number; start: number; end: number };
+
+const diagnosticIsInsideSite = (
+  diagnostic: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic },
+  site: ArrayListSite
+) => diagnostic.statementIndex === site.statementIndex &&
+  diagnostic.diagnostic.span.start >= site.start &&
+  diagnostic.diagnostic.span.end <= site.end;
 
 /**
  * Record-valued declarations and immutable geometry arrays are source-semantic
@@ -78,22 +85,28 @@ export const analyzeModuleBody = (
     }
   });
 
-  const arrayListSiteKeys = new Set<string>();
+  const arrayListSites: ArrayListSite[] = [];
   const bodyStatements = result.bodyStatements.map((body) => {
     const geometryReferences = body.geometryReferences.filter((site) => {
       if (
         site.reference.role !== "lineReferenceList" ||
         !isGeometryArrayWholeReference(input, body.statementIndex, site.reference.source)
       ) return true;
-      arrayListSiteKeys.add(siteKey(body.statementIndex, site.reference.span.start, site.reference.span.end));
+      arrayListSites.push({
+        statementIndex: body.statementIndex,
+        start: site.reference.span.start,
+        end: site.reference.span.end
+      });
       return false;
     });
     return geometryReferences.length === body.geometryReferences.length ? body : { ...body, geometryReferences };
   });
 
   for (const captured of capturedDiagnostics) {
-    const key = siteKey(captured.statementIndex, captured.diagnostic.span.start, captured.diagnostic.span.end);
-    if (captured.diagnostic.code === "module-geometry-type-mismatch" && arrayListSiteKeys.has(key)) continue;
+    if (
+      captured.diagnostic.code === "module-geometry-type-mismatch" &&
+      arrayListSites.some((site) => diagnosticIsInsideSite(captured, site))
+    ) continue;
     input.addLocal(captured.statementIndex, captured.diagnostic);
   }
 
