@@ -47,6 +47,9 @@ export type GeometryArraySemanticAnalysisInput = {
   resolvePath: (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => SourceLexicalLookupWithExternal;
 };
 
+export const geometryArrayDeferredModuleExportId = (instanceStatementId: string, exportName: string) =>
+  `module-array-export:${instanceStatementId}:${exportName}`;
+
 const projectSpan = (statement: DslStatement, span: DslSpan): DslPhysicalSpan | null => {
   const segments: { from: number; to: number }[] = [];
   let logicalStart = 0;
@@ -299,6 +302,17 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           }
         }
         const lookup = input.resolvePath(statementIndex, path);
+        if (
+          lookup.kind === "invalidTraversal" &&
+          lookup.declaration.kind === "moduleInstance" &&
+          path.segments.length === 2 &&
+          lookup.segmentIndex === 1
+        ) {
+          return {
+            kind: "deferred",
+            targetValueId: geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!)
+          };
+        }
         if (lookup.kind !== "resolved") {
           const message = lookup.kind === "forward"
             ? `geometry array「${sourceText}」はこの位置より後で宣言されています。`
