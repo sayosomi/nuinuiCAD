@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLogicalStatementSourceMap } from "../../src/dsl/logicalStatementSourceMap";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
@@ -80,7 +79,7 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     expect(languageSession.getDiagnostics()).toEqual([]);
   });
 
-  it("resolves compiler semantics by source range when blank lines shift logical statement indices", () => {
+  it("resolves a host-neutral target after top-level blank lines", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const sourceSnapshot = {
       normalizedSource: source,
@@ -88,32 +87,21 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     };
     const semantic = languageSession.definitionSemanticSnapshot(sourceSnapshot);
     expect(semantic).toBeDefined();
-    const compiled = semantic!.compiled;
     const offsetPointLine = source.indexOf("point OffsetPoint");
     const offset = atEndOf("@A", offsetPointLine);
-    const logicalMap = createLogicalStatementSourceMap(sourceSnapshot);
-    const logicalStatementIndex = logicalMap.statements.findIndex((statement) =>
-      offset >= statement.range.from && offset <= statement.range.to
-    );
-    expect(logicalStatementIndex).toBeGreaterThanOrEqual(0);
-    const logicalStatement = logicalMap.statements[logicalStatementIndex]!;
-    const compiledStatementIndex = compiled.statements.findIndex((statement) =>
-      statement.documentRange.from === logicalStatement.range.from &&
-      statement.documentRange.to === logicalStatement.range.to
-    );
-    expect(compiledStatementIndex).toBeGreaterThanOrEqual(0);
-    expect(compiledStatementIndex).not.toBe(logicalStatementIndex);
 
-    const target = queryDslReferencePickTarget({
+    expect(queryDslReferencePickTarget({
       source: sourceSnapshot,
       position: offset,
       semantic
-    });
-    expect(target).toMatchObject({
+    })).toMatchObject({
       expectedGeometryInterface: "point",
       role: "geometry",
       multiplicity: "single",
-      sourceAnchor: { statementIndex: compiledStatementIndex }
+      range: {
+        from: offset - "@A".length,
+        to: offset
+      }
     });
   });
 
