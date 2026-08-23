@@ -36,6 +36,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -323,9 +324,25 @@ export const compileNumericBindings = ({
         typedReferenceSpans = scanExpressionReferences(candidate.expression)
           .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
           .map((match) => ({ name: match.query, span: { start: match.from, end: match.to } }));
-        const typedChecked = typecheckScalarExpression(typedParsed.ast, {
+        const prepared = prepareRecordScalarExpressionFromCatalog({
+          ast: typedParsed.ast,
+          statementIndex: candidate.statementIndex,
+          catalog: bindingAnalysis.catalog,
+          referenceResolutions: scalarTypecheckReferences
+        });
+        if (prepared.issues.length > 0) {
+          diagnostics.push(...prepared.issues.map((issue) => diagnosticAt(
+            spans,
+            candidate.statement,
+            { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
+            NUMERIC_BINDING_UNRESOLVED_CODE,
+            issue.message
+          )));
+          continue;
+        }
+        const typedChecked = typecheckScalarExpression(prepared.ast, {
           expectedType: { kind: "number" },
-          references: scalarTypecheckReferences
+          references: prepared.references
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
           if (hasLegacyOwnedReference) {
