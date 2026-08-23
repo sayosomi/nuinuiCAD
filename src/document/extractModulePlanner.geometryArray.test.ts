@@ -38,22 +38,6 @@ const plan = (source: string, selectedIndexes: readonly number[]) => {
   });
 };
 
-const planNamed = (source: string, selectedNames: readonly string[]) => {
-  const compiled = compileCurrent(source);
-  const statementIds = selectedNames.map((name) => {
-    const statementIndex = compiled.statements.findIndex((statement) => statement.name === name);
-    if (statementIndex < 0) throw new Error(`missing authored statement ${name}`);
-    return statementIdAt(compiled, statementIndex);
-  });
-  return planExtractModule({
-    source: { normalizedSource: source, sourceRevision: REVISION },
-    compiled,
-    statementIds,
-    moduleName: "Extracted",
-    instanceName: "Part"
-  });
-};
-
 describe("planExtractModule checkpoint 3 geometry arrays", () => {
   it("preserves the exact array dependency type, exports the moved array, and rewrites an outside array reference", () => {
     const source = [
@@ -84,13 +68,14 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     ].join("\n"));
   });
 
-  it("extracts a direct point-array literal without inventing runtime scalar semantics", () => {
+  it("extracts a direct point-array literal without inventing runtime scalar semantics when authored identity is available", () => {
     const source = [
       "nui 4",
+      "line IdentityAnchor = segment(start: (0, 0), end: (1, 0))",
       "const points: point[] = [(0, 0), (10, 5)]"
     ].join("\n");
 
-    const result = planNamed(source, ["points"]);
+    const result = plan(source, [2]);
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
 
@@ -98,6 +83,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
       "nui 4",
+      "line IdentityAnchor = segment(start: (0, 0), end: (1, 0))",
       "module Extracted() {",
       "  const points: point[] = [(0, 0), (10, 5)]",
       "}",
