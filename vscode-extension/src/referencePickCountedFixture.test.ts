@@ -117,18 +117,33 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     });
   });
 
-  it("resolves the production VS Code adapter target at representative contracted sites", () => {
+  it("resolves the production VS Code adapter target across counted-run target families", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const offsetPointLine = source.indexOf("point OffsetPoint");
+    const seamLine = source.indexOf("line Seam");
     const instanceLine = source.indexOf("instance PickInstance");
+    const anchorLine = source.indexOf("anchor: @A", instanceLine);
+    const straightLine = source.indexOf("straight: @Base", instanceLine);
+    const broadLine = source.indexOf("broad: @Curve", instanceLine);
     const distanceLine = source.indexOf("const DistancePoints");
+    const angleLine = source.indexOf("const AnglePoints");
+    const lineDistanceLine = source.indexOf("const DistancePointLine");
+    const lineAngleLine = source.indexOf("const AngleLines");
     const numericLine = source.indexOf("const NumericLiteral");
     const propertyLine = source.indexOf("const NumericProperty");
 
     const offsets = [
       atEndOf("@A", offsetPointLine),
-      atEndOf("@A", instanceLine),
+      atEndOf("@Base", seamLine),
+      atEndOf("@A", anchorLine),
+      atEndOf("@Base", straightLine),
+      atEndOf("@Curve", broadLine),
       atEndOf("@A", distanceLine),
+      atEndOf("@A", angleLine),
+      atEndOf("@A", lineDistanceLine),
+      atEndOf("@Base", lineDistanceLine),
+      atEndOf("@Base", lineAngleLine),
+      atEndOf("@Other", lineAngleLine),
       atEndOf("20", numericLine),
       atEndOf("@Base", propertyLine)
     ];
