@@ -5,7 +5,7 @@ import {
   geometryArrayTypeOfTypedDeclaration
 } from "./geometryArraySourceAnnotations";
 import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
-import type { ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
+import { moduleParameterPresenceKey, type ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
 import * as core from "./moduleBodySemanticCore";
 
 export type { ModuleBodyDefinition, ModuleBodySemanticResult } from "./moduleBodySemanticCore";
@@ -26,28 +26,43 @@ const isSourceOnlyTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
 ) => Boolean(statement.recordTypeReference || geometryArrayTypeOfTypedDeclaration(statement));
 
-const isGeometryArrayWholeReference = (
+type GeometryArrayWholeReference =
+  | { kind: "parameter"; definitionStatementId: string; parameterIndex: number; parameterName: string; optional: boolean }
+  | { kind: "value" };
+
+const geometryArrayWholeReference = (
   input: Parameters<typeof core.analyzeModuleBody>[0],
   statementIndex: number,
   source: string
-): boolean => {
+): GeometryArrayWholeReference | null => {
   const parsed = parseDslSourceReference(source.trim());
-  if (parsed.kind !== "valid" || parsed.reference.property) return false;
+  if (parsed.kind !== "valid" || parsed.reference.property) return null;
   const path = parseDslReferenceToken(parsed.reference.pathText);
-  if (path.segments.length === 0) return false;
+  if (path.segments.length === 0) return null;
 
   if (path.segments.length === 1 && !path.absolute) {
     const ownerIndex = moduleOwnerIndexOf(input.statements, statementIndex);
     const owner = ownerIndex === null ? null : input.statements[ownerIndex];
     if (owner?.kind === "moduleDefinition") {
-      const parameter = owner.parameters.find((candidate) => candidate.name === path.segments[0]);
-      if (parameter && geometryArrayTypeOfModuleParameter(parameter)) return true;
+      const parameterIndex = owner.parameters.findIndex((candidate) => candidate.name === path.segments[0]);
+      const parameter = parameterIndex >= 0 ? owner.parameters[parameterIndex] : undefined;
+      if (parameter && geometryArrayTypeOfModuleParameter(parameter)) {
+        return {
+          kind: "parameter",
+          definitionStatementId: input.definition.statementId,
+          parameterIndex,
+          parameterName: parameter.name,
+          optional: parameter.optional
+        };
+      }
     }
   }
 
   const lookup = resolveSourceLexicalPath(input.input.sourceNamespace, statementIndex, path);
-  if (lookup.kind !== "resolved") return false;
-  return input.input.sourceNamespace.geometryArraySemanticAnalysis?.valuesByStatementIndex.has(lookup.declaration.statementIndex) === true;
+  if (lookup.kind !== "resolved") return null;
+  return input.input.sourceNamespace.geometryArraySemanticAnalysis?.valuesByStatementIndex.has(lookup.declaration.statementIndex) === true
+    ? { kind: "value" }
+    : null;
 };
 
 type ArrayListSite = { statementIndex: number; start: number; end: number };
@@ -75,10 +90,30 @@ export const analyzeModuleBody = (
     return !(statement?.kind === "typedDeclaration" && isSourceOnlyTypedDeclaration(statement));
   });
   const capturedDiagnostics: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic }[] = [];
+  const originalResolveBodyHasValue = input.resolveBodyHasValue;
 
   const result = core.analyzeModuleBody({
     ...input,
     addLocal: (statementIndex, diagnostic) => capturedDiagnostics.push({ statementIndex, diagnostic }),
+    resolveBodyHasValue: (statementIndex, reference) => {
+      const existing = originalResolveBodyHasValue(statementIndex, reference);
+      if (!existing.diagnostic) return existing;
+      const ownerIndex = moduleOwnerIndexOf(input.statements, statementIndex);
+      const owner = ownerIndex === null ? null : input.statements[ownerIndex];
+      if (owner?.kind !== "moduleDefinition") return existing;
+      const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === reference.name);
+      const parameter = parameterIndex >= 0 ? owner.parameters[parameterIndex] : undefined;
+      if (!parameter?.optional || !geometryArrayTypeOfModuleParameter(parameter)) return existing;
+      return {
+        target: {
+          kind: "parameter" as const,
+          definitionStatementId: input.definition.statementId,
+          parameterIndex
+        },
+        type: null,
+        resolution: "resolved" as const
+      };
+    },
     definition: {
       ...input.definition,
       bodyStatementIndexes
@@ -86,17 +121,31 @@ export const analyzeModuleBody = (
   });
 
   const arrayListSites: ArrayListSite[] = [];
+  const arrayDiagnostics: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic }[] = [];
   const bodyStatements = result.bodyStatements.map((body) => {
     const geometryReferences = body.geometryReferences.filter((site) => {
-      if (
-        site.reference.role !== "lineReferenceList" ||
-        !isGeometryArrayWholeReference(input, body.statementIndex, site.reference.source)
-      ) return true;
+      if (site.reference.role !== "lineReferenceList") return true;
+      const arrayReference = geometryArrayWholeReference(input, body.statementIndex, site.reference.source);
+      if (!arrayReference) return true;
       arrayListSites.push({
         statementIndex: body.statementIndex,
         start: site.reference.span.start,
         end: site.reference.span.end
       });
+      if (
+        arrayReference.kind === "parameter" &&
+        arrayReference.optional &&
+        !body.presenceParameterKeys.includes(moduleParameterPresenceKey(arrayReference.definitionStatementId, arrayReference.parameterIndex))
+      ) {
+        arrayDiagnostics.push({
+          statementIndex: body.statementIndex,
+          diagnostic: {
+            code: "module-optional-value-required",
+            span: site.reference.nameSpan ?? site.reference.span,
+            message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`
+          }
+        });
+      }
       return false;
     });
     return geometryReferences.length === body.geometryReferences.length ? body : { ...body, geometryReferences };
@@ -109,6 +158,7 @@ export const analyzeModuleBody = (
     ) continue;
     input.addLocal(captured.statementIndex, captured.diagnostic);
   }
+  for (const arrayDiagnostic of arrayDiagnostics) input.addLocal(arrayDiagnostic.statementIndex, arrayDiagnostic.diagnostic);
 
   return { ...result, bodyStatements };
 };
