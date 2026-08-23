@@ -371,7 +371,7 @@ export const analyzeTypedDeclarations = ({
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
     stableStatementIdByIndex.has(statementIndex)
       ? []
-      : [compileDiagnostic(spans, statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。")]
+      : [compileDiagnostic(spans, statement, statement.nameSpan ?? statement.keywordSpan, "missing-stable-statement-identity", "型付き宣言のstable statement identityを取得できません。 In a source line before binding lowering.")]
   );
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
@@ -505,7 +505,7 @@ export const analyzeTypedDeclarations = ({
     ));
   }
 
-  const resolvedReferencesByBindingId = new Map<BindingId, typeof resolved>();
+  const resolvedReferencesByBindingId = new Map<BindingId, Array<(typeof resolved)[number]>>();
   for (const reference of resolved) {
     const bucket = resolvedReferencesByBindingId.get(reference.fromBindingId);
     if (bucket) bucket.push(reference);
