@@ -11,6 +11,12 @@ import {
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { configureNuiTypoDiagnosticPresentation } from "./typoDiagnosticPresentation";
+import {
+  createNuiTypoQuickFixApplyHandler,
+  createNuiTypoQuickFixProvider,
+  NUI_TYPO_QUICK_FIX_APPLY_COMMAND
+} from "./typoQuickFixProvider";
 
 export const nuiChoiceQuickFixSelector: vscode.DocumentSelector = {
   language: "nui",
@@ -107,7 +113,7 @@ const payloadFor = (
   }
 });
 
-export const createNuiChoiceQuickFixProvider = (
+const createNuiChoiceOnlyQuickFixProvider = (
   sessionFor: NuiChoiceQuickFixSessionFor
 ): vscode.CodeActionProvider => ({
   provideCodeActions: (document, _range, context) => {
@@ -277,7 +283,7 @@ const descriptorForPayload = (
   return undefined;
 };
 
-export const createNuiChoiceQuickFixApplyHandler = (
+const createNuiChoiceOnlyQuickFixApplyHandler = (
   sessionFor: NuiChoiceQuickFixSessionFor
 ): (payload: unknown) => Promise<void> => async (rawPayload) => {
   if (!isPayload(rawPayload)) return;
@@ -320,4 +326,49 @@ export const createNuiChoiceQuickFixApplyHandler = (
     descriptor.action.insert
   );
   await vscode.workspace.applyEdit(workspaceEdit);
+};
+
+export const createNuiChoiceQuickFixProvider = (
+  sessionFor: NuiChoiceQuickFixSessionFor
+): vscode.CodeActionProvider => {
+  configureNuiTypoDiagnosticPresentation(() => vscode.env?.language ?? "en");
+  const choiceProvider = createNuiChoiceOnlyQuickFixProvider(sessionFor);
+  const typoProvider = createNuiTypoQuickFixProvider(sessionFor);
+
+  return {
+    provideCodeActions: (document, range, context, token) => {
+      const choiceActions = choiceProvider.provideCodeActions(
+        document,
+        range,
+        context,
+        token
+      ) as vscode.CodeAction[] | undefined;
+      const typoActions = typoProvider.provideCodeActions(
+        document,
+        range,
+        context,
+        token
+      ) as vscode.CodeAction[] | undefined;
+
+      for (const action of typoActions ?? []) {
+        if (action.command?.command !== NUI_TYPO_QUICK_FIX_APPLY_COMMAND) continue;
+        action.command = { ...action.command, command: NUI_CHOICE_QUICK_FIX_APPLY_COMMAND };
+      }
+      return [...(choiceActions ?? []), ...(typoActions ?? [])];
+    }
+  };
+};
+
+export const createNuiChoiceQuickFixApplyHandler = (
+  sessionFor: NuiChoiceQuickFixSessionFor
+): (payload: unknown) => Promise<void> => {
+  const choiceApply = createNuiChoiceOnlyQuickFixApplyHandler(sessionFor);
+  const typoApply = createNuiTypoQuickFixApplyHandler(sessionFor);
+  return async (payload) => {
+    if (isPayload(payload)) {
+      await choiceApply(payload);
+      return;
+    }
+    await typoApply(payload);
+  };
 };

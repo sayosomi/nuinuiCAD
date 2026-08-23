@@ -12,6 +12,7 @@ import {
   compilerDiagnosticsForState,
   type CompilerDiagnostic
 } from "./compilerDiagnostics";
+import { projectConfiguredCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -243,7 +244,17 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
       diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
       completionRecovery = completionRecoveryFor(document.getState());
     },
-    getDiagnostics: () => diagnostics,
+    getDiagnostics: () => {
+      const currentRawSource = document.getSource();
+      const source: SourceSnapshot = {
+        normalizedSource: normalizedSourceFor(currentRawSource),
+        sourceRevision: currentSourceRevision()
+      };
+      const semantic = semanticSnapshotFor(source);
+      return semantic
+        ? projectConfiguredCompilerDiagnosticsWithTypoSuggestions(diagnostics, source, semantic)
+        : diagnostics;
+    },
     runtimeEvaluationSemanticSnapshot,
     completionSemanticSnapshot: semanticSnapshotFor,
     completionRecoverySnapshot: (source) => {
