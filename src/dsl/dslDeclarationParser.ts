@@ -1,4 +1,5 @@
-import type { DslDeclaredValueType, DslSpan } from "./dslTypes";
+import type { ScalarType } from "../scalars/types";
+import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
   parseDslDeclaredValueType,
@@ -30,8 +31,10 @@ export type DslTypedDeclarationStatement = {
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
-  /** `null` when the type annotation itself failed to parse. */
-  declaredType: DslDeclaredValueType | null;
+  /** `null` when the scalar type annotation failed or this is record-valued. */
+  declaredType: ScalarType | null;
+  /** Source-only unresolved nominal record type. Never enters ScalarType/runtime. */
+  recordTypeReference: DslRecordTypeReference | null;
   /** Per-option spans, index-aligned with scalar choice options. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
@@ -133,9 +136,9 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
     diagnostics.push({ message: "初期化式には「=」の後に値が必要です。", span: initializerSpan });
   }
 
-  const { declaredType, choiceOptionSpans, numericTypeOptions } =
+  const parsedType: DslDeclaredValueTypeParseResult =
     typeSpan.start === typeSpan.end
-      ? { declaredType: null as DslDeclaredValueType | null, choiceOptionSpans: [] as DslSpan[] }
+      ? { declaredType: null, recordTypeReference: null, choiceOptionSpans: [] }
       : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
 
   const payloadSpans: Record<string, DslSpan> = {};
@@ -149,9 +152,10 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       bindingKind: keyword,
       ...name,
       keywordSpan,
-      declaredType,
-      choiceOptionSpans,
-      ...(numericTypeOptions ? { numericTypeOptions } : {}),
+      declaredType: parsedType.declaredType,
+      recordTypeReference: parsedType.recordTypeReference,
+      choiceOptionSpans: parsedType.choiceOptionSpans,
+      ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
       initializer: logicalText.slice(initializerSpan.start, initializerSpan.end),
       payloadSpans,
       args: [],
