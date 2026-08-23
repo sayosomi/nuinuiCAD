@@ -102,6 +102,27 @@ describe("ephemeral Canvas overlap selection", () => {
     expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
   });
 
+  it("preserves an explicit requested order for semantic Reveal while keeping identical repeats history-neutral", () => {
+    expect(replaceCanvasSelection(["c", "a", "b", "c"], "c", true, "requested")).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "c",
+      selectedElementIds: ["c", "a", "b"],
+      selectionAnchorElementId: "c"
+    });
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+
+    expect(replaceCanvasSelection(["c", "a", "b"], "c", true, "requested")).toBe(true);
+    expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
+
+    useCadUiStore.setState(initialCadUiState());
+    expect(replaceCanvasSelection(["c", "a", "b"], "c")).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "c",
+      selectedElementIds: ["a", "b", "c"],
+      selectionAnchorElementId: "c"
+    });
+  });
+
   it("filters hidden and disabled targets across replace, range, toggle, and navigation", () => {
     const mixedElements = elements.map((element) =>
       element.id === "b"
