@@ -108,8 +108,6 @@ export type DslRecordTypeReference = {
   name: string;
 };
 
-export type DslDeclaredValueType = ScalarType | DslRecordTypeReference;
-
 export type DslRecordField = {
   kind: "recordField";
   name: string;
@@ -123,7 +121,7 @@ export type DslRecordField = {
 };
 
 export type DslModuleParameterType =
-  | DslDeclaredValueType
+  | ScalarType
   | { kind: "point" }
   | { kind: "line" }
   | { kind: "path" };
@@ -136,6 +134,8 @@ export type DslModuleParameter = {
   optional: boolean;
   optionalSpan: DslSpan | null;
   type: DslModuleParameterType | null;
+  /** Source-only unresolved nominal record type. Never enters Module runtime in SAY-114. */
+  recordTypeReference?: DslRecordTypeReference | null;
   typeSpan: DslSpan | null;
   choiceOptionSpans: readonly DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;
@@ -296,8 +296,10 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "typedDeclaration";
       bindingKind: "const" | "let";
-      /** `null` when the type annotation itself failed to parse. */
-      declaredType: DslDeclaredValueType | null;
+      /** `null` when the scalar type annotation failed or this is a record-valued declaration. */
+      declaredType: ScalarType | null;
+      /** Source-only unresolved nominal record type. Never enters the scalar catalog/runtime. */
+      recordTypeReference?: DslRecordTypeReference | null;
       /** Per-option spans, index-aligned with scalar `choice` options. */
       choiceOptionSpans: readonly DslSpan[];
       /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
