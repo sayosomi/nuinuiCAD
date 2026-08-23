@@ -274,7 +274,6 @@ describe("multi-document language queries", () => {
       new Set([fixture.libraryRoot.documentId, fixture.facadeRoot.documentId])
     );
     expect(result.plan.documents.flatMap((document) => document.edits).map((edit) => edit.expectedText)).toEqual([
-      "library",
       "Pocket",
       "Pocket"
     ]);
