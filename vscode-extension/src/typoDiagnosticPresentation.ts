@@ -18,6 +18,16 @@ export const configureNuiTypoDiagnosticPresentation = (provider: () => string): 
   displayLanguageFor = provider;
 };
 
+const configuredDisplayLanguage = (): string => {
+  if (!displayLanguageFor) return "en";
+  try {
+    return displayLanguageFor();
+  } catch {
+    // Host mocks and partial adapters may omit vscode.env; presentation must fail closed to English.
+    return "en";
+  }
+};
+
 const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] =>
   semantic.compiled
     ? [
@@ -65,5 +75,5 @@ export const projectConfiguredCompilerDiagnosticsWithTypoSuggestions = (
   semantic: DslCompletionSemanticSnapshot
 ): CompilerDiagnostic[] =>
   displayLanguageFor
-    ? projectCompilerDiagnosticsWithTypoSuggestions(baseDiagnostics, source, semantic, displayLanguageFor())
+    ? projectCompilerDiagnosticsWithTypoSuggestions(baseDiagnostics, source, semantic, configuredDisplayLanguage())
     : [...baseDiagnostics];
