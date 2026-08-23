@@ -140,7 +140,11 @@ fn directed_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64, direction: &
     } else {
         positive_sweep_degrees(start_angle_deg, end_angle_deg)
     };
-    if sweep == 0.0 { 0.0 } else { sweep }
+    if sweep == 0.0 {
+        0.0
+    } else {
+        sweep
+    }
 }
 
 pub(crate) fn evaluate_arc_line(
