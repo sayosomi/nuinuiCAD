@@ -96,20 +96,20 @@ describe("planExtractModule", () => {
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Base = segment(start: A, end: B)",
-      "curve Shape = bezier(start: A, end: B)",
-      "point FromPoint = offset(from: A, dx: 1, dy: 2)",
-      "point FromLine = onLine(from: Base, distance: 1)",
-      "point FromPath = bezierExtremePoint(source: Shape, direction: 0)"
+      "line Base = segment(start: @A, end: @B)",
+      "curve Shape = bezier(start: @A, end: @B)",
+      "point FromPoint = offset(from: @A, dx: 1, dy: 2)",
+      "point FromLine = onLine(from: @Base, distance: 1)",
+      "point FromPath = bezierExtremePoint(source: @Shape, direction: 0)"
     ].join("\n");
     const { result } = plan(source, [5, 6, 7]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
-      ["A", "point", "A"],
-      ["Base", "line", "Base"],
-      ["Shape", "path", "Shape"]
+      ["A", "point", "@A"],
+      ["Base", "line", "@Base"],
+      ["Shape", "path", "@Shape"]
     ]);
   });
 
@@ -117,31 +117,31 @@ describe("planExtractModule", () => {
     const source = [
       "nui 4",
       "group G {",
-      "  const width: number = 10",
+      "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "const inside: number = @G::width + 1"
+      "point Inside = offset(from: @G::P, dx: 1, dy: 0)"
     ].join("\n");
     const { result } = plan(source, [4]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.argumentSource])).toEqual([
-      ["width", "@G::width"]
+      ["P", "@G::P"]
     ]);
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("module Extracted(width: number) {");
-    expect(next).toContain("  const inside: number = @width + 1");
-    expect(next).toContain("instance Part = Extracted(width: @G::width)");
+    expect(next).toContain("module Extracted(P: point) {");
+    expect(next).toContain("  point Inside = offset(from: @P, dx: 1, dy: 0)");
+    expect(next).toContain("instance Part = Extracted(P: @G::P)");
   });
 
   it("preserves rooted namespace syntax in call arguments while localizing the moved reference", () => {
     const source = [
       "nui 4",
       "group G {",
-      "  const width: number = 10",
+      "  point P = coordinate(x: 0, y: 0)",
       "}",
       "group H {",
-      "  const inside: number = @::G::width + 1",
+      "  point Inside = offset(from: @::G::P, dx: 1, dy: 0)",
       "}"
     ].join("\n");
     const { result } = plan(source, [5]);
@@ -149,12 +149,12 @@ describe("planExtractModule", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.argumentSource])).toEqual([
-      ["width", "@::G::width"]
+      ["P", "@::G::P"]
     ]);
     const next = applyLineSplices(source, result.splices);
-    expect(next).toContain("    const inside: number = @width + 1");
-    expect(next).toContain("  instance Part = Extracted(width: @::G::width)");
-    expect(next).not.toContain("@::width");
+    expect(next).toContain("    point Inside = offset(from: @P, dx: 1, dy: 0)");
+    expect(next).toContain("  instance Part = Extracted(P: @::G::P)");
+    expect(next).not.toContain("@::P");
   });
 
   it("moves a selected block-opening statement as one complete authored statement including its body and closer", () => {
@@ -186,9 +186,9 @@ describe("planExtractModule", () => {
     const source = [
       "nui 4",
       "group G {",
-      "  const inside: number = 1",
+      "  point P = coordinate(x: 0, y: 0)",
       "}",
-      "const after: number = @G::inside + 1"
+      "point User = offset(from: @G::P, dx: 1, dy: 0)"
     ].join("\n");
     const { result } = plan(source, [1]);
 
@@ -286,6 +286,19 @@ describe("planExtractModule", () => {
 
     expect(result).toMatchObject({ status: "rejected", code: "non-authored-target" });
     expect("splices" in result).toBe(false);
+  });
+
+  it("rejects a generated parameter name that would be captured by a moved for iteration binding", () => {
+    const source = [
+      "nui 4",
+      "const i: number = 10",
+      "for i in range(from: 0, count: 2) {",
+      "  const inside: number = @::i + 1",
+      "}"
+    ].join("\n");
+    const { result } = plan(source, [2]);
+
+    expect(result).toMatchObject({ status: "rejected", code: "parameter-name-collision" });
   });
 
   it("rejects cross-boundary set writes but allows a moved let/set pair to stay internal", () => {
