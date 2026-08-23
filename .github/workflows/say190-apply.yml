@@ -239,3 +239,5 @@ positive sweep serializes as `counterclockwise` and a negative sweep as
           git add -A
           git commit -m "SAY-190: align arc direction tests and docs"
           git push origin HEAD:sayosomi/say-190-nui4-arc-direction-explicit-clockwise-counterclockwise
+
+# second-push trigger: workflow already exists on this branch
