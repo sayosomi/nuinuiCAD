@@ -99,6 +99,19 @@ describe("module geometry array runtime", () => {
     expect(rootCopy.baseLineIds).toEqual(expected);
   });
 
+  it("accepts coordinate and derived point members in inline point[] arguments", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "module M(points: point[]) {",
+      "}",
+      "instance Use = M(points: [@L.start, @L.end, (1, 2)])"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+  });
+
   it("checks array argument assignability directionally", () => {
     const compiled = compileWithIds([
       "nui 4",

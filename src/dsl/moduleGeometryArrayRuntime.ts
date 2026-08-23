@@ -1,7 +1,9 @@
 import type { ElementId } from "../types/geometry";
+import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import {
   parseGeometryArrayDeferredModuleExportId,
@@ -75,10 +77,28 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
   return null;
 };
 
-const referencePath = (text: string) => {
+const parsedSourceReference = (text: string) => {
   const parsed = parseDslSourceReference(text.trim());
-  if (parsed.kind !== "valid" || parsed.reference.property) return null;
-  return parseDslReferenceToken(parsed.reference.pathText);
+  return parsed.kind === "valid" ? parsed.reference : null;
+};
+
+const referencePath = (text: string) => {
+  const reference = parsedSourceReference(text);
+  if (!reference || reference.property) return null;
+  return parseDslReferenceToken(reference.pathText);
+};
+
+const coordinateMember = (text: string) => {
+  const span = { start: 0, end: text.length };
+  return coordinateComponent(text, span, "x") && coordinateComponent(text, span, "y") ? text.trim() : null;
+};
+
+const isLineEndpointPointKey = (value: string) => value === "start" || value === "end";
+
+const aliasWithPointKey = (alias: GeometryAlias | undefined, pointKey: string | null): GeometryAlias | null => {
+  if (!alias) return null;
+  if (!pointKey) return alias;
+  return alias.kind === "line" ? { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) } : null;
 };
 
 const physicalSpanFor = (statement: DslStatement, span: DslSpan) => {
@@ -279,17 +299,27 @@ export const buildModuleGeometryArrayRuntime = ({
       const members: RuntimeArrayMember[] = [];
       for (const member of parsed.expression.members) {
         const span = { start: argument.valueSpan.start + member.span.start, end: argument.valueSpan.start + member.span.end };
-        const trimmed = member.text.trim();
-        if (/^coordinate\s*\([\s\S]*\)$/.test(trimmed)) {
+        const coordinate = coordinateMember(member.text);
+        if (coordinate) {
           const actual: GeometryArrayType = { kind: "geometryArray", elementType: "point" };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」に point を渡せません。`));
           } else members.push({ interfaceType: "point", alias: null });
           continue;
         }
-        const path = referencePath(member.text);
-        if (!path || path.segments.length === 0) {
-          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member は geometry reference または coordinate(...) で指定してください。"));
+        const sourceReference = parsedSourceReference(member.text);
+        if (!sourceReference) {
+          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member は geometry reference または coordinate point で指定してください。"));
+          continue;
+        }
+        const path = parseDslReferenceToken(sourceReference.pathText);
+        if (path.segments.length === 0) {
+          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member の参照が不正です。"));
+          continue;
+        }
+        const pointKey = sourceReference.property;
+        if (pointKey && parameter.type.elementType !== "point") {
+          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", "derived point reference は point[] の member としてのみ使用できます。"));
           continue;
         }
 
@@ -308,18 +338,23 @@ export const buildModuleGeometryArrayRuntime = ({
               const interfaceType = moduleGeometryInterfaceTypeOf(ownerParameter.type);
               const ownerDefinitionId = stableStatementIdByIndex.get(ownerIndex);
               if (interfaceType && ownerDefinitionId) {
-                const actual: GeometryArrayType = { kind: "geometryArray", elementType: interfaceType };
+                if (pointKey && ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey))) {
+                  addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`));
+                  continue;
+                }
+                const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
+                const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
                 if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
                   addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
                   continue;
                 }
-                const alias = sourceAliasForTarget({
+                const baseAlias = sourceAliasForTarget({
                   kind: "parameter",
                   definitionStatementId: ownerDefinitionId,
                   parameterIndex: parameterIndexInOwner,
                   geometryKind: interfaceType === "point" ? "point" : "line"
                 }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
-                members.push({ interfaceType, alias: alias ?? null });
+                members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });
                 continue;
               }
             }
@@ -333,21 +368,26 @@ export const buildModuleGeometryArrayRuntime = ({
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-not-geometry", `参照先「${member.text}」は geometry value ではありません。`));
             continue;
           }
-          const actual: GeometryArrayType = { kind: "geometryArray", elementType: interfaceType };
+          const sourceStatement = lookup.declaration.statement;
+          if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;
+          if (pointKey && !isDerivedPointKeyForGeometryCategory(sourceStatement.category, pointKey)) {
+            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`));
+            continue;
+          }
+          const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
+          const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
             continue;
           }
-          const sourceStatement = lookup.declaration.statement;
-          if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;
-          const alias = sourceAliasForTarget({
+          const baseAlias = sourceAliasForTarget({
             kind: "sourceGeometry",
             statementId: lookup.declaration.statementId,
             statementIndex: lookup.declaration.statementIndex,
             category: sourceStatement.category,
             geometryKind: interfaceType === "point" ? "point" : "line"
           }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
-          members.push({ interfaceType, alias: alias ?? null });
+          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });
           continue;
         }
         if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
@@ -357,14 +397,20 @@ export const buildModuleGeometryArrayRuntime = ({
             addDiagnostic(runtimeDiagnostic(statement, span, "module-undefined-export", `module export「${path.segments[1]}」が見つかりません。`));
             continue;
           }
-          const interfaceType = moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
+          const exportedStatement = statements[exportEntry.exported.exportedStatementIndex];
+          const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
-          const actual: GeometryArrayType = { kind: "geometryArray", elementType: interfaceType };
+          if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
+            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `module export「${path.segments[1]}」の derived point「${pointKey}」を解決できません。`));
+            continue;
+          }
+          const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
+          const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
             continue;
           }
-          members.push({ interfaceType, alias: exportEntry.alias });
+          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(exportEntry.alias, pointKey) });
           continue;
         }
         addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-unresolved", `未解決の geometry array member です: ${member.text}`));
