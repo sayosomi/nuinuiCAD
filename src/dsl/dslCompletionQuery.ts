@@ -766,7 +766,7 @@ const attachModuleDocumentation = (
   statementIndex: number,
   candidates: readonly DslCompletionCandidate[]
 ): readonly DslCompletionCandidate[] => {
-  const analysis = compiled?.moduleSemanticAnalysis;
+  const analysis = compiled?.moduleSemanticAnalysis ?? compiled?.sourceSemanticAnalysis;
   if (!compiled || !analysis || !exact || statementIndex < 0) return candidates;
   if (
     context.kind !== "moduleCallee" &&
