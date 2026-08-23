@@ -80,7 +80,7 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     expect(languageSession.getDiagnostics()).toEqual([]);
   });
 
-  it("keeps the production statement identity aligned for the first Pick target", () => {
+  it("resolves compiler semantics by source range when blank lines shift logical statement indices", () => {
     const languageSession = createLanguageAnalysisSession(source);
     const sourceSnapshot = {
       normalizedSource: source,
@@ -92,24 +92,29 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
     const offsetPointLine = source.indexOf("point OffsetPoint");
     const offset = atEndOf("@A", offsetPointLine);
     const logicalMap = createLogicalStatementSourceMap(sourceSnapshot);
-    const statementIndex = logicalMap.statements.findIndex((statement) =>
+    const logicalStatementIndex = logicalMap.statements.findIndex((statement) =>
       offset >= statement.range.from && offset <= statement.range.to
     );
-    expect(statementIndex).toBeGreaterThanOrEqual(0);
+    expect(logicalStatementIndex).toBeGreaterThanOrEqual(0);
+    const logicalStatement = logicalMap.statements[logicalStatementIndex]!;
+    const compiledStatementIndex = compiled.statements.findIndex((statement) =>
+      statement.documentRange.from === logicalStatement.range.from &&
+      statement.documentRange.to === logicalStatement.range.to
+    );
+    expect(compiledStatementIndex).toBeGreaterThanOrEqual(0);
+    expect(compiledStatementIndex).not.toBe(logicalStatementIndex);
 
-    const statementMapId = compiled.statementMap?.statementIdByStatementIndex.get(statementIndex);
-    const namespaceDeclarationIds = compiled.sourceLexicalNamespace?.allDeclarations
-      .filter((declaration) => declaration.statementIndex === statementIndex)
-      .map((declaration) => declaration.statementId) ?? [];
-    const scopeId = compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
-
-    expect(namespaceDeclarationIds).toEqual([statementMapId]);
-    expect(scopeId).toBeTruthy();
-    expect(queryDslReferencePickTarget({
+    const target = queryDslReferencePickTarget({
       source: sourceSnapshot,
       position: offset,
       semantic
-    })).not.toBeNull();
+    });
+    expect(target).toMatchObject({
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single",
+      sourceAnchor: { statementIndex: compiledStatementIndex }
+    });
   });
 
   it("resolves the production VS Code adapter target at representative contracted sites", () => {
