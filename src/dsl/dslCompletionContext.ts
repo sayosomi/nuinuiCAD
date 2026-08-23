@@ -20,6 +20,7 @@ import {
   svgNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import { geometryArrayDeclarationCompletionContextAt, type GeometryArrayCompletionContext } from "./dslGeometryArrayCompletionContext";
 import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
 import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
@@ -37,8 +38,9 @@ export type DslCompletionContext =
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
-  | { kind: "declaredType"; from: number; to: number }
+  | { kind: "declaredType"; from: number; to: number; bindingKind: "const" | "let" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | ({ kind: "geometryArrayValue" } & GeometryArrayCompletionContext)
   | { kind: "conditionExpression"; from: number; to: number; positionContext: ScalarExpressionCompletionContext }
   | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
   | { kind: "propertyScalarValue"; from: number; to: number; propertyContext: PropertyScalarValueCompletionContext }
@@ -400,6 +402,9 @@ export const dslCompletionContextAt = (
 
   const declaredTypeContext = declaredTypeCompletionContextAt(code, pos);
   if (declaredTypeContext) return { kind: "declaredType", ...declaredTypeContext };
+
+  const geometryArrayContext = geometryArrayDeclarationCompletionContextAt(code, pos);
+  if (geometryArrayContext) return { kind: "geometryArrayValue", ...geometryArrayContext };
 
   const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
   if (typedDeclarationContext) {

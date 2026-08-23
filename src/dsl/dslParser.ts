@@ -12,6 +12,7 @@ import {
   type DslRecordParseResult
 } from "./dslRecordParser";
 import { parseDslDeclaredValueType, type DslTypeDiagnostic } from "./dslTypeParser";
+import { annotateGeometryArraySourceTypes } from "./geometryArraySourceAnnotations";
 import * as core from "./dslParserCore";
 
 export {
@@ -183,7 +184,7 @@ const unknownRecordTypeDiagnostics = (
       column: span.start + 1,
       code: "unknown-type",
       message: moduleParameter
-        ? `不明な型注釈です: ${name}。module parameter の型は number/string/boolean/choice(...)/point/line/path または record 型を指定してください。`
+        ? `不明な型注釈です: ${name}。module parameter の型は number/string/boolean/choice(...)/point/line/path/point[]/line[]/path[] または record 型を指定してください。`
         : `不明な型注釈です: ${name}`,
       sourceRevision: base.sourceRevision,
       exactSpanOnly: true,
@@ -211,6 +212,7 @@ const unknownRecordTypeDiagnostics = (
 export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const base = core.parseDslSnapshot(snapshot);
   attachRecordTypeReferences(base);
+  annotateGeometryArraySourceTypes(base);
   const records = parseRecordEntries(base);
   const recordLines = new Set(records.map((entry) => entry.logical.range.startLine));
   const unknownTypes = unknownRecordTypeDiagnostics(base, records);

@@ -3,6 +3,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 export type DslDeclaredTypeCompletionContext = {
   from: number;
   to: number;
+  bindingKind: "const" | "let";
 };
 
 const typeNamePrefix = /^[A-Za-z_][A-Za-z0-9_]*/;
@@ -35,5 +36,5 @@ export const declaredTypeCompletionContextAt = (
   const prefix = typeNamePrefix.exec(logicalText.slice(start, annotationEnd))?.[0] ?? "";
   const end = start + prefix.length;
   if (pos < start || pos > end) return null;
-  return { from: start, to: pos };
+  return { from: start, to: pos, bindingKind: statement.bindingKind };
 };

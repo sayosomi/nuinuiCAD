@@ -10,6 +10,7 @@ import {
   parseDslSourceReference,
   readDslReferencePathSegments
 } from "./dslReferenceTokens";
+import { parseGeometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import {
   resolveSourceLexicalPathSegments,
   type SourceLexicalDeclaration
@@ -301,6 +302,143 @@ const addQualifiedPathOccurrences = (
   });
 };
 
+const geometryArrayValueIdentity = (
+  compiled: CompiledDslDocument,
+  statementId: string
+): DslSemanticIdentity | null => semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId });
+
+const geometryArrayParameterIdentity = (
+  definitionStatementId: string,
+  parameterIndex: number
+): DslSemanticIdentity => ({
+  kind: "module",
+  target: {
+    kind: "moduleParameter",
+    slot: { definitionStatementId, parameterIndex }
+  }
+});
+
+const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const analysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  if (!analysis) return;
+
+  const parsedReferenceAt = (statementIndex: number, span: { start: number; end: number }) => {
+    const statement = compiled.statements[statementIndex];
+    const logical = statement
+      ? compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from)
+      : undefined;
+    if (!logical) return null;
+    const parsed = parseDslSourceReference(logical.logicalText.slice(span.start, span.end));
+    if (parsed.kind !== "valid") return null;
+    return {
+      reference: parsed.reference,
+      pathSpan: {
+        start: span.start + parsed.reference.pathRange.start,
+        end: span.start + parsed.reference.pathRange.end
+      }
+    };
+  };
+
+  const addReference = (
+    statementIndex: number,
+    span: { start: number; end: number },
+    identity: DslSemanticIdentity | null,
+    direct = false
+  ) => {
+    const parsed = parsedReferenceAt(statementIndex, span);
+    if (!parsed || !identity) return;
+    if (direct) {
+      addPhysicalOccurrence(add, compiled, statementIndex, parsed.pathSpan, identity, "reference");
+      return;
+    }
+    addQualifiedPathOccurrences(compiled, add, statementIndex, parsed.pathSpan, identity);
+  };
+
+  const parameterForValueId = (valueId: string) => analysis.moduleParameters.find((parameter) =>
+    valueId === `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`
+  ) ?? null;
+
+  const addDeferredExportReference = (
+    statementIndex: number,
+    span: { start: number; end: number },
+    instanceStatementId: string,
+    exportName: string
+  ) => {
+    const parsed = parsedReferenceAt(statementIndex, span);
+    if (!parsed) return;
+    const physical = physicalRange(compiled, statementIndex, parsed.pathSpan);
+    if (!physical) return;
+    const source = compiled.spans.sourceMap.source;
+    const ranges = readDslReferencePathSegments(source, physical.from, physical.to);
+    if (ranges.kind !== "valid" || ranges.segments.length !== 2) return;
+    const instanceRange = ranges.segments[0];
+    if (instanceRange) add("reference", instanceRange.start, instanceRange.end, {
+      kind: "module",
+      target: { kind: "moduleInstance", statementId: instanceStatementId }
+    });
+    const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(instanceStatementId);
+    const definitionIndex = instance?.callee?.definitionStatementIndex;
+    const exported = definitionIndex === undefined
+      ? null
+      : analysis.values.find((value) =>
+          value.ownerModuleDefinitionStatementIndex === definitionIndex &&
+          value.exported &&
+          value.name === exportName
+        ) ?? null;
+    const exportRange = ranges.segments[1];
+    if (exportRange && exported) {
+      add("reference", exportRange.start, exportRange.end, geometryArrayValueIdentity(compiled, exported.statementId));
+    }
+  };
+
+  for (const value of analysis.values) {
+    const statement = compiled.statements[value.statementIndex];
+    if (!statement?.nameSpan) continue;
+    const valueIdentity = geometryArrayValueIdentity(compiled, value.statementId);
+    addPhysicalOccurrence(add, compiled, value.statementIndex, statement.nameSpan, valueIdentity, "declaration");
+    if (!value.value) continue;
+
+    if (value.value.kind === "literal") {
+      for (const member of value.value.members) {
+        if (member.target.kind === "coordinate") continue;
+        if (member.target.kind === "moduleParameter") {
+          addReference(
+            value.statementIndex,
+            member.sourceSpan,
+            geometryArrayParameterIdentity(member.target.definitionStatementId, member.target.parameterIndex),
+            true
+          );
+          continue;
+        }
+        const elementId = elementIdForStatementIndex(compiled, member.target.statementIndex);
+        const identity = elementIdentity(compiled, elementId) ?? geometryArrayValueIdentity(compiled, member.target.statementId);
+        addReference(value.statementIndex, member.sourceSpan, identity);
+      }
+      continue;
+    }
+
+    const targetValue = analysis.valuesByStatementId.get(value.value.targetValueId);
+    if (targetValue) {
+      addReference(value.statementIndex, value.value.sourceSpan, geometryArrayValueIdentity(compiled, targetValue.statementId));
+      continue;
+    }
+    const parameter = parameterForValueId(value.value.targetValueId);
+    if (parameter) {
+      addReference(
+        value.statementIndex,
+        value.value.sourceSpan,
+        geometryArrayParameterIdentity(parameter.definitionStatementId, parameter.parameterIndex),
+        true
+      );
+      continue;
+    }
+    const deferred = parseGeometryArrayDeferredModuleExportId(value.value.targetValueId);
+    if (deferred) {
+      addDeferredExportReference(value.statementIndex, value.value.sourceSpan, deferred.instanceStatementId, deferred.exportName);
+    }
+  }
+};
+
 const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (!analysis) return;
@@ -437,6 +575,7 @@ export const createDslSemanticOccurrenceIndex = (
   addTypedOccurrences(compiled, bindingAnalysis, add, addQualifiedPath);
   addRootDeclarations(compiled, add);
   addModuleOccurrences(compiled, add);
+  addGeometryArrayOccurrences(compiled, add);
   addSourceOutputOccurrences(compiled, add);
   addDrawingProfileOccurrences(compiled, add);
 

@@ -1,5 +1,7 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
+import { parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import { isBareDslIdentifierChar } from "../dsl/dslTokens";
 import {
   createModuleSemanticRangeIndex,
@@ -79,6 +81,29 @@ const sameScopeCollision = (
   return { conflictingName: conflictingDeclaration.name, ...(conflictingRange ? { conflictingRange } : {}) };
 };
 
+const geometryArraySemanticOccurrences = (
+  compiled: CompiledDslDocument,
+  target: ModuleSemanticTarget
+): {
+  declaration: { from: number; to: number };
+  tokens: readonly { from: number; to: number; target: ModuleSemanticTarget }[];
+} | null => {
+  if (
+    target.kind !== "moduleSource" ||
+    !compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.has(target.statementId)
+  ) return null;
+  const key = dslSemanticIdentityKey({ kind: "module", target });
+  const occurrences = createDslSemanticOccurrenceIndex(compiled).occurrences.filter((occurrence) =>
+    dslSemanticIdentityKey(occurrence.identity) === key
+  );
+  const declaration = occurrences.find((occurrence) => occurrence.kind === "declaration");
+  if (!declaration) return null;
+  return {
+    declaration: { from: declaration.from, to: declaration.to },
+    tokens: occurrences.map((occurrence) => ({ from: occurrence.from, to: occurrence.to, target }))
+  };
+};
+
 /** Stable-resolution snapshot used by both module rename safety && its
  * compile-after-splice boundary. Names && export labels are intentionally
  * absent; source statement/parameter identities are the comparison keys. */
@@ -113,6 +138,48 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     target: targetFingerprint(reference.target),
     coordinate: reference.coordinate ? { x: expressionFingerprint(reference.coordinate.x), y: expressionFingerprint(reference.coordinate.y) } : null
   });
+  const geometryArrayAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const geometryArrayAliasTargetFingerprint = (targetValueId: string): unknown => {
+    const deferred = parseGeometryArrayDeferredModuleExportId(targetValueId);
+    if (!deferred) return targetValueId;
+    const instance = analysis.instancesByStatementId.get(deferred.instanceStatementId);
+    const definitionIndex = instance?.callee?.definitionStatementIndex;
+    const exported = definitionIndex === undefined
+      ? null
+      : geometryArrayAnalysis?.values.find((value) =>
+          value.ownerModuleDefinitionStatementIndex === definitionIndex &&
+          value.exported &&
+          value.name === deferred.exportName
+        ) ?? null;
+    return {
+      kind: "deferredModuleArrayExport",
+      instanceStatementId: deferred.instanceStatementId,
+      exportedStatementId: exported?.statementId ?? null
+    };
+  };
+  const geometryArrayTargetFingerprint = (target: unknown): unknown => {
+    if (!target || typeof target !== "object") return target;
+    const value = target as Record<string, unknown>;
+    if (value.kind === "geometry") {
+      return {
+        kind: value.kind,
+        statementId: value.statementId,
+        interfaceType: value.interfaceType,
+        pointKey: value.pointKey ?? null
+      };
+    }
+    if (value.kind === "moduleParameter") {
+      return {
+        kind: value.kind,
+        definitionStatementId: value.definitionStatementId,
+        parameterIndex: value.parameterIndex,
+        interfaceType: value.interfaceType,
+        pointKey: value.pointKey ?? null
+      };
+    }
+    if (value.kind === "coordinate") return { kind: value.kind, source: value.source };
+    return value.kind;
+  };
   return JSON.stringify({
     definitions: analysis.definitions.map((definition) => ({
       id: definition.statementId,
@@ -146,7 +213,35 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       scalarTarget: targetFingerprint(body.scalarTarget)
     }))),
     roots: [...analysis.rootGeometryReferencesByStatementId].map(([id, refs]) => [id, refs.map((site) => geometryFingerprint(site.reference))]),
-    scalarRoots: [...analysis.rootScalarExpressionsByStatementId].map(([id, site]) => [id, expressionFingerprint(site.expression)])
+    scalarRoots: [...analysis.rootScalarExpressionsByStatementId].map(([id, site]) => [id, expressionFingerprint(site.expression)]),
+    geometryArrays: geometryArrayAnalysis ? {
+      values: geometryArrayAnalysis.values.map((value) => ({
+        id: value.statementId,
+        type: value.type,
+        owner: value.ownerModuleDefinitionStatementIndex === null
+          ? null
+          : compiled.statementMap?.statementIdByStatementIndex?.get(value.ownerModuleDefinitionStatementIndex) ?? value.ownerModuleDefinitionStatementIndex,
+        exported: value.exported,
+        value: value.value?.kind === "alias"
+          ? { kind: "alias", type: value.value.type, target: geometryArrayAliasTargetFingerprint(value.value.targetValueId) }
+          : value.value?.kind === "literal"
+            ? {
+                kind: "literal",
+                type: value.value.type,
+                members: value.value.members.map((member) => ({
+                  interfaceType: member.interfaceType,
+                  target: geometryArrayTargetFingerprint(member.target)
+                }))
+              }
+            : null
+      })),
+      parameters: geometryArrayAnalysis.moduleParameters.map((parameter) => ({
+        definitionStatementId: parameter.definitionStatementId,
+        parameterIndex: parameter.parameterIndex,
+        type: parameter.type,
+        optional: parameter.optional
+      }))
+    } : null
   });
 };
 
@@ -220,7 +315,8 @@ export const analyzeModuleSemanticRename = (
   if (sourceText.replace(/\r\n/g, "\n") !== compiled.spans.sourceMap.source) return { verdict: "rejected", reason: "stale" };
   if (!validIdentifier(newName)) return { verdict: "rejected", reason: "invalid-name", detail: "名前をDSL識別子として安全に表現できません。" };
   const index = createModuleSemanticRangeIndex(compiled);
-  const declaration = moduleSemanticDeclarationRange(index, target);
+  const geometryArrayOccurrences = geometryArraySemanticOccurrences(compiled, target);
+  const declaration = moduleSemanticDeclarationRange(index, target) ?? geometryArrayOccurrences?.declaration;
   if (!declaration) return { verdict: "rejected", reason: "target-not-found" };
   const oldName = sourceText.slice(declaration.from, declaration.to);
   if (!oldName || !validIdentifier(oldName)) return { verdict: "rejected", reason: "span-mismatch" };
@@ -237,18 +333,26 @@ export const analyzeModuleSemanticRename = (
   const targetKey = moduleSemanticTargetKey(target);
   const entries: SourceSemanticRenameSpliceEntry[] = [];
   const seen = new Set<string>();
-  for (const token of index.tokens) {
+  const tokens = geometryArrayOccurrences?.tokens ?? index.tokens;
+  for (const token of tokens) {
     if (moduleSemanticTargetKey(token.target) !== targetKey) continue;
     const statementIndex = statementIndexForOffset(compiled, token.from);
     if (statementIndex < 0 || token.to <= token.from || sourceText.slice(token.from, token.to) !== oldName) {
       return { verdict: "rejected", reason: "span-mismatch" };
     }
-    const replacement = shorthandRenameReplacement(sourceText, compiled, index, token, target, oldName, newName) ?? {
-      from: token.from,
-      to: token.to,
-      oldName: sourceText.slice(token.from, token.to),
-      newName
-    };
+    const replacement = geometryArrayOccurrences
+      ? {
+          from: token.from,
+          to: token.to,
+          oldName: sourceText.slice(token.from, token.to),
+          newName
+        }
+      : shorthandRenameReplacement(sourceText, compiled, index, token, target, oldName, newName) ?? {
+          from: token.from,
+          to: token.to,
+          oldName: sourceText.slice(token.from, token.to),
+          newName
+        };
     const key = `${replacement.from}:${replacement.to}`;
     if (seen.has(key)) continue;
     seen.add(key);

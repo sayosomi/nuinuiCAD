@@ -101,9 +101,9 @@ const matchingClose = (source: string, open: number, to: number) => {
       quote = character;
     } else if (character === "(") {
       parenDepth += 1;
-    } else if (character === ")" && bracketDepth === 0) {
-      parenDepth -= 1;
-      if (parenDepth === 0) return index;
+    } else if (character === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      if (parenDepth === 0 && bracketDepth === 0) return index;
     } else if (character === "[") {
       bracketDepth += 1;
     } else if (character === "]") {

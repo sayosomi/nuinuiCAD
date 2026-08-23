@@ -14,6 +14,7 @@ import type {
   ResolvedModuleExport,
 } from "./moduleSemanticTypes";
 import { moduleMutationOwnershipDiagnostics } from "./moduleMutationOwnership";
+import { buildModuleGeometryArrayRuntime } from "./moduleGeometryArrayRuntime";
 import {
   diagnosticForExport,
   diagnosticForExportNamespace,
@@ -56,7 +57,6 @@ export type ModuleGeometryRuntimeCompilation = {
     instancePath: readonly string[]
   ) => ModulePointCoordinateSemantic | undefined;
 };
-
 
 export const buildModuleGeometryRuntime = ({
   statements,
@@ -126,6 +126,16 @@ export const buildModuleGeometryRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) register(instance.statementId, []);
   }
 
+  const geometryArrayRuntime = buildModuleGeometryArrayRuntime({
+    statements,
+    stableStatementIdByIndex,
+    moduleSemanticAnalysis,
+    moduleMaterialization,
+    contextsByPath,
+    exportsByPath
+  });
+  diagnostics.push(...geometryArrayRuntime.diagnostics);
+
   const definitionForInstance = (instanceStatementId: string) => {
     const childInstance = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
     return childInstance?.callee
@@ -156,7 +166,9 @@ export const buildModuleGeometryRuntime = ({
   };
 
   const validateReference = (statement: DslStatement, reference: ModuleGeometryReferenceSemantic, currentPath: readonly string[]) => {
-    if (reference.target?.kind === "deferredModuleExport") validateDeferred(statement, reference.target, currentPath);
+    if (reference.target?.kind !== "deferredModuleExport") return;
+    if (geometryArrayRuntime.acceptsDeferredLineListExport(reference, currentPath)) return;
+    validateDeferred(statement, reference.target, currentPath);
   };
 
   // Ownership belongs to the module definition, not to a particular
@@ -199,14 +211,22 @@ export const buildModuleGeometryRuntime = ({
   for (const entry of moduleMaterialization.executionStatements) {
     if (entry.type === "moduleInstance") continue;
     const sites = entrySites(entry);
-    resolversByRuntimeElementId.set(entry.runtimeElementId, resolverForBody({
+    const baseResolver = resolverForBody({
       statement: entry.statement,
       sites,
       currentPath: entry.instancePath,
       contextsByPath,
       materialization: moduleMaterialization,
       exportsByPath
-    }));
+    });
+    resolversByRuntimeElementId.set(entry.runtimeElementId, {
+      ...baseResolver,
+      resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
+        token,
+        entry.sourceStatementIndex,
+        entry.instancePath
+      )
+    });
   }
 
   for (const [statementIndex, statement] of statements.entries()) {

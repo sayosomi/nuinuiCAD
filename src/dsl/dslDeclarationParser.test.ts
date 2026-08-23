@@ -27,6 +27,42 @@ describe("DSL typed declaration parser", () => {
     expect(source.slice(statement.payloadSpans.initializer.start, statement.payloadSpans.initializer.end)).toBe('"前身頃"');
   });
 
+  it("parses the three immutable geometry-array type spellings", () => {
+    for (const [sourceType, elementType] of [
+      ["point[]", "point"],
+      ["line[]", "line"],
+      ["path[]", "path"]
+    ] as const) {
+      const result = parse(`const items: ${sourceType} = []`);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.statement).toMatchObject({
+        bindingKind: "const",
+        declaredType: null,
+        recordTypeReference: null,
+        geometryArrayType: { kind: "geometryArray", elementType },
+        initializer: "[]"
+      });
+    }
+  });
+
+  it("rejects mutable and unsupported geometry-array type spellings", () => {
+    const mutable = parse("let items: path[] = []");
+    expect(mutable.statement?.geometryArrayType).toEqual({ kind: "geometryArray", elementType: "path" });
+    expect(mutable.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-array-const-only", span: { start: 0, end: 3 } })
+    );
+
+    for (const source of [
+      "const items: number[] = []",
+      "const items: point[][] = []",
+      "const items: path [ ] = []"
+    ]) {
+      const result = parse(source);
+      expect(result.statement?.geometryArrayType).toBeNull();
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "unknown-type" }));
+    }
+  });
+
   it("parses a choice declaration and records per-option spans in order", () => {
     const source = "const 方向: choice(right, left, center) = left";
     const result = parse(source);
