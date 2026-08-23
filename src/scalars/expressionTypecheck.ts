@@ -20,7 +20,8 @@ import type { BindingResolution } from "./bindingResolution";
 import {
   formatBuiltinCallingStyleMismatch,
   getBuiltinFunctionDefinition,
-  isScalarBuiltinParameterType
+  isScalarBuiltinParameterType,
+  type BuiltinScalarParameterType
 } from "./builtinFunctions";
 import type {
   ScalarExpressionResolvedGeometryTarget,
@@ -92,6 +93,24 @@ const checkOperandType = (state: TraversalState, operand: TypedScalarExpression,
     span: operand.span,
     message: `型が一致しません(期待: ${describeScalarType(requiredType)}, 実際: ${describeScalarType(operand.type)})。`,
     expectedType: requiredType,
+    actualType: operand.type
+  });
+  return false;
+};
+
+/** Builtin-only matcher for constraints that are intentionally broader than a concrete ScalarType. */
+const checkBuiltinOperandType = (
+  state: TraversalState,
+  operand: TypedScalarExpression,
+  requiredType: BuiltinScalarParameterType
+): boolean => {
+  if (requiredType.kind !== "anyChoice") return checkOperandType(state, operand, requiredType);
+  if (operand.type === null) return false;
+  if (operand.type.kind === "choice") return true;
+  addDiagnostic(state, {
+    code: "scalar-type-mismatch",
+    span: operand.span,
+    message: `型が一致しません(期待: choice(...), 実際: ${describeScalarType(operand.type)})。`,
     actualType: operand.type
   });
   return false;
@@ -374,7 +393,7 @@ const checkNode = (
           }
           const parameterType = signature.parameters[parameterIndex].type;
           if (isScalarBuiltinParameterType(parameterType)) {
-            if (!checkOperandType(state, expression, parameterType)) argumentsAreValid = false;
+            if (!checkBuiltinOperandType(state, expression, parameterType)) argumentsAreValid = false;
           } else {
             argumentsAreValid = false;
           }
@@ -418,7 +437,7 @@ const checkNode = (
         if (isScalarBuiltinParameterType(parameterType)) {
           const argument = checkNode(nodeArgument.expression, null, state);
           args.push({ kind: "scalar", expression: argument });
-          if (!checkOperandType(state, argument, parameterType)) argumentsAreValid = false;
+          if (!checkBuiltinOperandType(state, argument, parameterType)) argumentsAreValid = false;
           continue;
         }
 
@@ -479,7 +498,7 @@ export const typecheckScalarExpression = (
     state.diagnostics.push({
       code: "scalar-type-mismatch",
       span: ast.span,
-    message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
+      message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
       expectedType: context.expectedType,
       actualType: type
     });
