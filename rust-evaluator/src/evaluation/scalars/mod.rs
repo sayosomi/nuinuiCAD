@@ -64,6 +64,8 @@ mod property_binding_payload_tests;
 #[cfg(test)]
 mod scalar_payload_tests;
 #[cfg(test)]
+mod string_builtin_tests;
+#[cfg(test)]
 mod text_property_binding_payload_tests;
 #[cfg(test)]
 mod text_template_payload_tests;
