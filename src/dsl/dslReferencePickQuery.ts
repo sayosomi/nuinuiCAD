@@ -117,25 +117,29 @@ const sourceAnchorFor = (
   compiled: CompiledDslDocument,
   exact: ExactPosition
 ): DslReferencePickSourceAnchor | null => {
-  const compiledStatement = compiled.statements[exact.statementIndex];
+  const statementIndices = compiled.statements.flatMap((statement, statementIndex) =>
+    statement.documentRange.from === exact.statement.range.from &&
+    statement.documentRange.to === exact.statement.range.to
+      ? [statementIndex]
+      : []
+  );
+  if (statementIndices.length !== 1) return null;
+  const statementIndex = statementIndices[0]!;
+  const compiledStatement = compiled.statements[statementIndex];
   if (!compiledStatement) return null;
-  if (
-    compiledStatement.documentRange.from !== exact.statement.range.from ||
-    compiledStatement.documentRange.to !== exact.statement.range.to
-  ) return null;
 
   const namespace = compiled.sourceLexicalNamespace;
   const namespaceDeclaration = namespace?.allDeclarations.find((candidate) =>
-    candidate.statementIndex === exact.statementIndex
+    candidate.statementIndex === statementIndex
   );
-  const setAnalysis = compiled.setStatements?.get(exact.statementIndex);
+  const setAnalysis = compiled.setStatements?.get(statementIndex);
   const statementId = oneExactString([
-    compiled.statementMap?.statementIdByStatementIndex?.get(exact.statementIndex),
+    compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex),
     namespaceDeclaration?.statementId,
     setAnalysis?.statementId
   ]);
   const scopeId = oneExactString([
-    namespace?.scopeIndex.scopeOfStatement.get(exact.statementIndex),
+    namespace?.scopeIndex.scopeOfStatement.get(statementIndex),
     setAnalysis?.scopeId
   ]);
   if (!statementId || !scopeId) return null;
@@ -143,8 +147,8 @@ const sourceAnchorFor = (
   return {
     sourceRevision: exact.map.sourceRevision,
     statementId,
-    statementIndex: exact.statementIndex,
-    sourceOrderIndex: exact.statementIndex,
+    statementIndex,
+    sourceOrderIndex: statementIndex,
     scopeId,
     statementRange: {
       from: exact.statement.range.from,
@@ -388,11 +392,11 @@ const targetForCall = (
 
   const expectation = call.kind === "construction"
     ? (() => {
-        const parameter = constructionParameter(compiled, exact.statementIndex, call, argument);
+        const parameter = constructionParameter(compiled, anchor.statementIndex, call, argument);
         return parameter ? expectationForParameter(parameter) : null;
       })()
     : call.kind === "module"
-      ? moduleExpectation(compiled, exact.statementIndex, argument)
+      ? moduleExpectation(compiled, anchor.statementIndex, argument)
       : builtinExpectation(call, argument);
   if (!expectation) return null;
 
@@ -434,7 +438,7 @@ const emptyConstructionTarget = (
   compiled: CompiledDslDocument,
   anchor: DslReferencePickSourceAnchor
 ): DslReferencePickTarget | null => {
-  const statement = compiled.statements[exact.statementIndex];
+  const statement = compiled.statements[anchor.statementIndex];
   if (statement?.kind !== "element" || !statement.type) return null;
   const emptyAttrs = statement.attrs.filter((attr) =>
     attr.value === "" &&
@@ -488,7 +492,7 @@ const setNumericTarget = (
 ): DslReferencePickTarget | null => {
   const context = setCompletionContextAt(exact.statement.logicalText, exact.logicalPosition);
   if (context?.kind !== "rhs") return null;
-  const analysis = compiled.setStatements?.get(exact.statementIndex);
+  const analysis = compiled.setStatements?.get(anchor.statementIndex);
   if (!analysis || analysis.statementId !== anchor.statementId || analysis.scopeId !== anchor.scopeId) return null;
   const targetBinding = compiled.bindingAnalysis?.catalog.bindingsById.get(analysis.targetBindingId);
   if (targetBinding?.declaredType?.kind !== "number") return null;
