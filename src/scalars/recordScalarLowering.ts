@@ -12,7 +12,12 @@ import {
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
 import type { DslSpan } from "../dsl/dslTypes";
-import type { BindingId, BindingSeed } from "./bindingCatalog";
+import type {
+  BindingCatalog,
+  BindingId,
+  BindingSeed,
+  SourceNamespaceBindingResolver
+} from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
@@ -71,7 +76,7 @@ export type RecordScalarPropertyResolution = {
     bindingId: BindingId;
     name: string;
     span: DslSpan;
-    access: RecordScalarFieldAccess;
+    access?: RecordScalarFieldAccess;
   }[];
   accesses: readonly RecordScalarFieldAccess[];
   issues: readonly RecordScalarPropertyIssue[];
@@ -190,6 +195,108 @@ export const planRecordScalarLowering = ({
 };
 
 /**
+ * Record-aware branch for the existing source namespace -> scalar catalog
+ * adapter. The caller composes this before ordinary scalar source lookup.
+ * Dotted names that do not resolve to record values are deliberately ignored.
+ */
+export const recordScalarSourceBindingResolverFor = ({
+  analysis,
+  sourceNamespace,
+  plan
+}: {
+  analysis: RecordSemanticAnalysis;
+  sourceNamespace: SourceLexicalNamespaceIndex;
+  plan: RecordScalarLoweringPlan;
+}): SourceNamespaceBindingResolver => (name, statementIndex) => {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0 || dot === name.length - 1) return null;
+  const baseName = name.slice(0, dot);
+  const property = name.slice(dot + 1);
+  // A second property separator means chained record access, which v1 does
+  // not support. Claim it only if the first base is itself a record value.
+  const firstDot = baseName.indexOf(".");
+  if (firstDot >= 0) {
+    const firstBase = baseName.slice(0, firstDot);
+    const firstLookup = resolveSourceLexicalPath(
+      sourceNamespace,
+      statementIndex,
+      parseDslReferenceToken(firstBase)
+    );
+    if (firstLookup.kind === "resolved" && firstLookup.declaration.kind === "recordValue") {
+      return {
+        kind: "blocked",
+        reason: "invalidTraversal",
+        declarationKind: "recordValue",
+        statementId: firstLookup.declaration.statementId
+      };
+    }
+    return null;
+  }
+
+  const lookup = resolveSourceLexicalPath(
+    sourceNamespace,
+    statementIndex,
+    parseDslReferenceToken(baseName)
+  );
+  if (lookup.kind === "forward") {
+    const declaration = lookup.declarations.find((item) => item.kind === "recordValue");
+    return declaration
+      ? {
+          kind: "blocked",
+          reason: "forward",
+          declarationKind: "recordValue",
+          statementId: declaration.statementId
+        }
+      : null;
+  }
+  if (lookup.kind === "ambiguous") {
+    const declaration = lookup.declarations.find((item) => item.kind === "recordValue");
+    return declaration
+      ? {
+          kind: "blocked",
+          reason: "ambiguous",
+          declarationKind: "recordValue",
+          statementId: declaration.statementId
+        }
+      : null;
+  }
+  if (lookup.kind === "invalidTraversal") {
+    return lookup.declaration.kind === "recordValue"
+      ? {
+          kind: "blocked",
+          reason: "invalidTraversal",
+          declarationKind: "recordValue",
+          statementId: lookup.declaration.statementId
+        }
+      : null;
+  }
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "recordValue") return null;
+
+  const value = analysis.valuesByStatementId.get(lookup.declaration.statementId);
+  const definition = value?.typeIdentity
+    ? analysis.definitionsByStatementId.get(value.typeIdentity)
+    : undefined;
+  const field = definition?.fields.find((item) => item.name === property);
+  if (!value || !definition || !field) {
+    return {
+      kind: "blocked",
+      reason: "incompatible",
+      declarationKind: "recordValue",
+      statementId: lookup.declaration.statementId
+    };
+  }
+  const bindingId = plan.fieldBindingIdsByValueStatementId.get(value.statementId)?.get(field.fieldIndex);
+  return bindingId
+    ? { kind: "resolved", bindingId }
+    : {
+        kind: "blocked",
+        reason: "incompatible",
+        declarationKind: "recordValue",
+        statementId: lookup.declaration.statementId
+      };
+};
+
+/**
  * Classifies source-level dotted property nodes that are actually record fields.
  * Non-record bases are intentionally left unclaimed so the existing geometry-property
  * resolver keeps byte-for-byte ownership of those references.
@@ -215,7 +322,7 @@ export const resolveRecordScalarProperties = ({
     bindingId: BindingId;
     name: string;
     span: DslSpan;
-    access: RecordScalarFieldAccess;
+    access?: RecordScalarFieldAccess;
   }[] = [];
   const accesses: RecordScalarFieldAccess[] = [];
   const issues: RecordScalarPropertyIssue[] = [];
@@ -334,6 +441,150 @@ export const resolveRecordScalarProperties = ({
 
   visit(ast);
   return { referencesBySpanStart, dependencies, accesses, issues };
+};
+
+const blockedRecordPropertyIssue = (
+  node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>,
+  reason: "forward" | "ambiguous" | "incompatible" | "invalidTraversal" | "private"
+): RecordScalarPropertyIssue => {
+  if (reason === "forward") {
+    return {
+      code: "record-value-forward-reference",
+      span: node.elementNameSpan,
+      message: `record 値「${node.elementName}」はこの位置より後で宣言されているため、まだ参照できません。`
+    };
+  }
+  if (reason === "ambiguous") {
+    return {
+      code: "record-value-ambiguous",
+      span: node.elementNameSpan,
+      message: `record 値「${node.elementName}」は複数の宣言と一致するため一意に解決できません。`
+    };
+  }
+  if (reason === "invalidTraversal") {
+    return {
+      code: "record-field-invalid-traversal",
+      span: node.span,
+      message: `record field「${node.elementName}.${node.property}」の chained / namespace traversal は v1 では使用できません。`
+    };
+  }
+  return {
+    code: "record-field-unknown",
+    span: node.propertySpan,
+    message: `record 値「${node.elementName}」に利用可能な field「${node.property}」はありません。`
+  };
+};
+
+/**
+ * Consumer-side variant that needs no record semantic object. The catalog's
+ * source namespace adapter already closes over the exact current record model
+ * and lowering plan, and Module scalar runtime preserves that adapter when it
+ * rebuilds the combined catalog. This keeps every scalar consumer on one
+ * record-property rule without threading record objects through dslDocument.
+ */
+export const prepareRecordScalarExpressionFromCatalog = ({
+  ast,
+  statementIndex,
+  catalog,
+  referenceResolutions,
+  skipPropertySpanStarts = new Set<number>()
+}: {
+  ast: ScalarExpressionAst;
+  statementIndex: number;
+  catalog: BindingCatalog;
+  referenceResolutions: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  skipPropertySpanStarts?: ReadonlySet<number>;
+}): PreparedRecordScalarExpression => {
+  const referencesBySpanStart = new Map<number, ScalarExpressionResolvedReference>();
+  const dependencies: { bindingId: BindingId; name: string; span: DslSpan }[] = [];
+  const issues: RecordScalarPropertyIssue[] = [];
+  const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
+
+  const visitProperty = (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => {
+    if (skipPropertySpanStarts.has(node.span.start)) return;
+    const lookup = catalog.sourceNamespaceBindingResolver?.(
+      `${node.elementName}.${node.property}`,
+      statementIndex,
+      scopeId
+    );
+    if (lookup?.kind === "resolved") {
+      const binding = catalog.bindingsById.get(lookup.bindingId);
+      if (!binding || binding.kind !== "typed") {
+        referencesBySpanStart.set(node.span.start, { kind: "resolvedType", bindingId: null, type: null });
+        issues.push({
+          code: "record-field-unavailable",
+          span: node.span,
+          message: `record field「${node.elementName}.${node.property}」の scalar binding を取得できません。`
+        });
+        return;
+      }
+      referencesBySpanStart.set(node.span.start, {
+        kind: "resolvedType",
+        bindingId: binding.id,
+        type: binding.declaredType
+      });
+      dependencies.push({ bindingId: binding.id, name: `${node.elementName}.${node.property}`, span: node.span });
+      return;
+    }
+    if (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue") {
+      referencesBySpanStart.set(node.span.start, { kind: "resolvedType", bindingId: null, type: null });
+      issues.push(blockedRecordPropertyIssue(node, lookup.reason));
+    }
+  };
+
+  const classify = (node: ScalarExpressionAst): void => {
+    switch (node.kind) {
+      case "geometryProperty": visitProperty(node); return;
+      case "unary": classify(node.operand); return;
+      case "binary": classify(node.left); classify(node.right); return;
+      case "group": classify(node.expression); return;
+      case "call": node.args.forEach((argument) => classify(argument.expression)); return;
+      default: return;
+    }
+  };
+  classify(ast);
+
+  const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
+  let referenceCursor = 0;
+  const rewrite = (node: ScalarExpressionAst): ScalarExpressionAst => {
+    switch (node.kind) {
+      case "reference": {
+        const resolution = referenceResolutions[referenceCursor];
+        if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for @${node.name} at ${node.span.start}`);
+        referenceCursor += 1;
+        references.push(resolution);
+        return node;
+      }
+      case "geometryProperty": {
+        const resolution = referencesBySpanStart.get(node.span.start);
+        if (!resolution || resolution.kind !== "resolvedType") return node;
+        references.push(resolution);
+        return {
+          kind: "reference",
+          span: node.span,
+          nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
+          name: `${node.elementName}.${node.property}`
+        };
+      }
+      case "unary": return { ...node, operand: rewrite(node.operand) };
+      case "binary": return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
+      case "group": return { ...node, expression: rewrite(node.expression) };
+      case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) })) };
+      default: return node;
+    }
+  };
+  const rewritten = rewrite(ast);
+  if (referenceCursor !== referenceResolutions.length) {
+    throw new Error(`recordScalarLowering: ${referenceResolutions.length - referenceCursor} unconsumed scalar reference resolution(s)`);
+  }
+  return {
+    ast: rewritten,
+    references,
+    referencesBySpanStart,
+    dependencies,
+    accesses: [],
+    issues
+  };
 };
 
 /**
