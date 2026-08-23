@@ -81,10 +81,10 @@ describe("createModulePreviewSession", () => {
       ["note", "optionalOmitted"]
     ]);
 
-    state = session.setValue(targetA.definitionStatementId, 1, "8");
+    session.setValue(targetA.definitionStatementId, 1, "8");
     state = session.setValue(targetA.definitionStatementId, 2, '"memo"');
     expect(state?.preview.kind).toBe("current");
-    state = session.setValue(targetA.definitionStatementId, 1, "");
+    session.setValue(targetA.definitionStatementId, 1, "");
     state = session.setValue(targetA.definitionStatementId, 2, "");
     expect(state?.preview.kind).toBe("current");
     expect(previewBindingStates(state!, targetA.definitionStatementId)).toEqual([
@@ -153,8 +153,8 @@ describe("createModulePreviewSession", () => {
     expect(state?.ancestorContexts.map((group) => group.name)).toEqual(["Outer", "Middle"]);
     expect(state?.parameters.name).toBe("Inner");
 
-    state = session.setValue(outer.statementId, 0, "2");
-    state = session.setValue(middle.statementId, 0, "@scale + 3");
+    session.setValue(outer.statementId, 0, "2");
+    session.setValue(middle.statementId, 0, "@scale + 3");
     state = session.setValue(target.definitionStatementId, 0, "@offset * 4");
     expect(state?.preview.kind).toBe("current");
     expect(state?.ancestorContexts[1]?.parameters[0]?.value).toBe("@scale + 3");
@@ -204,12 +204,12 @@ describe("createModulePreviewSession", () => {
     if (!target) throw new Error("expected preview target");
 
     const session = createModulePreviewSession();
-    let state = session.activate({
+    session.activate({
       source: { normalizedSource: source, sourceRevision: 41 },
       semantic: { sourceRevision: 41, compiled },
       target
     });
-    state = session.setValue(target.definitionStatementId, 0, "@Origin");
+    const state = session.setValue(target.definitionStatementId, 0, "@Origin");
     expect(state?.preview.kind).toBe("current");
     const action = session.useDefaultExplicitly(target.definitionStatementId, 1);
     expect(action.applied).toBe(false);
