@@ -1,0 +1,31 @@
+name: SAY-133 connector-safe patch
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'sayosomi/say-133-module-docs-completion-signature-help-localemarkdown'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Apply exact source edits
+        run: python scripts/say133_patch.py
+      - name: Commit source edits
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/dsl/moduleCompletionCandidates.ts src/dsl/dslCompletionQuery.ts src/dsl/dslSignatureHelpQuery.ts vscode-extension/src/completionProvider.ts vscode-extension/src/signatureHelpProvider.ts
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "feat(SAY-133): project Module docs into language surfaces"
+          git push origin HEAD:${{ github.head_ref }}
