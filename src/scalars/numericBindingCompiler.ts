@@ -68,7 +68,13 @@ export const NUMERIC_BINDING_UNRESOLVED_CODE = "numeric-binding-unresolved";
 export const NUMERIC_BINDING_TYPE_MISMATCH_CODE = "numeric-binding-type-mismatch";
 export const NUMERIC_BINDING_MAPPING_CODE = "numeric-binding-mapping";
 
-type CandidateReference = { name: string; span: DslSpan; nameSpan: DslSpan };
+type CandidateReference = {
+  name: string;
+  span: DslSpan;
+  nameSpan: DslSpan;
+  /** Hidden record-field slots are runtime-only in SAY-128; editor providers remain out of scope. */
+  exposeSemanticOccurrence?: boolean;
+};
 type Candidate = {
   key: string;
   statement: DslStatement;
@@ -320,10 +326,21 @@ export const compileNumericBindings = ({
       } else {
         // Map references in the normalized legacy expression, not the source
         // AST: geometry-property normalization removes an `@` and can shift
-        // every later binding's offset.
-        typedReferenceSpans = scanExpressionReferences(candidate.expression)
-          .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
-          .map((match) => ({ name: match.query, span: { start: match.from, end: match.to } }));
+        // every later binding's offset. Record properties remain sigil form
+        // here and join the same source-splice path when an iteration/local
+        // binding keeps the expression on the legacy numeric runtime.
+        typedReferenceSpans = scanExpressionReferences(candidate.expression).flatMap((match) => {
+          if (match.kind === "binding") {
+            return [{ name: match.query, span: { start: match.from, end: match.to } }];
+          }
+          if (match.kind === "elementProperty" && match.sigil) {
+            return [{
+              name: `${match.elementToken}.${match.query}`,
+              span: { start: match.tokenStart, end: match.tokenEnd }
+            }];
+          }
+          return [];
+        });
         const prepared = prepareRecordScalarExpressionFromCatalog({
           ast: typedParsed.ast,
           statementIndex: candidate.statementIndex,
@@ -355,6 +372,24 @@ export const compileNumericBindings = ({
             ));
           }
           if (typedRefs.length === 0 || !hasLegacyOwnedReference) continue;
+        }
+        if (typedChecked.diagnostics.length === 0 && typedChecked.type?.kind === "number") {
+          for (const dependency of prepared.dependencies) {
+            const span = {
+              start: candidate.valueSpan.start + dependency.span.start,
+              end: candidate.valueSpan.start + dependency.span.end
+            };
+            typedRefs.push({
+              reference: {
+                name: dependency.name,
+                span,
+                nameSpan: { start: span.start + 1, end: span.end },
+                exposeSemanticOccurrence: false
+              },
+              bindingId: dependency.bindingId
+            });
+          }
+          typedRefs.sort((left, right) => left.reference.span.start - right.reference.span.start);
         }
         const geometryResolution = resolveTypedGeometryProperties(
           typedChecked.typed,
@@ -410,7 +445,10 @@ export const compileNumericBindings = ({
         break;
       }
       references.push({ bindingId, name: reference.name, span: reference.span, nameSpan: reference.nameSpan,
-        physicalNameSpan: exactPhysicalSpan(spans, candidate.statement, reference.nameSpan), expressionStart, expressionEnd,
+        physicalNameSpan: reference.exposeSemanticOccurrence === false
+          ? null
+          : exactPhysicalSpan(spans, candidate.statement, reference.nameSpan),
+        expressionStart, expressionEnd,
         site: {
           scopeId: bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(candidate.statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId,
           statementIndex: candidate.statementIndex,
