@@ -845,7 +845,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
-  it("reveals a concrete Module instance as one identity and minimally pans its descendant bounds without zooming", async () => {
+  it("reveals a concrete Module instance as one identity and centers its point-like descendant bounds without zooming", async () => {
     const source = [
       "nui 4",
       "module M() {",
@@ -899,7 +899,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementIds).toEqual([instance.id]);
     expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
     expect(useCadUiStore.getState().selectedElementIds).not.toContain(child.id);
-    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -30, panY: 0, zoom: 1 });
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -80, panY: 0, zoom: 1 });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 311,
