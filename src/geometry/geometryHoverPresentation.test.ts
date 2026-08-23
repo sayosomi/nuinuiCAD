@@ -215,9 +215,9 @@ describe("geometry Hover runtime presentation", () => {
       table: {
         headers: ["Anchor", "Position", "← In", "Angle", "Out →"],
         rows: [
-          ["Start", "(0, 0)", "—", "0°", "10 mm"],
+          ["P0", "(0, 0)", "—", "0°", "10 mm"],
           ["P1", "(30, 20)", "10 mm", "0°", "10 mm"],
-          ["End", "(60, 0)", "10 mm", "0°", "—"]
+          ["P2", "(60, 0)", "10 mm", "0°", "—"]
         ]
       }
     });
