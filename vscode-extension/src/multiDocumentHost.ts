@@ -3,7 +3,10 @@ import { realpathSync } from "node:fs";
 import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import * as vscode from "vscode";
-import type { DslSemanticIdentity } from "../../src/dsl/dslSemanticOccurrenceIndex";
+import {
+  dslSemanticIdentityKey,
+  type DslSemanticIdentity
+} from "../../src/dsl/dslSemanticOccurrenceIndex";
 import {
   MultiDocumentGraphCoordinator,
   SavedDocumentArtifactCache,
@@ -36,10 +39,8 @@ import {
   type MultiDocumentSourceSnapshot,
   type RootCurrentSourceSnapshot
 } from "../../src/document/multiDocumentPrimitives";
-import {
-  publishVscodeMultiDocumentGraphPublication
-} from "../../src/vscode/vscodeWebviewSession";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
+import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 
@@ -108,7 +109,9 @@ const fileNotFound = (error: unknown): boolean => {
   if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return true;
   if (typeof error !== "object" || error === null) return false;
   const candidate = error as { code?: unknown; name?: unknown };
-  return candidate.code === "FileNotFound" || candidate.code === "ENOENT" || candidate.name === "EntryNotFound (FileSystemError)";
+  return candidate.code === "FileNotFound" ||
+    candidate.code === "ENOENT" ||
+    candidate.name === "EntryNotFound (FileSystemError)";
 };
 
 const identityKey = (identity: DocumentQualifiedSemanticIdentity<string>): string =>
@@ -194,7 +197,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     this.subscriptions.push(
       vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedDocument(document)) return;
-        void this.activateRoot(document).then(() => this.refreshRootsContaining(this.documentIdForUri(document.uri)));
+        void this.activateRoot(document).then(() =>
+          this.refreshRootsContaining(this.documentIdForUri(document.uri))
+        );
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!supportedDocument(event.document)) return;
@@ -253,7 +258,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     position: vscode.Position
   ): Promise<VscodeMultiDocumentHandled<vscode.DefinitionLink[] | undefined>> {
     const query = await this.queryContext(document, position);
-    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) return { handled: false };
+    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
+      return { handled: false };
+    }
     if (!query.index.valid) return { handled: true, value: undefined };
     const result = queryMultiDocumentDefinition({
       index: query.index,
@@ -282,7 +289,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     includeDeclaration: boolean
   ): Promise<VscodeMultiDocumentHandled<vscode.Location[]>> {
     const query = await this.queryContext(document, position);
-    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) return { handled: false };
+    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
+      return { handled: false };
+    }
     if (!query.index.valid) return { handled: true, value: [] };
 
     const reverse = query.selected.publicIdentity
@@ -321,7 +330,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     position: vscode.Position
   ): Promise<VscodeMultiDocumentHandled<{ range: vscode.Range; placeholder: string } | undefined>> {
     const query = await this.queryContext(document, position);
-    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) return { handled: false };
+    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
+      return { handled: false };
+    }
     if (!query.index.valid) return { handled: true, value: undefined };
     const source = query.index.sourceByDocument.get(query.documentId);
     if (!source) return { handled: true, value: undefined };
@@ -345,7 +356,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     newName: string
   ): Promise<VscodeMultiDocumentHandled<vscode.WorkspaceEdit | undefined>> {
     const query = await this.queryContext(document, position);
-    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) return { handled: false };
+    if (!query || (!query.selected.publicIdentity && !query.selected.importAliasIdentity)) {
+      return { handled: false };
+    }
     if (!query.index.valid) return { handled: true, value: undefined };
 
     const reverse = query.selected.publicIdentity
@@ -374,7 +387,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     const workspaceEdit = new vscode.WorkspaceEdit();
     for (const documentPlan of result.plan.documents) {
       const source = this.sourceForLocation(indexes, documentPlan.source);
-      if (!source || !(await this.sourceStillCurrent(source))) return { handled: true, value: undefined };
+      if (!source || !(await this.sourceStillCurrent(source))) {
+        return { handled: true, value: undefined };
+      }
       const uri = vscode.Uri.parse(String(documentPlan.source.documentId));
       for (const edit of documentPlan.edits) {
         if (source.normalizedSource.slice(edit.from, edit.to) !== edit.expectedText) {
@@ -400,7 +415,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       ),
       newText: newName
     }));
-    if (edits.some((edit) => !edit.expectedText)) return { status: "rejected", reason: "empty occurrence" };
+    if (edits.some((edit) => !edit.expectedText)) {
+      return { status: "rejected", reason: "empty occurrence" };
+    }
     const nextSource = applyEdits(source.normalizedSource, edits);
     const checked = analyzeMultiDocumentSource({
       kind: "root-current",
@@ -410,7 +427,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     }, {
       declarationContributors: this.options.declarationContributors
     });
-    return checked.syntaxValid ? { status: "ok", edits } : { status: "rejected", reason: "invalid alias rename" };
+    return checked.syntaxValid
+      ? { status: "ok", edits }
+      : { status: "rejected", reason: "invalid alias rename" };
   };
 
   private async queryContext(document: vscode.TextDocument, position: vscode.Position): Promise<{
@@ -456,7 +475,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     const shortestMatches = matches.filter((occurrence) =>
       occurrence.location.range.to - occurrence.location.range.from === shortest
     );
-    const identities = new Map(shortestMatches.map((occurrence) => [identityKey(occurrence.identity), occurrence]));
+    const identities = new Map(
+      shortestMatches.map((occurrence) => [identityKey(occurrence.identity), occurrence])
+    );
     if (identities.size !== 1) return null;
     const occurrence = shortestMatches[0]!;
     return {
@@ -469,16 +490,22 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private isPublicIdentity(
     index: MultiDocumentSemanticOccurrenceIndex,
     identity: DocumentQualifiedSemanticIdentity<string>
-  ): boolean => [...index.graph.nodes.values()].some((node) =>
-    [...node.publicApi.publicEntriesByName.values()].some((entry) => sameIdentity(entry.identity, identity))
-  );
+  ): boolean {
+    return [...index.graph.nodes.values()].some((node) =>
+      [...node.publicApi.publicEntriesByName.values()].some((entry) =>
+        sameIdentity(entry.identity, identity)
+      )
+    );
+  }
 
   private isImportAliasIdentity(
     index: MultiDocumentSemanticOccurrenceIndex,
     identity: DocumentQualifiedSemanticIdentity<string>
-  ): boolean => [...index.graph.nodes.values()].some((node) =>
-    node.artifact.imports.some((directive) => sameIdentity(directive.identity, identity))
-  );
+  ): boolean {
+    return [...index.graph.nodes.values()].some((node) =>
+      node.artifact.imports.some((directive) => sameIdentity(directive.identity, identity))
+    );
+  }
 
   private async activateRoot(document: vscode.TextDocument): Promise<void> {
     if (this.disposed || !supportedDocument(document)) return;
@@ -559,8 +586,13 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       document.getText() !== rawSource
     ) return;
 
-    const index = await this.semanticIndexForGraph(result.graph);
-    if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) return;
+    const rootView = semantic
+      ? this.semanticViewFor(root, session, semantic.compiled)
+      : { source: root, valid: false, occurrences: [] };
+    const index = await this.semanticIndexForGraph(result.graph, rootView);
+    if (state.requestRevision !== requestRevision || this.rootByDocumentId.get(state.documentId) !== state) {
+      return;
+    }
     state.graph = result.graph;
     state.index = index;
     state.graphRevision = ++this.publicationRevision;
@@ -572,13 +604,31 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     });
   }
 
+  private semanticViewFor(
+    source: RootCurrentSourceSnapshot,
+    session: NuiLanguageAnalysisSession,
+    compiled: NonNullable<ReturnType<NuiLanguageAnalysisSession["definitionSemanticSnapshot"]>>["compiled"]
+  ): MultiDocumentSemanticDocumentView {
+    return projectDslSemanticDocumentView({
+      source,
+      compiled,
+      valid: !session.getDiagnostics().some((diagnostic) => diagnostic.severity === "error"),
+      ...(this.options.identityProjector
+        ? { identityFor: (identity) => this.options.identityProjector!(source.documentId, identity) }
+        : {})
+    });
+  }
+
   private async semanticIndexForGraph(
-    graph: MultiDocumentImportGraph<unknown>
+    graph: MultiDocumentImportGraph<unknown>,
+    rootView?: MultiDocumentSemanticDocumentView
   ): Promise<MultiDocumentSemanticOccurrenceIndex> {
-    const views: MultiDocumentSemanticDocumentView[] = [];
+    const views: MultiDocumentSemanticDocumentView[] = rootView ? [rootView] : [];
     for (const [documentId] of graph.nodes) {
+      if (rootView?.source.documentId === documentId) continue;
       const document = this.openDocumentFor(documentId);
       if (!document) continue;
+      if (documentId !== graph.rootDocumentId && !document.isDirty) continue;
       const session = this.syncSession(document, documentId);
       const source: RootCurrentSourceSnapshot = {
         kind: "root-current",
@@ -590,18 +640,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSource: source.normalizedSource,
         sourceRevision: source.sourceRevision
       });
-      if (!semantic) {
-        views.push({ source, valid: false, occurrences: [] });
-        continue;
-      }
-      views.push(projectDslSemanticDocumentView({
-        source,
-        compiled: semantic.compiled,
-        valid: !session.getDiagnostics().some((diagnostic) => diagnostic.severity === "error"),
-        ...(this.options.identityProjector
-          ? { identityFor: (identity) => this.options.identityProjector!(documentId, identity) }
-          : {})
-      }));
+      views.push(semantic
+        ? this.semanticViewFor(source, session, semantic.compiled)
+        : { source, valid: false, occurrences: [] });
     }
     return buildMultiDocumentSemanticOccurrenceIndex({ graph, documentViews: views });
   }
@@ -624,18 +665,18 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       const active = this.rootByDocumentId.get(documentId);
       if (active?.pending) await active.pending;
       if (active?.index) {
-        if (this.indexMayReferenceIdentity(active.index, identity)) {
-          if (!active.index.valid) return { discovery: { status: "incomplete", indexes }, indexes };
-          indexes.push(active.index);
+        if (!active.index.valid) {
+          return { discovery: { status: "incomplete", indexes }, indexes };
         }
+        if (this.indexMayReferenceIdentity(active.index, identity)) indexes.push(active.index);
         continue;
       }
 
       const built = await this.discoveryIndexForUri(uri);
-      if (!built) return { discovery: { status: "incomplete", indexes }, indexes };
-      if (!this.indexMayReferenceIdentity(built, identity)) continue;
-      if (!built.valid) return { discovery: { status: "incomplete", indexes }, indexes };
-      indexes.push(built);
+      if (!built || !built.valid) {
+        return { discovery: { status: "incomplete", indexes }, indexes };
+      }
+      if (this.indexMayReferenceIdentity(built, identity)) indexes.push(built);
     }
     return { discovery: { status: "complete", indexes }, indexes };
   }
@@ -643,19 +684,22 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private indexMayReferenceIdentity(
     index: MultiDocumentSemanticOccurrenceIndex,
     identity: DocumentQualifiedSemanticIdentity<string>
-  ): boolean => index.graph.nodes.has(identity.documentId) ||
-    index.occurrences.some((occurrence) => sameIdentity(occurrence.identity, identity));
+  ): boolean {
+    return index.graph.nodes.has(identity.documentId) ||
+      index.occurrences.some((occurrence) => sameIdentity(occurrence.identity, identity));
+  }
 
   private async discoveryIndexForUri(uri: vscode.Uri): Promise<MultiDocumentSemanticOccurrenceIndex | null> {
     try {
       const documentId = this.documentIdForUri(uri);
       const openDocument = this.openDocumentFor(documentId);
+      const savedRoot = openDocument ? null : await this.readSavedSnapshot(uri);
       const session = openDocument
         ? this.syncSession(openDocument, documentId)
-        : createLanguageAnalysisSession((await this.readSavedSnapshot(uri)).normalizedSource);
+        : createLanguageAnalysisSession(savedRoot!.normalizedSource);
       const normalizedSource = openDocument
         ? normalizedSourceFor(openDocument.getText())
-        : session.getSource();
+        : savedRoot!.normalizedSource;
       const root: RootCurrentSourceSnapshot = {
         kind: "root-current",
         documentId,
@@ -675,7 +719,10 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
           ? { rootStatementIdByStatementIndex: semantic.compiled.statementMap.statementIdByStatementIndex }
           : {})
       });
-      return this.semanticIndexForGraph(graph);
+      const rootView = semantic
+        ? this.semanticViewFor(root, session, semantic.compiled)
+        : { source: root, valid: false, occurrences: [] };
+      return this.semanticIndexForGraph(graph, rootView);
     } catch {
       return null;
     }
@@ -699,6 +746,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       return session.getSourceRevision() === source.sourceRevision &&
         normalizedSourceFor(open.getText()) === source.normalizedSource;
     }
+    if (open?.isDirty && source.kind === "dependency-saved") return false;
     try {
       const saved = await this.readSavedSnapshot(vscode.Uri.parse(String(source.documentId)));
       if (saved.normalizedSource !== source.normalizedSource) return false;
@@ -721,10 +769,11 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     return session;
   }
 
-  private openDocumentFor(documentId: DocumentId): vscode.TextDocument | undefined =>
-    vscode.workspace.textDocuments.find((document) =>
+  private openDocumentFor(documentId: DocumentId): vscode.TextDocument | undefined {
+    return vscode.workspace.textDocuments.find((document) =>
       supportedDocument(document) && this.documentIdForUri(document.uri) === documentId
     );
+  }
 
   private documentIdForUri(uri: vscode.Uri): DocumentId {
     const key = uri.toString();
@@ -740,7 +789,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     loadSavedDependency: async (importerDocumentId, validatedRelativePath) => {
       try {
         const importer = vscode.Uri.parse(String(importerDocumentId));
-        if (importer.scheme !== "file") return { status: "failed", reason: "root-unaddressable" };
+        if (importer.scheme !== "file") {
+          return { status: "failed", reason: "root-unaddressable" };
+        }
         const target = vscode.Uri.file(path.resolve(path.dirname(importer.fsPath), validatedRelativePath));
         return { status: "loaded", snapshot: await this.readSavedSnapshot(target) };
       } catch (error) {
@@ -823,8 +874,8 @@ export const createVscodeMultiDocumentHost = (
   options: VscodeMultiDocumentHostOptions = {}
 ): VscodeMultiDocumentHost => new VscodeMultiDocumentHost(options);
 
-/** Keep the generic fallback identity projection available to future family adapters. */
+/** Keep the generic compiler identity projection available to future family adapters. */
 export const defaultVscodeMultiDocumentIdentityProjector: VscodeMultiDocumentIdentityProjector = (
   documentId,
   identity
-) => qualifySemanticIdentity(documentId, JSON.stringify(identity));
+) => qualifySemanticIdentity(documentId, dslSemanticIdentityKey(identity));
