@@ -159,17 +159,22 @@ afterEach(() => {
 
 describe("VS Code typo Quick Fix provider", () => {
   it("uses a file-backed selector and localized unique action without depending on diagnostic message", () => {
-    const document = documentFor("nui 4\npont P = coordinate(x: 0, y: 0)\n");
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const document = documentFor(source);
     mocks.textDocuments.push(document);
-    const diagnostic = diagnosticFor(document, "unknown-dsl-keyword");
+    const diagnostic = diagnosticFor(document, "undefined-binding");
     diagnostic.message = "localized or otherwise changed message";
 
-    const en = actionsFor(document, "unknown-dsl-keyword", "en", [diagnostic]).actions;
-    const ja = actionsFor(document, "unknown-dsl-keyword", "ja", [diagnostic]).actions;
+    const en = actionsFor(document, "undefined-binding", "en", [diagnostic]).actions;
+    const ja = actionsFor(document, "undefined-binding", "ja", [diagnostic]).actions;
 
     expect(nuiTypoQuickFixSelector).toEqual({ language: "nui", scheme: "file" });
-    expect(en.map((action) => action.title)).toEqual(["Change to 'point'"]);
-    expect(ja.map((action) => action.title)).toEqual(["「point」に変更"]);
+    expect(en.map((action) => action.title)).toEqual(["Change to 'width'"]);
+    expect(ja.map((action) => action.title)).toEqual(["「width」に変更"]);
     expect(en[0]?.isPreferred).toBe(true);
     expect(en[0]?.diagnostics).toEqual([diagnostic]);
   });
@@ -211,14 +216,18 @@ describe("VS Code typo Quick Fix provider", () => {
   });
 
   it("adds a localized diagnostic suffix only for a unique candidate", () => {
-    const uniqueSource = "nui 4\npont P = coordinate(x: 0, y: 0)\n";
+    const uniqueSource = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
     const unique = createLanguageAnalysisSession(uniqueSource);
     const en = compilerDiagnosticsWithTypoSuggestions(uniqueSource, unique, "en")
-      .find((diagnostic) => diagnostic.code === "unknown-dsl-keyword");
+      .find((diagnostic) => diagnostic.code === "undefined-binding");
     const ja = compilerDiagnosticsWithTypoSuggestions(uniqueSource, unique, "ja")
-      .find((diagnostic) => diagnostic.code === "unknown-dsl-keyword");
-    expect(en?.message).toContain("Did you mean 'point'?");
-    expect(ja?.message).toContain("「point」のことですか？");
+      .find((diagnostic) => diagnostic.code === "undefined-binding");
+    expect(en?.message).toContain("Did you mean 'width'?");
+    expect(ja?.message).toContain("「width」のことですか？");
 
     const multipleSource = [
       "nui 4",
