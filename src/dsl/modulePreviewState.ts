@@ -261,7 +261,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
         code: "required-value-missing" as const,
         definitionStatementId: definition.statementId,
         parameterIndex: parameter.parameterIndex,
-        message: `Parameter \"${parameter.name}\" requires a value.`
+        message: `Parameter "${parameter.name}" requires a value.`
       }];
     }));
   };
@@ -303,7 +303,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
           code: "invalid-expression",
           definitionStatementId: editedInput.definitionStatementId,
           parameterIndex: editedInput.parameterIndex,
-          message: `Value for \"${edited.parameter.name}\" is not a valid Module argument expression in this context.`
+          message: `Value for "${edited.parameter.name}" is not a valid Module argument expression in this context.`
         });
       }
     }
