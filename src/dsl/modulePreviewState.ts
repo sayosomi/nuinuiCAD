@@ -107,6 +107,12 @@ type EditedInput = {
   parameterIndex: number;
 };
 
+type ActiveParameter = {
+  definition: ModuleDefinitionSemantic;
+  parameter: ResolvedModuleParameter;
+  key: string;
+};
+
 const exactCompiled = (
   source: SourceSnapshot,
   semantic: ModulePreviewTargetSemanticSnapshot
@@ -164,6 +170,11 @@ const definitionChainFor = (
 const storageKeyFor = (parameter: ResolvedModuleParameter) =>
   `${parameter.parameterIndex}\u0000${parameter.name}`;
 
+const inputKeyFor = (
+  definition: ModuleDefinitionSemantic,
+  parameter: ResolvedModuleParameter
+) => JSON.stringify([definition.statementId, parameter.parameterIndex, parameter.name]);
+
 const previewKeyFor = (active: ActivePreview) =>
   JSON.stringify(active.chain.map((definition) => definition.statementId));
 
@@ -210,11 +221,21 @@ const scalarLiteralForEvaluation = (evaluation: ScalarEvaluation): string | null
 export const createModulePreviewSession = (): ModulePreviewSession => {
   const valuesByDefinition = new Map<StatementIdentity, Map<string, StoredParameterValue>>();
   const lastGoodByPreviewKey = new Map<string, ModulePreviewRootResult>();
+  const lastGoodValueByInputKey = new Map<string, string>();
+  const invalidDiagnosticByInputKey = new Map<string, ModulePreviewInputDiagnostic>();
   let active: ActivePreview | null = null;
   let state: ModulePreviewSessionSnapshot | null = null;
 
   const valueFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
     valuesByDefinition.get(definition.statementId)?.get(storageKeyFor(parameter))?.expression ?? "";
+
+  const activeParameters = (): ActiveParameter[] => active?.chain.flatMap((definition) =>
+    definition.parameters.map((parameter) => ({
+      definition,
+      parameter,
+      key: inputKeyFor(definition, parameter)
+    }))
+  ) ?? [];
 
   const parameterFor = (
     definitionStatementId: StatementIdentity,
@@ -227,17 +248,21 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
 
   const argumentsFor = (
     definition: ModuleDefinitionSemantic,
-    omittedInput?: EditedInput
+    omittedInput?: EditedInput,
+    overrides?: ReadonlyMap<string, string>
   ): ModulePreviewArgument[] => definition.parameters.flatMap((parameter) => {
     if (
       omittedInput?.definitionStatementId === definition.statementId &&
       omittedInput.parameterIndex === parameter.parameterIndex
     ) return [];
-    const expression = valueFor(definition, parameter);
+    const expression = overrides?.get(inputKeyFor(definition, parameter)) ?? valueFor(definition, parameter);
     return isOmitted(expression) ? [] : [{ name: parameter.name, expression }];
   });
 
-  const rootInputFor = (omittedInput?: EditedInput): ModulePreviewRootInput | null => {
+  const rootInputFor = (
+    omittedInput?: EditedInput,
+    overrides?: ReadonlyMap<string, string>
+  ): ModulePreviewRootInput | null => {
     if (!active) return null;
     const targetDefinition = active.chain[active.chain.length - 1];
     if (!targetDefinition) return null;
@@ -247,9 +272,9 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       target: active.target,
       ancestorContexts: active.chain.slice(0, -1).map((definition) => ({
         definitionStatementId: definition.statementId,
-        arguments: argumentsFor(definition, omittedInput)
+        arguments: argumentsFor(definition, omittedInput, overrides)
       })),
-      arguments: argumentsFor(targetDefinition, omittedInput)
+      arguments: argumentsFor(targetDefinition, omittedInput, overrides)
     };
   };
 
@@ -265,6 +290,16 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       }];
     }));
   };
+
+  const invalidDiagnosticFor = (
+    definition: ModuleDefinitionSemantic,
+    parameter: ResolvedModuleParameter
+  ): ModulePreviewInputDiagnostic => ({
+    code: "invalid-expression",
+    definitionStatementId: definition.statementId,
+    parameterIndex: parameter.parameterIndex,
+    message: `Value for "${parameter.name}" is not a valid Module argument expression in this context.`
+  });
 
   const buildGroup = (
     definition: ModuleDefinitionSemantic,
@@ -290,24 +325,68 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     }))
   });
 
+  const compileWithOverrides = (overrides: ReadonlyMap<string, string>) => {
+    const input = rootInputFor(undefined, overrides);
+    return input ? compileModulePreviewRoot(input) : null;
+  };
+
   const evaluate = (editedInput?: EditedInput): ModulePreviewSessionSnapshot | null => {
     if (!active) return null;
     const required = requiredDiagnostics();
     const input = rootInputFor();
     const current = required.length === 0 && input ? compileModulePreviewRoot(input) : null;
-    const diagnostics = [...required];
-    if (!current && required.length === 0 && editedInput) {
+    const parameters = activeParameters();
+    const activeKeys = new Set(parameters.map((entry) => entry.key));
+
+    if (current) {
+      for (const entry of parameters) {
+        invalidDiagnosticByInputKey.delete(entry.key);
+        lastGoodValueByInputKey.set(entry.key, valueFor(entry.definition, entry.parameter));
+      }
+    } else if (editedInput) {
       const edited = parameterFor(editedInput.definitionStatementId, editedInput.parameterIndex);
-      if (edited && !isOmitted(valueFor(edited.definition, edited.parameter))) {
-        diagnostics.push({
-          code: "invalid-expression",
-          definitionStatementId: editedInput.definitionStatementId,
-          parameterIndex: editedInput.parameterIndex,
-          message: `Value for "${edited.parameter.name}" is not a valid Module argument expression in this context.`
-        });
+      if (edited) {
+        const editedKey = inputKeyFor(edited.definition, edited.parameter);
+        invalidDiagnosticByInputKey.delete(editedKey);
+        if (required.length === 0 && !isOmitted(valueFor(edited.definition, edited.parameter))) {
+          const otherInvalid = parameters.filter((entry) =>
+            entry.key !== editedKey && invalidDiagnosticByInputKey.has(entry.key)
+          );
+          if (otherInvalid.length === 0) {
+            invalidDiagnosticByInputKey.set(editedKey, invalidDiagnosticFor(edited.definition, edited.parameter));
+          } else {
+            const overrides = new Map<string, string>();
+            let canIsolate = true;
+            for (const entry of otherInvalid) {
+              const lastGoodValue = lastGoodValueByInputKey.get(entry.key);
+              if (lastGoodValue === undefined) {
+                canIsolate = false;
+                break;
+              }
+              overrides.set(entry.key, lastGoodValue);
+            }
+            if (canIsolate && !compileWithOverrides(overrides)) {
+              const editedLastGoodValue = lastGoodValueByInputKey.get(editedKey);
+              if (editedLastGoodValue !== undefined) {
+                overrides.set(editedKey, editedLastGoodValue);
+                if (compileWithOverrides(overrides)) {
+                  invalidDiagnosticByInputKey.set(editedKey, invalidDiagnosticFor(edited.definition, edited.parameter));
+                }
+              }
+            }
+          }
+        }
       }
     }
 
+    const diagnostics = [
+      ...required,
+      ...parameters.flatMap((entry) => {
+        if (!activeKeys.has(entry.key)) return [];
+        const diagnostic = invalidDiagnosticByInputKey.get(entry.key);
+        return diagnostic ? [diagnostic] : [];
+      })
+    ];
     const previewKey = previewKeyFor(active);
     if (current) lastGoodByPreviewKey.set(previewKey, current);
     const lastGood = lastGoodByPreviewKey.get(previewKey) ?? null;
