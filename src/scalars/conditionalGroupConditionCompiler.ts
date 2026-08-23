@@ -22,6 +22,7 @@ import { collectReferences, unresolvedReferenceMessage } from "./typedDeclaratio
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export const CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE = "conditional-group-condition-unresolved";
 export const CONDITIONAL_GROUP_CONDITION_INVALID_CODE = "conditional-group-condition-invalid";
@@ -125,9 +126,22 @@ export const compileConditionalGroupConditions = ({
     });
     if (hasReferenceDiagnostic) return;
 
-    const checked = typecheckScalarExpression(ast, {
+    const prepared = prepareRecordScalarExpressionFromCatalog({
+      ast,
+      statementIndex,
+      catalog: bindingAnalysis.catalog,
+      referenceResolutions: references.map((_, index) => resolutionAt(index)!)
+    });
+    if (prepared.issues.length > 0) {
+      diagnostics.push(...prepared.issues.map((issue) =>
+        diagnosticAt(spans, statement, issue.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE, issue.message)
+      ));
+      return;
+    }
+
+    const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: { kind: "boolean" },
-      references: references.map((_, index) => resolutionAt(index)!)
+      references: prepared.references
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
