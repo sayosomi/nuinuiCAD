@@ -39,6 +39,8 @@ jobs:
               '        vscodeObservationState.acceptCanvasPublication({\n          sessionDocumentUri: session.documentUri,\n          sessionSurfaceKind: session.surfaceKind,\n          sessionIsCurrent: sessions.get(session.documentUri, "canvas") === session && isOpenDocument(session.document),\n          currentDocumentVersion: session.document.version,\n          snapshot: message.snapshot\n        });',
               '        observationFeature.acceptCanvasPublication({\n          sessionDocumentUri: session.documentUri,\n          sessionSurfaceKind: session.surfaceKind,\n          sessionIsCurrent: sessions.get(session.documentUri, "canvas") === session && isOpenDocument(session.document),\n          currentDocumentVersion: session.document.version,\n          snapshot: message.snapshot\n        });'
             ),
+            ('    vscodeObservationState.removeDocument(documentKey(document));', '    observationFeature.removeDocument(documentKey(document));'),
+            ('      vscodeObservationState.reset();', '      observationFeature.dispose();'),
           ]
           for old, new in replacements:
               count = text.count(old)
