@@ -66,13 +66,11 @@ export const nuiHoverReferenceCommandUri = (
 
 const referenceHrefFor = ({
   document,
-  rawSource,
   source,
   session,
   reference
 }: {
   document: vscode.TextDocument;
-  rawSource: string;
   source: SourceSnapshot;
   session: NuiLanguageAnalysisSession;
   reference: GeometryHoverReference;
@@ -94,6 +92,19 @@ const referenceHrefFor = ({
     to: range.to,
     expectedText
   });
+};
+
+const isNuiHoverRevealSourceReferenceArgs = (
+  value: unknown
+): value is NuiHoverRevealSourceReferenceArgs => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<NuiHoverRevealSourceReferenceArgs>;
+  return typeof candidate.documentUri === "string" &&
+    Number.isInteger(candidate.documentVersion) &&
+    Number.isInteger(candidate.from) &&
+    Number.isInteger(candidate.to) &&
+    typeof candidate.expectedText === "string" &&
+    candidate.expectedText.length > 0;
 };
 
 export const currentNuiHoverReferenceRange = (
@@ -121,8 +132,10 @@ export const currentNuiHoverReferenceRange = (
 };
 
 export const revealNuiHoverSourceReference = async (
-  args: NuiHoverRevealSourceReferenceArgs
+  value: unknown
 ): Promise<void> => {
+  if (!isNuiHoverRevealSourceReferenceArgs(value)) return;
+  const args = value;
   const document = vscode.workspace.textDocuments.find((candidate) =>
     candidate.uri.toString() === args.documentUri
   );
@@ -186,7 +199,6 @@ export const createNuiHoverProvider = (
       presentation,
       (reference) => referenceHrefFor({
         document,
-        rawSource: latestRawSource,
         source: latest.source,
         session,
         reference
