@@ -30,6 +30,11 @@ import {
   type SourceLexicalNamespaceIndex,
   type SourceLexicalDeclaration
 } from "../dsl/sourceLexicalNamespaceIndex";
+import {
+  planRecordScalarLowering,
+  prepareRecordScalarExpression,
+  recordScalarSourceBindingResolverFor
+} from "./recordScalarLowering";
 
 export type { DiagnosticSpanContext };
 
@@ -279,6 +284,55 @@ export const analyzeTypedDeclarations = ({
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
   );
+  const recordAnalysis = sourceNamespace?.recordSemanticAnalysis ?? null;
+  const recordPlan = recordAnalysis && sourceNamespace
+    ? planRecordScalarLowering({
+        analysis: recordAnalysis,
+        sourceNamespace,
+        includeValue: (value) => {
+          const statement = statements[value.statementIndex];
+          return Boolean(statement && includeStatement(statement, value.statementIndex));
+        }
+      })
+    : null;
+  const recordBindingResolver = recordAnalysis && sourceNamespace && recordPlan
+    ? recordScalarSourceBindingResolverFor({ analysis: recordAnalysis, sourceNamespace, plan: recordPlan })
+    : undefined;
+  const combinedAdditionalBindingResolver: SourceNamespaceBindingResolver | undefined =
+    additionalBindingResolver || recordBindingResolver
+      ? (name, statementIndex, scopeId) =>
+          additionalBindingResolver?.(name, statementIndex, scopeId)
+          ?? recordBindingResolver?.(name, statementIndex, scopeId)
+          ?? null
+      : undefined;
+  const effectiveAdditionalBindings = [
+    ...(recordPlan?.bindingSeeds ?? []),
+    ...(additionalBindings ?? [])
+  ];
+  const effectiveAdditionalInitializers: AdditionalScalarInitializer[] = [
+    ...(recordPlan?.initializers.map((initializer) => ({
+      bindingId: initializer.bindingId,
+      raw: initializer.raw,
+      span: initializer.span
+    })) ?? []),
+    ...(additionalInitializers ?? [])
+  ];
+  const recordPrepare: PrepareScalarExpression | undefined = recordAnalysis && sourceNamespace && recordPlan
+    ? ({ statementIndex, ast, referenceResolutions, geometryPropertySpanStarts }) =>
+        prepareRecordScalarExpression({
+          ast,
+          statementIndex,
+          analysis: recordAnalysis,
+          sourceNamespace,
+          plan: recordPlan,
+          referenceResolutions,
+          skipPropertySpanStarts: geometryPropertySpanStarts
+        })
+    : undefined;
+  // A caller-supplied closed frontend remains authoritative for its own
+  // custom preparation. Ordinary document analysis uses the record adapter.
+  const effectivePrepareScalarExpression = prepareScalarExpression ?? recordPrepare;
+
   const typedStatements = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } =>
@@ -311,7 +365,7 @@ export const analyzeTypedDeclarations = ({
     typedStatements.length === 0 &&
     !hasSourceOutputStatements &&
     !hasScalarExpressionConsumers &&
-    (additionalInitializers?.length ?? 0) === 0
+    effectiveAdditionalInitializers.length === 0
   ) return { diagnostics: [] };
 
   const missingIdentity = typedStatements.flatMap(({ statement, statementIndex }) =>
@@ -329,13 +383,13 @@ export const analyzeTypedDeclarations = ({
     stableStatementIdByIndex,
     iterationBindings: adapter.iterationBindings,
     containerIndex: adapter.containerIndex,
-    ...(additionalBindings?.length ? { additionalBindings } : {}),
+    ...(effectiveAdditionalBindings.length ? { additionalBindings: effectiveAdditionalBindings } : {}),
     ...(sourceNamespace
-      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes, additionalBindingResolver) }
+      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes, combinedAdditionalBindingResolver) }
       : {})
   });
   const additionalInitializerByBindingId = new Map(
-    (additionalInitializers ?? []).map((initializer) => [initializer.bindingId, initializer] as const)
+    effectiveAdditionalInitializers.map((initializer) => [initializer.bindingId, initializer] as const)
   );
   const analyzesInitializer = (bindingId: BindingId, resolutionMode: string | undefined) =>
     resolutionMode !== "preResolvedOnly" || additionalInitializerByBindingId.has(bindingId);
@@ -381,7 +435,7 @@ export const analyzeTypedDeclarations = ({
     ? new Map(sourceNamespace.allDeclarations.map((declaration) => [declaration.statementId, declaration]))
     : new Map();
   const geometryResolutionByBindingId = new Map<BindingId, ResolveBuiltinGeometryArgumentsResult>();
-  const preparedByBindingId = new Map<BindingId, ReturnType<NonNullable<typeof prepareScalarExpression>>>();
+  const preparedByBindingId = new Map<BindingId, ReturnType<NonNullable<PrepareScalarExpression>>>();
   for (const binding of catalog.bindings) {
     if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
@@ -409,8 +463,8 @@ export const analyzeTypedDeclarations = ({
     for (const issue of geometryResolution.issues) {
       diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, { bindingId: binding.id }));
     }
-    if (prepareScalarExpression) {
-      const prepared = prepareScalarExpression({
+    if (effectivePrepareScalarExpression) {
+      const prepared = effectivePrepareScalarExpression({
         bindingId: binding.id,
         statementIndex: binding.statementIndex,
         ast: parsed.ast,
