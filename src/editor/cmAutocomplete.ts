@@ -218,7 +218,7 @@ const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "n
  * boundary. Marker/colon/parenthesis insertion remains an editor concern. */
 const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], bareReferences = false): Completion[] =>
   candidates.map((candidate) => {
-    if (candidate.kind === "binding" || candidate.kind === "geometry") {
+    if (candidate.kind === "binding") {
       const label = bareReferences ? candidate.label : `@${candidate.label}`;
       return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
     }
@@ -226,7 +226,7 @@ const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], b
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
     if (candidate.kind === "literal") return { label: candidate.label, detail: candidate.detail, type: candidate.label === '""' ? "text" : "constant" };
-    return { label: candidate.label, type: "property" };
+    return { label: candidate.label, type: candidate.kind === "geometry" ? "constant" : "property" };
   });
 
 const asQueryCompletions = (
@@ -251,8 +251,9 @@ const asQueryCompletions = (
           : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
     }
     if (candidate.kind === "geometry") {
-      const label = bareReferences ? candidate.label : `@${candidate.label}`;
-      return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
+      return bareReferences
+        ? { label: candidate.label, type: "constant" }
+        : { label: candidate.label, apply: `@${candidate.label}`, type: "constant" };
     }
     if (candidate.kind === "argumentName") return { label: candidate.label, apply: `${candidate.label}: `, type: "property" };
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
