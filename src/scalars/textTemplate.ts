@@ -2,16 +2,6 @@
 // TextTemplateAst that evaluation, dependency analysis, completion, and source
 // span consumers can all use without re-parsing, re-resolving, || re-scanning
 // raw source.
-//
-// Runs for every canonical `label(text: "...")` occurrence in a nui 4
-// document regardless of whether the document has any typed declaration at
-// all - brace/escape structure && numeric-vs-typed hole classification never
-// depend on `bindingAnalysis` being present. Only a hole that actually
-// contains a `@name` reference needing resolution touches the binding
-// catalog, && only when one is available; a document with zero typed
-// declarations classifies every reference-bearing, syntactically-plain hole
-// as numeric local expressions when syntactically valid; references still
-// require a typed binding && otherwise produce a diagnostic.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -29,10 +19,11 @@ import {
   containsNonNumericScalarSyntax,
   unresolvedReferenceMessage
 } from "./typedDeclarationAnalysis";
+import type { ScalarExpressionAst, ScalarSpan } from "./expressionAst";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
 import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
+import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
 export type TextTemplateLiteralSegment = TextTemplateRawLiteralSegment;
 
@@ -55,8 +46,6 @@ export type TextTemplateBooleanHoleSegment = TextTemplateHoleSegmentBase & {
   readonly holeKind: "boolean";
   readonly expression: TypedScalarExpression;
 };
-/** A raw numeric expression evaluated in the text element's geometry/local
- * numeric context, independently of the typed binding catalog. */
 export type TextTemplateNumericExpressionHoleSegment = TextTemplateHoleSegmentBase & {
   readonly holeKind: "numeric";
   readonly raw: string;
@@ -68,18 +57,11 @@ export type TextTemplateHoleSegment =
   | TextTemplateNumericExpressionHoleSegment;
 export type TextTemplateSegment = TextTemplateLiteralSegment | TextTemplateHoleSegment;
 
-/** One resolved `@name` reference inside a typed hole - flat &&
- * precomputed so dependency analysis can build edges by reading this array
- * directly, without walking each hole's `expression` tree || re-resolving
- * anything. Only ever produced for a reference that resolved to a usable
- * typed binding; numeric-expression holes never contribute (their runtime
- * dependency extraction remains local to the numeric evaluator). */
 export type TextTemplateDependency = {
   readonly holeSpan: ScalarSpan;
   readonly bindingId: BindingId;
   readonly name: string;
   readonly span: ScalarSpan;
-  /** The text element owning this hole, when known. */
   readonly elementId?: ElementId;
 };
 
@@ -103,16 +85,34 @@ type ParsedHole = {
   readonly references: ReturnType<typeof collectReferences>;
 };
 
-/**
- * Analyzes one `text:` value's already-isolated span. `source` must be the
- * same offset-preserving padded text every sibling compiler in this
- * directory builds (`" ".repeat(valueStart) + value`), since none of these
- * compilers see the full document source - only a `DslAttribute.value`.
- * `bindingAnalysis` is optional: absent whenever the document has no typed
- * declarations at all. Numeric-expression holes contain no `@` binding
- * reference; any `@name` reference is resolved through the typed catalog &&
- * otherwise fails closed.
- */
+const hasRecordScalarProperty = (
+  ast: ScalarExpressionAst,
+  bindingAnalysis: BindingAnalysis | undefined,
+  statementIndex: number
+): boolean => {
+  if (!bindingAnalysis?.catalog.sourceNamespaceBindingResolver) return false;
+  const catalog = bindingAnalysis.catalog;
+  const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
+  let found = false;
+  const visit = (node: ScalarExpressionAst): void => {
+    if (found) return;
+    switch (node.kind) {
+      case "geometryProperty": {
+        const lookup = catalog.sourceNamespaceBindingResolver?.(`${node.elementName}.${node.property}`, statementIndex, scopeId);
+        found = lookup?.kind === "resolved" || (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue");
+        return;
+      }
+      case "unary": visit(node.operand); return;
+      case "binary": visit(node.left); visit(node.right); return;
+      case "group": visit(node.expression); return;
+      case "call": node.args.forEach((argument) => visit(argument.expression)); return;
+      default: return;
+    }
+  };
+  visit(ast);
+  return found;
+};
+
 export const analyzeTextTemplate = (
   source: string,
   valueSpan: ScalarSpan,
@@ -142,10 +142,7 @@ export const analyzeTextTemplate = (
         requests.push({
           key: requestKey(holeIndex, referenceIndex),
           name: reference.name,
-          site: {
-            scopeId: scopeId!,
-            statementIndex
-          }
+          site: { scopeId: scopeId!, statementIndex }
         });
       });
     });
@@ -169,10 +166,6 @@ export const analyzeTextTemplate = (
     raw: source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end)
   });
 
-  // Numeric-expression holes are exactly where the nui 4 sigil requirement for
-  // element-property references applies. Checked once here (not by a
-  // separate document-wide pass) since this is the only place the hole's
-  // exact raw content span is already isolated.
   const numericExpressionHoleBareReferenceDiagnostics = (hole: ParsedHole): OccurrenceDiagnostic[] =>
     barePropertyReferenceIssues(
       source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end),
@@ -188,7 +181,6 @@ export const analyzeTextTemplate = (
     const hole = parsedHoles[holeIndex];
 
     if (!hole.ast) {
-      // Not typed-scalar syntax: keep the separate numeric-expression path.
       const bareDiagnostics = numericExpressionHoleBareReferenceDiagnostics(hole);
       if (bareDiagnostics.length > 0) {
         diagnostics.push(...bareDiagnostics);
@@ -198,14 +190,10 @@ export const analyzeTextTemplate = (
       continue;
     }
     const ast = hole.ast;
+    const ownsRecordProperty = hasRecordScalarProperty(ast, bindingAnalysis, statementIndex);
 
-    // A syntactically numeric hole with no references, whose every reference
-    // resolves to a non-typed catalog kind (iteration), or whose references
-    // cannot be resolved at all (no binding catalog present - canResolve is
-    // false) stays in the numeric-expression path, exactly like a bare
-    // numeric-expression property. A hole with typed-only syntax goes through
-    // strict typed-hole handling below even without references.
     const isNumericEligible =
+      !ownsRecordProperty &&
       !containsNonNumericScalarSyntax(ast) &&
       (hole.references.length === 0 ||
         !canResolve ||
@@ -224,18 +212,10 @@ export const analyzeTextTemplate = (
       continue;
     }
 
-    // Every `@` reference is a typed binding reference && fails closed when
-    // it cannot resolve.
     let hasReferenceDiagnostic = false;
     const referenceResolutions: BindingResolution[] = [];
     hole.references.forEach((reference, referenceIndex) => {
       const resolution = canResolve ? resolutionAt(holeIndex, referenceIndex) : undefined;
-      // `resolution.kind !== "resolved"` also catches a
-      // "resolved"-but-non-typed reference reaching this strict typed-hole
-      // path: isNumericEligible already routes an all-non-typed hole to the
-      // numeric-expression path above, so this only fires for a hole mixing
-      // a typed reference with a non-typed one - the same
-      // TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE fail-closed diagnostic applies.
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push({ span: reference.span, code: TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE, message: unresolvedReferenceMessage(reference.name, resolution) });
         hasReferenceDiagnostic = true;
@@ -267,7 +247,38 @@ export const analyzeTextTemplate = (
     });
     if (hasReferenceDiagnostic) continue;
 
-    const checked = typecheckScalarExpression(ast, { expectedType: null, references: referenceResolutions });
+    const prepared = bindingAnalysis
+      ? prepareRecordScalarExpressionFromCatalog({
+          ast,
+          statementIndex,
+          catalog: bindingAnalysis.catalog,
+          referenceResolutions
+        })
+      : null;
+    if (prepared?.issues.length) {
+      diagnostics.push(...prepared.issues.map((issue) => ({
+        span: issue.span,
+        code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
+        message: issue.message
+      })));
+      continue;
+    }
+    if (prepared) {
+      for (const dependency of prepared.dependencies) {
+        dependencies.push({
+          holeSpan: hole.raw.span,
+          bindingId: dependency.bindingId,
+          name: dependency.name,
+          span: dependency.span,
+          ...(elementId !== undefined ? { elementId } : {})
+        });
+      }
+    }
+
+    const checked = typecheckScalarExpression(prepared?.ast ?? ast, {
+      expectedType: null,
+      references: prepared?.references ?? referenceResolutions
+    });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => ({ span: diagnostic.span, code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE, message: diagnostic.message })));
       continue;
@@ -310,10 +321,6 @@ export type TextTemplateCompilation = {
   diagnostics: readonly DslDiagnostic[];
 };
 
-/** Exact-span-or-nothing - see typedDeclarationAnalysis.ts's
- * compileDiagnostic. No navigationTarget: a failed hole occurrence never
- * reaches templatesByOccurrenceKey, so there is no resolved index entry to
- * jump to for it. */
 const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -327,15 +334,6 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   };
 };
 
-/**
- * Scans every canonical `label(text: "...")` occurrence in the document -
- * `label` is the sole construction producing `CadElementType "text"`
- * (src/dsl/dslConstructions.ts). Runs whenever this is called at all
- * (callers gate on nui 4, not on typed declarations existing - see
- * dslDocument.ts): a document with zero typed declarations still gets full
- * brace/escape/numeric-vs-typed classification, just with `bindingAnalysis`
- * absent for every occurrence.
- */
 export const compileTextTemplates = ({
   statements,
   elementIdByStatementIndex,
@@ -355,7 +353,7 @@ export const compileTextTemplates = ({
     if (!elementId || !elementsById.has(elementId)) return;
 
     const attr = statement.attrs.find((item) => item.key === "text");
-    if (!attr || attr.value.startsWith("@")) return; // bare @binding text uses the property-binding path.
+    if (!attr || attr.value.startsWith("@")) return;
 
     const paddedSource = " ".repeat(attr.valueStart) + attr.value;
     const span: DslSpan = { start: attr.valueStart, end: attr.valueEnd };
