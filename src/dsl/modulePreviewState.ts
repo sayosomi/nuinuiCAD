@@ -35,7 +35,7 @@ export type ModulePreviewParameterState = {
   type: ResolvedModuleParameter["type"];
   optional: boolean;
   required: boolean;
-  /** Exact authored default expression text, for presentation only. */
+  /** Authored default expression text, for presentation only. */
   defaultSourceText: string | null;
   /** Exact ephemeral caller-side argument expression text. Empty means omitted. */
   value: string;
@@ -87,11 +87,6 @@ export type ModulePreviewSession = {
     definitionStatementId: StatementIdentity,
     parameterIndex: number
   ): ModulePreviewDefaultActionResult;
-};
-
-type StoredParameterValue = {
-  name: string;
-  expression: string;
 };
 
 type ActivePreview = {
@@ -167,13 +162,16 @@ const definitionChainFor = (
   return chain.reverse();
 };
 
-const storageKeyFor = (parameter: ResolvedModuleParameter) =>
-  `${parameter.parameterIndex}\u0000${parameter.name}`;
-
 const inputKeyFor = (
+  targetDefinitionStatementId: StatementIdentity,
   definition: ModuleDefinitionSemantic,
   parameter: ResolvedModuleParameter
-) => JSON.stringify([definition.statementId, parameter.parameterIndex, parameter.name]);
+) => JSON.stringify([
+  targetDefinitionStatementId,
+  definition.statementId,
+  parameter.parameterIndex,
+  parameter.name
+]);
 
 const previewKeyFor = (active: ActivePreview) =>
   JSON.stringify(active.chain.map((definition) => definition.statementId));
@@ -219,21 +217,24 @@ const scalarLiteralForEvaluation = (evaluation: ScalarEvaluation): string | null
 };
 
 export const createModulePreviewSession = (): ModulePreviewSession => {
-  const valuesByDefinition = new Map<StatementIdentity, Map<string, StoredParameterValue>>();
+  const valueByInputKey = new Map<string, string>();
   const lastGoodByPreviewKey = new Map<string, ModulePreviewRootResult>();
   const lastGoodValueByInputKey = new Map<string, string>();
   const invalidDiagnosticByInputKey = new Map<string, ModulePreviewInputDiagnostic>();
   let active: ActivePreview | null = null;
   let state: ModulePreviewSessionSnapshot | null = null;
 
+  const keyFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
+    active ? inputKeyFor(active.target.definitionStatementId, definition, parameter) : "";
+
   const valueFor = (definition: ModuleDefinitionSemantic, parameter: ResolvedModuleParameter) =>
-    valuesByDefinition.get(definition.statementId)?.get(storageKeyFor(parameter))?.expression ?? "";
+    active ? valueByInputKey.get(keyFor(definition, parameter)) ?? "" : "";
 
   const activeParameters = (): ActiveParameter[] => active?.chain.flatMap((definition) =>
     definition.parameters.map((parameter) => ({
       definition,
       parameter,
-      key: inputKeyFor(definition, parameter)
+      key: inputKeyFor(active.target.definitionStatementId, definition, parameter)
     }))
   ) ?? [];
 
@@ -255,7 +256,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       omittedInput?.definitionStatementId === definition.statementId &&
       omittedInput.parameterIndex === parameter.parameterIndex
     ) return [];
-    const expression = overrides?.get(inputKeyFor(definition, parameter)) ?? valueFor(definition, parameter);
+    const expression = overrides?.get(keyFor(definition, parameter)) ?? valueFor(definition, parameter);
     return isOmitted(expression) ? [] : [{ name: parameter.name, expression }];
   });
 
@@ -336,7 +337,6 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     const input = rootInputFor();
     const current = required.length === 0 && input ? compileModulePreviewRoot(input) : null;
     const parameters = activeParameters();
-    const activeKeys = new Set(parameters.map((entry) => entry.key));
 
     if (current) {
       for (const entry of parameters) {
@@ -346,7 +346,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     } else if (editedInput) {
       const edited = parameterFor(editedInput.definitionStatementId, editedInput.parameterIndex);
       if (edited) {
-        const editedKey = inputKeyFor(edited.definition, edited.parameter);
+        const editedKey = keyFor(edited.definition, edited.parameter);
         invalidDiagnosticByInputKey.delete(editedKey);
         if (required.length === 0 && !isOmitted(valueFor(edited.definition, edited.parameter))) {
           const otherInvalid = parameters.filter((entry) =>
@@ -379,10 +379,14 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       }
     }
 
+    const requiredKeys = new Set(required.flatMap((diagnostic) => {
+      const resolved = parameterFor(diagnostic.definitionStatementId, diagnostic.parameterIndex);
+      return resolved ? [keyFor(resolved.definition, resolved.parameter)] : [];
+    }));
     const diagnostics = [
       ...required,
       ...parameters.flatMap((entry) => {
-        if (!activeKeys.has(entry.key)) return [];
+        if (requiredKeys.has(entry.key)) return [];
         const diagnostic = invalidDiagnosticByInputKey.get(entry.key);
         return diagnostic ? [diagnostic] : [];
       })
@@ -423,10 +427,8 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     expression: string
   ): ModulePreviewSessionSnapshot | null => {
     const resolved = parameterFor(definitionStatementId, parameterIndex);
-    if (!resolved) return state;
-    const values = valuesByDefinition.get(definitionStatementId) ?? new Map<string, StoredParameterValue>();
-    values.set(storageKeyFor(resolved.parameter), { name: resolved.parameter.name, expression });
-    valuesByDefinition.set(definitionStatementId, values);
+    if (!active || !resolved) return state;
+    valueByInputKey.set(keyFor(resolved.definition, resolved.parameter), expression);
     return evaluate({ definitionStatementId, parameterIndex });
   };
 
