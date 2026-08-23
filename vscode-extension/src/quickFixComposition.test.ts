@@ -118,17 +118,21 @@ afterEach(() => {
 
 describe("native Quick Fix composition", () => {
   it("publishes the localized typo hint and routes typo actions through the existing internal command", async () => {
-    const source = "nui 4\npont P = coordinate(x: 0, y: 0)\n";
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     mocks.textDocuments.push(document);
 
     const provider = createNuiChoiceQuickFixProvider(() => session);
-    const diagnostic = vscodeDiagnosticFor(document, session, "unknown-dsl-keyword");
-    expect(diagnostic.message).toContain("Did you mean 'point'?");
+    const diagnostic = vscodeDiagnosticFor(document, session, "undefined-binding");
+    expect(diagnostic.message).toContain("Did you mean 'width'?");
 
     const actions = actionsFor(document, provider, diagnostic);
-    expect(actions.map((action) => action.title)).toEqual(["Change to 'point'"]);
+    expect(actions.map((action) => action.title)).toEqual(["Change to 'width'"]);
     expect(actions[0]?.command?.command).toBe(NUI_CHOICE_QUICK_FIX_APPLY_COMMAND);
 
     const apply = createNuiChoiceQuickFixApplyHandler(() => session);
