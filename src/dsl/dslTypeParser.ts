@@ -1,6 +1,6 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslDeclaredValueType, DslSpan } from "./dslTypes";
+import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 
@@ -12,10 +12,9 @@ export type DslScalarTypeParseResult = {
   numericTypeOptions?: DslNumericTypeOptions;
 };
 
-export type DslDeclaredValueTypeParseResult = {
-  declaredType: DslDeclaredValueType | null;
-  choiceOptionSpans: DslSpan[];
-  numericTypeOptions?: DslNumericTypeOptions;
+export type DslDeclaredValueTypeParseResult = DslScalarTypeParseResult & {
+  /** Source-only unresolved nominal record type; never enters ScalarType/runtime. */
+  recordTypeReference: DslRecordTypeReference | null;
 };
 
 export const dslChoiceTypeName = "choice";
@@ -225,8 +224,8 @@ const isBareTypeName = (text: string) =>
 /**
  * Parses a declaration-facing value type. Built-in scalar spellings retain
  * their existing parser/diagnostics; any other bare identifier remains an
- * unresolved nominal record type for the source-semantic resolver. This is a
- * source model only and never widens ScalarType.
+ * unresolved nominal record type in a separate source-only field. This keeps
+ * existing scalar/runtime consumers on ScalarType without widening them.
  */
 export const parseDslDeclaredValueType = (
   source: string,
@@ -240,6 +239,12 @@ export const parseDslDeclaredValueType = (
     Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, text) ||
     NUMBER_HEAD.test(text) ||
     CHOICE_HEAD.test(text);
-  if (builtInScalarSyntax || !isBareTypeName(text)) return parseDslScalarType(source, typeSpan, diagnostics);
-  return { declaredType: { kind: "record", name: text }, choiceOptionSpans: [] };
+  if (builtInScalarSyntax || !isBareTypeName(text)) {
+    return { ...parseDslScalarType(source, typeSpan, diagnostics), recordTypeReference: null };
+  }
+  return {
+    declaredType: null,
+    recordTypeReference: { kind: "record", name: text },
+    choiceOptionSpans: []
+  };
 };
