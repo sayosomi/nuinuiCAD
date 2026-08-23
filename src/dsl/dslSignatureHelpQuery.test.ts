@@ -22,6 +22,22 @@ describe("DSL Signature Help query", () => {
     expect(result?.activeSignature).toBe(0);
   });
 
+  it("shows any concrete choice for the string builtin without inventing allowed values", () => {
+    const result = queryAt("nui 4\nconst value: string = string(");
+    const parameter = result?.signatures[0]?.parameters[0];
+
+    expect(result?.signatures[0]).toMatchObject({
+      name: "string",
+      returnType: "string"
+    });
+    expect(parameter).toMatchObject({
+      type: "choice(...)",
+      documentation: { key: "signatureHelp.parameter.choice" }
+    });
+    expect(parameter?.allowedValues).toBeUndefined();
+    expect(result?.activeParameter).toBe(0);
+  });
+
   it("selects a uniquely active positional builtin overload and parameter", () => {
     const result = queryAt("nui 4\nconst value: number = round(1, ");
 
