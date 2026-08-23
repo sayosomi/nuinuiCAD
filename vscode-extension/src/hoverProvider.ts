@@ -100,8 +100,11 @@ const isNuiHoverRevealSourceReferenceArgs = (
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<NuiHoverRevealSourceReferenceArgs>;
   return typeof candidate.documentUri === "string" &&
+    typeof candidate.documentVersion === "number" &&
     Number.isInteger(candidate.documentVersion) &&
+    typeof candidate.from === "number" &&
     Number.isInteger(candidate.from) &&
+    typeof candidate.to === "number" &&
     Number.isInteger(candidate.to) &&
     typeof candidate.expectedText === "string" &&
     candidate.expectedText.length > 0;
