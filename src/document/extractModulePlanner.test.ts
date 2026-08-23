@@ -139,6 +139,7 @@ describe("planExtractModule checkpoint 1", () => {
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
+    expect(result.dependencies).toEqual([]);
     expect(result.exports).toEqual([]);
     const next = applyLineSplices(source, result.splices);
     expect(next).toContain("  const first: number = @width + 1");
@@ -265,20 +266,28 @@ describe("planExtractModule checkpoint 1", () => {
     expectRejectedWithoutPatch(plan(source, [2]).result, "unsupported-statement");
   });
 
-  it("fails closed for geometry targets and geometry dependencies outside checkpoint 1", () => {
-    const geometryTarget = [
-      "nui 4",
-      "point A = coordinate(x: 0, y: 0)",
-      "point B = offset(from: @A, dx: 1, dy: 0)"
-    ].join("\n");
-    expectRejectedWithoutPatch(plan(geometryTarget, [2]).result, "unsupported-statement");
-
-    const scalarWithGeometryDependency = [
+  it("parameterizes a direct point dependency used from a selected scalar expression", () => {
+    const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "const x: number = @A.x"
     ].join("\n");
-    expectRejectedWithoutPatch(plan(scalarWithGeometryDependency, [2]).result);
+    const { result } = plan(source, [2]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["A", "point", "@A"]
+    ]);
+    expect(result.exports).toEqual([]);
+    expect(applyLineSplices(source, result.splices)).toBe([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "module Extracted(A: point) {",
+      "  const x: number = @A.x",
+      "}",
+      "instance Part = Extracted(A: @A)"
+    ].join("\n"));
   });
 
   it("fails closed for nominal record dependencies instead of splitting record fields", () => {
