@@ -38,6 +38,22 @@ const plan = (source: string, selectedIndexes: readonly number[]) => {
   });
 };
 
+const planNamed = (source: string, selectedNames: readonly string[]) => {
+  const compiled = compileCurrent(source);
+  const statementIds = selectedNames.map((name) => {
+    const statementIndex = compiled.statements.findIndex((statement) => statement.name === name);
+    if (statementIndex < 0) throw new Error(`missing authored statement ${name}`);
+    return statementIdAt(compiled, statementIndex);
+  });
+  return planExtractModule({
+    source: { normalizedSource: source, sourceRevision: REVISION },
+    compiled,
+    statementIds,
+    moduleName: "Extracted",
+    instanceName: "Part"
+  });
+};
+
 describe("planExtractModule checkpoint 3 geometry arrays", () => {
   it("preserves the exact array dependency type, exports the moved array, and rewrites an outside array reference", () => {
     const source = [
@@ -74,7 +90,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
       "const points: point[] = [(0, 0), (10, 5)]"
     ].join("\n");
 
-    const result = plan(source, [1]);
+    const result = planNamed(source, ["points"]);
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
 
