@@ -274,7 +274,6 @@ const SELECTION_STRONG_LUMINANCE_SEPARATION = 4.5;
 const SELECTION_MIN_SATURATION = 0.65;
 const SELECTION_MIN_HUE_DISTANCE = 90;
 const FOREGROUND_CHROMATIC_SATURATION = 0.18;
-const LIGHT_SELECTION_VIVID_HUE = 225;
 const LIGHT_SELECTION_VIVID_SATURATION = 1;
 const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.58;
 
@@ -320,31 +319,35 @@ const selectionColorIsDistinct = (
 };
 
 const deriveDistinctSelectionColor = (
-  accentValue: string,
+  baseValue: string,
   foregroundValue: string,
   backgroundValue: string
 ): string => {
-  const accent = parseCssColor(accentValue);
+  const base = parseCssColor(baseValue);
   const foreground = parseCssColor(foregroundValue);
   const background = parseCssColor(backgroundValue);
-  if (!accent || !foreground || !background) return accentValue;
+  if (!base || !foreground || !background) return baseValue;
 
-  const visibleAccent = compositeCssColorOver(accent, background);
+  const visibleBase = compositeCssColorOver(base, background);
   const visibleForeground = compositeCssColorOver(foreground, background);
-  const accentHsl = rgbToHsl(visibleAccent);
+  const baseHsl = rgbToHsl(visibleBase);
   const foregroundHsl = rgbToHsl(visibleForeground);
   const legacyAccent = parseCssColor(LEGACY_CANVAS_THEME.accent);
   const fallbackHue = legacyAccent ? rgbToHsl(legacyAccent).hue : 180;
   const darkBackground = backgroundIsDark(background);
-  const hue = foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
-    ? (foregroundHsl.hue + 180) % 360
-    : darkBackground
-      ? accentHsl.saturation >= 0.35
-        ? accentHsl.hue
+  const hue = darkBackground
+    ? foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+      ? (foregroundHsl.hue + 180) % 360
+      : baseHsl.saturation >= 0.35
+        ? baseHsl.hue
         : fallbackHue
-      : LIGHT_SELECTION_VIVID_HUE;
+    : baseHsl.saturation >= 0.35
+      ? baseHsl.hue
+      : foregroundHsl.saturation >= FOREGROUND_CHROMATIC_SATURATION
+        ? (foregroundHsl.hue + 180) % 360
+        : fallbackHue;
   const saturation = darkBackground
-    ? Math.max(0.82, accentHsl.saturation)
+    ? Math.max(0.82, baseHsl.saturation)
     : LIGHT_SELECTION_VIVID_SATURATION;
   const initialLightness = darkBackground ? 0.68 : LIGHT_SELECTION_INITIAL_LIGHTNESS;
   const minimumContrast = selectionMinimumBackgroundContrast(background);
@@ -365,9 +368,8 @@ const deriveDistinctSelectionColor = (
 /**
  * Keep Canvas selection theme-derived when the theme already separates it from
  * ordinary geometry. Dark backgrounds keep the established contrast-strengthening
- * path. Light backgrounds avoid darkening a weak theme teal toward foreground;
- * instead they preserve an already-strong theme color or derive a vivid cool hue
- * that can keep strong background contrast at a visibly higher lightness.
+ * path. Light backgrounds keep the existing theme-token selection policy, and any
+ * derived fallback preserves the chosen theme accent hue while strengthening it.
  */
 const resolveSelectionColor = (
   seedValue: string,
