@@ -18,6 +18,23 @@ const contrastFor = (value: string, backgroundValue: string) => {
   return contrastRatio(compositeCssColorOver(valueColor, backgroundColor), backgroundColor);
 };
 
+const contrastBetweenFor = (
+  firstValue: string,
+  secondValue: string,
+  backgroundValue: string
+) => {
+  const firstColor = parseCssColor(firstValue);
+  const secondColor = parseCssColor(secondValue);
+  const backgroundColor = parseCssColor(backgroundValue);
+  if (!firstColor || !secondColor || !backgroundColor) {
+    throw new Error("Expected test colors to parse");
+  }
+  return contrastRatio(
+    compositeCssColorOver(firstColor, backgroundColor),
+    compositeCssColorOver(secondColor, backgroundColor)
+  );
+};
+
 describe("resolveVSCodeCanvasTheme", () => {
   it("maps active VS Code CSS variables to the shared CanvasTheme DTO", () => {
     const theme = resolveVSCodeCanvasTheme(stylesFor({
@@ -64,7 +81,10 @@ describe("resolveVSCodeCanvasTheme", () => {
     expect(theme.axis).toBe("#202020");
     expect(theme.bezierHandleLine).toBe("#202020");
     expect(theme.bezierHandlePoint).toBe("#303030");
-    expect(theme.selection).toBe("#303030");
+    expect(theme.selection).not.toBe(theme.foreground);
+    expect(contrastBetweenFor(theme.selection, theme.foreground, theme.background))
+      .toBeGreaterThanOrEqual(2);
+    expect(contrastFor(theme.selection, theme.background)).toBeGreaterThanOrEqual(3);
     expect(theme.pickCandidate).toBe("#303030");
     expect(theme.background).toBe(LEGACY_CANVAS_THEME.background);
     expect(theme.minorGrid).toBe(LEGACY_CANVAS_THEME.minorGrid);
@@ -176,6 +196,44 @@ describe("resolveVSCodeCanvasTheme", () => {
 
     expect(contrastFor(lowContrast.selection, background)).toBeGreaterThanOrEqual(4.5);
     expect(fallback.selection).toBe("#444444");
+  });
+
+  it.each([
+    ["dark", "#d4d4d4", "#1e1e1e", "#007fd4"],
+    ["light", "#333333", "#ffffff", "#0090f1"]
+  ])("uses the theme accent when %s selection would match geometry", (
+    _label,
+    foreground,
+    background,
+    accent
+  ) => {
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": accent,
+      "--vscode-editor-selectionHighlightBorder": foreground
+    }));
+
+    expect(theme.selection).toBe(theme.accent);
+    expect(contrastBetweenFor(theme.selection, theme.foreground, background))
+      .toBeGreaterThanOrEqual(2);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("derives a distinct selection when both theme selection tokens match geometry", () => {
+    const foreground = "#111111";
+    const background = "#ffffff";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": foreground,
+      "--vscode-editor-selectionHighlightBorder": foreground
+    }));
+
+    expect(theme.selection).not.toBe(theme.foreground);
+    expect(contrastBetweenFor(theme.selection, theme.foreground, background))
+      .toBeGreaterThanOrEqual(2);
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(3);
   });
 
   it("measures alpha colors after compositing over the Canvas background", () => {
