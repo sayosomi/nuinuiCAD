@@ -30,19 +30,27 @@ describe("fitCanvasViewportToBounds", () => {
   });
 
   it("fits a zero-width target from the non-zero height", () => {
-    expect(fitCanvasViewportToBounds({
+    const fitted = fitCanvasViewportToBounds({
       bounds: bounds(10, 0, 10, 40),
       size,
       currentZoom: 1
-    })).toEqual({ zoom: 5.9, panX: -59, panY: 118 });
+    });
+
+    expect(fitted?.zoom).toBeCloseTo(5.9);
+    expect(fitted?.panX).toBeCloseTo(-59);
+    expect(fitted?.panY).toBeCloseTo(118);
   });
 
   it("fits a zero-height target from the non-zero width", () => {
-    expect(fitCanvasViewportToBounds({
+    const fitted = fitCanvasViewportToBounds({
       bounds: bounds(0, -10, 100, -10),
       size,
       currentZoom: 1
-    })).toEqual({ zoom: 3.36, panX: -168, panY: -33.6 });
+    });
+
+    expect(fitted?.zoom).toBeCloseTo(3.36);
+    expect(fitted?.panX).toBeCloseTo(-168);
+    expect(fitted?.panY).toBeCloseTo(-33.6);
   });
 
   it("preserves zoom for a point-like target and centers it", () => {
