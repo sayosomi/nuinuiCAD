@@ -155,7 +155,7 @@ fn analytic_geometry(line: &Value, segments: Vec<Value>) -> Option<Value> {
     let (start, end, start_tangent_angle_deg, end_tangent_angle_deg) = endpoint_metadata(&segments);
     let length = segments.iter().map(segment_length).sum::<f64>();
     Some(json!({
-        "kind": "offsetLine",
+        "kind": line.get("kind").cloned().unwrap_or_else(|| json!("offsetLine")),
         "elementId": element_id,
         "name": name,
         "baseLineIds": line.get("baseLineIds").cloned().unwrap_or_else(|| json!([])),

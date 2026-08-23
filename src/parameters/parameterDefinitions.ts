@@ -474,6 +474,12 @@ const parameterDefinitionsForElement = (
           kind: "boolean",
         },
       ];
+    case "joinedPath":
+      return [
+        ...commonParameters,
+        { key: "pathIds", label: "パス", kind: "lineReferenceList" },
+        { key: "closed", label: "閉じる", kind: "boolean" },
+      ];
     case "copyLine":
     case "move":
       return [

@@ -362,6 +362,9 @@ fn remap_element_references(
             map_id_array_field(object, "baseLineIds", id_map, scope);
             remap_numeric_field(object, "offset", id_map);
         }
+        Some("joinedPath") => {
+            map_id_array_field(object, "pathIds", id_map, scope);
+        }
         Some("splitLine") => {
             map_id_field(object, "baseLineId", id_map, scope);
             remap_point_anchor_field(object, "splitPoint", id_map, scope);

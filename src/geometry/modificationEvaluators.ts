@@ -4,7 +4,6 @@ import type {
   ComputedBezierCurve,
   ComputedBezierSegment,
   ComputedLine,
-  ComputedOffsetLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
   ElementId,
@@ -52,6 +51,7 @@ type EndpointMoveResult =
 
 const EPSILON = 1e-9;
 const TOLERANCE_MM = 0.001;
+type SegmentedLineGeometry = Extract<LineLikeGeometry, { kind: "offsetLine" | "joinedPath" }>;
 
 const computedPoint = (elementId: ElementId, name: string, point: Point): ComputedPoint => ({
   kind: "point",
@@ -344,9 +344,9 @@ const moveBezierEndpoint = (
 };
 
 const analyticOffsetGeometry = (
-  line: ComputedOffsetLine,
+  line: SegmentedLineGeometry,
   segments: ComputedOffsetLineSegment[]
-): ComputedOffsetLine | null => {
+): SegmentedLineGeometry | null => {
   if (segments.length === 0) return null;
   return {
     ...line,
@@ -365,7 +365,7 @@ const offsetZeroLengthError = (name: string): EndpointMoveResult => ({
 // for bezier sub-segments, sweep split for arcs), keeping every other segment
 // -- including untouched bezier/arc sub-segments -- byte-for-byte unchanged.
 const truncateOffsetAtBody = (
-  line: ComputedOffsetLine,
+  line: SegmentedLineGeometry,
   endpointKey: LineEndpointReference["endpointKey"],
   hit: { segmentIndex: number; localT: number; point: Point }
 ): EndpointMoveResult => {
@@ -395,7 +395,7 @@ const truncateOffsetAtBody = (
 // when the terminal segment is a bezier/arc sub-segment -- leaving every
 // existing segment untouched either way.
 const extendOffsetAlongTangent = (
-  line: ComputedOffsetLine,
+  line: SegmentedLineGeometry,
   endpointKey: LineEndpointReference["endpointKey"],
   target: Point
 ): EndpointMoveResult => {
@@ -443,7 +443,7 @@ const extendOffsetAlongTangent = (
 };
 
 const moveOffsetEndpoint = (
-  line: ComputedOffsetLine,
+  line: SegmentedLineGeometry,
   endpointKey: LineEndpointReference["endpointKey"],
   target: ComputedPoint
 ): EndpointMoveResult => {

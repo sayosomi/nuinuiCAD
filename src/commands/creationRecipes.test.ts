@@ -100,6 +100,7 @@ describe("creationRecipes", () => {
       "arcLine",
       "bezierCurve",
       "offsetLine",
+      "joinedPath",
       "divisionPoint",
       "lineDivisionPoint",
       "angleLengthLine",

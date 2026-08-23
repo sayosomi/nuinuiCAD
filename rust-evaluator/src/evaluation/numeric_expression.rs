@@ -279,7 +279,7 @@ pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Opti
                 _ => intermediate_point_value(segments, property),
             }
         }
-        "offsetLine" => match property {
+        "offsetLine" | "joinedPath" => match property {
             "length" | "startTangentAngleDeg" | "endTangentAngleDeg" => {
                 geometry.get(property)?.as_f64()
             }

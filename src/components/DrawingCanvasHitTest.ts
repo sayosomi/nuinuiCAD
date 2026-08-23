@@ -3,6 +3,7 @@ import type {
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedJoinedPath,
   ComputedPoint,
   ElementId
 } from "../types/geometry";
@@ -103,7 +104,7 @@ export const sampleArcLineScreenPoints = (
 };
 
 export const sampleOffsetLineScreenPoints = (
-  line: ComputedOffsetLine,
+  line: ComputedOffsetLine | ComputedJoinedPath,
   worldToScreen: (point: ScreenPoint) => ScreenPoint
 ) =>
   line.segments.flatMap((segment) => {
@@ -222,6 +223,7 @@ type CanvasGeometryHitTestInput = {
   arcs?: Array<{ arc: ComputedArcLine; points: ScreenPoint[] }>;
   curves?: Array<{ curve: ComputedBezierCurve; points: ScreenPoint[] }>;
   offsetLines?: Array<{ line: ComputedOffsetLine; points: ScreenPoint[] }>;
+  joinedPaths?: Array<{ line: ComputedJoinedPath; points: ScreenPoint[] }>;
   images?: Array<{ image: { elementId: ElementId; name?: string }; corners: ScreenPoint[] }>;
   texts?: Array<{ text: { elementId: ElementId; name?: string; text: string }; screen: ScreenPoint; fontSizePx: number }>;
   points: Array<{ point: ComputedPoint; screen: ScreenPoint }>;
@@ -233,6 +235,7 @@ export const hitTestCanvasGeometryAll = ({
   arcs = [],
   curves = [],
   offsetLines = [],
+  joinedPaths = [],
   images = [],
   texts = [],
   points
@@ -258,6 +261,12 @@ export const hitTestCanvasGeometryAll = ({
     const item = offsetLines[index]!;
     if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
       add({ elementId: item.line.elementId, kind: "offsetLine", name: item.line.name }, index);
+    }
+  }
+  for (let index = 0; index < joinedPaths.length; index += 1) {
+    const item = joinedPaths[index]!;
+    if (distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
+      add({ elementId: item.line.elementId, kind: "joinedPath", name: item.line.name }, index);
     }
   }
   for (let index = 0; index < curves.length; index += 1) {
@@ -303,6 +312,7 @@ export const hitTestCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  joinedPaths,
   images,
   texts,
   points
@@ -312,6 +322,7 @@ export const hitTestCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  joinedPaths,
   images,
   texts,
   points
@@ -352,7 +363,7 @@ const pointInPolygon = (point: ScreenPoint, polygon: ScreenPoint[]) => {
 };
 
 export type LineMeasurementCandidate = {
-  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath;
   property: NumericMeasurementKey;
 };
 
@@ -361,9 +372,9 @@ export const hitTestLineCandidates = ({
   lines
 }: {
   screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
+  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
 }) => {
-  const candidates: Array<ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine> = [];
+  const candidates: Array<ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath> = [];
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const item = lines[index];
@@ -386,13 +397,13 @@ export const hitTestLineMeasurementCandidates = ({
   lines
 }: {
   screen: ScreenPoint;
-  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
+  lines: Array<{ line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath; start?: ScreenPoint; end?: ScreenPoint; points?: ScreenPoint[] }>;
 }): LineMeasurementCandidate[] => {
   const candidates: LineMeasurementCandidate[] = [];
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const item = lines[index];
-    if (item.line.kind === "bezierCurve" || item.line.kind === "offsetLine") {
+    if (item.line.kind === "bezierCurve" || item.line.kind === "offsetLine" || item.line.kind === "joinedPath") {
       if (item.points && distanceToPolyline(screen, item.points) <= LINE_HIT_DISTANCE_PX) {
         candidates.push({ line: item.line, property: "length" });
       }

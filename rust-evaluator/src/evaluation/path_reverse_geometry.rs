@@ -176,6 +176,7 @@ pub(crate) fn reverse_line_like_geometry(geometry: &Value) -> Option<Value> {
         "arcLine" => reverse_arc(geometry),
         "bezierCurve" => reverse_bezier(geometry),
         "offsetLine" => reverse_offset(geometry),
+        "joinedPath" => reverse_offset(geometry),
         _ => None,
     }
 }

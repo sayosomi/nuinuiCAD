@@ -28,7 +28,7 @@ export const sourceSegmentsForGeometry = (geometry: ComputedGeometry): SourceSeg
     ];
   }
   if (geometry.kind === "bezierCurve") return bezierSourceSegments(geometry);
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     return geometry.segments.map((segment) =>
       segment.kind === "line"
         ? { kind: "line", start: segment.start, end: segment.end }

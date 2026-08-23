@@ -1,0 +1,18 @@
+nui 4
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+point C = coordinate(x: 20, y: 0)
+point Top = coordinate(x: 0, y: 20)
+line First = segment(start: @A, end: @B)
+line Second = segment(start: @B, end: @C)
+line Backward = segment(start: @C, end: @B)
+line Close = segment(start: @C, end: @A)
+line ArcLead = segment(start: @A, end: @C)
+line ArcReverseLead = segment(start: @A, end: @Top)
+arc Arc = arc(center: @A, radius: 20, start: 0, end: 90, direction: counterclockwise)
+const parts: path[] = [@First, @Backward]
+line Joined = join(paths: @parts, closed: false)
+line Nested = join(paths: [@Joined], closed: false)
+line Closed = join(paths: [@First, @Second, @Close], closed: true)
+line ArcJoined = join(paths: [@ArcLead, @Arc], closed: false)
+line ArcReversed = join(paths: [@ArcReverseLead, @Arc], closed: false)

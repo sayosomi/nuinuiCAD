@@ -30,6 +30,7 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
+  element.type === "joinedPath" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||
   element.type === "symmetricCopyLine";

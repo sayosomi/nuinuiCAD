@@ -1,8 +1,5 @@
 import type {
-  ComputedArcLine,
   ComputedBezierCurve,
-  ComputedLine,
-  ComputedOffsetLine,
   ComputedOffsetLineSegment
 } from "../types/geometry";
 import type { LineLikeGeometry } from "./linePaths";
@@ -199,7 +196,7 @@ const bezierPathSegments = (curve: ComputedBezierCurve) => {
 // unlike the previous implementation, does not special-case closed offset
 // lines -- a closed offset line can still be intersected, it just never gets
 // endpoint extension segments (see `endpointTangents`).
-const offsetPathSegments = (line: ComputedOffsetLine) => {
+const offsetPathSegments = (line: { segments: ComputedOffsetLineSegment[] }) => {
   const segments: IntersectionSegment[] = [];
   const accumulated = { value: 0 };
 
@@ -938,8 +935,8 @@ const samePoint = (a: LineIntersection, b: LineIntersection) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= DEDUPE_EPSILON;
 
 export const findLineIntersections = (
-  line1: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
-  line2: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
+  line1: LineLikeGeometry,
+  line2: LineLikeGeometry,
   options: { useExtensions: boolean }
 ): LineIntersectionResult => {
   const baseSegments1 = pathSegmentsForLine(line1);

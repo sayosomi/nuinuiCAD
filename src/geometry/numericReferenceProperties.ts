@@ -4,7 +4,8 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
-  ComputedOffsetLine
+  ComputedOffsetLine,
+  ComputedJoinedPath
 } from "../types/geometry";
 import type { NumericMeasurementKey } from "./numericExpressionTypes";
 
@@ -12,7 +13,8 @@ export type NumericReferenceGeometry =
   | ComputedLine
   | ComputedArcLine
   | ComputedBezierCurve
-  | ComputedOffsetLine;
+  | ComputedOffsetLine
+  | ComputedJoinedPath;
 
 export const numericReferencePickProperties: readonly NumericMeasurementKey[] = [
   "length",
@@ -76,6 +78,7 @@ export const numericReferencePropertiesForElement = (
 
   if (
     element.type === "offsetLine" ||
+    element.type === "joinedPath" ||
     element.type === "copyLine" ||
     element.type === "symmetricCopyLine"
   ) {

@@ -4,6 +4,7 @@ export const CANVAS_BASE_DRAW_ORDER = [
   "arcLine",
   "bezierCurve",
   "offsetLine",
+  "joinedPath",
   "text",
   "point"
 ] as const;

@@ -4,7 +4,6 @@ import type {
   ComputedBezierCurve,
   ComputedBezierSegment,
   ComputedLine,
-  ComputedOffsetLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
   ElementId
@@ -257,7 +256,7 @@ const transformOffsetSegment = (
 };
 
 const transformOffsetLine = (
-  line: ComputedOffsetLine,
+  line: Extract<LineLikeGeometry, { kind: "offsetLine" | "joinedPath" }>,
   transform: TransformPoint,
   reverseSweep: boolean
 ): LineLikeGeometry | null => {

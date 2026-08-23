@@ -365,6 +365,36 @@ describe("SAY-64 output core", () => {
     expect(svg.viewBox).toEqual({ x: 0, y: 0, width: svg.widthMm, height: svg.heightMm });
   });
 
+  it("keeps an open joined path as one exact mixed-path drawable in SVG and print output", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  point C = coordinate(x: 10, y: 10)",
+      "  line AB = segment(start: @A, end: @B)",
+      "  line BC = segment(start: @B, end: @C)",
+      "  line Joined = join(paths: [@AB, @BC], closed: false)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @L, paper: a4, overlap: 10)",
+      "svg S(layout: @L)"
+    ]);
+    const evaluation = evaluationFor(doc);
+    const svgPlan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation });
+    const printPlan = buildOutputPlan({ compiledDocument: doc, output: doc.document.printOutputs[0], evaluation });
+    const svgJoined = svgPlan.drawables.filter((drawable) => drawable.kind === "joinedPath");
+    const printJoined = printPlan.placements.flatMap((placement) => placement.drawables).filter((drawable) => drawable.kind === "joinedPath");
+    expect(svgJoined).toHaveLength(1);
+    expect(printJoined).toHaveLength(1);
+    expect(svgJoined[0]).toMatchObject({ kind: "joinedPath", segments: [
+      { kind: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } },
+      { kind: "line", start: { x: 10, y: 0 }, end: { x: 10, y: 10 } }
+    ] });
+  });
+
   it("computes physical first-page areas, strides, and page counts for every A4/A3 orientation", () => {
     const cases = [
       { paper: "a4", orientation: "portrait", paperWidthMm: 210, paperHeightMm: 297, columns: 4, rows: 2 },

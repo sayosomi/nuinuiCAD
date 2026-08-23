@@ -131,7 +131,7 @@ fn bezier_endpoint_tangent_on_geometry(
             .iter()
             .filter_map(|segment| bezier_endpoint_tangent_at_point(segment, point, tolerance))
             .min_by(|(_, left), (_, right)| left.total_cmp(right)),
-        "offsetLine" => segments
+        "offsetLine" | "joinedPath" => segments
             .iter()
             .filter(|segment| segment.get("kind").and_then(Value::as_str) == Some("bezier"))
             .filter_map(|segment| bezier_endpoint_tangent_at_point(segment, point, tolerance))
@@ -292,7 +292,7 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
         }
         "arcLine" => arc_segments(geometry),
         "bezierCurve" => bezier_segments(geometry),
-        "offsetLine" => offset_segments(geometry),
+        "offsetLine" | "joinedPath" => offset_segments(geometry),
         _ => None,
     }
 }
@@ -325,7 +325,7 @@ fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
                 y: center.y + direction.y * radius,
             })
         }
-        "offsetLine" => {
+        "offsetLine" | "joinedPath" => {
             let segments = geometry.get("segments")?.as_array()?;
             let projection = project_point_onto_offset_line(
                 BezierPoint {
@@ -465,7 +465,7 @@ pub(crate) fn tangent_at_point_on_geometry(
             };
             return Some((angle_from_direction(tangent), distance_from_line));
         }
-        Some("offsetLine") => {
+        Some("offsetLine" | "joinedPath") => {
             let segments = geometry.get("segments")?.as_array()?;
             let projection = project_point_onto_offset_line(
                 BezierPoint {

@@ -324,6 +324,12 @@ export type OffsetLineElement = CadElementBase & {
   suppressTrimWarnings?: boolean;
 };
 
+export type JoinedPathElement = CadElementBase & {
+  type: "joinedPath";
+  pathIds: ElementId[];
+  closed: boolean;
+};
+
 export type SplitLineElement = CadElementBase & {
   type: "splitLine";
   baseLineId: ElementId;
@@ -432,6 +438,7 @@ export type CadElement =
   | PathReverseElement
   | BezierCurveElement
   | OffsetLineElement
+  | JoinedPathElement
   | SplitLineElement
   | CopyLineElement
   | SymmetricCopyLineElement
@@ -551,6 +558,20 @@ export type ComputedOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedJoinedPath = {
+  kind: "joinedPath";
+  elementId: ElementId;
+  name: string;
+  pathIds: ElementId[];
+  start: ComputedPoint | null;
+  end: ComputedPoint | null;
+  segments: ComputedOffsetLineSegment[];
+  closed: boolean;
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedImage = {
   kind: "image";
   elementId: ElementId;
@@ -583,6 +604,7 @@ export type ComputedGeometry =
   | ComputedArcLine
   | ComputedBezierCurve
   | ComputedOffsetLine
+  | ComputedJoinedPath
   | ComputedImage
   | ComputedText;
 
@@ -689,6 +711,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   pathReverse: "反転",
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
+  joinedPath: "結合パス",
   splitLine: "分割線",
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線",
@@ -723,6 +746,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   pathReverse: "modification",
   bezierCurve: "line",
   offsetLine: "line",
+  joinedPath: "line",
   splitLine: "line",
   copyLine: "line",
   symmetricCopyLine: "line",

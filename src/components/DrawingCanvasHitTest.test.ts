@@ -5,7 +5,7 @@ import {
   screenSpaceCumulativeLengthMidpoint,
   textHitBounds
 } from "./DrawingCanvasHitTest";
-import type { ComputedLine, ComputedPoint } from "../types/geometry";
+import type { ComputedJoinedPath, ComputedLine, ComputedPoint } from "../types/geometry";
 
 const point = (elementId: string, name: string): ComputedPoint => ({
   kind: "point",
@@ -30,6 +30,29 @@ const line = (elementId: string, name: string): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
+const geometryPoint = (elementId: string, x: number, y: number): ComputedPoint => ({
+  ...point(elementId, elementId),
+  x,
+  y
+});
+
+const joinedPath = (): ComputedJoinedPath => ({
+  kind: "joinedPath",
+  elementId: "joined",
+  name: "Joined",
+  pathIds: ["first", "second"],
+  start: point("joined-start", "start"),
+  end: point("joined-end", "end"),
+  segments: [
+    { kind: "line", start: geometryPoint("joined-s0", 0, 0), end: geometryPoint("joined-e0", 10, 0), length: 10 },
+    { kind: "line", start: geometryPoint("joined-s1", 10, 0), end: geometryPoint("joined-e1", 10, 10), length: 10 }
+  ],
+  closed: false,
+  length: 20,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 90
+});
+
 const textHitTest = (fontSizePx: number) => hitTestCanvasGeometry({
   screen: { x: 20, y: 10 },
   lines: [],
@@ -49,6 +72,16 @@ describe("text Canvas hit testing", () => {
 });
 
 describe("Canvas identity hit candidates", () => {
+  it("selects a joined path by any non-zero constituent primitive", () => {
+    const joined = joinedPath();
+    expect(hitTestCanvasGeometryAll({
+      screen: { x: 10, y: 5 },
+      lines: [],
+      joinedPaths: [{ line: joined, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] }],
+      points: []
+    })).toEqual([{ elementId: "joined", kind: "joinedPath", name: "Joined" }]);
+  });
+
   it("returns frontmost categories first, later items first, and deduplicates by element id", () => {
     const hits = hitTestCanvasGeometryAll({
       screen: { x: 50, y: 50 },

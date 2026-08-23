@@ -2,6 +2,7 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedOffsetLineSegment
@@ -11,7 +12,7 @@ import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 
 type Point = { x: number; y: number };
 
-export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath;
 
 type BezierLikeSegment = {
   start: Point;
@@ -204,7 +205,7 @@ const bezierSegments = (curve: ComputedBezierCurve) =>
     });
   });
 
-const offsetSegments = (line: ComputedOffsetLine) =>
+const offsetSegments = (line: Pick<ComputedOffsetLine, "segments">) =>
   line.segments.flatMap((segment: ComputedOffsetLineSegment) => {
     if (segment.kind === "line") {
       const path = pathSegment(segment.start, segment.end);
@@ -231,7 +232,8 @@ export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined): geom
   geometry?.kind === "line" ||
   geometry?.kind === "arcLine" ||
   geometry?.kind === "bezierCurve" ||
-  geometry?.kind === "offsetLine";
+  geometry?.kind === "offsetLine" ||
+  geometry?.kind === "joinedPath";
 
 const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] => {
   if (geometry.kind === "line") {
@@ -264,7 +266,7 @@ const snapOntoGeometry = (geometry: LineLikeGeometry, point: Point): Point | nul
     const radius = Math.max(geometry.radius, 0);
     return { x: geometry.center.x + direction.x * radius, y: geometry.center.y + direction.y * radius };
   }
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     return projectPointOntoOffsetLine(point, geometry.segments)?.point ?? null;
   }
   return null;
@@ -364,7 +366,7 @@ export const tangentAtPointOnLineLikeGeometry = (
     const analyticTangent = analyticBezierTangentAtPoint(geometry.segments, point, tolerance);
     if (analyticTangent) return analyticTangent;
   }
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     const tangent = bestBezierEndpointTangent(
       geometry.segments.filter((segment): segment is Extract<ComputedOffsetLineSegment, { kind: "bezier" }> =>
         segment.kind === "bezier"
