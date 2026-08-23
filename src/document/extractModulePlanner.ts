@@ -103,6 +103,14 @@ type DependencyDescriptor = {
   declarationFrom: number;
 };
 
+type SourcePathRange = {
+  /** Replace from here so a rooted `@::A::B` becomes local `@param`, not `@::param`. */
+  rewriteFrom: number;
+  to: number;
+  /** Preserve the exact original resolved source reference for the generated call argument. */
+  argumentFrom: number;
+};
+
 const reject = (
   code: ExtractModuleRejectCode,
   message: string,
@@ -119,25 +127,8 @@ const sameEnclosing = (
 const isStructuralStatement = (statement: DslStatement): boolean =>
   statement.kind === "blockEnd" || statement.kind === "blockElse";
 
-const isSupportedModuleBodyStatement = (statement: DslStatement): boolean => {
-  if (
-    statement.kind === "typedDeclaration" ||
-    statement.kind === "set" ||
-    statement.kind === "group" ||
-    statement.kind === "moduleDefinition" ||
-    statement.kind === "moduleInstance"
-  ) return true;
-  if (statement.kind !== "element") return false;
-  return statement.category === "point" ||
-    statement.category === "line" ||
-    statement.category === "curve" ||
-    statement.category === "arc" ||
-    statement.category === "text" ||
-    statement.category === "group" ||
-    statement.category === "mutation" ||
-    statement.type === "conditionalGroup" ||
-    statement.type === "forGroup";
-};
+const isExplicitLocalSourceV1Rejection = (statement: DslStatement): boolean =>
+  statement.kind === "import" || statement.kind === "fileReExport";
 
 const lineStarts = (source: string): number[] => {
   const starts = [0];
@@ -189,21 +180,26 @@ const sourcePathRangeForOccurrence = (
   source: string,
   occurrences: readonly DslSemanticOccurrence[],
   occurrence: DslSemanticOccurrence
-): { from: number; to: number; argumentFrom: number } => {
-  let from = occurrence.from;
+): SourcePathRange => {
+  let firstSegmentFrom = occurrence.from;
   let cursor = occurrence.from;
   while (true) {
     const prior = occurrences.find((candidate) =>
       candidate.kind === "reference" && candidate.to + 2 === cursor && source.slice(candidate.to, cursor) === "::"
     );
     if (!prior) break;
-    from = prior.from;
+    firstSegmentFrom = prior.from;
     cursor = prior.from;
   }
+  const rooted = firstSegmentFrom >= 3 && source.slice(firstSegmentFrom - 3, firstSegmentFrom) === "@::";
   return {
-    from,
+    rewriteFrom: rooted ? firstSegmentFrom - 2 : firstSegmentFrom,
     to: occurrence.to,
-    argumentFrom: source[from - 1] === "@" ? from - 1 : from
+    argumentFrom: rooted
+      ? firstSegmentFrom - 3
+      : source[firstSegmentFrom - 1] === "@"
+        ? firstSegmentFrom - 1
+        : firstSegmentFrom
   };
 };
 
@@ -217,6 +213,44 @@ const declarationRangesFor = (
 
 const statementIndexForId = (compiled: CompiledDslDocument, statementId: StatementIdentity): number | undefined =>
   compiled.statementMap?.statementIndexByStatementId?.get(statementId);
+
+const statementIdForIndex = (compiled: CompiledDslDocument, statementIndex: number | undefined): StatementIdentity | null =>
+  statementIndex === undefined
+    ? null
+    : compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex) ?? null;
+
+/**
+ * Root typed/geometry declarations become Module-owned source declarations after Extract.
+ * Normalize those representation changes back to the reconciler-owned authored statement
+ * identity before comparing reference resolution across the rewrite.
+ */
+const semanticOwnerKey = (compiled: CompiledDslDocument, identity: DslSemanticIdentity): string => {
+  if (identity.kind === "typed") {
+    const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
+    const statementId = statementIdForIndex(compiled, statementIndex);
+    return statementId ? `statement:${statementId}` : dslSemanticIdentityKey(identity);
+  }
+  if (identity.kind === "element") {
+    const statementIndex = compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex;
+    const statementId = statementIdForIndex(compiled, statementIndex);
+    return statementId ? `statement:${statementId}` : dslSemanticIdentityKey(identity);
+  }
+  if (identity.kind === "source") return `statement:${identity.statementId}`;
+
+  const target = identity.target;
+  if (target.kind === "documentBinding") {
+    const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(target.bindingId)?.statementIndex;
+    const statementId = statementIdForIndex(compiled, statementIndex);
+    return statementId ? `statement:${statementId}` : dslSemanticIdentityKey(identity);
+  }
+  if (target.kind === "moduleParameter") {
+    return `parameter:${target.slot.definitionStatementId}:${target.slot.parameterIndex}`;
+  }
+  if (target.kind === "moduleElementLocalVariable") {
+    return `module-element-local:${target.statementId}:${target.variableIndex}`;
+  }
+  return `statement:${target.statementId}`;
+};
 
 const scalarTypeText = (type: ScalarType, numericTypeOptions?: DslNumericTypeOptions): string => {
   if (type.kind === "number") return serializeDslNumericType(numericTypeOptions);
@@ -391,7 +425,7 @@ const sourceReferenceSequencesByStatementId = (
         occurrence.from >= statement.documentRange.from &&
         occurrence.to <= statement.documentRange.to
       )
-      .map((occurrence) => dslSemanticIdentityKey(occurrence.identity));
+      .map((occurrence) => semanticOwnerKey(compiled, occurrence.identity));
     result.set(statementId, identities);
   }
   return result;
@@ -452,6 +486,8 @@ const cleanCompile = (compiled: CompiledDslDocument): boolean =>
   !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
   !(compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
+const lexicalTieBreak = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
+
 export const planExtractModule = (input: ExtractModulePlanInput): ExtractModulePlanResult => {
   const { source: snapshot, compiled, statementIds, moduleName, instanceName } = input;
   const statementMap = compiled.statementMap;
@@ -493,7 +529,12 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     .sort((left, right) => left.statementIndex - right.statementIndex);
   const first = ordered[0]!;
   const firstScope = namespace.scopeIndex.scopeOfStatement.get(first.statementIndex);
-  if (!firstScope) return reject("invalid-target", "選択先の lexical scope を解決できません。", { statementId: first.statementId, statementIndex: first.statementIndex });
+  if (!firstScope) {
+    return reject("invalid-target", "選択先の lexical scope を解決できません。", {
+      statementId: first.statementId,
+      statementIndex: first.statementIndex
+    });
+  }
 
   for (const entry of ordered) {
     const scope = namespace.scopeIndex.scopeOfStatement.get(entry.statementIndex);
@@ -503,8 +544,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         statementIndex: entry.statementIndex
       });
     }
-    if (!isSupportedModuleBodyStatement(entry.statement)) {
-      return reject("unsupported-statement", `「${entry.statement.kind}」statement は Module body に移動できません。`, {
+    if (isExplicitLocalSourceV1Rejection(entry.statement)) {
+      return reject("unsupported-statement", `「${entry.statement.kind}」statement は local-source Extract Module v1 の対象外です。`, {
         statementId: entry.statementId,
         statementIndex: entry.statementIndex
       });
@@ -600,7 +641,9 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   }
 
   const dependencies = [...dependencyByIdentity.entries()]
-    .sort((left, right) => left[1].descriptor.declarationFrom - right[1].descriptor.declarationFrom || left[0].localeCompare(right[0]))
+    .sort((left, right) =>
+      left[1].descriptor.declarationFrom - right[1].descriptor.declarationFrom || lexicalTieBreak(left[0], right[0])
+    )
     .map(([identityKey, value]): ExtractModuleDependency => ({
       identityKey,
       name: value.descriptor.name,
@@ -633,7 +676,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   for (const dependency of dependencyByIdentity.values()) {
     for (const occurrence of dependency.occurrences) {
       const path = sourcePathRangeForOccurrence(source, occurrenceIndex.occurrences, occurrence);
-      internalReplacements.push({ from: path.from, to: path.to, text: formatDslName(dependency.descriptor.name) });
+      internalReplacements.push({
+        from: path.rewriteFrom,
+        to: path.to,
+        text: formatDslName(dependency.descriptor.name)
+      });
     }
   }
 
@@ -665,11 +712,17 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       });
     }
     if ((statement.kind === "typedDeclaration" || statement.kind === "element") && statement.exported) {
-      return reject("existing-public-interface", "既存 export declaration の公開interfaceを nested Module 経由へ暗黙変更できません。", { statementId, statementIndex });
+      return reject("existing-public-interface", "既存 export declaration の公開interfaceを nested Module 経由へ暗黙変更できません。", {
+        statementId,
+        statementIndex
+      });
     }
     const insertion = exportInsertionPoint(statement);
     if (insertion === null) {
-      return reject("unsafe-rewrite", "export keyword の exact source insertion point を確定できません。", { statementId, statementIndex });
+      return reject("unsafe-rewrite", "export keyword の exact source insertion point を確定できません。", {
+        statementId,
+        statementIndex
+      });
     }
     internalReplacements.push({ from: insertion, to: insertion, text: "export " });
     for (const reference of outsideReferences) {
@@ -713,7 +766,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   if (outsideSplices === null) {
     return reject("unsafe-rewrite", "範囲外 reference rewrite を exact single-line splice として表現できません。");
   }
-  const splices = [...outsideSplices, selectedSplice].sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
+  const splices = [...outsideSplices, selectedSplice]
+    .sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
 
   let candidateSource: string;
   try {
@@ -740,6 +794,9 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   if (!nextCompiled.statementMap || !nextCompiled.sourceLexicalNamespace || !cleanCompile(nextCompiled)) {
     const firstError = [...nextCompiled.diagnostics, ...(nextCompiled.bindingIssueDiagnostics ?? [])]
       .find((diagnostic) => diagnostic.severity === "error");
+    if (firstError?.code === "module-forbidden-body-statement") {
+      return reject("unsupported-statement", firstError.message);
+    }
     return reject("unsafe-rewrite", firstError?.message ?? "Extract 後の source semantics を安全にコンパイルできません。");
   }
 
@@ -759,7 +816,9 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   for (const [statementId, identities] of oldSequences) {
     const after = nextSequences.get(statementId);
     if (!after || identities.length !== after.length || identities.some((identity, index) => identity !== after[index])) {
-      return reject("unsafe-rewrite", "Extract 後に範囲外 statement の reference resolution が変化するため適用できません。", { statementId });
+      return reject("unsafe-rewrite", "Extract 後に範囲外 statement の reference resolution が変化するため適用できません。", {
+        statementId
+      });
     }
   }
 
