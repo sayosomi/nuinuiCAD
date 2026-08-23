@@ -126,16 +126,17 @@ const moduleParameterType = (
   source: string,
   typeSpan: DslSpan,
   diagnostics: DslModuleDiagnostic[]
-): Pick<DslModuleParameter, "type" | "choiceOptionSpans" | "numericTypeOptions"> => {
+): Pick<DslModuleParameter, "type" | "recordTypeReference" | "choiceOptionSpans" | "numericTypeOptions"> => {
   const text = source.slice(typeSpan.start, typeSpan.end);
   if (text === "point" || text === "line" || text === "path") {
-    return { type: { kind: text }, choiceOptionSpans: [] };
+    return { type: { kind: text }, recordTypeReference: null, choiceOptionSpans: [] };
   }
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
   return {
     type: parsed.declaredType,
+    recordTypeReference: parsed.recordTypeReference,
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
   };
@@ -165,7 +166,7 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
   }
 
   const parsedType = typeSpan.start === typeSpan.end
-    ? { type: null, choiceOptionSpans: [] as DslSpan[] }
+    ? { type: null, recordTypeReference: null, choiceOptionSpans: [] as DslSpan[] }
     : moduleParameterType(source, typeSpan, diagnostics);
   return {
     kind: "moduleParameter",
@@ -173,6 +174,7 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     optional: Boolean(arg.optionalSpan),
     optionalSpan: arg.optionalSpan ?? null,
     type: parsedType.type,
+    recordTypeReference: parsedType.recordTypeReference,
     typeSpan: typeSpan.start === typeSpan.end ? null : typeSpan,
     choiceOptionSpans: parsedType.choiceOptionSpans,
     ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
