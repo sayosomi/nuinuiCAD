@@ -45,6 +45,8 @@ Sol High prompt
 
 Treat the user action above as transport only. It is not `Judgment: Human` or `Executor: Human`. Do not introduce, require, scrape, or simulate automatic ChatGPT-to-Luna conversation relay.
 
+A counted Luna run is unattended unless the Manual E2E plan explicitly contains a Human action inside that unit. Once Luna begins the run, do not ask the Human to click, type, dismiss a dialog, restore focus, relaunch the host, or otherwise rescue execution. If any unplanned Human interaction changes the tested environment or UI during the run, mark that run non-counting, preserve the evidence, clean up, and rerun from a fresh exact initial state. Do not reinterpret Human rescue as transport.
+
 ## 1. Freeze and verify the tested state
 
 Follow the tested commit/stable-ref contract from the prompt. At minimum verify:
@@ -76,11 +78,26 @@ NUINUICAD_MCP_OBSERVATION=1
 
 Keep the MCP observation path read-only. Do not expose bridge credentials or add command/mutation/shell/keyboard/pointer/screenshot surfaces to MCP.
 
+### GUI launch lifetime fallback
+
+The canonical `VS-CODE-E2E.md` launch remains the baseline. On macOS runner environments, a one-shot shell/runner process can occasionally terminate or lose ownership of the GUI child before the VS Code process and CDP listener become usable even though the launch arguments are otherwise correct.
+
+When diagnostics show that specific runner-lifetime symptom, a persistent PTY/session may be used as a bounded environment fallback to keep the exact same VS Code GUI invocation alive long enough for the normal CDP readiness check. This is not a universal requirement and must not change the tested commit, fixture, launch flags, profile, oracle, or product action. Record that the PTY fallback was used. If the canonical bounded launch attempts still cannot establish the host, return environment `BLOCKED`.
+
+### Command Palette operation
+
+For deterministic Playwright/CDP Command Palette use:
+
+- enter command mode explicitly with the leading `>` before the command search text;
+- identify the intended command by its stable contributed command text / accessible identity, not by exact whole-row display text;
+- tolerate VS Code-owned row metadata such as `recently used` that can be appended to the rendered row;
+- still require the command itself to match the predeclared command identity and declared Palette scope. Do not loosen matching to an ambiguous nearby command.
+
 Before product units, objectively verify:
 
 - the run-unique `.nui` fixture is active;
 - its language mode is nuinuiCAD/`nui`, not Plain Text;
-- required nuinuiCAD commands are registered **from a surface where their declared Palette scope is supposed to be visible**;
+- required nuinuiCAD commands are registered from a surface where their declared Palette scope is supposed to be visible;
 - Playwright/CDP is attached to the workbench containing that exact fixture;
 - when `vscode_observe` is required, the expected live observation instance/document resolves.
 
@@ -118,6 +135,19 @@ Do not use those file-backed tools as proof of dirty unsaved Source state.
 Use `vscode_observe` for live VS Code production-host facts such as document identity/version/dirty state, Source selection and diagnostics, active surface, Canvas/Output Preview session presence, or current Canvas runtime state. Request `includeSourceText: true` only when exact live Source text is required; the compact default intentionally omits it.
 
 `vscode_observe` is observation only. Never treat it as an automation or mutation API.
+
+### Deterministic Source editing
+
+Before a Luna action types over or replaces a specific Source token/span:
+
+1. establish the exact run document;
+2. select or place the caret on the intended source range using deterministic editor operation;
+3. verify the exact selected range/text before typing when an incorrect range would change the tested action;
+4. perform the predeclared user-level edit once;
+5. do not issue a corrective second edit merely because the first operation was not verified beforehand;
+6. collect fresh live Source/document evidence after the edit, then collect dependent Canvas/evaluation evidence only after the defined stable post-action state.
+
+This range verification is an operation-safety technique, not a new product oracle. Do not add extra product requirements that were not in the Manual E2E plan.
 
 ### Deterministic Canvas operation inside the webview
 
@@ -232,6 +262,13 @@ End with:
 Reusable-operation observation: none | <concise factual observation>
 ```
 
-Use the final field only for a potentially reusable execution/evidence fact encountered during the run: repeatable environment pitfall, proven capability, capability boundary, stable evidence technique, or structured MCP observation gap. Do not propose policy or an implementation fix.
+Use the final field for potentially reusable execution/evidence facts encountered during the run, including:
 
-Sol High owns the reusable-lesson check after every run and routes a real lesson to the authoritative skill/playbook/rule owner. Generally reusable MCP observation deficiencies should become focused MCP follow-up work rather than permanent brittle visual inference. If the run taught nothing reusable, report `none`.
+- repeatable environment pitfall;
+- proven positive operation / observation capability;
+- capability boundary;
+- stable operation/evidence technique;
+- runner/host lifecycle behavior;
+- structured MCP observation gap.
+
+Record the concrete fact rather than proposing policy or an implementation fix. Sol High owns the reusable-lesson check after every run and routes a real lesson to the authoritative Skill/playbook/environment owner. Generally reusable MCP observation deficiencies should become focused MCP follow-up work rather than permanent brittle visual inference. If the run taught nothing reusable, report `none`.
