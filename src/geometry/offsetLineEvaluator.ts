@@ -1,8 +1,18 @@
-import type { CadElement, ComputedGeometry } from "../types/geometry";
+import type {
+  CadElement,
+  ComputedGeometry,
+  ComputedOffsetLine,
+  OffsetLineSide
+} from "../types/geometry";
 import { dependencyError, geometryError, geometryWarning, numericError } from "./evaluationContext";
 import { isLineLikeGeometry } from "./linePaths";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+
+type InspectableComputedOffsetLine = ComputedOffsetLine & {
+  offsetDistance: number;
+  offsetSide: OffsetLineSide;
+};
 
 export const evaluateOffsetLineElement = (element: CadElement, context: ElementEvaluationContext) => {
   const {
@@ -56,7 +66,14 @@ export const evaluateOffsetLineElement = (element: CadElement, context: ElementE
         for (const warning of result.warnings ?? []) {
           warnings.push(geometryWarning(element, warning));
         }
-        if (result.geometry) computedGeometry.set(element.id, result.geometry);
+        if (result.geometry) {
+          const geometry: InspectableComputedOffsetLine = {
+            ...result.geometry,
+            offsetDistance: offset,
+            offsetSide: element.side
+          };
+          computedGeometry.set(element.id, geometry);
+        }
         break;
       }
 

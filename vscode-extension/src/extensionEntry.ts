@@ -4,6 +4,7 @@ import {
   createMcpObservationBridge,
   NUI_MCP_OBSERVATION_SETTING
 } from "./mcpObservationBridge";
+import { createVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { vscodeObservationState } from "./vscodeObservationState";
 
 const observationSnapshot = (includeSourceText: boolean): unknown => {
@@ -28,6 +29,10 @@ const observationSnapshot = (includeSourceText: boolean): unknown => {
 
 export const activate = (context: vscode.ExtensionContext): void => {
   activateExtension(context);
+
+  const multiDocumentHost = createVscodeMultiDocumentHost();
+  multiDocumentHost.start();
+  context.subscriptions.push(multiDocumentHost);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),

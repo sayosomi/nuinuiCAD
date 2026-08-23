@@ -303,8 +303,12 @@ Primary:
 - `src/document/multiDocumentPrimitives.ts`
 - `src/document/multiDocumentImportGraph.ts`
 - `src/document/multiDocumentPublicApi.ts`
+- `src/document/multiDocumentLanguageQueries.ts`
 - `src/dsl/dslMultiDocumentSyntax.ts`
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
+- `vscode-extension/src/multiDocumentHost.ts`
+- `src/vscode/multiDocumentGraphTransport.ts`
+- `src/vscode/vscodeWebviewSession.ts`
 
 `multiDocumentImportGraph.ts` is the host-neutral owner of saved dependency graph
 construction. Hosts provide an async saved-source loader and canonical
@@ -334,8 +338,54 @@ lexical resolver still owns alias visibility, source order, and collisions. For
 `alias::member`, only the member lookup is delegated through the optional external
 namespace resolver to the imported public catalog. Existing single-document
 callers do not receive external lookup variants and remain fail-closed for import
-members. This subsystem does not own concrete VS Code/Tauri watcher adapters or
-cross-file Definition/References/Rename.
+members.
+
+`multiDocumentLanguageQueries.ts` is the host-neutral document-qualified
+Definition / References / Rename layer over that graph and the existing semantic
+owners. It projects exact declaration/reference occurrences onto stable
+`DocumentId`-qualified identities, preserves re-exported members as occurrences
+of the original public identity, and never recovers cross-file semantics through
+workspace text search. An open dirty document may replace a saved target only when
+the supplied current semantic view re-proves the same identity and exact range;
+otherwise navigation fails closed.
+
+Public References and Rename consume a host-supplied complete reverse-importer
+query universe. The core prefers a single exact current snapshot over saved
+snapshots for an open document, rejects conflicting/stale source proof, and
+deduplicates repeated importer candidates. Rename additionally requires each
+document semantic owner to prove the complete non-overlapping edit set against
+exact expected source text; any rejected document rejects the whole plan. Import
+alias rename remains importer-local. Concrete VS Code/Tauri filesystem discovery,
+watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
+outside this subsystem.
+
+`vscode-extension/src/multiDocumentHost.ts` is the production VS Code adapter for
+that host-neutral layer. It canonicalizes file-backed `.nui` paths to file-URI
+`DocumentId`s, reads imported dependencies only through `workspace.fs.readFile`,
+and fingerprints the exact saved bytes with SHA-256. Each open root owns one
+coordinated graph built from its current `TextDocument`; dependency nodes remain
+saved-disk snapshots even when the same file is open and dirty. Dirty open
+content may contribute only an exact-current semantic view for language queries,
+never replace the dependency snapshot used to construct the graph.
+
+The host watches `**/*.nui` saves/creates/deletes and invalidates coordinator-owned
+reverse dependencies before rebuilding affected open roots. Public References and
+Rename use `workspace.findFiles("**/*.nui")` only to enumerate a complete candidate
+universe; every candidate is parsed/semantically analyzed and the query fails
+closed on incomplete or stale proof rather than using text search. Native
+Definition/References/Rename providers ask this host first for document-qualified
+results and otherwise retain the existing single-document query path. Rename
+rechecks every exact source owner immediately before producing a `WorkspaceEdit`;
+a dirty editor cannot authorize edits against an older saved dependency snapshot.
+
+`multiDocumentGraphTransport.ts` projects only JSON-safe root graph/source data.
+`multiDocumentHost.ts` publishes building/current/invalidated/unavailable states
+by root document URI, and `VscodeWebviewSessionRegistry` fans the latest retained
+publication to every matching Canvas and Output Preview session, including a
+surface opened after the graph was built. The graph is owned once by the root
+document; individual Webview surfaces do not rebuild filesystem/import state.
+Family-specific declaration/export/runtime semantics remain supplied by their
+own semantic owners rather than by this VS Code host adapter.
 
 ### Lexical / name resolution
 

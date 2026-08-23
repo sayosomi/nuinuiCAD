@@ -58,7 +58,7 @@ export const expectedOperandType = (precedingToken: ScalarExpressionToken | null
   if (!precedingToken) return rootType;
   if (precedingToken.kind === "leftParen") return rootType;
   if (precedingToken.kind === "comma") return rootType;
-  if (precedingToken.kind !== "operator") return null; // literal/reference/rightParen can never immediately precede another operand without an operator between them.
+  if (precedingToken.kind !== "operator") return null;
   const operator: ScalarExpressionOperatorSymbol = precedingToken.value;
   switch (operator) {
     case "&&":
@@ -154,7 +154,9 @@ const namedArgumentNamesAt = (
  * The root expected type is not enough inside a builtin call: `isClose(` is a
  * boolean expression, but all three of its arguments are numbers. Resolve
  * only this narrow editor fact from the token stream; full arity/type
- * validation remains owned by expressionTypecheck.ts.
+ * validation remains owned by expressionTypecheck.ts. A builtin-wide
+ * `anyChoice` constraint intentionally returns null because completion cannot
+ * invent a concrete choice option set.
  */
 const builtinArgumentTypeAt = (
   tokens: readonly ScalarExpressionToken[],
@@ -168,7 +170,9 @@ const builtinArgumentTypeAt = (
     const signature = call?.definition.signatures.find((candidate) => candidate.callingStyle === "named");
     if (nameToken?.kind === "literal" && nameToken.literal.kind === "choice" && signature) {
       const parameter = signature.parameters.find((candidate) => candidate.name === nameToken.literal.raw);
-      return parameter && isScalarBuiltinParameterType(parameter.type) ? parameter.type : null;
+      return parameter && isScalarBuiltinParameterType(parameter.type) && parameter.type.kind !== "anyChoice"
+        ? parameter.type
+        : null;
     }
     return expectedOperandType(precedingToken, rootType);
   }
@@ -195,9 +199,11 @@ const builtinArgumentTypeAt = (
   const parameterType = call.definition.signatures
     .filter((signature) => signature.callingStyle === "positional")
     .find((signature) => signature.parameters.length > argumentIndex)?.parameters[argumentIndex]?.type;
-  return parameterType && isScalarBuiltinParameterType(parameterType)
+  return parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind !== "anyChoice"
     ? parameterType
-    : expectedOperandType(precedingToken, rootType);
+    : parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind === "anyChoice"
+      ? null
+      : expectedOperandType(precedingToken, rootType);
 };
 
 export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };

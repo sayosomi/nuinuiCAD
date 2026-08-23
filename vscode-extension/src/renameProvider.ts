@@ -9,6 +9,7 @@ import {
 } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -112,66 +113,88 @@ export const createNuiRenameProvider = (
   prepareRename: (document, position) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
-    const snapshot = captureRenameCall(document, sessionFor);
-    if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
-    if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
+    const prepareSingleDocument = () => {
+      const snapshot = captureRenameCall(document, sessionFor);
+      if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
+      if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
 
-    let target: DslRenameTarget | null;
-    try {
-      target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
-        snapshot.rawSource,
-        document.offsetAt(position)
-      ));
-    } catch {
-      throw new Error(prepareRenameFailureMessage);
-    }
-    if (!target || !isCurrentDocument(document, snapshot)) throw new Error(prepareRenameFailureMessage);
+      let target: DslRenameTarget | null;
+      try {
+        target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
+          snapshot.rawSource,
+          document.offsetAt(position)
+        ));
+      } catch {
+        throw new Error(prepareRenameFailureMessage);
+      }
+      if (!target || !isCurrentDocument(document, snapshot)) throw new Error(prepareRenameFailureMessage);
 
-    return {
-      range: currentTargetRangeFor(document, snapshot, target),
-      placeholder: target.oldName
+      return {
+        range: currentTargetRangeFor(document, snapshot, target),
+        placeholder: target.oldName
+      };
     };
+
+    const multiDocument = activeVscodeMultiDocumentHost();
+    return multiDocument
+      ? multiDocument.prepareRename(document, position).then((handled) => {
+          if (!handled.handled) return prepareSingleDocument();
+          if (!handled.value) throw new Error(prepareRenameFailureMessage);
+          return handled.value;
+        })
+      : prepareSingleDocument();
   },
 
   provideRenameEdits: (document, position, newName) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
-    const snapshot = captureRenameCall(document, sessionFor);
-    if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
-    if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
+    const provideSingleDocument = (): vscode.WorkspaceEdit => {
+      const snapshot = captureRenameCall(document, sessionFor);
+      if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
+      if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
 
-    let result: DslRenameEditPlanResult;
-    try {
-      result = planDslRenameEditsResult(
-        { source: snapshot.source, semantic: snapshot.semantic },
-        normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
-        newName
-      );
-    } catch {
-      throw new Error(provideRenameEditsFailureMessage);
-    }
-
-    if (result.status === "rejected") {
-      throw new Error(renameRejectionMessage(result.rejection));
-    }
-
-    const plan: DslRenameEditPlan = result.plan;
-    try {
-      if (!exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+      let result: DslRenameEditPlanResult;
+      try {
+        result = planDslRenameEditsResult(
+          { source: snapshot.source, semantic: snapshot.semantic },
+          normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
+          newName
+        );
+      } catch {
         throw new Error(provideRenameEditsFailureMessage);
       }
 
-      const workspaceEdit = new vscode.WorkspaceEdit();
-      for (const edit of plan.edits) {
-        workspaceEdit.replace(
-          document.uri,
-          vscodeRangeFor(document, snapshot.rawSource, edit),
-          edit.newText
-        );
+      if (result.status === "rejected") {
+        throw new Error(renameRejectionMessage(result.rejection));
       }
-      return workspaceEdit;
-    } catch {
-      throw new Error(provideRenameEditsFailureMessage);
-    }
+
+      const plan: DslRenameEditPlan = result.plan;
+      try {
+        if (!exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
+          throw new Error(provideRenameEditsFailureMessage);
+        }
+
+        const workspaceEdit = new vscode.WorkspaceEdit();
+        for (const edit of plan.edits) {
+          workspaceEdit.replace(
+            document.uri,
+            vscodeRangeFor(document, snapshot.rawSource, edit),
+            edit.newText
+          );
+        }
+        return workspaceEdit;
+      } catch {
+        throw new Error(provideRenameEditsFailureMessage);
+      }
+    };
+
+    const multiDocument = activeVscodeMultiDocumentHost();
+    return multiDocument
+      ? multiDocument.provideRenameEdits(document, position, newName).then((handled) => {
+          if (!handled.handled) return provideSingleDocument();
+          if (!handled.value) throw new Error(provideRenameEditsFailureMessage);
+          return handled.value;
+        })
+      : provideSingleDocument();
   }
 });

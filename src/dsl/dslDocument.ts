@@ -1076,6 +1076,7 @@ export const compileDslDocument = (
     (statement, statementIndex) =>
       includeStatement(statement, statementIndex) &&
       (
+        statement.kind === "recordDefinition" ||
         statement.kind === "group" ||
         statement.kind === "moduleDefinition" ||
         statement.kind === "moduleInstance" ||
@@ -1135,6 +1136,7 @@ export const compileDslDocument = (
     });
   }
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
+    statement.kind === "recordDefinition" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "profileDeclaration" ||

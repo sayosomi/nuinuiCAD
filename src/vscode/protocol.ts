@@ -6,6 +6,7 @@ import type { RuntimeScalarDiagnostic } from "../scalars/runtimeScalarDiagnostic
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import type {
   VscodeReferencePickCancelRequest,
   VscodeReferencePickResult,
@@ -21,6 +22,13 @@ export type {
   VscodeReferencePickTargetProof,
   VscodeReferencePickTerminalResult
 } from "./referencePickProtocol";
+export type {
+  VscodeMultiDocumentGraphPublication,
+  VscodeMultiDocumentGraphSnapshot,
+  VscodeMultiDocumentSemanticIdentity,
+  VscodeMultiDocumentSourceLocation,
+  VscodeMultiDocumentSourceSnapshot
+} from "./multiDocumentGraphTransport";
 
 export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
@@ -197,6 +205,7 @@ export type VscodeBenchmarkConfig = {
 export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
+  | VscodeMultiDocumentGraphPublication
   | VscodeReferencePickStartRequest
   | VscodeReferencePickCancelRequest
   | { type: "canvasSourceDefinitionRequest"; requestId: number }
