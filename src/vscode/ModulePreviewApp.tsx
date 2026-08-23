@@ -6,7 +6,8 @@ import { DrawingCanvas, type DrawingCanvasHandle } from "../components/DrawingCa
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
-import { compileModulePreviewRoot, type ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
+import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
+import { createModulePreviewSession } from "../dsl/modulePreviewState";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -36,6 +37,7 @@ const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
 type ValidModulePreview = {
   root: ModulePreviewRootResult;
   evaluationOptions: ReturnType<typeof buildModulePreviewEvaluationOptions>;
+  moduleSemanticContext: CanvasHostAdapter["moduleSemanticContext"];
   revision: number;
 };
 
@@ -54,6 +56,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
   const evaluationRef = useRef<EvaluationResult | null>(null);
   const previewRef = useRef<ValidModulePreview | null>(null);
+  const previewSession = useMemo(() => createModulePreviewSession(), []);
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
   const [statusMessages, setStatusMessages] = useState<string[]>([
     "Open Module Preview from a Module definition in the Source Editor."
@@ -83,7 +86,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     preview?.revision ?? 0,
     rustTransport.transport
   );
-  evaluationRef.current = evaluationState.evaluation;
+  useEffect(() => {
+    evaluationRef.current = evaluationState.evaluation;
+  }, [evaluationState.evaluation]);
 
   const renderElements = useMemo(() => {
     if (!preview) return [];
@@ -91,7 +96,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return preview.root.compileResult.elements.filter((element) => targetIds.has(element.id));
   }, [preview]);
 
-  const applyValidPreview = useCallback((root: ModulePreviewRootResult) => {
+  const applyValidPreview = useCallback((
+    root: ModulePreviewRootResult,
+    moduleSemanticContext: CanvasHostAdapter["moduleSemanticContext"],
+    nextStatusMessages: string[]
+  ) => {
     let evaluationOptions: ReturnType<typeof buildModulePreviewEvaluationOptions>;
     try {
       evaluationOptions = buildModulePreviewEvaluationOptions(root);
@@ -119,10 +128,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       compiledDocumentRevision: revision
     });
     useCadUiStore.getState().reconcileSelectionWithElements(nextRenderElements);
-    const nextPreview = { root, evaluationOptions, revision };
+    const nextPreview = { root, evaluationOptions, moduleSemanticContext, revision };
     previewRef.current = nextPreview;
     setPreview(nextPreview);
-    setStatusMessages(root.diagnostics.map((diagnostic) => diagnostic.message));
+    setStatusMessages(nextStatusMessages);
   }, []);
 
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
@@ -140,19 +149,32 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       compiled: state.currentCompiled
     };
     const target = queryModulePreviewTarget({ source, position: normalizedSourceOffset, semantic });
-    const root = target
-      ? compileModulePreviewRoot({ source, semantic, target, arguments: [] })
-      : null;
-    if (!root) {
-      const diagnostics = diagnosticMessagesFor(document);
+    const snapshot = target ? previewSession.activate({ source, semantic, target }) : null;
+    const root = snapshot?.preview.result ?? null;
+    if (!snapshot || !root) {
+      const diagnostics = snapshot?.inputDiagnostics.map((diagnostic) => diagnostic.message)
+        ?? diagnosticMessagesFor(document);
       setStatusMessages([
         "Module Preview cannot evaluate the exact current target with the current inputs.",
         ...diagnostics
       ]);
       return;
     }
-    applyValidPreview(root);
-  }, [applyValidPreview]);
+
+    const nextStatusMessages = [
+      ...(snapshot.preview.kind === "lastGood"
+        ? ["Module Preview is showing the last valid preview for the current target."]
+        : []),
+      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
+      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+    ];
+    applyValidPreview(root, {
+      moduleMaterialization: root.moduleMaterialization,
+      moduleSemanticAnalysis: root.moduleSemanticAnalysis,
+      sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
+      statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
+    }, nextStatusMessages);
+  }, [applyValidPreview, previewSession]);
 
   const executeSharedCanvasCommand = useCallback((commandId: VscodeCanvasCommandId) => {
     if (!nonWritingCanvasCommands.has(commandId)) return;
@@ -229,12 +251,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, [api, compileTargetAt, executeSharedCanvasCommand, rustTransport]);
 
-  const moduleSemanticContext = useMemo(() => ({
-    moduleMaterialization: preview?.root.moduleMaterialization,
-    moduleSemanticAnalysis: preview?.root.moduleSemanticAnalysis,
-    sourceLexicalNamespace: automationDocumentRef.current?.getState().currentCompiled.sourceLexicalNamespace,
-    statementInfoByElementId: automationDocumentRef.current?.getState().currentCompiled.statementMap?.byElementId
-  }), [preview]);
+  const moduleSemanticContext = preview?.moduleSemanticContext ?? {};
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();

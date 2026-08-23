@@ -102,6 +102,24 @@ export type DslEnclosing = {
   branch: "then" | "else";
 };
 
+/** Source-only unresolved nominal type reference. Never enters ScalarType/runtime. */
+export type DslRecordTypeReference = {
+  kind: "record";
+  name: string;
+};
+
+export type DslRecordField = {
+  kind: "recordField";
+  name: string;
+  nameSpan: DslSpan;
+  type: ScalarType | null;
+  typeSpan: DslSpan | null;
+  choiceOptionSpans: readonly DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
+  namePhysicalSpan?: DslPhysicalSpan | null;
+  typePhysicalSpan?: DslPhysicalSpan | null;
+};
+
 export type DslModuleParameterType =
   | ScalarType
   | { kind: "point" }
@@ -116,6 +134,8 @@ export type DslModuleParameter = {
   optional: boolean;
   optionalSpan: DslSpan | null;
   type: DslModuleParameterType | null;
+  /** Source-only unresolved nominal record type. Never enters Module runtime in SAY-114. */
+  recordTypeReference?: DslRecordTypeReference | null;
   typeSpan: DslSpan | null;
   choiceOptionSpans: readonly DslSpan[];
   numericTypeOptions?: DslNumericTypeOptions;
@@ -229,6 +249,10 @@ export type DslStatement =
       parameters: readonly DslModuleParameter[];
     })
   | (DslStatementBase & {
+      kind: "recordDefinition";
+      fields: readonly DslRecordField[];
+    })
+  | (DslStatementBase & {
       kind: "modifierDefinition";
       state: DrawingModifierState | null;
       widthPx: number | null;
@@ -272,9 +296,11 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "typedDeclaration";
       bindingKind: "const" | "let";
-      /** `null` when the type annotation itself failed to parse. */
+      /** `null` when the scalar type annotation failed or this is a record-valued declaration. */
       declaredType: ScalarType | null;
-      /** Per-option spans, index-aligned with `declaredType.options` when it is a choice type. */
+      /** Source-only unresolved nominal record type. Never enters the scalar catalog/runtime. */
+      recordTypeReference?: DslRecordTypeReference | null;
+      /** Per-option spans, index-aligned with scalar `choice` options. */
       choiceOptionSpans: readonly DslSpan[];
       /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
       numericTypeOptions?: DslNumericTypeOptions;

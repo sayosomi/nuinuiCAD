@@ -46,6 +46,7 @@ import {
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
+import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { compileModuleScalarRuntime, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
@@ -256,6 +257,8 @@ export type CompiledDslDocument = {
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Task 5 runtime expansion && source-origin mapping; never persisted as source. */
   moduleMaterialization?: ModuleMaterialization;
+  /** Compiler-owned Module geometry lowering for exact current runtime consumers. */
+  moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
   /** Source-derived scalar order for materialized runtime occurrences. */
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   /** Direct materialized occurrences; runtime builders consume these without re-resolution. */
@@ -1073,6 +1076,7 @@ export const compileDslDocument = (
     (statement, statementIndex) =>
       includeStatement(statement, statementIndex) &&
       (
+        statement.kind === "recordDefinition" ||
         statement.kind === "group" ||
         statement.kind === "moduleDefinition" ||
         statement.kind === "moduleInstance" ||
@@ -1132,6 +1136,7 @@ export const compileDslDocument = (
     });
   }
   const sourceNamespaceRequiresIdentity = (statement: DslStatement) =>
+    statement.kind === "recordDefinition" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
     statement.kind === "profileDeclaration" ||
@@ -1627,6 +1632,7 @@ export const compileDslDocument = (
       ...(sourceSemanticCompilation && !moduleSemanticCompilation ? { sourceSemanticAnalysis: sourceSemanticCompilation } : {}),
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
+      ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
       ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
         ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
         : {}),
@@ -1712,6 +1718,7 @@ export const compileDslDocument = (
     ...(sourceSemanticCompilation && !moduleSemanticCompilation ? { sourceSemanticAnalysis: sourceSemanticCompilation } : {}),
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
+    ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
       ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
       : {}),

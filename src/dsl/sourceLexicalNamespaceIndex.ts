@@ -3,6 +3,7 @@ import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
 import type { DslReferencePath } from "./dslReferenceTokens";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
+import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
 
 /** Named declarations that participate in the source-level lexical namespace. */
@@ -11,6 +12,8 @@ export type SourceLexicalDeclarationKind =
   | "profile"
   | "moduleDefinition"
   | "moduleInstance"
+  | "recordDefinition"
+  | "recordValue"
   | "group"
   | "geometry"
   | "conditionalGroup"
@@ -43,6 +46,8 @@ export type SourceLexicalNamespaceIndex = {
   allDeclarations: readonly SourceLexicalDeclaration[];
   collisions: readonly SourceLexicalNamespaceCollision[];
   diagnostics: readonly DslDiagnostic[];
+  /** Source-only nominal record model. Whole record values never enter the scalar catalog/runtime. */
+  recordSemanticAnalysis: RecordSemanticAnalysis | null;
 };
 
 /** Opaque payload returned by a document/import owner for one external namespace member. */
@@ -100,8 +105,11 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "profileDeclaration") return "profile";
   if (statement.kind === "moduleDefinition") return "moduleDefinition";
   if (statement.kind === "moduleInstance") return "moduleInstance";
+  if (statement.kind === "recordDefinition") return "recordDefinition";
   if (statement.kind === "group") return "group";
-  if (statement.kind === "typedDeclaration") return "typedDeclaration";
+  if (statement.kind === "typedDeclaration") {
+    return statement.recordTypeReference ? "recordValue" : "typedDeclaration";
+  }
   if (statement.kind === "layout") return "layout";
   if (statement.kind === "print") return "print";
   if (statement.kind === "svg") return "svg";
@@ -115,6 +123,9 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
 
 const isModuleKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "moduleDefinition" || kind === "moduleInstance";
+
+const isRecordKind = (kind: SourceLexicalDeclarationKind) =>
+  kind === "recordDefinition" || kind === "recordValue";
 
 const isExistingCadNamespaceKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
@@ -212,6 +223,8 @@ export const buildSourceLexicalNamespaceIndex = (
             (candidate.kind === "import" && declaration.kind === "import") ||
             isModuleKind(candidate.kind) ||
             isModuleKind(declaration.kind) ||
+            isRecordKind(candidate.kind) ||
+            isRecordKind(declaration.kind) ||
             (candidate.kind === "profile" && declaration.kind === "profile") ||
             (isSourceOnlyDeclaration(candidate) && isSourceOnlyDeclaration(declaration))
         );
@@ -249,13 +262,25 @@ export const buildSourceLexicalNamespaceIndex = (
     }
   }
 
-  return {
+  const baseIndex: SourceLexicalNamespaceIndex = {
     scopeIndex,
     declarationsByScope,
     declarationsByScopeAndName,
     allDeclarations,
     collisions,
-    diagnostics
+    diagnostics,
+    recordSemanticAnalysis: null
+  };
+  const recordSemanticAnalysis = analyzeRecordSemantics({
+    statements,
+    stableStatementIdByIndex,
+    resolveDeclaration: (statementIndex, name) => resolveSourceLexicalDeclaration(baseIndex, statementIndex, name)
+  });
+
+  return {
+    ...baseIndex,
+    diagnostics: [...diagnostics, ...recordSemanticAnalysis.diagnostics],
+    recordSemanticAnalysis
   };
 };
 

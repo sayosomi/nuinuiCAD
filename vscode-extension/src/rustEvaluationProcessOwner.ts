@@ -5,6 +5,10 @@ import {
 
 let activeOwner: RustEvaluationProcessOwner | null = null;
 
+const setActiveOwner = (owner: RustEvaluationProcessOwner | null): void => {
+  activeOwner = owner;
+};
+
 /**
  * VS Code composition wrapper around the shared lazy process owner. The active
  * accessor lets independently registered VS Code surfaces reuse the one owner
@@ -13,11 +17,11 @@ let activeOwner: RustEvaluationProcessOwner | null = null;
 export class RustEvaluationProcessOwner extends SharedRustEvaluationProcessOwner {
   constructor(factory: RustEvaluationProcessFactory) {
     super(factory);
-    activeOwner = this;
+    setActiveOwner(this);
   }
 
   override dispose(): void {
-    if (activeOwner === this) activeOwner = null;
+    if (activeOwner === this) setActiveOwner(null);
     super.dispose();
   }
 }

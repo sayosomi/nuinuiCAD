@@ -4,6 +4,7 @@ import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
+import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
 import { outputPreviewPlaceCoordinatePatchesAreSafe } from "../../src/vscode/outputPreviewPlaceDrag";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
@@ -88,6 +89,10 @@ import {
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
+import {
+  revealInCanvasNotificationFor,
+  type RevealInCanvasPresentationOutcome
+} from "./revealInCanvasPresentation";
 import {
   vscodeObservationState,
   type VscodeObservationHostDocument
@@ -219,6 +224,17 @@ const toVscodeDiagnostic = (
     );
   }
   return result;
+};
+
+const presentRevealInCanvasOutcome = (outcome: RevealInCanvasPresentationOutcome): void => {
+  const displayLanguage = (vscode as typeof vscode & { env?: { language?: string } }).env?.language ?? "en";
+  const notification = revealInCanvasNotificationFor(outcome, displayLanguage);
+  if (!notification) return;
+  if (notification.severity === "warning") {
+    void vscode.window.showWarningMessage(notification.message);
+  } else {
+    void vscode.window.showErrorMessage(notification.message);
+  }
 };
 
 const webviewHtml = (
@@ -839,7 +855,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   ): void => {
     const inFlight = session.inFlightCanvasNavigation;
     if (!inFlight || inFlight.requestId !== message.requestId) return;
-    if (message.status === "ready") {
+    if (message.status === "resolved") {
       if (
         session.document.version !== inFlight.documentVersion ||
         session.inFlightCanvasHistory !== null ||
@@ -849,19 +865,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.inFlightCanvasNavigation = null;
         return;
       }
+      presentRevealInCanvasOutcome({ status: "resolved", degradations: message.degradations });
       if (inFlight.focusSent) return;
       session.pendingCanvasFocus = { requestId: message.requestId };
       session.panel.reveal(vscode.ViewColumn.Beside, false);
       flushPendingCanvasFocus(session);
-      return;
-    }
-    if (message.status === "no-renderable-geometry") {
-      session.pendingCanvasFocus = null;
-      session.inFlightCanvasNavigation = null;
-      void vscode.window.showErrorMessage(
-        "nuinuiCAD: このModule instanceには現在表示できるgeometryがありません。"
-      );
-      deliverPendingCanvasNavigation(session);
       return;
     }
     if (message.status === "focused") {
@@ -871,6 +879,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
     session.pendingCanvasFocus = null;
     session.inFlightCanvasNavigation = null;
+    presentRevealInCanvasOutcome({ status: "failed", reason: message.reason });
     deliverPendingCanvasNavigation(session);
   };
 
@@ -1640,13 +1649,27 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sourceRevision: sessionForDocument.getSourceRevision()
     };
     const semantic = sessionForDocument.definitionSemanticSnapshot(source);
-    if (!semantic?.compiled) return;
+    if (!semantic?.compiled?.statementMap) {
+      presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
+      return;
+    }
     const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
-    if (!queryDslCanvasSourceTarget({ source, compiled: semantic.compiled, position: normalizedSourceOffset })) return;
+    const sourceTarget = queryDslCanvasRevealSourceTarget({
+      source,
+      compiled: semantic.compiled,
+      position: normalizedSourceOffset
+    });
+    if (sourceTarget.status === "failed") {
+      presentRevealInCanvasOutcome({ status: "failed", reason: sourceTarget.reason });
+      return;
+    }
 
     const key = documentKey(document);
     let session = sessions.get(key, "canvas");
-    if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) return;
+    if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) {
+      presentRevealInCanvasOutcome({ status: "failed", reason: "canvas-history-busy" });
+      return;
+    }
     if (!session) session = createCanvasPanel(editor.document, true);
     if (!session) return;
 

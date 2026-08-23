@@ -54,7 +54,9 @@ describe("buildModulePreviewEvaluationOptions", () => {
     );
     expect(point).toBeDefined();
     expect(evaluation.computedGeometry.get(point!.id)).toMatchObject({ kind: "point", x: 12, y: 0 });
-    expect(preview.compileResult.elements.some((element) => element.name === "Outside")).toBe(false);
+    const outside = preview.compileResult.elements.find((element) => element.name === "Outside");
+    expect(outside).toBeDefined();
+    expect(preview.targetRuntimeElementIds).not.toContain(outside!.id);
   });
 
   it("carries materialized text templates without a Preview-only evaluator", () => {

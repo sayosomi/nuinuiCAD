@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::{dependency_error, geometry_error};
@@ -48,15 +48,11 @@ pub(crate) fn evaluate_offset_line(
         return;
     }
 
-    let signed_offset = if element
+    let side = element
         .get("side")
         .and_then(Value::as_str)
-        .is_some_and(|side| side == "right")
-    {
-        offset
-    } else {
-        -offset
-    };
+        .unwrap_or("left");
+    let signed_offset = if side == "right" { offset } else { -offset };
     let id = element_id(element).unwrap_or_default();
     let name = element_name(element);
     let result = build_offset_line_geometry(
@@ -85,7 +81,11 @@ pub(crate) fn evaluate_offset_line(
             message,
         });
     }
-    if let Some(geometry) = result.geometry {
+    if let Some(mut geometry) = result.geometry {
+        if let Some(object) = geometry.as_object_mut() {
+            object.insert("offsetDistance".to_owned(), json!(offset));
+            object.insert("offsetSide".to_owned(), json!(side));
+        }
         insert_geometry(state, id, geometry);
     }
 }

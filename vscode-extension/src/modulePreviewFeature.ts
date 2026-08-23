@@ -84,12 +84,15 @@ const exactTargetAtEditor = (
   };
   const semantic = analysis.definitionSemanticSnapshot(source);
   if (!semantic?.compiled) return null;
-  const normalizedSourceOffset = normalizedOffsetFromRaw(
+  const caretOffset = normalizedOffsetFromRaw(
     rawSource,
     document.offsetAt(editor.selection.active)
   );
-  const target = queryModulePreviewTarget({ source, position: normalizedSourceOffset, semantic });
-  return target ? { target, normalizedSourceOffset } : null;
+  const target = queryModulePreviewTarget({ source, position: caretOffset, semantic });
+  if (!target) return null;
+  const targetStatement = semantic.compiled.statements[target.definitionStatementIndex];
+  if (!targetStatement || targetStatement.kind !== "moduleDefinition") return null;
+  return { target, normalizedSourceOffset: targetStatement.documentRange.from };
 };
 
 export const registerModulePreviewFeature = ({

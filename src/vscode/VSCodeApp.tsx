@@ -19,7 +19,8 @@ import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
-import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
+import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
+import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import {
@@ -33,6 +34,8 @@ import { replaceCanvasSelection } from "../commands/selectionCommands";
 import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
+import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
+import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
@@ -515,25 +518,57 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestCanvasNavigationRequestRef.current = message.requestId;
         const current = currentAuthoritativeDocument(message.documentVersion);
         if (!current || canvasHistoryInFlightRef.current !== null) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: "source-mismatch"
+          });
           return;
         }
-        const target = queryDslCanvasSourceTarget({
+        const sourceTarget = queryDslCanvasRevealSourceTarget({
           source: current.source,
           compiled: current.compiled,
           position: message.normalizedSourceOffset
         });
-        if (!target) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+        if (sourceTarget.status === "failed") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: sourceTarget.reason
+          });
           return;
         }
-        const owners = sourceOwnerByRuntimeElementId(current.compiled);
+
         const runtimeElements = effectiveElements(current.state);
-        const runtimeElementIds = current.state.elements
-          .filter((element) => owners.get(element.id)?.sourceStatementIndex === target.sourceStatementIndex)
-          .map((element) => element.id);
-        if (runtimeElementIds.length === 0) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
+        const drawingModifiers = current.state.modifiers ?? [];
+        const effectiveVisibleElementIds = effectiveDrawElementIds(runtimeElements, drawingModifiers);
+        const effectiveEnabledElementIds = effectiveEvaluationElementIds(runtimeElements, drawingModifiers);
+        const activeVisibilityProfile = visibilityProfileById(
+          current.state.visibilityProfiles,
+          current.state.activeVisibilityProfileId
+        );
+        const profileVisibleElementIds = effectiveVisibleElementIdsForProfile({
+          elements: [...runtimeElements],
+          profile: activeVisibilityProfile
+        });
+        const revealResult = queryDslCanvasRevealRuntimeTarget({
+          target: sourceTarget.target,
+          compiled: current.compiled,
+          moduleGeometryRuntime: current.compiled.moduleGeometryRuntime,
+          elements: runtimeElements,
+          effectiveVisibleElementIds,
+          effectiveEnabledElementIds,
+          profileVisibleElementIds
+        });
+        if (revealResult.status === "failed") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: revealResult.reason
+          });
           return;
         }
 
@@ -542,40 +577,39 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           evaluationStateRef.current,
           current.state.compiledDocumentRevision
         );
-        const containerTarget = canvasNavigationContainerTarget({
-          runtimeElementIds,
-          elements: runtimeElements,
-          evaluation: currentEvaluation,
-          evaluationIsCurrent: currentEvaluationIsCurrent,
-          moduleMaterialization: current.state.doc.moduleMaterialization,
-          visibilityProfiles: current.state.visibilityProfiles,
-          activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-          measureCanvasTextWidth
-        });
-        if (containerTarget.status === "stale") {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "stale" });
-          return;
+        const selectionIds = [...revealResult.runtimeElementIds];
+        const primarySelectionId = revealResult.primaryRuntimeElementId;
+        let revealBounds = null;
+        if (selectionIds.length === 1) {
+          const containerTarget = canvasNavigationContainerTarget({
+            runtimeElementIds: selectionIds,
+            elements: runtimeElements,
+            evaluation: currentEvaluation,
+            evaluationIsCurrent: currentEvaluationIsCurrent,
+            moduleMaterialization: current.compiled.moduleMaterialization,
+            visibilityProfiles: current.state.visibilityProfiles,
+            activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+            measureCanvasTextWidth
+          });
+          if (containerTarget.status === "stale") {
+            api.postMessage({
+              type: "canvasNavigationResult",
+              requestId: message.requestId,
+              status: "failed",
+              reason: "source-mismatch"
+            });
+            return;
+          }
+          if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
         }
-        if (containerTarget.status === "no-renderable-geometry") {
+
+        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true, "requested")) {
           api.postMessage({
             type: "canvasNavigationResult",
             requestId: message.requestId,
-            status: "no-renderable-geometry"
+            status: "failed",
+            reason: "no-revealable-runtime-target"
           });
-          return;
-        }
-
-        let selectionIds = runtimeElementIds;
-        let primarySelectionId = runtimeElementIds[0]!;
-        let revealBounds = null;
-        if (containerTarget.status === "ready") {
-          selectionIds = [containerTarget.containerId];
-          primarySelectionId = containerTarget.containerId;
-          revealBounds = containerTarget.bounds;
-        }
-
-        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true)) {
-          api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "no-target" });
           return;
         }
 
@@ -606,7 +640,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             }
           }
         }
-        api.postMessage({ type: "canvasNavigationResult", requestId: message.requestId, status: "ready" });
+        api.postMessage({
+          type: "canvasNavigationResult",
+          requestId: message.requestId,
+          status: "resolved",
+          degradations: revealResult.degradations
+        });
       } else if (message.type === "focusCanvas") {
         if (latestCanvasNavigationRequestRef.current !== message.requestId) return;
         drawingCanvasRef.current?.finalizeCanvasInteraction();

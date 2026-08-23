@@ -17,6 +17,7 @@ import {
   createMcpObservationBridge,
   NUI_MCP_OBSERVATION_SETTING
 } from "./mcpObservationBridge";
+import { createVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
 
@@ -144,6 +145,10 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
 export const activate = (context: vscode.ExtensionContext): void => {
   activateExtension(context);
   registerModulePreview(context);
+
+  const multiDocumentHost = createVscodeMultiDocumentHost();
+  multiDocumentHost.start();
+  context.subscriptions.push(multiDocumentHost);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),

@@ -51,6 +51,7 @@ export type ReconcileOptions = {
       | "set"
       | "moduleDefinition"
       | "moduleInstance"
+      | "recordDefinition"
       | "layout"
       | "print"
       | "svg"
@@ -185,6 +186,7 @@ export const reconcileStatements = (
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
+    statement.kind === "recordDefinition" ||
     statement.kind === "layout" ||
     statement.kind === "print" ||
     statement.kind === "svg" ||
@@ -197,6 +199,7 @@ export const reconcileStatements = (
     statement.kind === "set" ||
     statement.kind === "moduleDefinition" ||
     statement.kind === "moduleInstance" ||
+    statement.kind === "recordDefinition" ||
     statement.kind === "layout" ||
     statement.kind === "print" ||
     statement.kind === "svg" ||
@@ -402,6 +405,7 @@ export const reconcileStatements = (
       statement.kind === "set" ||
       statement.kind === "moduleDefinition" ||
       statement.kind === "moduleInstance" ||
+      statement.kind === "recordDefinition" ||
       statement.kind === "layout" ||
       statement.kind === "print" ||
       statement.kind === "svg" ||
