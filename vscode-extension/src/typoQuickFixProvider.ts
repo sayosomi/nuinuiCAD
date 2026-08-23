@@ -122,11 +122,20 @@ const sourceSnapshotFor = (
   sourceRevision: session.getSourceRevision()
 });
 
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    // Some focused host mocks intentionally omit vscode.env.
+    return "en";
+  }
+};
+
 /** @internal Focused-test adapter; production diagnostic presentation is owned by typoDiagnosticPresentation.ts. */
 export const compilerDiagnosticsWithTypoSuggestions = (
   rawSource: string,
   session: NuiLanguageAnalysisSession,
-  displayLanguage: string = vscode.env?.language ?? "en"
+  displayLanguage: string = vscodeDisplayLanguage()
 ): CompilerDiagnostic[] => {
   const baseDiagnostics = session.getDiagnostics();
   const source = sourceSnapshotFor(rawSource, session);
@@ -156,7 +165,7 @@ const payloadFor = (
 
 export const createNuiTypoQuickFixProvider = (
   sessionFor: NuiTypoQuickFixSessionFor,
-  displayLanguageFor: () => string = () => vscode.env?.language ?? "en"
+  displayLanguageFor: () => string = vscodeDisplayLanguage
 ): vscode.CodeActionProvider => ({
   provideCodeActions: (document, _range, context) => {
     if (!isSupportedDocument(document)) return [];
