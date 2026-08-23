@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { createLogicalStatementSourceMap } from "../../src/dsl/logicalStatementSourceMap";
+import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 vi.mock("vscode", () => ({}));
@@ -76,6 +78,38 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
   it("has an exact-current semantic snapshot suitable for Reference Pick", () => {
     const languageSession = createLanguageAnalysisSession(source);
     expect(languageSession.getDiagnostics()).toEqual([]);
+  });
+
+  it("keeps the production statement identity aligned for the first Pick target", () => {
+    const languageSession = createLanguageAnalysisSession(source);
+    const sourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: languageSession.getSourceRevision()
+    };
+    const semantic = languageSession.definitionSemanticSnapshot(sourceSnapshot);
+    expect(semantic).toBeDefined();
+    const compiled = semantic!.compiled;
+    const offsetPointLine = source.indexOf("point OffsetPoint");
+    const offset = atEndOf("@A", offsetPointLine);
+    const logicalMap = createLogicalStatementSourceMap(sourceSnapshot);
+    const statementIndex = logicalMap.statements.findIndex((statement) =>
+      offset >= statement.range.from && offset <= statement.range.to
+    );
+    expect(statementIndex).toBeGreaterThanOrEqual(0);
+
+    const statementMapId = compiled.statementMap?.statementIdByStatementIndex.get(statementIndex);
+    const namespaceDeclarationIds = compiled.sourceLexicalNamespace?.allDeclarations
+      .filter((declaration) => declaration.statementIndex === statementIndex)
+      .map((declaration) => declaration.statementId) ?? [];
+    const scopeId = compiled.sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex);
+
+    expect(namespaceDeclarationIds).toEqual([statementMapId]);
+    expect(scopeId).toBeTruthy();
+    expect(queryDslReferencePickTarget({
+      source: sourceSnapshot,
+      position: offset,
+      semantic
+    })).not.toBeNull();
   });
 
   it("resolves the production VS Code adapter target at representative contracted sites", () => {
