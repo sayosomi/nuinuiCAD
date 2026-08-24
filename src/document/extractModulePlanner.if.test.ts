@@ -126,8 +126,8 @@ describe("planExtractModule checkpoint 5 root if", () => {
   it("keeps root for iteration-binder handling outside Checkpoint 5", () => {
     const source = [
       "nui 4",
-      "for (i, from: 0, count: 2) {",
-      "  const value: number = @i",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  const value: number = i",
       "}"
     ].join("\n");
 
