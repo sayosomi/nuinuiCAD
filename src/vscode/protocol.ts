@@ -52,7 +52,7 @@ export const isVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebvi
   typeof value === "string" &&
   (vscodeWebviewSurfaceKinds as readonly string[]).includes(value);
 
-export const parseVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebviewSurfaceKind =>
+export const parseVscodeWebviewSurfaceKind = (value: unknown): VscodeWebviewSurfaceKind | null =>
   isVscodeWebviewSurfaceKind(value) ? value : null;
 
 export type VscodeRustEvaluationRequest = {
