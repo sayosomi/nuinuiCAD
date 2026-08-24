@@ -284,19 +284,23 @@
       {
         "command": "nuinuiCAD.openModulePreview",
         "title": "nuinuiCAD: Open Module Preview",
-        "shortTitle": "Open Module Preview"
+        "shortTitle": "Open Module Preview",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
-        "title": "nuinuiCAD: Go to Source Definition"
+        "title": "nuinuiCAD: Go to Source Definition",
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.revealInCanvas",
-        "title": "nuinuiCAD: Reveal in Canvas"
+        "title": "nuinuiCAD: Reveal in Canvas",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
       },
       {
         "command": "nuinuiCAD.pickReferenceFromCanvas",
-        "title": "nuinuiCAD: Pick Reference from Canvas"
+        "title": "nuinuiCAD: Pick Reference from Canvas",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
       },
       {
         "command": "nuinuiCAD.canvasUndo",
@@ -316,7 +320,8 @@
       },
       {
         "command": "nuinuiCAD.clearCanvasSelection",
-        "title": "nuinuiCAD: Clear Canvas Selection"
+        "title": "nuinuiCAD: Clear Canvas Selection",
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.resetCanvasView",
@@ -348,11 +353,13 @@
       },
       {
         "command": "nuinuiCAD.bakeCurrentShape",
-        "title": "nuinuiCAD: Bake Current Shape"
+        "title": "nuinuiCAD: Bake Current Shape",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection)"
       },
       {
         "command": "nuinuiCAD.bakeBaseShape",
-        "title": "nuinuiCAD: Bake Base Shape"
+        "title": "nuinuiCAD: Bake Base Shape",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection)"
       },
       {
         "command": "nuinuiCAD.editCanvasRibbon",
