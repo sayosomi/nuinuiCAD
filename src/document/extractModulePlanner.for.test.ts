@@ -36,6 +36,14 @@ const rootForIndex = (compiled: CompiledDslDocument): number => {
   return index;
 };
 
+const forIndex = (compiled: CompiledDslDocument): number => {
+  const index = compiled.statements.findIndex((statement) =>
+    statement.kind === "element" && statement.type === "forGroup"
+  );
+  if (index < 0) throw new Error("missing forGroup");
+  return index;
+};
+
 const planRootFor = (source: string) => {
   const compiled = compileCurrent(source);
   return planExtractModule({
@@ -107,15 +115,16 @@ describe("planExtractModule checkpoint 6 root for", () => {
     ].join("\n"));
 
     const nextCompiled = compileCurrent(transformed, "extract-for-next");
-    const iteration = nextCompiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "iteration");
-    expect(iteration).toBeDefined();
-    if (!iteration) return;
+    const nextRootForStatementId = statementIdAt(nextCompiled, forIndex(nextCompiled));
     const iterationReferences = createDslSemanticOccurrenceIndex(nextCompiled).occurrences.filter((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.identity.kind === "typed" &&
-      occurrence.identity.bindingId === iteration.id
+      occurrence.identity.kind === "module" &&
+      occurrence.identity.target.kind === "moduleIteration" &&
+      occurrence.identity.target.statementId === nextRootForStatementId
     );
     expect(iterationReferences).toHaveLength(2);
+    expect(result.dependencies.some((dependency) => dependency.name === "i")).toBe(false);
+    expect(result.exports.some((entry) => entry.name === "i")).toBe(false);
   });
 
   it("keeps nested for iteration-owner expansion outside Checkpoint 6", () => {

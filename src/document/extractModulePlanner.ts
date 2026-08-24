@@ -522,12 +522,11 @@ const movedIterationBinding = (
   compiled: CompiledDslDocument,
   identity: DslSemanticIdentity,
   movedIndexes: ReadonlySet<number>
-): { bindingId: string; ownerStatementId: StatementIdentity } | null => {
+): StatementIdentity | null => {
   if (identity.kind !== "typed") return null;
   const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
   if (!binding || binding.kind !== "iteration" || !movedIndexes.has(binding.statementIndex)) return null;
-  const ownerStatementId = statementIdForIndex(compiled, binding.statementIndex);
-  return ownerStatementId ? { bindingId: binding.id, ownerStatementId } : null;
+  return statementIdForIndex(compiled, binding.statementIndex);
 };
 
 const statementInsideOffsets = (
@@ -916,16 +915,15 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     occurrences: DslSemanticOccurrence[];
     argumentSource: string;
   }>();
-  const movedIterationReferences = new Map<string, { ownerStatementId: StatementIdentity; count: number }>();
+  const movedIterationReferences = new Map<StatementIdentity, number>();
 
   for (const occurrence of selectedReferences) {
-    const iteration = movedIterationBinding(compiled, occurrence.identity, movedIndexSet);
-    if (iteration) {
-      const current = movedIterationReferences.get(iteration.bindingId);
-      movedIterationReferences.set(iteration.bindingId, {
-        ownerStatementId: iteration.ownerStatementId,
-        count: (current?.count ?? 0) + 1
-      });
+    const iterationOwnerStatementId = movedIterationBinding(compiled, occurrence.identity, movedIndexSet);
+    if (iterationOwnerStatementId) {
+      movedIterationReferences.set(
+        iterationOwnerStatementId,
+        (movedIterationReferences.get(iterationOwnerStatementId) ?? 0) + 1
+      );
       continue;
     }
 
@@ -1196,24 +1194,18 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   }
 
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
-  for (const [bindingId, expected] of movedIterationReferences) {
-    const nextBinding = nextCompiled.bindingAnalysis?.catalog.bindingsById.get(bindingId);
-    const nextOwnerStatementId = statementIdForIndex(nextCompiled, nextBinding?.statementIndex);
+  for (const [ownerStatementId, expectedCount] of movedIterationReferences) {
     const nextReferenceCount = nextOccurrenceIndex.occurrences.filter((occurrence) =>
       occurrence.kind === "reference" &&
-      occurrence.identity.kind === "typed" &&
-      occurrence.identity.bindingId === bindingId
+      occurrence.identity.kind === "module" &&
+      occurrence.identity.target.kind === "moduleIteration" &&
+      occurrence.identity.target.statementId === ownerStatementId
     ).length;
-    if (
-      !nextBinding ||
-      nextBinding.kind !== "iteration" ||
-      nextOwnerStatementId !== expected.ownerStatementId ||
-      nextReferenceCount !== expected.count
-    ) {
+    if (nextReferenceCount !== expectedCount) {
       return reject(
         "unsafe-rewrite",
         "Extract 後に moved for の iteration binding/reference identity を保持できませんでした。",
-        { statementId: expected.ownerStatementId }
+        { statementId: ownerStatementId }
       );
     }
   }

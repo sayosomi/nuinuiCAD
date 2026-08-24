@@ -156,15 +156,4 @@ describe("planExtractModule checkpoint 5 root if", () => {
     });
     expectRejectedWithoutPatch(result, "unsupported-statement");
   });
-
-  it("keeps root for iteration-binder handling outside Checkpoint 5", () => {
-    const source = [
-      "nui 4",
-      "for i in range(from: 0, count: 2, step: 1) {",
-      "  const value: number = @i",
-      "}"
-    ].join("\n");
-
-    expectRejectedWithoutPatch(planContainer(source, "forGroup"), "unsupported-statement");
-  });
 });
