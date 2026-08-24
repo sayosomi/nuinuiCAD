@@ -251,6 +251,9 @@ export const canvasDrawingBoundsForVisibleIds = ({
       case "offsetLine":
         for (const segment of geometry.segments) bounds = includeOffsetSegment(bounds, segment);
         break;
+      case "joinedPath":
+        for (const segment of geometry.segments) bounds = includeOffsetSegment(bounds, segment);
+        break;
       case "text":
         if (geometry.anchor) bounds = includePoint(bounds, geometry.anchor.x, geometry.anchor.y);
         if (geometry.anchor) {

@@ -156,6 +156,22 @@ const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitiveConvers
         ? { status: "ok", primitives }
         : notLosslesslyRepresentable("offsetLine", "offset has no representable segments");
     }
+    case "joinedPath": {
+      if (geometry.closed) {
+        return notLosslesslyRepresentable("joinedPath", "closed joined path is outside the v1 bake boundary");
+      }
+      const primitives: BakePrimitive[] = [];
+      for (const segment of geometry.segments) {
+        const primitive = primitiveForOffsetSegment(segment);
+        if (!primitive) {
+          return notLosslesslyRepresentable("joinedPath", "joined arc segment cannot be represented exactly");
+        }
+        primitives.push(primitive);
+      }
+      return primitives.length > 0
+        ? { status: "ok", primitives }
+        : notLosslesslyRepresentable("joinedPath", "joined path has no representable segments");
+    }
     case "image":
     case "text":
       return {

@@ -47,6 +47,9 @@ mod incomplete_numeric_expression_tests;
 mod intersection_point_evaluator;
 #[cfg(test)]
 mod intersection_point_tests;
+mod joined_path_evaluator;
+#[cfg(test)]
+mod joined_path_tests;
 mod line_copy_geometry;
 mod line_copy_move_evaluator;
 #[cfg(test)]
@@ -130,6 +133,7 @@ use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
 use image_evaluator::evaluate_image;
 use intersection_point_evaluator::evaluate_intersection_point;
+use joined_path_evaluator::evaluate_joined_path;
 use line_copy_move_evaluator::{
     evaluate_copy_line, evaluate_move, evaluate_symmetric_copy_line, evaluate_symmetric_move,
 };
@@ -602,6 +606,7 @@ fn evaluate_element_by_type(
         }
         Some("bezierCurve") => evaluate_bezier_curve(&element, &local_variables, state),
         Some("offsetLine") => evaluate_offset_line(&element, &local_variables, state),
+        Some("joinedPath") => evaluate_joined_path(&element, state),
         Some("splitLine") => evaluate_split_line(&element, &local_variables, state),
         Some("edge") => evaluate_edge(&element, &local_variables, state),
         Some("extendTrim") => evaluate_extend_trim(&element, &local_variables, state),

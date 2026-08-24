@@ -787,7 +787,7 @@ fn split_geometry(
             split_line_name,
             split_point_id,
         ),
-        Some("offsetLine") => {
+        Some("offsetLine" | "joinedPath") => {
             split_offset_line_geometry(geometry, split_point, split_line_id, split_line_name)
         }
         _ => SplitGeometryResult::NotOnLine,
@@ -797,7 +797,7 @@ fn split_geometry(
 fn is_supported_line_geometry(geometry: &Value) -> bool {
     matches!(
         geometry.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath")
     )
 }
 

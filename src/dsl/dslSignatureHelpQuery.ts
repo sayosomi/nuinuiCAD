@@ -11,6 +11,7 @@ import { userFacingConstructionArgumentSpecs } from "./dslCallCompletionCandidat
 import type { CompiledDslDocument } from "./dslDocument";
 import type { DslModuleParameterType } from "./dslTypes";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
+import { geometryArrayTypeName } from "./geometryArrayTypes";
 import {
   buildModuleDocumentationIndex,
   documentationForModuleDefinition,
@@ -108,6 +109,7 @@ const allowedValuesFor = (type: ScalarType | null | undefined): readonly string[
 };
 
 const parameterTypeFor = (definition: ParameterDefinition): string | undefined => {
+  if (definition.geometryArrayType) return geometryArrayTypeName(definition.geometryArrayType);
   const scalarType = scalarTypeForParameterDefinition(definition);
   if (scalarType) return scalarTypeName(scalarType);
   switch (definition.kind) {
@@ -116,9 +118,9 @@ const parameterTypeFor = (definition: ParameterDefinition): string | undefined =
     case "lineReference":
       return "line";
     default:
-      // `lineEndpointReference` and `lineReferenceList` have no single
-      // established nui4 type spelling. Their documentation carries the
-      // structural meaning instead of presenting an invented type.
+      // `lineEndpointReference` and untyped `lineReferenceList` parameters have
+      // no single established nui4 type spelling. Their documentation carries
+      // the structural meaning instead of presenting an invented type.
       return undefined;
   }
 };

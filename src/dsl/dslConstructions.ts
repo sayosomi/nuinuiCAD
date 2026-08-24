@@ -140,6 +140,12 @@ const constructionSpecs: DslConstructionSpec[] = [
     elementType: "offsetLine",
     args: [required("sources", "baseLineIds"), arg("distance", "offset"), arg("side"), arg("closed"), arg("suppressTrimWarnings")],
   },
+  {
+    category: "line",
+    construction: "join",
+    elementType: "joinedPath",
+    args: [required("paths", "pathIds"), arg("closed")],
+  },
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },
   {
     category: "line",

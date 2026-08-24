@@ -2,6 +2,7 @@ import type {
   CadElement,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedJoinedPath,
   ComputedLine,
   ComputedOffsetLine,
   ComputedPoint,
@@ -86,7 +87,7 @@ export const pointAnchorForElement = (element: CadElement): PointAnchor | null =
 };
 
 const derivedPoint = (
-  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | Extract<ComputedGeometry, { kind: "arcLine" }>,
+  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | Extract<ComputedGeometry, { kind: "arcLine" }>,
   pointKey: string,
   elementsById: Map<ElementId, CadElement>
 ): ComputedPoint | null => {
@@ -106,6 +107,12 @@ const derivedPoint = (
   if (source.kind === "offsetLine") {
     if (pointKey === "start") return source.segments[0]?.start ?? null;
     if (pointKey === "end") return source.segments.at(-1)?.end ?? null;
+    return null;
+  }
+
+  if (source.kind === "joinedPath") {
+    if (pointKey === "start") return source.start;
+    if (pointKey === "end") return source.end;
     return null;
   }
 
@@ -133,7 +140,8 @@ export const resolveDerivedPoint = (
       source.kind !== "line" &&
       source.kind !== "arcLine" &&
       source.kind !== "bezierCurve" &&
-      source.kind !== "offsetLine"
+      source.kind !== "offsetLine" &&
+      source.kind !== "joinedPath"
     )
   ) return null;
   return derivedPoint(source, pointKey, elementsById);
@@ -221,6 +229,25 @@ export const selectablePointsForGeometry = (
     ];
   }
 
+  if (geometry.kind === "joinedPath") {
+    return [
+      ...(geometry.start
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "start"),
+            label: `${geometry.name}.始点`,
+            point: computedPoint(`${geometry.elementId}:start`, `${geometry.name}.始点`, geometry.start)
+          }]
+        : []),
+      ...(geometry.end
+        ? [{
+            anchor: derivedAnchor(geometry.elementId, "end"),
+            label: `${geometry.name}.終点`,
+            point: computedPoint(`${geometry.elementId}:end`, `${geometry.name}.終点`, geometry.end)
+          }]
+        : [])
+    ];
+  }
+
   if (geometry.kind === "image" || geometry.kind === "text") {
     return [];
   }
@@ -299,6 +326,9 @@ export const pointAnchorOptions = (elements: CadElement[]): PointAnchor[] =>
     if (element.type === "offsetLine") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
+    if (element.type === "joinedPath") {
+      return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
+    }
     if (element.type === "splitLine") {
       return [derivedAnchor(element.id, "start"), derivedAnchor(element.id, "end")];
     }
@@ -349,6 +379,7 @@ export const isLineLikeElement = (element: CadElement) =>
   element.type === "cornerRadiusArcLine" ||
   element.type === "bezierCurve" ||
   element.type === "offsetLine" ||
+  element.type === "joinedPath" ||
   element.type === "splitLine" ||
   element.type === "copyLine" ||
   element.type === "symmetricCopyLine";

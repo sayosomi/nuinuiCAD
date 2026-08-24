@@ -400,7 +400,7 @@ pub(crate) fn transform_line_like_geometry(
         "line" => transform_line_geometry(geometry, transform),
         "arcLine" => transform_arc_geometry(geometry, transform),
         "bezierCurve" => transform_bezier_geometry(geometry, transform),
-        "offsetLine" => transform_offset_geometry(geometry, transform),
+        "offsetLine" | "joinedPath" => transform_offset_geometry(geometry, transform),
         _ => None,
     }
 }

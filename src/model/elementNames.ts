@@ -26,6 +26,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   pathReverse: "反転",
   bezierCurve: "曲線",
   offsetLine: "オフセット線",
+  joinedPath: "結合パス",
   splitLine: "分割線",
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線",
@@ -501,6 +502,10 @@ export const createdElementName = ({
       case "offsetLine": {
         const token = lineListToken(element.baseLineIds, elementsById);
         return token ? `${token}オフセット` : fallbackName;
+      }
+      case "joinedPath": {
+        const token = lineListToken(element.pathIds, elementsById);
+        return token ? `${token}結合` : fallbackName;
       }
       case "splitLine": {
         const token = lineToken(elementsById.get(element.baseLineId));

@@ -203,6 +203,31 @@ describe("Bake geometry", () => {
     );
   });
 
+  it("bakes an open joined path losslessly and rejects a closed joined path", () => {
+    const compiled = compile([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "line CA = segment(start: @C, end: @A)",
+      "line AB = segment(start: @A, end: @B)",
+      "line BC = segment(start: @B, end: @C)",
+      "line Open = join(paths: [@AB, @BC], closed: false)",
+      "line Closed = join(paths: [@AB, @BC, @CA], closed: true)"
+    ].join("\n"));
+    const evaluation = evaluate(compiled);
+    const open = compiled.doc.document.elements.find((element) => element.name === "Open")!;
+    const closed = compiled.doc.document.elements.find((element) => element.name === "Closed")!;
+    const openPlan = planBakeGeometry({ mode: "current", elements: compiled.doc.document.elements, evaluation, compiled: compiled.doc, selectedElementIds: [open.id] });
+    const closedPlan = planBakeGeometry({ mode: "current", elements: compiled.doc.document.elements, evaluation, compiled: compiled.doc, selectedElementIds: [closed.id] });
+    expect(openPlan?.skippedTargets).toEqual([]);
+    const patched = applyLineSplices(compiled.sourceText, openPlan!.splices);
+    expect(patched).toContain("line Open_bake_1 = segment(start: (0, 0), end: (10, 0))");
+    expect(patched).toContain("line Open_bake_2 = segment(start: (10, 0), end: (10, 10))");
+    expect(closedPlan?.successfulTargetCount).toBe(0);
+    expect(closedPlan?.skippedTargets[0]?.reason).toMatchObject({ code: "not-losslessly-representable", geometryKind: "joinedPath" });
+  });
+
   it("uses the pre-mutation snapshot for Base and final geometry for Current", () => {
     const compiled = compile([
       "nui 4",

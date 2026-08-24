@@ -16,7 +16,7 @@ pub(crate) enum EndpointMoveResult {
 pub(crate) fn is_supported_line_geometry(geometry: &Value) -> bool {
     matches!(
         geometry.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath")
     )
 }
 
@@ -33,6 +33,7 @@ pub(crate) fn move_endpoint(
             bezier::move_bezier_endpoint(geometry, endpoint_key, target, target_point_id)
         }
         Some("offsetLine") => offset::move_offset_endpoint(geometry, endpoint_key, target),
+        Some("joinedPath") => offset::move_offset_endpoint(geometry, endpoint_key, target),
         _ => EndpointMoveResult::Error("端点を変更できません。".to_owned()),
     }
 }

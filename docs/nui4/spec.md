@@ -371,6 +371,34 @@ the final argument has a trailing comma. A single-line call is parseable, but
 the Source Editor's canonical formatter emits the stable multi-line shape for a
 multi-argument call.
 
+### Ordered compound paths
+
+The `join` construction creates one reusable broad path from an ordered path
+array:
+
+```text
+line outline = join(
+  paths: @parts,
+  closed: true,
+)
+```
+
+`paths` is required and has type `path[]`. `closed` is an optional boolean with
+default `false`. The array must not be empty. Member order and duplicates are
+preserved exactly. The first member keeps its authored orientation. For every
+later member, authored orientation is preferred when its start coincides with
+the current chain end; otherwise its computed traversal is reversed when its
+end coincides with the chain end. Any other discontinuity is an evaluation
+error. Coincidence uses the shared path endpoint tolerance; no endpoint
+snapping, trimming, extension, connector synthesis, or ordering repair occurs.
+
+`closed: false` validates only consecutive adjacency. `closed: true` also
+requires the final chain end to coincide with the first chain start and never
+creates a closing segment. An explicitly false value remains false even when
+the geometry returns to its start. The result has broad `path` assignability,
+not strict `line` assignability, and preserves its exact ordered line, cubic
+Bezier, and directed-arc primitives.
+
 ### Directed concrete arcs
 
 The concrete `arc(...)` construction accepts the optional named argument

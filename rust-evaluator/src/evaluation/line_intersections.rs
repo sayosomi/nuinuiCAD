@@ -323,7 +323,7 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
             ))
         }
         "bezierCurve" => bezier_path_segments(geometry),
-        "offsetLine" => offset_path_segments(geometry),
+        "offsetLine" | "joinedPath" => offset_path_segments(geometry),
         _ => None,
     }
 }
@@ -441,7 +441,7 @@ fn endpoint_tangents(geometry: &Value) -> Option<EndpointTangents> {
                 end_forward: bezier_end_forward(last)?,
             })
         }
-        "offsetLine" => {
+        "offsetLine" | "joinedPath" => {
             if geometry
                 .get("closed")
                 .and_then(Value::as_bool)

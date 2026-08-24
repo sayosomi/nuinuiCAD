@@ -28,6 +28,7 @@ const calls = [
   ["line", "polar", "angleLengthLine"],
   ["line", "commonTangent", "commonTangentLine"],
   ["line", "offset", "offsetLine"],
+  ["line", "join", "joinedPath"],
   ["line", "split", "splitLine"],
   ["line", "transformCopy", "copyLine"],
   ["line", "mirrorCopy", "symmetricCopyLine"],

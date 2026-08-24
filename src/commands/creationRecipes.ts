@@ -136,6 +136,10 @@ export const creationRecipes: readonly CreationRecipe[] = [
     steps: [stepFor("offsetLine", "baseLineIds"), stepFor("offsetLine", "offset"), nameStep]
   },
   {
+    type: "joinedPath",
+    steps: [stepFor("joinedPath", "pathIds"), nameStep]
+  },
+  {
     type: "divisionPoint",
     steps: [
       stepFor("divisionPoint", "startPoint"),

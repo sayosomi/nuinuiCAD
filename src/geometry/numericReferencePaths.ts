@@ -126,6 +126,14 @@ export const computedNumericReferenceValue = (
     if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
   }
 
+  if (geometry.kind === "joinedPath") {
+    if (path === "length") return geometry.length;
+    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
+    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
+    if (path.startsWith("startPoint.")) return pointPathValue(geometry.start, path.slice("startPoint.".length));
+    if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
+  }
+
   if (geometry.kind === "image") {
     if (path === "widthMm") return geometry.widthMm;
     if (path === "heightMm") return geometry.heightMm;
@@ -253,6 +261,9 @@ export const computedPathsForGeometry = (geometry: ComputedGeometry | undefined)
     ];
   }
   if (geometry.kind === "offsetLine") {
+    return ["length", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y", "startTangentAngleDeg", "endTangentAngleDeg"];
+  }
+  if (geometry.kind === "joinedPath") {
     return ["length", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y", "startTangentAngleDeg", "endTangentAngleDeg"];
   }
   if (geometry.kind === "image") {

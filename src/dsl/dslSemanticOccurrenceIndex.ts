@@ -24,6 +24,7 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { ElementId } from "../types/geometry";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
@@ -439,6 +440,39 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
   }
 };
 
+const addGeometryArrayConsumerOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const analysis = namespace?.geometryArraySemanticAnalysis;
+  const document = compiled.document;
+  if (!namespace || !analysis || !document) return;
+
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    if (statement.kind !== "element") continue;
+    const elementId = elementIdForStatementIndex(compiled, statementIndex);
+    const element = elementId ? document.elements.find((candidate) => candidate.id === elementId) : undefined;
+    const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+    if (!element || !logical) continue;
+
+    for (const definition of getParameterDefinitions(element)) {
+      if (definition.kind !== "lineReferenceList") continue;
+      const valueSpan = resolveParameterValueSpan(logical.logicalText, element, definition.key);
+      if (!valueSpan) continue;
+      const parsed = parseDslSourceReference(logical.logicalText.slice(valueSpan.start, valueSpan.end));
+      if (parsed.kind !== "valid" || parsed.reference.property) continue;
+      const path = parseDslReferenceToken(parsed.reference.pathText);
+      const resolved = resolveSourceLexicalPathSegments(namespace, statementIndex, path);
+      if (resolved.segments.length !== path.segments.length) continue;
+      const declaration = resolved.segments[resolved.segments.length - 1];
+      if (!declaration || declaration.kind !== "typedDeclaration") continue;
+      if (!analysis.valuesByStatementIndex.has(declaration.statementIndex)) continue;
+      addQualifiedPathOccurrences(compiled, add, statementIndex, {
+        start: valueSpan.start + parsed.reference.pathRange.start,
+        end: valueSpan.start + parsed.reference.pathRange.end
+      }, null);
+    }
+  }
+};
+
 const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (!analysis) return;
@@ -576,6 +610,7 @@ export const createDslSemanticOccurrenceIndex = (
   addRootDeclarations(compiled, add);
   addModuleOccurrences(compiled, add);
   addGeometryArrayOccurrences(compiled, add);
+  addGeometryArrayConsumerOccurrences(compiled, add);
   addSourceOutputOccurrences(compiled, add);
   addDrawingProfileOccurrences(compiled, add);
 

@@ -10,6 +10,7 @@ import {
   type ComputedArcLine,
   type ComputedBezierCurve,
   type ComputedGeometry,
+  type ComputedJoinedPath,
   type ComputedLine,
   type ComputedOffsetLine,
   type ElementId,
@@ -199,6 +200,21 @@ const offsetHoverRows = (
   ...(line.closed ? [valueRow("閉じる", "はい")] : [])
 ];
 
+const joinedPathHoverRows = (
+  line: ComputedJoinedPath,
+  evaluation: EvaluationResult
+): GeometryHoverRow[] => [
+  valueRow("長さ", formatMillimeters(line.length)),
+  valueRow("始点", line.start ? formatCoordinate(line.start) : "未定義"),
+  valueRow("終点", line.end ? formatCoordinate(line.end) : "未定義"),
+  {
+    kind: "references",
+    label: "Paths",
+    references: line.pathIds.map((elementId) => ({ elementId, label: geometryNameFor(evaluation, elementId) }))
+  },
+  ...(line.closed ? [valueRow("閉じる", "はい")] : [])
+];
+
 const geometryHoverAvailability = (
   geometry: ComputedGeometry,
   evaluation: EvaluationResult
@@ -227,6 +243,9 @@ const geometryHoverAvailability = (
       kind: "geometry",
       rows: offsetHoverRows(geometry as ComputedOffsetLineWithInspection, evaluation)
     };
+  }
+  if (geometry.kind === "joinedPath") {
+    return { kind: "geometry", rows: joinedPathHoverRows(geometry, evaluation) };
   }
   return { kind: "geometry", rows: [] };
 };

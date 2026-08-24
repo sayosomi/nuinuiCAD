@@ -137,7 +137,7 @@ const geometryPoints = (geometry: ComputedGeometry): Point[] => {
       return segmentIndex === 0 ? points : points.slice(1);
     });
   }
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     return geometry.segments.flatMap((segment, segmentIndex) => {
       const points = offsetSegmentPoints(segment);
       return segmentIndex === 0 ? points : points.slice(1);
@@ -200,7 +200,7 @@ const endpointPoint = (
     const segment = endpointKey === "start" ? geometry.segments[0] : geometry.segments.at(-1);
     return segment ? (endpointKey === "start" ? segment.start : segment.end) : null;
   }
-  if (geometry.kind === "offsetLine") {
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
     const segment = endpointKey === "start" ? geometry.segments[0] : geometry.segments.at(-1);
     return segment ? (endpointKey === "start" ? segment.start : segment.end) : null;
   }

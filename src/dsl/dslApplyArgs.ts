@@ -350,6 +350,16 @@ export const applyArgs = (
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
             return lineReferenceId(item.text, itemSpan);
           });
+          if (next.type === "joinedPath" && refs.length === 0) {
+            diagnostics.push({
+              severity: "error",
+              line: resolvers.line,
+              column: scanned.valueSpan.start + 1,
+              code: "join-empty-paths",
+              message: "join の paths には少なくとも1つの path を指定してください。",
+              logicalSpan: scanned.valueSpan
+            });
+          }
           next = setParameterValue(next, parameterKey, [...refs]);
         }
         break;

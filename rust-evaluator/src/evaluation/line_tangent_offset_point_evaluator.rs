@@ -206,7 +206,7 @@ pub(crate) fn evaluate_line_tangent_offset_point(
 
     if !matches!(
         base_line.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath")
     ) {
         state
             .errors

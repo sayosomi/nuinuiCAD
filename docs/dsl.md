@@ -256,6 +256,25 @@ for i in range(
 
 `if Name (...)`、`for Name (...)`、`{@name}`、`@stop` は廃止されています。
 
+### ordered compound path
+
+`join` は、順序付きの broad path 配列を1つの再利用可能なパスへ結合します。
+`paths` は必須の `path[]`、`closed` は任意の boolean（省略時は `false`）です。
+
+```text
+line outline = join(
+  paths: @parts,
+  closed: true,
+)
+```
+
+配列の順序と重複はそのまま使われます。最初のパスの向きを保持し、後続の
+パスは現在の終点に接続する場合だけ局所的に向きを反転できます。両端が一致する
+場合は記述された向きを優先し、接続しない場合は診断になります。端点のスナップ、
+トリム、延長、接続線の自動生成、順序の自動修復は行いません。
+`closed: true` は最後の終点と最初の始点の一致だけを追加検証し、閉じる線分を
+生成しません。結果は broad `path` として参照でき、strict `line` ではありません。
+
 ### Drawing Modifier とプロファイル
 
 `profile` はトップレベルの Drawing Profile 宣言です。通常の source lexical
