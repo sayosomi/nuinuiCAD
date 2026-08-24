@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
+import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
 import type { VscodeReferencePickResult } from "../../src/vscode/referencePickProtocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -10,6 +12,8 @@ import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdap
 
 export const VSCODE_REFERENCE_PICK_COMMAND_ID = "nuinuiCAD.pickReferenceFromCanvas";
 export const VSCODE_REFERENCE_PICK_CONTEXT_KEY = "nuinuiCAD.referencePickSourceTarget";
+export const VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.revealInCanvasSourceTarget";
+export const VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.bakeSourceTarget";
 
 export type VscodeReferencePickCanvasEndpoint = {
   document: vscode.TextDocument;
@@ -28,6 +32,18 @@ type ActiveReferencePick = {
   panelDisposable: vscode.Disposable;
 };
 
+export type VscodeSourceTargetAvailability = {
+  referencePickSourceOffset: number | null;
+  revealInCanvas: boolean;
+  bake: boolean;
+};
+
+const unavailableSourceTargets = (): VscodeSourceTargetAvailability => ({
+  referencePickSourceOffset: null,
+  revealInCanvas: false,
+  bake: false
+});
+
 const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   Boolean(editor) &&
   editor!.document.uri.scheme === "file" &&
@@ -35,6 +51,42 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
+
+export const sourceTargetAvailabilityForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): VscodeSourceTargetAvailability => {
+  if (!isSupportedSourceEditor(editor)) return unavailableSourceTargets();
+  const rawSource = editor.document.getText();
+  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(rawSource),
+    sourceRevision: languageAnalysisSession.getSourceRevision()
+  };
+  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  if (!semantic?.compiled) return unavailableSourceTargets();
+  const normalizedSourceOffset = normalizedOffsetFromRaw(
+    rawSource,
+    editor.document.offsetAt(editor.selection.active)
+  );
+  const referencePickSourceOffset = queryDslReferencePickTarget({
+    source,
+    position: normalizedSourceOffset,
+    semantic
+  }) ? normalizedSourceOffset : null;
+  const revealInCanvas = Boolean(semantic.compiled.statementMap) &&
+    queryDslCanvasRevealSourceTarget({
+      source,
+      compiled: semantic.compiled,
+      position: normalizedSourceOffset
+    }).status === "resolved";
+  const bake = queryDslCanvasSourceTarget({
+    source,
+    compiled: semantic.compiled,
+    position: normalizedSourceOffset
+  }) !== null;
+  return { referencePickSourceOffset, revealInCanvas, bake };
+};
 
 export const referencePickSourceOffsetForEditor = (
   editor: vscode.TextEditor,
@@ -73,22 +125,38 @@ export const registerVscodeReferencePickFeature = ({
   let active: ActiveReferencePick | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
 
-  const setContext = (enabled: boolean): void => {
+  const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
     contextUpdate = contextUpdate
       .catch(() => undefined)
-      .then(() => vscode.commands.executeCommand("setContext", VSCODE_REFERENCE_PICK_CONTEXT_KEY, enabled))
+      .then(() => Promise.all([
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
+          availability.revealInCanvas
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY,
+          availability.bake
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_REFERENCE_PICK_CONTEXT_KEY,
+          availability.referencePickSourceOffset !== null
+        )
+      ]))
       .then(() => undefined);
   };
 
   const refreshContext = (editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): void => {
     if (!isSupportedSourceEditor(editor)) {
-      setContext(false);
+      setSourceTargetContexts(unavailableSourceTargets());
       return;
     }
-    setContext(referencePickSourceOffsetForEditor(
+    setSourceTargetContexts(sourceTargetAvailabilityForEditor(
       editor,
       languageAnalysisSessionFor(editor.document)
-    ) !== null);
+    ));
   };
 
   const clearActive = (disposeBridge: boolean): void => {
@@ -252,7 +320,7 @@ export const registerVscodeReferencePickFeature = ({
     {
       dispose: () => {
         cancelActive();
-        setContext(false);
+        setSourceTargetContexts(unavailableSourceTargets());
       }
     }
   );
