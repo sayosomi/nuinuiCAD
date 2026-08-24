@@ -4,7 +4,7 @@ import { parseDslSnapshot } from "./dslParser";
 import { queryDslCompletion } from "./dslCompletionQuery";
 import { queryDslDefinition } from "./dslDefinitionQuery";
 import { queryDslReferences } from "./dslReferencesQuery";
-import { planDslRenameEdits } from "./dslRenameQuery";
+import { planDslRenameEdits, planDslRenameEditsResult } from "./dslRenameQuery";
 import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
 
 const revision = 94;
@@ -127,8 +127,13 @@ describe("join language support", () => {
     expect(references).not.toBeNull();
     expect(references!.referenceRanges.map((range) => textAt(source, range))).toContain("paths");
 
-    const rename = planDslRenameEdits({ source: snapshot(source), semantic: semanticSnapshot }, position, "outlineParts");
-    expect(rename).not.toBeNull();
-    expect(rename!.edits.map((edit) => edit.expectedText)).toEqual(expect.arrayContaining(["paths", "paths"]));
+    const renameResult = planDslRenameEditsResult(
+      { source: snapshot(source), semantic: semanticSnapshot },
+      position,
+      "outlineParts"
+    );
+    expect(renameResult).toMatchObject({ status: "ok" });
+    if (renameResult.status !== "ok") return;
+    expect(renameResult.plan.edits.map((edit) => edit.expectedText)).toEqual(expect.arrayContaining(["paths", "paths"]));
   });
 });
