@@ -20,7 +20,11 @@ import {
   svgNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
-import { geometryArrayDeclarationCompletionContextAt, type GeometryArrayCompletionContext } from "./dslGeometryArrayCompletionContext";
+import {
+  geometryArrayDeclarationCompletionContextAt,
+  geometryArrayValueCompletionContextAt,
+  type GeometryArrayCompletionContext
+} from "./dslGeometryArrayCompletionContext";
 import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
 import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
 import { propertyScalarValueCompletionContext, type PropertyScalarValueCompletionContext } from "./dslPropertyScalarCompletionContext";
@@ -51,7 +55,7 @@ export type DslCompletionContext =
   | { kind: "moduleParameterType"; from: number; to: number }
   | { kind: "moduleArgumentLabel"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
-  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedGeometryKind?: DslGeometryReferenceKind }
+  | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedGeometryKind?: DslGeometryReferenceKind; geometryArrayContext?: GeometryArrayCompletionContext }
   | { kind: "moduleReference"; from: number; to: number }
   | null;
 
@@ -87,7 +91,7 @@ export const dslGeometryReferenceKindForParameter = (
  * arms of one token shape (split purely on the presence of `.`), not two
  * independently-matching grammars - see expressionReferenceToken.ts.
  *
- * Property references always use the sigilled nui4 spelling.
+ * Property references always use the final `@Element.property` spelling.
  */
 const numberFieldCompletionContext = (
   code: string,
@@ -345,6 +349,32 @@ const dslQualifiedGeometryKindAt = (
   return parameters.length === 1 ? dslGeometryReferenceKindForParameter(parameters[0]) : null;
 };
 
+const dslQualifiedGeometryArrayContextAt = (
+  lineText: string,
+  pos: number
+): GeometryArrayCompletionContext | null => {
+  const statement = dslLineElementStatement(lineText);
+  const elementType = statement ? dslStatementElementType(statement) : null;
+  if (!statement || !elementType) return null;
+  const metadata = dslCompletionMetadataForType(elementType);
+  const span = dslLineLabeledValueSpans(lineText).find((item) => {
+    const bounds = item.start === item.end && item.rawValueSpan ? item.rawValueSpan : item;
+    return pos >= bounds.start && pos <= bounds.end;
+  });
+  if (!span) return null;
+  const parameters = metadata.parameters.filter((parameter) =>
+    parameter.source === span.source && parameter.key === span.key
+  );
+  const parameter = parameters.length === 1 ? parameters[0] : undefined;
+  if (!parameter?.definition.geometryArrayType) return null;
+  return geometryArrayValueCompletionContextAt(
+    lineText,
+    pos,
+    { start: span.start, end: Math.max(span.end, pos) },
+    parameter.definition.geometryArrayType
+  );
+};
+
 /**
  * Resolves only from freshly reparsed text: `lineText` is a statement's logical
  * projection (physical lines joined at continuation points) when the caller
@@ -381,13 +411,15 @@ export const dslCompletionContextAt = (
   if (qualified) {
     const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
     const expectedGeometryKind = dslQualifiedGeometryKindAt(lineText, pos);
+    const geometryArrayContext = dslQualifiedGeometryArrayContextAt(lineText, pos);
     return {
       kind: "moduleQualifiedMember",
       from: pos - qualified[0].length + qualified[0].indexOf("::") + 2,
       to: pos,
       qualifiedInstanceName: qualified[0].slice(0, qualified[0].indexOf("::")).replace(/^@/, ""),
       ...(typedDeclarationContext ? { expectedScalarType: typedDeclarationContext.declaredType } : {}),
-      ...(expectedGeometryKind ? { expectedGeometryKind } : {})
+      ...(expectedGeometryKind ? { expectedGeometryKind } : {}),
+      ...(geometryArrayContext ? { geometryArrayContext } : {})
     };
   }
 
@@ -466,6 +498,16 @@ export const dslCompletionContextAt = (
     const parameter = metadata.parameters.find((candidate) =>
       candidate.source === emptyValueSpan.source && candidate.key === emptyValueSpan.key
     );
+    if (parameter?.definition.geometryArrayType) {
+      const valueSpan = emptyValueSpan.rawValueSpan ?? emptyValueSpan;
+      const context = geometryArrayValueCompletionContextAt(
+        code,
+        pos,
+        { start: valueSpan.start, end: Math.max(valueSpan.end, pos) },
+        parameter.definition.geometryArrayType
+      );
+      if (context) return { kind: "geometryArrayValue", ...context };
+    }
     if (parameter) return { kind: "parameter", from: pos, to: pos, parameter };
   }
   if (span) {
@@ -477,6 +519,15 @@ export const dslCompletionContextAt = (
     );
     if (parameters.length !== 1) return null;
     const parameter = parameters[0];
+    if (parameter.definition.geometryArrayType) {
+      const context = geometryArrayValueCompletionContextAt(
+        code,
+        pos,
+        { start: span.start, end: Math.max(span.end, pos) },
+        parameter.definition.geometryArrayType
+      );
+      if (context) return { kind: "geometryArrayValue", ...context };
+    }
     if (parameter.definition.kind === "number") {
       return numberFieldCompletionContext(code, pos, span.start, parameter);
     }
