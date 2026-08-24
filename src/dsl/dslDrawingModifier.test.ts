@@ -207,6 +207,38 @@ describe("nui4 drawing modifier source model", () => {
     expect(compiled.diagnostics.filter((item) => item.code === "unused-drawing-modifier")).toEqual([]);
   });
 
+  it("projects Module-aware unused modifier diagnostics from their final source statements", () => {
+    const source = sourceLines(
+      "nui 4",
+      "modifier ModuleUsed {",
+      "  state: visible,",
+      "}",
+      "modifier ActuallyUnused {",
+      "  state: visible,",
+      "}",
+      "module M() {",
+      "  point Internal [ModuleUsed] = coordinate(x: 0, y: 0)",
+      "}"
+    );
+    const compiled = compileWithIds(source);
+    const unusedDiagnostics = compiled.diagnostics.filter((item) => item.code === "unused-drawing-modifier");
+    const unusedNameStart = source.indexOf("ActuallyUnused");
+
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(unusedDiagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-drawing-modifier",
+        message: "Drawing Modifier「ActuallyUnused」はどこからも使用されていません。",
+        physicalSpan: expect.objectContaining({
+          segments: [{ from: unusedNameStart, to: unusedNameStart + "ActuallyUnused".length }]
+        })
+      })
+    ]);
+    expect(unusedDiagnostics.some((item) => item.message.includes("ModuleUsed"))).toBe(false);
+  });
+
   it("keeps an undefined reference distinct from an unrelated unused definition", () => {
     const compiled = compileDslDocument(sourceLines(
       "nui 4",

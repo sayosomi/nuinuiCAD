@@ -1184,7 +1184,7 @@ export const compileDslDocument = (
   // never re-scanned per diagnostic; always available, even on the earliest
   // error return below, since it depends only on `parsed`.
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const projectedCompilerDiagnostics = compiled.diagnostics.map((diagnostic) => {
+  const projectCompilerDiagnostic = (diagnostic: DslDiagnostic): DslDiagnostic => {
     const { logicalSpan, statementIndex, ...publicDiagnostic } = diagnostic;
     if (logicalSpan === undefined || statementIndex === undefined) return publicDiagnostic;
     const statement = parsed.statements[statementIndex];
@@ -1194,7 +1194,8 @@ export const compileDslDocument = (
       exactSpanOnly: true as const,
       ...(physicalSpan ? { physicalSpan } : {})
     };
-  });
+  };
+  const projectedCompilerDiagnostics = compiled.diagnostics.map(projectCompilerDiagnostic);
   const baseDiagnostics = [
     ...versionValidation.diagnostics,
     ...sourceOutputPlacementDiagnostics,
@@ -1448,9 +1449,9 @@ export const compileDslDocument = (
   const allDiagnostics = [
     ...versionValidation.diagnostics,
     ...sourceOutputPlacementDiagnostics,
-    ...compiled.diagnostics.map((diagnostic, index) =>
+    ...compiled.diagnostics.map((diagnostic) =>
       (diagnostic.code === "undefined-geometry-reference" || diagnostic.code === "unused-drawing-modifier")
-        ? (projectedCompilerDiagnostics[index] ?? diagnostic)
+        ? projectCompilerDiagnostic(diagnostic)
         : diagnostic
     ),
     ...(sourceLexicalNamespace?.diagnostics ?? []),
