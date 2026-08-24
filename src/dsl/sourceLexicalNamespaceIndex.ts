@@ -133,6 +133,21 @@ const isRecordKind = (kind: SourceLexicalDeclarationKind) =>
 const isExistingCadNamespaceKind = (kind: SourceLexicalDeclarationKind) =>
   kind === "group" || kind === "geometry" || kind === "conditionalGroup" || kind === "forGroup";
 
+const isDirectModuleExport = (
+  statements: readonly DslStatement[],
+  declaration: SourceLexicalDeclaration
+) => {
+  const statement = declaration.statement;
+  const isExported = statement.kind === "typedDeclaration"
+    ? statement.exported && statement.declaredType !== null
+    : statement.kind === "element"
+      ? statement.exported && isGeometryDeclarationCategory(statement.category)
+      : false;
+  if (!isExported) return false;
+  const ownerIndex = statement.enclosing?.statementIndex;
+  return ownerIndex !== undefined && statements[ownerIndex]?.kind === "moduleDefinition";
+};
+
 /** The source containers whose direct members belong to the ordinary CAD
  * namespace. Module definitions && instances deliberately do not appear
  * here: module bodies && export namespaces have their own closed-scope &&
@@ -250,6 +265,16 @@ export const buildSourceLexicalNamespaceIndex = (
           continue;
         }
         const nameSpan = declaration.nameSpan;
+        const relatedInformation =
+          isDirectModuleExport(statements, conflicting) &&
+          isDirectModuleExport(statements, declaration) &&
+          conflicting.statement.enclosing?.statementIndex === declaration.statement.enclosing?.statementIndex &&
+          conflicting.statement.namePhysicalSpan
+            ? [{
+                message: "First export with this name",
+                physicalSpan: conflicting.statement.namePhysicalSpan
+              }]
+            : undefined;
         diagnostics.push({
           severity: "error",
           line: declaration.statement.line,
@@ -258,7 +283,8 @@ export const buildSourceLexicalNamespaceIndex = (
           code: "source-namespace-collision",
           ...(declaration.statement.namePhysicalSpan
             ? { physicalSpan: declaration.statement.namePhysicalSpan }
-            : { physicalSpan: declaration.statement.physicalSpan })
+            : { physicalSpan: declaration.statement.physicalSpan }),
+          ...(relatedInformation ? { relatedInformation } : {})
         });
         prior.push(declaration);
       }
