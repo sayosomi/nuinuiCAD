@@ -167,13 +167,16 @@ implementation. Allowed scopes are exactly:
 * `Source+Canvas`
 * `Source+Output Preview`
 
-Palette scope is part of the implementation contract. Palette visibility
-represents the relevant surface, not fine-grained transient executability. Do
-not make Palette visibility depend on transient state such as Canvas
-selection, single or multi selection, cursor or token position, drawable
-geometry availability, or whether the command can succeed at that exact
-moment. Keep those checks in command execution semantics. Do not pre-design
-Print Preview or other unconfirmed surfaces.
+Palette scope is part of the implementation contract. For VS Code commands,
+`menus.commandPalette[].when` owns broad surface relevance and must not encode
+transient target details. For target-contextual commands,
+`contributes.commands[].enablement` owns coarse target availability projected
+from the canonical current owner, such as an exact-current Source target or the
+active Canvas selection. Do not duplicate semantic resolution inside manifest
+conditions or context-key projection. Command execution must still revalidate
+exact current state and remains authoritative. Surface-only commands should stay
+available throughout their broad Palette scope and should not gain target-based
+enablement. Do not pre-design Print Preview or other unconfirmed surfaces.
 
 Global shortcuts must not interfere with normal text and number entry. When an
 `input`, `textarea`, `select`, or `contenteditable` element is focused,

@@ -22,6 +22,7 @@ import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../d
 import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
 import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
+import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
@@ -235,7 +236,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     ) return;
 
     const bindingAnalysis = current.compiled.bindingAnalysis;
-    const diagnostics = bindingAnalysis
+    const scalarDiagnostics = bindingAnalysis
       ? runtimeScalarDiagnostics({
           computedScalarBindings: evaluationRef.current.computedScalarBindings,
           bindingAnalysis,
@@ -248,6 +249,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           freshness: { isSourceDirty: false, isEvaluationStale: false }
         })
       : [];
+    const diagnostics = [
+      ...scalarDiagnostics,
+      ...runtimeGeometryDiagnostics({
+        errors: evaluationRef.current.errors,
+        compiledDocument: current.compiled
+      })
+    ];
     api.postMessage({
       type: "runtimeDiagnosticsPublication",
       documentVersion,
