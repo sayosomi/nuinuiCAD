@@ -3912,6 +3912,7 @@ textarea {
   fill: none;
   stroke: transparent;
   stroke-width: 10;
+  pointer-events: stroke;
 }
 
 .drawing-overlay circle {
@@ -3921,6 +3922,7 @@ textarea {
 
 .drawing-overlay .overlay-draggable-point {
   cursor: grab;
+  pointer-events: all;
 }
 
 .drawing-overlay text {

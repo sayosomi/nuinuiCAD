@@ -1,3 +1,7 @@
+/// <reference types="node" />
+
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createRef } from "react";
 import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +11,8 @@ import type { EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+
+const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
 const baseline = [
   "nui 4",
@@ -111,6 +117,29 @@ const clickFirstPoint = (container: HTMLElement) => {
     clientX,
     clientY,
     pointerId: 1
+  });
+};
+
+const renderedLineMidpoint = (line: SVGLineElement) => ({
+  clientX: (Number(line.getAttribute("x1")) + Number(line.getAttribute("x2"))) / 2,
+  clientY: (Number(line.getAttribute("y1")) + Number(line.getAttribute("y2"))) / 2
+});
+
+const clickRenderedGeometry = (
+  target: Element,
+  coordinates: { clientX: number; clientY: number },
+  pointerId = 1
+) => {
+  fireEvent.pointerDown(target, {
+    button: 0,
+    buttons: 1,
+    ...coordinates,
+    pointerId
+  });
+  fireEvent.pointerUp(target, {
+    buttons: 0,
+    ...coordinates,
+    pointerId
   });
 };
 
@@ -247,5 +276,101 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadUiStore.getState().selectedElementId).toBe(selectedA);
     expect(selectedPointCount(view.container)).toBe(1);
     expect(selectedGlowCount(view.container)).toBe(1);
+  });
+
+  it("selects a point when the pointer events target the rendered SVG point", () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision)
+    ));
+    const point = view.container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+    if (!point) throw new Error("Expected rendered SVG point overlay");
+
+    const coordinates = {
+      clientX: Number(point.getAttribute("cx")),
+      clientY: Number(point.getAttribute("cy"))
+    };
+    clickRenderedGeometry(point, coordinates);
+
+    const selectedId = useCadUiStore.getState().selectedElementId;
+    expect(state.elements.find((element) => element.id === selectedId)?.name).toBe("A");
+  });
+
+  it("selects a line when the pointer events target the rendered SVG line", () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision)
+    ));
+    const line = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
+    if (!line) throw new Error("Expected rendered SVG line overlay");
+
+    clickRenderedGeometry(line, renderedLineMidpoint(line));
+
+    const selectedId = useCadUiStore.getState().selectedElementId;
+    expect(state.elements.find((element) => element.id === selectedId)?.name).toBe("AB");
+  });
+
+  it("publishes element context for a right-click on rendered geometry", () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision)
+    ));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    const line = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
+    if (!viewport || !line) throw new Error("Expected Canvas viewport and rendered SVG line overlay");
+
+    fireEvent.contextMenu(line, { button: 2, ...renderedLineMidpoint(line) });
+
+    expect(JSON.parse(viewport.dataset.vscodeContext ?? "{}")).toMatchObject({
+      webviewSection: "element"
+    });
+  });
+
+  it("keeps blank Canvas right-click on the blank context path", () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision)
+    ));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Expected Canvas viewport");
+
+    fireEvent.contextMenu(viewport, { button: 2, clientX: 450, clientY: 350 });
+
+    expect(JSON.parse(viewport.dataset.vscodeContext ?? "{}")).toMatchObject({
+      webviewSection: "blank"
+    });
+  });
+
+  it("keeps rendered SVG geometry targetable in the production stylesheet", () => {
+    expect(stylesheet).toMatch(
+      /\.drawing-overlay line,\s*\.drawing-overlay polyline\s*\{[\s\S]*?pointer-events:\s*stroke;/
+    );
+    expect(stylesheet).toMatch(
+      /\.drawing-overlay \.overlay-draggable-point\s*\{[\s\S]*?pointer-events:\s*all;/
+    );
   });
 });
