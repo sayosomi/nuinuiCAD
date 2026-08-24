@@ -97,6 +97,46 @@ describe("planExtractModule checkpoint 5 root if", () => {
     ].join("\n"));
   });
 
+  it("accepts a nested for under a selected root if and parameterizes its header and body dependencies", () => {
+    const source = [
+      "nui 4",
+      "const enabled: boolean = true",
+      "const start: number = 1",
+      "const count: number = 2",
+      "const width: number = 10",
+      "if (@enabled) {",
+      "  for i in range(from: @start, count: @count, step: 1) {",
+      "    const inside: number = @width + @i",
+      "  }",
+      "} else {",
+      "  const fallback: number = 0",
+      "}"
+    ].join("\n");
+
+    const result = planContainer(source);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["enabled", "boolean", "@enabled"],
+      ["start", "number", "@start"],
+      ["count", "number", "@count"],
+      ["width", "number", "@width"]
+    ]);
+    expect(result.dependencies.some((dependency) => dependency.name === "i")).toBe(false);
+    expect(result.exports).toEqual([]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(enabled: boolean, start: number, count: number, width: number) {",
+      "  if (@enabled) {",
+      "    for i in range(from: @start, count: @count, step: 1) {",
+      "      const inside: number = @width + @i",
+      "    }",
+      "  } else {",
+      "    const fallback: number = 0",
+      "  }",
+      "}"
+    ].join("\n"));
+  });
+
   it("keeps a let/set pair inside the conditional but rejects a write crossing the Extract boundary", () => {
     const internalSource = [
       "nui 4",
@@ -123,16 +163,18 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expectRejectedWithoutPatch(planContainer(crossingSource), "cross-boundary-mutation");
   });
 
-  it("does not let a selected root if broaden a sibling group subtree", () => {
+  it("keeps selected-root validation local when a sibling structural root contains an unsupported record value", () => {
     const source = [
       "nui 4",
+      "record Config(amount: number)",
+      "const config: Config = Config(amount: 1)",
       "group Outer {",
       "  if (true) {",
       "    const nested: number = 1",
       "  }",
       "}",
       "if (true) {",
-      "  const direct: number = 2",
+      "  const unsupported: Config = @config",
       "}"
     ].join("\n");
     const compiled = compileCurrent(source);

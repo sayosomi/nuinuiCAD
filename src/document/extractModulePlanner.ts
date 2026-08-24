@@ -523,6 +523,12 @@ const movedIterationBinding = (
   identity: DslSemanticIdentity,
   movedIndexes: ReadonlySet<number>
 ): StatementIdentity | null => {
+  if (identity.kind === "module" && identity.target.kind === "moduleIteration") {
+    const statementIndex = statementIndexForId(compiled, identity.target.statementId);
+    return statementIndex !== undefined && movedIndexes.has(statementIndex)
+      ? identity.target.statementId
+      : null;
+  }
   if (identity.kind !== "typed") return null;
   const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
   if (!binding || binding.kind !== "iteration" || !movedIndexes.has(binding.statementIndex)) return null;
@@ -620,7 +626,7 @@ const cleanCompile = (compiled: CompiledDslDocument): boolean =>
   !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
   !(compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
-type ValueStatementContext = "selected" | "group-descendant" | "conditional-descendant" | "for-descendant";
+type ValueStatementContext = "selected" | "structural-descendant";
 
 const valueStatementRejection = (
   statement: DslStatement,
@@ -630,17 +636,13 @@ const valueStatementRejection = (
 ): ExtractModuleRejection | null => {
   const where = context === "selected"
     ? "選択statement"
-    : context === "group-descendant"
-      ? "group descendant"
-      : context === "conditional-descendant"
-        ? "if descendant"
-        : "for descendant";
+    : "structural descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
     if (!arrayType && (!statement.declaredType || statement.recordTypeReference)) {
       return reject(
         "unsupported-statement",
-        `${where} declaration「${statement.name}」は Checkpoint 6 の scalar / geometry-array scope 外です。`,
+        `${where} declaration「${statement.name}」は Checkpoint 7 の scalar / geometry-array scope 外です。`,
         { statementId, statementIndex }
       );
     }
@@ -657,7 +659,7 @@ const valueStatementRejection = (
     if (!moduleGeometryInterfaceTypeOfElement(statement)) {
       return reject(
         "unsupported-statement",
-        `${where} geometry declaration「${statement.name}」は Checkpoint 6 の point / line / path interface で表現できません。`,
+        `${where} geometry declaration「${statement.name}」は Checkpoint 7 の point / line / path interface で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -673,7 +675,7 @@ const valueStatementRejection = (
   if (statement.kind === "set") return null;
   return reject(
     "unsupported-statement",
-    `「${statement.kind}」statement は Checkpoint 6 の scalar / single-geometry / geometry-array value scope 外です。`,
+    `「${statement.kind}」statement は Checkpoint 7 の scalar / single-geometry / geometry-array value scope 外です。`,
     { statementId, statementIndex }
   );
 };
@@ -693,7 +695,7 @@ const checkpointStatementRejection = (
   if (statement.enclosing !== null) {
     return reject(
       "unsupported-statement",
-      "Checkpoint 6 は root lexical scope の direct value statement、complete plain group、complete if structure、または complete for structure だけを安全に Extract します。",
+      "Checkpoint 7 は root lexical scope の direct value statement、complete plain group、complete if structure、または complete for structure だけを安全に Extract します。",
       { statementId, statementIndex }
     );
   }
@@ -701,31 +703,13 @@ const checkpointStatementRejection = (
   return valueStatementRejection(statement, statementId, statementIndex, "selected");
 };
 
-const checkpointGroupDescendantRejection = (
+const checkpointStructuralDescendantRejection = (
   statement: DslStatement,
   statementId: StatementIdentity,
   statementIndex: number
 ): ExtractModuleRejection | null => {
-  if (statement.kind === "group") return null;
-  return valueStatementRejection(statement, statementId, statementIndex, "group-descendant");
-};
-
-const checkpointConditionalDescendantRejection = (
-  statement: DslStatement,
-  statementId: StatementIdentity,
-  statementIndex: number
-): ExtractModuleRejection | null => {
-  if (statement.kind === "group" || isConditionalGroupStatement(statement)) return null;
-  return valueStatementRejection(statement, statementId, statementIndex, "conditional-descendant");
-};
-
-const checkpointForDescendantRejection = (
-  statement: DslStatement,
-  statementId: StatementIdentity,
-  statementIndex: number
-): ExtractModuleRejection | null => {
-  if (statement.kind === "group" || isConditionalGroupStatement(statement)) return null;
-  return valueStatementRejection(statement, statementId, statementIndex, "for-descendant");
+  if (statement.kind === "group" || isConditionalGroupStatement(statement) || isForGroupStatement(statement)) return null;
+  return valueStatementRejection(statement, statementId, statementIndex, "structural-descendant");
 };
 
 const selectedRootIndexForStatement = (
@@ -892,13 +876,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     const selectedRootIndex = selectedRootIndexForStatement(compiled, entry.statementIndex, selectedIndexSet);
     if (selectedRootIndex === null || selectedRootIndex === entry.statementIndex) continue;
     const selectedRoot = compiled.statements[selectedRootIndex];
-    const rejection = selectedRoot && isForGroupStatement(selectedRoot)
-      ? checkpointForDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
-      : selectedRoot && isConditionalGroupStatement(selectedRoot)
-        ? checkpointConditionalDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
-        : selectedRoot?.kind === "group"
-          ? checkpointGroupDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
-          : null;
+    const rejection = selectedRoot && (
+      selectedRoot.kind === "group" ||
+      isConditionalGroupStatement(selectedRoot) ||
+      isForGroupStatement(selectedRoot)
+    )
+      ? checkpointStructuralDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
+      : null;
     if (rejection) return rejection;
   }
 
@@ -939,7 +923,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
         return reject(
           "unrepresentable-dependency",
-          "選択範囲内の reference が Checkpoint 6 の moved scalar / single-geometry / geometry-array owner として証明できません。"
+          "選択範囲内の reference が Checkpoint 7 の moved scalar / single-geometry / geometry-array owner として証明できません。"
         );
       }
       continue;
@@ -949,7 +933,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (!descriptor) {
       return reject(
         "unrepresentable-dependency",
-        "Checkpoint 6 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
+        "Checkpoint 7 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
       );
     }
 
@@ -1046,7 +1030,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (!direct) {
       return reject(
         "unrepresentable-export",
-        "Checkpoint 6 では明示選択された direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
+        "Checkpoint 7 では明示選択された direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
       );
     }
 
@@ -1056,14 +1040,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       if ((!arrayType && (!statement.declaredType || statement.recordTypeReference)) || !statement.name) {
         return reject(
           "unrepresentable-export",
-          `statement「${statement.name || statement.kind}」は Checkpoint 6 の direct scalar / geometry-array export で表現できません。`,
+          `statement「${statement.name || statement.kind}」は Checkpoint 7 の direct scalar / geometry-array export で表現できません。`,
           { statementId, statementIndex }
         );
       }
     } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
         "unrepresentable-export",
-        `geometry statement「${statement.name || statement.kind}」は Checkpoint 6 の direct geometry export で表現できません。`,
+        `geometry statement「${statement.name || statement.kind}」は Checkpoint 7 の direct geometry export で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -1210,14 +1194,15 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
 
-  // Checkpoint 6 adds one complete root forGroup structural owner to the
-  // previously proven direct/root value, plain-group, and conditional proof.
+  // Checkpoint 7 recursively accepts complete structural descendants under
+  // the previously proven direct/root value, plain-group, conditional, and
+  // forGroup proof.
   // The compiler-owned iteration binding remains internal to that moved root
-  // and is verified again after candidate recompile. Plain groups and nested
-  // conditionals inside the selected loop may move when every non-structural
-  // descendant remains an already-proven value/set form. Nested for binders,
-  // records, Module constructs, non-root targets, and host integration remain
-  // fail closed. Outside-resolution comparison stays the final guard.
+  // and is verified again after candidate recompile. Nested groups,
+  // conditionals, and for binders may move when every non-structural
+  // descendant remains an already-proven value/set form. Records, Module
+  // constructs, non-root targets, and host integration remain fail closed.
+  // Outside-resolution comparison stays the final guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
   for (const [statementId, identities] of oldSequences) {
