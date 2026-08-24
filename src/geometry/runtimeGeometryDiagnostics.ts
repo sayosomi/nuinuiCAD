@@ -17,13 +17,13 @@ export type RuntimeGeometryDiagnostic = DslDiagnostic & {
  * with a guessed or stale source location is worse than omitting that row.
  */
 export const runtimeGeometryDiagnostics = (input: {
-  errors: readonly DependencyError[];
+  errors?: readonly DependencyError[];
   compiledDocument: CompiledDslDocument;
 }): readonly RuntimeGeometryDiagnostic[] => {
   const statementMap = input.compiledDocument.statementMap;
   if (!statementMap) return [];
 
-  return input.errors.flatMap((error) => {
+  return (input.errors ?? []).flatMap((error) => {
     const owner = sourceOwnerForRuntimeElementId(
       {
         statementMap,
