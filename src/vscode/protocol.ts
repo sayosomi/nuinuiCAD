@@ -2,7 +2,7 @@ import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
-import type { RuntimeScalarDiagnostic } from "../scalars/runtimeScalarDiagnostics";
+import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
@@ -52,7 +52,7 @@ export const isVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebvi
   typeof value === "string" &&
   (vscodeWebviewSurfaceKinds as readonly string[]).includes(value);
 
-export const parseVscodeWebviewSurfaceKind = (value: unknown): VscodeWebviewSurfaceKind | null =>
+export const parseVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebviewSurfaceKind =>
   isVscodeWebviewSurfaceKind(value) ? value : null;
 
 export type VscodeRustEvaluationRequest = {
@@ -65,7 +65,7 @@ export type VscodeRustEvaluationRequest = {
 export type VscodeRuntimeDiagnosticsPublication = {
   type: "runtimeDiagnosticsPublication";
   documentVersion: number;
-  diagnostics: readonly RuntimeScalarDiagnostic[];
+  diagnostics: readonly DslDiagnostic[];
 };
 
 export type VscodeCanvasObservationSelectionSubject =
