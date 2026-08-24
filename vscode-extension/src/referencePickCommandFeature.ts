@@ -91,7 +91,26 @@ export const sourceTargetAvailabilityForEditor = (
 export const referencePickSourceOffsetForEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
-): number | null => sourceTargetAvailabilityForEditor(editor, languageAnalysisSession).referencePickSourceOffset;
+): number | null => {
+  if (!isSupportedSourceEditor(editor)) return null;
+  const rawSource = editor.document.getText();
+  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(rawSource),
+    sourceRevision: languageAnalysisSession.getSourceRevision()
+  };
+  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  if (!semantic?.compiled) return null;
+  const normalizedSourceOffset = normalizedOffsetFromRaw(
+    rawSource,
+    editor.document.offsetAt(editor.selection.active)
+  );
+  return queryDslReferencePickTarget({
+    source,
+    position: normalizedSourceOffset,
+    semantic
+  }) ? normalizedSourceOffset : null;
+};
 
 export const registerVscodeReferencePickFeature = ({
   languageAnalysisSessionFor,
