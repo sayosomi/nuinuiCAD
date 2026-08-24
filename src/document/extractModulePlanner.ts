@@ -703,6 +703,23 @@ const checkpointConditionalDescendantRejection = (
   return valueStatementRejection(statement, statementId, statementIndex, "conditional-descendant");
 };
 
+const selectedRootIndexForStatement = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  selectedIndexes: ReadonlySet<number>
+): number | null => {
+  let currentIndex = statementIndex;
+  const visited = new Set<number>();
+  while (!visited.has(currentIndex)) {
+    if (selectedIndexes.has(currentIndex)) return currentIndex;
+    visited.add(currentIndex);
+    const enclosing = compiled.statements[currentIndex]?.enclosing;
+    if (!enclosing) return null;
+    currentIndex = enclosing.statementIndex;
+  }
+  return null;
+};
+
 const lexicalTieBreak = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
@@ -831,8 +848,6 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("invalid-target", "選択statementの物理 source range を確定できません。");
   }
 
-  const hasConditionalTarget = ordered.some((entry) => isConditionalGroupStatement(entry.statement));
-  const hasGroupTarget = ordered.some((entry) => entry.statement.kind === "group");
   const movedEntries: MovedStatement[] = [];
   for (let statementIndex = 0; statementIndex < compiled.statements.length; statementIndex += 1) {
     const statement = compiled.statements[statementIndex]!;
@@ -848,16 +863,16 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     movedEntries.push({ statementId, statementIndex, statement });
   }
   const movedIndexSet = new Set(movedEntries.map((entry) => entry.statementIndex));
-  if (hasConditionalTarget) {
-    for (const entry of movedEntries) {
-      const rejection = checkpointConditionalDescendantRejection(entry.statement, entry.statementId, entry.statementIndex);
-      if (rejection) return rejection;
-    }
-  } else if (hasGroupTarget) {
-    for (const entry of movedEntries) {
-      const rejection = checkpointGroupDescendantRejection(entry.statement, entry.statementId, entry.statementIndex);
-      if (rejection) return rejection;
-    }
+  for (const entry of movedEntries) {
+    const selectedRootIndex = selectedRootIndexForStatement(compiled, entry.statementIndex, selectedIndexSet);
+    if (selectedRootIndex === null || selectedRootIndex === entry.statementIndex) continue;
+    const selectedRoot = compiled.statements[selectedRootIndex];
+    const rejection = selectedRoot && isConditionalGroupStatement(selectedRoot)
+      ? checkpointConditionalDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
+      : selectedRoot?.kind === "group"
+        ? checkpointGroupDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
+        : null;
+    if (rejection) return rejection;
   }
 
   const mutationRejection = validateMutationBoundaries(compiled, selectedFrom, selectedTo);
