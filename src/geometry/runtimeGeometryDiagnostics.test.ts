@@ -57,4 +57,9 @@ describe("runtimeGeometryDiagnostics", () => {
 
     expect(runtimeGeometryDiagnostics({ errors: [error], compiledDocument })).toEqual([]);
   });
+
+  it("treats an omitted geometry error layer as empty", () => {
+    const { compiledDocument } = compiledFixture();
+    expect(runtimeGeometryDiagnostics({ compiledDocument })).toEqual([]);
+  });
 });
