@@ -25,7 +25,6 @@ export type VscodeObservationFeature = {
   removeDocument: (documentUri: string) => void;
   removeCanvasSession: (documentUri: string) => void;
   acceptCanvasPublication: (publication: VscodeObservationCanvasPublication) => boolean;
-  refreshCanvasSelectionContext: () => void;
   dispose: () => void;
 };
 
@@ -119,7 +118,6 @@ export const registerVscodeObservationFeature = (
       projectCanvasSelectionContext(false);
       return accepted;
     },
-    refreshCanvasSelectionContext: projectCanvasSelectionContext,
     dispose: () => {
       if (disposed) return;
       disposed = true;
