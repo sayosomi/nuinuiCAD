@@ -125,17 +125,27 @@ export const registerVscodeReferencePickFeature = ({
   let active: ActiveReferencePick | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
 
-  const setContext = (key: string, enabled: boolean): void => {
+  const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
     contextUpdate = contextUpdate
       .catch(() => undefined)
-      .then(() => vscode.commands.executeCommand("setContext", key, enabled))
+      .then(() => Promise.all([
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
+          availability.revealInCanvas
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY,
+          availability.bake
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_REFERENCE_PICK_CONTEXT_KEY,
+          availability.referencePickSourceOffset !== null
+        )
+      ]))
       .then(() => undefined);
-  };
-
-  const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
-    setContext(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY, availability.revealInCanvas);
-    setContext(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY, availability.bake);
-    setContext(VSCODE_REFERENCE_PICK_CONTEXT_KEY, availability.referencePickSourceOffset !== null);
   };
 
   const refreshContext = (editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): void => {
