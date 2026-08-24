@@ -31,8 +31,11 @@ export type VscodeObservationFeature = {
 
 const noopDisposable = (): vscode.Disposable => ({ dispose: () => undefined });
 
-const activeCanvasHasSelection = (state: VscodeObservationState): boolean => {
-  const snapshot = state.snapshot();
+const activeCanvasHasSelection = (
+  state: VscodeObservationState,
+  refreshHostProjection: boolean
+): boolean => {
+  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
   if (!snapshot.activeDocumentUri) return false;
   const activeDocument = snapshot.documents.find(
     (document) => document.documentUri === snapshot.activeDocumentUri
@@ -59,8 +62,8 @@ export const registerVscodeObservationFeature = (
   let disposed = false;
   let contextUpdate: Promise<void> = Promise.resolve();
 
-  const projectCanvasSelectionContext = (): void => {
-    const enabled = !disposed && activeCanvasHasSelection(state);
+  const projectCanvasSelectionContext = (refreshHostProjection = true): void => {
+    const enabled = !disposed && activeCanvasHasSelection(state, refreshHostProjection);
     contextUpdate = contextUpdate
       .catch(() => undefined)
       .then(() => vscode.commands.executeCommand(
@@ -95,25 +98,25 @@ export const registerVscodeObservationFeature = (
     invalidateDocumentRuntime: (documentUri) => {
       whileActive(() => {
         state.invalidateCanvasRuntime(documentUri);
-        projectCanvasSelectionContext();
+        projectCanvasSelectionContext(false);
       });
     },
     removeDocument: (documentUri) => {
       whileActive(() => {
         state.removeDocument(documentUri);
-        projectCanvasSelectionContext();
+        projectCanvasSelectionContext(false);
       });
     },
     removeCanvasSession: (documentUri) => {
       whileActive(() => {
         state.invalidateCanvasRuntime(documentUri);
-        projectCanvasSelectionContext();
+        projectCanvasSelectionContext(false);
       });
     },
     acceptCanvasPublication: (publication) => {
       if (disposed) return false;
       const accepted = state.acceptCanvasPublication(publication);
-      projectCanvasSelectionContext();
+      projectCanvasSelectionContext(false);
       return accepted;
     },
     refreshCanvasSelectionContext: projectCanvasSelectionContext,
@@ -125,7 +128,7 @@ export const registerVscodeObservationFeature = (
       tabGroupListener.dispose();
       state.setHostDocumentsProvider(null);
       state.reset();
-      projectCanvasSelectionContext();
+      projectCanvasSelectionContext(false);
     }
   };
 };
