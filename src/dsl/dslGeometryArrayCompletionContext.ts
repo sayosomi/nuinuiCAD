@@ -1,4 +1,6 @@
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
+import { dslCompletionMetadataForType, dslStatementElementType } from "./dslCompletionMetadata";
+import { dslLineElementStatement, dslLineLabeledValueSpans } from "./dslValueSpans";
 import type { GeometryArrayType } from "./geometryArrayTypes";
 import type { DslSpan } from "./dslTypes";
 
@@ -40,10 +42,10 @@ const currentArrayMemberStart = (source: string, contentStart: number, pos: numb
 };
 
 /**
- * Source-shape adapter shared by declaration and Module-argument completion.
- * It determines whether the cursor is completing one member of an inline
- * literal or a whole named array reference. Type/visibility resolution stays
- * in the source/Module semantic owners.
+ * Source-shape adapter shared by declaration, construction-parameter, and
+ * Module-argument completion. It determines whether the cursor is completing
+ * one member of an inline literal or a whole named array reference.
+ * Type/visibility resolution stays in the source/Module semantic owners.
  */
 export const geometryArrayValueCompletionContextAt = (
   source: string,
@@ -88,19 +90,48 @@ export const geometryArrayValueCompletionContextAt = (
   };
 };
 
+const geometryArrayParameterCompletionContextAt = (
+  source: string,
+  pos: number
+): GeometryArrayCompletionContext | null => {
+  const statement = dslLineElementStatement(source);
+  const elementType = statement ? dslStatementElementType(statement) : null;
+  if (!statement || !elementType) return null;
+  const metadata = dslCompletionMetadataForType(elementType);
+  const span = dslLineLabeledValueSpans(source).find((item) => {
+    const bounds = item.start === item.end && item.rawValueSpan ? item.rawValueSpan : item;
+    return pos >= bounds.start && pos <= bounds.end;
+  });
+  if (!span) return null;
+  const parameters = metadata.parameters.filter((parameter) =>
+    parameter.source === span.source && parameter.key === span.key
+  );
+  const parameter = parameters.length === 1 ? parameters[0] : undefined;
+  if (!parameter?.definition.geometryArrayType) return null;
+  const valueSpan = span.start === span.end && span.rawValueSpan ? span.rawValueSpan : span;
+  return geometryArrayValueCompletionContextAt(
+    source,
+    pos,
+    { start: valueSpan.start, end: Math.max(valueSpan.end, pos) },
+    parameter.definition.geometryArrayType
+  );
+};
+
 /**
- * Tolerant source-only completion context for immutable geometry-array
- * declaration initializers. The scalar completion classifier intentionally
- * remains scalar-only; this adapter owns only `const name: point[]/line[]/path[]`
- * initializer positions and never widens ScalarType.
+ * Tolerant source-only completion context for immutable geometry-array values.
+ * Typed declarations retain their existing source-owned path; element
+ * parameters opt in through ParameterDefinition.geometryArrayType so the same
+ * completion semantics can be reused without introducing a second resolver.
  */
 export const geometryArrayDeclarationCompletionContextAt = (
   source: string,
   pos: number
 ): GeometryArrayCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(source);
-  if (!statement?.geometryArrayType || statement.bindingKind !== "const") return null;
-  const initializerSpan = initializerSpanIncludingEmpty(source, statement.payloadSpans.initializer);
-  if (!initializerSpan) return null;
-  return geometryArrayValueCompletionContextAt(source, pos, initializerSpan, statement.geometryArrayType);
+  if (statement?.geometryArrayType && statement.bindingKind === "const") {
+    const initializerSpan = initializerSpanIncludingEmpty(source, statement.payloadSpans.initializer);
+    if (!initializerSpan) return null;
+    return geometryArrayValueCompletionContextAt(source, pos, initializerSpan, statement.geometryArrayType);
+  }
+  return geometryArrayParameterCompletionContextAt(source, pos);
 };
