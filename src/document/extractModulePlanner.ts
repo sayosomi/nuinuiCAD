@@ -6,6 +6,7 @@ import {
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
+import { bareConstructionFor } from "../dsl/dslConstructions";
 import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
@@ -19,6 +20,7 @@ import type { DslModuleParameterType, DslStatement } from "../dsl/dslTypes";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
+import { mutationWriteParameterKeysFor } from "../dsl/moduleMutationOwnership";
 import type { ScalarType } from "../scalars/types";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
@@ -553,6 +555,57 @@ const statementInsideOffsets = (
 ): boolean =>
   Boolean(statement && statement.documentRange.from >= from && statement.documentRange.to <= to);
 
+const geometryReferencesForStatement = (
+  compiled: CompiledDslDocument,
+  statementId: StatementIdentity
+) => {
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  if (!analysis) return null;
+
+  const rootReferences = analysis.rootGeometryReferencesByStatementId.get(statementId);
+  if (rootReferences) return rootReferences;
+
+  for (const definition of analysis.definitions) {
+    const body = definition.bodyStatements.find((candidate) => candidate.statementId === statementId);
+    if (body) return body.geometryReferences;
+  }
+  return null;
+};
+
+const mutationTargetStatementIndexes = (
+  compiled: CompiledDslDocument,
+  entry: MovedStatement
+): readonly number[] | null => {
+  const { statement } = entry;
+  if (statement.kind !== "element" || statement.category !== "mutation") return [];
+  if (!bareConstructionFor(statement.construction)) return null;
+
+  const writeKeys = new Set(mutationWriteParameterKeysFor(statement));
+  if (writeKeys.size === 0) return null;
+
+  const references = geometryReferencesForStatement(compiled, entry.statementId);
+  if (!references) return null;
+  const owners = new Set<number>();
+  for (const site of references) {
+    if (!site.parameterKey || !writeKeys.has(site.parameterKey)) continue;
+    const target = site.reference.target;
+    if (!target) return null;
+
+    const ownerStatementId = target.kind === "sourceGeometry"
+      ? target.statementId
+      : target.kind === "deferredModuleExport"
+        ? target.instanceStatementId
+        : null;
+    const ownerStatementIndex = ownerStatementId === null
+      ? undefined
+      : statementIndexForId(compiled, ownerStatementId);
+    if (ownerStatementIndex === undefined) return null;
+    owners.add(ownerStatementIndex);
+  }
+
+  return owners.size > 0 ? [...owners] : null;
+};
+
 const validateMutationBoundaries = (
   compiled: CompiledDslDocument,
   selectedFrom: number,
@@ -568,6 +621,40 @@ const validateMutationBoundaries = (
         "cross-boundary-mutation",
         `set ${set.targetName} は Extract 境界をまたいで mutable binding を書き換えるため移動できません。`,
         { statementIndex: setStatementIndex }
+      );
+    }
+  }
+
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    if (statement.kind !== "element" || statement.category !== "mutation") continue;
+    const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+    if (!statementId) return reject(
+      "unsafe-rewrite",
+      "bare mutation statement の authored StatementIdentity を exact-current source から取得できません。",
+      { statementIndex }
+    );
+
+    const owners = mutationTargetStatementIndexes(compiled, {
+      statementId,
+      statementIndex,
+      statement
+    });
+    if (owners === null) {
+      return reject(
+        "unsafe-rewrite",
+        `bare mutation「${statement.construction}」の mutation target owner を compiler semantic metadata から一意に取得できません。`,
+        { statementId, statementIndex }
+      );
+    }
+
+    const mutationInside = statementInsideOffsets(statement, selectedFrom, selectedTo);
+    for (const ownerIndex of owners) {
+      const ownerInside = statementInsideOffsets(compiled.statements[ownerIndex], selectedFrom, selectedTo);
+      if (mutationInside === ownerInside) continue;
+      return reject(
+        "cross-boundary-mutation",
+        `bare mutation「${statement.construction}」は mutation target geometry owner と Extract 境界をまたぐため移動できません。`,
+        { statementId, statementIndex }
       );
     }
   }
@@ -667,6 +754,7 @@ const valueStatementRejection = (
     return null;
   }
   if (statement.kind === "element") {
+    if (statement.category === "mutation" && bareConstructionFor(statement.construction)) return null;
     if (!moduleGeometryInterfaceTypeOfElement(statement)) {
       return reject(
         "unsupported-statement",
@@ -1380,6 +1468,36 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       return reject("identity-loss", "Extract 後に authored statement identity を保持できませんでした。", {
         statementId: entry.statementId
       });
+    }
+  }
+
+  for (const entry of movedEntries) {
+    if (entry.statement.kind !== "element" || entry.statement.category !== "mutation") continue;
+    const beforeOwners = mutationTargetStatementIndexes(compiled, entry);
+    const expectedOwnerIds = beforeOwners?.map((ownerIndex) => statementIdForIndex(compiled, ownerIndex));
+    const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
+    const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+    const nextOwners = nextStatement && nextIndex !== undefined
+      ? mutationTargetStatementIndexes(nextCompiled, {
+          statementId: entry.statementId,
+          statementIndex: nextIndex,
+          statement: nextStatement
+        })
+      : null;
+    const nextOwnerIds = nextOwners?.map((ownerIndex) => statementIdForIndex(nextCompiled, ownerIndex));
+    const expected = expectedOwnerIds?.filter((ownerId): ownerId is StatementIdentity => ownerId !== null) ?? [];
+    const actual = nextOwnerIds?.filter((ownerId): ownerId is StatementIdentity => ownerId !== null) ?? [];
+    if (
+      expected.length !== expectedOwnerIds?.length ||
+      actual.length !== nextOwnerIds?.length ||
+      expected.length !== actual.length ||
+      expected.some((ownerId) => !actual.includes(ownerId))
+    ) {
+      return reject(
+        "identity-loss",
+        "Extract 後に moved bare mutation の mutation target geometry owner identity を保持できませんでした。",
+        { statementId: entry.statementId, statementIndex: entry.statementIndex }
+      );
     }
   }
 
