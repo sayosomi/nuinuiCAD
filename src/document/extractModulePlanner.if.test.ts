@@ -123,6 +123,40 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expectRejectedWithoutPatch(planContainer(crossingSource), "cross-boundary-mutation");
   });
 
+  it("does not let a selected root if broaden a sibling group subtree", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  if (true) {",
+      "    const nested: number = 1",
+      "  }",
+      "}",
+      "if (true) {",
+      "  const direct: number = 2",
+      "}"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const groupIndex = compiled.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.enclosing === null
+    );
+    const conditionalIndex = compiled.statements.findIndex((statement) =>
+      statement.kind === "element" &&
+      statement.type === "conditionalGroup" &&
+      statement.enclosing === null
+    );
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    expect(conditionalIndex).toBeGreaterThanOrEqual(0);
+
+    const result = planExtractModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      statementIds: [statementIdAt(compiled, groupIndex), statementIdAt(compiled, conditionalIndex)],
+      moduleName: "Extracted",
+      instanceName: "Part"
+    });
+    expectRejectedWithoutPatch(result, "unsupported-statement");
+  });
+
   it("keeps root for iteration-binder handling outside Checkpoint 5", () => {
     const source = [
       "nui 4",
