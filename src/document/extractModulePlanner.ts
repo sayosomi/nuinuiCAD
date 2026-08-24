@@ -13,10 +13,12 @@ import {
 import { geometryArrayTypeOfTypedDeclaration } from "../dsl/geometryArraySourceAnnotations";
 import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
 import { parseDslSnapshot } from "../dsl/dslParser";
+import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
 import { serializeDslNumericType, type DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
 import type { DslModuleParameterType, DslStatement } from "../dsl/dslTypes";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
+import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import type { ScalarType } from "../scalars/types";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
@@ -141,6 +143,11 @@ type MovedStatement = {
   statement: DslStatement;
 };
 
+type MovedExternalModuleCallee = {
+  instanceStatementId: StatementIdentity;
+  definitionStatementId: StatementIdentity;
+};
+
 const reject = (
   code: ExtractModuleRejectCode,
   message: string,
@@ -257,7 +264,11 @@ const canonicalFinalReferenceOccurrences = (
   for (const occurrence of occurrences) {
     if (!isFinalReferenceSegment(source, occurrence)) continue;
     const prior = byEnd.get(occurrence.to);
-    if (!prior || occurrence.from > prior.from) byEnd.set(occurrence.to, occurrence);
+    if (
+      !prior ||
+      occurrence.from > prior.from ||
+      (occurrence.from === prior.from && occurrence.identity.kind === "module" && prior.identity.kind !== "module")
+    ) byEnd.set(occurrence.to, occurrence);
   }
   return [...byEnd.values()].sort((left, right) => left.from - right.from || left.to - right.to);
 };
@@ -626,7 +637,7 @@ const cleanCompile = (compiled: CompiledDslDocument): boolean =>
   !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
   !(compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
-type ValueStatementContext = "selected" | "structural-descendant";
+type ValueStatementContext = "selected" | "structural-descendant" | "module-descendant";
 
 const valueStatementRejection = (
   statement: DslStatement,
@@ -646,7 +657,7 @@ const valueStatementRejection = (
         { statementId, statementIndex }
       );
     }
-    if (statement.exported) {
+    if (statement.exported && context !== "module-descendant") {
       return reject(
         "existing-public-interface",
         "既存の export declaration を nested Module へ移すと公開interfaceが変わるため Extract できません。",
@@ -663,7 +674,7 @@ const valueStatementRejection = (
         { statementId, statementIndex }
       );
     }
-    if (statement.exported) {
+    if (statement.exported && context !== "module-descendant") {
       return reject(
         "existing-public-interface",
         "既存の export geometry declaration を nested Module へ移すと公開interfaceが変わるため Extract できません。",
@@ -695,21 +706,149 @@ const checkpointStatementRejection = (
   if (statement.enclosing !== null) {
     return reject(
       "unsupported-statement",
-      "Checkpoint 7 は root lexical scope の direct value statement、complete plain group、complete if structure、または complete for structure だけを安全に Extract します。",
+      "Checkpoint 8 は root lexical scope の direct value / Module statement、complete plain group、complete if structure、または complete for structure だけを安全に Extract します。",
       { statementId, statementIndex }
     );
   }
-  if (statement.kind === "group" || isConditionalGroupStatement(statement) || isForGroupStatement(statement)) return null;
+  if (statement.kind === "moduleDefinition") {
+    const recordParameter = statement.parameters.find((parameter) => parameter.recordTypeReference);
+    if (recordParameter) {
+      return reject(
+        "unsupported-statement",
+        `module definition「${statement.name}」のrecord-valued parameter「${recordParameter.name}」は Extract Module の対象外です。`,
+        { statementId, statementIndex }
+      );
+    }
+  }
+  if (
+    statement.kind === "group" ||
+    isConditionalGroupStatement(statement) ||
+    isForGroupStatement(statement) ||
+    statement.kind === "moduleDefinition" ||
+    statement.kind === "moduleInstance"
+  ) return null;
   return valueStatementRejection(statement, statementId, statementIndex, "selected");
 };
 
 const checkpointStructuralDescendantRejection = (
   statement: DslStatement,
   statementId: StatementIdentity,
-  statementIndex: number
+  statementIndex: number,
+  insideModuleDefinition: boolean
 ): ExtractModuleRejection | null => {
-  if (statement.kind === "group" || isConditionalGroupStatement(statement) || isForGroupStatement(statement)) return null;
-  return valueStatementRejection(statement, statementId, statementIndex, "structural-descendant");
+  if (statement.kind === "moduleDefinition") {
+    const recordParameter = statement.parameters.find((parameter) => parameter.recordTypeReference);
+    if (recordParameter) {
+      return reject(
+        "unsupported-statement",
+        `module definition「${statement.name}」のrecord-valued parameter「${recordParameter.name}」は Extract Module の対象外です。`,
+        { statementId, statementIndex }
+      );
+    }
+  }
+  if (
+    statement.kind === "group" ||
+    isConditionalGroupStatement(statement) ||
+    isForGroupStatement(statement) ||
+    statement.kind === "moduleDefinition" ||
+    statement.kind === "moduleInstance"
+  ) return null;
+  return valueStatementRejection(
+    statement,
+    statementId,
+    statementIndex,
+    insideModuleDefinition ? "module-descendant" : "structural-descendant"
+  );
+};
+
+const moduleDefinitionOwnerIndex = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): number | null => {
+  const visited = new Set<number>();
+  let enclosing = compiled.statements[statementIndex]?.enclosing ?? null;
+  while (enclosing && !visited.has(enclosing.statementIndex)) {
+    visited.add(enclosing.statementIndex);
+    if (compiled.statements[enclosing.statementIndex]?.kind === "moduleDefinition") return enclosing.statementIndex;
+    enclosing = compiled.statements[enclosing.statementIndex]?.enclosing ?? null;
+  }
+  return null;
+};
+
+const moduleIdentityOwnedByMovedSubtree = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  movedIndexes: ReadonlySet<number>
+): boolean => {
+  if (identity.kind === "typed") {
+    const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
+    return binding !== undefined && movedIndexes.has(binding.statementIndex);
+  }
+  if (identity.kind !== "module") return false;
+  const target = identity.target;
+  if (target.kind === "documentBinding") return false;
+  const statementId = target.kind === "moduleParameter" ? target.slot.definitionStatementId : target.statementId;
+  const statementIndex = statementIndexForId(compiled, statementId);
+  return statementIndex !== undefined && movedIndexes.has(statementIndex);
+};
+
+const moduleInstanceContainingOccurrence = (
+  occurrence: DslSemanticOccurrence,
+  movedEntries: readonly MovedStatement[]
+): MovedStatement | null => {
+  for (const entry of movedEntries) {
+    if (
+      entry.statement.kind === "moduleInstance" &&
+      occurrence.from >= entry.statement.documentRange.from &&
+      occurrence.to <= entry.statement.documentRange.to
+    ) return entry;
+  }
+  return null;
+};
+
+const geometryArrayArgumentOccurrences = (
+  compiled: CompiledDslDocument,
+  movedEntries: readonly MovedStatement[]
+): DslSemanticOccurrence[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const analysis = namespace?.geometryArraySemanticAnalysis;
+  if (!namespace || !analysis) return [];
+
+  const occurrences: DslSemanticOccurrence[] = [];
+  for (const entry of movedEntries) {
+    if (entry.statement.kind !== "moduleInstance") continue;
+    const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(entry.statementId);
+    if (!instance?.callee) continue;
+    for (const parameter of analysis.moduleParameters) {
+      if (parameter.definitionStatementId !== instance.callee.definitionStatementId) continue;
+      const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+      if (binding?.argumentIndex === null || binding?.argumentIndex === undefined) continue;
+      const argument = entry.statement.arguments[binding.argumentIndex];
+      const physical = argument?.valuePhysicalSpan?.segments.length === 1
+        ? argument.valuePhysicalSpan.segments[0]
+        : null;
+      if (!argument || !physical) continue;
+      const parsed = parseDslSourceReference(argument.value);
+      if (parsed.kind !== "valid" || parsed.reference.property) continue;
+      const lookup = resolveSourceLexicalPath(namespace, entry.statementIndex, parsed.reference.path);
+      if (
+        lookup.kind !== "resolved" ||
+        lookup.declaration.kind !== "typedDeclaration" ||
+        lookup.declaration.statement.kind !== "typedDeclaration"
+      ) continue;
+      const arrayType = geometryArrayTypeOfTypedDeclaration(lookup.declaration.statement);
+      if (!arrayType || arrayType.elementType !== parameter.type.elementType) continue;
+      const pathFrom = physical.from + parsed.reference.pathRange.start;
+      const pathTo = physical.from + parsed.reference.pathRange.end;
+      occurrences.push({
+        from: pathFrom,
+        to: pathTo,
+        kind: "reference",
+        identity: { kind: "module", target: { kind: "moduleSource", statementId: lookup.declaration.statementId } }
+      });
+    }
+  }
+  return occurrences;
 };
 
 const selectedRootIndexForStatement = (
@@ -872,6 +1011,19 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     movedEntries.push({ statementId, statementIndex, statement });
   }
   const movedIndexSet = new Set(movedEntries.map((entry) => entry.statementIndex));
+  const movedModuleDeclarationNames = new Set(
+    movedEntries
+      .filter((entry) => entry.statement.kind === "moduleDefinition" || entry.statement.kind === "moduleInstance")
+      .map((entry) => entry.statement.name)
+  );
+  for (const generatedName of [moduleName, instanceName]) {
+    if (movedModuleDeclarationNames.has(generatedName)) {
+      return reject(
+        "name-collision",
+        `生成名「${generatedName}」が移動対象の Module definition / instance と衝突します。`
+      );
+    }
+  }
   for (const entry of movedEntries) {
     const selectedRootIndex = selectedRootIndexForStatement(compiled, entry.statementIndex, selectedIndexSet);
     if (selectedRootIndex === null || selectedRootIndex === entry.statementIndex) continue;
@@ -879,9 +1031,15 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     const rejection = selectedRoot && (
       selectedRoot.kind === "group" ||
       isConditionalGroupStatement(selectedRoot) ||
-      isForGroupStatement(selectedRoot)
+      isForGroupStatement(selectedRoot) ||
+      selectedRoot.kind === "moduleDefinition"
     )
-      ? checkpointStructuralDescendantRejection(entry.statement, entry.statementId, entry.statementIndex)
+      ? checkpointStructuralDescendantRejection(
+          entry.statement,
+          entry.statementId,
+          entry.statementIndex,
+          moduleDefinitionOwnerIndex(compiled, entry.statementIndex) !== null
+        )
       : null;
     if (rejection) return rejection;
   }
@@ -891,9 +1049,38 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
 
   const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled);
   const references = canonicalFinalReferenceOccurrences(source, occurrenceIndex.occurrences);
-  const selectedReferences = references.filter((occurrence) =>
-    occurrence.from >= selectedFrom && occurrence.to <= selectedTo
-  );
+  const selectedReferences = [
+    ...references.filter((occurrence) => occurrence.from >= selectedFrom && occurrence.to <= selectedTo),
+    ...geometryArrayArgumentOccurrences(compiled, movedEntries)
+  ];
+  const movedExternalModuleCallees: MovedExternalModuleCallee[] = [];
+  for (const instance of compiled.moduleSemanticAnalysis?.instancesByStatementId.values() ?? []) {
+    if (!movedIndexSet.has(instance.statementIndex)) continue;
+    if (instance.calleeResolution !== "resolved" || !instance.callee) {
+      return reject(
+        "unsafe-rewrite",
+        "移動対象の module instance の callee を一意な Module definition として証明できません。",
+        { statementId: instance.statementId, statementIndex: instance.statementIndex }
+      );
+    }
+    const calleeStatement = compiled.statements[instance.callee.definitionStatementIndex];
+    if (
+      calleeStatement?.kind === "moduleDefinition" &&
+      calleeStatement.parameters.some((parameter) => parameter.recordTypeReference)
+    ) {
+      return reject(
+        "unsupported-statement",
+        `module instance「${instance.name}」のrecord-valued Module interface は Extract Module の対象外です。`,
+        { statementId: instance.statementId, statementIndex: instance.statementIndex }
+      );
+    }
+    if (!movedIndexSet.has(instance.callee.definitionStatementIndex)) {
+      movedExternalModuleCallees.push({
+        instanceStatementId: instance.statementId,
+        definitionStatementId: instance.callee.definitionStatementId
+      });
+    }
+  }
   const dependencyByIdentity = new Map<string, {
     descriptor: DependencyDescriptor;
     occurrences: DslSemanticOccurrence[];
@@ -902,6 +1089,34 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   const movedIterationReferences = new Map<StatementIdentity, number>();
 
   for (const occurrence of selectedReferences) {
+    const containingModuleInstance = moduleInstanceContainingOccurrence(occurrence, movedEntries);
+    if (occurrence.identity.kind === "module") {
+      const target = occurrence.identity.target;
+      const externalCallee = containingModuleInstance
+        ? movedExternalModuleCallees.find((candidate) => candidate.instanceStatementId === containingModuleInstance.statementId)
+        : undefined;
+      if (target.kind === "moduleDefinition" && containingModuleInstance && externalCallee) {
+        if (externalCallee?.definitionStatementId !== target.statementId) {
+          return reject(
+            "unrepresentable-dependency",
+            "移動対象の module instance の authored callee を外部 Module dependency として証明できません。",
+            { statementId: containingModuleInstance.statementId, statementIndex: containingModuleInstance.statementIndex }
+          );
+        }
+        // The authored callee is a lexical Module dependency, not a wrapper
+        // value parameter. Its identity is checked again after candidate
+        // recompilation below.
+        continue;
+      }
+      if (
+        target.kind === "moduleParameter" &&
+        externalCallee?.definitionStatementId === target.slot.definitionStatementId
+      ) {
+        // Argument labels belong to the external callee's authored interface;
+        // they are not values captured by the generated wrapper Module.
+        continue;
+      }
+    }
     const iterationOwnerStatementId = movedIterationBinding(compiled, occurrence.identity, movedIndexSet);
     if (iterationOwnerStatementId) {
       movedIterationReferences.set(
@@ -910,6 +1125,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       );
       continue;
     }
+
+    if (moduleIdentityOwnedByMovedSubtree(compiled, occurrence.identity, movedIndexSet)) continue;
 
     const declarationRanges = declarationRangesFor(occurrenceIndex, occurrence.identity);
     if (declarationRanges.length !== 1) {
@@ -981,10 +1198,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       .filter((entry) =>
         entry.statement.kind === "typedDeclaration" ||
         entry.statement.kind === "element" ||
-        entry.statement.kind === "group"
+        entry.statement.kind === "group" ||
+        entry.statement.kind === "moduleDefinition" ||
+        entry.statement.kind === "moduleInstance"
       )
       .map((entry) => entry.statement.name)
   );
+  for (const name of movedModuleDeclarationNames) selectedDeclarationNames.add(name);
   for (const dependency of dependencies) {
     if (selectedDeclarationNames.has(dependency.name)) {
       return reject(
@@ -1163,6 +1383,30 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
 
+  for (const movedExternalModuleCallee of movedExternalModuleCallees) {
+    const nextInstance = nextCompiled.moduleSemanticAnalysis?.instancesByStatementId.get(
+      movedExternalModuleCallee.instanceStatementId
+    );
+    const nextDefinitionIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(
+      movedExternalModuleCallee.definitionStatementId
+    );
+    const nextDefinition = nextDefinitionIndex === undefined
+      ? undefined
+      : nextCompiled.statements[nextDefinitionIndex];
+    if (
+      !nextInstance ||
+      nextInstance.calleeResolution !== "resolved" ||
+      nextInstance.callee?.definitionStatementId !== movedExternalModuleCallee.definitionStatementId ||
+      nextDefinition?.kind !== "moduleDefinition"
+    ) {
+      return reject(
+        "unsafe-rewrite",
+        "Extract 後に moved module instance の外部 Module callee が同じ StatementIdentity へ解決されませんでした。",
+        { statementId: movedExternalModuleCallee.instanceStatementId }
+      );
+    }
+  }
+
   const generatedModule = nextCompiled.sourceLexicalNamespace.allDeclarations.find((declaration) =>
     declaration.kind === "moduleDefinition" &&
     declaration.scopeId === firstScope &&
@@ -1194,14 +1438,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
 
-  // Checkpoint 7 recursively accepts complete structural descendants under
-  // the previously proven direct/root value, plain-group, conditional, and
-  // forGroup proof.
-  // The compiler-owned iteration binding remains internal to that moved root
-  // and is verified again after candidate recompile. Nested groups,
-  // conditionals, and for binders may move when every non-structural
-  // descendant remains an already-proven value/set form. Records, Module
-  // constructs, non-root targets, and host integration remain fail closed.
+  // Checkpoint 8 recursively accepts complete Module descendants under the
+  // previously proven direct/root value, plain-group, conditional, forGroup,
+  // and moduleDefinition proof. Module-owned identities stay internal to the
+  // moved subtree, while external Module callees are checked above. Records,
+  // imports, non-root targets, and host integration remain fail closed.
   // Outside-resolution comparison stays the final guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
