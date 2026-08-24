@@ -15,17 +15,17 @@ type GeometryIdentity = { elementId: ElementId };
 export type CanvasRectangleMembershipInput = {
   rectangle: ScreenSelectionRectangle;
   mode: CanvasRectangleMembershipMode;
-  lines?: readonly Array<{ line: GeometryIdentity; start: ScreenPoint; end: ScreenPoint }>;
-  arcs?: readonly Array<{ arc: GeometryIdentity; points: readonly ScreenPoint[] }>;
-  curves?: readonly Array<{ curve: GeometryIdentity; points: readonly ScreenPoint[] }>;
-  offsetLines?: readonly Array<{ line: GeometryIdentity; points: readonly ScreenPoint[] }>;
-  images?: readonly Array<{ image: GeometryIdentity; corners: readonly ScreenPoint[] }>;
-  texts?: readonly Array<{
+  lines?: ReadonlyArray<{ line: GeometryIdentity; start: ScreenPoint; end: ScreenPoint }>;
+  arcs?: ReadonlyArray<{ arc: GeometryIdentity; points: readonly ScreenPoint[] }>;
+  curves?: ReadonlyArray<{ curve: GeometryIdentity; points: readonly ScreenPoint[] }>;
+  offsetLines?: ReadonlyArray<{ line: GeometryIdentity; points: readonly ScreenPoint[] }>;
+  images?: ReadonlyArray<{ image: GeometryIdentity; corners: readonly ScreenPoint[] }>;
+  texts?: ReadonlyArray<{
     text: GeometryIdentity & { text: string };
     screen: ScreenPoint;
     fontSizePx: number;
   }>;
-  points?: readonly Array<{ point: GeometryIdentity; screen: ScreenPoint }>;
+  points?: ReadonlyArray<{ point: GeometryIdentity; screen: ScreenPoint }>;
 };
 
 const EPSILON = 1e-9;
