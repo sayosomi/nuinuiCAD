@@ -133,7 +133,8 @@ const numericReferenceGeometry = (
   geometry?.kind === "line" ||
   geometry?.kind === "arcLine" ||
   geometry?.kind === "bezierCurve" ||
-  geometry?.kind === "offsetLine"
+  geometry?.kind === "offsetLine" ||
+  geometry?.kind === "polyline"
     ? geometry
     : null;
 

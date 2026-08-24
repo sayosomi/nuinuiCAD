@@ -5,7 +5,7 @@ import {
   screenSpaceCumulativeLengthMidpoint,
   textHitBounds
 } from "./DrawingCanvasHitTest";
-import type { ComputedLine, ComputedPoint } from "../types/geometry";
+import type { ComputedLine, ComputedPoint, ComputedPolyline } from "../types/geometry";
 
 const point = (elementId: string, name: string): ComputedPoint => ({
   kind: "point",
@@ -30,6 +30,27 @@ const line = (elementId: string, name: string): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
+const polyline = (): ComputedPolyline => {
+  const start = { kind: "point" as const, elementId: "polyline-start", name: "start", x: 0, y: 0 };
+  const corner = { kind: "point" as const, elementId: "polyline-corner", name: "corner", x: 50, y: 0 };
+  const end = { kind: "point" as const, elementId: "polyline-end", name: "end", x: 50, y: 50 };
+  return {
+    kind: "polyline",
+    elementId: "polyline",
+    name: "Outline",
+    segments: [
+      { kind: "line", start, end: corner, length: 50 },
+      { kind: "line", start: corner, end, length: 50 }
+    ],
+    closed: false,
+    start,
+    end,
+    length: 100,
+    startTangentAngleDeg: 0,
+    endTangentAngleDeg: 90
+  };
+};
+
 const textHitTest = (fontSizePx: number) => hitTestCanvasGeometry({
   screen: { x: 20, y: 10 },
   lines: [],
@@ -49,6 +70,15 @@ describe("text Canvas hit testing", () => {
 });
 
 describe("Canvas identity hit candidates", () => {
+  it("selects the whole polyline when any non-zero segment is hit", () => {
+    expect(hitTestCanvasGeometry({
+      screen: { x: 50, y: 25 },
+      lines: [],
+      polylines: [{ polyline: polyline(), points: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }] }],
+      points: []
+    })).toBe("polyline");
+  });
+
   it("returns frontmost categories first, later items first, and deduplicates by element id", () => {
     const hits = hitTestCanvasGeometryAll({
       screen: { x: 50, y: 50 },

@@ -85,6 +85,18 @@ pub(crate) fn source_segments_for_geometry(geometry: &Value) -> Vec<SourceSegmen
             }]
         }
         Some("bezierCurve") => bezier_source_segments(geometry),
+        Some("polyline") => geometry
+            .get("segments")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|segment| {
+                Some(SourceSegment::Line {
+                    start: value_point(segment.get("start")?)?,
+                    end: value_point(segment.get("end")?)?,
+                })
+            })
+            .collect(),
         Some("offsetLine") => offset_line_source_segments(geometry),
         _ => Vec::new(),
     }

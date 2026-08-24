@@ -25,7 +25,8 @@ import type { ScannedArg } from "./dslArgScanner";
 import { commonArgSpecs, type DslArgSpec, type DslConstructionSpec } from "./dslConstructions";
 import type { DslMajorVersion } from "./dslVersion";
 import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
-import { lowerSourceGeometryArrayLineReferenceList } from "./geometryArrayRuntimeLowering";
+import { lowerSourceGeometryArrayLineReferenceList, lowerSourceGeometryArrayPointReferenceList } from "./geometryArrayRuntimeLowering";
+import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 
 export type DslApplyArgsMetadata = {
   id?: string;
@@ -81,11 +82,21 @@ export type DslLineReferenceListResolver = (
   sourceSpan?: DslSpan
 ) => readonly ElementId[] | null;
 
+export type DslPointReferenceListResolver = (
+  token: string,
+  index: NameIndex,
+  line: number,
+  diagnostics: DslDiagnostic[],
+  currentElement?: CadElement,
+  sourceSpan?: DslSpan
+) => readonly NonNullable<ReturnType<typeof resolveAnchorFromDsl>>[] | null;
+
 export type DslGeometryResolverOverrides = {
   resolveId?: DslIdResolver;
   resolveAnchor?: DslAnchorResolver;
   resolveEndpoint?: DslEndpointResolver;
   resolveLineReferenceList?: DslLineReferenceListResolver;
+  resolvePointReferenceList?: DslPointReferenceListResolver;
 };
 
 /** Dependencies supplied by the compiler skeleton when it connects P6 in C1. */
@@ -395,6 +406,49 @@ export const applyArgs = (
         };
       }),
     };
+  }
+
+  const pointsArg = byName.get("points");
+  if (pointsArg && next.type === "polyline") {
+    const moduleLowered = resolvers.resolvePointReferenceList?.(
+      pointsArg.value,
+      resolvers.index,
+      resolvers.line,
+      diagnostics,
+      next,
+      pointsArg.valueSpan
+    ) ?? null;
+    const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayPointReferenceList(pointsArg.value, resolvers.index, next);
+    if (sourceLowered) {
+      next = { ...next, points: [...sourceLowered] };
+    } else {
+      const parsed = parseGeometryArrayExpression(pointsArg.value);
+      for (const issue of parsed.diagnostics) {
+        diagnostics.push({
+          severity: "error",
+          line: resolvers.line,
+          column: pointsArg.valueSpan.start + issue.span.start + 1,
+          code: issue.code,
+          message: issue.message,
+          logicalSpan: {
+            start: pointsArg.valueSpan.start + issue.span.start,
+            end: pointsArg.valueSpan.start + issue.span.end
+          }
+        });
+      }
+      if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
+        next = {
+          ...next,
+          points: parsed.expression.members.map((member) => {
+            const span = {
+              start: pointsArg.valueSpan.start + member.span.start,
+              end: pointsArg.valueSpan.start + member.span.end
+            };
+            return anchor(member.text, span);
+          })
+        };
+      }
+    }
   }
 
   const metadata: DslApplyArgsMetadata = {

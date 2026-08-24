@@ -10,6 +10,7 @@ import type {
   ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint
 } from "../types/geometry";
 import { bezierCurveEndpointPoints } from "./lineMeasurements";
@@ -37,12 +38,12 @@ export const numericReferenceProperties = (
 ) => numericReferencePropertiesForGeometry(geometry);
 
 export const numericReferenceExpression = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
   property: NumericMeasurementKey
 ) => `${geometry.elementId}.${property}`;
 
 export const numericReferenceValue = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
   property: NumericMeasurementKey
 ) => {
   if (property === "length") return formatMillimeters(geometry.length);
@@ -74,7 +75,7 @@ export const numericReferenceValue = (
 };
 
 export const numericReferenceLabel = (
-  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
+  geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
   property: NumericMeasurementKey
 ) => {
   if (geometry.kind === "arcLine" && property === "startAngleDeg") return "始トリム角度";
@@ -134,6 +135,15 @@ export const offsetLineInfoRows = (line: ComputedOffsetLine): GeometryInfoRow[] 
   ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
 ];
 
+export const polylineInfoRows = (line: ComputedPolyline): GeometryInfoRow[] => [
+  { label: "始点", value: formatCoordinate(line.start) },
+  { label: "終点", value: formatCoordinate(line.end) },
+  { label: "始接線角度", value: formatAngleDeg(line.startTangentAngleDeg) },
+  { label: "終接線角度", value: formatAngleDeg(line.endTangentAngleDeg) },
+  { label: "長さ", value: formatMillimeters(line.length) },
+  ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
+];
+
 /** Shared host-neutral measurement presentation for Inspector, Canvas, and native hosts. */
 export const geometryInfoRows = (
   geometry: ComputedGeometry | undefined
@@ -144,5 +154,6 @@ export const geometryInfoRows = (
   if (geometry.kind === "arcLine") return arcLineInfoRows(geometry);
   if (geometry.kind === "bezierCurve") return bezierCurveInfoRows(geometry);
   if (geometry.kind === "offsetLine") return offsetLineInfoRows(geometry);
+  if (geometry.kind === "polyline") return polylineInfoRows(geometry);
   return [];
 };

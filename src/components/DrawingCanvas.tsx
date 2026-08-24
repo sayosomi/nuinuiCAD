@@ -265,6 +265,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     arcs,
     curves,
     offsetLines,
+    polylines,
     points,
     visibleElementIds,
     overlayLines,
@@ -272,6 +273,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     overlayArcs,
     overlayCurves,
     overlayOffsetLines,
+    overlayPolylines,
     overlayImages,
     overlayTexts,
     overlayIdentityCandidates,
@@ -332,6 +334,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     () => overlayOffsetLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
     [overlayOffsetLines, previewElementIds]
   );
+  const interactiveOverlayPolylines = useMemo(
+    () => overlayPolylines.filter(({ polyline }) => !previewElementIds.has(polyline.elementId)),
+    [overlayPolylines, previewElementIds]
+  );
   const interactiveOverlayImages = useMemo(
     () => overlayImages.filter(({ image }) => !previewElementIds.has(image.elementId)),
     [overlayImages, previewElementIds]
@@ -371,6 +377,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     arcs: interactiveOverlayArcs,
     curves: interactiveOverlayCurves,
     offsetLines: interactiveOverlayOffsetLines,
+    polylines: interactiveOverlayPolylines,
     images: interactiveOverlayImages,
     texts: interactiveOverlayTexts,
     points: interactiveOverlayPoints
@@ -380,6 +387,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     interactiveOverlayImages,
     interactiveOverlayLines,
     interactiveOverlayOffsetLines,
+    interactiveOverlayPolylines,
     interactiveOverlayPoints,
     interactiveOverlayTexts
   ]);
@@ -461,6 +469,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           arcs,
           curves,
           offsetLines,
+          polylines,
           images: overlayImages,
           points,
           visibleElementIds,
@@ -494,6 +503,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluationState,
     imageRenderVersion,
     offsetLines,
+    polylines,
     overlayImages,
     lines,
     points,
@@ -1168,6 +1178,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       arcs: interactiveOverlayArcs,
       curves: interactiveOverlayCurves,
       offsetLines: interactiveOverlayOffsetLines,
+      polylines: interactiveOverlayPolylines,
       images: interactiveOverlayImages,
       texts: interactiveOverlayTexts,
       points: interactiveOverlayPoints

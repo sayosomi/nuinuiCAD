@@ -1,7 +1,5 @@
 import type {
-  ComputedArcLine,
   ComputedBezierCurve,
-  ComputedLine,
   ComputedOffsetLine,
   ComputedOffsetLineSegment
 } from "../types/geometry";
@@ -247,6 +245,7 @@ const pathSegmentsForLine = (geometry: LineLikeGeometry) => {
     });
   }
   if (geometry.kind === "bezierCurve") return bezierPathSegments(geometry);
+  if (geometry.kind === "polyline") return pointPathSegments(geometry.segments.flatMap((segment, index) => index === 0 ? [segment.start, segment.end] : [segment.end]));
   return offsetPathSegments(geometry);
 };
 
@@ -302,6 +301,17 @@ const endpointTangents = (geometry: LineLikeGeometry) => {
     const endForward = bezierEndForward(last);
     return startForward && endForward
       ? { start: first.start, end: last.end, startForward, endForward }
+      : null;
+  }
+  if (geometry.kind === "polyline") {
+    if (geometry.closed) return null;
+    const first = geometry.segments.find((segment) => distance(segment.start, segment.end) > EPSILON);
+    const last = [...geometry.segments].reverse().find((segment) => distance(segment.start, segment.end) > EPSILON);
+    if (!first || !last) return null;
+    const startForward = normalizeVector(vectorBetween(first.start, first.end));
+    const endForward = normalizeVector(vectorBetween(last.start, last.end));
+    return startForward && endForward
+      ? { start: geometry.start, end: geometry.end, startForward, endForward }
       : null;
   }
   if (geometry.closed) return null;
@@ -938,8 +948,8 @@ const samePoint = (a: LineIntersection, b: LineIntersection) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= DEDUPE_EPSILON;
 
 export const findLineIntersections = (
-  line1: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
-  line2: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine,
+  line1: LineLikeGeometry,
+  line2: LineLikeGeometry,
   options: { useExtensions: boolean }
 ): LineIntersectionResult => {
   const baseSegments1 = pathSegmentsForLine(line1);

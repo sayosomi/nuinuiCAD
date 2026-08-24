@@ -12,6 +12,7 @@ import {
   type ComputedGeometry,
   type ComputedLine,
   type ComputedOffsetLine,
+  type ComputedPolyline,
   type ElementId,
   type EvaluationResult,
   type OffsetLineSide
@@ -199,6 +200,13 @@ const offsetHoverRows = (
   ...(line.closed ? [valueRow("閉じる", "はい")] : [])
 ];
 
+const polylineHoverRows = (line: ComputedPolyline): GeometryHoverRow[] => [
+  valueRow("長さ", formatMillimeters(line.length)),
+  valueRow("始点", formatCoordinate(line.start)),
+  valueRow("終点", formatCoordinate(line.end)),
+  ...(line.closed ? [valueRow("閉じる", "はい")] : [])
+];
+
 const geometryHoverAvailability = (
   geometry: ComputedGeometry,
   evaluation: EvaluationResult
@@ -227,6 +235,9 @@ const geometryHoverAvailability = (
       kind: "geometry",
       rows: offsetHoverRows(geometry as ComputedOffsetLineWithInspection, evaluation)
     };
+  }
+  if (geometry.kind === "polyline") {
+    return { kind: "geometry", rows: polylineHoverRows(geometry) };
   }
   return { kind: "geometry", rows: [] };
 };

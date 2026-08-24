@@ -178,6 +178,155 @@ fn split_line_geometry(
     })
 }
 
+fn polyline_segment_length(segment: &Value) -> f64 {
+    segment
+        .get("start")
+        .and_then(value_point)
+        .zip(segment.get("end").and_then(value_point))
+        .map(|(start, end)| distance(start, end))
+        .unwrap_or(0.0)
+}
+
+fn polyline_geometry_from_segments(
+    line: &Value,
+    element_id: &str,
+    name: &str,
+    segments: Vec<Value>,
+) -> Value {
+    let start = segments
+        .first()
+        .and_then(|segment| segment.get("start"))
+        .cloned()
+        .or_else(|| line.get("start").cloned())
+        .unwrap_or(Value::Null);
+    let end = segments
+        .last()
+        .and_then(|segment| segment.get("end"))
+        .cloned()
+        .or_else(|| line.get("end").cloned())
+        .unwrap_or(Value::Null);
+    let non_zero = segments
+        .iter()
+        .filter(|segment| polyline_segment_length(segment) > EPSILON)
+        .collect::<Vec<_>>();
+    let start_tangent = non_zero
+        .first()
+        .and_then(|segment| {
+            Some(angle_from_to(
+                value_point(segment.get("start")?)?,
+                value_point(segment.get("end")?)?,
+            ))
+        })
+        .unwrap_or(Value::Null);
+    let end_tangent = non_zero
+        .last()
+        .and_then(|segment| {
+            Some(angle_from_to(
+                value_point(segment.get("end")?)?,
+                value_point(segment.get("start")?)?,
+            ))
+        })
+        .unwrap_or(Value::Null);
+    let length = segments.iter().map(polyline_segment_length).sum::<f64>();
+    json!({
+        "kind": "polyline",
+        "elementId": element_id,
+        "name": name,
+        "segments": segments,
+        "closed": false,
+        "start": start,
+        "end": end,
+        "length": length,
+        "startTangentAngleDeg": start_tangent,
+        "endTangentAngleDeg": end_tangent
+    })
+}
+
+fn split_polyline_geometry(
+    line: &Value,
+    split_point: &ComputedPoint,
+    split_line_id: &str,
+    split_line_name: &str,
+) -> SplitGeometryResult {
+    let Some(segments) = line.get("segments").and_then(Value::as_array) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    let sample_segments = segments
+        .iter()
+        .map(|segment| SampleSegment {
+            length: polyline_segment_length(segment),
+            segment: segment.clone(),
+            kind: SampleKind::Line,
+        })
+        .collect::<Vec<_>>();
+    let (hit, total_length) = best_sample_hit(
+        Point {
+            x: split_point.x,
+            y: split_point.y,
+        },
+        &sample_segments,
+    );
+    let Some(hit) = hit else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    if hit.distance_from_line > TOLERANCE_MM {
+        return SplitGeometryResult::NotOnLine;
+    }
+    if hit.distance_from_start <= TOLERANCE_MM
+        || hit.distance_from_start >= total_length - TOLERANCE_MM
+    {
+        return SplitGeometryResult::Endpoint;
+    }
+    let Some(original) = segments.get(hit.segment_index) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    let Some(start) = original.get("start").and_then(value_point) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    let Some(end) = original.get("end").and_then(value_point) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    let Some(projection) = projected_point(
+        Point {
+            x: split_point.x,
+            y: split_point.y,
+        },
+        start,
+        end,
+    ) else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    if projection.distance > TOLERANCE_MM {
+        return SplitGeometryResult::NotOnLine;
+    }
+    let split = split_point_value(split_point, projection.projection);
+    let mut left = original.clone();
+    left["end"] = split.clone();
+    left["length"] = json!(distance(start, projection.projection));
+    let mut right = original.clone();
+    right["start"] = split;
+    right["length"] = json!(distance(projection.projection, end));
+    let near_segments = segments[..hit.segment_index]
+        .iter()
+        .cloned()
+        .chain(std::iter::once(left))
+        .collect::<Vec<_>>();
+    let far_segments = std::iter::once(right)
+        .chain(segments[hit.segment_index + 1..].iter().cloned())
+        .collect::<Vec<_>>();
+    SplitGeometryResult::Split(SplitResult {
+        near: polyline_geometry_from_segments(
+            line,
+            line.get("elementId")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            line.get("name").and_then(Value::as_str).unwrap_or_default(),
+            near_segments,
+        ),
+        far: polyline_geometry_from_segments(line, split_line_id, split_line_name, far_segments),
+    })
+}
+
 fn arc_point(center: Point, radius: f64, angle_deg: f64) -> Point {
     let angle_rad = angle_deg.to_radians();
     Point {
@@ -790,6 +939,9 @@ fn split_geometry(
         Some("offsetLine") => {
             split_offset_line_geometry(geometry, split_point, split_line_id, split_line_name)
         }
+        Some("polyline") => {
+            split_polyline_geometry(geometry, split_point, split_line_id, split_line_name)
+        }
         _ => SplitGeometryResult::NotOnLine,
     }
 }
@@ -797,7 +949,7 @@ fn split_geometry(
 fn is_supported_line_geometry(geometry: &Value) -> bool {
     matches!(
         geometry.get("kind").and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline")
     )
 }
 

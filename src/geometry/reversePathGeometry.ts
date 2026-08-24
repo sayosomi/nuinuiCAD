@@ -87,11 +87,33 @@ const reverseOffset = (line: ComputedOffsetLine): ComputedOffsetLine => {
   };
 };
 
+const reversePolyline = (line: Extract<LineLikeGeometry, { kind: "polyline" }>): LineLikeGeometry => {
+  const segments = [...line.segments].reverse().map((segment) => ({
+    ...segment,
+    start: segment.end,
+    end: segment.start
+  }));
+  const nonZero = segments.filter((segment) => segment.length > 1e-9);
+  const first = segments[0];
+  const last = segments.at(-1);
+  const firstNonZero = nonZero[0];
+  const lastNonZero = nonZero.at(-1);
+  return {
+    ...line,
+    segments,
+    start: first?.start ?? line.start,
+    end: line.closed ? (first?.start ?? line.start) : (last?.end ?? line.end),
+    startTangentAngleDeg: firstNonZero ? lineTangentAngles(firstNonZero.start, firstNonZero.end).startTangentAngleDeg : null,
+    endTangentAngleDeg: lastNonZero ? lineTangentAngles(lastNonZero.start, lastNonZero.end).endTangentAngleDeg : null
+  };
+};
+
 /** Reverses the semantic traversal of an already evaluated path without moving it. */
 export const reverseLineLikeGeometry = (geometry: LineLikeGeometry): LineLikeGeometry => {
   if (geometry.kind === "line") return reverseLine(geometry);
   if (geometry.kind === "arcLine") return reverseArc(geometry);
   if (geometry.kind === "bezierCurve") return reverseBezier(geometry);
+  if (geometry.kind === "polyline") return reversePolyline(geometry);
   return reverseOffset(geometry);
 };
 

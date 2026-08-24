@@ -286,6 +286,11 @@ const parameterDefinitionsForElement = (
           allowCoordinate: true,
         }),
       ];
+    case "polyline":
+      return [
+        ...commonParameters,
+        { key: "closed", label: "閉じる", kind: "boolean" },
+      ];
     case "angleLengthLine":
       return [
         ...commonParameters,

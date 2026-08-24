@@ -8,6 +8,7 @@ import type {
   ComputedOffsetLine,
   ComputedOffsetLineSegment,
   ComputedPoint,
+  ComputedPolyline,
   ElementId
 } from "../types/geometry";
 import { anchorReferenceElementId } from "../model/pointAnchors";
@@ -422,6 +423,76 @@ const splitOffsetLineGeometry = (
   };
 };
 
+const polylineGeometryFromSegments = (
+  line: ComputedPolyline,
+  elementId: ElementId,
+  name: string,
+  segments: ComputedPolyline["segments"]
+): ComputedPolyline => {
+  const first = segments[0]?.start ?? line.start;
+  const last = segments.at(-1)?.end ?? line.end;
+  const nonZero = segments.filter((segment) => segment.length > EPSILON);
+  const firstNonZero = nonZero[0];
+  const lastNonZero = nonZero.at(-1);
+  return {
+    ...line,
+    elementId,
+    name,
+    closed: false,
+    segments,
+    start: first,
+    end: last,
+    length: segments.reduce((sum, segment) => sum + segment.length, 0),
+    startTangentAngleDeg: firstNonZero
+      ? lineTangentAngles(firstNonZero.start, firstNonZero.end).startTangentAngleDeg
+      : null,
+    endTangentAngleDeg: lastNonZero
+      ? lineTangentAngles(lastNonZero.start, lastNonZero.end).endTangentAngleDeg
+      : null
+  };
+};
+
+const splitPolylineGeometry = (
+  line: ComputedPolyline,
+  splitPoint: ComputedPoint,
+  splitLineId: ElementId,
+  splitLineName: string
+) => {
+  const { hit, totalLength } = bestSampleHit(
+    splitPoint,
+    line.segments.map((segment) => ({
+      length: segment.length,
+      pointAt: (t: number) => interpolate(segment.start, segment.end, t)
+    }))
+  );
+  if (!hit || hit.distanceFromLine > TOLERANCE_MM) return null;
+  if (hit.distanceFromStart <= TOLERANCE_MM || hit.distanceFromStart >= totalLength - TOLERANCE_MM) {
+    return "endpoint" as const;
+  }
+
+  const original = line.segments[hit.segmentIndex];
+  if (!original) return null;
+  const projection = projectedPoint(splitPoint, original.start, original.end);
+  if (!projection || projection.distance > TOLERANCE_MM) return null;
+  const split = computedPoint(splitPoint.elementId, splitPoint.name, projection.projection);
+  const left = {
+    ...original,
+    end: split,
+    length: distance(original.start, split)
+  };
+  const right = {
+    ...original,
+    start: split,
+    length: distance(split, original.end)
+  };
+  const nearSegments = [...line.segments.slice(0, hit.segmentIndex), left];
+  const farSegments = [right, ...line.segments.slice(hit.segmentIndex + 1)];
+  return {
+    near: polylineGeometryFromSegments(line, line.elementId, line.name, nearSegments),
+    far: polylineGeometryFromSegments(line, splitLineId, splitLineName, farSegments)
+  };
+};
+
 const splitGeometry = (
   geometry: ComputedGeometry,
   splitPoint: ComputedPoint,
@@ -433,6 +504,7 @@ const splitGeometry = (
   if (geometry.kind === "arcLine") return splitArcGeometry(geometry, splitPoint, splitLineId, splitLineName);
   if (geometry.kind === "bezierCurve") return splitBezierCurveGeometry(geometry, splitPoint, splitLineId, splitLineName, splitPointId);
   if (geometry.kind === "offsetLine") return splitOffsetLineGeometry(geometry, splitPoint, splitLineId, splitLineName);
+  if (geometry.kind === "polyline") return splitPolylineGeometry(geometry, splitPoint, splitLineId, splitLineName);
   return null;
 };
 

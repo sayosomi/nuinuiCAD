@@ -273,6 +273,33 @@ const transformOffsetLine = (
   };
 };
 
+const transformPolyline = (
+  line: Extract<LineLikeGeometry, { kind: "polyline" }>,
+  transform: TransformPoint
+): LineLikeGeometry | null => {
+  const segments = line.segments.map((segment) => {
+    const start = transformComputedPoint(segment.start, transform);
+    const end = transformComputedPoint(segment.end, transform);
+    return start && end ? { ...segment, start, end, length: lineLength(start, end) } : null;
+  });
+  if (segments.some((segment) => !segment)) return null;
+  const transformed = segments as typeof line.segments;
+  const nonZero = transformed.filter((segment) => segment.length > 1e-9);
+  const first = transformed[0];
+  const last = transformed.at(-1);
+  const firstNonZero = nonZero[0];
+  const lastNonZero = nonZero.at(-1);
+  return {
+    ...line,
+    segments: transformed,
+    start: first?.start ?? line.start,
+    end: line.closed ? (first?.start ?? line.start) : (last?.end ?? line.end),
+    startTangentAngleDeg: firstNonZero ? lineTangentAngles(firstNonZero.start, firstNonZero.end).startTangentAngleDeg : null,
+    endTangentAngleDeg: lastNonZero ? lineTangentAngles(lastNonZero.start, lastNonZero.end).endTangentAngleDeg : null,
+    length: transformed.reduce((sum, segment) => sum + segment.length, 0)
+  };
+};
+
 const transformLineLikeGeometry = (
   geometry: LineLikeGeometry,
   transform: TransformPoint,
@@ -281,6 +308,7 @@ const transformLineLikeGeometry = (
   if (geometry.kind === "line") return transformLine(geometry, transform);
   if (geometry.kind === "arcLine") return transformArcLine(geometry, transform, reverseOrientation);
   if (geometry.kind === "bezierCurve") return transformBezierCurve(geometry, transform);
+  if (geometry.kind === "polyline") return transformPolyline(geometry, transform);
   return transformOffsetLine(geometry, transform, reverseOrientation);
 };
 

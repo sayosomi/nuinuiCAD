@@ -11,6 +11,7 @@ import type {
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   DrawingModifierStroke,
   ElementId,
@@ -95,6 +96,15 @@ export type OutputOffsetLine = {
   stroke: OutputStroke;
 };
 
+export type OutputPolyline = {
+  kind: "polyline";
+  elementId: ElementId;
+  name: string;
+  segments: OutputPathSegment[];
+  closed: boolean;
+  stroke: OutputStroke;
+};
+
 export type OutputText = {
   kind: "text";
   elementId: ElementId;
@@ -111,7 +121,7 @@ export type OutputText = {
   colorHex: string;
 };
 
-export type OutputDrawable = OutputPath | OutputOffsetLine | OutputText;
+export type OutputDrawable = OutputPath | OutputOffsetLine | OutputPolyline | OutputText;
 
 export type OutputJoiningLabel = {
   text: string;
@@ -368,6 +378,12 @@ const offsetSegments = (geometry: ComputedOffsetLine): OutputPathSegment[] => ge
   };
 });
 
+const polylineSegments = (geometry: ComputedPolyline): OutputPathSegment[] => geometry.segments.map((segment) => ({
+  kind: "line" as const,
+  start: pointOf(segment.start),
+  end: pointOf(segment.end)
+}));
+
 const normalizedTextLines = (text: string) => text.replace(/\r\n?/g, "\n").split("\n");
 
 const textAdvanceRatio = (character: string) => {
@@ -498,7 +514,7 @@ const segmentBounds = (segment: OutputPathSegment): OutputBounds => {
 
 const drawableBounds = (drawable: OutputDrawable): OutputBounds => {
   if (drawable.kind === "text") return textBounds(drawable);
-  const paths = drawable.kind === "offsetLine" ? drawable.segments : [drawable];
+  const paths = drawable.kind === "offsetLine" || drawable.kind === "polyline" ? drawable.segments : [drawable];
   let bounds = emptyBounds();
   for (const path of paths) bounds = mergeBounds(bounds, segmentBounds(path));
   return expandBounds(bounds, drawable.stroke.widthMm / 2);
@@ -526,6 +542,10 @@ const outputGeometryFor = (
   if (geometry.kind === "offsetLine") {
     const segments = offsetSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
     return segments.length ? [{ kind: "offsetLine", elementId, name, segments, stroke: finalStroke }] : [];
+  }
+  if (geometry.kind === "polyline") {
+    const segments = polylineSegments(geometry).map((segment) => transformSegment(segment, transform.origin, transform.at, transform.scale, transform.angleDeg, transform.mirror));
+    return segments.length ? [{ kind: "polyline", elementId, name, segments, closed: geometry.closed, stroke: finalStroke }] : [];
   }
   if (geometry.kind === "text" && geometry.anchor) {
     const fontSizeMm = finitePositive(geometry.fontSize, `font size for ${elementId}`) * transform.scale;
@@ -672,7 +692,7 @@ const resolvedPlacement = (
     const sourceId = templateByGeneratedId.get(geometry.elementId) ?? geometry.elementId;
     if (!targetIds.has(sourceId)) continue;
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
-    if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "text") continue;
+    if (geometry.kind !== "line" && geometry.kind !== "arcLine" && geometry.kind !== "bezierCurve" && geometry.kind !== "offsetLine" && geometry.kind !== "polyline" && geometry.kind !== "text") continue;
     const sourceElement = sourceElementsById.get(sourceId);
     const name = sourceElement?.name ?? geometry.name;
     drawables.push(...outputGeometryFor(geometry, geometry.elementId, name, strokeFor(geometry.elementId, evaluation), { origin, at, scale, angleDeg, mirror: placement.mirror }));

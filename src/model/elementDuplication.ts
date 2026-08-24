@@ -265,6 +265,11 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
         baseLineIds: remapBaseLineIds(element.baseLineIds, idMap),
         offset: remapNumericValue(element.offset, idMap)
       };
+    case "polyline":
+      return {
+        ...element,
+        points: element.points.map((point) => remapPointAnchor(point, idMap))
+      };
     case "splitLine":
       return {
         ...element,

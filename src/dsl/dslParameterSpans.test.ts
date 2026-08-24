@@ -48,7 +48,7 @@ const applyFixtureText = (fixture: Nui4CanonicalElementStatement, text: string) 
 };
 
 /** Special args carry structured records/bookkeeping, not a single parameterKey. */
-const specialArgNames = new Set(["steps", "id", "roles", "parent", "branch", "intermediates"]);
+const specialArgNames = new Set(["steps", "id", "roles", "parent", "branch", "intermediates", "points"]);
 
 /**
  * `state` is a universal `CadElement` field that P5 serializes whenever

@@ -8,6 +8,7 @@ import type {
   ComputedImage,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   ComputedText,
   ElementId,
@@ -42,6 +43,11 @@ export type BezierEditingHelperOverlay = {
 
 export type CanvasOverlayOffsetLine = {
   line: ComputedOffsetLine;
+  points: ScreenPoint[];
+};
+
+export type CanvasOverlayPolyline = {
+  polyline: ComputedPolyline;
   points: ScreenPoint[];
 };
 
@@ -88,7 +94,7 @@ export type CanvasHoverIdentityPopup = {
 };
 
 export type CanvasNumericReferenceCandidate = {
-  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
   start?: ScreenPoint;
   end?: ScreenPoint;
   points?: ScreenPoint[];
@@ -114,7 +120,7 @@ export type PointPickCandidateMenu = {
 };
 
 export type LinePickCandidate = {
-  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+  line: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
   sourceReference?: CanonicalGeometrySourceReference;
 };
 
@@ -137,6 +143,7 @@ export type CanvasOverlayData = {
   arcs: ComputedArcLine[];
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
+  polylines: ComputedPolyline[];
   images: ComputedImage[];
   texts: ComputedText[];
   points: ComputedPoint[];
@@ -146,6 +153,7 @@ export type CanvasOverlayData = {
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
+  overlayPolylines: CanvasOverlayPolyline[];
   overlayImages: CanvasOverlayImage[];
   overlayTexts: CanvasOverlayText[];
   overlayIdentityCandidates: CanvasIdentityCandidate[];

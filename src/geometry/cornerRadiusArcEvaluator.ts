@@ -143,6 +143,11 @@ const geometryPoints = (geometry: ComputedGeometry): Point[] => {
       return segmentIndex === 0 ? points : points.slice(1);
     });
   }
+  if (geometry.kind === "polyline") {
+    return geometry.segments.flatMap((segment, segmentIndex) =>
+      segmentIndex === 0 ? [segment.start, segment.end] : [segment.end]
+    );
+  }
   return [];
 };
 
@@ -204,6 +209,7 @@ const endpointPoint = (
     const segment = endpointKey === "start" ? geometry.segments[0] : geometry.segments.at(-1);
     return segment ? (endpointKey === "start" ? segment.start : segment.end) : null;
   }
+  if (geometry.kind === "polyline") return endpointKey === "start" ? geometry.start : geometry.end;
   return null;
 };
 

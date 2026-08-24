@@ -228,6 +228,12 @@ export type LineElement = CadElementBase & {
   endPoint: PointAnchor;
 };
 
+export type PolylineElement = CadElementBase & {
+  type: "polyline";
+  points: PointAnchor[];
+  closed: boolean;
+};
+
 export type AngleLengthLineElement = CadElementBase & {
   type: "angleLengthLine";
   startPoint: PointAnchor;
@@ -422,6 +428,7 @@ export type CadElement =
   | BezierExtremePointElement
   | BezierBulgePointElement
   | LineElement
+  | PolylineElement
   | AngleLengthLineElement
   | CommonTangentLineElement
   | ArcLineElement
@@ -551,6 +558,26 @@ export type ComputedOffsetLine = {
   endTangentAngleDeg: number | null;
 };
 
+export type ComputedPolylineSegment = {
+  kind: "line";
+  start: ComputedPoint;
+  end: ComputedPoint;
+  length: number;
+};
+
+export type ComputedPolyline = {
+  kind: "polyline";
+  elementId: ElementId;
+  name: string;
+  segments: ComputedPolylineSegment[];
+  closed: boolean;
+  start: ComputedPoint;
+  end: ComputedPoint;
+  length: number;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
+};
+
 export type ComputedImage = {
   kind: "image";
   elementId: ElementId;
@@ -583,6 +610,7 @@ export type ComputedGeometry =
   | ComputedArcLine
   | ComputedBezierCurve
   | ComputedOffsetLine
+  | ComputedPolyline
   | ComputedImage
   | ComputedText;
 
@@ -689,6 +717,7 @@ export const elementTypeLabels: Record<CadElementType, string> = {
   pathReverse: "反転",
   bezierCurve: "Bezier curve",
   offsetLine: "オフセット線",
+  polyline: "折れ線",
   splitLine: "分割線",
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線",
@@ -723,6 +752,7 @@ export const elementTypeCategories: Record<CadElementType, CadElementCategory> =
   pathReverse: "modification",
   bezierCurve: "line",
   offsetLine: "line",
+  polyline: "line",
   splitLine: "line",
   copyLine: "line",
   symmetricCopyLine: "line",

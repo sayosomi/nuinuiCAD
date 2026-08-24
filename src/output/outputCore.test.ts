@@ -224,6 +224,25 @@ describe("SAY-64 output core", () => {
     expect(plan.drawables.some((drawable) => drawable.name === "Copy" && drawable.kind === "offsetLine")).toBe(true);
   });
 
+  it("emits a polyline as one ordered output drawable", () => {
+    const doc = sourceFor([
+      "nui 4",
+      "group G {",
+      "  line Outline = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+    const drawable = plan.drawables.find((candidate) => candidate.name === "Outline");
+    expect(drawable).toMatchObject({ kind: "polyline", closed: true, segments: expect.any(Array) });
+    if (!drawable || drawable.kind !== "polyline") throw new Error("missing polyline output");
+    expect(drawable.segments).toHaveLength(3);
+    expect(drawable.segments.at(-1)).toMatchObject({ start: { x: 10, y: 10 }, end: { x: 0, y: 0 } });
+  });
+
   it("supports nested targets and repeated independent placements", () => {
     const doc = sourceFor([
       "nui 4",
