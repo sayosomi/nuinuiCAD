@@ -30,7 +30,7 @@ export type {
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
 
-export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview"] as const;
+export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview", "explorerMock"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
 
 export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";

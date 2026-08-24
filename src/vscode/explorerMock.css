@@ -1,0 +1,1032 @@
+.explorer-mock {
+  --explorer-background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --explorer-foreground: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+  --explorer-muted: var(--vscode-descriptionForeground, var(--vscode-disabledForeground));
+  --explorer-border: var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+  --explorer-input: var(--vscode-input-background, var(--vscode-editor-background));
+  --explorer-input-border: var(--vscode-input-border, var(--vscode-contrastBorder));
+  --explorer-selection: var(--vscode-list-activeSelectionBackground, var(--vscode-list-focusBackground));
+  --explorer-selection-foreground: var(--vscode-list-activeSelectionForeground, var(--explorer-foreground));
+  --explorer-hover: var(--vscode-list-hoverBackground, transparent);
+  --explorer-focus: var(--vscode-focusBorder, var(--vscode-contrastActiveBorder));
+  --explorer-warning: var(--vscode-editorWarning-foreground, var(--vscode-editorWarning-border, var(--vscode-warningForeground)));
+  --explorer-error: var(--vscode-editorError-foreground, var(--vscode-editorError-border, var(--vscode-errorForeground)));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--explorer-foreground);
+  background: var(--explorer-background);
+  font: 11px var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.explorer-mock *,
+.explorer-mock *::before,
+.explorer-mock *::after {
+  box-sizing: border-box;
+}
+
+.explorer-mock button,
+.explorer-mock input {
+  font: inherit;
+}
+
+.explorer-mock button {
+  color: inherit;
+}
+
+.explorer-mock button:focus-visible,
+.explorer-mock input:focus-visible,
+.explorer-mock [tabindex="0"]:focus-visible {
+  outline: 1px solid var(--explorer-focus);
+  outline-offset: -1px;
+}
+
+.explorer-mock-header {
+  flex: 0 0 auto;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-title-row,
+.explorer-mock-header-actions,
+.explorer-mock-search-row,
+.explorer-mock-result-header,
+.explorer-mock-detail-header,
+.explorer-mock-detail-heading,
+.explorer-mock-winning-source,
+.explorer-mock-note,
+.explorer-mock-warning {
+  display: flex;
+  align-items: center;
+}
+
+.explorer-mock-title-row {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.explorer-mock-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--explorer-muted);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.explorer-mock h1,
+.explorer-mock h3,
+.explorer-mock h4,
+.explorer-mock p {
+  margin: 0;
+}
+
+.explorer-mock h1 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.explorer-mock h3 {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock h4 {
+  margin-bottom: 6px;
+  color: var(--explorer-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.explorer-mock-more-button,
+.explorer-mock-clear-search {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.explorer-mock-header-actions {
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.explorer-mock-header-actions button,
+.explorer-mock-filter-wrap > button,
+.explorer-mock-result-header button,
+.explorer-mock-filter-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--explorer-foreground));
+  cursor: pointer;
+}
+
+.explorer-mock-header-actions button:hover,
+.explorer-mock-filter-wrap > button:hover,
+.explorer-mock-result-header button:hover,
+.explorer-mock-filter-done:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--explorer-hover));
+}
+
+.explorer-mock-top-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 31px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-top-tabs button,
+.explorer-mock-detail-tabs button {
+  position: relative;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.explorer-mock-top-tabs button {
+  padding: 7px 9px 6px;
+  color: var(--explorer-muted);
+  font-weight: 600;
+}
+
+.explorer-mock-top-tabs button span,
+.explorer-mock-result-header span,
+.explorer-mock-detail-header span:last-child,
+.explorer-mock-dependency-groups summary span,
+.explorer-mock-applied-to summary span {
+  color: var(--explorer-muted);
+  font-size: 10px;
+}
+
+.explorer-mock-top-tabs button span {
+  margin-left: 3px;
+}
+
+.explorer-mock-top-tabs button.is-active,
+.explorer-mock-detail-tabs button.is-active {
+  color: var(--explorer-foreground);
+}
+
+.explorer-mock-top-tabs button.is-active::after,
+.explorer-mock-detail-tabs button.is-active::after {
+  position: absolute;
+  right: 7px;
+  bottom: -1px;
+  left: 7px;
+  height: 2px;
+  background: var(--vscode-textLink-foreground, var(--explorer-focus));
+  content: "";
+}
+
+.explorer-mock-list-region {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.explorer-mock-search-row {
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 7px 8px 5px;
+}
+
+.explorer-mock-search-field {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 25px;
+  padding-inline: 6px;
+  border: 1px solid var(--explorer-input-border);
+  border-radius: 2px;
+  background: var(--explorer-input);
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-search-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 5px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--explorer-foreground);
+}
+
+.explorer-mock-search-field input::placeholder {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-filter-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.explorer-mock-filter-wrap > button.has-filters {
+  border-color: var(--explorer-focus);
+}
+
+.explorer-mock-filter-popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 210px;
+  padding: 9px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 3px;
+  background: var(--vscode-menu-background, var(--explorer-background));
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--vscode-widget-shadow, var(--explorer-foreground)) 25%, transparent);
+}
+
+.explorer-mock-filter-popover label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vscode-menu-foreground, var(--explorer-foreground));
+}
+
+.explorer-mock-filter-popover input {
+  accent-color: var(--explorer-focus);
+}
+
+.explorer-mock-filter-done {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.explorer-mock-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 5px;
+}
+
+.explorer-mock-filter-chip,
+.explorer-mock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--explorer-focus) 12%, transparent);
+  color: var(--explorer-foreground);
+  font-size: 10px;
+}
+
+.explorer-mock-filter-chip {
+  cursor: pointer;
+}
+
+.explorer-mock-result-header {
+  flex: 0 0 auto;
+  gap: 7px;
+  min-height: 27px;
+  padding: 3px 8px;
+  border-block: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-result-header > span {
+  margin-right: auto;
+}
+
+.explorer-mock-result-header button {
+  min-height: 21px;
+  padding: 2px 5px;
+  border: 0;
+  background: transparent;
+}
+
+.explorer-mock-result-mode {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+}
+
+.explorer-mock-result-mode button + button {
+  border-left: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-result-mode button.is-active {
+  background: var(--vscode-list-activeSelectionBackground, var(--explorer-selection));
+  color: var(--vscode-list-activeSelectionForeground, var(--explorer-foreground));
+}
+
+.explorer-mock-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 0;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.explorer-mock-row {
+  position: relative;
+  display: grid;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 7px 0 calc(7px + (var(--row-depth, 0) * 13px));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--explorer-foreground);
+  cursor: pointer;
+  text-align: left;
+}
+
+.explorer-mock-row:not(.explorer-mock-modifier-row) {
+  grid-template-columns: 17px 16px 15px minmax(45px, 1fr) minmax(40px, 78px) 17px 14px 25px 25px 18px;
+  gap: 3px;
+}
+
+.explorer-mock-row:hover {
+  background: var(--explorer-hover);
+}
+
+.explorer-mock-row.is-selected {
+  background: var(--explorer-selection);
+  color: var(--explorer-selection-foreground);
+}
+
+.explorer-mock-row.is-contextual {
+  color: color-mix(in srgb, var(--explorer-foreground) 72%, transparent);
+}
+
+.explorer-mock-row.activity-hidden,
+.explorer-mock-row.activity-disabled {
+  color: color-mix(in srgb, var(--explorer-foreground) 72%, transparent);
+}
+
+.explorer-mock-row.is-selected.activity-hidden,
+.explorer-mock-row.is-selected.activity-disabled {
+  color: var(--explorer-selection-foreground);
+}
+
+.explorer-mock-rail-cell {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  border-left: 1px solid color-mix(in srgb, var(--explorer-muted) 35%, transparent);
+}
+
+.explorer-mock-disclosure {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 20px;
+  margin-left: -1px;
+}
+
+.explorer-mock-disclosure:hover {
+  background: var(--explorer-hover);
+}
+
+.explorer-mock-geometry-icon,
+.explorer-mock-modifier-icon {
+  color: var(--vscode-symbolIcon-classForeground, var(--explorer-foreground));
+}
+
+.explorer-mock-diagnostic-slot,
+.explorer-mock-activity-slot,
+.explorer-mock-module-cue,
+.explorer-mock-branch-affordance {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.explorer-mock-diagnostic-slot.diagnostic-error {
+  color: var(--explorer-error);
+}
+
+.explorer-mock-diagnostic-slot.diagnostic-warning {
+  color: var(--explorer-warning);
+}
+
+.explorer-mock-name,
+.explorer-mock-module-cue,
+.explorer-mock-modifier-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-module-cue {
+  color: var(--explorer-muted);
+  font-size: 9px;
+}
+
+.explorer-mock-activity-slot {
+  justify-content: center;
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-color-swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--explorer-foreground) 45%, transparent);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--explorer-background) 85%, transparent);
+}
+
+.explorer-mock-line-preview {
+  display: block;
+  width: 23px;
+  height: max(1px, var(--line-width, 1px));
+  background: currentColor;
+}
+
+.explorer-mock-line-preview.style-dashed {
+  background: repeating-linear-gradient(to right, currentColor 0 5px, transparent 5px 8px);
+}
+
+.explorer-mock-line-preview.style-dotted {
+  height: 3px;
+  background: repeating-linear-gradient(to right, currentColor 0 2px, transparent 2px 5px);
+}
+
+.explorer-mock-width {
+  color: var(--explorer-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.explorer-mock-branch-affordance {
+  position: absolute;
+  top: 2px;
+  right: 5px;
+  width: 16px;
+  height: 20px;
+  justify-content: center;
+  color: var(--vscode-textLink-foreground, var(--explorer-focus));
+  cursor: pointer;
+}
+
+.explorer-mock-modifier-row {
+  grid-template-columns: 18px minmax(65px, 1fr) 65px minmax(45px, 1.2fr) 43px 13px;
+  gap: 5px;
+  padding-left: 8px;
+}
+
+.explorer-mock-modifier-row .explorer-mock-profile-only {
+  overflow: hidden;
+  color: var(--explorer-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-usage {
+  color: var(--explorer-muted);
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.explorer-mock-modifier-row > svg {
+  color: var(--explorer-warning);
+}
+
+.explorer-mock-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 22px 12px;
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-detail-region {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 160px;
+  border-top: 1px solid var(--explorer-border);
+  background: var(--vscode-sideBar-background, var(--explorer-background));
+}
+
+.explorer-mock-resize-divider {
+  position: absolute;
+  z-index: 2;
+  top: -5px;
+  right: 0;
+  left: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.explorer-mock-resize-divider span {
+  position: absolute;
+  top: 4px;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--explorer-muted);
+  opacity: 0.65;
+}
+
+.explorer-mock-detail-header {
+  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--explorer-border);
+  color: var(--explorer-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.explorer-mock-detail-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 27px;
+  padding-inline: 5px;
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-detail-tabs button {
+  padding: 5px 7px;
+  color: var(--explorer-muted);
+  font-size: 10px;
+}
+
+.explorer-mock-detail-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 9px;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.explorer-mock-detail-heading {
+  justify-content: space-between;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.explorer-mock-detail-kind,
+.explorer-mock-profile-only {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+  color: var(--explorer-muted);
+  font-size: 9px;
+}
+
+.explorer-mock-profile-only {
+  background: color-mix(in srgb, var(--explorer-focus) 10%, transparent);
+}
+
+.explorer-mock-property-list {
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+}
+
+.explorer-mock-property-row {
+  display: grid;
+  grid-template-columns: minmax(65px, 0.7fr) minmax(0, 1.3fr);
+  gap: 8px;
+  min-height: 23px;
+  align-items: center;
+  padding: 3px 6px;
+}
+
+.explorer-mock-property-row + .explorer-mock-property-row {
+  border-top: 1px solid color-mix(in srgb, var(--explorer-border) 65%, transparent);
+}
+
+.explorer-mock-property-row > span {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-property-row code,
+.explorer-mock-anchor-row code,
+.explorer-mock-effect code,
+.explorer-mock-profile-card code {
+  overflow: hidden;
+  font: 10px var(--vscode-editor-font-family, ui-monospace, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-detail-section {
+  margin-top: 10px;
+}
+
+.explorer-mock-anchor-table,
+.explorer-mock-comparison-table {
+  overflow: hidden;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+}
+
+.explorer-mock-anchor-row,
+.explorer-mock-comparison-row {
+  display: grid;
+  grid-template-columns: 0.6fr 1.1fr 1.2fr 1.1fr;
+  gap: 5px;
+  align-items: center;
+  min-height: 23px;
+  padding: 3px 5px;
+}
+
+.explorer-mock-anchor-row + .explorer-mock-anchor-row,
+.explorer-mock-comparison-row + .explorer-mock-comparison-row {
+  border-top: 1px solid color-mix(in srgb, var(--explorer-border) 65%, transparent);
+}
+
+.explorer-mock-anchor-header,
+.explorer-mock-comparison-row.header {
+  color: var(--explorer-muted);
+  font-size: 9px;
+}
+
+.explorer-mock-note,
+.explorer-mock-warning {
+  gap: 5px;
+  color: var(--explorer-muted);
+  line-height: 1.45;
+}
+
+.explorer-mock-note svg {
+  flex: 0 0 auto;
+}
+
+.explorer-mock-warning {
+  margin-bottom: 8px;
+  color: var(--explorer-warning);
+}
+
+.explorer-mock-split-bar {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+  margin-top: 8px;
+}
+
+.explorer-mock-split-bar span:first-child {
+  background: var(--vscode-charts-blue, var(--explorer-focus));
+}
+
+.explorer-mock-split-bar span:last-child {
+  background: var(--vscode-charts-green, var(--explorer-muted));
+}
+
+.explorer-mock-reference-button,
+.explorer-mock-local-action,
+.explorer-mock-operation-entry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, var(--explorer-focus));
+  cursor: pointer;
+  text-align: left;
+}
+
+.explorer-mock-operation-entry {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--explorer-border);
+  background: color-mix(in srgb, var(--explorer-muted) 6%, transparent);
+}
+
+.explorer-mock-operation-entry span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-operation-entry small {
+  margin-left: auto;
+  color: var(--explorer-muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.explorer-mock-reference-button svg:last-child {
+  flex: 0 0 auto;
+}
+
+.explorer-mock-local-action {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-dependency-groups details,
+.explorer-mock-applied-to {
+  border-top: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-dependency-groups details:last-child,
+.explorer-mock-applied-to {
+  border-bottom: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-dependency-groups summary,
+.explorer-mock-applied-to summary,
+.explorer-mock-cascade summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  padding: 4px 2px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.explorer-mock-reference-list {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 8px 6px 18px;
+}
+
+.explorer-mock-reference-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.explorer-mock-reference-row small,
+.explorer-mock-path-entry small,
+.explorer-mock-effect small {
+  color: var(--explorer-muted);
+  font-size: 9px;
+}
+
+.explorer-mock-path-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 8px 20px;
+}
+
+.explorer-mock-winning-source {
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 6px;
+  border-left: 2px solid var(--explorer-focus);
+  background: color-mix(in srgb, var(--explorer-focus) 8%, transparent);
+}
+
+.explorer-mock-winning-source span {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-winning-source strong {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 3px 8px 8px 18px;
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-effect-list {
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+}
+
+.explorer-mock-effect {
+  display: grid;
+  grid-template-columns: 45px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 6px;
+}
+
+.explorer-mock-effect + .explorer-mock-effect {
+  border-top: 1px solid color-mix(in srgb, var(--explorer-border) 65%, transparent);
+}
+
+.explorer-mock-effect small {
+  text-align: right;
+}
+
+.effectiveness-effective small {
+  color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, var(--explorer-muted)));
+}
+
+.effectiveness-partially-effective small {
+  color: var(--explorer-warning);
+}
+
+.effectiveness-not-effective small {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-profile-card {
+  padding: 6px 0;
+  border-top: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-profile-card > strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.explorer-mock-profile-card > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.explorer-mock-profile-card > div > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid transparent;
+}
+
+.explorer-mock-profile-card > div > span.is-overridden {
+  background: color-mix(in srgb, var(--explorer-focus) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--explorer-focus) 35%, transparent);
+}
+
+.explorer-mock-profile-card small {
+  color: var(--explorer-muted);
+  font-size: 9px;
+}
+
+.explorer-mock-applied-to {
+  margin-top: 9px;
+}
+
+.explorer-mock-comparison-row {
+  grid-template-columns: minmax(70px, 0.8fr) minmax(100px, 1.4fr) 35px;
+}
+
+.explorer-mock-profile-comparison {
+  display: grid;
+  gap: 3px;
+  padding: 6px;
+  border-top: 1px solid var(--explorer-border);
+}
+
+.explorer-mock-profile-comparison strong {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.explorer-mock-profile-comparison span {
+  overflow: hidden;
+  color: var(--explorer-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-chip-list,
+.explorer-mock-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.explorer-mock-chip.is-muted,
+.explorer-mock-action-grid .is-muted {
+  color: var(--explorer-muted);
+}
+
+.explorer-mock-action-grid span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 5px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+}
+
+.explorer-mock-feedback {
+  position: absolute;
+  z-index: 8;
+  right: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px;
+  border: 1px solid var(--explorer-border);
+  background: var(--vscode-notifications-background, var(--explorer-background));
+  color: var(--vscode-notifications-foreground, var(--explorer-foreground));
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--explorer-foreground) 20%, transparent);
+}
+
+.explorer-mock-context-menu {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  min-width: 150px;
+  flex-direction: column;
+  padding: 3px;
+  border: 1px solid var(--vscode-menu-border, var(--explorer-border));
+  background: var(--vscode-menu-background, var(--explorer-background));
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--explorer-foreground) 20%, transparent);
+}
+
+.explorer-mock-context-menu button {
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-menu-foreground, var(--explorer-foreground));
+  cursor: pointer;
+  text-align: left;
+}
+
+.explorer-mock-context-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, var(--explorer-selection));
+  color: var(--vscode-menu-selectionForeground, var(--explorer-selection-foreground));
+}
+
+@media (max-width: 340px) {
+  .explorer-mock-row:not(.explorer-mock-modifier-row) {
+    grid-template-columns: 15px 14px 13px minmax(35px, 1fr) 0 15px 12px 21px 20px 15px;
+    gap: 2px;
+    padding-inline: 4px;
+  }
+
+  .explorer-mock-module-cue {
+    visibility: hidden;
+  }
+
+  .explorer-mock-modifier-row {
+    grid-template-columns: 16px minmax(50px, 1fr) 0 minmax(40px, 1fr) 35px 12px;
+    gap: 3px;
+    padding-inline: 4px;
+  }
+
+  .explorer-mock-modifier-row .explorer-mock-profile-only {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .explorer-mock-color-swatch {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+  }
+
+  .explorer-mock-top-tabs button.is-active::after,
+  .explorer-mock-detail-tabs button.is-active::after {
+    background: Highlight;
+  }
+
+  .explorer-mock-row.is-selected,
+  .explorer-mock-result-mode button.is-active {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .explorer-mock-line-preview {
+    background: CanvasText;
+  }
+}

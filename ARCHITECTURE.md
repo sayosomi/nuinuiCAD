@@ -961,6 +961,18 @@ document/version/source and fails closed before creating a `WorkspaceEdit`.
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
 
+### VS Code Explorer mock surface
+
+The native `nuinuiCAD.elements` Tree View remains backed by
+`vscode-extension/src/elementsTreeProvider.ts`. A sibling
+`nuinuiCAD.explorerMock` Webview View is contributed to the same
+`nuinuiCAD.explorer` View Container. `vscode-extension/src/explorerMockFeature.ts`
+owns only that Webview View's host lifecycle and shared-bundle HTML bootstrap.
+`src/vscode/ExplorerMockApp.tsx` owns static fixture data presentation and
+React-local interaction state. The surface reuses the shared Webview bundle and
+`webviewSurfaceRouter.tsx`; it has no production document, evaluation, runtime,
+navigation, or mutation semantics.
+
 ## Core architecture invariants
 
 - `.nui` `sourceText` is canonical。
