@@ -1,6 +1,7 @@
 export const CANVAS_BASE_DRAW_ORDER = [
   "image",
   "line",
+  "polyline",
   "arcLine",
   "bezierCurve",
   "offsetLine",

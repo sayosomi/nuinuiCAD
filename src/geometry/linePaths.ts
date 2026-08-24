@@ -4,14 +4,15 @@ import type {
   ComputedGeometry,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedOffsetLineSegment
+  ComputedOffsetLineSegment,
+  ComputedPolyline
 } from "../types/geometry";
 import { cubicDerivativeAt, projectPointOntoCurve } from "./bezierMath";
 import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 
 type Point = { x: number; y: number };
 
-export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine;
+export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
 
 type BezierLikeSegment = {
   start: Point;
@@ -231,7 +232,8 @@ export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined): geom
   geometry?.kind === "line" ||
   geometry?.kind === "arcLine" ||
   geometry?.kind === "bezierCurve" ||
-  geometry?.kind === "offsetLine";
+  geometry?.kind === "offsetLine" ||
+  geometry?.kind === "polyline";
 
 const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] => {
   if (geometry.kind === "line") {
@@ -247,6 +249,10 @@ const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] 
     });
   }
   if (geometry.kind === "bezierCurve") return bezierSegments(geometry);
+  if (geometry.kind === "polyline") return geometry.segments.flatMap((segment) => {
+    const path = pathSegment(segment.start, segment.end);
+    return path ? [path] : [];
+  });
   return offsetSegments(geometry);
 };
 

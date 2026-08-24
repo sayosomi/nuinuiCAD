@@ -244,6 +244,16 @@ pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Opti
             "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
             _ => None,
         },
+        "polyline" => match property {
+            "length" | "startTangentAngleDeg" | "endTangentAngleDeg" => {
+                geometry.get(property)?.as_f64()
+            }
+            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
+            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
+            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
+            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
+            _ => None,
+        },
         "arcLine" => match property {
             "length"
             | "radius"

@@ -176,6 +176,18 @@ pub(crate) fn geometry_points(geometry: &Value) -> Option<Vec<Point>> {
             }
             Some(output)
         }
+        "polyline" => {
+            let mut output = Vec::new();
+            for (index, segment) in geometry.get("segments")?.as_array()?.iter().enumerate() {
+                let start = segment.get("start").and_then(value_point)?;
+                let end = segment.get("end").and_then(value_point)?;
+                if index == 0 {
+                    output.push(start);
+                }
+                output.push(end);
+            }
+            Some(output)
+        }
         _ => None,
     }
 }
@@ -197,7 +209,9 @@ fn path_samples(points: &[Point]) -> Vec<PathSample> {
 
 fn endpoint_point(geometry: &Value, endpoint_key: &str) -> Option<Point> {
     match geometry.get("kind")?.as_str()? {
-        "line" | "arcLine" | "offsetLine" => geometry.get(endpoint_key).and_then(value_point),
+        "line" | "arcLine" | "offsetLine" | "polyline" => {
+            geometry.get(endpoint_key).and_then(value_point)
+        }
         "bezierCurve" => {
             let segments = geometry.get("segments")?.as_array()?;
             if endpoint_key == "start" {

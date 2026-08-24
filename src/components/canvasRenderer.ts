@@ -4,6 +4,7 @@ import type {
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   DrawingModifierStroke,
   ElementId
@@ -91,6 +92,7 @@ type RenderCanvasGeometryArgs = {
   arcs: ComputedArcLine[];
   curves: ComputedBezierCurve[];
   offsetLines: ComputedOffsetLine[];
+  polylines?: ComputedPolyline[];
   images?: CanvasOverlayImage[];
   points: ComputedPoint[];
   visibleElementIds: Set<ElementId>;
@@ -223,6 +225,7 @@ export const renderCanvasGeometry = ({
   arcs,
   curves,
   offsetLines,
+  polylines = [],
   images = [],
   points,
   visibleElementIds,
@@ -407,6 +410,32 @@ export const renderCanvasGeometry = ({
     ctx.stroke();
   }};
 
+  const drawPolylines = () => { for (const polyline of polylines) {
+    if (!visibleElementIds.has(polyline.elementId)) continue;
+    const isSelected = selectedElementIdSet.has(polyline.elementId);
+    const isPrimarySelected = polyline.elementId === selectedElementId;
+    ctx.beginPath();
+    polyline.segments.forEach((segment, index) => {
+      const start = worldToScreen(segment.start, size, viewport);
+      const end = worldToScreen(segment.end, size, viewport);
+      if (index === 0) ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+    });
+    applyGeometryStroke({
+      ctx,
+      elementId: polyline.elementId,
+      effectiveDrawingModifierStrokes,
+      defaultColor: canvasTheme.foreground,
+      isSelected,
+      isPrimarySelected,
+      isPointPickActive,
+      isNumericReferencePickActive,
+      isLinePickActive,
+      canvasTheme
+    });
+    ctx.stroke();
+  }};
+
   const drawPoints = () => { for (const point of points) {
     if (!visibleElementIds.has(point.elementId)) continue;
     const isSelected = selectedElementIdSet.has(point.elementId);
@@ -469,6 +498,7 @@ export const renderCanvasGeometry = ({
     else if (kind === "arcLine") drawArcs();
     else if (kind === "bezierCurve") drawCurves();
     else if (kind === "offsetLine") drawOffsetLines();
+    else if (kind === "polyline") drawPolylines();
     else if (kind === "text") continue;
     else drawPoints();
   }

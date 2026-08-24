@@ -26,6 +26,7 @@ const defaultNameBases: Record<CadElementType, string> = {
   pathReverse: "反転",
   bezierCurve: "曲線",
   offsetLine: "オフセット線",
+  polyline: "折れ線",
   splitLine: "分割線",
   copyLine: "コピー線",
   symmetricCopyLine: "対称コピー線",

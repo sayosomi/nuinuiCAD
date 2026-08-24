@@ -156,6 +156,12 @@ const primitivesForGeometry = (geometry: ComputedGeometry): BakePrimitiveConvers
         ? { status: "ok", primitives }
         : notLosslesslyRepresentable("offsetLine", "offset has no representable segments");
     }
+    case "polyline": {
+      const primitives = geometry.segments.map((segment) => ({ kind: "line" as const, start: segment.start, end: segment.end }));
+      return primitives.length > 0
+        ? { status: "ok", primitives }
+        : notLosslesslyRepresentable("polyline", "polyline has no representable segments");
+    }
     case "image":
     case "text":
       return {

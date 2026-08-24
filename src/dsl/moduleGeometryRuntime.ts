@@ -225,6 +225,11 @@ export const buildModuleGeometryRuntime = ({
         token,
         entry.sourceStatementIndex,
         entry.instancePath
+      ),
+      resolvePointReferenceList: (token) => geometryArrayRuntime.resolvePointReferenceList(
+        token,
+        entry.sourceStatementIndex,
+        entry.instancePath
       )
     });
   }

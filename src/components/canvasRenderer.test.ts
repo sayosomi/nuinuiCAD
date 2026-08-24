@@ -4,6 +4,7 @@ import type {
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   DrawingModifierStroke
 } from "../types/geometry";
@@ -35,6 +36,22 @@ const line = (
   endAngleDeg: 180,
   startTangentAngleDeg: 0,
   endTangentAngleDeg: 180
+});
+
+const polyline = (elementId: string, start: ComputedPoint, corner: ComputedPoint, end: ComputedPoint): ComputedPolyline => ({
+  kind: "polyline",
+  elementId,
+  name: elementId,
+  segments: [
+    { kind: "line", start, end: corner, length: Math.hypot(corner.x - start.x, corner.y - start.y) },
+    { kind: "line", start: corner, end, length: Math.hypot(end.x - corner.x, end.y - corner.y) }
+  ],
+  closed: false,
+  start,
+  end,
+  length: Math.hypot(corner.x - start.x, corner.y - start.y) + Math.hypot(end.x - corner.x, end.y - corner.y),
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 90
 });
 
 const strokeContext = () => {
@@ -76,6 +93,7 @@ const renderWithStroke = ({
   arcs = [],
   curves = [],
   offsetLines = [],
+  polylines = [],
   points = [],
   zoom = 1,
   selectedElementIds = [],
@@ -88,6 +106,7 @@ const renderWithStroke = ({
   arcs?: ComputedArcLine[];
   curves?: ComputedBezierCurve[];
   offsetLines?: ComputedOffsetLine[];
+  polylines?: ComputedPolyline[];
   points?: ComputedPoint[];
   zoom?: number;
   selectedElementIds?: string[];
@@ -96,7 +115,7 @@ const renderWithStroke = ({
   canvasTheme?: CanvasTheme;
 }) => {
   const { ctx, snapshots } = strokeContext();
-  const geometryIds = [...lines, ...arcs, ...curves, ...offsetLines, ...points].map((item) => item.elementId);
+  const geometryIds = [...lines, ...arcs, ...curves, ...offsetLines, ...polylines, ...points].map((item) => item.elementId);
   renderCanvasGeometry({
     ctx,
     size: { width: 500, height: 400 },
@@ -105,6 +124,7 @@ const renderWithStroke = ({
     arcs,
     curves,
     offsetLines,
+    polylines,
     points,
     visibleElementIds: new Set(geometryIds),
     selectedElementIdSet: new Set(selectedElementIds),
@@ -487,6 +507,7 @@ describe("renderCanvasGeometry", () => {
       { arcs: [arc] },
       { curves: [curve] },
       { offsetLines: [offsetLine] },
+      { polylines: [polyline("polyline", start, point("corner", 10, 0), end)] },
       { points: [point("point", 0, 0)] }
     ]) {
       expect(renderWithStroke({ stroke, ...geometry })).toEqual({

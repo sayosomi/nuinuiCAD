@@ -4,6 +4,7 @@ export type DslArgSpecial =
   | "steps"
   | "roles"
   | "intermediates"
+  | "points"
   | "id"
   | "parent"
   | "branch";
@@ -69,8 +70,9 @@ const positional = (argName: string, parameterKey?: string): DslArgSpec => ({
   positional: true,
 });
 
-const special = (argName: string, value: DslArgSpecial): DslArgSpec => ({
+const special = (argName: string, value: DslArgSpecial, required = false): DslArgSpec => ({
   arg: argName,
+  ...(required ? { required: true } : {}),
   special: value,
 });
 
@@ -139,6 +141,12 @@ const constructionSpecs: DslConstructionSpec[] = [
     construction: "offset",
     elementType: "offsetLine",
     args: [required("sources", "baseLineIds"), arg("distance", "offset"), arg("side"), arg("closed"), arg("suppressTrimWarnings")],
+  },
+  {
+    category: "line",
+    construction: "polyline",
+    elementType: "polyline",
+    args: [special("points", "points", true), arg("closed")],
   },
   { category: "line", construction: "split", elementType: "splitLine", args: [required("source", "baseLineId"), required("at", "splitPoint")] },
   {

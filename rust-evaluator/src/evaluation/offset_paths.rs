@@ -135,7 +135,7 @@ pub(crate) fn is_line_like_geometry(geometry: Option<&Value>) -> bool {
         geometry
             .and_then(|value| value.get("kind"))
             .and_then(Value::as_str),
-        Some("line" | "arcLine" | "bezierCurve" | "offsetLine")
+        Some("line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline")
     )
 }
 

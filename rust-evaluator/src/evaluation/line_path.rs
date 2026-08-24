@@ -293,6 +293,21 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
         "arcLine" => arc_segments(geometry),
         "bezierCurve" => bezier_segments(geometry),
         "offsetLine" => offset_segments(geometry),
+        "polyline" => {
+            let points = geometry
+                .get("segments")?
+                .as_array()?
+                .iter()
+                .filter_map(|segment| {
+                    Some((
+                        segment.get("start").and_then(value_point)?,
+                        segment.get("end").and_then(value_point)?,
+                    ))
+                })
+                .flat_map(|(start, end)| path_segment(start, end))
+                .collect();
+            Some(points)
+        }
         _ => None,
     }
 }

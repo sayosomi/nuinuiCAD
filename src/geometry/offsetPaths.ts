@@ -80,7 +80,8 @@ export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined) =>
   geometry?.kind === "line" ||
   geometry?.kind === "arcLine" ||
   geometry?.kind === "bezierCurve" ||
-  geometry?.kind === "offsetLine";
+  geometry?.kind === "offsetLine" ||
+  geometry?.kind === "polyline";
 
 export const lineLikeElementTypes = [
   "line",
@@ -91,7 +92,8 @@ export const lineLikeElementTypes = [
   "bezierCurve",
   "offsetLine",
   "copyLine",
-  "symmetricCopyLine"
+  "symmetricCopyLine",
+  "polyline"
 ] as const;
 
 export const buildOffsetLineGeometry = ({

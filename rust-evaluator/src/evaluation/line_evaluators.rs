@@ -66,6 +66,128 @@ pub(crate) fn evaluate_line(
     );
 }
 
+pub(crate) fn evaluate_polyline(
+    element: &Value,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    state: &mut EvaluationState,
+) {
+    let Some(anchors) = element.get("points").and_then(Value::as_array) else {
+        return;
+    };
+    let closed = element
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let minimum = if closed { 3 } else { 2 };
+    if anchors.len() < minimum {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} は{}つ以上の点が必要です。",
+                element_name(element),
+                minimum
+            ),
+        ));
+        return;
+    }
+
+    let points = anchors
+        .iter()
+        .enumerate()
+        .map(|(index, anchor)| {
+            point_anchor_or_error(
+                element,
+                anchor,
+                &format!("point{}", index + 1),
+                state,
+                &local_variables.0,
+                &local_variables.1,
+            )
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(points) = points else {
+        return;
+    };
+
+    let mut segments = Vec::new();
+    for pair in points.windows(2) {
+        let start = &pair[0];
+        let end = &pair[1];
+        segments.push(json!({
+            "kind": "line",
+            "start": computed_point(start.element_id.clone(), start.name.clone(), start.x, start.y),
+            "end": computed_point(end.element_id.clone(), end.name.clone(), end.x, end.y),
+            "length": (end.x - start.x).hypot(end.y - start.y)
+        }));
+    }
+    if closed {
+        let first = points.first().expect("polyline cardinality validated");
+        let last = points.last().expect("polyline cardinality validated");
+        if (last.x - first.x).hypot(last.y - first.y) > super::math::CIRCLE_EPSILON {
+            segments.push(json!({
+                "kind": "line",
+                "start": computed_point(last.element_id.clone(), last.name.clone(), last.x, last.y),
+                "end": computed_point(first.element_id.clone(), first.name.clone(), first.x, first.y),
+                "length": (first.x - last.x).hypot(first.y - last.y)
+            }));
+        }
+    }
+    let nonzero = segments
+        .iter()
+        .filter_map(|segment| {
+            let start = segment
+                .get("start")
+                .and_then(super::point_anchor::point_from_value)?;
+            let end = segment
+                .get("end")
+                .and_then(super::point_anchor::point_from_value)?;
+            (segment.get("length")?.as_f64()? > super::math::CIRCLE_EPSILON).then_some((start, end))
+        })
+        .collect::<Vec<_>>();
+    let start_tangent = nonzero
+        .first()
+        .and_then(|(start, end)| super::math::angle_from_to(start, end));
+    let end_tangent = nonzero
+        .last()
+        .and_then(|(start, end)| super::math::angle_from_to(end, start));
+    let id = element_id(element).unwrap_or_default();
+    let first = points.first().expect("polyline cardinality validated");
+    let last = if closed {
+        first.clone()
+    } else {
+        segments
+            .last()
+            .and_then(|segment| segment.get("end"))
+            .and_then(super::point_anchor::point_from_value)
+            .unwrap_or_else(|| {
+                points
+                    .last()
+                    .expect("polyline cardinality validated")
+                    .clone()
+            })
+    };
+    let length = segments
+        .iter()
+        .filter_map(|segment| segment.get("length").and_then(Value::as_f64))
+        .sum::<f64>();
+    insert_geometry(
+        state,
+        id.clone(),
+        json!({
+            "kind": "polyline",
+            "elementId": id,
+            "name": element_name(element),
+            "segments": segments,
+            "closed": closed,
+            "start": computed_point(first.element_id.clone(), first.name.clone(), first.x, first.y),
+            "end": computed_point(last.element_id, last.name, last.x, last.y),
+            "length": length,
+            "startTangentAngleDeg": start_tangent,
+            "endTangentAngleDeg": end_tangent
+        }),
+    );
+}
+
 pub(crate) fn evaluate_angle_length_line(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),

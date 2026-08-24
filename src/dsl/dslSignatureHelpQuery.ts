@@ -191,6 +191,9 @@ const constructionParameterDocumentationKeyFor = (
   if (category === "line" && construction === "offset" && argName === "closed") {
     return "signatureHelp.construction.line.offset.closed";
   }
+  if (category === "line" && construction === "polyline" && argName === "points") {
+    return "signatureHelp.construction.line.polyline.points";
+  }
   return definition
     ? genericParameterDocumentationKeyFor(definition)
     : "signatureHelp.parameter.argument";
@@ -298,6 +301,7 @@ const constructionSignatureFor = (
       : {
           identity: `construction:${context.spec.category}:${context.spec.construction}:${arg.arg}`,
           name: arg.arg,
+          ...(arg.special === "points" ? { type: "point[]" } : {}),
           optional: !arg.required,
           positional: Boolean(arg.positional),
           documentation: {

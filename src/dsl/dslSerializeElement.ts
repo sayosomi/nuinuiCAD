@@ -45,6 +45,10 @@ const specialArgText = (element: CadElement, arg: DslArgSpec, refs: DslSerialize
         ...(refs.includeRecordIds ? [formatDslName(point.id)] : []),
       ].join(":")).join("; ")}]`;
     }
+    case "points":
+      return element.type === "polyline"
+        ? `[${element.points.map((point) => refs.anchor(point, element)).join(", ")}]`
+        : null;
     case "id":
       return refs.includeRecordIds ? formatDslName(element.id) : null;
     case "roles":

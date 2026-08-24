@@ -41,6 +41,7 @@ export const createCadElement = (
       element.type === "cornerRadiusArcLine" ||
       element.type === "bezierCurve" ||
       element.type === "offsetLine" ||
+      element.type === "polyline" ||
       element.type === "splitLine" ||
       element.type === "copyLine" ||
       element.type === "symmetricCopyLine"
@@ -259,6 +260,19 @@ export const createCadElement = (
         activity: "visible",
         startPoint: referenceAnchor(firstPointId),
         endPoint: referenceAnchor(secondPointId)
+      };
+    }
+    case "polyline": {
+      const id = createId(type);
+      const polylineCount = elements.filter((element) => element.type === "polyline").length;
+      const requestedName = `折れ線${polylineCount + 1}`;
+      return {
+        id,
+        name: uniqueName(id, requestedName),
+        type,
+        activity: "visible",
+        points: points.slice(0, 2).map((point) => referenceAnchor(point.id)),
+        closed: false
       };
     }
     case "angleLengthLine": {

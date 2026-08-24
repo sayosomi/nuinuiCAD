@@ -251,6 +251,11 @@ export const canvasDrawingBoundsForVisibleIds = ({
       case "offsetLine":
         for (const segment of geometry.segments) bounds = includeOffsetSegment(bounds, segment);
         break;
+      case "polyline":
+        for (const segment of geometry.segments) {
+          bounds = includePoint(includePoint(bounds, segment.start.x, segment.start.y), segment.end.x, segment.end.y);
+        }
+        break;
       case "text":
         if (geometry.anchor) bounds = includePoint(bounds, geometry.anchor.x, geometry.anchor.y);
         if (geometry.anchor) {

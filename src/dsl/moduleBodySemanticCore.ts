@@ -8,6 +8,7 @@ import {
 import { isElementDslStatement } from "./dslParser";
 import { splitDslList, unquoteDslString } from "./dslTokens";
 import { recordField, recordSpans } from "./dslParameterSpanScanner";
+import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { isScalarExpressionCandidateSource } from "../scalars/expressionParser";
 import type { DslSpan, DslStatement } from "./dslTypes";
@@ -316,6 +317,39 @@ export const analyzeModuleBody = ({
     }
   };
 
+  const analyzePointArray = (
+    statementIndex: number,
+    bodySemantic: ModuleBodyStatementSemantic | null,
+    valueSpan: DslSpan
+  ) => {
+    const source = sourceTextFor(statementIndex);
+    const raw = source.slice(valueSpan.start, valueSpan.end);
+    const parsed = parseGeometryArrayExpression(raw);
+    if (!bodySemantic || !parsed.expression || parsed.diagnostics.length || parsed.expression.kind !== "literal") return;
+    for (const member of parsed.expression.members) {
+      const span = {
+        start: valueSpan.start + member.span.start,
+        end: valueSpan.start + member.span.end
+      };
+      const reference = resolveGeometry(
+        statementIndex,
+        definition.statementIndex,
+        member.text,
+        span,
+        "point",
+        {
+          allowCoordinate: true,
+          role: "pointReference",
+          scalarResolver: (candidate, presenceFacts) => resolveBodyScalar(statementIndex, candidate, presenceFacts),
+          bareScalarResolver: (candidate) => resolveBodyBareScalar(statementIndex, candidate),
+          geometryPropertyResolver: (candidate) => resolveBodyGeometryProperty(statementIndex, candidate),
+          presenceFacts: presenceFactsForStatement(statementIndex)
+        }
+      );
+      addGeometry(bodySemantic, "points", span, reference);
+    }
+  };
+
   for (const statementIndex of definition.bodyStatementIndexes) {
     const statement = statements[statementIndex];
     const statementId = stableStatementIdByIndex.get(statementIndex);
@@ -486,6 +520,11 @@ export const analyzeModuleBody = ({
           if (arg.special !== "intermediates") continue;
           const valueSpan = statement.payloadSpans[arg.arg];
           if (valueSpan) analyzeIntermediates(statementIndex, bodySemantic, valueSpan);
+        }
+        for (const arg of specialArgs) {
+          if (arg.special !== "points") continue;
+          const valueSpan = statement.payloadSpans[arg.arg];
+          if (valueSpan) analyzePointArray(statementIndex, bodySemantic, valueSpan);
         }
         if (bodySemantic) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions].sort((left, right) => left.span.start - right.span.start);
       }
