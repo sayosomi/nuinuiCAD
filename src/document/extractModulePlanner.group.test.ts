@@ -130,18 +130,48 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     expectRejectedWithoutPatch(planGroup(source), "unrepresentable-export");
   });
 
-  it("fails closed for conditional descendants instead of widening Checkpoint 4 into binder semantics", () => {
+  it("recursively accepts mixed conditional and nested-for descendants under a plain group", () => {
     const source = [
       "nui 4",
       "const flag: boolean = true",
+      "const start: number = 1",
+      "const count: number = 2",
+      "const width: number = 10",
       "group Pocket {",
       "  if (@flag) {",
-      "    const inside: number = 1",
+      "    for j in range(from: @start, count: @count, step: 1) {",
+      "      group Detail {",
+      "        const inside: number = @width + @j",
+      "      }",
+      "    }",
       "  }",
       "}"
     ].join("\n");
 
-    expectRejectedWithoutPatch(planGroup(source), "unsupported-statement");
+    const result = planGroup(source);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["flag", "boolean", "@flag"],
+      ["start", "number", "@start"],
+      ["count", "number", "@count"],
+      ["width", "number", "@width"]
+    ]);
+    expect(result.dependencies.some((dependency) => dependency.name === "j")).toBe(false);
+    expect(result.exports).toEqual([]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(flag: boolean, start: number, count: number, width: number) {",
+      "  group Pocket {",
+      "    if (@flag) {",
+      "      for j in range(from: @start, count: @count, step: 1) {",
+      "        group Detail {",
+      "          const inside: number = @width + @j",
+      "        }",
+      "      }",
+      "    }",
+      "  }",
+      "}"
+    ].join("\n"));
   });
 
   it("keeps a let/set pair inside the group but rejects a write crossing the Extract boundary", () => {
