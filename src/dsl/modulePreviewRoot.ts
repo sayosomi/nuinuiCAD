@@ -156,7 +156,7 @@ const syntheticCallStatement = (
   instanceName: string,
   moduleName: string,
   args: readonly ModulePreviewArgument[],
-  enclosingStatementIndex: number | null
+  enclosing: DslStatement["enclosing"]
 ): SyntheticCall | null => {
   const source = syntheticCallSource(instanceName, moduleName, args);
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -174,9 +174,7 @@ const syntheticCallStatement = (
       line,
       sourceRevision,
       documentRange: { ...statement.documentRange, sourceRevision, from, to: from + Math.max(1, logicalText.length) },
-      enclosing: enclosingStatementIndex === null
-        ? null
-        : { statementIndex: enclosingStatementIndex, branch: "then" }
+      enclosing: enclosing ? { ...enclosing } : null
     }
   };
 };
@@ -218,10 +216,22 @@ const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => 
     : referenceIsResolved(binding.value.reference);
 };
 
+const callerSourceStatementIsSafe = (
+  statementIndex: number,
+  cutoffStatementIndex: number,
+  allowedCallerModuleStatementIndexes: ReadonlySet<number>,
+  statements: readonly DslStatement[]
+): boolean => {
+  if (statementIndex >= cutoffStatementIndex) return false;
+  const ownerModuleIndex = ownerModuleIndexOf(statements, statementIndex);
+  return ownerModuleIndex === null || allowedCallerModuleStatementIndexes.has(ownerModuleIndex);
+};
+
 const callerExpressionIsSafe = (
   expression: ModuleScalarExpressionSemantic,
   cutoffStatementIndex: number,
   allowedParameterDefinitionIds: ReadonlySet<StatementIdentity>,
+  allowedCallerModuleStatementIndexes: ReadonlySet<number>,
   statements: readonly DslStatement[]
 ): boolean => {
   if (!expressionIsResolved(expression)) return false;
@@ -232,11 +242,22 @@ const callerExpressionIsSafe = (
       if (!allowedParameterDefinitionIds.has(target.definitionStatementId)) return false;
       continue;
     }
+    if (target.kind === "moduleLocal") {
+      if (!callerSourceStatementIsSafe(
+        target.statementIndex,
+        cutoffStatementIndex,
+        allowedCallerModuleStatementIndexes,
+        statements
+      )) return false;
+      continue;
+    }
     if (target.kind !== "documentBinding") return false;
-    if (
-      ownerModuleIndexOf(statements, target.statementIndex) !== null ||
-      target.statementIndex >= cutoffStatementIndex
-    ) return false;
+    if (!callerSourceStatementIsSafe(
+      target.statementIndex,
+      cutoffStatementIndex,
+      allowedCallerModuleStatementIndexes,
+      statements
+    )) return false;
   }
   for (const property of expression.geometryProperties) {
     const target = property.target;
@@ -246,16 +267,19 @@ const callerExpressionIsSafe = (
       continue;
     }
     if (target.kind !== "sourceGeometryProperty") return false;
-    if (
-      ownerModuleIndexOf(statements, target.statementIndex) !== null ||
-      target.statementIndex >= cutoffStatementIndex
-    ) return false;
+    if (!callerSourceStatementIsSafe(
+      target.statementIndex,
+      cutoffStatementIndex,
+      allowedCallerModuleStatementIndexes,
+      statements
+    )) return false;
   }
   for (const argument of expression.geometryBuiltinArguments) {
     if (!callerGeometryReferenceIsSafe(
       argument.reference,
       cutoffStatementIndex,
       allowedParameterDefinitionIds,
+      allowedCallerModuleStatementIndexes,
       statements
     )) return false;
   }
@@ -266,6 +290,7 @@ const callerGeometryReferenceIsSafe = (
   reference: ModuleGeometryReferenceSemantic,
   cutoffStatementIndex: number,
   allowedParameterDefinitionIds: ReadonlySet<StatementIdentity>,
+  allowedCallerModuleStatementIndexes: ReadonlySet<number>,
   statements: readonly DslStatement[]
 ): boolean => {
   if (reference.coordinate) {
@@ -273,11 +298,13 @@ const callerGeometryReferenceIsSafe = (
       reference.coordinate.x,
       cutoffStatementIndex,
       allowedParameterDefinitionIds,
+      allowedCallerModuleStatementIndexes,
       statements
     )) && (!reference.coordinate.y || callerExpressionIsSafe(
       reference.coordinate.y,
       cutoffStatementIndex,
       allowedParameterDefinitionIds,
+      allowedCallerModuleStatementIndexes,
       statements
     ));
   }
@@ -285,13 +312,19 @@ const callerGeometryReferenceIsSafe = (
   const target = reference.target;
   if (target.kind === "parameter") return allowedParameterDefinitionIds.has(target.definitionStatementId);
   if (target.kind !== "sourceGeometry") return false;
-  return ownerModuleIndexOf(statements, target.statementIndex) === null && target.statementIndex < cutoffStatementIndex;
+  return callerSourceStatementIsSafe(
+    target.statementIndex,
+    cutoffStatementIndex,
+    allowedCallerModuleStatementIndexes,
+    statements
+  );
 };
 
 const parameterBindingIsSafe = (
   binding: ResolvedModuleParameterBinding,
   cutoffStatementIndex: number,
   callerParameterDefinitionIds: ReadonlySet<StatementIdentity>,
+  callerModuleStatementIndexes: ReadonlySet<number>,
   currentDefinitionStatementId: StatementIdentity,
   statements: readonly DslStatement[]
 ): boolean => {
@@ -301,8 +334,20 @@ const parameterBindingIsSafe = (
     ? new Set<StatementIdentity>([currentDefinitionStatementId])
     : callerParameterDefinitionIds;
   return binding.value.kind === "scalar"
-    ? callerExpressionIsSafe(binding.value.expression, cutoffStatementIndex, allowedParameterDefinitionIds, statements)
-    : callerGeometryReferenceIsSafe(binding.value.reference, cutoffStatementIndex, allowedParameterDefinitionIds, statements);
+    ? callerExpressionIsSafe(
+        binding.value.expression,
+        cutoffStatementIndex,
+        allowedParameterDefinitionIds,
+        callerModuleStatementIndexes,
+        statements
+      )
+    : callerGeometryReferenceIsSafe(
+        binding.value.reference,
+        cutoffStatementIndex,
+        allowedParameterDefinitionIds,
+        callerModuleStatementIndexes,
+        statements
+      );
 };
 
 const reachableDefinitionIdsFrom = (
@@ -362,22 +407,31 @@ const projectAncestorDefinitions = (
   syntheticStatementIds: readonly StatementIdentity[]
 ): ModuleSemanticAnalysis => {
   const ancestorIds = new Set(chain.slice(0, -1).map((definition) => definition.statementId));
+  const childDefinitionIndexByAncestor = new Map<StatementIdentity, number>();
   const childIdByAncestor = new Map<StatementIdentity, StatementIdentity>();
   chain.slice(0, -1).forEach((definition, index) => {
-    childIdByAncestor.set(definition.statementId, syntheticStatementIds[index + 1]);
+    childDefinitionIndexByAncestor.set(definition.statementId, chain[index + 1]!.statementIndex);
+    childIdByAncestor.set(definition.statementId, syntheticStatementIds[index + 1]!);
   });
   const definitions = analysis.definitions.map((definition) => {
     if (!ancestorIds.has(definition.statementId)) return definition;
+    const cutoffStatementIndex = childDefinitionIndexByAncestor.get(definition.statementId);
     const childId = childIdByAncestor.get(definition.statementId);
-    const childBody = childId
+    const callerPrefix = cutoffStatementIndex === undefined
+      ? []
+      : definition.bodyStatements.filter((body) => body.statementIndex < cutoffStatementIndex);
+    const syntheticChild = childId
       ? definition.bodyStatements.filter((body) => body.statementId === childId)
       : [];
+    const bodyStatements = [...callerPrefix, ...syntheticChild];
     return {
       ...definition,
-      localScalars: [],
-      bodyStatements: childBody,
+      localScalars: cutoffStatementIndex === undefined
+        ? []
+        : definition.localScalars.filter((local) => local.statementIndex < cutoffStatementIndex),
+      bodyStatements,
       exports: [],
-      bodyStatementIds: childBody.map((body) => body.statementId)
+      bodyStatementIds: bodyStatements.map((body) => body.statementId)
     };
   });
   return {
@@ -483,7 +537,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       `__module_preview_${chainIndex}`,
       definition.name,
       args,
-      chainIndex === 0 ? null : chain[chainIndex - 1].statementIndex
+      statements[definition.statementIndex]?.enclosing ?? null
     );
     if (!synthetic) return null;
     const statementIndex = statements.length;
@@ -518,16 +572,19 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   if (syntheticInstances.some((instance) => instance === null)) return null;
 
   const callerParameterDefinitionIds = new Set<StatementIdentity>();
+  const callerModuleStatementIndexes = new Set<number>();
   for (const [index, instance] of syntheticInstances.entries()) {
     if (!instance) return null;
     if (!instance.parameterBindings.every((binding) => parameterBindingIsSafe(
       binding,
       chain[index].statementIndex,
       callerParameterDefinitionIds,
+      callerModuleStatementIndexes,
       chain[index].statementId,
       statements
     ))) return null;
     callerParameterDefinitionIds.add(chain[index].statementId);
+    callerModuleStatementIndexes.add(chain[index].statementIndex);
   }
 
   const ancestorDefinitionIds = new Set(chain.slice(0, -1).map((definition) => definition.statementId));
