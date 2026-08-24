@@ -115,7 +115,7 @@ export const outputPreviewPathDataFor = (
 ): string | null => {
   const project = (point: OutputPoint) => outputPreviewScreenPointFor(point, size, viewport);
   if (drawable.kind === "text") return null;
-  if (drawable.kind === "offsetLine") return drawable.segments.map((segment) => pathDataForSegment(segment, project)).join(" ");
+  if (drawable.kind === "offsetLine" || drawable.kind === "polyline") return drawable.segments.map((segment) => pathDataForSegment(segment, project)).join(" ");
   return pathDataForSegment(drawable, project);
 };
 

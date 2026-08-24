@@ -1,9 +1,10 @@
-import type { ElementId } from "../types/geometry";
+import type { ElementId, PointAnchor } from "../types/geometry";
 import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
+import { makeNumericExpression } from "../geometry/numericExpressions";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import {
   parseGeometryArrayDeferredModuleExportId,
@@ -44,6 +45,11 @@ export type ModuleGeometryArrayRuntimeCompilation = {
     statementIndex: number,
     currentPath: readonly string[]
   ) => readonly ElementId[] | null;
+  resolvePointReferenceList: (
+    token: string,
+    statementIndex: number,
+    currentPath: readonly string[]
+  ) => readonly PointAnchor[] | null;
   acceptsDeferredLineListExport: (
     reference: ModuleGeometryReferenceSemantic,
     currentPath: readonly string[]
@@ -53,6 +59,7 @@ export type ModuleGeometryArrayRuntimeCompilation = {
 type RuntimeArrayMember = {
   interfaceType: ModuleGeometryInterfaceType;
   alias: GeometryAlias | null;
+  anchor?: PointAnchor;
 };
 
 type RuntimeArrayValue = {
@@ -91,6 +98,18 @@ const referencePath = (text: string) => {
 const coordinateMember = (text: string) => {
   const span = { start: 0, end: text.length };
   return coordinateComponent(text, span, "x") && coordinateComponent(text, span, "y") ? text.trim() : null;
+};
+
+const coordinateAnchor = (text: string): PointAnchor | null => {
+  const span = { start: 0, end: text.length };
+  const x = coordinateComponent(text, span, "x");
+  const y = coordinateComponent(text, span, "y");
+  if (!x || !y) return null;
+  return {
+    mode: "coordinate",
+    x: makeNumericExpression(text.slice(x.start, x.end)),
+    y: makeNumericExpression(text.slice(y.start, y.end))
+  };
 };
 
 const isLineEndpointPointKey = (value: string) => value === "start" || value === "end";
@@ -169,6 +188,7 @@ export const buildModuleGeometryArrayRuntime = ({
     return {
       diagnostics,
       resolveLineReferenceList: () => null,
+      resolvePointReferenceList: () => null,
       acceptsDeferredLineListExport: () => false
     };
   }
@@ -304,7 +324,7 @@ export const buildModuleGeometryArrayRuntime = ({
           const actual: GeometryArrayType = { kind: "geometryArray", elementType: "point" };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」に point を渡せません。`));
-          } else members.push({ interfaceType: "point", alias: null });
+          } else members.push({ interfaceType: "point", alias: null, anchor: coordinateAnchor(coordinate) ?? undefined });
           continue;
         }
         const sourceReference = parsedSourceReference(member.text);
@@ -354,7 +374,12 @@ export const buildModuleGeometryArrayRuntime = ({
                   parameterIndex: parameterIndexInOwner,
                   geometryKind: interfaceType === "point" ? "point" : "line"
                 }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
-                members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });
+                const alias = aliasWithPointKey(baseAlias, pointKey);
+                members.push({
+                  interfaceType: memberInterfaceType,
+                  alias,
+                  ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+                });
                 continue;
               }
             }
@@ -387,7 +412,12 @@ export const buildModuleGeometryArrayRuntime = ({
             category: sourceStatement.category,
             geometryKind: interfaceType === "point" ? "point" : "line"
           }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
-          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(baseAlias, pointKey) });
+          const alias = aliasWithPointKey(baseAlias, pointKey);
+          members.push({
+            interfaceType: memberInterfaceType,
+            alias,
+            ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+          });
           continue;
         }
         if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
@@ -410,7 +440,12 @@ export const buildModuleGeometryArrayRuntime = ({
             addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
             continue;
           }
-          members.push({ interfaceType: memberInterfaceType, alias: aliasWithPointKey(exportEntry.alias, pointKey) });
+          const alias = aliasWithPointKey(exportEntry.alias, pointKey);
+          members.push({
+            interfaceType: memberInterfaceType,
+            alias,
+            ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+          });
           continue;
         }
         addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-unresolved", `未解決の geometry array member です: ${member.text}`));
@@ -434,12 +469,25 @@ export const buildModuleGeometryArrayRuntime = ({
 
     if (semantic.value.kind === "literal") {
       const members: RuntimeArrayMember[] = semantic.value.members.map((member) => {
-        if (member.target.kind === "coordinate") return { interfaceType: member.interfaceType, alias: null };
+        if (member.target.kind === "coordinate") {
+          return {
+            interfaceType: member.interfaceType,
+            alias: null,
+            ...(coordinateAnchor(member.target.source) ? { anchor: coordinateAnchor(member.target.source)! } : {})
+          };
+        }
         const target = singularTargetFor(member.target);
         const alias = target
-          ? sourceAliasForTarget(target, currentPath, contextsByPath, moduleMaterialization, exportsByPath)
+          ? aliasWithPointKey(
+            sourceAliasForTarget(target, currentPath, contextsByPath, moduleMaterialization, exportsByPath),
+            member.target.pointKey ?? null
+          )
           : undefined;
-        return { interfaceType: member.interfaceType, alias: alias ?? null };
+        return {
+          interfaceType: member.interfaceType,
+          alias: alias ?? null,
+          ...(alias?.kind === "point" ? { anchor: alias.anchor } : {})
+        };
       });
       const value = { type: semantic.type, members };
       sourceValueCache.set(key, value);
@@ -559,11 +607,88 @@ export const buildModuleGeometryArrayRuntime = ({
     return ids;
   };
 
+  const pointAnchorsFor = (value: RuntimeArrayValue): readonly PointAnchor[] | null => {
+    if (value.type.elementType !== "point") return null;
+    const anchors: PointAnchor[] = [];
+    for (const member of value.members) {
+      if (member.interfaceType !== "point" || !member.anchor) return null;
+      anchors.push(member.anchor);
+    }
+    return anchors;
+  };
+
+  const resolvePointReferenceList = (token: string, statementIndex: number, currentPath: readonly string[]) => {
+    const resolved = resolveWholeReference(token, statementIndex, currentPath, new Set());
+    if (resolved.value) return pointAnchorsFor(resolved.value);
+
+    const parsed = parseGeometryArrayExpression(token);
+    if (!parsed.expression || parsed.diagnostics.length || parsed.expression.kind !== "literal") return null;
+    const anchors: PointAnchor[] = [];
+    for (const member of parsed.expression.members) {
+      const coordinate = coordinateAnchor(member.text);
+      if (coordinate) {
+        anchors.push(coordinate);
+        continue;
+      }
+      const path = referencePath(member.text);
+      if (!path || path.segments.length === 0) return null;
+      const sourceReference = parsedSourceReference(member.text);
+      const pointKey = sourceReference?.property ?? null;
+      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+      let alias: GeometryAlias | null = null;
+      if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {
+        const owner = statements[ownerIndex];
+        const definitionId = stableStatementIdByIndex.get(ownerIndex);
+        if (owner?.kind === "moduleDefinition" && definitionId) {
+          const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === path.segments[0]);
+          if (parameterIndex >= 0 && !geometryArrayTypeOfModuleParameter(owner.parameters[parameterIndex]!)) {
+            const interfaceType = moduleGeometryInterfaceTypeOf(owner.parameters[parameterIndex]!.type);
+            if (interfaceType) {
+              const baseAlias = sourceAliasForTarget({
+                kind: "parameter",
+                definitionStatementId: definitionId,
+                parameterIndex,
+                geometryKind: interfaceType === "point" ? "point" : "line"
+              }, currentPath, contextsByPath, moduleMaterialization, exportsByPath);
+              alias = aliasWithPointKey(baseAlias, pointKey);
+            }
+          }
+        }
+      }
+      if (!alias) {
+        const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+        if (lookup.kind === "resolved") {
+          const sourceStatement = lookup.declaration.statement;
+          const interfaceType = moduleGeometryInterfaceTypeOfElement(sourceStatement);
+          if (sourceStatement.kind === "element" && isGeometryDeclarationCategory(sourceStatement.category) && interfaceType) {
+            if (!pointKey || isDerivedPointKeyForGeometryCategory(sourceStatement.category, pointKey)) {
+              const baseAlias = sourceAliasForTarget({
+                kind: "sourceGeometry",
+                statementId: lookup.declaration.statementId,
+                statementIndex: lookup.declaration.statementIndex,
+                category: sourceStatement.category,
+                geometryKind: interfaceType === "point" ? "point" : "line"
+              }, currentPath, contextsByPath, moduleMaterialization, exportsByPath);
+              alias = aliasWithPointKey(baseAlias, pointKey);
+            }
+          }
+        } else if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
+          const childPath = [...currentPath, lookup.declaration.statementId];
+          const exportEntry = exportsByPath.get(pathKey(childPath))?.get(path.segments[1]!);
+          if (exportEntry) alias = aliasWithPointKey(exportEntry.alias, pointKey);
+        }
+      }
+      if (alias?.kind !== "point") return null;
+      anchors.push(alias.anchor);
+    }
+    return anchors;
+  };
+
   const acceptsDeferredLineListExport = (reference: ModuleGeometryReferenceSemantic, currentPath: readonly string[]) => {
     if (reference.role !== "lineReferenceList" || reference.target?.kind !== "deferredModuleExport") return false;
     const exported = arrayExportSemantic(currentPath, reference.target.instanceStatementId, reference.target.exportName)?.exported;
     return Boolean(exported && exported.type.elementType !== "point");
   };
 
-  return { diagnostics, resolveLineReferenceList, acceptsDeferredLineListExport };
+  return { diagnostics, resolveLineReferenceList, resolvePointReferenceList, acceptsDeferredLineListExport };
 };

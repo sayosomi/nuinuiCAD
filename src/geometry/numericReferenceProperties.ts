@@ -4,7 +4,8 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedLine,
-  ComputedOffsetLine
+  ComputedOffsetLine,
+  ComputedPolyline
 } from "../types/geometry";
 import type { NumericMeasurementKey } from "./numericExpressionTypes";
 
@@ -12,7 +13,8 @@ export type NumericReferenceGeometry =
   | ComputedLine
   | ComputedArcLine
   | ComputedBezierCurve
-  | ComputedOffsetLine;
+  | ComputedOffsetLine
+  | ComputedPolyline;
 
 export const numericReferencePickProperties: readonly NumericMeasurementKey[] = [
   "length",
@@ -60,6 +62,10 @@ export const numericReferencePropertiesForElement = (
     element.type === "cornerRadiusArcLine"
   ) {
     return ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"];
+  }
+
+  if (element.type === "polyline") {
+    return ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
   }
 
   if (element.type === "bezierCurve") {

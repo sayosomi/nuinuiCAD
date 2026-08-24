@@ -92,6 +92,7 @@ export const VSCodeReferencePickOverlay = ({
       arcs: overlay.overlayArcs,
       curves: overlay.overlayCurves,
       offsetLines: overlay.overlayOffsetLines,
+      polylines: overlay.overlayPolylines,
       images: overlay.overlayImages,
       texts: overlay.overlayTexts,
       points: overlay.overlayPoints
@@ -107,6 +108,7 @@ export const VSCodeReferencePickOverlay = ({
     overlay.overlayImages,
     overlay.overlayLines,
     overlay.overlayOffsetLines,
+    overlay.overlayPolylines,
     overlay.overlayPoints,
     overlay.overlayTexts,
     session.candidates,
@@ -235,6 +237,12 @@ export const VSCodeReferencePickOverlay = ({
         const style = geometryStyle(line.elementId);
         return style ? (
           <polyline key={`reference-pick-offset-${line.elementId}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" {...style} />
+        ) : null;
+      })}
+      {overlay.overlayPolylines.map(({ polyline, points }) => {
+        const style = geometryStyle(polyline.elementId);
+        return style ? (
+          <polyline key={`reference-pick-polyline-${polyline.elementId}`} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" {...style} />
         ) : null;
       })}
     </>

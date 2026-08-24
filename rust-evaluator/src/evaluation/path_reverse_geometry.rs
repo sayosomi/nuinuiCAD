@@ -170,12 +170,74 @@ fn reverse_offset(line: &Value) -> Option<Value> {
     Some(next)
 }
 
+fn reverse_polyline(line: &Value) -> Option<Value> {
+    let values = line
+        .get("segments")?
+        .as_array()?
+        .iter()
+        .rev()
+        .map(|segment| {
+            let start = segment.get("end")?.clone();
+            let end = segment.get("start")?.clone();
+            let start_point = value_point(&start)?;
+            let end_point = value_point(&end)?;
+            Some(json!({
+                "kind": "line",
+                "start": start,
+                "end": end,
+                "length": line_length(start_point, end_point)
+            }))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if values.is_empty() {
+        return None;
+    }
+    let first_nonzero = values
+        .iter()
+        .find(|segment| segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > 1e-9);
+    let last_nonzero = values
+        .iter()
+        .rev()
+        .find(|segment| segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > 1e-9);
+    let start_tangent = first_nonzero.and_then(|segment| {
+        let start = value_point(segment.get("start")?)?;
+        let end = value_point(segment.get("end")?)?;
+        (line_length(start, end) > 1e-9).then(|| angle_of_point(start, end))
+    });
+    let end_tangent = last_nonzero.and_then(|segment| {
+        let end = value_point(segment.get("end")?)?;
+        let start = value_point(segment.get("start")?)?;
+        (line_length(end, start) > 1e-9).then(|| angle_of_point(end, start))
+    });
+    let mut next = line.clone();
+    next["segments"] = json!(values);
+    next["start"] = next
+        .get("segments")?
+        .as_array()?
+        .first()?
+        .get("start")?
+        .clone();
+    next["end"] = if line.get("closed").and_then(Value::as_bool).unwrap_or(false) {
+        next["start"].clone()
+    } else {
+        next.get("segments")?
+            .as_array()?
+            .last()?
+            .get("end")?
+            .clone()
+    };
+    next["startTangentAngleDeg"] = json!(start_tangent);
+    next["endTangentAngleDeg"] = json!(end_tangent);
+    Some(next)
+}
+
 pub(crate) fn reverse_line_like_geometry(geometry: &Value) -> Option<Value> {
     match geometry.get("kind")?.as_str()? {
         "line" => reverse_line(geometry),
         "arcLine" => reverse_arc(geometry),
         "bezierCurve" => reverse_bezier(geometry),
         "offsetLine" => reverse_offset(geometry),
+        "polyline" => reverse_polyline(geometry),
         _ => None,
     }
 }

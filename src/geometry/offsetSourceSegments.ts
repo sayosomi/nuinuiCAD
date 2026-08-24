@@ -28,6 +28,13 @@ export const sourceSegmentsForGeometry = (geometry: ComputedGeometry): SourceSeg
     ];
   }
   if (geometry.kind === "bezierCurve") return bezierSourceSegments(geometry);
+  if (geometry.kind === "polyline") {
+    return geometry.segments.map((segment) => ({
+      kind: "line" as const,
+      start: segment.start,
+      end: segment.end
+    }));
+  }
   if (geometry.kind === "offsetLine") {
     return geometry.segments.map((segment) =>
       segment.kind === "line"

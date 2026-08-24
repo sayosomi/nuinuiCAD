@@ -10,6 +10,7 @@ describe("Canvas base draw order", () => {
     expect(CANVAS_BASE_DRAW_ORDER).toEqual([
       "image",
       "line",
+      "polyline",
       "arcLine",
       "bezierCurve",
       "offsetLine",

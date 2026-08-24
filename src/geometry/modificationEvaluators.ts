@@ -513,6 +513,9 @@ const moveEndpoint = (
   if (geometry.kind === "bezierCurve") {
     return moveBezierEndpoint(geometry, endpointKey, target, targetPointId);
   }
+  if (geometry.kind === "polyline") {
+    return { error: `${geometry.name} は折れ線のため端点移動の対象にできません。` };
+  }
   return moveOffsetEndpoint(geometry, endpointKey, target);
 };
 

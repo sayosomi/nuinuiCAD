@@ -68,6 +68,70 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         });
         break;
       }
+      case "polyline": {
+        const minimumPointCount = element.closed ? 3 : 2;
+        if (element.points.length < minimumPointCount) {
+          errors.push(geometryError(
+            element,
+            `${element.name} の点数が不足しています。${element.closed ? "閉じた折れ線には3点以上" : "開いた折れ線には2点以上"}の点を指定してください。`
+          ));
+          break;
+        }
+
+        const points = element.points.map((point, index) => getPointAnchorOrError(
+          element,
+          point,
+          `point${index + 1}`,
+          computedGeometry,
+          elementsById,
+          errors,
+          localVariableValues,
+          localVariableNames,
+          disabledByGroupId
+        ));
+        if (points.some((point) => !point)) break;
+        const resolvedPoints = points as ComputedPoint[];
+        const segments = resolvedPoints.slice(0, -1).map((start, index) => {
+          const end = resolvedPoints[index + 1]!;
+          return {
+            kind: "line" as const,
+            start,
+            end,
+            length: Math.hypot(end.x - start.x, end.y - start.y)
+          };
+        });
+        const first = resolvedPoints[0]!;
+        const last = resolvedPoints.at(-1)!;
+        if (element.closed && Math.hypot(last.x - first.x, last.y - first.y) > CIRCLE_EPSILON) {
+          segments.push({
+            kind: "line",
+            start: last,
+            end: first,
+            length: Math.hypot(first.x - last.x, first.y - last.y)
+          });
+        }
+        const nonZero = segments.filter((segment) => segment.length > CIRCLE_EPSILON);
+        const startTangentAngleDeg = nonZero[0]
+          ? lineTangentAngles(nonZero[0].start, nonZero[0].end).startTangentAngleDeg
+          : null;
+        const lastNonZero = nonZero.at(-1);
+        const endTangentAngleDeg = lastNonZero
+          ? lineTangentAngles(lastNonZero.start, lastNonZero.end).endTangentAngleDeg
+          : null;
+        computedGeometry.set(element.id, {
+          kind: "polyline",
+          elementId: element.id,
+          name: element.name,
+          segments,
+          closed: element.closed,
+          start: first,
+          end: element.closed ? first : last,
+          length: segments.reduce((sum, segment) => sum + segment.length, 0),
+          startTangentAngleDeg,
+          endTangentAngleDeg
+        });
+        break;
+      }
       case "angleLengthLine": {
         const start = getPointAnchorOrError(
           element,

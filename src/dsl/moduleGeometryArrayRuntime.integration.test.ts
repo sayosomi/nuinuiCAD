@@ -112,6 +112,25 @@ describe("module geometry array runtime", () => {
     expect(compiled.document).not.toBeNull();
   });
 
+  it("passes named point[] values into polyline construction in module instances", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "line R = segment(start: (10, 0), end: (10, 10))",
+      "const vertices: point[] = [@L.start, @L.end, @R.end]",
+      "module M(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Use = M(points: @vertices)"
+    ].join("\n"));
+
+    expect(errorsOf(compiled)).toEqual([]);
+    const polyline = namedUnder(compiled, "P", "Use");
+    expect(polyline.type).toBe("polyline");
+    if (polyline.type !== "polyline") throw new Error("expected polyline");
+    expect(polyline.points).toHaveLength(3);
+  });
+
   it("checks array argument assignability directionally", () => {
     const compiled = compileWithIds([
       "nui 4",

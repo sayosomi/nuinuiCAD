@@ -324,6 +324,26 @@ fn path_segments_for_line(geometry: &Value) -> Option<Vec<IntersectionSegment>> 
         }
         "bezierCurve" => bezier_path_segments(geometry),
         "offsetLine" => offset_path_segments(geometry),
+        "polyline" => {
+            let points = geometry
+                .get("segments")?
+                .as_array()?
+                .iter()
+                .filter_map(|segment| {
+                    Some((
+                        segment.get("start").and_then(value_point)?,
+                        segment.get("end").and_then(value_point)?,
+                    ))
+                })
+                .flat_map(|(start, end)| Some((start, end)))
+                .collect::<Vec<_>>();
+            Some(point_path_segments(
+                &points
+                    .iter()
+                    .flat_map(|(start, end)| [*start, *end])
+                    .collect::<Vec<_>>(),
+            ))
+        }
         _ => None,
     }
 }
@@ -457,6 +477,32 @@ fn endpoint_tangents(geometry: &Value) -> Option<EndpointTangents> {
                 end: last.get("end").and_then(value_point)?,
                 start_forward: offset_segment_start_forward(first)?,
                 end_forward: offset_segment_end_forward(last)?,
+            })
+        }
+        "polyline" => {
+            if geometry
+                .get("closed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            let segments = geometry.get("segments")?.as_array()?;
+            let first = segments.iter().find(|segment| {
+                segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > EPSILON
+            })?;
+            let last = segments.iter().rev().find(|segment| {
+                segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > EPSILON
+            })?;
+            let first_start = first.get("start").and_then(value_point)?;
+            let first_end = first.get("end").and_then(value_point)?;
+            let last_start = last.get("start").and_then(value_point)?;
+            let last_end = last.get("end").and_then(value_point)?;
+            Some(EndpointTangents {
+                start: geometry.get("start").and_then(value_point)?,
+                end: geometry.get("end").and_then(value_point)?,
+                start_forward: normalize_vector(vector_between(first_start, first_end))?,
+                end_forward: normalize_vector(vector_between(last_start, last_end))?,
             })
         }
         _ => None,

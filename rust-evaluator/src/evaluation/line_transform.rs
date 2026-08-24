@@ -392,6 +392,69 @@ fn transform_offset_geometry(line: &Value, transform: &LineTransform) -> Option<
     Some(next)
 }
 
+fn transform_polyline_geometry(line: &Value, transform: &LineTransform) -> Option<Value> {
+    let source_segments = line.get("segments")?.as_array()?;
+    if source_segments.is_empty() {
+        return None;
+    }
+    let segments = source_segments
+        .iter()
+        .map(|segment| {
+            let start = transform_point_value(segment.get("start")?, transform)?;
+            let end = transform_point_value(segment.get("end")?, transform)?;
+            let start_point = value_point(&start)?;
+            let end_point = value_point(&end)?;
+            Some(json!({
+                "kind": "line",
+                "start": start,
+                "end": end,
+                "length": line_length(start_point, end_point)
+            }))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let first = segments.first()?.get("start")?.clone();
+    let last = segments.last()?.get("end")?.clone();
+    let first_nonzero = segments
+        .iter()
+        .find(|segment| segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > EPSILON);
+    let last_nonzero = segments
+        .iter()
+        .rev()
+        .find(|segment| segment.get("length").and_then(Value::as_f64).unwrap_or(0.0) > EPSILON);
+    let start_tangent = first_nonzero
+        .and_then(|segment| {
+            Some(angle_from_to(
+                value_point(segment.get("start")?)?,
+                value_point(segment.get("end")?)?,
+            ))
+        })
+        .flatten();
+    let end_tangent = last_nonzero
+        .and_then(|segment| {
+            Some(angle_from_to(
+                value_point(segment.get("end")?)?,
+                value_point(segment.get("start")?)?,
+            ))
+        })
+        .flatten();
+    let length = segments
+        .iter()
+        .filter_map(|segment| segment.get("length").and_then(Value::as_f64))
+        .sum::<f64>();
+    let mut next = line.clone();
+    next["segments"] = json!(segments);
+    next["start"] = first.clone();
+    next["end"] = if line.get("closed").and_then(Value::as_bool).unwrap_or(false) {
+        first
+    } else {
+        last
+    };
+    next["length"] = json!(length);
+    next["startTangentAngleDeg"] = json!(start_tangent);
+    next["endTangentAngleDeg"] = json!(end_tangent);
+    Some(next)
+}
+
 pub(crate) fn transform_line_like_geometry(
     geometry: &Value,
     transform: &LineTransform,
@@ -401,6 +464,7 @@ pub(crate) fn transform_line_like_geometry(
         "arcLine" => transform_arc_geometry(geometry, transform),
         "bezierCurve" => transform_bezier_geometry(geometry, transform),
         "offsetLine" => transform_offset_geometry(geometry, transform),
+        "polyline" => transform_polyline_geometry(geometry, transform),
         _ => None,
     }
 }

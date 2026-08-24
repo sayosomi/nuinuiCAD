@@ -8,6 +8,7 @@ import type {
   ComputedImage,
   ComputedLine,
   ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   ComputedText,
   ElementId,
@@ -28,6 +29,7 @@ import {
   sampleArcLineScreenPoints,
   sampleBezierCurveScreenPoints,
   sampleOffsetLineScreenPoints,
+  samplePolylineScreenPoints,
   screenSpaceCumulativeLengthMidpoint,
   textHitBounds
 } from "./DrawingCanvasHitTest";
@@ -64,6 +66,9 @@ const isOffsetLine = (geometry: unknown): geometry is ComputedOffsetLine =>
   geometry !== null &&
   "kind" in geometry &&
   geometry.kind === "offsetLine";
+
+const isPolyline = (geometry: unknown): geometry is ComputedPolyline =>
+  typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "polyline";
 
 const isImage = (geometry: unknown): geometry is ComputedImage =>
   typeof geometry === "object" && geometry !== null && "kind" in geometry && geometry.kind === "image";
@@ -124,6 +129,7 @@ export const useCanvasOverlayData = ({
   const arcs = useMemo(() => geometries.filter(isArcLine), [geometries]);
   const curves = useMemo(() => geometries.filter(isBezierCurve), [geometries]);
   const offsetLines = useMemo(() => geometries.filter(isOffsetLine), [geometries]);
+  const polylines = useMemo(() => geometries.filter(isPolyline), [geometries]);
   const images = useMemo(() => geometries.filter(isImage), [geometries]);
   const texts = useMemo(() => geometries.filter(isText), [geometries]);
   const points = useMemo(() => geometries.filter(isPoint), [geometries]);
@@ -186,6 +192,18 @@ export const useCanvasOverlayData = ({
         })),
     [canvasViewport, offsetLines, viewportSize, visibleElementIds]
   );
+  const overlayPolylines = useMemo(
+    () =>
+      polylines
+        .filter((polyline) => visibleElementIds.has(polyline.elementId))
+        .map((polyline) => ({
+          polyline,
+          points: samplePolylineScreenPoints(polyline, (point) =>
+            worldToScreen(point, viewportSize, canvasViewport)
+          )
+        })),
+    [canvasViewport, polylines, viewportSize, visibleElementIds]
+  );
   const overlayImages = useMemo(
     () =>
       images
@@ -242,6 +260,12 @@ export const useCanvasOverlayData = ({
         kind: "offsetLine" as const,
         representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
       })),
+      ...overlayPolylines.map(({ polyline, points }) => ({
+        elementId: polyline.elementId,
+        name: normalizedIdentityName(polyline.name),
+        kind: "polyline" as const,
+        representativeScreen: screenSpaceCumulativeLengthMidpoint(points, points[0])
+      })),
       ...overlayTexts.map(({ text, screen, fontSizePx }) => {
         const bounds = textHitBounds({ text: text.text, screen, fontSizePx });
         return {
@@ -261,7 +285,7 @@ export const useCanvasOverlayData = ({
         representativeScreen: screen
       }))
     ],
-    [overlayArcs, overlayCurves, overlayImages, overlayLines, overlayOffsetLines, overlayPoints, overlayTexts]
+    [overlayArcs, overlayCurves, overlayImages, overlayLines, overlayOffsetLines, overlayPoints, overlayPolylines, overlayTexts]
   );
   const overlayPointPickCandidates = useMemo(() => {
     const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -322,9 +346,10 @@ export const useCanvasOverlayData = ({
       ...overlayLines.map(({ line, start, end }) => ({ line, start, end })),
       ...overlayArcs.map(({ arc, start, end, points }) => ({ line: arc, start, end, points })),
       ...overlayCurves.map(({ curve, points }) => ({ line: curve, points })),
-      ...overlayOffsetLines.map(({ line, points }) => ({ line, points }))
+      ...overlayOffsetLines.map(({ line, points }) => ({ line, points })),
+      ...overlayPolylines.map(({ polyline, points }) => ({ line: polyline, points }))
     ],
-    [overlayArcs, overlayCurves, overlayLines, overlayOffsetLines]
+    [overlayArcs, overlayCurves, overlayLines, overlayOffsetLines, overlayPolylines]
   );
   const selectedBezierEditingHelper = useMemo<BezierEditingHelperOverlay | null>(() => {
     const curveElement = elements.find((element) => element.id === selectedElementId);
@@ -409,6 +434,7 @@ export const useCanvasOverlayData = ({
     arcs,
     curves,
     offsetLines,
+    polylines,
     images,
     texts,
     points,
@@ -418,6 +444,7 @@ export const useCanvasOverlayData = ({
     overlayArcs,
     overlayCurves,
     overlayOffsetLines,
+    overlayPolylines,
     overlayImages,
     overlayTexts,
     overlayIdentityCandidates,

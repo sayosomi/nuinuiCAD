@@ -169,6 +169,31 @@ describe("visibleCanvasDrawingBounds", () => {
     })).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
   });
 
+  it("includes all ordered polyline segment endpoints", () => {
+    const start = { kind: "point" as const, elementId: "start", name: "start", x: -5, y: 2 };
+    const corner = { kind: "point" as const, elementId: "corner", name: "corner", x: 10, y: 20 };
+    const polyline: ComputedGeometry = {
+      kind: "polyline",
+      elementId: "polyline",
+      name: "polyline",
+      segments: [{ kind: "line", start, end: corner, length: 0 }],
+      closed: false,
+      start,
+      end: corner,
+      length: 0,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null
+    };
+    const profiles = [defaultVisibilityProfile()];
+
+    expect(visibleCanvasDrawingBounds({
+      elements: [element("polyline", "polyline")],
+      evaluation: evaluationFor([polyline], ["polyline"]),
+      visibilityProfiles: profiles,
+      activeVisibilityProfileId: profiles[0]!.id
+    })).toEqual({ minX: -5, minY: 2, maxX: 10, maxY: 20 });
+  });
+
   it("includes the drawable extent of visible text instead of only its anchor", () => {
     const profiles = [defaultVisibilityProfile()];
 

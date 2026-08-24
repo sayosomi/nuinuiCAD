@@ -304,6 +304,18 @@ fn remap_element_references(
             remap_point_anchor_field(object, "startPoint", id_map, scope);
             remap_point_anchor_field(object, "endPoint", id_map, scope);
         }
+        Some("polyline") => {
+            if let Some(points) = object.get_mut("points").and_then(Value::as_array_mut) {
+                for point in points {
+                    let mut wrapper = serde_json::Map::new();
+                    wrapper.insert("point".to_owned(), point.clone());
+                    remap_point_anchor_field(&mut wrapper, "point", id_map, scope);
+                    if let Some(remapped) = wrapper.remove("point") {
+                        *point = remapped;
+                    }
+                }
+            }
+        }
         Some("angleLengthLine") => {
             remap_point_anchor_field(object, "startPoint", id_map, scope);
             remap_numeric_field(object, "angleDeg", id_map);

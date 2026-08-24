@@ -150,6 +150,8 @@ export const getDirectParentIds = (
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
           ...pointAnchorParentIds(element.endPoint).map((elementId) => ({ elementId }))
         ].map((reference) => reference.elementId);
+      case "polyline":
+        return element.points.flatMap((point) => pointAnchorParentIds(point));
       case "angleLengthLine":
         return [
           ...pointAnchorParentIds(element.startPoint).map((elementId) => ({ elementId })),
@@ -270,6 +272,7 @@ export const getDirectParentIds = (
     case "bezierBulgePoint":
       return numericExpressionParentIds();
     case "line":
+    case "polyline":
     case "angleLengthLine":
     case "commonTangentLine":
     case "arcLine":

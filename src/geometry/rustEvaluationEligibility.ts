@@ -19,6 +19,7 @@ const rustSupportedElementTypes = new Set<CadElement["type"]>([
   "lineTangentOffsetPoint",
   "intersectionPoint",
   "line",
+  "polyline",
   "angleLengthLine",
   "commonTangentLine",
   "arcLine",
@@ -49,6 +50,7 @@ const rustSupportedLineReferenceTypes = new Set<CadElement["type"]>([
   "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
+  "polyline",
   "splitLine",
   "copyLine",
   "symmetricCopyLine"
@@ -75,6 +77,7 @@ const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
   "cornerRadiusArcLine",
   "bezierCurve",
   "offsetLine",
+  "polyline",
   "splitLine",
   "copyLine",
   "symmetricCopyLine"
@@ -117,6 +120,8 @@ const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
       return [element.startPoint];
     case "line":
       return [element.startPoint, element.endPoint];
+    case "polyline":
+      return element.points;
     case "arcLine":
       return [element.centerPoint];
     case "threePointArcLine":
