@@ -40,4 +40,3 @@ export const registerExplorerMockFeature = (context: vscode.ExtensionContext): v
   };
   return vscode.window.registerWebviewViewProvider(NUI_EXPLORER_MOCK_VIEW_ID, provider);
 };
-

@@ -463,4 +463,3 @@ export const explorerMockTypeLabel = (kind: ExplorerMockGeometryKind): string =>
   };
   return labels[kind];
 };
-

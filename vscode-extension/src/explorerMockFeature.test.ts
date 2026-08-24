@@ -49,4 +49,3 @@ describe("Explorer Mock Webview View feature", () => {
     expect(webview.html).not.toContain("onDidReceiveMessage");
   });
 });
-
