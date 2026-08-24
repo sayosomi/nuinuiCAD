@@ -37,6 +37,33 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(source, diagnostic)).toEqual(["required"]);
   });
 
+  it("points a duplicate public export collision back to the first export name only", () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  export const Output: number = 1",
+      "  export point Output = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    const diagnostics = compileWithIds(source).diagnostics;
+    const diagnostic = byCode(diagnostics, "source-namespace-collision");
+
+    expect(spanText(source, diagnostic)).toBe("Output");
+    expect(diagnostic.message).toBe("同じlexical scopeで名前「Output」が衝突しています: typedDeclaration(行 3) と geometry。");
+    expect(diagnostic.severity).toBe("error");
+    expect(relatedTexts(source, diagnostic)).toEqual(["Output"]);
+    expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["First export with this name"]);
+    expect(diagnostics.filter((candidate) => candidate.code === "module-duplicate-export")).toHaveLength(0);
+
+    const ordinarySource = [
+      "nui 4",
+      "const Output: number = 1",
+      "point Output = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const ordinary = byCode(compileWithIds(ordinarySource).diagnostics, "source-namespace-collision");
+    expect(ordinary.relatedInformation).toBeUndefined();
+  });
+
   it("points scalar and geometry call mismatches to the expected parameter type", () => {
     const scalarSource = [
       "nui 4",
