@@ -9,8 +9,74 @@ Source Editor の値は直接編集できます。数値・boolean・choice は 
 - 最初の意味のある行は `nui 4` です。
 - 要素は文書順に評価されます。参照先は前にあり、`disabled` ではなく、有効な形状・値でなければなりません。順序の自動修復は行わず、診断で示します。
 - 要素とコンテナの activity は `visible`、`hidden`、`disabled` のいずれかです。`hidden` は評価・参照できますが描画されず、`disabled` は評価されません。
-- `#` から行末はコメントです。Canvas と command は statement 単位の splice を使うため、無関係なコメント、空行、手書きのレイアウトを保持します。
+- 通常のコメントは `//` から行末、または `/* ... */` のブロックです。`///` は通常の `//` コメントのうち Module documentation として意味を持つ形式です。`#` はコメント開始記号ではなく通常のソース文字です。Canvas と command は statement 単位の splice を使うため、無関係なコメント、空行、手書きのレイアウトを保持します。
 - 引数は `key: value` で、複数引数はカンマで区切ります。canonical な複数行 call では末尾カンマを付けます。
+
+## Module documentation comments
+
+Module definition、Module parameter、Module body の `export` declaration には、`///` documentation comment で説明を記述できます。documentation は runtime geometry / evaluation semantics を変更せず、同じ `.nui` source file 内の Module semantic identity に source-semantic metadata として保持されます。
+
+Documentation comment は次の declaration へ前向きに関連付けられます。
+
+- Module 定義の前の `///` group → 次の `module` definition
+- Module parameter list 内の `///` group → 次の parameter
+- Module body 内の `///` group → 次の `export` declaration
+- 空行や通常の `//` / `/* ... */` comment は association を切りません
+- 実際の DSL code / declaration が途中にあれば、その地点で association は消費・切断され、後ろへ飛び越えません
+- 同じ target の前に複数の `///` group があれば source order で連結されます
+- 行末の trailing `///` は直前 declaration へ後付けされません
+
+### Locale と Markdown
+
+`/// @<locale>` で明示的な locale section を開始します。locale ID は `ja` / `en` に限定されず、`fr`、`de`、`pt-br` など VS Code-style の任意の値を保持できます。locale marker 自体は Markdown 本文には表示されません。
+
+```nui
+/// @ja
+/// ポケットを生成する。
+///
+/// **縫い代**は含まない。
+/// @en
+/// Creates a pocket.
+///
+/// Does not include **seam allowance**.
+module Pocket(
+  /// @ja
+  /// ポケットの幅。
+  /// @en
+  /// Pocket **width**.
+  width: number,
+) {
+  /// @ja
+  /// 公開された基準点。
+  /// @en
+  /// Exported **reference point**.
+  export point Public = coordinate(x: 0, y: 0)
+}
+```
+
+同じ target の同一 locale section は source order で連結され、空の section は無視されます。最初の明示的 locale marker より前に書かれた `///` payload へ implicit locale は推測しません。documentation の形式不備や locale-less block は documentation metadata がないものとして扱われ、otherwise-valid な DSL の compile/evaluation を失敗させません。
+
+VS Code native Completion と Signature Help では、表示 locale に対して次の順序で authored documentation variant を選びます。
+
+1. current VS Code display locale と完全一致する locale
+2. `en`
+3. source order で最初に authored された non-empty locale
+
+base-language fallback はありません。たとえば display locale が `pt-br` でも `@pt` へ暗黙 fallback しません。user-authored documentation の locale 選択は nuinuiCAD-owned UI localization とは別です。
+
+### VS Code native presentation
+
+現行のpresentation surfaceは VS Code native language features です。
+
+- Module callee Completion → Module documentation
+- Module argument-name Completion → matching parameter documentation
+- `@instance::export` qualified Completion → export documentation
+- Module Signature Help → Module documentation
+- active / listed Module parameter の Signature Help → corresponding parameter documentation
+
+Authored Markdown は native `CompletionItem.documentation` / Signature Help documentation へ投影されます。documentation は untrusted のままで、command URI や trusted HTML の実行を許可しません。dirty な current in-memory `.nui` source が authoritative source であり、stale semantic metadata は表示しません。
+
+SAY-18 の v1 は同一 `.nui` file 内の Module documentation authoring / semantic metadata / native presentation が対象です。imported Module documentation の cross-file transport は別の downstream scope です。
 
 ## 参照とスカラー
 

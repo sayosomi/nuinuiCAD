@@ -43,6 +43,114 @@ The parser and compiler must not design an ambiguous compatibility grammar that
 accepts both nui3 and nui4 spellings. The final supported document format is
 nui4, and it is the current production format.
 
+## Module documentation comments
+
+Module documentation is an optional source-semantic metadata layer for Module
+definitions, Module parameters, and exported declarations in the same `.nui`
+source file. It does not alter runtime geometry, evaluation, mutation, or
+materialization semantics.
+
+### Documentation comment marker
+
+Only `///` has semantic documentation meaning. It is the documentation subset
+of the existing `//` line-comment lexer path; no second comment lexer is
+introduced.
+
+- `// ...` remains an ordinary non-semantic line comment.
+- `/* ... */` remains an ordinary non-semantic block comment.
+- `/// ...` is a documentation comment payload line.
+- `#` is ordinary source text, not a nui4 comment marker.
+- A trailing same-line `///` does not attach backward to the preceding
+declaration.
+
+### Locale sections
+
+A documentation block may contain explicit locale sections selected with
+`/// @<locale>`:
+
+```nui
+/// @ja
+/// ポケットを生成する。
+///
+/// **縫い代**は含まない。
+/// @en
+/// Creates a pocket.
+///
+/// Does not include **seam allowance**.
+module Pocket(
+  /// @ja
+  /// ポケットの幅。
+  /// @en
+  /// Pocket **width**.
+  width: number,
+) {
+  /// @ja
+  /// 公開された基準点。
+  /// @en
+  /// Exported **reference point**.
+  export point Public = coordinate(x: 0, y: 0)
+}
+```
+
+Locale identifiers are not restricted to `ja` / `en`; VS Code-style values such
+as `fr`, `de`, and `pt-br` are preserved as authored. Locale marker lines are
+metadata and are not part of the Markdown payload.
+
+For one target:
+
+- repeated non-empty sections for the same locale concatenate in source order;
+- empty locale sections are ignored;
+- empty `///` payload lines inside a locale section preserve a Markdown blank
+  line;
+- payload before the first explicit locale marker has no implicit locale;
+- malformed or locale-less documentation is treated as absent documentation and
+  does not make an otherwise-valid nui4 document invalid.
+
+### Attachment semantics
+
+Documentation attaches forward to the next applicable declaration using the
+existing physical source information and semantic identity owners.
+
+- Documentation before a Module definition attaches to that Module definition.
+- Documentation inside a Module parameter list attaches to the next parameter.
+- Documentation inside a Module body attaches to the next exported declaration.
+- Blank lines do not break attachment.
+- Ordinary `//` / `/* ... */` comments do not break attachment.
+- Multiple documentation groups before one target are combined in source order
+  when no real DSL code/declaration intervenes.
+- Intervening real DSL code/declaration consumes or breaks the pending
+  association; documentation does not skip over real code to reach a later
+  target.
+- Trailing same-line documentation does not attach backward.
+
+Documentation does not introduce textual `@param` / `@export` tags and does not
+create a second Module name registry. Parameter identity remains the existing
+semantic parameter slot identity, and export identity remains the existing
+owner-definition / exported-statement semantic identity.
+
+### Locale selection
+
+Current VS Code consumers select one authored documentation variant in this
+order:
+
+1. exact current VS Code display locale;
+2. `en`, if authored;
+3. first authored non-empty locale in source order.
+
+There is no base-language fallback. For example, `pt-br` does not implicitly
+match `pt`.
+
+This selection rule applies to user-authored documentation and is distinct from
+nuinuiCAD-owned UI localization.
+
+### Scope boundary
+
+SAY-18 v1 covers same-file Module definition / parameter / export documentation
+and the source-semantic metadata needed by local language-service consumers.
+Cross-file/imported Module documentation transport is outside this contract;
+the metadata may be transported later by the downstream multi-document
+owner without changing the same-file authoring semantics above.
+
 ## References and names
 
 ### Reference marker
@@ -431,7 +539,7 @@ valid after these geometry validations pass.
 `bezierExtremePoint` creates a point at the maximum projection of one cubic
 Bezier segment in a requested direction:
 
-```text
+```nui
 point 上端 = bezierExtremePoint(
   source: @ベジェ線,
   segmentIndex: 0,
@@ -450,7 +558,7 @@ segment range. `direction` is a required finite numeric degree value. Direction
 values above `360` are normalized using the existing degree normalization rule.
 
 For the selected cubic segment `B(t)`, let `V` be the unit vector for
-`direction`. The result maximizes `dot(B(t), V)` over `0 <= t <= 1`. Candidates
+direction. The result maximizes `dot(B(t), V)` over `0 <= t <= 1`. Candidates
 are both endpoints and every interior stationary point satisfying
 `dot(B'(t), V) = 0`. If candidate scores are equal, the candidate closest to
 `t = 0.5` wins; if that distance is also equal, the smaller `t` wins. A flat
@@ -462,7 +570,7 @@ defaulted `segmentIndex`, including when it was omitted from the input.
 `bezierBulgePoint` creates a point at the maximum unsigned bulge of one cubic
 Bezier segment relative to the chord through that segment's endpoints:
 
-```text
+```nui
 point 膨らみ点 = bezierBulgePoint(
   source: @ベジェ線,
 )
