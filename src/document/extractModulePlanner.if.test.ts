@@ -161,7 +161,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
     const source = [
       "nui 4",
       "for i in range(from: 0, count: 2, step: 1) {",
-      "  const value: number = i",
+      "  const value: number = @i",
       "}"
     ].join("\n");
 
