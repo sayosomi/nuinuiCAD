@@ -96,6 +96,16 @@ export class VscodeObservationState {
 
   snapshot(): VscodeObservationSnapshot {
     this.refreshHostDocuments();
+    return this.cachedSnapshot();
+  }
+
+  /**
+   * Returns the last host projection already accepted by this owner without
+   * invoking the host provider again. Lifecycle callers use this immediately
+   * after an authoritative state mutation so projection cannot re-enter an
+   * in-progress TextDocument read/compile path.
+   */
+  cachedSnapshot(): VscodeObservationSnapshot {
     const documents = [...this.hostDocuments.values()].map((document): VscodeDocumentObservation => {
       const runtime = this.canvasByDocument.get(document.documentUri);
       return {
