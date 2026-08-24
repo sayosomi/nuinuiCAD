@@ -38,7 +38,11 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
   VSCodeBenchmarkCaptureRunner: () => null
 }));
 
-const source = ["nui 4", "const x: number = 1"].join("\n");
+const source = [
+  "nui 4",
+  "const x: number = 1",
+  "point P = coordinate(x: 0, y: 0)"
+].join("\n");
 
 const emptyEvaluation = (): EvaluationResult => ({
   computedGeometry: new Map(),
@@ -135,6 +139,42 @@ describe("VSCodeApp runtime diagnostics publication", () => {
       ]
     });
     expect(JSON.parse(JSON.stringify(publication))).toEqual(publication);
+  });
+
+  it("publishes current geometry evaluation errors through the runtime diagnostic layer", async () => {
+    const api = { postMessage: vi.fn() };
+    const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(11);
+
+    const point = useCadDocumentStore.getState().elements.find((element) => element.name === "P");
+    expect(point).toBeTruthy();
+    const message = "geometry failure";
+    setEvaluationState({
+      ...emptyEvaluation(),
+      errors: [{
+        elementId: point!.id,
+        elementName: point!.name,
+        missingDependencyId: point!.id,
+        message
+      }]
+    }, 1);
+    await act(async () => {
+      view.rerender(<VSCodeApp api={api} />);
+    });
+
+    expect(publications(api.postMessage).at(-1)).toMatchObject({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: 11,
+      diagnostics: [{
+        severity: "error",
+        line: 3,
+        column: 1,
+        message,
+        origin: "runtime",
+        elementId: point!.id,
+        navigationTarget: { kind: "element", elementId: point!.id }
+      }]
+    });
   });
 
   it("does not publish a stale evaluation even when the host source itself is authoritative", async () => {

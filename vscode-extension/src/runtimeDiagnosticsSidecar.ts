@@ -1,9 +1,9 @@
-import type { RuntimeScalarDiagnostic } from "../../src/scalars/runtimeScalarDiagnostics";
+import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/protocol";
 
 export type RuntimeDiagnosticsSidecarSnapshot = {
   documentVersion: number;
-  diagnostics: readonly RuntimeScalarDiagnostic[];
+  diagnostics: readonly DslDiagnostic[];
 };
 
 export type RuntimeDiagnosticsSidecar = {
