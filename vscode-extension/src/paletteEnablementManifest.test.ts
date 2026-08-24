@@ -77,9 +77,10 @@ describe("VS Code contextual Command Palette enablement", () => {
 
   it("keeps execution authoritative in the durable repository policy", async () => {
     const agents = await readFile(agentsPath, "utf8");
+    const normalizedAgents = agents.replace(/\s+/g, " ");
 
-    expect(agents).toContain("`menus.commandPalette[].when` owns broad surface relevance");
-    expect(agents).toContain("`contributes.commands[].enablement` owns coarse target availability");
-    expect(agents).toContain("Command execution must still revalidate exact current state");
+    expect(normalizedAgents).toContain("`menus.commandPalette[].when` owns broad surface relevance");
+    expect(normalizedAgents).toContain("`contributes.commands[].enablement` owns coarse target availability");
+    expect(normalizedAgents).toContain("Command execution must still revalidate exact current state");
   });
 });
