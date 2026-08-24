@@ -157,6 +157,11 @@ const sameEnclosing = (
 const isStructuralStatement = (statement: DslStatement): boolean =>
   statement.kind === "blockEnd" || statement.kind === "blockElse";
 
+const isConditionalGroupStatement = (statement: DslStatement): boolean =>
+  statement.kind === "element" &&
+  statement.type === "conditionalGroup" &&
+  statement.category === "if";
+
 const lineStarts = (source: string): number[] => {
   const starts = [0];
   for (let index = 0; index < source.length; index += 1) {
@@ -601,19 +606,25 @@ const cleanCompile = (compiled: CompiledDslDocument): boolean =>
   !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
   !(compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error");
 
+type ValueStatementContext = "selected" | "group-descendant" | "conditional-descendant";
+
 const valueStatementRejection = (
   statement: DslStatement,
   statementId: StatementIdentity,
   statementIndex: number,
-  context: "selected" | "group-descendant"
+  context: ValueStatementContext
 ): ExtractModuleRejection | null => {
-  const where = context === "selected" ? "選択statement" : "group descendant";
+  const where = context === "selected"
+    ? "選択statement"
+    : context === "group-descendant"
+      ? "group descendant"
+      : "if descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
     if (!arrayType && (!statement.declaredType || statement.recordTypeReference)) {
       return reject(
         "unsupported-statement",
-        `${where} declaration「${statement.name}」は Checkpoint 4 の scalar / geometry-array scope 外です。`,
+        `${where} declaration「${statement.name}」は Checkpoint 5 の scalar / geometry-array scope 外です。`,
         { statementId, statementIndex }
       );
     }
@@ -630,7 +641,7 @@ const valueStatementRejection = (
     if (!moduleGeometryInterfaceTypeOfElement(statement)) {
       return reject(
         "unsupported-statement",
-        `${where} geometry declaration「${statement.name}」は Checkpoint 4 の point / line / path interface で表現できません。`,
+        `${where} geometry declaration「${statement.name}」は Checkpoint 5 の point / line / path interface で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -646,7 +657,7 @@ const valueStatementRejection = (
   if (statement.kind === "set") return null;
   return reject(
     "unsupported-statement",
-    `「${statement.kind}」statement は Checkpoint 4 の scalar / single-geometry / geometry-array value scope 外です。`,
+    `「${statement.kind}」statement は Checkpoint 5 の scalar / single-geometry / geometry-array value scope 外です。`,
     { statementId, statementIndex }
   );
 };
@@ -666,11 +677,11 @@ const checkpointStatementRejection = (
   if (statement.enclosing !== null) {
     return reject(
       "unsupported-statement",
-      "Checkpoint 4 は root lexical scope の direct value statement または complete plain group だけを安全に Extract します。",
+      "Checkpoint 5 は root lexical scope の direct value statement、complete plain group、または complete if structure だけを安全に Extract します。",
       { statementId, statementIndex }
     );
   }
-  if (statement.kind === "group") return null;
+  if (statement.kind === "group" || isConditionalGroupStatement(statement)) return null;
   return valueStatementRejection(statement, statementId, statementIndex, "selected");
 };
 
@@ -681,6 +692,15 @@ const checkpointGroupDescendantRejection = (
 ): ExtractModuleRejection | null => {
   if (statement.kind === "group") return null;
   return valueStatementRejection(statement, statementId, statementIndex, "group-descendant");
+};
+
+const checkpointConditionalDescendantRejection = (
+  statement: DslStatement,
+  statementId: StatementIdentity,
+  statementIndex: number
+): ExtractModuleRejection | null => {
+  if (statement.kind === "group" || isConditionalGroupStatement(statement)) return null;
+  return valueStatementRejection(statement, statementId, statementIndex, "conditional-descendant");
 };
 
 const lexicalTieBreak = (left: string, right: string): number =>
@@ -811,6 +831,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("invalid-target", "選択statementの物理 source range を確定できません。");
   }
 
+  const hasConditionalTarget = ordered.some((entry) => isConditionalGroupStatement(entry.statement));
   const hasGroupTarget = ordered.some((entry) => entry.statement.kind === "group");
   const movedEntries: MovedStatement[] = [];
   for (let statementIndex = 0; statementIndex < compiled.statements.length; statementIndex += 1) {
@@ -827,7 +848,12 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     movedEntries.push({ statementId, statementIndex, statement });
   }
   const movedIndexSet = new Set(movedEntries.map((entry) => entry.statementIndex));
-  if (hasGroupTarget) {
+  if (hasConditionalTarget) {
+    for (const entry of movedEntries) {
+      const rejection = checkpointConditionalDescendantRejection(entry.statement, entry.statementId, entry.statementIndex);
+      if (rejection) return rejection;
+    }
+  } else if (hasGroupTarget) {
     for (const entry of movedEntries) {
       const rejection = checkpointGroupDescendantRejection(entry.statement, entry.statementId, entry.statementIndex);
       if (rejection) return rejection;
@@ -861,7 +887,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
         return reject(
           "unrepresentable-dependency",
-          "選択範囲内の reference が Checkpoint 4 の moved scalar / single-geometry / geometry-array owner として証明できません。"
+          "選択範囲内の reference が Checkpoint 5 の moved scalar / single-geometry / geometry-array owner として証明できません。"
         );
       }
       continue;
@@ -871,7 +897,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (!descriptor) {
       return reject(
         "unrepresentable-dependency",
-        "Checkpoint 4 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
+        "Checkpoint 5 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
       );
     }
 
@@ -962,13 +988,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (outsideReferences.length === 0) continue;
 
     // Keep export eligibility tied to the explicitly selected direct siblings.
-    // A declaration nested under a moved group may move internally, but exposing it
-    // through the generated Module would change its existing group namespace.
+    // A declaration nested under a moved structural subtree may move internally,
+    // but exposing it through the generated Module would change its lexical interface.
     const direct = directSelectedValueStatement(compiled, declarationOccurrence.identity, selectedIndexSet);
     if (!direct) {
       return reject(
         "unrepresentable-export",
-        "Checkpoint 4 では明示選択された direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
+        "Checkpoint 5 では明示選択された direct scalar / single-geometry / geometry-array declaration 以外を Module export として公開しません。"
       );
     }
 
@@ -978,14 +1004,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       if ((!arrayType && (!statement.declaredType || statement.recordTypeReference)) || !statement.name) {
         return reject(
           "unrepresentable-export",
-          `statement「${statement.name || statement.kind}」は Checkpoint 4 の direct scalar / geometry-array export で表現できません。`,
+          `statement「${statement.name || statement.kind}」は Checkpoint 5 の direct scalar / geometry-array export で表現できません。`,
           { statementId, statementIndex }
         );
       }
     } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
         "unrepresentable-export",
-        `geometry statement「${statement.name || statement.kind}」は Checkpoint 4 の direct geometry export で表現できません。`,
+        `geometry statement「${statement.name || statement.kind}」は Checkpoint 5 の direct geometry export で表現できません。`,
         { statementId, statementIndex }
       );
     }
@@ -1115,13 +1141,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("unsafe-rewrite", "生成した Module / instance を target lexical scope で再解決できません。");
   }
 
-  // Checkpoint 4 extends the direct/root value proof with one structural owner:
-  // a complete plain group may move as authored text. Every non-structural descendant
-  // must still be a C1-C3 value/set/plain-group form. Internal references are proven
-  // against the complete moved subtree; dependencies remain explicit Module parameters;
-  // nested descendants are never promoted to exports, and unsupported binders/records/
-  // Module constructs remain fail closed. Candidate compilation and outside-resolution
-  // comparison remain the final semantic guard.
+  // Checkpoint 5 adds the existing conditionalGroup structural owner to the
+  // direct/root value and plain-group proof. A root `if` moves as one authored
+  // subtree, including then/else structure. Plain groups and nested `if`
+  // structures inside that selected conditional may move when every non-structural
+  // descendant remains an already-proven value/set form. `for` binders, records,
+  // Module constructs, non-root targets, and host integration remain fail closed.
+  // Candidate compilation and outside-resolution comparison stay the final guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
