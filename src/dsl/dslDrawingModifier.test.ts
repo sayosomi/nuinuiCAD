@@ -142,6 +142,90 @@ describe("nui4 drawing modifier source model", () => {
     ]);
   });
 
+  it("warns once for a valid top-level Drawing Modifier with no source references", () => {
+    const source = sourceLines(
+      "nui 4",
+      "modifier Unused {",
+      "  state: visible,",
+      "}"
+    );
+    const compiled = compileDslDocument(source);
+    const diagnostics = compiled.diagnostics.filter((item) => item.code === "unused-drawing-modifier");
+    const nameStart = source.indexOf("Unused");
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-drawing-modifier",
+        message: "Drawing Modifier「Unused」はどこからも使用されていません。",
+        physicalSpan: expect.objectContaining({
+          segments: [{ from: nameStart, to: nameStart + "Unused".length }]
+        })
+      })
+    ]);
+    expect(diagnostics).toHaveLength(1);
+    expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+  });
+
+  it("does not warn for an ordinary geometry reference", () => {
+    const source = sourceLines(
+      "nui 4",
+      "modifier Used {",
+      "  state: visible,",
+      "}",
+      "point A [Used] = coordinate(x: 0, y: 0)"
+    );
+
+    expect(compileDslDocument(source).diagnostics.filter((item) => item.code === "unused-drawing-modifier")).toEqual([]);
+  });
+
+  it("does not warn for a group reference", () => {
+    const source = sourceLines(
+      "nui 4",
+      "modifier Used {",
+      "  state: visible,",
+      "}",
+      "group G [Used] {",
+      "}"
+    );
+
+    expect(compileDslDocument(source).diagnostics.filter((item) => item.code === "unused-drawing-modifier")).toEqual([]);
+  });
+
+  it("counts a Module-body reference without an instance or materialized occurrence", () => {
+    const compiled = compileWithIds(sourceLines(
+      "nui 4",
+      "modifier Used {",
+      "  state: visible,",
+      "}",
+      "module M() {",
+      "  point Internal [Used] = coordinate(x: 0, y: 0)",
+      "}"
+    ));
+
+    expect(compiled.diagnostics.filter((item) => item.code === "unused-drawing-modifier")).toEqual([]);
+  });
+
+  it("keeps an undefined reference distinct from an unrelated unused definition", () => {
+    const compiled = compileDslDocument(sourceLines(
+      "nui 4",
+      "modifier A {",
+      "  state: visible,",
+      "}",
+      "point Root [B] = coordinate(x: 0, y: 0)"
+    ));
+
+    expect(compiled.diagnostics.filter((item) => item.message === "未定義の modifier です: B")).toHaveLength(1);
+    expect(compiled.diagnostics.filter((item) => item.code === "unused-drawing-modifier")).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "unused-drawing-modifier",
+        message: "Drawing Modifier「A」はどこからも使用されていません。"
+      })
+    ]);
+  });
+
   it("resolves valid modifier references against document-level definitions in Module documents", () => {
     const compiled = compileWithIds(sourceLines(
       "nui 4",

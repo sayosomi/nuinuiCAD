@@ -1449,7 +1449,7 @@ export const compileDslDocument = (
     ...versionValidation.diagnostics,
     ...sourceOutputPlacementDiagnostics,
     ...compiled.diagnostics.map((diagnostic, index) =>
-      diagnostic.code === "undefined-geometry-reference"
+      (diagnostic.code === "undefined-geometry-reference" || diagnostic.code === "unused-drawing-modifier")
         ? (projectedCompilerDiagnostics[index] ?? diagnostic)
         : diagnostic
     ),

@@ -78,12 +78,17 @@ const modifierPropertiesFrom = (
   ...(statement.color ? { color: statement.color } : {})
 });
 
+const isTopLevelModifierDefinition = (
+  statement: DslStatement
+): statement is Extract<DslStatement, { kind: "modifierDefinition" }> =>
+  statement.kind === "modifierDefinition" && !statement.enclosing;
+
 const modifierDefinitionsFromStatements = (
   statements: readonly DslStatement[],
   sourceNamespace: SourceLexicalNamespaceIndex | undefined,
   diagnostics: DslDiagnostic[]
 ): DrawingModifierDefinition[] => statements.flatMap((statement, statementIndex) => {
-  if (statement.kind !== "modifierDefinition" || statement.enclosing) return [];
+  if (!isTopLevelModifierDefinition(statement)) return [];
   const common = modifierPropertiesFrom(statement);
   const profileDeltas: DrawingModifierProfileDelta[] = [];
   const blockStatements = statements.filter(
@@ -708,13 +713,28 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
   const modifierStatements = moduleAwareCompilation
     ? parsed.statements
     : parsed.statements.filter((statement, statementIndex) => isCompilableDslStatement(parsed.statements, statementIndex));
+  const referencedModifierNames = new Set<string>();
   for (const statement of modifierStatements) {
     if (!isElementDslStatement(statement)) continue;
     for (const modifierName of statement.modifierNames ?? []) {
+      referencedModifierNames.add(modifierName);
       if (!modifierNames.has(modifierName)) {
         diagnostics.push(diagnostic(statement.line, `未定義の modifier です: ${modifierName}`));
       }
     }
+  }
+  for (const [statementIndex, statement] of parsed.statements.entries()) {
+    if (!isTopLevelModifierDefinition(statement) || !statement.name || !statement.nameSpan) continue;
+    if (referencedModifierNames.has(statement.name)) continue;
+    diagnostics.push({
+      severity: "warning",
+      line: statement.line,
+      column: statement.nameSpan.start + 1,
+      code: "unused-drawing-modifier",
+      message: `Drawing Modifier「${statement.name}」はどこからも使用されていません。`,
+      logicalSpan: statement.nameSpan,
+      statementIndex
+    });
   }
   if (documentMode && context.moduleSemanticAnalysis && context.stableStatementIdByIndex) {
     const moduleMaterialization = materializeModuleExecution({

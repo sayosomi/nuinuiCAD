@@ -130,6 +130,24 @@ describe("VS Code document-scoped language analysis session", () => {
     });
   });
 
+  it("publishes the production unused Drawing Modifier warning in the language session", () => {
+    const source = "nui 4\nmodifier Unused {\n  state: visible,\n}\n";
+    const session = createLanguageAnalysisSession(source);
+
+    expect(session.getDiagnostics()).toEqual([
+      {
+        severity: "warning",
+        message: "Drawing Modifier「Unused」はどこからも使用されていません。",
+        code: "unused-drawing-modifier",
+        source: "nuinuiCAD",
+        range: {
+          start: { line: 1, character: 9 },
+          end: { line: 1, character: 15 }
+        }
+      }
+    ]);
+  });
+
   it("returns a folding snapshot for the exact current source and revision", () => {
     const session = createLanguageAnalysisSession(validSource);
     const snapshot = session.foldingSyntaxSnapshot(sourceSnapshotFor(validSource, 1));
