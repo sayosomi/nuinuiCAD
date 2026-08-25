@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
+import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { compileCanonicalText, type LastGoodDslDocument } from "../document/canonicalDocument";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
@@ -41,9 +42,10 @@ import {
   outputPreviewPathDataFor,
   outputPreviewTextTransformFor
 } from "./outputPreviewRendering";
-import type { ExtensionToVscodeMessage, VscodeWebviewApi } from "./protocol";
+import { vscodeWebviewContextDataFor, type ExtensionToVscodeMessage, type VscodeWebviewApi } from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 
 type OutputPreviewEvaluationState = {
   outputKey: string | null;
@@ -69,7 +71,6 @@ const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
-
 const dragPlanIdentityForCandidate = (
   candidate: OutputPreviewCandidate | null
 ): OutputPreviewPlaceDragPlanIdentity | null => candidate ? {
@@ -144,7 +145,7 @@ const highlightedDrawableSvg = (
         key={`highlight-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
         transform={outputPreviewTextTransformFor(drawable, size, viewport)}
         data-output-preview-layer="place-highlight"
-        fill="var(--vscode-focusBorder, var(--canvas-accent, #0f766e))"
+        fill="var(--canvas-selection)"
         fontFamily="HeiseiKakuGo-W5, sans-serif"
         fontSize={drawable.fontSizeMm}
         dominantBaseline="alphabetic"
@@ -173,7 +174,7 @@ const highlightedDrawableSvg = (
       d={path}
       data-output-preview-layer="place-highlight"
       fill="none"
-      stroke="var(--vscode-focusBorder, var(--canvas-accent, #0f766e))"
+      stroke="var(--canvas-selection)"
       strokeWidth={Math.max(3, drawable.stroke.widthMm * viewport.zoom + 3)}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -214,6 +215,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluating: false
   });
   const [highlightedPlaceId, setHighlightedPlaceId] = useState<string | null>(null);
+  const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
+  const [clearPlaceInteractionKey, setClearPlaceInteractionKey] = useState(0);
   const [pendingExportRequestId, setPendingExportRequestId] = useState<number | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -411,9 +414,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [activePlan, fitPlan, placeDragPreview, sourceIsCurrent, selectedOutputKey]);
 
   useEffect(() => {
+    const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
+    refreshCanvasTheme();
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
+      if (message.type === "canvasThemeChanged") {
+        refreshCanvasTheme();
+        return;
+      }
       if (message.type === "outputPreviewOpen") {
         if (latestHostDocumentVersionRef.current !== message.documentVersion) return;
         applyOpenSelection(message.normalizedSourceOffset);
@@ -421,6 +430,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "outputPreviewFit") {
         fitPlanRef.current(latestPlanRef.current);
+        return;
+      }
+      if (message.type === "outputPreviewClearFocus") {
+        setClearPlaceInteractionKey((current) => current + 1);
         return;
       }
       if (message.type === "outputPreviewExport") {
@@ -631,7 +644,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const dragContextKey = `${authoritativeContextGeneration}:${currentSourceRevision}:${selectedOutputKey ?? "none"}`;
 
   return (
-    <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
+    <main
+      ref={workspaceRef}
+      className="output-preview-workspace vscode-canvas-webview"
+      style={canvasThemeCssVariables(canvasTheme)}
+    >
       <header className="output-preview-toolbar">
         <div className="output-preview-output-group">
           <select
@@ -747,6 +764,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         ref={viewportRef}
         className="output-preview-viewport"
         tabIndex={0}
+        data-vscode-context={vscodeWebviewContextDataFor("blank")}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -782,6 +800,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
+              clearInteractionKey={clearPlaceInteractionKey}
+              focusViewport={() => viewportRef.current?.focus()}
+              placeContextMenuData={vscodeWebviewContextDataFor("place")}
               dragContextKey={dragContextKey}
               onBeginDrag={beginPlaceDrag}
               onPreviewDrag={previewPlaceDrag}

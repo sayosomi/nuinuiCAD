@@ -19,6 +19,7 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import { CanvasCandidateMenus } from "./CanvasCandidateMenus";
+import { candidateWheelDeltaFor } from "./canvasCandidateWheel";
 import { CanvasOverlay } from "./CanvasOverlay";
 import { moduleInstanceSelectionFrameOverlays } from "./moduleInstanceSelectionFrame";
 import {
@@ -132,7 +133,6 @@ const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
 const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
 const POINT_DRAG_THRESHOLD_PX = 8;
 const DEFERRED_POINTER_TIMEOUT_MS = 5000;
-const OVERLAP_WHEEL_THRESHOLD_PX = 24;
 
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
@@ -572,26 +572,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     event.preventDefault();
 
     if (overlapCandidateSessionRef.current) {
-      const pixelsPerUnit = event.deltaMode === 1
-        ? 16
-        : event.deltaMode === 2
-          ? Math.max(viewportSize.height, 1)
-          : 1;
-      const normalizedDelta = event.deltaY * pixelsPerUnit;
-      if (
-        overlapWheelDeltaRef.current !== 0 &&
-        normalizedDelta !== 0 &&
-        Math.sign(overlapWheelDeltaRef.current) !== Math.sign(normalizedDelta)
-      ) {
-        overlapWheelDeltaRef.current = 0;
-      }
-      overlapWheelDeltaRef.current += normalizedDelta;
-      const cycles = Math.trunc(Math.abs(overlapWheelDeltaRef.current) / OVERLAP_WHEEL_THRESHOLD_PX);
-      if (cycles > 0) {
-        const direction = overlapWheelDeltaRef.current > 0 ? 1 : -1;
-        overlapWheelDeltaRef.current -= direction * cycles * OVERLAP_WHEEL_THRESHOLD_PX;
-        cycleOverlapCandidate(direction * cycles);
-      }
+      const next = candidateWheelDeltaFor({
+        remainder: overlapWheelDeltaRef.current,
+        deltaY: event.deltaY,
+        deltaMode: event.deltaMode,
+        viewportHeight: viewportSize.height
+      });
+      overlapWheelDeltaRef.current = next.remainder;
+      if (next.cycles !== 0) cycleOverlapCandidate(next.cycles);
       return;
     }
 

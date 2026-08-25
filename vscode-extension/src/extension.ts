@@ -960,7 +960,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
-    for (const session of sessions.valuesForSurface("canvas")) {
+    const visualSessions = [
+      ...sessions.valuesForSurface("canvas"),
+      ...sessions.valuesForSurface("outputPreview")
+    ];
+    for (const session of visualSessions) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
     }
   });
@@ -1700,6 +1704,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
+  const executeClearOutputPreviewFocus = (): void => {
+    const session = sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active);
+    if (!session) return;
+    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
+      void session.panel.webview.postMessage({ type: "outputPreviewClearFocus" } satisfies ExtensionToVscodeMessage);
+    }
+  };
+
   const executeExportCurrentOutput = (): void => {
     const session = activeOutputPreviewSessionForOpenCommand();
     if (!session) {
@@ -1916,6 +1928,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     "nuinuiCAD.fitOutputPreview",
     executeFitOutputPreview
   );
+  const clearOutputPreviewFocusCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.clearOutputPreviewFocus",
+    executeClearOutputPreviewFocus
+  );
   const exportCurrentOutputCommand = vscode.commands.registerCommand(
     "nuinuiCAD.exportCurrentOutput",
     executeExportCurrentOutput
@@ -1990,6 +2006,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     command,
     openOutputPreviewCommand,
     fitOutputPreviewCommand,
+    clearOutputPreviewFocusCommand,
     exportCurrentOutputCommand,
     outputPreviewUndoCommand,
     outputPreviewRedoCommand,

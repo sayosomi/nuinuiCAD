@@ -1001,6 +1001,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.clearOutputPreviewFocus", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.exportCurrentOutput", expect.any(Function));
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
@@ -1181,6 +1182,19 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("routes Clear Output Preview Focus through the active Preview session", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.clearOutputPreviewFocus")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewClearFocus" });
   });
 
   it("routes Export Current Output only through a current active Preview", async () => {
@@ -1922,7 +1936,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
   });
 
-  it("invalidates every open Canvas session when the active VS Code theme changes", () => {
+  it("invalidates every open Canvas and Output Preview session when the active VS Code theme changes", () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
     const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
     const editorA = editorFor(documentA);
@@ -1935,14 +1949,18 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+    const outputPreviewPanel = mocks.panels[2]!;
 
     expect(mocks.activeColorThemeListeners).toHaveLength(1);
     mocks.activeColorThemeListeners[0]!();
 
     expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
     expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledTimes(1);
   });
 
   it("adds directory context to all sessions when basenames collide", () => {

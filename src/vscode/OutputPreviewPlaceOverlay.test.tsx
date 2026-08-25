@@ -100,6 +100,82 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
   });
 
+  it("publishes the supplied VS Code place context on handles and details", () => {
+    const placeContextMenuData = JSON.stringify({
+      webviewSection: "place",
+      preventDefaultContextMenuItems: true
+    });
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        placeContextMenuData={placeContextMenuData}
+      />
+    );
+
+    const handle = screen.getByRole("button", { name: "Place Front" });
+    expect(handle).toHaveAttribute("data-vscode-context", placeContextMenuData);
+    fireEvent.click(handle);
+    expect(screen.getByLabelText("Place details for Front"))
+      .toHaveAttribute("data-vscode-context", placeContextMenuData);
+  });
+
+  it("clears a pinned handle detail with Escape and returns focus to the viewport", () => {
+    const focusViewport = vi.fn();
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        focusViewport={focusViewport}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
+    expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Place details for Front")).toBeNull();
+    expect(focusViewport).toHaveBeenCalledOnce();
+  });
+
+  it("clears a pinned handle detail when the host requests it", () => {
+    const { rerender } = render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        clearInteractionKey={0}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
+    expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
+    rerender(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        clearInteractionKey={1}
+      />
+    );
+
+    expect(screen.queryByLabelText("Place details for Front")).toBeNull();
+  });
+
   it("opens the shared overlap presentation for multiple hits and resolves candidates from current handles", () => {
     const projections = [
       projection({ placeId: "a", groupName: "Front" }),
@@ -134,6 +210,11 @@ describe("OutputPreviewPlaceOverlay", () => {
       />
     );
     expect(screen.getByRole("listbox", { name: "Overlapping place handles" })).toHaveStyle({ left: "452px" });
+
+    const overlay = document.querySelector(".output-preview-place-overlay");
+    if (!(overlay instanceof HTMLElement)) throw new Error("missing output preview place overlay");
+    fireEvent.wheel(overlay, { deltaY: 24 });
+    expect(screen.getByRole("option", { name: /Back/ })).toHaveAttribute("aria-selected", "true");
 
     fireEvent.click(screen.getByRole("option", { name: /Back/ }));
     expect(screen.queryByRole("listbox", { name: "Overlapping place handles" })).toBeNull();
