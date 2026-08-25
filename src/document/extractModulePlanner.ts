@@ -13,6 +13,7 @@ import {
 } from "../dsl/moduleGeometryInterfaces";
 import { geometryArrayTypeOfTypedDeclaration } from "../dsl/geometryArraySourceAnnotations";
 import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
+import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
 import { serializeDslNumericType, type DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
@@ -356,21 +357,29 @@ const scalarDependencyDescriptor = (
   index: DslSemanticOccurrenceIndex,
   identity: DslSemanticIdentity
 ): DependencyDescriptor | null => {
-  const declarations = declarationRangesFor(index, identity);
-  if (declarations.length !== 1) return null;
-  const declarationFrom = declarations[0]!.from;
-
   const descriptorForBinding = (bindingId: string): DependencyDescriptor | null => {
     const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(bindingId);
-    if (!binding?.declaredType) return null;
+    if (!binding) return null;
     const statement = compiled.statements[binding.statementIndex];
+    if (binding.kind === "iteration") {
+      if (!binding.nameSpan || !statement) return null;
+      const physical = exactPhysicalSpan(compiled.spans, statement, binding.nameSpan);
+      if (physical?.segments.length !== 1) return null;
+      return {
+        name: binding.name,
+        type: { kind: "number" },
+        declarationFrom: physical.segments[0]!.from
+      };
+    }
+    if (!binding.declaredType) return null;
+    const declarations = declarationRangesFor(index, identity);
+    if (declarations.length !== 1) return null;
     // Keep synthetic record-field scalar slots out of Extract dependency inference.
     // Their source owner is record-valued and remains a later checkpoint boundary.
     if (
       statement?.kind !== "typedDeclaration" ||
       !statement.declaredType ||
-      statement.recordTypeReference ||
-      statement.enclosing !== null
+      statement.recordTypeReference
     ) {
       return null;
     }
@@ -378,7 +387,7 @@ const scalarDependencyDescriptor = (
       name: binding.name,
       type: binding.declaredType,
       numericTypeOptions: numericOptionsForStatement(statement),
-      declarationFrom
+      declarationFrom: declarations[0]!.from
     };
   };
 
@@ -403,7 +412,6 @@ const geometryDependencyDescriptor = (
   const interfaceType = moduleGeometryInterfaceTypeOfElement(statement);
   if (
     statement?.kind !== "element" ||
-    statement.enclosing !== null ||
     !statement.name ||
     !interfaceType
   ) {
@@ -447,18 +455,12 @@ const geometryArrayStatementForIdentity = (
   return { statementId, statementIndex, statement, arrayType };
 };
 
-const directGeometryArrayStatementForIdentity = (
-  compiled: CompiledDslDocument,
-  identity: DslSemanticIdentity
-): DirectGeometryArrayStatement | null =>
-  geometryArrayStatementForIdentity(compiled, identity, true);
-
 const geometryArrayDependencyDescriptor = (
   compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
   identity: DslSemanticIdentity
 ): DependencyDescriptor | null => {
-  const direct = directGeometryArrayStatementForIdentity(compiled, identity);
+  const direct = geometryArrayStatementForIdentity(compiled, identity, false);
   if (!direct) return null;
   const declarations = declarationRangesFor(index, identity);
   if (declarations.length !== 1) return null;
@@ -792,13 +794,6 @@ const checkpointStatementRejection = (
       { statementId, statementIndex }
     );
   }
-  if (statement.enclosing !== null) {
-    return reject(
-      "unsupported-statement",
-      "Checkpoint 8 は root lexical scope の direct value / Module statement、complete plain group、complete if structure、または complete for structure だけを安全に Extract します。",
-      { statementId, statementIndex }
-    );
-  }
   if (statement.kind === "moduleDefinition") {
     const recordParameter = statement.parameters.find((parameter) => parameter.recordTypeReference);
     if (recordParameter) {
@@ -1022,6 +1017,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
   for (const entry of ordered) {
+    if (moduleDefinitionOwnerIndex(compiled, entry.statementIndex) !== null) {
+      return reject(
+        "unsupported-statement",
+        "Checkpoint 10 は既存 Module definition に所有されない source lexical scope の statement だけを Extract します。",
+        { statementId: entry.statementId, statementIndex: entry.statementIndex }
+      );
+    }
     const rejection = checkpointStatementRejection(entry.statement, entry.statementId, entry.statementIndex);
     if (rejection) return rejection;
   }
@@ -1218,28 +1220,30 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (moduleIdentityOwnedByMovedSubtree(compiled, occurrence.identity, movedIndexSet)) continue;
 
     const declarationRanges = declarationRangesFor(occurrenceIndex, occurrence.identity);
-    if (declarationRanges.length !== 1) {
-      return reject(
-        "unresolved-semantic-identity",
-        "選択範囲内の reference identity を一意な declaration へ解決できません。"
-      );
-    }
-    const declaration = declarationRanges[0]!;
-    if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
-      if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
-        return reject(
-          "unrepresentable-dependency",
-          "選択範囲内の reference が Checkpoint 7 の moved scalar / single-geometry / geometry-array owner として証明できません。"
-        );
+    let descriptor: DependencyDescriptor | null;
+    if (declarationRanges.length === 1) {
+      const declaration = declarationRanges[0]!;
+      if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
+        if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
+          return reject(
+            "unrepresentable-dependency",
+            "選択範囲内の reference が Checkpoint 7 の moved scalar / single-geometry / geometry-array owner として証明できません。"
+          );
+        }
+        continue;
       }
-      continue;
+      descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
+    } else {
+      // Iteration slots are compiler-owned Binding Catalog declarations but
+      // intentionally have no declaration occurrence in the editor index.
+      descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
     }
-
-    const descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
     if (!descriptor) {
       return reject(
-        "unrepresentable-dependency",
-        "Checkpoint 7 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
+        declarationRanges.length === 1 ? "unrepresentable-dependency" : "unresolved-semantic-identity",
+        declarationRanges.length === 1
+          ? "Checkpoint 7 では direct authored scalar / single-geometry / geometry-array dependency 以外を Module parameter として安全に表現しません。"
+          : "選択範囲内の reference identity を一意な declaration へ解決できません。"
       );
     }
 
