@@ -217,7 +217,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection` },
       { command: "nuinuiCAD.fitOutputPreview", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'" },
-      { command: "nuinuiCAD.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'" },
+      { command: "nuinuiCAD.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
       { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen },

@@ -960,7 +960,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
-    for (const session of sessions.valuesForSurface("canvas")) {
+    const visualSessions = [
+      ...sessions.valuesForSurface("canvas"),
+      ...sessions.valuesForSurface("outputPreview")
+    ];
+    for (const session of visualSessions) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
     }
   });

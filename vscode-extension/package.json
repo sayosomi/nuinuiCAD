@@ -249,7 +249,7 @@
         },
         {
           "command": "nuinuiCAD.clearOutputPreviewFocus",
-          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')"
         },
         {
           "command": "nuinuiCAD.goToSourceDefinition",

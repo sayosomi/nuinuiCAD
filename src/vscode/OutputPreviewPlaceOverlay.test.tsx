@@ -100,6 +100,30 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
   });
 
+  it("publishes the supplied VS Code place context on handles and details", () => {
+    const placeContextMenuData = JSON.stringify({
+      webviewSection: "place",
+      preventDefaultContextMenuItems: true
+    });
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        placeContextMenuData={placeContextMenuData}
+      />
+    );
+
+    const handle = screen.getByRole("button", { name: "Place Front" });
+    expect(handle).toHaveAttribute("data-vscode-context", placeContextMenuData);
+    fireEvent.click(handle);
+    expect(screen.getByLabelText("Place details for Front"))
+      .toHaveAttribute("data-vscode-context", placeContextMenuData);
+  });
+
   it("clears a pinned handle detail with Escape and returns focus to the viewport", () => {
     const focusViewport = vi.fn();
     render(

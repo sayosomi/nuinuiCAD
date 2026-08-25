@@ -432,6 +432,16 @@ describe("Output Preview application", () => {
     expect(tooltip).toHaveStyle({ position: "fixed", left: "130px", top: "130px", transform: "none" });
   });
 
+  it("publishes a VS Code blank context without native Cut, Copy, and Paste items", () => {
+    renderFixture("nui 4");
+    const viewport = document.querySelector(".output-preview-viewport");
+    expect(viewport).not.toBeNull();
+    expect(JSON.parse(viewport?.getAttribute("data-vscode-context") ?? "{}")).toEqual({
+      webviewSection: "blank",
+      preventDefaultContextMenuItems: true
+    });
+  });
+
   it("uses an exact current diagnostic range for a current-source output error", async () => {
     mocks.evaluateOutputPlan.mockRejectedValue(new Error("output evaluation failed"));
     renderFixture();

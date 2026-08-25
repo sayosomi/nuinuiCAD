@@ -38,13 +38,20 @@ export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";
 
 export type VscodeCanvasContextMenuKind = "blank" | "element" | "ribbon";
 
+export const vscodeWebviewContextDataFor = (
+  section: string,
+  values: Readonly<Record<string, string | boolean>> = {}
+): string => JSON.stringify({
+  webviewSection: section,
+  ...values,
+  preventDefaultContextMenuItems: true
+});
+
 export const vscodeCanvasContextDataFor = (
   kind: VscodeCanvasContextMenuKind,
   hasSelection: boolean
-): string => JSON.stringify({
-  webviewSection: kind,
-  "nuinuiCAD.canvasHasSelection": hasSelection,
-  preventDefaultContextMenuItems: true
+): string => vscodeWebviewContextDataFor(kind, {
+  "nuinuiCAD.canvasHasSelection": hasSelection
 });
 
 export const vscodeCanvasRibbonContextData = vscodeCanvasContextDataFor("ribbon", false);
