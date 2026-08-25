@@ -130,6 +130,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
         {
+          "command": "nuinuiCAD.exportCurrentOutput",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+        },
+        {
           "command": "nuinuiCAD.toggleCanvasPointNames",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -369,6 +373,10 @@
       {
         "command": "nuinuiCAD.fitOutputPreview",
         "title": "nuinuiCAD: Fit Output Preview"
+      },
+      {
+        "command": "nuinuiCAD.exportCurrentOutput",
+        "title": "nuinuiCAD: Export Current Output"
       },
       {
         "command": "nuinuiCAD.toggleCanvasPointNames",

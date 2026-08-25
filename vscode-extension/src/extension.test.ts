@@ -62,6 +62,7 @@ type TestPanel = {
 
 type TestRustProcess = {
   request: ReturnType<typeof vi.fn>;
+  exportOutput: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
 };
 
@@ -102,6 +103,8 @@ const mocks = vi.hoisted(() => ({
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
+  showInformationMessage: vi.fn(),
+  showSaveDialog: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
@@ -202,6 +205,8 @@ vi.mock("vscode", () => {
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
       showWarningMessage: mocks.showWarningMessage,
+      showInformationMessage: mocks.showInformationMessage,
+      showSaveDialog: mocks.showSaveDialog,
       showTextDocument: mocks.showTextDocument,
       tabGroups: {
         get activeTabGroup() {
@@ -244,7 +249,10 @@ vi.mock("vscode", () => {
       registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider,
       registerColorProvider: mocks.registerColorProvider
     },
-    Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
+    Uri: {
+      joinPath: vi.fn((...parts: unknown[]) => parts.join("/")),
+      file: vi.fn((fsPath: string) => ({ scheme: "file", fsPath, toString: () => `file://${fsPath}` }))
+    },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SymbolKind: {
@@ -293,6 +301,7 @@ vi.mock("vscode", () => {
 vi.mock("./rustEvaluationProcess", () => ({
   RustEvaluationProcess: class {
     readonly request = vi.fn(async (input: unknown) => ({ input }));
+    readonly exportOutput = vi.fn(async () => ({ exported: true }));
     readonly dispose = vi.fn();
 
     constructor() {
@@ -683,6 +692,8 @@ afterEach(() => {
   mocks.colorRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.showWarningMessage.mockReset();
+  mocks.showInformationMessage.mockReset();
+  mocks.showSaveDialog.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
@@ -990,6 +1001,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.exportCurrentOutput", expect.any(Function));
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
     expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
@@ -1169,6 +1181,142 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("routes Export Current Output only through a current active Preview", async () => {
+    setup();
+    commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Export Current Output is only available from an active Output Preview."
+    );
+
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewExport" });
+  });
+
+  it("saves the current PDF payload with the output-based default name", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    mocks.showSaveDialog.mockResolvedValue({ scheme: "file", fsPath: "/tmp/chosen", toString: () => "file:///tmp/chosen" });
+    const payload = { version: 1, kind: "print" };
+
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 4,
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      outputName: "家庭用A4",
+      format: "pdf",
+      payload
+    });
+
+    expect(mocks.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
+      defaultUri: expect.objectContaining({ fsPath: "/tmp/pattern_家庭用A4.pdf" }),
+      filters: { "PDF document": ["pdf"] },
+      saveLabel: "Export PDF"
+    }));
+    expect(mocks.rustProcesses[0]?.exportOutput).toHaveBeenCalledWith({
+      path: "/tmp/chosen.pdf",
+      payload
+    });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewExportResult",
+      requestId: 4,
+      status: "saved"
+    });
+    expect(mocks.showInformationMessage).toHaveBeenCalledWith("nuinuiCAD: Saved chosen.pdf.");
+  });
+
+  it("cancels silently and never writes an output file", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "svg:output-b",
+      format: "svg"
+    });
+    mocks.showSaveDialog.mockResolvedValue(undefined);
+
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 5,
+      documentVersion: document.version,
+      outputKey: "svg:output-b",
+      outputName: "型紙SVG",
+      format: "svg",
+      payload: { version: 1, kind: "svg" }
+    });
+
+    expect(mocks.rustProcesses).toHaveLength(0);
+    expect(mocks.showInformationMessage).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewExportResult",
+      requestId: 5,
+      status: "cancelled"
+    });
+  });
+
+  it("does not write when the document changes while the save dialog is open", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    let resolveDialog!: (value: unknown) => void;
+    mocks.showSaveDialog.mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    const exportRequest = messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 6,
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      outputName: "A",
+      format: "pdf",
+      payload: { version: 1, kind: "print" }
+    });
+
+    document.version += 1;
+    document.setSourceText("nui 4\n// changed\n");
+    emitDocumentChange(document);
+    resolveDialog({ scheme: "file", fsPath: "/tmp/stale.pdf", toString: () => "file:///tmp/stale.pdf" });
+    await exportRequest;
+
+    expect(mocks.rustProcesses).toHaveLength(0);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Output Preview changed while the save dialog was open. Export again."
+    );
   });
 
   it("fails closed for stale Output Preview source-navigation requests", async () => {

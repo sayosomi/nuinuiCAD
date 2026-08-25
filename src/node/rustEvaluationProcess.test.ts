@@ -18,6 +18,27 @@ const childFor = () => {
 };
 
 describe("shared RustEvaluationProcess", () => {
+  it("keeps evaluation and output export as distinct request envelopes", async () => {
+    const child = childFor();
+    const writes: string[] = [];
+    child.stdin.on("data", (chunk) => writes.push(String(chunk)));
+    const process = new RustEvaluationProcess("evaluation_stdio", {
+      spawnProcess: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn
+    });
+
+    const evaluation = process.request({ elements: [] });
+    (child.stdout as PassThrough).write(`${JSON.stringify({ id: 1, payload: { computedGeometry: [] } })}\n`);
+    await expect(evaluation).resolves.toEqual({ computedGeometry: [] });
+    const outputExport = process.exportOutput({ path: "/tmp/pattern.svg", payload: { kind: "svg" } });
+    (child.stdout as PassThrough).write(`${JSON.stringify({ id: 2, payload: { exported: true } })}\n`);
+    await expect(outputExport).resolves.toEqual({ exported: true });
+
+    expect(writes.map((line) => JSON.parse(line))).toEqual([
+      { id: 1, input: { elements: [] } },
+      { id: 2, exportOutput: { path: "/tmp/pattern.svg", payload: { kind: "svg" } } }
+    ]);
+  });
+
   it("rejects pending work and reports an unexpected termination once", async () => {
     const child = childFor();
     const onTerminated = vi.fn();

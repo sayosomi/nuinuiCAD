@@ -4,6 +4,7 @@ import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/be
 import type { LineSplice } from "../document/textPatch";
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { RustPrintOutputPayload, RustSvgOutputPayload } from "../output/outputCore";
 import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
@@ -132,6 +133,39 @@ export type VscodeOutputPreviewPlaceCommit = {
   patches: readonly VscodeOutputPreviewPlaceCoordinatePatch[];
 };
 
+export type VscodeOutputPreviewExportFormat = "pdf" | "svg";
+
+export type VscodeOutputPreviewExportAvailability = {
+  type: "outputPreviewExportAvailability";
+  documentVersion: number | null;
+  outputKey: string | null;
+  format: VscodeOutputPreviewExportFormat | null;
+};
+
+type VscodeOutputPreviewExportRequestBase = {
+  type: "outputPreviewExportRequest";
+  requestId: number;
+  documentVersion: number;
+  outputKey: string;
+  outputName: string;
+};
+
+export type VscodeOutputPreviewExportRequest =
+  | (VscodeOutputPreviewExportRequestBase & {
+      format: "pdf";
+      payload: RustPrintOutputPayload;
+    })
+  | (VscodeOutputPreviewExportRequestBase & {
+      format: "svg";
+      payload: RustSvgOutputPayload;
+    });
+
+export type VscodeOutputPreviewExportResult = {
+  type: "outputPreviewExportResult";
+  requestId: number;
+  status: "saved" | "cancelled" | "failed";
+};
+
 export type VscodeCanvasNavigationResult =
   | { type: "canvasNavigationResult"; requestId: number; status: "resolved"; degradations: readonly DslCanvasRevealDegradation[] }
   | { type: "canvasNavigationResult"; requestId: number; status: "failed"; reason: DslCanvasRevealFailureReason }
@@ -166,6 +200,8 @@ export type VscodeToExtensionMessage =
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string }
   | { type: "outputPreviewFit" }
+  | VscodeOutputPreviewExportAvailability
+  | VscodeOutputPreviewExportRequest
   | {
       type: "outputPreviewSourceNavigation";
       documentVersion: number;
@@ -241,6 +277,8 @@ export type ExtensionToVscodeMessage =
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
   | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
   | { type: "outputPreviewFit" }
+  | { type: "outputPreviewExport" }
+  | VscodeOutputPreviewExportResult
   | { type: "modulePreviewTarget"; documentVersion: number; normalizedSourceOffset: number }
   | { type: "modulePreviewTargetUnavailable"; documentVersion: number };
 

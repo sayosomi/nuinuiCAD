@@ -42,6 +42,14 @@ export class RustEvaluationProcess {
   }
 
   request(input: unknown): Promise<unknown> {
+    return this.requestEnvelope({ input });
+  }
+
+  exportOutput(exportOutput: unknown): Promise<unknown> {
+    return this.requestEnvelope({ exportOutput });
+  }
+
+  private requestEnvelope(envelope: { input: unknown } | { exportOutput: unknown }): Promise<unknown> {
     if (this.disposed || !this.child.stdin.writable) {
       return Promise.reject(new Error("evaluation_stdio is not available"));
     }
@@ -49,7 +57,7 @@ export class RustEvaluationProcess {
     this.nextRequestId += 1;
     return new Promise<unknown>((resolveRequest, reject) => {
       this.pending.set(id, { resolve: resolveRequest, reject });
-      this.child.stdin.write(`${JSON.stringify({ id, input })}\n`);
+      this.child.stdin.write(`${JSON.stringify({ id, ...envelope })}\n`);
     });
   }
 

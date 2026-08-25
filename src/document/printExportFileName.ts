@@ -1,7 +1,7 @@
 import { fileNameFromPath } from "./nuiFormat";
 
 type PrintExportFileNameInput = {
-  layoutName: string;
+  outputName: string;
   documentPath: string | null;
   extension: "pdf" | "svg";
 };
@@ -22,8 +22,8 @@ const documentBaseName = (documentPath: string | null) => {
   );
 };
 
-const layoutBaseName = (layoutName: string) =>
-  sanitizeExportBaseName(layoutName, "layout");
+const outputBaseName = (outputName: string) =>
+  sanitizeExportBaseName(outputName, "output");
 
 const directoryName = (path: string | null) => {
   if (!path) return null;
@@ -33,15 +33,18 @@ const directoryName = (path: string | null) => {
   return index === 0 ? "/" : normalized.slice(0, index);
 };
 
-export const defaultPrintExportFileName = ({
-  layoutName,
+export const defaultOutputExportFileName = ({
+  outputName,
   documentPath,
   extension
 }: PrintExportFileNameInput) =>
-  `${documentBaseName(documentPath)}_${layoutBaseName(layoutName)}.${extension}`;
+  `${documentBaseName(documentPath)}_${outputBaseName(outputName)}.${extension}`;
 
-export const defaultPrintExportPath = (input: PrintExportFileNameInput) => {
-  const fileName = defaultPrintExportFileName(input);
+export const defaultOutputExportPath = (input: PrintExportFileNameInput) => {
+  const fileName = defaultOutputExportFileName(input);
   const directory = directoryName(input.documentPath);
   return directory ? `${directory}/${fileName}` : fileName;
 };
+
+export const ensureOutputExportExtension = (path: string, extension: "pdf" | "svg") =>
+  path.toLowerCase().endsWith(`.${extension}`) ? path : `${path}.${extension}`;
