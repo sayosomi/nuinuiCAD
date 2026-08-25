@@ -107,6 +107,22 @@ const editsAt = (
 ) as TestWorkspaceEdit | undefined;
 
 describe("VS Code native nui rename provider", () => {
+  it("projects modifier declaration and reference edits as one WorkspaceEdit", () => {
+    const source = [
+      "nui 4",
+      'modifier "Guide Line" {',
+      "  state: visible,",
+      "}",
+      "point A = coordinate(x: 0, y: 0)",
+      'line L ["Guide Line"] = segment(start: @A, end: @A)'
+    ].join("\n");
+    const { document, provider } = providerFor(source);
+    const reference = source.lastIndexOf("Guide Line") + 1;
+    expect(prepareAt(provider, document, document.positionAt(reference))).toMatchObject({ placeholder: "Guide Line" });
+    const edits = editsAt(provider, document, document.positionAt(reference), "Guide");
+    expect(edits?.edits.map((edit) => edit.newText)).toEqual(["Guide", "Guide"]);
+  });
+
   it("uses the file-scoped selector and rejects unsupported documents", () => {
     expect(nuiRenameSelector).toEqual({ language: "nui", scheme: "file" });
 

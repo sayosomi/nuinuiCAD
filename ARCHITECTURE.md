@@ -419,6 +419,9 @@ Representative owners:
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
 - `src/dsl/dslReferenceTokens.ts`
 - `src/dsl/dslSemanticOccurrenceIndex.ts`
+- `src/dsl/dslModifierAuthoring.ts`
+- `src/dsl/dslModifierAuthoringIndex.ts`
+- `src/dsl/dslSourceValueStepQuery.ts`
 - `src/dsl/dslDefinitionQuery.ts`
 - `src/dsl/dslRenameQuery.ts`
 - `src/dsl/dslReferencesQuery.ts`
@@ -428,6 +431,20 @@ second resolver を作らない。Definition、Rename、References の source
 occurrence enumeration は `dslSemanticOccurrenceIndex.ts` が compiler-resolved
 identity と exact physical range を共有し、各 query がそれぞれの safety
 policy を持つ。
+
+Drawing Modifier の strict property validation、authoring metadata、exact
+sub-token spans は `dslModifierAuthoring.ts` が owner であり、
+`dslModifierAuthoringIndex.ts` が exact-current source-only definition /
+reference / property view を導出する。Completion、Definition、Rename はこの
+shared source semantics を利用し、VS Code に別 parser / resolver を持たない。
+
+Source Value Step は `dslSourceValueStepQuery.ts` が host-neutral な
+exact-current edit plan を所有する。Element parameter は既存 parameter step
+resolver、typed declaration / `set` は compiler-owned `BindingId` と宣言側の
+number metadata、Drawing Modifier は shared authoring index / metadata を再利用する。
+`dslDocument.ts` は unrelated diagnostic で canonical `document` が fatal に
+なった場合も、exact-current source element products を statement index で保持し、
+query が last-good document や再parseへフォールバックせず判定できる。
 
 ### Typed scalar expressions
 
@@ -537,9 +554,10 @@ second runtime-to-source map.
 Primary:
 
 - `src/output/outputCore.ts`
-- `src-tauri/src/print_output.rs`
-- `src-tauri/src/print_svg.rs`
-- `src-tauri/src/print_pdf.rs`
+- `rust-evaluator/src/output/payload.rs`
+- `rust-evaluator/src/output/svg.rs`
+- `rust-evaluator/src/output/pdf.rs`
+- `vscode-extension/src/extension.ts` (Output Preview save host boundary)
 
 `outputCore.ts` is the host-neutral owner of the resolved output plan shared by
 SVG, PDF, and future Preview. It consumes compiler-resolved layouts/outputs,
@@ -547,7 +565,7 @@ calls the existing `buildEvaluationOptions` boundary with the output's selected
 Drawing Profile, and consumes the resulting `EvaluationResult` without
 re-evaluating or filtering the common Canvas result. It resolves typed numeric
 output values through the compiled numeric binding/runtime products, applies
-ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/text
+ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/polyline/text
 drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
 
 The same plan owns SVG physical sizing and print tiling metadata, including
@@ -558,12 +576,21 @@ legacy Canvas baseline, but does not read the active Canvas theme at runtime;
 it also converts modifier widths from CSS pixels to millimetres. It has no
 React, host UI, command, dialog, or save flow ownership.
 
-`print_output.rs` is the JSON-friendly resolved-payload validation boundary.
-`print_svg.rs` and `print_pdf.rs` remain the production Rust encoding owners;
+`rust-evaluator/src/output/payload.rs` is the JSON-friendly resolved-payload
+validation boundary. `svg.rs` and `pdf.rs` are the production Rust encoding owners;
 they do not parse `.nui` source or resolve source names. SVG performs the Y-up
 to SVG Y-down conversion only at this boundary, while PDF preserves the
-physical Y-up page coordinates. Tauri command registration remains in
-`src-tauri/src/lib.rs`.
+physical Y-up page coordinates.
+
+Output Preview is the only user-facing save surface. Its current Webview plan
+publishes exact document-version/output-identity availability and sends the
+already-resolved `rustPayload`; the Extension Host owns the Output Preview-only
+command, save dialog, default `<document>_<output>` name, stale-session checks,
+and success/error notification. The shared `evaluation_stdio` process accepts a
+separate `exportOutput` envelope without changing the existing `{ id, input }`
+evaluation envelope or the public `evaluate_document(input)` Rust API. Encoding
+finishes in memory before the selected local file is written, so payload or PDF
+character validation errors do not touch the target.
 
 ### Rust evaluation
 
@@ -731,6 +758,7 @@ Primary:
 - `vscode-extension/src/runtimeEvaluationService.ts`
 - `vscode-extension/src/referencePickCommandFeature.ts`
 - `vscode-extension/src/referencePickSourceBridge.ts`
+- `vscode-extension/src/sourceValueStepCommandFeature.ts`
 - `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
@@ -871,7 +899,8 @@ used by navigation.
 `vscode-extension/src/rustEvaluationProcessOwner.ts` exposes the one active
 Extension Host owner so independently registered production features can reuse it.
 That one lazy process instance is shared by Canvas, Output Preview, Module Preview,
-and native Hover runtime evaluation regardless of document or surface identity.
+native Hover runtime evaluation, and Output Preview export encoding regardless of
+document or surface identity.
 A panel does not own or kill the process. Unexpected process death rejects pending
 work, clears the dead process, and allows the next evaluation request to respawn
 it. Headless MCP owns a separate lazy owner instance but uses the same
@@ -911,6 +940,7 @@ VS Code TextDocument
 ├→ queryDslDocumentSymbols → DocumentSymbolProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 ├→ queryDslReferencePickTarget → Reference Pick command/context adapter
+├→ queryDslSourceValueStep → Source Value Step command/context adapter → one TextEditor edit
 ├→ queryDslGeometryHoverTarget → NuiRuntimeEvaluationService → EvaluationResult
 │  → geometryHoverPresentation → HoverProvider
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
@@ -937,6 +967,11 @@ host-neutral `queryDslDocumentSymbols` projection and recursively converts its
 normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
 remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
 registrations are adapter boundaries, not second resolvers.
+`sourceValueStepCommandFeature.ts` similarly projects the shared exact edit plan
+to one guarded `TextEditor.edit`, then selects the replacement. Palette target
+availability and command execution both use that query; raw/normalized offset
+conversion and document version/source/expected-text checks remain host adapter
+responsibilities.
 
 Native Hover is the runtime-valued exception among these language features.
 `hoverProvider.ts` synchronizes the TextDocument and resolves only a current
@@ -960,6 +995,18 @@ document/version/source and fails closed before creating a `WorkspaceEdit`.
 
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。
+
+### VS Code Explorer mock surface
+
+The native `nuinuiCAD.elements` Tree View remains backed by
+`vscode-extension/src/elementsTreeProvider.ts`. A sibling
+`nuinuiCAD.explorerMock` Webview View is contributed to the same
+`nuinuiCAD.explorer` View Container. `vscode-extension/src/explorerMockFeature.ts`
+owns only that Webview View's host lifecycle and shared-bundle HTML bootstrap.
+`src/vscode/ExplorerMockApp.tsx` owns static fixture data presentation and
+React-local interaction state. The surface reuses the shared Webview bundle and
+`webviewSurfaceRouter.tsx`; it has no production document, evaluation, runtime,
+navigation, or mutation semantics.
 
 ## Core architecture invariants
 

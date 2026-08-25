@@ -30,7 +30,8 @@ const completionItemKindFor: Record<DslCompletionCandidateKind, vscode.Completio
   property: vscode.CompletionItemKind.Property,
   builtin: vscode.CompletionItemKind.Function,
   literal: vscode.CompletionItemKind.Value,
-  operator: vscode.CompletionItemKind.Operator
+  operator: vscode.CompletionItemKind.Operator,
+  modifier: vscode.CompletionItemKind.Reference
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
@@ -67,6 +68,7 @@ const insertionFor = (
   result: DslCompletionQueryResult,
   normalizedSource: string
 ): string | vscode.SnippetString => {
+  if (candidate.sourceText !== undefined) return candidate.sourceText;
   if (candidate.kind === "type" && candidate.label === "choice") return new vscode.SnippetString("choice($0)");
   if (candidate.kind === "argumentName") return `${candidate.label}: `;
   if (

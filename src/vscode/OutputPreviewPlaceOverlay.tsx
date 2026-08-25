@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { placeCanvasPopup } from "../components/canvasPopupPlacement";
+import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
+import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
 import type { AxisLockKeys } from "../components/canvasViewport";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -43,6 +45,9 @@ type OutputPreviewPlaceOverlayProps = {
   viewport: OutputPreviewViewport;
   onNavigate: (range: NormalizedSourceRange) => void;
   onHighlightPlaceIdChange: (placeId: string | null) => void;
+  clearInteractionKey?: number;
+  focusViewport?: () => void;
+  placeContextMenuData?: string;
   dragContextKey?: string;
   onBeginDrag?: (projection: OutputPlaceProjection) => OutputPreviewPlaceDragProof | null;
   onPreviewDrag?: (proof: OutputPreviewPlaceDragProof, coordinates: { x: number; y: number }) => boolean;
@@ -60,6 +65,9 @@ export const OutputPreviewPlaceOverlay = ({
   viewport,
   onNavigate,
   onHighlightPlaceIdChange,
+  clearInteractionKey = 0,
+  focusViewport,
+  placeContextMenuData,
   dragContextKey = "",
   onBeginDrag,
   onPreviewDrag,
@@ -74,9 +82,13 @@ export const OutputPreviewPlaceOverlay = ({
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [candidateSession, setCandidateSession] = useState<OutputPreviewPlaceCandidateSession | null>(null);
   const [dragSession, setDragSession] = useState<OutputPreviewPlaceDragSession | null>(null);
+  const overlayRootRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<OutputPreviewPlaceDragSession | null>(null);
   const axisLockKeysRef = useRef<AxisLockKeys>(releasedAxisLocks());
   const suppressClickPlaceIdRef = useRef<string | null>(null);
+  const candidateWheelDeltaRef = useRef(0);
+  const clearInteractionRef = useRef<() => void>(() => {});
+  const previousClearInteractionKeyRef = useRef(clearInteractionKey);
   const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCallbacksRef = useRef({ onPreviewDrag, onCommitDrag, onCancelDrag });
 
@@ -119,6 +131,26 @@ export const OutputPreviewPlaceOverlay = ({
     if (cancel) dragCallbacksRef.current.onCancelDrag?.(current.proof);
   }, []);
 
+  const clearPlaceInteraction = useCallback(() => {
+    cancelHoverClear();
+    candidateWheelDeltaRef.current = 0;
+    if (dragSessionRef.current) finishDragSession(true);
+    setHoveredPlaceId(null);
+    setActivePlaceId(null);
+    setCandidateSession(null);
+    focusViewport?.();
+  }, [finishDragSession, focusViewport]);
+
+  useEffect(() => {
+    clearInteractionRef.current = clearPlaceInteraction;
+  }, [clearPlaceInteraction]);
+
+  useEffect(() => {
+    if (previousClearInteractionKeyRef.current === clearInteractionKey) return;
+    previousClearInteractionKeyRef.current = clearInteractionKey;
+    clearInteractionRef.current();
+  }, [clearInteractionKey]);
+
   const applyDragPreview = useCallback((
     current: OutputPreviewPlaceDragSession,
     clientX: number,
@@ -153,13 +185,13 @@ export const OutputPreviewPlaceOverlay = ({
   useEffect(() => {
     const setAxisLock = (event: KeyboardEvent, pressed: boolean) => {
       const current = dragSessionRef.current;
-      if (!current) return;
       if (event.key === "Escape" && pressed) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        finishDragSession(true);
+        clearInteractionRef.current();
         return;
       }
+      if (!current) return;
       const key = event.key.toLowerCase();
       if (key !== "x" && key !== "y") return;
       event.preventDefault();
@@ -223,23 +255,17 @@ export const OutputPreviewPlaceOverlay = ({
     ? placeCanvasPopup(detailHandle.screen, { width: 320, height: 260 }, viewportSize)
     : null;
   const candidateAnchor = candidateSessionIsCurrent ? candidateHandles[candidateActiveIndex]?.screen ?? null : null;
-  const candidatePlacement = candidateAnchor
-    ? placeCanvasPopup(
-        candidateAnchor,
-        { width: 240, height: Math.min(420, Math.max(72, candidateHandles.length * 46 + 8)) },
-        viewportSize
-      )
-    : null;
-
   const activateHandle = (handle: OutputPreviewPlaceHandle) => {
     const candidates = outputPreviewPlaceCandidatesAtScreen(handles, handle.screen);
     if (candidates.length <= 1) {
       setCandidateSession(null);
+      setHoveredPlaceId(handle.placeId);
       setActivePlaceId(handle.placeId);
       return;
     }
     cancelHoverClear();
     setHoveredPlaceId(null);
+    candidateWheelDeltaRef.current = 0;
     const activeIndex = Math.max(0, candidates.findIndex(({ placeId }) => placeId === handle.placeId));
     setActivePlaceId(null);
     setCandidateSession({
@@ -252,6 +278,7 @@ export const OutputPreviewPlaceOverlay = ({
     const candidate = candidateHandles[index];
     if (!candidate) return;
     setCandidateSession(null);
+    candidateWheelDeltaRef.current = 0;
     setHoveredPlaceId(null);
     setActivePlaceId(candidate.placeId);
   };
@@ -260,7 +287,7 @@ export const OutputPreviewPlaceOverlay = ({
     if (!candidateSessionIsCurrent || !candidateSession) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      setCandidateSession(null);
+      clearPlaceInteraction();
       return;
     }
     if (event.key === "Enter") {
@@ -274,6 +301,33 @@ export const OutputPreviewPlaceOverlay = ({
     const activeIndex = (candidateActiveIndex + direction + candidateHandles.length) % candidateHandles.length;
     setCandidateSession({ ...candidateSession, activeIndex });
   };
+
+  const handleCandidateWheel = useCallback((event: WheelEvent) => {
+    if (!candidateSessionIsCurrent) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const next = candidateWheelDeltaFor({
+      remainder: candidateWheelDeltaRef.current,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      viewportHeight: viewportSize.height
+    });
+    candidateWheelDeltaRef.current = next.remainder;
+    if (next.cycles === 0) return;
+    setCandidateSession((current) => {
+      if (!current || current.placeIds.length === 0) return current;
+      const activeIndex = (current.activeIndex + next.cycles + current.placeIds.length) % current.placeIds.length;
+      return { ...current, activeIndex };
+    });
+  }, [candidateSessionIsCurrent, viewportSize.height]);
+
+  useEffect(() => {
+    if (!candidateSessionIsCurrent) return;
+    const viewportElement = overlayRootRef.current?.parentElement;
+    if (!viewportElement) return;
+    viewportElement.addEventListener("wheel", handleCandidateWheel, { capture: true, passive: false });
+    return () => viewportElement.removeEventListener("wheel", handleCandidateWheel, { capture: true });
+  }, [candidateSessionIsCurrent, handleCandidateWheel]);
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLButtonElement>, handle: OutputPreviewPlaceHandle) => {
     event.stopPropagation();
@@ -340,7 +394,7 @@ export const OutputPreviewPlaceOverlay = ({
   };
 
   return (
-    <div className="output-preview-place-overlay" data-output-preview-layer="place-overlay">
+    <div ref={overlayRootRef} className="output-preview-place-overlay" data-output-preview-layer="place-overlay">
       {handles.map((handle) => {
         const isDragging = dragSession?.placeId === handle.placeId;
         return (
@@ -353,6 +407,7 @@ export const OutputPreviewPlaceOverlay = ({
             data-place-id={handle.placeId}
             data-draggable={handle.projection.dragability.draggable ? "true" : "false"}
             data-dragging={isDragging ? "true" : "false"}
+            data-vscode-context={placeContextMenuData}
             onPointerEnter={() => {
               cancelHoverClear();
               if (!candidateSession && !dragSessionRef.current) setHoveredPlaceId(handle.placeId);
@@ -377,34 +432,25 @@ export const OutputPreviewPlaceOverlay = ({
         );
       })}
 
-      {candidateSessionIsCurrent && candidateSession && candidatePlacement ? (
-        <div
-          className="canvas-overlap-candidate-menu output-preview-place-candidate-menu"
-          style={{ left: candidatePlacement.left, top: candidatePlacement.top }}
-          role="listbox"
-          aria-label="Overlapping place handles"
-          aria-activedescendant={`output-preview-place-candidate-${candidateHandles[candidateActiveIndex]?.placeId ?? ""}`}
-          tabIndex={0}
+      {candidateSessionIsCurrent && candidateSession && candidateAnchor ? (
+        <CanvasOverlapCandidateMenu
+          anchor={candidateAnchor}
+          candidates={candidateHandles.map((candidate) => ({
+            id: candidate.placeId,
+            name: candidate.projection.groupName,
+            detail: `place in ${candidate.projection.layoutName}`
+          }))}
+          activeIndex={candidateActiveIndex}
+          viewportSize={viewportSize}
+          idPrefix="output-preview-place-candidate"
+          ariaLabel="Overlapping place handles"
+          className="output-preview-place-candidate-menu"
           autoFocus
+          contextMenuData={placeContextMenuData}
           onKeyDown={handleCandidateKeyDown}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {candidateHandles.map((candidate, index) => (
-            <button
-              key={candidate.placeId}
-              id={`output-preview-place-candidate-${candidate.placeId}`}
-              type="button"
-              role="option"
-              aria-selected={index === candidateActiveIndex}
-              className={index === candidateActiveIndex ? "is-active" : ""}
-              onPointerEnter={() => setCandidateSession({ ...candidateSession, activeIndex: index })}
-              onClick={() => activateCandidate(index)}
-            >
-              <strong>{candidate.projection.groupName.trim() || "(unnamed)"}</strong>
-              <small>place in {candidate.projection.layoutName}</small>
-            </button>
-          ))}
-        </div>
+          onFocusViewport={() => focusViewport?.()}
+          onActivate={activateCandidate}
+        />
       ) : null}
 
       {detailProjection && detailPlacement ? (
@@ -412,6 +458,7 @@ export const OutputPreviewPlaceOverlay = ({
           className="output-preview-place-popover"
           style={{ left: detailPlacement.left, top: detailPlacement.top }}
           aria-label={`Place details for ${detailProjection.groupName}`}
+          data-vscode-context={placeContextMenuData}
           onPointerDown={(event) => event.stopPropagation()}
           onPointerEnter={() => {
             cancelHoverClear();

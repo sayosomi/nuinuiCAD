@@ -245,6 +245,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elementIdByStatementIndex: current.compiled.statementMap.elementIdByStatementIndex,
           propertySourcesByOccurrenceKey: current.compiled.propertyBindings ?? new Map(),
           occurrenceKeysByBindingId: current.compiled.occurrenceKeysByBindingId ?? new Map(),
+          numericConsumerReferencesByBindingId: current.compiled.numericConsumerReferencesByBindingId ?? new Map(),
           elements: current.state.elements,
           freshness: { isSourceDirty: false, isEvaluationStale: false }
         })

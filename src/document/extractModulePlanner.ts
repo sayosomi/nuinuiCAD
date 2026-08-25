@@ -306,6 +306,7 @@ const semanticOwnerKey = (compiled: CompiledDslDocument, identity: DslSemanticId
     return statementId ? `statement:${statementId}` : dslSemanticIdentityKey(identity);
   }
   if (identity.kind === "source") return `statement:${identity.statementId}`;
+  if (identity.kind === "modifier") return dslSemanticIdentityKey(identity);
 
   const target = identity.target;
   if (target.kind === "documentBinding") {

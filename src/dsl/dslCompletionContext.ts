@@ -31,6 +31,7 @@ import type { TypedGeometryPropertyCompletionContext } from "./dslTypedGeometryP
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { DslSpan } from "./dslTypes";
 import type { ScalarType } from "../scalars/types";
+import type { DslModifierCompletionContext } from "./dslModifierCompletionContext";
 
 export type DslCompletionContext =
   | { kind: "keyword"; from: number; to: number; options: readonly string[] }
@@ -53,6 +54,7 @@ export type DslCompletionContext =
   | { kind: "moduleArgumentValue"; from: number; to: number; argumentIndex: number }
   | { kind: "moduleQualifiedMember"; from: number; to: number; qualifiedInstanceName: string; argumentIndex?: number; expectedScalarType?: ScalarType; expectedGeometryKind?: DslGeometryReferenceKind }
   | { kind: "moduleReference"; from: number; to: number }
+  | DslModifierCompletionContext
   | null;
 
 export type DslGeometryReferenceKind =

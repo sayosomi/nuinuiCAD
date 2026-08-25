@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CommandRibbonView } from "../components/CommandRibbonView";
+import { canvasThemeCssVariables, LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { compileCanonicalText, type LastGoodDslDocument } from "../document/canonicalDocument";
 import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
@@ -41,12 +42,14 @@ import {
   outputPreviewPathDataFor,
   outputPreviewTextTransformFor
 } from "./outputPreviewRendering";
-import type { ExtensionToVscodeMessage, VscodeWebviewApi } from "./protocol";
+import { vscodeWebviewContextDataFor, type ExtensionToVscodeMessage, type VscodeWebviewApi } from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 
 type OutputPreviewEvaluationState = {
   outputKey: string | null;
+  sourceRevision: number | null;
   plan: OutputPlan | null;
   error: string | null;
   evaluating: boolean;
@@ -68,7 +71,6 @@ const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
-
 const dragPlanIdentityForCandidate = (
   candidate: OutputPreviewCandidate | null
 ): OutputPreviewPlaceDragPlanIdentity | null => candidate ? {
@@ -143,7 +145,7 @@ const highlightedDrawableSvg = (
         key={`highlight-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
         transform={outputPreviewTextTransformFor(drawable, size, viewport)}
         data-output-preview-layer="place-highlight"
-        fill="var(--vscode-focusBorder, var(--canvas-accent, #0f766e))"
+        fill="var(--canvas-selection)"
         fontFamily="HeiseiKakuGo-W5, sans-serif"
         fontSize={drawable.fontSizeMm}
         dominantBaseline="alphabetic"
@@ -172,7 +174,7 @@ const highlightedDrawableSvg = (
       d={path}
       data-output-preview-layer="place-highlight"
       fill="none"
-      stroke="var(--vscode-focusBorder, var(--canvas-accent, #0f766e))"
+      stroke="var(--canvas-selection)"
       strokeWidth={Math.max(3, drawable.stroke.widthMm * viewport.zoom + 3)}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -207,11 +209,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [viewportSize, setViewportSize] = useState<OutputPreviewViewportSize>({ width: 0, height: 0 });
   const [evaluationState, setEvaluationState] = useState<OutputPreviewEvaluationState>({
     outputKey: null,
+    sourceRevision: null,
     plan: null,
     error: null,
     evaluating: false
   });
   const [highlightedPlaceId, setHighlightedPlaceId] = useState<string | null>(null);
+  const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
+  const [clearPlaceInteractionKey, setClearPlaceInteractionKey] = useState(0);
+  const [pendingExportRequestId, setPendingExportRequestId] = useState<number | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
@@ -223,6 +229,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const selectedOutputKeyRef = useRef<string | null>(selectedOutputKey);
   const latestPlanRef = useRef<OutputPlan | null>(null);
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
+  const nextExportRequestIdRef = useRef(1);
+  const requestCurrentExportRef = useRef<() => boolean>(() => false);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
 
   const measureViewport = useCallback(() => {
@@ -288,11 +296,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [applyOpenSelection, canonicalCandidates, sourceIsCurrent]);
 
   useEffect(() => {
+    if (!sourceIsCurrent) return;
     const fallbackKey = canonicalCandidates[0]?.key ?? null;
     const currentKey = selectedOutputKeyRef.current;
     if (outputPreviewCandidateForKey(canonicalCandidates, currentKey) || currentKey === fallbackKey) return;
     updateSelectedOutputKey(fallbackKey);
-  }, [canonicalCandidates, selectedOutputKey, updateSelectedOutputKey]);
+  }, [canonicalCandidates, selectedOutputKey, sourceIsCurrent, updateSelectedOutputKey]);
 
   const selectedCandidate = outputPreviewCandidateForKey(candidates, selectedOutputKey);
   const canonicalSelectedCandidate = outputPreviewCandidateForKey(canonicalCandidates, selectedOutputKey);
@@ -310,21 +319,84 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       output: selectedCandidate.output,
       evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
     }).then((plan) => {
-      if (!cancelled) setEvaluationState({ outputKey: selectedCandidate.key, plan, evaluating: false, error: null });
+      if (!cancelled) setEvaluationState({
+        outputKey: selectedCandidate.key,
+        sourceRevision: currentSourceRevision,
+        plan,
+        evaluating: false,
+        error: null
+      });
     }).catch((error: unknown) => {
       if (!cancelled) setEvaluationState({
         outputKey: selectedCandidate.key,
+        sourceRevision: currentSourceRevision,
         plan: null,
         evaluating: false,
         error: error instanceof Error ? error.message : String(error)
       });
     });
     return () => { cancelled = true; };
-  }, [bindingIssueDiagnostics, compiledDocument, diagnostics, rustTransport, selectedCandidate, sourceIsCurrent]);
+  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, rustTransport, selectedCandidate, sourceIsCurrent]);
 
   const activePlan = sourceIsCurrent && selectedCandidate && evaluationState.outputKey === selectedCandidate.key
     ? evaluationState.plan
     : null;
+
+  const exportablePlan = !placeDragPreview
+    && activePlan
+    && evaluationState.sourceRevision === currentSourceRevision
+    && canonicalSelectedCandidate
+    && activePlan.outputId === canonicalSelectedCandidate.output.id
+    && activePlan.rustPayload.kind === activePlan.kind
+    ? activePlan
+    : null;
+
+  const requestCurrentExport = useCallback((): boolean => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (!exportablePlan || !canonicalSelectedCandidate || documentVersion === null || pendingExportRequestId !== null) return false;
+    const requestId = nextExportRequestIdRef.current;
+    nextExportRequestIdRef.current += 1;
+    setPendingExportRequestId(requestId);
+    if (exportablePlan.kind === "print" && exportablePlan.rustPayload.kind === "print") {
+      api.postMessage({
+        type: "outputPreviewExportRequest",
+        requestId,
+        documentVersion,
+        outputKey: canonicalSelectedCandidate.key,
+        outputName: exportablePlan.outputName,
+        format: "pdf",
+        payload: exportablePlan.rustPayload
+      });
+      return true;
+    }
+    if (exportablePlan.kind === "svg" && exportablePlan.rustPayload.kind === "svg") {
+      api.postMessage({
+        type: "outputPreviewExportRequest",
+        requestId,
+        documentVersion,
+        outputKey: canonicalSelectedCandidate.key,
+        outputName: exportablePlan.outputName,
+        format: "svg",
+        payload: exportablePlan.rustPayload
+      });
+      return true;
+    }
+    setPendingExportRequestId(null);
+    return false;
+  }, [api, canonicalSelectedCandidate, exportablePlan, pendingExportRequestId]);
+  useEffect(() => {
+    requestCurrentExportRef.current = requestCurrentExport;
+  }, [requestCurrentExport]);
+
+  useEffect(() => {
+    const documentVersion = latestHostDocumentVersionRef.current;
+    api.postMessage({
+      type: "outputPreviewExportAvailability",
+      documentVersion,
+      outputKey: exportablePlan && canonicalSelectedCandidate ? canonicalSelectedCandidate.key : null,
+      format: exportablePlan?.kind === "print" ? "pdf" : exportablePlan?.kind === "svg" ? "svg" : null
+    });
+  }, [api, authoritativeContextGeneration, canonicalSelectedCandidate, exportablePlan]);
 
   useEffect(() => {
     latestPlanRef.current = activePlan;
@@ -342,9 +414,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [activePlan, fitPlan, placeDragPreview, sourceIsCurrent, selectedOutputKey]);
 
   useEffect(() => {
+    const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
+    refreshCanvasTheme();
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
+      if (message.type === "canvasThemeChanged") {
+        refreshCanvasTheme();
+        return;
+      }
       if (message.type === "outputPreviewOpen") {
         if (latestHostDocumentVersionRef.current !== message.documentVersion) return;
         applyOpenSelection(message.normalizedSourceOffset);
@@ -352,6 +430,18 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "outputPreviewFit") {
         fitPlanRef.current(latestPlanRef.current);
+        return;
+      }
+      if (message.type === "outputPreviewClearFocus") {
+        setClearPlaceInteractionKey((current) => current + 1);
+        return;
+      }
+      if (message.type === "outputPreviewExport") {
+        requestCurrentExportRef.current();
+        return;
+      }
+      if (message.type === "outputPreviewExportResult") {
+        setPendingExportRequestId((current) => current === message.requestId ? null : current);
         return;
       }
       if (message.type === "replaceTextDocument") {
@@ -554,7 +644,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const dragContextKey = `${authoritativeContextGeneration}:${currentSourceRevision}:${selectedOutputKey ?? "none"}`;
 
   return (
-    <main ref={workspaceRef} className="output-preview-workspace vscode-canvas-webview">
+    <main
+      ref={workspaceRef}
+      className="output-preview-workspace vscode-canvas-webview"
+      style={canvasThemeCssVariables(canvasTheme)}
+    >
       <header className="output-preview-toolbar">
         <div className="output-preview-output-group">
           <select
@@ -602,6 +696,37 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             }}
           />
         </div>
+        {exportablePlan ? (
+          <CommandRibbonView
+            className="output-preview-export-ribbon"
+            showHandle={false}
+            viewportAwareTooltips
+            tooltipBoundaryRef={workspaceRef}
+            ribbon={{
+              id: "output-preview-export-ribbon",
+              label: "Output Export",
+              x: null,
+              y: 0,
+              orientation: "horizontal",
+              iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+              items: [{
+                id: "output-preview-export",
+                type: "command",
+                commandId: "outputPreviewExport",
+                icon: "file-down",
+                label: exportablePlan.kind === "print" ? "Export PDF" : "Export SVG",
+                description: "",
+                showLabel: true,
+                available: pendingExportRequestId === null,
+                nativeDisabled: pendingExportRequestId !== null
+              }]
+            }}
+            iconResolver={resolveVscodeLucideIcon}
+            onCommand={(item) => {
+              if (item.commandId === "outputPreviewExport") requestCurrentExport();
+            }}
+          />
+        ) : null}
         <CommandRibbonView
           className="output-preview-fit-ribbon"
           showHandle={false}
@@ -639,6 +764,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         ref={viewportRef}
         className="output-preview-viewport"
         tabIndex={0}
+        data-vscode-context={vscodeWebviewContextDataFor("blank")}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -674,6 +800,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
+              clearInteractionKey={clearPlaceInteractionKey}
+              focusViewport={() => viewportRef.current?.focus()}
+              placeContextMenuData={vscodeWebviewContextDataFor("place")}
               dragContextKey={dragContextKey}
               onBeginDrag={beginPlaceDrag}
               onPreviewDrag={previewPlaceDrag}

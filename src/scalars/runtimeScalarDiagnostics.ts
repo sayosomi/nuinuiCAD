@@ -10,15 +10,15 @@
 //
 // Never re-parses source && never re-resolves a name: every span comes from
 // exactPhysicalSpan against the already-compiled statements/span index, &&
-// every consumer occurrence comes from propertyBindingCompiler.ts's
-// precomputed occurrenceKeysByBindingId (built once per compile, O(1) get
-// per binding here).
+// every consumer occurrence comes from the compile-owned property/numeric
+// consumer indexes (built once per compile, O(1) get per binding here).
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isRuntimeBindingDisplayFresh, type RuntimeBindingFreshnessInput } from "../model/runtimeBindingFreshness";
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
+import type { NumericBindingConsumerReference } from "./numericBindingCompiler";
 import { parsePropertyBindingOccurrenceKey, type ScalarValueSource } from "./propertyBindingCompiler";
 import { runtimeIssueMessage } from "./runtimeIssueMessages";
 import type { ScalarEvaluationErrorContext } from "./types";
@@ -31,6 +31,7 @@ export type RuntimeScalarDiagnosticsInput = {
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
   propertySourcesByOccurrenceKey: ReadonlyMap<string, ScalarValueSource>;
   occurrenceKeysByBindingId: ReadonlyMap<BindingId, readonly string[]>;
+  numericConsumerReferencesByBindingId?: ReadonlyMap<BindingId, readonly NumericBindingConsumerReference[]>;
   elements?: readonly CadElement[];
   freshness: RuntimeBindingFreshnessInput;
 };
@@ -78,24 +79,29 @@ const declarationDiagnostic = (
   };
 };
 
+type ConsumerOccurrence = {
+  occurrenceKey: string;
+  span: DslSpan;
+};
+
 const consumerDiagnostic = (
-  occurrenceKey: string,
+  consumer: ConsumerOccurrence,
   bindingId: BindingId,
   issueCode: string,
   context: ScalarEvaluationErrorContext | undefined,
   input: RuntimeScalarDiagnosticsInput
 ): RuntimeScalarDiagnostic | null => {
-  const source = input.propertySourcesByOccurrenceKey.get(occurrenceKey);
+  const { occurrenceKey, span } = consumer;
   const parsedKey = parsePropertyBindingOccurrenceKey(occurrenceKey);
-  if (!source || source.kind !== "binding" || !parsedKey) return null;
+  if (!parsedKey) return null;
   const statement = input.statements[parsedKey.statementIndex];
   const elementId = input.elementIdByStatementIndex.get(parsedKey.statementIndex);
   if (!statement || !elementId) return null;
-  const physicalSpan = exactPhysicalSpan(input.spans, statement, source.span);
+  const physicalSpan = exactPhysicalSpan(input.spans, statement, span);
   return {
     severity: "error",
     line: statement.line,
-    column: source.span.start + 1,
+    column: span.start + 1,
     code: issueCode,
     message: runtimeIssueMessage(issueCode, context, input.elements),
     exactSpanOnly: true,
@@ -119,13 +125,32 @@ export const runtimeScalarDiagnostics = (input: RuntimeScalarDiagnosticsInput): 
   for (const [bindingId, evaluation] of input.computedScalarBindings) {
     if (evaluation.status !== "error") continue;
     const occurrenceKeys = input.occurrenceKeysByBindingId.get(bindingId);
-    if (occurrenceKeys && occurrenceKeys.length > 0) {
-      // A binding with live property consumers reports at each consumer's
+    const numericConsumers = input.numericConsumerReferencesByBindingId?.get(bindingId);
+    if ((occurrenceKeys && occurrenceKeys.length > 0) || (numericConsumers && numericConsumers.length > 0)) {
+      // A binding with live property/numeric consumers reports at each consumer's
       // exact value span, not at its declaration - the user sees the wrong
       // value where it is actually used. Never both: this is the one place
       // a runtime error for this binding is reported.
-      for (const occurrenceKey of occurrenceKeys) {
-        const diagnostic = consumerDiagnostic(occurrenceKey, bindingId, evaluation.issueCode, evaluation.context, input);
+      for (const occurrenceKey of occurrenceKeys ?? []) {
+        const source = input.propertySourcesByOccurrenceKey.get(occurrenceKey);
+        if (!source || source.kind !== "binding") continue;
+        const diagnostic = consumerDiagnostic(
+          { occurrenceKey, span: source.span },
+          bindingId,
+          evaluation.issueCode,
+          evaluation.context,
+          input
+        );
+        if (diagnostic) diagnostics.push(diagnostic);
+      }
+      for (const numericConsumer of numericConsumers ?? []) {
+        const diagnostic = consumerDiagnostic(
+          { occurrenceKey: numericConsumer.occurrenceKey, span: numericConsumer.reference.span },
+          bindingId,
+          evaluation.issueCode,
+          evaluation.context,
+          input
+        );
         if (diagnostic) diagnostics.push(diagnostic);
       }
       continue;

@@ -1,11 +1,13 @@
 import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
 import type { DslCompletionRecoveryInput, DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
+import type { DslFixedColorSemanticSnapshot } from "../../src/dsl/dslFixedColorQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
 import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
 import type { DslHoverSemanticSnapshot } from "../../src/dsl/dslHoverQuery";
 import type { DslReferencesSemanticSnapshot } from "../../src/dsl/dslReferencesQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
 import type { DslSignatureHelpSemanticSnapshot } from "../../src/dsl/dslSignatureHelpQuery";
+import type { DslSourceValueStepSemanticSnapshot } from "../../src/dsl/dslSourceValueStepQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { reconcileStatements } from "../../src/document/statementReconciler";
 import {
@@ -72,6 +74,12 @@ export type NuiLanguageAnalysisSession = {
   completionRecoverySnapshot: (
     source: SourceSnapshot
   ) => DslCompletionRecoveryInput | undefined;
+  fixedColorSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslFixedColorSemanticSnapshot | undefined;
+  valueStepSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslSourceValueStepSemanticSnapshot | undefined;
   signatureHelpSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslSignatureHelpSemanticSnapshot | undefined;
@@ -219,6 +227,10 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     };
   };
 
+  const fixedColorSemanticSnapshot = (
+    source: SourceSnapshot
+  ): DslFixedColorSemanticSnapshot | undefined => semanticSnapshotFor(source);
+
   const sourceStructureSnapshot = (
     source: SourceSnapshot
   ): NuiFoldingSyntaxSnapshot | undefined => {
@@ -282,6 +294,8 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
         ? completionRecovery
         : undefined;
     },
+    fixedColorSemanticSnapshot,
+    valueStepSemanticSnapshot: semanticSnapshotFor,
     signatureHelpSemanticSnapshot,
     definitionSemanticSnapshot: semanticSnapshotFor,
     hoverSemanticSnapshot: semanticSnapshotFor,

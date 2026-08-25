@@ -23,7 +23,11 @@ import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
-import { compileNumericBindings, type CompiledNumericBinding } from "../scalars/numericBindingCompiler";
+import {
+  compileNumericBindings,
+  type CompiledNumericBinding,
+  type NumericBindingConsumerReference
+} from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
 import { compileSetStatements, type SetStatementAnalysis } from "../scalars/setStatementCompiler";
 import {
@@ -204,6 +208,8 @@ export type CompiledDslDocument = {
    * project an exact physicalSpan without re-parsing. Always present -
    * depends only on the initial parse, not on how far compilation got. */
   spans: DiagnosticSpanContext;
+  /** Exact-current source element products retained even when unrelated diagnostics make `document` fatal. */
+  sourceElementsByStatementIndex: ReadonlyMap<number, CadElement>;
   scalarProgram?: ScalarProgram;
   bindingAnalysis?: BindingAnalysis;
   scalarProgramPositionMap?: ScalarProgramPositionMap;
@@ -214,6 +220,9 @@ export type CompiledDslDocument = {
   occurrenceKeysByBindingId?: ReadonlyMap<BindingId, readonly string[]>;
   /** Compiled typed occurrences within every canonical number parameter. */
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Task 61 numeric consumers grouped by binding id, retaining the
+   * compiler-owned occurrence key and exact `@name` reference span. */
+  numericConsumerReferencesByBindingId?: ReadonlyMap<BindingId, readonly NumericBindingConsumerReference[]>;
   /** Source-output declaration identities used by StatementMap and bindings. */
   layoutIdsByStatementIndex?: Map<number, string>;
   outputIdsByStatementIndex?: Map<number, string>;
@@ -1025,6 +1034,19 @@ const buildStatementMap = (
   };
 };
 
+const sourceElementsFor = (compiled: {
+  elements: readonly CadElement[];
+  elementIdsByStatementIndex?: ReadonlyMap<number, ElementId>;
+}): ReadonlyMap<number, CadElement> => {
+  const elementsById = new Map(compiled.elements.map((element) => [element.id, element]));
+  return new Map(
+    [...(compiled.elementIdsByStatementIndex ?? [])].flatMap(([statementIndex, elementId]) => {
+      const element = elementsById.get(elementId);
+      return element ? [[statementIndex, element] as const] : [];
+    })
+  );
+};
+
 // 文書全体を1回のパースでコンパイルし、文⇄行対応(StatementMap)と診断を返す。
 // statementReconciler の照合結果は options.assignedElementIds で注入できる。
 export const compileDslDocument = (
@@ -1221,6 +1243,7 @@ export const compileDslDocument = (
       sourceLines,
       diagnostics: baseDiagnostics,
       spans,
+      sourceElementsByStatementIndex: sourceElementsFor(compiled),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {})
     };
   }
@@ -1622,10 +1645,16 @@ export const compileDslDocument = (
       sourceLines,
       diagnostics: finalDiagnostics,
       spans,
+      sourceElementsByStatementIndex: sourceElementsFor(compiled),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
-      ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
+      ...(numericBindingCompilation
+        ? {
+            numericBindings: numericBindingCompilation.sourcesByOccurrenceKey,
+            numericConsumerReferencesByBindingId: numericBindingCompilation.consumerReferencesByBindingId
+          }
+        : {}),
       ...(setStatementCompilation ? { setStatements: setStatementCompilation.setsByStatementIndex } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
@@ -1698,6 +1727,7 @@ export const compileDslDocument = (
     sourceLines,
     diagnostics: finalDiagnostics,
     spans,
+    sourceElementsByStatementIndex: sourceElementsFor(compiled),
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
@@ -1707,7 +1737,12 @@ export const compileDslDocument = (
           occurrenceKeysByBindingId: propertyBindingCompilation.occurrenceKeysByBindingId
         }
       : {}),
-    ...(numericBindingCompilation ? { numericBindings: numericBindingCompilation.sourcesByOccurrenceKey } : {}),
+    ...(numericBindingCompilation
+      ? {
+          numericBindings: numericBindingCompilation.sourcesByOccurrenceKey,
+          numericConsumerReferencesByBindingId: numericBindingCompilation.consumerReferencesByBindingId
+        }
+      : {}),
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),

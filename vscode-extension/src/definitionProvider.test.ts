@@ -73,6 +73,27 @@ const definitionFor = (source: string, line: number, character: number, document
 };
 
 describe("VS Code native nui definition provider", () => {
+  it("projects a modifier reference to its exact quoted declaration token", () => {
+    const source = [
+      "nui 4",
+      'modifier "Guide Line" {',
+      "  state: visible,",
+      "}",
+      "point A = coordinate(x: 0, y: 0)",
+      'line L ["Guide Line"] = segment(start: @A, end: @A)'
+    ].join("\n");
+    const line = source.split("\n")[5]!;
+    const links = definitionFor(source, 5, line.indexOf("Guide Line") + 2);
+    expect(links?.[0]?.originSelectionRange).toMatchObject({
+      start: { line: 5, character: line.indexOf('"Guide Line"') },
+      end: { line: 5, character: line.indexOf('"Guide Line"') + '"Guide Line"'.length }
+    });
+    expect(links?.[0]?.targetSelectionRange).toMatchObject({
+      start: { line: 1, character: "modifier ".length },
+      end: { line: 1, character: "modifier ".length + '"Guide Line"'.length }
+    });
+  });
+
   it("uses the file-scoped selector", () => {
     expect(nuiDefinitionSelector).toEqual({ language: "nui", scheme: "file" });
   });

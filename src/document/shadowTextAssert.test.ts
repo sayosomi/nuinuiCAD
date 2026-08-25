@@ -106,7 +106,8 @@ describe("assertReconcileSane", () => {
       statementMap: null,
       sourceLines: [],
       diagnostics: [],
-      spans: { sourceMap: emptyParsed.sourceMap, logicalStatementByRangeFrom: emptyParsed.logicalStatementByRangeFrom }
+      spans: { sourceMap: emptyParsed.sourceMap, logicalStatementByRangeFrom: emptyParsed.logicalStatementByRangeFrom },
+      sourceElementsByStatementIndex: new Map()
     };
     const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     assertReconcileSane(brokenCompiled, serializeDocumentToDsl(afterDoc, 4), afterDoc);

@@ -7,7 +7,7 @@ type Manifest = {
     viewsContainers?: {
       activitybar?: Array<{ id: string; title: string; icon: string }>;
     };
-    views?: Record<string, Array<{ id: string; name: string }>>;
+    views?: Record<string, Array<{ id: string; name: string; type?: string }>>;
     commands?: Array<{
       command: string;
       title: string;
@@ -33,10 +33,17 @@ describe("nuinuiCAD Explorer manifest", () => {
       title: "nuinuiCAD Explorer",
       icon: "media/spline.svg"
     }]);
-    expect(manifest.contributes?.views?.["nuinuiCAD.explorer"]).toEqual([{
-      id: "nuinuiCAD.elements",
-      name: "Elements"
-    }]);
+    expect(manifest.contributes?.views?.["nuinuiCAD.explorer"]).toEqual([
+      {
+        id: "nuinuiCAD.elements",
+        name: "Elements"
+      },
+      {
+        id: "nuinuiCAD.explorerMock",
+        name: "Explorer Mock",
+        type: "webview"
+      }
+    ]);
   });
 
   it("reuses the existing surface commands as Elements title actions", async () => {

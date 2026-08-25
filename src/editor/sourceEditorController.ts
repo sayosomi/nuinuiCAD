@@ -119,7 +119,7 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep, typedNumericStepOptions, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
+import { resolveTypedValueStep, typedNumericStepOptions, typedValueStepTargetForBinding, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { scanDslSource, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
@@ -1012,10 +1012,8 @@ export class SourceEditorController implements SourceEditorHandle {
       const span = fields?.expression;
       if (fields && span && main.from >= span.from && main.from <= span.to) {
         const targetBindingId = doc.setStatements?.get(fields.statementIndex)?.targetBindingId;
-        const declaredType = targetBindingId
-          ? doc.bindingAnalysis?.catalog.bindingsById.get(targetBindingId)?.declaredType ?? null
-          : null;
-        return this.stepTypedSpan(span, declaredType, selection, direction);
+        const target = targetBindingId ? typedValueStepTargetForBinding(doc, targetBindingId) : null;
+        return this.stepTypedSpan(span, target?.declaredType ?? null, selection, direction, target?.options);
       }
     }
     return false;
@@ -2048,8 +2046,8 @@ export class SourceEditorController implements SourceEditorHandle {
    * fresh on every call - never cached/pushed - so a dirty keystroke || a
    * stale evaluation makes this empty on the very next read, without waiting
    * for the next evaluation round-trip. Never re-parses: reuses this exact
-   * compiled document's own Task 48 span context (state.doc.spans) && Task
-   * 22's precomputed occurrenceKeysByBindingId, both already O(1)/O(bindings). */
+   * compiled document's own Task 48 span context (state.doc.spans) and the
+   * compile-owned property/numeric consumer indexes, both already O(1)/O(bindings). */
   public runtimeDiagnostics() {
     const state = this.store.getState();
     if (!state.doc.bindingAnalysis) return [];
@@ -2061,6 +2059,7 @@ export class SourceEditorController implements SourceEditorHandle {
       elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
       propertySourcesByOccurrenceKey: state.doc.propertyBindings ?? new Map(),
       occurrenceKeysByBindingId: state.doc.occurrenceKeysByBindingId ?? new Map(),
+      numericConsumerReferencesByBindingId: state.doc.numericConsumerReferencesByBindingId ?? new Map(),
       elements: state.elements,
       freshness: this.currentRuntimeFreshnessInput()
     });

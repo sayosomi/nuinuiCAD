@@ -62,6 +62,7 @@ type TestPanel = {
 
 type TestRustProcess = {
   request: ReturnType<typeof vi.fn>;
+  exportOutput: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
 };
 
@@ -96,11 +97,14 @@ const mocks = vi.hoisted(() => ({
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   documentSymbolRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  colorRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   canvasRibbonSetting: undefined as unknown,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
+  showInformationMessage: vi.fn(),
+  showSaveDialog: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   executeCommand: vi.fn(),
@@ -114,6 +118,7 @@ const mocks = vi.hoisted(() => ({
   registerCodeActionsProvider: vi.fn(),
   registerFoldingRangeProvider: vi.fn(),
   registerDocumentSymbolProvider: vi.fn(),
+  registerColorProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidChangeTextEditorSelection: vi.fn(),
@@ -200,6 +205,8 @@ vi.mock("vscode", () => {
       onDidChangeActiveColorTheme: mocks.onDidChangeActiveColorTheme,
       showErrorMessage: mocks.showErrorMessage,
       showWarningMessage: mocks.showWarningMessage,
+      showInformationMessage: mocks.showInformationMessage,
+      showSaveDialog: mocks.showSaveDialog,
       showTextDocument: mocks.showTextDocument,
       tabGroups: {
         get activeTabGroup() {
@@ -239,9 +246,13 @@ vi.mock("vscode", () => {
       registerReferenceProvider: mocks.registerReferenceProvider,
       registerCodeActionsProvider: mocks.registerCodeActionsProvider,
       registerFoldingRangeProvider: mocks.registerFoldingRangeProvider,
-      registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider
+      registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider,
+      registerColorProvider: mocks.registerColorProvider
     },
-    Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
+    Uri: {
+      joinPath: vi.fn((...parts: unknown[]) => parts.join("/")),
+      file: vi.fn((fsPath: string) => ({ scheme: "file", fsPath, toString: () => `file://${fsPath}` }))
+    },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     SymbolKind: {
@@ -290,6 +301,7 @@ vi.mock("vscode", () => {
 vi.mock("./rustEvaluationProcess", () => ({
   RustEvaluationProcess: class {
     readonly request = vi.fn(async (input: unknown) => ({ input }));
+    readonly exportOutput = vi.fn(async () => ({ exported: true }));
     readonly dispose = vi.fn();
 
     constructor() {
@@ -518,6 +530,11 @@ const setup = (
     mocks.documentSymbolRegistrations.push({ selector, provider, disposable: registration });
     return registration;
   });
+  mocks.registerColorProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.colorRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -672,8 +689,11 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.documentSymbolRegistrations.length = 0;
+  mocks.colorRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.showWarningMessage.mockReset();
+  mocks.showInformationMessage.mockReset();
+  mocks.showSaveDialog.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.executeCommand.mockReset();
@@ -687,6 +707,7 @@ afterEach(() => {
   mocks.registerCodeActionsProvider.mockReset();
   mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerDocumentSymbolProvider.mockReset();
+  mocks.registerColorProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidChangeTextEditorSelection.mockReset();
@@ -980,6 +1001,8 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.clearOutputPreviewFocus", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.exportCurrentOutput", expect.any(Function));
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
     expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
@@ -1159,6 +1182,155 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("routes Clear Output Preview Focus through the active Preview session", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.clearOutputPreviewFocus")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewClearFocus" });
+  });
+
+  it("routes Export Current Output only through a current active Preview", async () => {
+    setup();
+    commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Export Current Output is only available from an active Output Preview."
+    );
+
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.exportCurrentOutput")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewExport" });
+  });
+
+  it("saves the current PDF payload with the output-based default name", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    mocks.showSaveDialog.mockResolvedValue({ scheme: "file", fsPath: "/tmp/chosen", toString: () => "file:///tmp/chosen" });
+    const payload = { version: 1, kind: "print" };
+
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 4,
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      outputName: "家庭用A4",
+      format: "pdf",
+      payload
+    });
+
+    expect(mocks.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
+      defaultUri: expect.objectContaining({ fsPath: "/tmp/pattern_家庭用A4.pdf" }),
+      filters: { "PDF document": ["pdf"] },
+      saveLabel: "Export PDF"
+    }));
+    expect(mocks.rustProcesses[0]?.exportOutput).toHaveBeenCalledWith({
+      path: "/tmp/chosen.pdf",
+      payload
+    });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewExportResult",
+      requestId: 4,
+      status: "saved"
+    });
+    expect(mocks.showInformationMessage).toHaveBeenCalledWith("nuinuiCAD: Saved chosen.pdf.");
+  });
+
+  it("cancels silently and never writes an output file", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "svg:output-b",
+      format: "svg"
+    });
+    mocks.showSaveDialog.mockResolvedValue(undefined);
+
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 5,
+      documentVersion: document.version,
+      outputKey: "svg:output-b",
+      outputName: "型紙SVG",
+      format: "svg",
+      payload: { version: 1, kind: "svg" }
+    });
+
+    expect(mocks.rustProcesses).toHaveLength(0);
+    expect(mocks.showInformationMessage).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewExportResult",
+      requestId: 5,
+      status: "cancelled"
+    });
+  });
+
+  it("does not write when the document changes while the save dialog is open", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await messageHandlerFor(panel)({
+      type: "outputPreviewExportAvailability",
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      format: "pdf"
+    });
+    let resolveDialog!: (value: unknown) => void;
+    mocks.showSaveDialog.mockImplementation(() => new Promise((resolve) => { resolveDialog = resolve; }));
+    const exportRequest = messageHandlerFor(panel)({
+      type: "outputPreviewExportRequest",
+      requestId: 6,
+      documentVersion: document.version,
+      outputKey: "print:output-a",
+      outputName: "A",
+      format: "pdf",
+      payload: { version: 1, kind: "print" }
+    });
+
+    document.version += 1;
+    document.setSourceText("nui 4\n// changed\n");
+    emitDocumentChange(document);
+    resolveDialog({ scheme: "file", fsPath: "/tmp/stale.pdf", toString: () => "file:///tmp/stale.pdf" });
+    await exportRequest;
+
+    expect(mocks.rustProcesses).toHaveLength(0);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Output Preview changed while the save dialog was open. Export again."
+    );
   });
 
   it("fails closed for stale Output Preview source-navigation requests", async () => {
@@ -1764,7 +1936,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
   });
 
-  it("invalidates every open Canvas session when the active VS Code theme changes", () => {
+  it("invalidates every open Canvas and Output Preview session when the active VS Code theme changes", () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
     const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
     const editorA = editorFor(documentA);
@@ -1777,14 +1949,18 @@ describe("VS Code production document lifecycle", () => {
     mocks.activeTabInput = new mocks.TabInputText(editorB.document.uri);
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
     const panelB = mocks.panels[1]!;
+    commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
+    const outputPreviewPanel = mocks.panels[2]!;
 
     expect(mocks.activeColorThemeListeners).toHaveLength(1);
     mocks.activeColorThemeListeners[0]!();
 
     expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
     expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledTimes(1);
   });
 
   it("adds directory context to all sessions when basenames collide", () => {
@@ -1911,7 +2087,9 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(3);
+    // Diagnostics, Explorer, Reference Pick, and Source Value Step each observe
+    // document changes without mutating the benchmark Source document.
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(4);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
@@ -2912,6 +3090,21 @@ describe("VS Code native document symbol lifecycle", () => {
     expect(mocks.documentSymbolRegistrations).toHaveLength(1);
     expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
     expect(registration.provider).toEqual(expect.objectContaining({ provideDocumentSymbols: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+});
+
+describe("VS Code native fixed-color lifecycle", () => {
+  it("registers one nui/file color provider with the session lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.colorRegistrations[0]!;
+
+    expect(mocks.colorRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({
+      provideDocumentColors: expect.any(Function),
+      provideColorPresentations: expect.any(Function)
+    }));
     expect(context.subscriptions).toContain(registration.disposable);
   });
 });

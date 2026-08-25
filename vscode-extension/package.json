@@ -29,10 +29,27 @@
         {
           "id": "nuinuiCAD.elements",
           "name": "Elements"
+        },
+        {
+          "id": "nuinuiCAD.explorerMock",
+          "name": "Explorer Mock",
+          "type": "webview"
         }
       ]
     },
     "keybindings": [
+      {
+        "command": "nuinuiCAD.stepSourceValueForward.keybinding",
+        "key": "ctrl+shift+.",
+        "mac": "shift+cmd+.",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
+      {
+        "command": "nuinuiCAD.stepSourceValueBackward.keybinding",
+        "key": "ctrl+shift+,",
+        "mac": "shift+cmd+,",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
       {
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
@@ -89,6 +106,14 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.stepSourceValueForward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueBackward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -102,6 +127,14 @@
         },
         {
           "command": "nuinuiCAD.fitOutputPreview",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+        },
+        {
+          "command": "nuinuiCAD.clearOutputPreviewFocus",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+        },
+        {
+          "command": "nuinuiCAD.exportCurrentOutput",
           "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
         {
@@ -211,6 +244,14 @@
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
         },
         {
+          "command": "nuinuiCAD.fitOutputPreview",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.clearOutputPreviewFocus",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')"
+        },
+        {
           "command": "nuinuiCAD.goToSourceDefinition",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
@@ -303,6 +344,16 @@
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
       },
       {
+        "command": "nuinuiCAD.stepSourceValueForward",
+        "title": "nuinuiCAD: Step Source Value Forward",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
+      },
+      {
+        "command": "nuinuiCAD.stepSourceValueBackward",
+        "title": "nuinuiCAD: Step Source Value Backward",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
+      },
+      {
         "command": "nuinuiCAD.canvasUndo",
         "title": "nuinuiCAD: Undo Canvas Transition"
       },
@@ -334,6 +385,14 @@
       {
         "command": "nuinuiCAD.fitOutputPreview",
         "title": "nuinuiCAD: Fit Output Preview"
+      },
+      {
+        "command": "nuinuiCAD.clearOutputPreviewFocus",
+        "title": "nuinuiCAD: Clear Output Preview Focus"
+      },
+      {
+        "command": "nuinuiCAD.exportCurrentOutput",
+        "title": "nuinuiCAD: Export Current Output"
       },
       {
         "command": "nuinuiCAD.toggleCanvasPointNames",
