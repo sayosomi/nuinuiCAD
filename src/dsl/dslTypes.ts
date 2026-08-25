@@ -177,6 +177,8 @@ export type DslModifierProperty = {
   keySpan: DslSpan;
   valueSpan: DslSpan;
   hasTrailingComma: boolean;
+  /** Parser-owned exact logical tokens for modifier authoring. */
+  authoringTokens?: readonly { kind: "value" | "width" | "unit" | "style" | "themeRole" | "fixedColor"; span: DslSpan }[];
   keyPhysicalSpan?: DslPhysicalSpan | null;
   valuePhysicalSpan?: DslPhysicalSpan | null;
 };

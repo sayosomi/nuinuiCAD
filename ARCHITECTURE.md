@@ -419,6 +419,8 @@ Representative owners:
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
 - `src/dsl/dslReferenceTokens.ts`
 - `src/dsl/dslSemanticOccurrenceIndex.ts`
+- `src/dsl/dslModifierAuthoring.ts`
+- `src/dsl/dslModifierAuthoringIndex.ts`
 - `src/dsl/dslDefinitionQuery.ts`
 - `src/dsl/dslRenameQuery.ts`
 - `src/dsl/dslReferencesQuery.ts`
@@ -428,6 +430,12 @@ second resolver を作らない。Definition、Rename、References の source
 occurrence enumeration は `dslSemanticOccurrenceIndex.ts` が compiler-resolved
 identity と exact physical range を共有し、各 query がそれぞれの safety
 policy を持つ。
+
+Drawing Modifier の strict property validation、authoring metadata、exact
+sub-token spans は `dslModifierAuthoring.ts` が owner であり、
+`dslModifierAuthoringIndex.ts` が exact-current source-only definition /
+reference / property view を導出する。Completion、Definition、Rename はこの
+shared source semantics を利用し、VS Code に別 parser / resolver を持たない。
 
 ### Typed scalar expressions
 

@@ -59,6 +59,10 @@ import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps
 import { NUMERIC_COMPUTED_GEOMETRY_PROPERTIES } from "../geometry/numericExpressions";
 import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import type { CadElement } from "../types/geometry";
+import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
+import { modifierPropertyMetadata } from "./dslModifierAuthoring";
+import { formatDslName } from "./dslTokens";
+import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 
 export type DslCompletionCandidateKind =
   | "keyword"
@@ -71,7 +75,8 @@ export type DslCompletionCandidateKind =
   | "property"
   | "builtin"
   | "literal"
-  | "operator";
+  | "operator"
+  | "modifier";
 
 /** Host-neutral semantic completion data. `label` is a semantic name or
  * spelling; adapters decide whether to add `@`, `: `, `(`, or any other host
@@ -82,6 +87,8 @@ export type DslCompletionCandidate = {
   detail?: string;
   identity?: string;
   documentation?: ModuleDocumentation;
+  /** Canonical source spelling when a semantic label requires quoting. */
+  sourceText?: string;
 };
 
 export type DslCompletionRange = { from: number; to: number };
@@ -713,6 +720,21 @@ const queryCandidates = (
   recovery: DslCompletionRecoveryInput | undefined
 ) => {
   if (context.kind === "keyword") return context.options.map((label) => ({ kind: "keyword" as const, label }));
+  if (context.kind === "modifierProperty") return context.options.map((label) => ({ kind: "property" as const, label }));
+  if (context.kind === "modifierValue") {
+    const metadata = modifierPropertyMetadata(context.property);
+    return metadata?.options.map((label) => ({ kind: "literal" as const, label })) ?? [];
+  }
+  if (context.kind === "modifierReference") {
+    return (compiled ? createModifierAuthoringIndex(compiled).definitions : []).map((definition) =>
+      ({ kind: "modifier" as const, label: definition.name, sourceText: formatDslName(definition.name) })
+    );
+  }
+  if (context.kind === "modifierProfile") {
+    return (compiled?.statements ?? []).flatMap((statement) => statement.kind === "profileDeclaration" && statement.name
+      ? [{ kind: "modifier" as const, label: statement.name, sourceText: formatDslName(statement.name) }]
+      : []);
+  }
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "declaredType") {
@@ -857,6 +879,15 @@ const attachModuleDocumentation = (
  */
 export const queryDslCompletion = ({ source, position, semantic, recovery: requestedRecovery }: DslCompletionQueryInput): DslCompletionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
+  const modifierContext = dslModifierCompletionContextAt(source.normalizedSource, position, semantic?.compiled);
+  if (modifierContext) {
+    return {
+      context: modifierContext,
+      category: modifierContext.kind,
+      replacementRange: { from: modifierContext.from, to: modifierContext.to },
+      candidates: queryCandidates(modifierContext, { lineText: "", localPosition: 0, lineStart: 0, lineNumber: 1, map: createLogicalStatementSourceMap(source), statement: null }, position, semantic, semantic?.compiled, semanticIsExact(source, semantic), -1, undefined)
+    };
+  }
   const strictInput = logicalInputAt(source, position);
   const authoring = dslCallAuthoringContextAt(source, position);
   const strictStartsInBlockComment = strictInput.statement

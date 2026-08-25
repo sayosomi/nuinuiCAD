@@ -24,11 +24,13 @@ import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { resolveParameterValueSpan } from "./dslParameterSpans";
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { ElementId } from "../types/geometry";
+import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
   | { kind: "module"; target: ModuleSemanticTarget }
   | { kind: "element"; elementId: ElementId }
+  | { kind: "modifier"; name: string }
   | { kind: "source"; statementId: string };
 
 export type DslSemanticOccurrence = {
@@ -59,6 +61,7 @@ const physicalRange = (
 export const dslSemanticIdentityKey = (identity: DslSemanticIdentity): string => {
   if (identity.kind === "typed") return `typed:${identity.bindingId}`;
   if (identity.kind === "element") return `element:${identity.elementId}`;
+  if (identity.kind === "modifier") return `modifier:${identity.name}`;
   if (identity.kind === "source") return `source:${identity.statementId}`;
   return `module:${moduleSemanticTargetKey(identity.target)}`;
 };
@@ -531,6 +534,17 @@ const addDrawingProfileOccurrences = (compiled: CompiledDslDocument, add: AddOcc
   }
 };
 
+/** Document-global modifier names deliberately stay outside lexical namespaces. */
+const addDrawingModifierOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const index = createModifierAuthoringIndex(compiled);
+  for (const definition of index.definitions) {
+    add("declaration", definition.range.from, definition.range.to, { kind: "modifier", name: definition.name });
+  }
+  for (const reference of index.references) {
+    add("reference", reference.range.from, reference.range.to, { kind: "modifier", name: reference.name });
+  }
+};
+
 const addSourceOutputOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace) return;
@@ -578,6 +592,7 @@ export const createDslSemanticOccurrenceIndex = (
   addGeometryArrayOccurrences(compiled, add);
   addSourceOutputOccurrences(compiled, add);
   addDrawingProfileOccurrences(compiled, add);
+  addDrawingModifierOccurrences(compiled, add);
 
   const occurrences = [...byKey.values()].sort((left, right) =>
     left.from - right.from || left.to - right.to || (left.kind === "declaration" ? -1 : 1) ||

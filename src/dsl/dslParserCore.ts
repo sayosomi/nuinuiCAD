@@ -10,8 +10,7 @@ import type {
 import type {
   DrawingModifierState,
   DrawingModifierStrokeStyle,
-  DrawingModifierStrokeColor,
-  DrawingModifierThemeRole
+  DrawingModifierStrokeColor
 } from "../types/geometry";
 import { isBareDslIdentifierChar, unquoteDslString } from "./dslTokens";
 import {
@@ -44,6 +43,13 @@ import {
 } from "./dslMultiDocumentSyntax";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { parseDslSourceReference } from "./dslReferenceTokens";
+import {
+  isModifierStateValue,
+  modifierPropertyAuthoringTokens,
+  parseModifierColorValue,
+  parseModifierStyleValue,
+  parseModifierWidthValue
+} from "./dslModifierAuthoring";
 import { dslStatementKeywords } from "./dslStatementKeywords";
 
 export { dslStatementKeywordCompletions, dslStatementKeywords } from "./dslStatementKeywords";
@@ -342,17 +348,6 @@ type ParsedModifierProperty = {
   opensBlock: false;
 };
 
-const modifierStateValues = new Set<DrawingModifierState>(["visible", "hidden", "disabled"]);
-const modifierStrokeStyles = new Set<DrawingModifierStrokeStyle>(["solid", "dashed", "dotted"]);
-const modifierThemeRoles = new Set<DrawingModifierThemeRole>([
-  "foreground",
-  "muted",
-  "accent",
-  "info",
-  "warning",
-  "error"
-]);
-const modifierFixedColorPattern = /^#[0-9a-fA-F]{6}$/;
 
 const parseModifierDefinition = (
   logicalText: string,
@@ -455,7 +450,8 @@ const parseModifierProperty = (
     value: logicalText.slice(valueStart, valueEnd),
     keySpan: { start: keyStart, end: keyEnd },
     valueSpan: { start: valueStart, end: valueEnd },
-    hasTrailingComma
+    hasTrailingComma,
+    authoringTokens: modifierPropertyAuthoringTokens(key, logicalText.slice(valueStart, valueEnd), { start: valueStart, end: valueEnd })
   };
   return {
     property,
@@ -473,13 +469,12 @@ const parseModifierWidth = (
   diagnostics: DslDiagnostic[],
   line: number
 ): number | null => {
-  const match = value.trim().match(/^(\d+(?:\.\d*)?|\.\d+)px$/);
-  const width = match ? Number(match[1]) : NaN;
-  if (!match || !Number.isFinite(width) || width <= 0) {
-    diagnostics.push(diagnostic(line, "modifier の width は正の有限な10進数pxリテラルで指定してください(例: 1.5px)。"));
+  const parsed = parseModifierWidthValue(value);
+  if ("message" in parsed) {
+    diagnostics.push(diagnostic(line, parsed.message));
     return null;
   }
-  return width;
+  return parsed.value;
 };
 
 const parseModifierStyle = (
@@ -487,11 +482,12 @@ const parseModifierStyle = (
   diagnostics: DslDiagnostic[],
   line: number
 ): DrawingModifierStrokeStyle | null => {
-  if (!modifierStrokeStyles.has(value as DrawingModifierStrokeStyle)) {
-    diagnostics.push(diagnostic(line, "modifier の style は solid / dashed / dotted のいずれかで指定してください。"));
+  const parsed = parseModifierStyleValue(value);
+  if ("message" in parsed) {
+    diagnostics.push(diagnostic(line, parsed.message));
     return null;
   }
-  return value as DrawingModifierStrokeStyle;
+  return parsed.value;
 };
 
 const parseModifierColor = (
@@ -499,18 +495,12 @@ const parseModifierColor = (
   diagnostics: DslDiagnostic[],
   line: number
 ): DrawingModifierStrokeColor | null => {
-  if (modifierThemeRoles.has(value as DrawingModifierThemeRole)) {
-    return { kind: "themeRole", role: value as DrawingModifierThemeRole };
+  const parsed = parseModifierColorValue(value);
+  if ("message" in parsed) {
+    diagnostics.push(diagnostic(line, parsed.message));
+    return null;
   }
-  if (value.startsWith("#")) {
-    if (!modifierFixedColorPattern.test(value)) {
-      diagnostics.push(diagnostic(line, "modifier の color 固定色は #RRGGBB の形式で指定してください。"));
-      return null;
-    }
-    return { kind: "fixed", hex: value.toLowerCase() };
-  }
-  diagnostics.push(diagnostic(line, "modifier の color は foreground / muted / accent / info / warning / error または #RRGGBB で指定してください。"));
-  return null;
+  return parsed.value;
 };
 
 const parseModifierProfileBlock = (
@@ -1015,7 +1005,7 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
         diagnostics.push(diagnostic(block.line, `modifier の for @${block.profileName} にはプロパティが1つ以上必要です。`));
       }
       const blockState = propertiesByBlockKey.get("state")?.[0]?.value;
-      if (blockState !== undefined && !modifierStateValues.has(blockState as DrawingModifierState)) {
+      if (blockState !== undefined && !isModifierStateValue(blockState)) {
         diagnostics.push(diagnostic(block.line, "modifier の for @profile の state は visible / hidden / disabled のいずれかで指定してください。"));
       } else if (blockEntry) {
         blockEntry.state = blockState as DrawingModifierState | undefined ?? null;
@@ -1040,7 +1030,7 @@ const finalizeModifierStatements = (statements: DslStatement[], diagnostics: Dsl
       diagnostics.push(diagnostic(definition.line, "modifier には state / width / style / color または for @profile が1つ以上必要です。"));
     }
     const state = stateProperties[0]?.value;
-    if (state !== undefined && !modifierStateValues.has(state as DrawingModifierState)) {
+    if (state !== undefined && !isModifierStateValue(state)) {
       diagnostics.push(diagnostic(definition.line, "modifier の state は visible / hidden / disabled のいずれかで指定してください。"));
       definition.state = null;
     } else {

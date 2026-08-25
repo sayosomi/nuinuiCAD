@@ -95,6 +95,24 @@ const transientOptionalModuleSource = optionalModuleSource.replace(
 );
 
 describe("VS Code native nui completion provider", () => {
+  it("projects modifier authoring candidates through the native provider", () => {
+    const source = [
+      "nui 4",
+      'modifier "Guide Line" {',
+      "  state: visible,",
+      "}",
+      "point A = coordinate(x: 0, y: 0)",
+      "line L [Gui] = segment(start: @A, end: @A)"
+    ].join("\n");
+    const items = itemsFor(source, 5, "line L [Gui".length);
+    const guide = items.find((item) => item.label === "Guide Line");
+    expect(guide?.insertText).toBe('"Guide Line"');
+    expect(guide?.range).toMatchObject({
+      start: { line: 5, character: "line L [".length },
+      end: { line: 5, character: "line L [Gui".length }
+    });
+  });
+
   it("uses the file-scoped selector and all requested trigger characters", () => {
     expect(nuiCompletionSelector).toEqual({ language: "nui", scheme: "file" });
     expect(nuiCompletionTriggerCharacters).toEqual(["@", ".", ":", "=", "(", ",", "[", "{"]);
