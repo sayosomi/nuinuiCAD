@@ -537,18 +537,22 @@ describe("Output Preview application", () => {
     expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
   });
 
-  it("recovers after a current-source error is repaired", async () => {
+  it("recovers the selected output after a current-source error is repaired", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     renderFixture();
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    const svgKey = outputKeyFor("svg", "B");
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: svgKey } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Export SVG" })).toBeInTheDocument());
 
     act(() => useCadDocumentStore.getState().commitText("nui 4\npoint Broken = coordinate(", "test"));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
     act(() => useCadDocumentStore.getState().commitText(source, "test"));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-    expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
+    expect(screen.getByRole("combobox")).toHaveValue(svgKey);
+    expect(screen.getByRole("button", { name: "Export SVG" })).toBeInTheDocument();
   });
 
   it("hydrates both Manual E2E outputs and opens the output at a cursor offset", async () => {

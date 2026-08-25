@@ -293,11 +293,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [applyOpenSelection, canonicalCandidates, sourceIsCurrent]);
 
   useEffect(() => {
+    if (!sourceIsCurrent) return;
     const fallbackKey = canonicalCandidates[0]?.key ?? null;
     const currentKey = selectedOutputKeyRef.current;
     if (outputPreviewCandidateForKey(canonicalCandidates, currentKey) || currentKey === fallbackKey) return;
     updateSelectedOutputKey(fallbackKey);
-  }, [canonicalCandidates, selectedOutputKey, updateSelectedOutputKey]);
+  }, [canonicalCandidates, selectedOutputKey, sourceIsCurrent, updateSelectedOutputKey]);
 
   const selectedCandidate = outputPreviewCandidateForKey(candidates, selectedOutputKey);
   const canonicalSelectedCandidate = outputPreviewCandidateForKey(canonicalCandidates, selectedOutputKey);
