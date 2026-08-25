@@ -120,7 +120,26 @@ const planFor = (output: TestOutput): OutputPlan => {
     drawables: [drawable],
     renderedBounds: bounds,
     bounds,
-    rustPayload: {} as OutputPlan["rustPayload"],
+    rustPayload: isPrint
+      ? {
+          version: 1,
+          kind: "print",
+          bounds,
+          drawables: [drawable],
+          paper: { widthMm: paperWidthMm, heightMm: paperHeightMm },
+          overlapMm: overlap,
+          stride: { x: strideXmm, y: strideYmm },
+          pages
+        }
+      : {
+          version: 1,
+          kind: "svg",
+          bounds,
+          drawables: [drawable],
+          widthMm: bounds.width,
+          heightMm: bounds.height,
+          contentOrigin: { x: bounds.minX, y: bounds.minY }
+        },
     ...(isPrint
       ? {
           print: {
@@ -281,6 +300,91 @@ describe("Output Preview application", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Fit Output Preview" })).not.toBeDisabled());
     fireEvent.click(screen.getByRole("button", { name: "Fit Output Preview" }));
     expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("exports the exact current print plan once and re-enables after the host result", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const exportButton = await screen.findByRole("button", { name: "Export PDF" });
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewExportAvailability",
+      documentVersion: 7,
+      outputKey: outputKeyFor("print", "A"),
+      format: "pdf"
+    })));
+
+    fireEvent.click(exportButton);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewExportRequest",
+      requestId: 1,
+      documentVersion: 7,
+      outputKey: outputKeyFor("print", "A"),
+      outputName: "A",
+      format: "pdf",
+      payload: expect.objectContaining({ kind: "print" })
+    }));
+    expect(exportButton).toBeDisabled();
+    fireEvent.click(exportButton);
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "outputPreviewExportRequest")).toHaveLength(1);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "outputPreviewExportResult", requestId: 1, status: "saved" }
+      }));
+    });
+    await waitFor(() => expect(exportButton).not.toBeDisabled());
+  });
+
+  it("uses the same current export request for Palette dispatch and switches to SVG", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 3 }
+      }));
+    });
+    const svgKey = outputKeyFor("svg", "B");
+    fireEvent.change(await screen.findByRole("combobox"), { target: { value: svgKey } });
+    const exportButton = await screen.findByRole("button", { name: "Export SVG" });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewExport" } }));
+    });
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewExportRequest",
+      documentVersion: 3,
+      outputKey: svgKey,
+      outputName: "B",
+      format: "svg",
+      payload: expect.objectContaining({ kind: "svg" })
+    })));
+    expect(exportButton).toBeDisabled();
+  });
+
+  it("withdraws export availability while the current source is invalid", async () => {
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+    });
+    expect(await screen.findByRole("button", { name: "Export PDF" })).toBeInTheDocument();
+
+    act(() => useCadDocumentStore.getState().commitText("nui 4\npoint Broken = coordinate(", "test"));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull());
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "outputPreviewExportAvailability",
+      outputKey: null,
+      format: null
+    }));
   });
 
   it("positions Output Preview ribbon tooltips relative to the workspace boundary", async () => {

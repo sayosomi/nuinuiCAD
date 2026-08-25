@@ -2,6 +2,10 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
+import {
+  defaultOutputExportPath,
+  ensureOutputExportExtension
+} from "../../src/document/printExportFileName";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
@@ -76,6 +80,8 @@ import type {
   VscodeCanvasCommandId,
   VscodeBenchmarkConfig,
   VscodeDocumentChangeReason,
+  VscodeOutputPreviewExportAvailability,
+  VscodeOutputPreviewExportRequest,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import {
@@ -148,6 +154,8 @@ type OutputPreviewSession = VscodeWebviewSessionBase & {
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
   pendingOpen: { normalizedSourceOffset: number | null } | null;
+  exportAvailability: Omit<VscodeOutputPreviewExportAvailability, "type"> | null;
+  inFlightExportRequestId: number | null;
 };
 
 type WebviewSession = DocumentSession | OutputPreviewSession;
@@ -1487,6 +1495,87 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   };
 
+  const postOutputPreviewExportResult = (
+    session: OutputPreviewSession,
+    requestId: number,
+    status: "saved" | "cancelled" | "failed"
+  ): void => {
+    void session.panel.webview.postMessage({
+      type: "outputPreviewExportResult",
+      requestId,
+      status
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const outputPreviewExportRequestIsCurrent = (
+    session: OutputPreviewSession,
+    message: VscodeOutputPreviewExportRequest
+  ): boolean => {
+    const availability = session.exportAvailability;
+    const payloadMatchesFormat = message.format === "pdf"
+      ? message.payload.kind === "print"
+      : message.payload.kind === "svg";
+    return sessions.get(session.documentUri, "outputPreview") === session
+      && payloadMatchesFormat
+      && session.panel.active
+      && isOpenDocument(session.document)
+      && session.webviewReady
+      && session.authoritativeDocumentVersion === session.document.version
+      && session.document.version === message.documentVersion
+      && availability?.documentVersion === message.documentVersion
+      && availability.outputKey === message.outputKey
+      && availability.format === message.format;
+  };
+
+  const handleOutputPreviewExport = async (
+    session: OutputPreviewSession,
+    message: VscodeOutputPreviewExportRequest
+  ): Promise<void> => {
+    if (session.inFlightExportRequestId !== null || !outputPreviewExportRequestIsCurrent(session, message)) {
+      postOutputPreviewExportResult(session, message.requestId, "failed");
+      void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed. Review the current output and export again.");
+      return;
+    }
+    session.inFlightExportRequestId = message.requestId;
+    const defaultPath = defaultOutputExportPath({
+      outputName: message.outputName,
+      documentPath: session.document.fileName,
+      extension: message.format
+    });
+    try {
+      const selected = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(defaultPath),
+        filters: message.format === "pdf"
+          ? { "PDF document": ["pdf"] }
+          : { "SVG document": ["svg"] },
+        saveLabel: message.format === "pdf" ? "Export PDF" : "Export SVG"
+      });
+      if (!selected) {
+        postOutputPreviewExportResult(session, message.requestId, "cancelled");
+        return;
+      }
+      if (selected.scheme !== "file") {
+        throw new Error("Output files can only be saved to a local file path.");
+      }
+      if (!outputPreviewExportRequestIsCurrent(session, message)) {
+        postOutputPreviewExportResult(session, message.requestId, "failed");
+        void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed while the save dialog was open. Export again.");
+        return;
+      }
+      const path = ensureOutputExportExtension(selected.fsPath, message.format);
+      await rustProcessOwner.get().exportOutput({ path, payload: message.payload });
+      postOutputPreviewExportResult(session, message.requestId, "saved");
+      void vscode.window.showInformationMessage(`nuinuiCAD: Saved ${basename(path)}.`);
+    } catch (error) {
+      postOutputPreviewExportResult(session, message.requestId, "failed");
+      void vscode.window.showErrorMessage(
+        `nuinuiCAD: Export failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    } finally {
+      if (session.inFlightExportRequestId === message.requestId) session.inFlightExportRequestId = null;
+    }
+  };
+
   const createOutputPreviewPanel = (
     document: vscode.TextDocument,
     normalizedSourceOffset: number | null,
@@ -1522,13 +1611,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
       disposables: [],
       webviewReady: false,
       authoritativeDocumentVersion: null,
-      pendingOpen: { normalizedSourceOffset }
+      pendingOpen: { normalizedSourceOffset },
+      exportAvailability: null,
+      inFlightExportRequestId: null
     };
     sessions.set(session);
 
     session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
       if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
       session.authoritativeDocumentVersion = null;
+      session.exportAvailability = null;
       postDocumentText(panel, event.document.getText(), event.document.version, documentChangeReasonFor(event.reason));
     }));
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
@@ -1548,6 +1640,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
         if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
           void panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
         }
+        return;
+      }
+      if (message.type === "outputPreviewExportAvailability") {
+        if (
+          message.documentVersion !== session.document.version
+          || session.authoritativeDocumentVersion !== session.document.version
+        ) {
+          session.exportAvailability = null;
+          return;
+        }
+        session.exportAvailability = {
+          documentVersion: message.documentVersion,
+          outputKey: message.outputKey,
+          format: message.format
+        };
+        return;
+      }
+      if (message.type === "outputPreviewExportRequest") {
+        await handleOutputPreviewExport(session, message);
         return;
       }
       if (message.type === "outputPreviewSourceNavigation") {
@@ -1587,6 +1698,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
       void session.panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
     }
+  };
+
+  const executeExportCurrentOutput = (): void => {
+    const session = activeOutputPreviewSessionForOpenCommand();
+    if (!session) {
+      void vscode.window.showErrorMessage("nuinuiCAD: Export Current Output is only available from an active Output Preview.");
+      return;
+    }
+    if (
+      session.inFlightExportRequestId !== null
+      || session.authoritativeDocumentVersion !== session.document.version
+      || session.exportAvailability?.documentVersion !== session.document.version
+      || session.exportAvailability.outputKey === null
+      || session.exportAvailability.format === null
+    ) {
+      void vscode.window.showErrorMessage("nuinuiCAD: The active Output Preview has no current exportable output.");
+      return;
+    }
+    void session.panel.webview.postMessage({ type: "outputPreviewExport" } satisfies ExtensionToVscodeMessage);
   };
 
   const executeOutputPreviewHistory = async (
@@ -1786,6 +1916,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     "nuinuiCAD.fitOutputPreview",
     executeFitOutputPreview
   );
+  const exportCurrentOutputCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.exportCurrentOutput",
+    executeExportCurrentOutput
+  );
   const outputPreviewUndoCommand = vscode.commands.registerCommand(
     "nuinuiCAD.outputPreviewUndo",
     () => executeOutputPreviewHistory("undo")
@@ -1856,6 +1990,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     command,
     openOutputPreviewCommand,
     fitOutputPreviewCommand,
+    exportCurrentOutputCommand,
     outputPreviewUndoCommand,
     outputPreviewRedoCommand,
     goToSourceDefinitionCommand,

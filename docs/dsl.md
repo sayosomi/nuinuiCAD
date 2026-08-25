@@ -624,6 +624,23 @@ only on edges with a neighboring page; outer-edge guides have no label. When
 guides or labels. Print declarations do not have a `margin` attribute;
 `margin` remains an SVG-only option.
 
+### Output Preview から保存する
+
+VS Code の `nuinuiCAD: Open Output Preview` で output を選択すると、`print`
+には `Export PDF`、`svg` には `Export SVG` が表示されます。Command Palette
+の `nuinuiCAD: Export Current Output` も、Output Preview がアクティブな間だけ
+同じ保存操作を実行します。Source、Canvas、Module Preview から直接保存は
+できません。
+
+保存ダイアログの既定名は `<文書名>_<output名>.pdf` または
+`<文書名>_<output名>.svg` で、元の `.nui` と同じディレクトリから開きます。
+dirty な文書も Preview が exact-current source を表示していれば保存できます。
+ダイアログ中に source または選択 output が変わった場合は stale な出力を保存せず、
+現在の Preview を確認して再実行するよう通知します。
+
+PDF text は現在の検証済み UCS-2 範囲（ASCII、かな、一部の漢字）に限定されます。
+未対応文字は黙って置換せず、ファイルを書き込む前に明示エラーになります。
+
 ## 編集と診断
 
 Source Editor が canonical な保存形式を出力します。Inspector は表示と該当 source span への移動を担当し、フォームとして値を書き換えません。依存関係、型、activity、名前解決の問題は黙って修復せず、対象 element と原因を含む診断として表示します。

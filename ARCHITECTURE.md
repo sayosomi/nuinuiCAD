@@ -554,9 +554,10 @@ second runtime-to-source map.
 Primary:
 
 - `src/output/outputCore.ts`
-- `src-tauri/src/print_output.rs`
-- `src-tauri/src/print_svg.rs`
-- `src-tauri/src/print_pdf.rs`
+- `rust-evaluator/src/output/payload.rs`
+- `rust-evaluator/src/output/svg.rs`
+- `rust-evaluator/src/output/pdf.rs`
+- `vscode-extension/src/extension.ts` (Output Preview save host boundary)
 
 `outputCore.ts` is the host-neutral owner of the resolved output plan shared by
 SVG, PDF, and future Preview. It consumes compiler-resolved layouts/outputs,
@@ -564,7 +565,7 @@ calls the existing `buildEvaluationOptions` boundary with the output's selected
 Drawing Profile, and consumes the resulting `EvaluationResult` without
 re-evaluating or filtering the common Canvas result. It resolves typed numeric
 output values through the compiled numeric binding/runtime products, applies
-ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/text
+ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/polyline/text
 drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
 
 The same plan owns SVG physical sizing and print tiling metadata, including
@@ -575,12 +576,21 @@ legacy Canvas baseline, but does not read the active Canvas theme at runtime;
 it also converts modifier widths from CSS pixels to millimetres. It has no
 React, host UI, command, dialog, or save flow ownership.
 
-`print_output.rs` is the JSON-friendly resolved-payload validation boundary.
-`print_svg.rs` and `print_pdf.rs` remain the production Rust encoding owners;
+`rust-evaluator/src/output/payload.rs` is the JSON-friendly resolved-payload
+validation boundary. `svg.rs` and `pdf.rs` are the production Rust encoding owners;
 they do not parse `.nui` source or resolve source names. SVG performs the Y-up
 to SVG Y-down conversion only at this boundary, while PDF preserves the
-physical Y-up page coordinates. Tauri command registration remains in
-`src-tauri/src/lib.rs`.
+physical Y-up page coordinates.
+
+Output Preview is the only user-facing save surface. Its current Webview plan
+publishes exact document-version/output-identity availability and sends the
+already-resolved `rustPayload`; the Extension Host owns the Output Preview-only
+command, save dialog, default `<document>_<output>` name, stale-session checks,
+and success/error notification. The shared `evaluation_stdio` process accepts a
+separate `exportOutput` envelope without changing the existing `{ id, input }`
+evaluation envelope or the public `evaluate_document(input)` Rust API. Encoding
+finishes in memory before the selected local file is written, so payload or PDF
+character validation errors do not touch the target.
 
 ### Rust evaluation
 
@@ -889,7 +899,8 @@ used by navigation.
 `vscode-extension/src/rustEvaluationProcessOwner.ts` exposes the one active
 Extension Host owner so independently registered production features can reuse it.
 That one lazy process instance is shared by Canvas, Output Preview, Module Preview,
-and native Hover runtime evaluation regardless of document or surface identity.
+native Hover runtime evaluation, and Output Preview export encoding regardless of
+document or surface identity.
 A panel does not own or kill the process. Unexpected process death rejects pending
 work, clears the dead process, and allows the next evaluation request to respawn
 it. Headless MCP owns a separate lazy owner instance but uses the same
