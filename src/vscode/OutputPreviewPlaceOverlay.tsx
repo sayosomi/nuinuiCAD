@@ -82,6 +82,7 @@ export const OutputPreviewPlaceOverlay = ({
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [candidateSession, setCandidateSession] = useState<OutputPreviewPlaceCandidateSession | null>(null);
   const [dragSession, setDragSession] = useState<OutputPreviewPlaceDragSession | null>(null);
+  const overlayRootRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<OutputPreviewPlaceDragSession | null>(null);
   const axisLockKeysRef = useRef<AxisLockKeys>(releasedAxisLocks());
   const suppressClickPlaceIdRef = useRef<string | null>(null);
@@ -298,10 +299,10 @@ export const OutputPreviewPlaceOverlay = ({
     setCandidateSession({ ...candidateSession, activeIndex });
   };
 
-  const handleCandidateWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleCandidateWheel = useCallback((event: WheelEvent) => {
     if (!candidateSessionIsCurrent) return;
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
     const next = candidateWheelDeltaFor({
       remainder: candidateWheelDeltaRef.current,
       deltaY: event.deltaY,
@@ -315,7 +316,15 @@ export const OutputPreviewPlaceOverlay = ({
       const activeIndex = (current.activeIndex + next.cycles + current.placeIds.length) % current.placeIds.length;
       return { ...current, activeIndex };
     });
-  };
+  }, [candidateSessionIsCurrent, viewportSize.height]);
+
+  useEffect(() => {
+    if (!candidateSessionIsCurrent) return;
+    const viewportElement = overlayRootRef.current?.parentElement;
+    if (!viewportElement) return;
+    viewportElement.addEventListener("wheel", handleCandidateWheel, { capture: true, passive: false });
+    return () => viewportElement.removeEventListener("wheel", handleCandidateWheel, { capture: true });
+  }, [candidateSessionIsCurrent, handleCandidateWheel]);
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLButtonElement>, handle: OutputPreviewPlaceHandle) => {
     event.stopPropagation();
@@ -382,7 +391,7 @@ export const OutputPreviewPlaceOverlay = ({
   };
 
   return (
-    <div className="output-preview-place-overlay" data-output-preview-layer="place-overlay">
+    <div ref={overlayRootRef} className="output-preview-place-overlay" data-output-preview-layer="place-overlay">
       {handles.map((handle) => {
         const isDragging = dragSession?.placeId === handle.placeId;
         return (
@@ -436,7 +445,6 @@ export const OutputPreviewPlaceOverlay = ({
           autoFocus
           contextMenuData={placeContextMenuData}
           onKeyDown={handleCandidateKeyDown}
-          onWheel={handleCandidateWheel}
           onFocusViewport={() => focusViewport?.()}
           onActivate={activateCandidate}
         />

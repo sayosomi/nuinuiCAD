@@ -10,13 +10,13 @@ describe("candidateWheelDeltaFor", () => {
     expect(reversed).toEqual({ remainder: -1, cycles: 0 });
 
     expect(candidateWheelDeltaFor({ ...reversed, deltaY: -24, deltaMode: 0, viewportHeight: 300 }))
-      .toEqual({ remainder: -1, cycles: -1 });
+      .toEqual({ remainder: 0, cycles: -1 });
   });
 
-  it("normalizes line and page deltas before selecting candidates", () => {
+  it("normalizes line and page deltas without skipping multiple candidates in one event", () => {
     expect(candidateWheelDeltaFor({ remainder: 0, deltaY: 2, deltaMode: 1, viewportHeight: 300 }))
-      .toEqual({ remainder: 8, cycles: 1 });
+      .toEqual({ remainder: 0, cycles: 1 });
     expect(candidateWheelDeltaFor({ remainder: 0, deltaY: 1, deltaMode: 2, viewportHeight: 300 }))
-      .toEqual({ remainder: 12, cycles: 12 });
+      .toEqual({ remainder: 0, cycles: 1 });
   });
 });

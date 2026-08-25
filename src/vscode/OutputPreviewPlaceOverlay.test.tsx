@@ -211,7 +211,9 @@ describe("OutputPreviewPlaceOverlay", () => {
     );
     expect(screen.getByRole("listbox", { name: "Overlapping place handles" })).toHaveStyle({ left: "452px" });
 
-    fireEvent.wheel(screen.getByRole("listbox", { name: "Overlapping place handles" }), { deltaY: 24 });
+    const overlay = document.querySelector(".output-preview-place-overlay");
+    if (!(overlay instanceof HTMLElement)) throw new Error("missing output preview place overlay");
+    fireEvent.wheel(overlay, { deltaY: 24 });
     expect(screen.getByRole("option", { name: /Back/ })).toHaveAttribute("aria-selected", "true");
 
     fireEvent.click(screen.getByRole("option", { name: /Back/ }));

@@ -31,12 +31,13 @@ export const candidateWheelDeltaFor = ({
     nextRemainder = 0;
   }
   nextRemainder += normalizedDelta;
-  const cycles = Math.trunc(Math.abs(nextRemainder) / CANDIDATE_WHEEL_THRESHOLD_PX);
-  if (cycles === 0) return { remainder: nextRemainder, cycles: 0 };
+  if (Math.abs(nextRemainder) < CANDIDATE_WHEEL_THRESHOLD_PX) {
+    return { remainder: nextRemainder, cycles: 0 };
+  }
 
   const direction = nextRemainder > 0 ? 1 : -1;
   return {
-    remainder: nextRemainder - direction * cycles * CANDIDATE_WHEEL_THRESHOLD_PX,
-    cycles: direction * cycles
+    remainder: 0,
+    cycles: direction
   };
 };

@@ -4,8 +4,7 @@ import {
   useState,
   type KeyboardEventHandler,
   type PointerEventHandler,
-  type ReactNode,
-  type WheelEventHandler
+  type ReactNode
 } from "react";
 import { placeCanvasPopup } from "./canvasPopupPlacement";
 import type { ViewportSize } from "./canvasViewport";
@@ -22,7 +21,6 @@ type CanvasMeasuredPopupProps = {
   autoFocus?: boolean;
   contextMenuData?: string;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
-  onWheel?: WheelEventHandler<HTMLDivElement>;
   onPointerDown?: PointerEventHandler<HTMLDivElement>;
   children: ReactNode;
 };
@@ -39,7 +37,6 @@ export const CanvasMeasuredPopup = ({
   autoFocus,
   contextMenuData,
   onKeyDown,
-  onWheel,
   onPointerDown,
   children
 }: CanvasMeasuredPopupProps) => {
@@ -77,7 +74,6 @@ export const CanvasMeasuredPopup = ({
       autoFocus={autoFocus}
       data-vscode-context={contextMenuData}
       onKeyDown={onKeyDown}
-      onWheel={onWheel}
       onPointerDown={onPointerDown}
       style={{
         left: placement.left,

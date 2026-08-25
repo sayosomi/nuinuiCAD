@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEventHandler, type WheelEventHandler } from "react";
+import { useEffect, useRef, type KeyboardEventHandler } from "react";
 import { CanvasMeasuredPopup } from "./CanvasMeasuredPopup";
 import type { ViewportSize } from "./canvasViewport";
 
@@ -19,7 +19,6 @@ type CanvasOverlapCandidateMenuProps = {
   autoFocus?: boolean;
   contextMenuData?: string;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
-  onWheel?: WheelEventHandler<HTMLDivElement>;
   onFocusViewport: () => void;
   onActivate: (index: number) => void;
 };
@@ -35,7 +34,6 @@ export const CanvasOverlapCandidateMenu = ({
   autoFocus = false,
   contextMenuData,
   onKeyDown,
-  onWheel,
   onFocusViewport,
   onActivate
 }: CanvasOverlapCandidateMenuProps) => {
@@ -60,7 +58,6 @@ export const CanvasOverlapCandidateMenu = ({
       autoFocus={autoFocus}
       contextMenuData={contextMenuData}
       onKeyDown={onKeyDown}
-      onWheel={onWheel}
       onPointerDown={(event) => event.stopPropagation()}
     >
       {candidates.map((candidate, index) => (
