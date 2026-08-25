@@ -95,7 +95,9 @@ vi.mock("vscode", () => {
 import {
   registerVscodeSourceValueStepFeature,
   VSCODE_SOURCE_VALUE_STEP_CONTEXT_KEY,
-  VSCODE_SOURCE_VALUE_STEP_FORWARD_COMMAND_ID
+  VSCODE_SOURCE_VALUE_STEP_BACKWARD_KEYBINDING_COMMAND_ID,
+  VSCODE_SOURCE_VALUE_STEP_FORWARD_COMMAND_ID,
+  VSCODE_SOURCE_VALUE_STEP_FORWARD_KEYBINDING_COMMAND_ID
 } from "./sourceValueStepCommandFeature";
 
 const cursor = (offset: number): TestSelection => ({
@@ -197,6 +199,24 @@ describe("VS Code Source Value Step feature", () => {
     });
     expect(editor.selection.start.offset).toBe(start);
     expect(editor.selection.end.offset).toBe(start + 1);
+    feature.dispose();
+  });
+
+  it("keeps broad keybinding dispatch separate from target-enabled Palette commands", async () => {
+    const source = ["nui 4", "let count: number = 1"].join("\n");
+    const start = source.lastIndexOf("1");
+    const { editor, source: currentSource } = createEditor(source, start);
+    mocks.activeTextEditor = editor;
+    const session = createLanguageAnalysisSession(source);
+    const feature = registerVscodeSourceValueStepFeature({ languageAnalysisSessionFor: () => session });
+
+    expect(mocks.commands.has(VSCODE_SOURCE_VALUE_STEP_FORWARD_KEYBINDING_COMMAND_ID)).toBe(true);
+    expect(mocks.commands.has(VSCODE_SOURCE_VALUE_STEP_BACKWARD_KEYBINDING_COMMAND_ID)).toBe(true);
+    await mocks.commands.get(VSCODE_SOURCE_VALUE_STEP_FORWARD_KEYBINDING_COMMAND_ID)!();
+    expect(currentSource()).toContain("= 2");
+    await mocks.commands.get(VSCODE_SOURCE_VALUE_STEP_BACKWARD_KEYBINDING_COMMAND_ID)!();
+    expect(currentSource()).toContain("= 1");
+
     feature.dispose();
   });
 
