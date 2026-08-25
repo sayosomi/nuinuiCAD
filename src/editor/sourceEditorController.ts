@@ -119,7 +119,7 @@ import { resolveParameterValueSpan } from "../dsl/dslParameterSpans";
 import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import { logicalOffsetForPhysicalPosition, logicalTextForProjection, physicalSpanForStatementRange, singlePhysicalSegment, statementProjectionAt } from "../dsl/dslStatementProjection";
 import { resolveDslValueStep, type DslValueStepDirection } from "../dsl/dslValueStep";
-import { resolveTypedValueStep, typedNumericStepOptions, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
+import { resolveTypedValueStep, typedNumericStepOptions, typedValueStepTargetForBinding, type TypedValueStepOptions } from "../dsl/dslTypedValueStep";
 import { scanDslSource, splitDslTerms } from "../dsl/dslTokens";
 import type { ScalarType } from "../scalars/types";
 import {
@@ -1012,10 +1012,8 @@ export class SourceEditorController implements SourceEditorHandle {
       const span = fields?.expression;
       if (fields && span && main.from >= span.from && main.from <= span.to) {
         const targetBindingId = doc.setStatements?.get(fields.statementIndex)?.targetBindingId;
-        const declaredType = targetBindingId
-          ? doc.bindingAnalysis?.catalog.bindingsById.get(targetBindingId)?.declaredType ?? null
-          : null;
-        return this.stepTypedSpan(span, declaredType, selection, direction);
+        const target = targetBindingId ? typedValueStepTargetForBinding(doc, targetBindingId) : null;
+        return this.stepTypedSpan(span, target?.declaredType ?? null, selection, direction, target?.options);
       }
     }
     return false;

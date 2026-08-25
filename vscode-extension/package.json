@@ -39,6 +39,18 @@
     },
     "keybindings": [
       {
+        "command": "nuinuiCAD.stepSourceValueForward",
+        "key": "ctrl+shift+.",
+        "mac": "shift+cmd+.",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
+      {
+        "command": "nuinuiCAD.stepSourceValueBackward",
+        "key": "ctrl+shift+,",
+        "mac": "shift+cmd+,",
+        "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
+      },
+      {
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
         "mac": "cmd+z",
@@ -91,6 +103,14 @@
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueForward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueBackward",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
@@ -306,6 +326,16 @@
         "command": "nuinuiCAD.pickReferenceFromCanvas",
         "title": "nuinuiCAD: Pick Reference from Canvas",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.stepSourceValueForward",
+        "title": "nuinuiCAD: Step Source Value Forward",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
+      },
+      {
+        "command": "nuinuiCAD.stepSourceValueBackward",
+        "title": "nuinuiCAD: Step Source Value Backward",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
       },
       {
         "command": "nuinuiCAD.canvasUndo",

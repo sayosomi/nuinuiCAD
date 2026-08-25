@@ -1,5 +1,6 @@
 import type { DrawingModifierStrokeColor, DrawingModifierStrokeStyle, DrawingModifierState } from "../types/geometry";
 import type { DslSpan } from "./dslTypes";
+import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } from "./dslValueStep";
 
 export const modifierPropertySchema = [
   { key: "state", kind: "choice", options: ["visible", "hidden", "disabled"] },
@@ -62,4 +63,39 @@ export const modifierPropertyAuthoringTokens = (key: string, value: string, valu
   if (key === "color") return [{ kind: trimmed.startsWith("#") ? "fixedColor" : "themeRole", span: { start, end: start + trimmed.length } }];
   if (key === "state") return [{ kind: "value", span: { start, end: start + trimmed.length } }];
   return [];
+};
+
+export type ModifierValueStepResult = {
+  insert: string;
+};
+
+/** Steps one parser/index-owned modifier sub-token using the shared property metadata. */
+export const resolveModifierValueStep = (
+  key: string,
+  tokenKind: ModifierAuthoringTokenKind,
+  value: string,
+  direction: DslValueStepDirection
+): ModifierValueStepResult | null => {
+  const metadata = modifierPropertyMetadata(key);
+  if (!metadata || tokenKind === "fixedColor" || tokenKind === "unit") return null;
+
+  if (key === "width" && metadata.kind === "numeric" && tokenKind === "width") {
+    const insert = stepDslNumericLiteral(value, metadata.step, direction);
+    if (insert === null || insert === value || "message" in parseModifierWidthValue(`${insert}${metadata.unit}`)) return null;
+    return { insert };
+  }
+
+  if (
+    metadata.kind === "choice" &&
+    ((key === "state" && tokenKind === "value") || (key === "style" && tokenKind === "style"))
+  ) {
+    const insert = choiceAfterStep(value, metadata.options, direction);
+    return insert && insert !== value ? { insert } : null;
+  }
+
+  if (key === "color" && metadata.kind === "color" && tokenKind === "themeRole") {
+    const insert = choiceAfterStep(value, metadata.options, direction);
+    return insert && insert !== value ? { insert } : null;
+  }
+  return null;
 };

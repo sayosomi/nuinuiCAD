@@ -1,6 +1,7 @@
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import type { CompiledDslDocument } from "./dslDocument";
 import type { DslSpan } from "./dslTypes";
+import type { ModifierAuthoringTokenKind } from "./dslModifierAuthoring";
 
 export type ModifierAuthoringRange = { from: number; to: number };
 export type ModifierAuthoringDefinition = { name: string; range: ModifierAuthoringRange; statementIndex: number };
@@ -10,7 +11,7 @@ export type ModifierAuthoringReference = {
   statementIndex: number;
   resolution: "resolved" | "unresolved" | "ambiguous";
 };
-export type ModifierAuthoringPropertyToken = { kind: string; range: ModifierAuthoringRange };
+export type ModifierAuthoringPropertyToken = { kind: ModifierAuthoringTokenKind; range: ModifierAuthoringRange };
 export type ModifierAuthoringProperty = {
   key: string;
   keyRange: ModifierAuthoringRange;

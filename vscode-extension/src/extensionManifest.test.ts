@@ -58,6 +58,8 @@ const commandIds = [
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.pickReferenceFromCanvas",
+  "nuinuiCAD.stepSourceValueForward",
+  "nuinuiCAD.stepSourceValueBackward",
   "nuinuiCAD.canvasUndo",
   "nuinuiCAD.canvasRedo",
   "nuinuiCAD.outputPreviewUndo",
@@ -82,6 +84,7 @@ const commandIds = [
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
@@ -125,6 +128,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Pick Reference from Canvas",
+      "nuinuiCAD: Step Source Value Forward",
+      "nuinuiCAD: Step Source Value Backward",
       "nuinuiCAD: Undo Canvas Transition",
       "nuinuiCAD: Redo Canvas Transition",
       "nuinuiCAD: Undo Output Preview Source Edit",
@@ -161,6 +166,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.stepSourceValueForward", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.stepSourceValueBackward", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasPaletteWhen },
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
@@ -241,11 +248,23 @@ describe("VS Code extension manifest command contributions", () => {
 });
 
 describe("VS Code extension manifest keybindings", () => {
-  it("uses platform-standard history chords for Canvas and Output Preview only", async () => {
+  it("keeps history chords surface-owned and declares broad writable-Source value-step chords", async () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(4);
+    expect(keybindings).toHaveLength(6);
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.stepSourceValueForward",
+      key: "ctrl+shift+.",
+      mac: "shift+cmd+.",
+      when: sourceValueStepKeybindingWhen
+    });
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.stepSourceValueBackward",
+      key: "ctrl+shift+,",
+      mac: "shift+cmd+,",
+      when: sourceValueStepKeybindingWhen
+    });
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.canvasUndo",
       key: "ctrl+z",
@@ -278,6 +297,10 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
     expect(keybindings.some(({ command }) => command.includes("modulePreview"))).toBe(false);
+    for (const command of ["nuinuiCAD.stepSourceValueForward", "nuinuiCAD.stepSourceValueBackward"]) {
+      const binding = keybindings.find((candidate) => candidate.command === command);
+      expect(binding?.when).not.toContain("sourceValueStepTarget");
+    }
   });
 });
 

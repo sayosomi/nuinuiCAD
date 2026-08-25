@@ -3,6 +3,8 @@ import type { ScalarType } from "../scalars/types";
 import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } from "./dslValueStep";
 import type { DslSpan } from "./dslTypes";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
+import type { CompiledDslDocument } from "./dslDocument";
+import type { BindingId } from "../scalars/bindingCatalog";
 
 export type TypedValueEdit = {
   from: number;
@@ -12,7 +14,6 @@ export type TypedValueEdit = {
 };
 
 export type TypedValueStepOptions = {
-  /** Provided only by typed declaration initializers; set RHS numeric stepping remains out of scope. */
   numericStep?: number;
   numericMin?: number;
   numericMax?: number;
@@ -25,18 +26,42 @@ export const typedNumericStepOptions = (options?: DslNumericTypeOptions): TypedV
   numericMax: options?.max
 });
 
-/** Keeps a typed initializer's authored decimal precision without affecting property-step normalization. */
-const withTypedLiteralDecimalScale = (literal: string, stepped: string) => {
-  // DSL numeric literals deliberately reject exponent syntax. A bound must be
-  // normalized before this runs, but never turn an unexpected exponent into
-  // an invalid hybrid such as `1e-7.00`.
-  if (/e/i.test(stepped)) return stepped;
-  const fraction = literal.match(/\.(\d+)$/)?.[1];
-  if (!fraction) return stepped;
-  const decimal = stepped.indexOf(".");
-  if (decimal < 0) return `${stepped}.${"0".repeat(fraction.length)}`;
-  const currentScale = stepped.length - decimal - 1;
-  return currentScale >= fraction.length ? stepped : `${stepped}${"0".repeat(fraction.length - currentScale)}`;
+export type TypedValueStepTarget = {
+  declaredType: ScalarType;
+  options: TypedValueStepOptions;
+};
+
+/** Compiler-owned binding identity -> declaration-owned step metadata. */
+export const typedValueStepTargetForBinding = (
+  compiled: CompiledDslDocument,
+  bindingId: BindingId
+): TypedValueStepTarget | null => {
+  const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(bindingId);
+  if (!binding?.declaredType) return null;
+  const declaration = compiled.statements[binding.statementIndex];
+  if (!declaration || declaration.kind !== "typedDeclaration") return null;
+  return {
+    declaredType: binding.declaredType,
+    options: binding.declaredType.kind === "number"
+      ? typedNumericStepOptions(declaration.numericTypeOptions)
+      : {}
+  };
+};
+
+/** Exact source statement -> its unique compiler-owned typed binding. */
+export const typedValueStepTargetForStatement = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): TypedValueStepTarget | null => {
+  const bindings = compiled.bindingAnalysis?.catalog.bindings.filter(
+    (binding) =>
+      binding.kind === "typed" &&
+      binding.statementIndex === statementIndex &&
+      binding.resolutionMode !== "preResolvedOnly"
+  ) ?? [];
+  return bindings.length === 1
+    ? typedValueStepTargetForBinding(compiled, bindings[0]!.id)
+    : null;
 };
 
 /** Formats a finite JavaScript number as the exponent-free DSL numeric grammar requires. */
@@ -91,9 +116,8 @@ const steppedNumberWithinBounds = (
  *
  * Mirrors resolveDslValueStep's numeric/boolean/choice behavior
  * (dslValueStep.ts), generalized from ParameterDefinition to ScalarType.
- * Typed-number step policy is supplied by the declaration caller, so a future
- * declaration-level configuration has one local call site to replace. Strings
- * remain out of scope.
+ * Typed-number step policy is supplied from the target declaration for both
+ * declaration initializers and `set` RHS values. Strings remain out of scope.
  */
 export const resolveTypedValueStep = (
   value: string,
@@ -121,7 +145,7 @@ export const resolveTypedValueStep = (
       numericMin,
       numericMax
     );
-    const insert = normalized === null ? null : withTypedLiteralDecimalScale(literalValue, normalized);
+    const insert = normalized;
     if (insert === null || insert === literalValue) return null;
     return {
       from,
