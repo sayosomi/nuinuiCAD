@@ -59,8 +59,17 @@ export type CompiledNumericBinding = {
   typedExpression?: TypedScalarExpression;
 };
 
+export type NumericBindingConsumerReference = {
+  occurrenceKey: string;
+  reference: CompiledNumericBindingReference;
+};
+
 export type NumericBindingCompilation = {
   sourcesByOccurrenceKey: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Numeric consumer references grouped once by binding id so runtime
+   * diagnostics can project an evaluation failure to the exact `@name` value
+   * span without rescanning every numeric occurrence. */
+  consumerReferencesByBindingId: ReadonlyMap<BindingId, readonly NumericBindingConsumerReference[]>;
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -463,5 +472,14 @@ export const compileNumericBindings = ({
       });
     }
   }
-  return { sourcesByOccurrenceKey, diagnostics };
+  const consumerReferencesByBindingId = new Map<BindingId, NumericBindingConsumerReference[]>();
+  for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
+    for (const reference of source.references) {
+      const existing = consumerReferencesByBindingId.get(reference.bindingId);
+      const consumer = { occurrenceKey, reference };
+      if (existing) existing.push(consumer);
+      else consumerReferencesByBindingId.set(reference.bindingId, [consumer]);
+    }
+  }
+  return { sourcesByOccurrenceKey, consumerReferencesByBindingId, diagnostics };
 };
