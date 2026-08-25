@@ -1001,6 +1001,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.openOutputPreview", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.fitOutputPreview", expect.any(Function));
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.clearOutputPreviewFocus", expect.any(Function));
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.exportCurrentOutput", expect.any(Function));
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
@@ -1181,6 +1182,19 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
+  it("routes Clear Output Preview Focus through the active Preview session", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.clearOutputPreviewFocus")?.();
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewClearFocus" });
   });
 
   it("routes Export Current Output only through a current active Preview", async () => {

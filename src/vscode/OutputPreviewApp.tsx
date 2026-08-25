@@ -69,6 +69,7 @@ const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
+const outputPreviewContextDataFor = (section: "blank" | "place"): string => JSON.stringify({ webviewSection: section });
 
 const dragPlanIdentityForCandidate = (
   candidate: OutputPreviewCandidate | null
@@ -214,6 +215,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluating: false
   });
   const [highlightedPlaceId, setHighlightedPlaceId] = useState<string | null>(null);
+  const [clearPlaceInteractionKey, setClearPlaceInteractionKey] = useState(0);
   const [pendingExportRequestId, setPendingExportRequestId] = useState<number | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -423,6 +425,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         fitPlanRef.current(latestPlanRef.current);
         return;
       }
+      if (message.type === "outputPreviewClearFocus") {
+        setClearPlaceInteractionKey((current) => current + 1);
+        return;
+      }
       if (message.type === "outputPreviewExport") {
         requestCurrentExportRef.current();
         return;
@@ -475,6 +481,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         height: rect.height
       }
     ));
+  };
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target;
+    const section = target instanceof Element && target.closest("[data-output-preview-context-section]")
+      ? "place"
+      : "blank";
+    event.currentTarget.dataset.vscodeContext = outputPreviewContextDataFor(section);
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -747,6 +761,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         ref={viewportRef}
         className="output-preview-viewport"
         tabIndex={0}
+        data-vscode-context={outputPreviewContextDataFor("blank")}
+        onContextMenu={handleContextMenu}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -782,6 +798,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               viewport={viewport}
               onNavigate={navigateToSourceRange}
               onHighlightPlaceIdChange={setHighlightedPlaceId}
+              clearInteractionKey={clearPlaceInteractionKey}
+              focusViewport={() => viewportRef.current?.focus()}
               dragContextKey={dragContextKey}
               onBeginDrag={beginPlaceDrag}
               onPreviewDrag={previewPlaceDrag}

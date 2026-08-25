@@ -100,6 +100,58 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
   });
 
+  it("clears a pinned handle detail with Escape and returns focus to the viewport", () => {
+    const focusViewport = vi.fn();
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        focusViewport={focusViewport}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
+    expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Place details for Front")).toBeNull();
+    expect(focusViewport).toHaveBeenCalledOnce();
+  });
+
+  it("clears a pinned handle detail when the host requests it", () => {
+    const { rerender } = render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        clearInteractionKey={0}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Place Front" }));
+    expect(screen.getByLabelText("Place details for Front")).toBeTruthy();
+    rerender(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        clearInteractionKey={1}
+      />
+    );
+
+    expect(screen.queryByLabelText("Place details for Front")).toBeNull();
+  });
+
   it("opens the shared overlap presentation for multiple hits and resolves candidates from current handles", () => {
     const projections = [
       projection({ placeId: "a", groupName: "Front" }),
@@ -134,6 +186,9 @@ describe("OutputPreviewPlaceOverlay", () => {
       />
     );
     expect(screen.getByRole("listbox", { name: "Overlapping place handles" })).toHaveStyle({ left: "452px" });
+
+    fireEvent.wheel(screen.getByRole("listbox", { name: "Overlapping place handles" }), { deltaY: 24 });
+    expect(screen.getByRole("option", { name: /Back/ })).toHaveAttribute("aria-selected", "true");
 
     fireEvent.click(screen.getByRole("option", { name: /Back/ }));
     expect(screen.queryByRole("listbox", { name: "Overlapping place handles" })).toBeNull();

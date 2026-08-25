@@ -130,6 +130,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
         {
+          "command": "nuinuiCAD.clearOutputPreviewFocus",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+        },
+        {
           "command": "nuinuiCAD.exportCurrentOutput",
           "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
@@ -238,6 +242,14 @@
         {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.fitOutputPreview",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
+        },
+        {
+          "command": "nuinuiCAD.clearOutputPreviewFocus",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
         },
         {
           "command": "nuinuiCAD.goToSourceDefinition",
@@ -373,6 +385,10 @@
       {
         "command": "nuinuiCAD.fitOutputPreview",
         "title": "nuinuiCAD: Fit Output Preview"
+      },
+      {
+        "command": "nuinuiCAD.clearOutputPreviewFocus",
+        "title": "nuinuiCAD: Clear Output Preview Focus"
       },
       {
         "command": "nuinuiCAD.exportCurrentOutput",

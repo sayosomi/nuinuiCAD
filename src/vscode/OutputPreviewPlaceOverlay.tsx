@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { placeCanvasPopup } from "../components/canvasPopupPlacement";
+import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import type { AxisLockKeys } from "../components/canvasViewport";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -43,6 +44,8 @@ type OutputPreviewPlaceOverlayProps = {
   viewport: OutputPreviewViewport;
   onNavigate: (range: NormalizedSourceRange) => void;
   onHighlightPlaceIdChange: (placeId: string | null) => void;
+  clearInteractionKey?: number;
+  focusViewport?: () => void;
   dragContextKey?: string;
   onBeginDrag?: (projection: OutputPlaceProjection) => OutputPreviewPlaceDragProof | null;
   onPreviewDrag?: (proof: OutputPreviewPlaceDragProof, coordinates: { x: number; y: number }) => boolean;
@@ -60,6 +63,8 @@ export const OutputPreviewPlaceOverlay = ({
   viewport,
   onNavigate,
   onHighlightPlaceIdChange,
+  clearInteractionKey = 0,
+  focusViewport,
   dragContextKey = "",
   onBeginDrag,
   onPreviewDrag,
@@ -77,6 +82,9 @@ export const OutputPreviewPlaceOverlay = ({
   const dragSessionRef = useRef<OutputPreviewPlaceDragSession | null>(null);
   const axisLockKeysRef = useRef<AxisLockKeys>(releasedAxisLocks());
   const suppressClickPlaceIdRef = useRef<string | null>(null);
+  const candidateWheelDeltaRef = useRef(0);
+  const clearInteractionRef = useRef<() => void>(() => {});
+  const previousClearInteractionKeyRef = useRef(clearInteractionKey);
   const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragCallbacksRef = useRef({ onPreviewDrag, onCommitDrag, onCancelDrag });
 
@@ -119,6 +127,23 @@ export const OutputPreviewPlaceOverlay = ({
     if (cancel) dragCallbacksRef.current.onCancelDrag?.(current.proof);
   }, []);
 
+  const clearPlaceInteraction = useCallback(() => {
+    cancelHoverClear();
+    candidateWheelDeltaRef.current = 0;
+    if (dragSessionRef.current) finishDragSession(true);
+    setHoveredPlaceId(null);
+    setActivePlaceId(null);
+    setCandidateSession(null);
+    focusViewport?.();
+  }, [finishDragSession, focusViewport]);
+  clearInteractionRef.current = clearPlaceInteraction;
+
+  useEffect(() => {
+    if (previousClearInteractionKeyRef.current === clearInteractionKey) return;
+    previousClearInteractionKeyRef.current = clearInteractionKey;
+    clearInteractionRef.current();
+  }, [clearInteractionKey]);
+
   const applyDragPreview = useCallback((
     current: OutputPreviewPlaceDragSession,
     clientX: number,
@@ -153,13 +178,13 @@ export const OutputPreviewPlaceOverlay = ({
   useEffect(() => {
     const setAxisLock = (event: KeyboardEvent, pressed: boolean) => {
       const current = dragSessionRef.current;
-      if (!current) return;
       if (event.key === "Escape" && pressed) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        finishDragSession(true);
+        clearInteractionRef.current();
         return;
       }
+      if (!current) return;
       const key = event.key.toLowerCase();
       if (key !== "x" && key !== "y") return;
       event.preventDefault();
@@ -235,11 +260,13 @@ export const OutputPreviewPlaceOverlay = ({
     const candidates = outputPreviewPlaceCandidatesAtScreen(handles, handle.screen);
     if (candidates.length <= 1) {
       setCandidateSession(null);
+      setHoveredPlaceId(handle.placeId);
       setActivePlaceId(handle.placeId);
       return;
     }
     cancelHoverClear();
     setHoveredPlaceId(null);
+    candidateWheelDeltaRef.current = 0;
     const activeIndex = Math.max(0, candidates.findIndex(({ placeId }) => placeId === handle.placeId));
     setActivePlaceId(null);
     setCandidateSession({
@@ -252,6 +279,7 @@ export const OutputPreviewPlaceOverlay = ({
     const candidate = candidateHandles[index];
     if (!candidate) return;
     setCandidateSession(null);
+    candidateWheelDeltaRef.current = 0;
     setHoveredPlaceId(null);
     setActivePlaceId(candidate.placeId);
   };
@@ -260,7 +288,7 @@ export const OutputPreviewPlaceOverlay = ({
     if (!candidateSessionIsCurrent || !candidateSession) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      setCandidateSession(null);
+      clearPlaceInteraction();
       return;
     }
     if (event.key === "Enter") {
@@ -273,6 +301,25 @@ export const OutputPreviewPlaceOverlay = ({
     const direction = event.key === "ArrowDown" ? 1 : -1;
     const activeIndex = (candidateActiveIndex + direction + candidateHandles.length) % candidateHandles.length;
     setCandidateSession({ ...candidateSession, activeIndex });
+  };
+
+  const handleCandidateWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!candidateSessionIsCurrent) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = candidateWheelDeltaFor({
+      remainder: candidateWheelDeltaRef.current,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      viewportHeight: viewportSize.height
+    });
+    candidateWheelDeltaRef.current = next.remainder;
+    if (next.cycles === 0) return;
+    setCandidateSession((current) => {
+      if (!current || current.placeIds.length === 0) return current;
+      const activeIndex = (current.activeIndex + next.cycles + current.placeIds.length) % current.placeIds.length;
+      return { ...current, activeIndex };
+    });
   };
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLButtonElement>, handle: OutputPreviewPlaceHandle) => {
@@ -353,6 +400,7 @@ export const OutputPreviewPlaceOverlay = ({
             data-place-id={handle.placeId}
             data-draggable={handle.projection.dragability.draggable ? "true" : "false"}
             data-dragging={isDragging ? "true" : "false"}
+            data-output-preview-context-section="place"
             onPointerEnter={() => {
               cancelHoverClear();
               if (!candidateSession && !dragSessionRef.current) setHoveredPlaceId(handle.placeId);
@@ -387,7 +435,9 @@ export const OutputPreviewPlaceOverlay = ({
           tabIndex={0}
           autoFocus
           onKeyDown={handleCandidateKeyDown}
+          onWheel={handleCandidateWheel}
           onPointerDown={(event) => event.stopPropagation()}
+          data-output-preview-context-section="place"
         >
           {candidateHandles.map((candidate, index) => (
             <button
@@ -412,6 +462,7 @@ export const OutputPreviewPlaceOverlay = ({
           className="output-preview-place-popover"
           style={{ left: detailPlacement.left, top: detailPlacement.top }}
           aria-label={`Place details for ${detailProjection.groupName}`}
+          data-output-preview-context-section="place"
           onPointerDown={(event) => event.stopPropagation()}
           onPointerEnter={() => {
             cancelHoverClear();

@@ -277,6 +277,7 @@ export type ExtensionToVscodeMessage =
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
   | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
   | { type: "outputPreviewFit" }
+  | { type: "outputPreviewClearFocus" }
   | { type: "outputPreviewExport" }
   | VscodeOutputPreviewExportResult
   | { type: "modulePreviewTarget"; documentVersion: number; normalizedSourceOffset: number }
