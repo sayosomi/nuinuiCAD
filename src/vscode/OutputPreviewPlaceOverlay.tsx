@@ -140,7 +140,10 @@ export const OutputPreviewPlaceOverlay = ({
     setCandidateSession(null);
     focusViewport?.();
   }, [finishDragSession, focusViewport]);
-  clearInteractionRef.current = clearPlaceInteraction;
+
+  useEffect(() => {
+    clearInteractionRef.current = clearPlaceInteraction;
+  }, [clearPlaceInteraction]);
 
   useEffect(() => {
     if (previousClearInteractionKeyRef.current === clearInteractionKey) return;
