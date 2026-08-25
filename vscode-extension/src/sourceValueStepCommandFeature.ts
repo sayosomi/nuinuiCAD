@@ -13,6 +13,8 @@ import {
 
 export const VSCODE_SOURCE_VALUE_STEP_FORWARD_COMMAND_ID = "nuinuiCAD.stepSourceValueForward";
 export const VSCODE_SOURCE_VALUE_STEP_BACKWARD_COMMAND_ID = "nuinuiCAD.stepSourceValueBackward";
+export const VSCODE_SOURCE_VALUE_STEP_FORWARD_KEYBINDING_COMMAND_ID = "nuinuiCAD.stepSourceValueForward.keybinding";
+export const VSCODE_SOURCE_VALUE_STEP_BACKWARD_KEYBINDING_COMMAND_ID = "nuinuiCAD.stepSourceValueBackward.keybinding";
 export const VSCODE_SOURCE_VALUE_STEP_CONTEXT_KEY = "nuinuiCAD.sourceValueStepTarget";
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
@@ -128,6 +130,18 @@ export const registerVscodeSourceValueStepFeature = ({
     VSCODE_SOURCE_VALUE_STEP_BACKWARD_COMMAND_ID,
     () => execute(-1)
   );
+  // VS Code folds a contributed command's `enablement` into every keybinding
+  // that targets that command. Keep the broad Source-owned chords on private
+  // dispatch IDs so a transient target context cannot fall through to a core
+  // binding; both routes still reuse the same authoritative execute function.
+  const forwardKeybinding = vscode.commands.registerCommand(
+    VSCODE_SOURCE_VALUE_STEP_FORWARD_KEYBINDING_COMMAND_ID,
+    () => execute(1)
+  );
+  const backwardKeybinding = vscode.commands.registerCommand(
+    VSCODE_SOURCE_VALUE_STEP_BACKWARD_KEYBINDING_COMMAND_ID,
+    () => execute(-1)
+  );
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => refreshContext(editor));
   const selectionListener = vscode.window.onDidChangeTextEditorSelection((event) => {
     if (event.textEditor === vscode.window.activeTextEditor) refreshContext(event.textEditor);
@@ -142,6 +156,8 @@ export const registerVscodeSourceValueStepFeature = ({
   return vscode.Disposable.from(
     forward,
     backward,
+    forwardKeybinding,
+    backwardKeybinding,
     activeEditorListener,
     selectionListener,
     documentChangeListener,

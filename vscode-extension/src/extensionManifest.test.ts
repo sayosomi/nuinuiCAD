@@ -254,13 +254,13 @@ describe("VS Code extension manifest keybindings", () => {
 
     expect(keybindings).toHaveLength(6);
     expect(keybindings).toContainEqual({
-      command: "nuinuiCAD.stepSourceValueForward",
+      command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
       mac: "shift+cmd+.",
       when: sourceValueStepKeybindingWhen
     });
     expect(keybindings).toContainEqual({
-      command: "nuinuiCAD.stepSourceValueBackward",
+      command: "nuinuiCAD.stepSourceValueBackward.keybinding",
       key: "ctrl+shift+,",
       mac: "shift+cmd+,",
       when: sourceValueStepKeybindingWhen
@@ -297,10 +297,14 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
     expect(keybindings.some(({ command }) => command.includes("modulePreview"))).toBe(false);
-    for (const command of ["nuinuiCAD.stepSourceValueForward", "nuinuiCAD.stepSourceValueBackward"]) {
+    for (const command of ["nuinuiCAD.stepSourceValueForward.keybinding", "nuinuiCAD.stepSourceValueBackward.keybinding"]) {
       const binding = keybindings.find((candidate) => candidate.command === command);
       expect(binding?.when).not.toContain("sourceValueStepTarget");
+      expect(manifest.contributes?.commands?.some((candidate) => candidate.command === command)).toBe(false);
+      expect(manifest.contributes?.menus?.commandPalette?.some((candidate) => candidate.command === command)).toBe(false);
     }
+    expect(keybindings.some(({ command }) =>
+      command === "nuinuiCAD.stepSourceValueForward" || command === "nuinuiCAD.stepSourceValueBackward")).toBe(false);
   });
 });
 

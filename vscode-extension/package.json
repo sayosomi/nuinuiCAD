@@ -39,13 +39,13 @@
     },
     "keybindings": [
       {
-        "command": "nuinuiCAD.stepSourceValueForward",
+        "command": "nuinuiCAD.stepSourceValueForward.keybinding",
         "key": "ctrl+shift+.",
         "mac": "shift+cmd+.",
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
       },
       {
-        "command": "nuinuiCAD.stepSourceValueBackward",
+        "command": "nuinuiCAD.stepSourceValueBackward.keybinding",
         "key": "ctrl+shift+,",
         "mac": "shift+cmd+,",
         "when": "editorTextFocus && editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
