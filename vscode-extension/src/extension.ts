@@ -23,6 +23,10 @@ import {
   nuiCompletionTriggerCharacters
 } from "./completionProvider";
 import {
+  createNuiColorProvider,
+  nuiColorSelector
+} from "./colorProvider";
+import {
   createNuiSignatureHelpProvider,
   nuiSignatureHelpSelector,
   nuiSignatureHelpTriggerCharacters
@@ -698,6 +702,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiCompletionProvider(languageAnalysisSessionFor),
     ...nuiCompletionTriggerCharacters
   );
+  const colorProvider = vscode.languages.registerColorProvider(
+    nuiColorSelector,
+    createNuiColorProvider(languageAnalysisSessionFor)
+  );
   const signatureHelpProvider = vscode.languages.registerSignatureHelpProvider(
     nuiSignatureHelpSelector,
     createNuiSignatureHelpProvider(languageAnalysisSessionFor),
@@ -756,6 +764,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     disposeCompilerDiagnosticSessions,
     hoverFeature,
     completionProvider,
+    colorProvider,
     signatureHelpProvider,
     definitionProvider,
     renameProvider,

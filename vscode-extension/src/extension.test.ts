@@ -96,6 +96,7 @@ const mocks = vi.hoisted(() => ({
   codeActionRegistrations: [] as Array<{ selector: unknown; provider: unknown; providedCodeActionKinds: unknown[]; disposable: { dispose: () => void } }>,
   foldingRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   documentSymbolRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
+  colorRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   canvasRibbonSetting: undefined as unknown,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
@@ -114,6 +115,7 @@ const mocks = vi.hoisted(() => ({
   registerCodeActionsProvider: vi.fn(),
   registerFoldingRangeProvider: vi.fn(),
   registerDocumentSymbolProvider: vi.fn(),
+  registerColorProvider: vi.fn(),
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidChangeTextEditorSelection: vi.fn(),
@@ -239,7 +241,8 @@ vi.mock("vscode", () => {
       registerReferenceProvider: mocks.registerReferenceProvider,
       registerCodeActionsProvider: mocks.registerCodeActionsProvider,
       registerFoldingRangeProvider: mocks.registerFoldingRangeProvider,
-      registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider
+      registerDocumentSymbolProvider: mocks.registerDocumentSymbolProvider,
+      registerColorProvider: mocks.registerColorProvider
     },
     Uri: { joinPath: vi.fn((...parts: unknown[]) => parts.join("/")) },
     ViewColumn: { Beside: 2 },
@@ -518,6 +521,11 @@ const setup = (
     mocks.documentSymbolRegistrations.push({ selector, provider, disposable: registration });
     return registration;
   });
+  mocks.registerColorProvider.mockImplementation((selector: unknown, provider: unknown) => {
+    const registration = disposable();
+    mocks.colorRegistrations.push({ selector, provider, disposable: registration });
+    return registration;
+  });
   mocks.onDidOpenTextDocument.mockImplementation((listener: (document: TestDocument) => void) => {
     mocks.documentOpenListeners.push(listener);
     return disposable();
@@ -672,6 +680,7 @@ afterEach(() => {
   mocks.codeActionRegistrations.length = 0;
   mocks.foldingRegistrations.length = 0;
   mocks.documentSymbolRegistrations.length = 0;
+  mocks.colorRegistrations.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.showWarningMessage.mockReset();
   mocks.bakeSettings = {};
@@ -687,6 +696,7 @@ afterEach(() => {
   mocks.registerCodeActionsProvider.mockReset();
   mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerDocumentSymbolProvider.mockReset();
+  mocks.registerColorProvider.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidChangeTextEditorSelection.mockReset();
@@ -2912,6 +2922,21 @@ describe("VS Code native document symbol lifecycle", () => {
     expect(mocks.documentSymbolRegistrations).toHaveLength(1);
     expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
     expect(registration.provider).toEqual(expect.objectContaining({ provideDocumentSymbols: expect.any(Function) }));
+    expect(context.subscriptions).toContain(registration.disposable);
+  });
+});
+
+describe("VS Code native fixed-color lifecycle", () => {
+  it("registers one nui/file color provider with the session lifecycle", () => {
+    const context = setup(false, null, []);
+    const registration = mocks.colorRegistrations[0]!;
+
+    expect(mocks.colorRegistrations).toHaveLength(1);
+    expect(registration.selector).toEqual({ language: "nui", scheme: "file" });
+    expect(registration.provider).toEqual(expect.objectContaining({
+      provideDocumentColors: expect.any(Function),
+      provideColorPresentations: expect.any(Function)
+    }));
     expect(context.subscriptions).toContain(registration.disposable);
   });
 });
