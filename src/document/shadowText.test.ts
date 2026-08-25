@@ -104,7 +104,8 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
         statementMap: null,
         sourceLines: ["garbage"],
         diagnostics: [{ severity: "error", line: 1, column: 1, message: "test" }],
-        spans: { sourceMap: garbageParsed.sourceMap, logicalStatementByRangeFrom: garbageParsed.logicalStatementByRangeFrom }
+        spans: { sourceMap: garbageParsed.sourceMap, logicalStatementByRangeFrom: garbageParsed.logicalStatementByRangeFrom },
+        sourceElementsByStatementIndex: new Map()
       }
     };
     const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));

@@ -1921,7 +1921,9 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(3);
+    // Diagnostics, Explorer, Reference Pick, and Source Value Step each observe
+    // document changes without mutating the benchmark Source document.
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(4);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 

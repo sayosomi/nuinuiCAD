@@ -36,10 +36,10 @@ describe("resolveTypedValueStep", () => {
     });
   });
 
-  it("keeps a numeric initializer's fixed decimal places in both directions", () => {
+  it("normalizes redundant decimal places after a numeric step", () => {
     const cases = [
-      { literal: "12.3400", span: { from: 10, to: 17 }, caret: 13, forward: "13.3400", backward: "11.3400" },
-      { literal: "1.00", span: { from: 10, to: 14 }, caret: 11, forward: "2.00", backward: "0.00" }
+      { literal: "12.3400", span: { from: 10, to: 17 }, caret: 13, forward: "13.34", backward: "11.34" },
+      { literal: "1.00", span: { from: 10, to: 14 }, caret: 11, forward: "2", backward: "0" }
     ];
     for (const { literal, span: numericSpan, caret, forward, backward } of cases) {
       expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), 1, { numericStep: 1 }))
@@ -47,6 +47,10 @@ describe("resolveTypedValueStep", () => {
       expect(resolveTypedValueStep(literal, { kind: "number" }, numericSpan, collapsedAt(caret), -1, { numericStep: 1 }))
         .toMatchObject({ insert: backward });
     }
+    expect(resolveTypedValueStep("1.50", { kind: "number" }, { from: 0, to: 4 }, collapsedAt(1), 1, { numericStep: 1 }))
+      .toMatchObject({ insert: "2.5" });
+    expect(resolveTypedValueStep("1.5", { kind: "number" }, { from: 0, to: 3 }, collapsedAt(1), 1, { numericStep: 0.5 }))
+      .toMatchObject({ insert: "2" });
   });
 
   it("clamps an in-range number at configured bounds", () => {

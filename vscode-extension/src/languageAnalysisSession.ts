@@ -7,6 +7,7 @@ import type { DslHoverSemanticSnapshot } from "../../src/dsl/dslHoverQuery";
 import type { DslReferencesSemanticSnapshot } from "../../src/dsl/dslReferencesQuery";
 import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
 import type { DslSignatureHelpSemanticSnapshot } from "../../src/dsl/dslSignatureHelpQuery";
+import type { DslSourceValueStepSemanticSnapshot } from "../../src/dsl/dslSourceValueStepQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { reconcileStatements } from "../../src/document/statementReconciler";
 import {
@@ -76,6 +77,9 @@ export type NuiLanguageAnalysisSession = {
   fixedColorSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslFixedColorSemanticSnapshot | undefined;
+  valueStepSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslSourceValueStepSemanticSnapshot | undefined;
   signatureHelpSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslSignatureHelpSemanticSnapshot | undefined;
@@ -291,6 +295,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
         : undefined;
     },
     fixedColorSemanticSnapshot,
+    valueStepSemanticSnapshot: semanticSnapshotFor,
     signatureHelpSemanticSnapshot,
     definitionSemanticSnapshot: semanticSnapshotFor,
     hoverSemanticSnapshot: semanticSnapshotFor,

@@ -421,6 +421,7 @@ Representative owners:
 - `src/dsl/dslSemanticOccurrenceIndex.ts`
 - `src/dsl/dslModifierAuthoring.ts`
 - `src/dsl/dslModifierAuthoringIndex.ts`
+- `src/dsl/dslSourceValueStepQuery.ts`
 - `src/dsl/dslDefinitionQuery.ts`
 - `src/dsl/dslRenameQuery.ts`
 - `src/dsl/dslReferencesQuery.ts`
@@ -436,6 +437,14 @@ sub-token spans は `dslModifierAuthoring.ts` が owner であり、
 `dslModifierAuthoringIndex.ts` が exact-current source-only definition /
 reference / property view を導出する。Completion、Definition、Rename はこの
 shared source semantics を利用し、VS Code に別 parser / resolver を持たない。
+
+Source Value Step は `dslSourceValueStepQuery.ts` が host-neutral な
+exact-current edit plan を所有する。Element parameter は既存 parameter step
+resolver、typed declaration / `set` は compiler-owned `BindingId` と宣言側の
+number metadata、Drawing Modifier は shared authoring index / metadata を再利用する。
+`dslDocument.ts` は unrelated diagnostic で canonical `document` が fatal に
+なった場合も、exact-current source element products を statement index で保持し、
+query が last-good document や再parseへフォールバックせず判定できる。
 
 ### Typed scalar expressions
 
@@ -739,6 +748,7 @@ Primary:
 - `vscode-extension/src/runtimeEvaluationService.ts`
 - `vscode-extension/src/referencePickCommandFeature.ts`
 - `vscode-extension/src/referencePickSourceBridge.ts`
+- `vscode-extension/src/sourceValueStepCommandFeature.ts`
 - `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
@@ -919,6 +929,7 @@ VS Code TextDocument
 ├→ queryDslDocumentSymbols → DocumentSymbolProvider
 ├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
 ├→ queryDslReferencePickTarget → Reference Pick command/context adapter
+├→ queryDslSourceValueStep → Source Value Step command/context adapter → one TextEditor edit
 ├→ queryDslGeometryHoverTarget → NuiRuntimeEvaluationService → EvaluationResult
 │  → geometryHoverPresentation → HoverProvider
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
@@ -945,6 +956,11 @@ host-neutral `queryDslDocumentSymbols` projection and recursively converts its
 normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
 remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
 registrations are adapter boundaries, not second resolvers.
+`sourceValueStepCommandFeature.ts` similarly projects the shared exact edit plan
+to one guarded `TextEditor.edit`, then selects the replacement. Palette target
+availability and command execution both use that query; raw/normalized offset
+conversion and document version/source/expected-text checks remain host adapter
+responsibilities.
 
 Native Hover is the runtime-valued exception among these language features.
 `hoverProvider.ts` synchronizes the TextDocument and resolves only a current

@@ -177,23 +177,23 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
-  it("consumes every held numeric initializer step while preserving fixed decimal places", () => {
+  it("consumes every held numeric initializer step with normalized formatting", () => {
     const source = ["nui 4", "const length: number = 12.3400"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     selectToken(view, "12.3400");
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1))).toBe(false);
-    expect(selectedText(view)).toBe("13.3400");
+    expect(selectedText(view)).toBe("13.34");
     const step = vi.spyOn(controller as unknown as ControllerInternals, "stepSourceValue");
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
     expect(step).toHaveLastReturnedWith(true);
-    expect(selectedText(view)).toBe("14.3400");
+    expect(selectedText(view)).toBe("14.34");
     expect(fireEvent.keyDown(view.contentDOM, stepEvent(1, true))).toBe(false);
     expect(step).toHaveLastReturnedWith(true);
-    expect(selectedText(view)).toBe("15.3400");
+    expect(selectedText(view)).toBe("15.34");
 
     fireEvent.keyUp(view.contentDOM, stepEvent(1));
-    expect(useCadDocumentStore.getState().sourceText).toContain("length: number = 15.3400");
+    expect(useCadDocumentStore.getState().sourceText).toContain("length: number = 15.34");
     controller.destroy();
     parent.remove();
   });
@@ -253,13 +253,13 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
-  it("does not step a `set` RHS whose declared type is number (out of scope for typed value stepping)", () => {
-    const source = ["nui 4", "let count: number = 1", "set count = 2"].join("\n");
+  it("steps a numeric `set` RHS using its target declaration's numeric metadata", () => {
+    const source = ["nui 4", "let count: number(step: 0.5) = 1", "set count = 2.00"].join("\n");
     const { controller, parent, view } = openEditor(source);
-    selectToken(view, "2");
-    const before = view.state.doc.toString();
+    selectToken(view, "2.00");
     pressStep(view, 1);
-    expect(view.state.doc.toString()).toBe(before);
+    expect(view.state.doc.toString().split("\n").at(-1)).toBe("set count = 2.5");
+    expect(selectedText(view)).toBe("2.5");
     controller.destroy();
     parent.remove();
   });

@@ -66,6 +66,7 @@ import {
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
+import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
 import {
   handoffOutputPreviewHistory,
   type OutputPreviewHistoryDirection
@@ -1382,6 +1383,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
       };
     }
   });
+  const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
+    languageAnalysisSessionFor
+  });
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
     const activeSession = canvasSessionForCommand();
@@ -1857,6 +1861,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     referencePickFeature,
+    sourceValueStepFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,

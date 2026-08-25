@@ -204,6 +204,8 @@ export type CompiledDslDocument = {
    * project an exact physicalSpan without re-parsing. Always present -
    * depends only on the initial parse, not on how far compilation got. */
   spans: DiagnosticSpanContext;
+  /** Exact-current source element products retained even when unrelated diagnostics make `document` fatal. */
+  sourceElementsByStatementIndex: ReadonlyMap<number, CadElement>;
   scalarProgram?: ScalarProgram;
   bindingAnalysis?: BindingAnalysis;
   scalarProgramPositionMap?: ScalarProgramPositionMap;
@@ -1025,6 +1027,19 @@ const buildStatementMap = (
   };
 };
 
+const sourceElementsFor = (compiled: {
+  elements: readonly CadElement[];
+  elementIdsByStatementIndex?: ReadonlyMap<number, ElementId>;
+}): ReadonlyMap<number, CadElement> => {
+  const elementsById = new Map(compiled.elements.map((element) => [element.id, element]));
+  return new Map(
+    [...(compiled.elementIdsByStatementIndex ?? [])].flatMap(([statementIndex, elementId]) => {
+      const element = elementsById.get(elementId);
+      return element ? [[statementIndex, element] as const] : [];
+    })
+  );
+};
+
 // 文書全体を1回のパースでコンパイルし、文⇄行対応(StatementMap)と診断を返す。
 // statementReconciler の照合結果は options.assignedElementIds で注入できる。
 export const compileDslDocument = (
@@ -1221,6 +1236,7 @@ export const compileDslDocument = (
       sourceLines,
       diagnostics: baseDiagnostics,
       spans,
+      sourceElementsByStatementIndex: sourceElementsFor(compiled),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {})
     };
   }
@@ -1622,6 +1638,7 @@ export const compileDslDocument = (
       sourceLines,
       diagnostics: finalDiagnostics,
       spans,
+      sourceElementsByStatementIndex: sourceElementsFor(compiled),
       ...(scalarProgram ? { scalarProgram } : {}),
       ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
       ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
@@ -1698,6 +1715,7 @@ export const compileDslDocument = (
     sourceLines,
     diagnostics: finalDiagnostics,
     spans,
+    sourceElementsByStatementIndex: sourceElementsFor(compiled),
     ...(scalarProgram ? { scalarProgram } : {}),
     ...(scalarAnalysis ? { bindingAnalysis: scalarAnalysis.bindingAnalysis } : {}),
     ...(documentScalarAnalysis ? { scalarProgramPositionMap: documentScalarAnalysis.positionMap } : {}),
