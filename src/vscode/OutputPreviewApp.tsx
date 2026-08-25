@@ -227,6 +227,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const latestPlanRef = useRef<OutputPlan | null>(null);
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
   const nextExportRequestIdRef = useRef(1);
+  const requestCurrentExportRef = useRef<() => boolean>(() => false);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
 
   const measureViewport = useCallback(() => {
@@ -379,6 +380,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPendingExportRequestId(null);
     return false;
   }, [api, canonicalSelectedCandidate, exportablePlan, pendingExportRequestId]);
+  useEffect(() => {
+    requestCurrentExportRef.current = requestCurrentExport;
+  }, [requestCurrentExport]);
 
   useEffect(() => {
     const documentVersion = latestHostDocumentVersionRef.current;
@@ -419,7 +423,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
       if (message.type === "outputPreviewExport") {
-        requestCurrentExport();
+        requestCurrentExportRef.current();
         return;
       }
       if (message.type === "outputPreviewExportResult") {
@@ -455,7 +459,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, applyOpenSelection, requestCurrentExport, rustTransport]);
+  }, [api, applyOpenSelection, rustTransport]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();

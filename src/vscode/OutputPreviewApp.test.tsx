@@ -318,6 +318,7 @@ describe("Output Preview application", () => {
       outputKey: outputKeyFor("print", "A"),
       format: "pdf"
     })));
+    expect(vi.mocked(api.postMessage).mock.calls.filter(([message]) => message.type === "webviewReady")).toHaveLength(1);
 
     fireEvent.click(exportButton);
     expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
