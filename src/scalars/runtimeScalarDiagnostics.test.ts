@@ -35,6 +35,7 @@ const baseInput = (
   elementIdByStatementIndex: compiled.statementMap!.elementIdByStatementIndex,
   propertySourcesByOccurrenceKey: compiled.propertyBindings ?? new Map(),
   occurrenceKeysByBindingId: compiled.occurrenceKeysByBindingId ?? new Map(),
+  numericConsumerReferencesByBindingId: compiled.numericConsumerReferencesByBindingId ?? new Map(),
   elements,
   freshness
 });
@@ -79,6 +80,27 @@ describe("runtimeScalarDiagnostics", () => {
     const [segment] = diagnostic.physicalSpan!.segments;
     expect(source.slice(segment.from, segment.to)).toBe("@label");
     // Never both: no declaration-level diagnostic for this same binding.
+    expect(diagnostics.some((item) => item.navigationTarget?.kind === "binding")).toBe(false);
+  });
+
+  it("reports at the exact numeric property consumer span instead of the declaration", () => {
+    const source = [
+      "nui 4",
+      "const broken: number = 1",
+      "point P = coordinate(x: @broken, y: 0)"
+    ].join("\n");
+    const compiled = compile(source);
+    const bindingId = bindingIdFor(compiled, "broken");
+    const diagnostics = runtimeScalarDiagnostics(
+      baseInput(compiled, new Map([[bindingId, errorEvaluation("evaluation-divide-by-zero")]]))
+    );
+    expect(diagnostics).toHaveLength(1);
+    const [diagnostic] = diagnostics;
+    expect(diagnostic.navigationTarget?.kind).toBe("property");
+    expect(diagnostic.propertyKey).toBe("x");
+    expect(diagnostic.line).toBe(3);
+    const [segment] = diagnostic.physicalSpan!.segments;
+    expect(source.slice(segment.from, segment.to)).toBe("@broken");
     expect(diagnostics.some((item) => item.navigationTarget?.kind === "binding")).toBe(false);
   });
 

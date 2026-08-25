@@ -2046,8 +2046,8 @@ export class SourceEditorController implements SourceEditorHandle {
    * fresh on every call - never cached/pushed - so a dirty keystroke || a
    * stale evaluation makes this empty on the very next read, without waiting
    * for the next evaluation round-trip. Never re-parses: reuses this exact
-   * compiled document's own Task 48 span context (state.doc.spans) && Task
-   * 22's precomputed occurrenceKeysByBindingId, both already O(1)/O(bindings). */
+   * compiled document's own Task 48 span context (state.doc.spans) and the
+   * compile-owned property/numeric consumer indexes, both already O(1)/O(bindings). */
   public runtimeDiagnostics() {
     const state = this.store.getState();
     if (!state.doc.bindingAnalysis) return [];
@@ -2059,6 +2059,7 @@ export class SourceEditorController implements SourceEditorHandle {
       elementIdByStatementIndex: state.doc.statementMap.elementIdByStatementIndex,
       propertySourcesByOccurrenceKey: state.doc.propertyBindings ?? new Map(),
       occurrenceKeysByBindingId: state.doc.occurrenceKeysByBindingId ?? new Map(),
+      numericConsumerReferencesByBindingId: state.doc.numericConsumerReferencesByBindingId ?? new Map(),
       elements: state.elements,
       freshness: this.currentRuntimeFreshnessInput()
     });
