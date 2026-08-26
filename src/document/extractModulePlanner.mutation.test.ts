@@ -213,7 +213,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
     expect(compileCurrent(transformed, "extract-mutation-next").diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
-  it("does not add direct non-root Extract targets for a nested bare mutation", () => {
+  it("retains the cross-boundary mutation guard for a nested bare mutation", () => {
     const source = [
       "nui 4",
       "group Pocket {",
@@ -221,6 +221,6 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
       "  reverse(target: @A)",
       "}"
     ].join("\n");
-    expectRejectedWithoutPatch(plan(source, [3]).result, "unsupported-statement");
+    expectRejectedWithoutPatch(plan(source, [3]).result, "cross-boundary-mutation");
   });
 });

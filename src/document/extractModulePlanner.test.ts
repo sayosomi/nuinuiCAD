@@ -289,7 +289,7 @@ describe("planExtractModule checkpoint 1", () => {
     expectRejectedWithoutPatch(plan(source, [3]).result);
   });
 
-  it("fails closed for nested scalar/binder targets outside checkpoint 1", () => {
+  it("extracts a nested scalar target with its outer scalar and iteration dependencies", () => {
     const source = [
       "nui 4",
       "const outer: number = 10",
@@ -298,6 +298,12 @@ describe("planExtractModule checkpoint 1", () => {
       "}"
     ].join("\n");
 
-    expectRejectedWithoutPatch(plan(source, [3]).result, "unsupported-statement");
+    const { result } = plan(source, [3]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText])).toEqual([
+      ["outer", "number"],
+      ["i", "number"]
+    ]);
   });
 });
