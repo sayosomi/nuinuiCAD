@@ -107,6 +107,8 @@ const mocks = vi.hoisted(() => ({
   showSaveDialog: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
+  applyEdit: vi.fn(),
+  workspaceEdits: [] as Array<{ replacements: Array<{ uri: unknown; range: unknown; replacement: string }> }>,
   executeCommand: vi.fn(),
   createWebviewPanel: vi.fn(),
   createDiagnosticCollection: vi.fn(),
@@ -146,6 +148,17 @@ vi.mock("vscode", () => {
   }
   class Range {
     constructor(public readonly start: unknown, public readonly end: unknown) {}
+  }
+  class WorkspaceEdit {
+    readonly replacements: Array<{ uri: unknown; range: unknown; replacement: string }> = [];
+
+    constructor() {
+      mocks.workspaceEdits.push(this);
+    }
+
+    replace(uri: unknown, range: unknown, replacement: string): void {
+      this.replacements.push({ uri, range, replacement });
+    }
   }
   class Selection {
     readonly start: MockPosition;
@@ -227,6 +240,7 @@ vi.mock("vscode", () => {
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      applyEdit: mocks.applyEdit,
       getConfiguration: mocks.getConfiguration,
       onDidChangeConfiguration: mocks.onDidChangeConfiguration,
       asRelativePath: mocks.asRelativePath
@@ -288,6 +302,7 @@ vi.mock("vscode", () => {
     TabInputWebview: mocks.TabInputWebview,
     Position,
     Range,
+    WorkspaceEdit,
     Selection,
     TextEditorRevealType: { InCenterIfOutsideViewport: 1 },
     Diagnostic,
@@ -714,6 +729,8 @@ afterEach(() => {
   mocks.showSaveDialog.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
+  mocks.applyEdit.mockReset();
+  mocks.workspaceEdits.length = 0;
   mocks.executeCommand.mockReset();
   mocks.createWebviewPanel.mockReset();
   mocks.createDiagnosticCollection.mockReset();
@@ -1370,6 +1387,36 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(mocks.showTextDocument).not.toHaveBeenCalled();
+  });
+
+  it("routes a current Output Preview place commit through one native WorkspaceEdit", async () => {
+    const source = "nui 4\nvalue: 10\n";
+    const document = documentFor("/tmp/place.nui", "file:///tmp/place.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor);
+    const panel = openOutputPreviewPanelFor(editor);
+    const valueStart = source.indexOf("10");
+    mocks.applyEdit.mockResolvedValue(true);
+
+    await messageHandlerFor(panel)({
+      type: "outputPreviewPlaceCommit",
+      documentVersion: document.version,
+      normalizedSourceSnapshot: source,
+      statementRange: { from: source.indexOf("value:"), to: source.length - 1 },
+      patches: [{
+        range: { from: valueStart, to: valueStart + 2 },
+        expectedText: "10",
+        replacement: "20"
+      }]
+    });
+
+    expect(mocks.applyEdit).toHaveBeenCalledTimes(1);
+    expect(mocks.workspaceEdits).toHaveLength(1);
+    expect(mocks.workspaceEdits[0]?.replacements).toHaveLength(1);
+    expect(mocks.workspaceEdits[0]?.replacements[0]).toMatchObject({
+      uri: document.uri,
+      replacement: "20"
+    });
   });
 
   it("disposes all matching sessions when the source document closes", () => {
