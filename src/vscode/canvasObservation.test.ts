@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import type { VscodeCanvasObservationElementSource } from "./protocol";
+import type { VscodeCanvasObservationElementSource } from "./canvasObservationProtocol";
 import {
   canvasObservationSnapshot,
   selectedElementSourcesForCanvasObservation

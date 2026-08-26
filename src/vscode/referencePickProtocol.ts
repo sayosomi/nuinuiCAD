@@ -69,6 +69,12 @@ export type VscodeReferencePickResult =
   | VscodeReferencePickConfirmedResult
   | VscodeReferencePickTerminalResult;
 
+export type VscodeExtensionToReferencePickMessage =
+  | VscodeReferencePickStartRequest
+  | VscodeReferencePickCancelRequest;
+
+export type VscodeReferencePickToExtensionMessage = VscodeReferencePickResult;
+
 const sameRange = (
   left: { from: number; to: number },
   right: { from: number; to: number }

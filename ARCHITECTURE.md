@@ -910,7 +910,14 @@ evaluation discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and
 production compiler/evaluator remain reused from the performance PoC path.
 
 `src/vscode/` owns the Webview-side message bridge, Canvas and Module Preview
-surface composition/adapters, and benchmark result handoff. `vscode-extension/`
+surface composition/adapters, and benchmark result handoff. Separable
+cross-boundary message slices live with their feature owners in
+`outputPreviewProtocol.ts`, `canvasObservationProtocol.ts`,
+`runtimeDiagnosticsProtocol.ts`, `modulePreviewProtocol.ts`, and the existing
+Reference Pick / multi-document protocol modules. `src/vscode/protocol.ts`
+remains the one explicit JSON-safe aggregate authority for the two directional
+message unions, Webview API, shared surface identity, and other genuinely
+cross-feature transport facts. `vscode-extension/`
 owns the desktop-local Extension Host, Canvas/Output Preview registry lifecycle,
 Module Preview's per-document panel/target lifecycle, TextDocument edit bridge,
 URI-scoped language analysis sessions, and its adapter into the shared persistent
