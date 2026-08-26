@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const extensionPath = resolve(process.cwd(), "vscode-extension/src/extension.ts");
 const featurePath = resolve(process.cwd(), "vscode-extension/src/outputPreviewSourceInteractionFeature.ts");
+const outputPreviewFeaturePath = resolve(process.cwd(), "vscode-extension/src/outputPreviewFeature.ts");
 
 const outputPreviewPlaceCommitSource = (): Promise<string> => readFile(featurePath, "utf8");
 
@@ -42,12 +43,15 @@ describe("Output Preview place native Undo boundary", () => {
   });
 
   it("delegates the production root message paths to the feature owner", async () => {
-    const source = await readFile(extensionPath, "utf8");
+    const [extensionSource, outputPreviewFeatureSource] = await Promise.all([
+      readFile(extensionPath, "utf8"),
+      readFile(outputPreviewFeaturePath, "utf8")
+    ]);
 
-    expect(source).toContain("createOutputPreviewSourceInteractionFeature");
-    expect(source).toContain("outputPreviewSourceInteraction.handleSourceNavigation(session, message)");
-    expect(source).toContain("outputPreviewSourceInteraction.applyPlaceCommit(session, message)");
-    expect(source).not.toContain("const applyOutputPreviewPlaceCommit = async");
-    expect(source).not.toContain("const handleOutputPreviewSourceNavigation = async");
+    expect(extensionSource).toContain("registerOutputPreviewFeature");
+    expect(extensionSource).toContain("outputPreviewFeature,");
+    expect(outputPreviewFeatureSource).toContain("createOutputPreviewSourceInteractionFeature");
+    expect(outputPreviewFeatureSource).toContain("sourceInteraction.handleSourceNavigation(session, message)");
+    expect(outputPreviewFeatureSource).toContain("sourceInteraction.applyPlaceCommit(session, message)");
   });
 });

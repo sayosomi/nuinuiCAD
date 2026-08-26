@@ -557,7 +557,7 @@ Primary:
 - `rust-evaluator/src/output/payload.rs`
 - `rust-evaluator/src/output/svg.rs`
 - `rust-evaluator/src/output/pdf.rs`
-- `vscode-extension/src/extension.ts` (Output Preview save host boundary)
+- `vscode-extension/src/outputPreviewFeature.ts` (Output Preview Extension Host owner)
 - `vscode-extension/src/outputPreviewSourceInteractionFeature.ts` (Output Preview Source interaction adapter)
 
 `outputCore.ts` is the host-neutral owner of the resolved output plan shared by
@@ -593,12 +593,16 @@ evaluation envelope or the public `evaluate_document(input)` Rust API. Encoding
 finishes in memory before the selected local file is written, so payload or PDF
 character validation errors do not touch the target.
 
-The Output Preview Source interaction adapter owns exact-current source
-navigation and place-commit validation/edit/resync while the Extension Host
-composition root continues to own Output Preview sessions, routing, commands,
-and shared registry/process coordination. It reuses the host-neutral
-`outputPreviewPlaceDrag.ts` safety proof and the existing one-`WorkspaceEdit`
-boundary; it is not a second session or source authority.
+`outputPreviewFeature.ts` owns the Output Preview Extension Host session
+lifecycle, create/reuse/hydration and pending-open delivery, Webview routing,
+Output Preview command registration, native history handoff, save flow, and
+the Source interaction adapter. It reuses the shared
+`VscodeWebviewSessionRegistry`, the root-owned Rust process boundary,
+`handoffOutputPreviewHistory`, and the host-neutral
+`outputPreviewPlaceDrag.ts` safety proof; it does not create a second session,
+process, history, or source authority. `extension.ts` remains the explicit
+composition root only for shared registry/process access and the narrow
+Canvas-to-Output-Preview / Output-Preview-to-Canvas adapters.
 
 ### Rust evaluation
 
@@ -925,8 +929,9 @@ cross-boundary message slices live with their feature owners in
 Reference Pick / multi-document protocol modules. `src/vscode/protocol.ts`
 remains the one explicit JSON-safe aggregate authority for the two directional
 message unions, Webview API, shared surface identity, and other genuinely
-cross-feature transport facts. `vscode-extension/`
-owns the desktop-local Extension Host, Canvas/Output Preview registry lifecycle,
+cross-feature transport facts. `vscode-extension/` owns the desktop-local
+Extension Host: Canvas lifecycle, Output Preview lifecycle through
+`outputPreviewFeature.ts`, shared Canvas/Output Preview registry composition,
 Module Preview's per-document panel/target lifecycle, TextDocument edit bridge,
 URI-scoped language analysis sessions, and its adapter into the shared persistent
 Rust stdio process boundary.

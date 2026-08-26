@@ -2,10 +2,6 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
-import {
-  defaultOutputExportPath,
-  ensureOutputExportExtension
-} from "../../src/document/printExportFileName";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
@@ -67,10 +63,6 @@ import {
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
-import {
-  handoffOutputPreviewHistory,
-  type OutputPreviewHistoryDirection
-} from "./outputPreviewHistory";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -78,10 +70,6 @@ import type {
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
-import type {
-  VscodeOutputPreviewExportAvailability,
-  VscodeOutputPreviewExportRequest
-} from "../../src/vscode/outputPreviewProtocol";
 import {
   vscodeWebviewSurfaceDataAttribute,
   type VscodeWebviewSurfaceKind
@@ -105,7 +93,10 @@ import {
 } from "./revealInCanvasPresentation";
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
 import type { VscodeObservationHostDocument } from "./vscodeObservationState";
-import { createOutputPreviewSourceInteractionFeature } from "./outputPreviewSourceInteractionFeature";
+import {
+  registerOutputPreviewFeature,
+  type OutputPreviewSession
+} from "./outputPreviewFeature";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -142,19 +133,6 @@ type DocumentSession = VscodeWebviewSessionBase & {
   } | null;
   pendingCanvasFocus: { requestId: number } | null;
   pendingSourceDefinitionRequest: { requestId: number } | null;
-};
-
-type OutputPreviewSession = VscodeWebviewSessionBase & {
-  surfaceKind: "outputPreview";
-  documentUri: string;
-  document: vscode.TextDocument;
-  panel: vscode.WebviewPanel;
-  disposables: vscode.Disposable[];
-  webviewReady: boolean;
-  authoritativeDocumentVersion: number | null;
-  pendingOpen: { normalizedSourceOffset: number | null } | null;
-  exportAvailability: Omit<VscodeOutputPreviewExportAvailability, "type"> | null;
-  inFlightExportRequestId: number | null;
 };
 
 type WebviewSession = DocumentSession | OutputPreviewSession;
@@ -497,10 +475,46 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return sessions.valuesForSurface("canvas").find((candidate) => candidate.panel.active) ?? null;
   };
 
-  const activeOutputPreviewSessionForOpenCommand = (): OutputPreviewSession | null => {
-    if (!isNuiOutputPreviewTab(activeEditorTabInput())) return null;
-    return sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active) ?? null;
+  const normalizedRangeIsSafe = (
+    document: vscode.TextDocument,
+    range: NormalizedSourceRange
+  ): boolean => {
+    const normalizedSource = normalizedSourceFor(document.getText());
+    return Number.isInteger(range.from) &&
+      Number.isInteger(range.to) &&
+      range.from >= 0 &&
+      range.to > range.from &&
+      range.to <= normalizedSource.length;
   };
+
+  const outputPreviewFeature = registerOutputPreviewFeature({
+    registry: {
+      get: (documentUri) => sessions.get(documentUri, "outputPreview"),
+      set: (session) => sessions.set(session),
+      delete: (documentUri) => sessions.delete(documentUri, "outputPreview"),
+      values: () => sessions.valuesForSurface("outputPreview")
+    },
+    extensionUri: context.extensionUri,
+    webviewHtml: (panel) => webviewHtml(panel, context, "outputPreview"),
+    postAuthoritativeDocument,
+    postDocumentText,
+    documentChangeReasonFor,
+    documentKey,
+    sameDocument,
+    isOpenDocument,
+    visibleEditorFor,
+    isNormalizedRangeSafe: normalizedRangeIsSafe,
+    requestRustEvaluation: (input) => rustProcessOwner.get().request(input),
+    exportOutput: async (request) => {
+      await rustProcessOwner.get().exportOutput(request);
+    },
+    activeNuiTextEditorForCommand,
+    activeCanvasDocumentForOpenCommand: () => activeCanvasSessionForOpenCommand()?.document ?? null,
+    isOutputPreviewTabActive: () => isNuiOutputPreviewTab(activeEditorTabInput())
+  });
+
+  const activeOutputPreviewSessionForOpenCommand = (): OutputPreviewSession | null =>
+    outputPreviewFeature.activeSessionForOpenCommand();
 
   const rememberBakeCanvas = (session: DocumentSession): void => {
     lastBakeSurface = { kind: "canvas", session };
@@ -776,12 +790,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     postAuthoritativeDocument(session.panel, session.document);
   };
 
-  const resyncOutputPreview = (session: OutputPreviewSession): void => {
-    if (sessions.get(session.documentUri, "outputPreview") !== session || !isOpenDocument(session.document)) return;
-    session.authoritativeDocumentVersion = null;
-    postAuthoritativeDocument(session.panel, session.document);
-  };
-
   const deliverPendingCanvasNavigation = (session: DocumentSession): void => {
     const pending = session.pendingCanvasNavigation;
     if (
@@ -820,25 +828,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
       ...pending
     } satisfies ExtensionToVscodeMessage);
   };
-
-  const normalizedRangeIsSafe = (
-    document: vscode.TextDocument,
-    range: NormalizedSourceRange
-  ): boolean => {
-    const normalizedSource = normalizedSourceFor(document.getText());
-    return Number.isInteger(range.from) &&
-      Number.isInteger(range.to) &&
-      range.from >= 0 &&
-      range.to > range.from &&
-      range.to <= normalizedSource.length;
-  };
-
-  const outputPreviewSourceInteraction = createOutputPreviewSourceInteractionFeature({
-    isOpenDocument,
-    isNormalizedRangeSafe: normalizedRangeIsSafe,
-    visibleEditorFor,
-    resyncOutputPreview
-  });
 
   const handleCanvasSourceDefinitionResult = async (
     session: DocumentSession,
@@ -1122,16 +1111,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
     updatePanelTitles();
   };
 
-  const disposeOutputPreviewSession = (session: OutputPreviewSession): void => {
-    if (sessions.get(session.documentUri, "outputPreview") !== session) return;
-    session.pendingOpen = null;
-    sessions.delete(session.documentUri, "outputPreview");
-    disposeSessionListeners(session);
-  };
-
   const disposeSession = (session: WebviewSession): void => {
     if (session.surfaceKind === "canvas") disposeCanvasSession(session);
-    else disposeOutputPreviewSession(session);
+    else outputPreviewFeature.disposeSession(session);
   };
 
   const updatePanelTitles = (): void => {
@@ -1401,285 +1383,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
   };
 
-  const deliverPendingOutputPreviewOpen = (session: OutputPreviewSession): void => {
-    const pending = session.pendingOpen;
-    if (
-      !pending ||
-      !session.webviewReady ||
-      session.authoritativeDocumentVersion !== session.document.version
-    ) return;
-    session.pendingOpen = null;
-    void session.panel.webview.postMessage({
-      type: "outputPreviewOpen",
-      documentVersion: session.document.version,
-      normalizedSourceOffset: pending.normalizedSourceOffset
-    } satisfies ExtensionToVscodeMessage);
-  };
-
-  const postOutputPreviewExportResult = (
-    session: OutputPreviewSession,
-    requestId: number,
-    status: "saved" | "cancelled" | "failed"
-  ): void => {
-    void session.panel.webview.postMessage({
-      type: "outputPreviewExportResult",
-      requestId,
-      status
-    } satisfies ExtensionToVscodeMessage);
-  };
-
-  const outputPreviewExportRequestIsCurrent = (
-    session: OutputPreviewSession,
-    message: VscodeOutputPreviewExportRequest
-  ): boolean => {
-    const availability = session.exportAvailability;
-    const payloadMatchesFormat = message.format === "pdf"
-      ? message.payload.kind === "print"
-      : message.payload.kind === "svg";
-    return sessions.get(session.documentUri, "outputPreview") === session
-      && payloadMatchesFormat
-      && session.panel.active
-      && isOpenDocument(session.document)
-      && session.webviewReady
-      && session.authoritativeDocumentVersion === session.document.version
-      && session.document.version === message.documentVersion
-      && availability?.documentVersion === message.documentVersion
-      && availability.outputKey === message.outputKey
-      && availability.format === message.format;
-  };
-
-  const handleOutputPreviewExport = async (
-    session: OutputPreviewSession,
-    message: VscodeOutputPreviewExportRequest
-  ): Promise<void> => {
-    if (session.inFlightExportRequestId !== null || !outputPreviewExportRequestIsCurrent(session, message)) {
-      postOutputPreviewExportResult(session, message.requestId, "failed");
-      void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed. Review the current output and export again.");
-      return;
-    }
-    session.inFlightExportRequestId = message.requestId;
-    const defaultPath = defaultOutputExportPath({
-      outputName: message.outputName,
-      documentPath: session.document.fileName,
-      extension: message.format
-    });
-    try {
-      const selected = await vscode.window.showSaveDialog({
-        defaultUri: vscode.Uri.file(defaultPath),
-        filters: message.format === "pdf"
-          ? { "PDF document": ["pdf"] }
-          : { "SVG document": ["svg"] },
-        saveLabel: message.format === "pdf" ? "Export PDF" : "Export SVG"
-      });
-      if (!selected) {
-        postOutputPreviewExportResult(session, message.requestId, "cancelled");
-        return;
-      }
-      if (selected.scheme !== "file") {
-        throw new Error("Output files can only be saved to a local file path.");
-      }
-      if (!outputPreviewExportRequestIsCurrent(session, message)) {
-        postOutputPreviewExportResult(session, message.requestId, "failed");
-        void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed while the save dialog was open. Export again.");
-        return;
-      }
-      const path = ensureOutputExportExtension(selected.fsPath, message.format);
-      await rustProcessOwner.get().exportOutput({ path, payload: message.payload });
-      postOutputPreviewExportResult(session, message.requestId, "saved");
-      void vscode.window.showInformationMessage(`nuinuiCAD: Saved ${basename(path)}.`);
-    } catch (error) {
-      postOutputPreviewExportResult(session, message.requestId, "failed");
-      void vscode.window.showErrorMessage(
-        `nuinuiCAD: Export failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    } finally {
-      if (session.inFlightExportRequestId === message.requestId) session.inFlightExportRequestId = null;
-    }
-  };
-
-  const createOutputPreviewPanel = (
-    document: vscode.TextDocument,
-    normalizedSourceOffset: number | null,
-    preserveFocus = false
-  ): OutputPreviewSession => {
-    const documentUri = documentKey(document);
-    const existing = sessions.get(documentUri, "outputPreview");
-    if (existing) {
-      existing.pendingOpen = { normalizedSourceOffset };
-      if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
-      else existing.panel.reveal(vscode.ViewColumn.Beside);
-      deliverPendingOutputPreviewOpen(existing);
-      return existing;
-    }
-
-    const panel = vscode.window.createWebviewPanel(
-      "nuinuiCAD.outputPreview",
-      `${basename(document.fileName)} — Output Preview`,
-      preserveFocus
-        ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }
-        : vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")]
-      }
-    );
-    panel.webview.html = webviewHtml(panel, context, "outputPreview");
-    const session: OutputPreviewSession = {
-      documentUri,
-      surfaceKind: "outputPreview",
-      document,
-      panel,
-      disposables: [],
-      webviewReady: false,
-      authoritativeDocumentVersion: null,
-      pendingOpen: { normalizedSourceOffset },
-      exportAvailability: null,
-      inFlightExportRequestId: null
-    };
-    sessions.set(session);
-
-    session.disposables.push(vscode.workspace.onDidChangeTextDocument((event) => {
-      if (!sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
-      session.authoritativeDocumentVersion = null;
-      session.exportAvailability = null;
-      postDocumentText(panel, event.document.getText(), event.document.version, documentChangeReasonFor(event.reason));
-    }));
-    session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
-      if (message.type === "webviewReady") {
-        session.webviewReady = true;
-        session.authoritativeDocumentVersion = null;
-        postAuthoritativeDocument(panel, session.document);
-        return;
-      }
-      if (message.type === "webviewAuthoritativeDocumentReady") {
-        if (message.documentVersion !== session.document.version) return;
-        session.authoritativeDocumentVersion = message.documentVersion;
-        deliverPendingOutputPreviewOpen(session);
-        return;
-      }
-      if (message.type === "outputPreviewFit") {
-        if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-          void panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
-        }
-        return;
-      }
-      if (message.type === "outputPreviewExportAvailability") {
-        if (
-          message.documentVersion !== session.document.version
-          || session.authoritativeDocumentVersion !== session.document.version
-        ) {
-          session.exportAvailability = null;
-          return;
-        }
-        session.exportAvailability = {
-          documentVersion: message.documentVersion,
-          outputKey: message.outputKey,
-          format: message.format
-        };
-        return;
-      }
-      if (message.type === "outputPreviewExportRequest") {
-        await handleOutputPreviewExport(session, message);
-        return;
-      }
-      if (message.type === "outputPreviewSourceNavigation") {
-        await outputPreviewSourceInteraction.handleSourceNavigation(session, message);
-        return;
-      }
-      if (message.type === "outputPreviewPlaceCommit") {
-        await outputPreviewSourceInteraction.applyPlaceCommit(session, message);
-        return;
-      }
-      if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
-    }));
-    panel.onDidDispose(() => disposeOutputPreviewSession(session));
-    return session;
-  };
-
-  const executeOpenOutputPreview = (): void => {
-    const editor = activeNuiTextEditorForCommand();
-    if (editor) {
-      const offset = normalizedOffsetFromRaw(editor.document.getText(), editor.document.offsetAt(editor.selection.active));
-      createOutputPreviewPanel(editor.document, offset);
-      return;
-    }
-
-    const canvasSession = activeCanvasSessionForOpenCommand();
-    if (canvasSession) {
-      createOutputPreviewPanel(canvasSession.document, null);
-      return;
-    }
-
-    void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Canvas.");
-  };
-
-  const executeFitOutputPreview = (): void => {
-    const session = sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active);
-    if (!session) return;
-    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-      void session.panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
-    }
-  };
-
-  const executeClearOutputPreviewFocus = (): void => {
-    const session = sessions.valuesForSurface("outputPreview").find((candidate) => candidate.panel.active);
-    if (!session) return;
-    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-      void session.panel.webview.postMessage({ type: "outputPreviewClearFocus" } satisfies ExtensionToVscodeMessage);
-    }
-  };
-
-  const executeExportCurrentOutput = (): void => {
-    const session = activeOutputPreviewSessionForOpenCommand();
-    if (!session) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Export Current Output is only available from an active Output Preview.");
-      return;
-    }
-    if (
-      session.inFlightExportRequestId !== null
-      || session.authoritativeDocumentVersion !== session.document.version
-      || session.exportAvailability?.documentVersion !== session.document.version
-      || session.exportAvailability.outputKey === null
-      || session.exportAvailability.format === null
-    ) {
-      void vscode.window.showErrorMessage("nuinuiCAD: The active Output Preview has no current exportable output.");
-      return;
-    }
-    void session.panel.webview.postMessage({ type: "outputPreviewExport" } satisfies ExtensionToVscodeMessage);
-  };
-
-  const executeOutputPreviewHistory = async (
-    direction: OutputPreviewHistoryDirection
-  ): Promise<void> => {
-    const session = activeOutputPreviewSessionForOpenCommand();
-    if (!session) return;
-
-    await handoffOutputPreviewHistory(direction, {
-      isSessionCurrent: () => sessions.get(session.documentUri, "outputPreview") === session,
-      isPanelActive: () => session.panel.active,
-      isDocumentOpen: () => isOpenDocument(session.document),
-      documentVersion: () => session.document.version,
-      activateMatchingSource: async () => {
-        const editor = visibleEditorFor(session.document);
-        if (!editor) return false;
-        try {
-          const activatedEditor = await vscode.window.showTextDocument(session.document, {
-            viewColumn: editor.viewColumn,
-            preserveFocus: false,
-            preview: false
-          });
-          return sameDocument(activatedEditor.document, session.document);
-        } catch {
-          return false;
-        }
-      },
-      executeNativeHistory: async (nativeDirection) => {
-        await vscode.commands.executeCommand(nativeDirection);
-      },
-      restorePreviewFocus: () => session.panel.reveal(undefined, false)
-    });
-  };
-
   const bakeSettings = () => {
     const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
     return {
@@ -1837,30 +1540,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Output Preview.");
   });
-  const openOutputPreviewCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.openOutputPreview",
-    executeOpenOutputPreview
-  );
-  const fitOutputPreviewCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.fitOutputPreview",
-    executeFitOutputPreview
-  );
-  const clearOutputPreviewFocusCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.clearOutputPreviewFocus",
-    executeClearOutputPreviewFocus
-  );
-  const exportCurrentOutputCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.exportCurrentOutput",
-    executeExportCurrentOutput
-  );
-  const outputPreviewUndoCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.outputPreviewUndo",
-    () => executeOutputPreviewHistory("undo")
-  );
-  const outputPreviewRedoCommand = vscode.commands.registerCommand(
-    "nuinuiCAD.outputPreviewRedo",
-    () => executeOutputPreviewHistory("redo")
-  );
   const goToSourceDefinitionCommand = vscode.commands.registerCommand(
     "nuinuiCAD.goToSourceDefinition",
     goToSourceDefinition
@@ -1921,12 +1600,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     command,
-    openOutputPreviewCommand,
-    fitOutputPreviewCommand,
-    clearOutputPreviewFocusCommand,
-    exportCurrentOutputCommand,
-    outputPreviewUndoCommand,
-    outputPreviewRedoCommand,
+    outputPreviewFeature,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     referencePickFeature,
