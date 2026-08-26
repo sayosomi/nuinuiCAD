@@ -9,7 +9,6 @@ import {
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
-import { outputPreviewPlaceCoordinatePatchesAreSafe } from "../../src/vscode/outputPreviewPlaceDrag";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
@@ -106,6 +105,7 @@ import {
 } from "./revealInCanvasPresentation";
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
 import type { VscodeObservationHostDocument } from "./vscodeObservationState";
+import { createOutputPreviewSourceInteractionFeature } from "./outputPreviewSourceInteractionFeature";
 
 type DocumentSession = VscodeWebviewSessionBase & {
   surfaceKind: "canvas";
@@ -833,6 +833,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
       range.to <= normalizedSource.length;
   };
 
+  const outputPreviewSourceInteraction = createOutputPreviewSourceInteractionFeature({
+    isOpenDocument,
+    isNormalizedRangeSafe: normalizedRangeIsSafe,
+    visibleEditorFor,
+    resyncOutputPreview
+  });
+
   const handleCanvasSourceDefinitionResult = async (
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasSourceDefinitionResult" }>
@@ -1409,77 +1416,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     } satisfies ExtensionToVscodeMessage);
   };
 
-  const handleOutputPreviewSourceNavigation = async (
-    session: OutputPreviewSession,
-    message: Extract<VscodeToExtensionMessage, { type: "outputPreviewSourceNavigation" }>
-  ): Promise<void> => {
-    if (
-      !session.panel.active ||
-      !isOpenDocument(session.document) ||
-      session.document.version !== message.documentVersion ||
-      !normalizedRangeIsSafe(session.document, message.range)
-    ) return;
-    const visibleEditor = visibleEditorFor(session.document);
-    const range = vscodeRangeForNormalized(session.document, session.document.getText(), message.range);
-    let editor: vscode.TextEditor | undefined;
-    try {
-      editor = await vscode.window.showTextDocument(session.document, {
-        viewColumn: visibleEditor?.viewColumn ?? vscode.ViewColumn.Beside,
-        preserveFocus: false,
-        preview: false,
-        selection: new vscode.Range(range.start, range.start)
-      });
-    } catch {
-      return;
-    }
-    if (!editor || session.document.version !== message.documentVersion) return;
-    try {
-      await vscode.commands.executeCommand("editor.unfold");
-    } catch {
-      return;
-    }
-    if (session.document.version !== message.documentVersion) return;
-    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-  };
-
-  const applyOutputPreviewPlaceCommit = async (
-    session: OutputPreviewSession,
-    message: Extract<VscodeToExtensionMessage, { type: "outputPreviewPlaceCommit" }>
-  ): Promise<void> => {
-    if (!isOpenDocument(session.document) || session.document.version !== message.documentVersion) {
-      resyncOutputPreview(session);
-      return;
-    }
-    const rawSource = session.document.getText();
-    const normalizedSource = normalizedSourceFor(rawSource);
-    if (
-      normalizedSource !== message.normalizedSourceSnapshot ||
-      !outputPreviewPlaceCoordinatePatchesAreSafe({
-        normalizedSource,
-        statementRange: message.statementRange,
-        patches: message.patches
-      })
-    ) {
-      resyncOutputPreview(session);
-      return;
-    }
-
-    const edit = new vscode.WorkspaceEdit();
-    for (const patch of message.patches) {
-      edit.replace(
-        session.document.uri,
-        vscodeRangeForNormalized(session.document, rawSource, patch.range),
-        patch.replacement
-      );
-    }
-    try {
-      const applied = await vscode.workspace.applyEdit(edit);
-      if (!applied) resyncOutputPreview(session);
-    } catch {
-      resyncOutputPreview(session);
-    }
-  };
-
   const postOutputPreviewExportResult = (
     session: OutputPreviewSession,
     requestId: number,
@@ -1647,11 +1583,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
         return;
       }
       if (message.type === "outputPreviewSourceNavigation") {
-        await handleOutputPreviewSourceNavigation(session, message);
+        await outputPreviewSourceInteraction.handleSourceNavigation(session, message);
         return;
       }
       if (message.type === "outputPreviewPlaceCommit") {
-        await applyOutputPreviewPlaceCommit(session, message);
+        await outputPreviewSourceInteraction.applyPlaceCommit(session, message);
         return;
       }
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
