@@ -61,10 +61,7 @@ import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
-import {
-  createNuiElementsTreeProvider,
-  NUI_ELEMENTS_VIEW_ID
-} from "./elementsTreeProvider";
+import { registerNuiElementsTreeFeature } from "./elementsTreeFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
   registerVscodeReferencePickFeature,
@@ -745,24 +742,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiDocumentSymbolSelector,
     createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
   );
-  const elementsTreeProvider = createNuiElementsTreeProvider(
-    () => activeNuiEditor()?.document,
+  const elementsTreeFeature = registerNuiElementsTreeFeature({
+    activeNuiDocument: () => activeNuiEditor()?.document,
     languageAnalysisSessionFor
-  );
-  const elementsTreeRegistration = vscode.window.registerTreeDataProvider?.(
-    NUI_ELEMENTS_VIEW_ID,
-    elementsTreeProvider
-  );
-  const elementsTreeActiveEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
-    elementsTreeProvider.refresh();
-  });
-  const elementsTreeDocumentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-    const activeDocument = activeNuiEditor()?.document;
-    if (activeDocument && sameDocument(activeDocument, event.document)) elementsTreeProvider.refresh();
-  });
-  const elementsTreeDocumentCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
-    const activeDocument = activeNuiEditor()?.document;
-    if (!activeDocument || sameDocument(activeDocument, document)) elementsTreeProvider.refresh();
   });
   context.subscriptions.push(
     compilerDiagnosticCollection,
@@ -781,11 +763,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     choiceQuickFixProvider,
     foldingProvider,
     documentSymbolProvider,
-    elementsTreeActiveEditorListener,
-    elementsTreeDocumentChangeListener,
-    elementsTreeDocumentCloseListener
+    elementsTreeFeature
   );
-  if (elementsTreeRegistration) context.subscriptions.push(elementsTreeRegistration);
   for (const document of vscode.workspace.textDocuments) publishCompilerDiagnostics(document);
 
   const resync = (session: DocumentSession): void => {
