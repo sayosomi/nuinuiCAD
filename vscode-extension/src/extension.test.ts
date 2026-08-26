@@ -119,6 +119,8 @@ const mocks = vi.hoisted(() => ({
   registerFoldingRangeProvider: vi.fn(),
   registerDocumentSymbolProvider: vi.fn(),
   registerColorProvider: vi.fn(),
+  registerElementsTreeFeature: vi.fn(),
+  elementsTreeFeatures: [] as Array<{ dispose: () => void }>,
   registerCommand: vi.fn(),
   onDidChangeActiveTextEditor: vi.fn(),
   onDidChangeTextEditorSelection: vi.fn(),
@@ -309,6 +311,21 @@ vi.mock("./rustEvaluationProcess", () => ({
     }
   }
 }));
+
+vi.mock("./elementsTreeFeature", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./elementsTreeFeature")>();
+  return {
+    ...actual,
+    registerNuiElementsTreeFeature: (
+      ...args: Parameters<typeof actual.registerNuiElementsTreeFeature>
+    ) => {
+      mocks.registerElementsTreeFeature(...args);
+      const feature = actual.registerNuiElementsTreeFeature(...args);
+      mocks.elementsTreeFeatures.push(feature);
+      return feature;
+    }
+  };
+});
 
 import { activate } from "./extension";
 
@@ -690,6 +707,7 @@ afterEach(() => {
   mocks.foldingRegistrations.length = 0;
   mocks.documentSymbolRegistrations.length = 0;
   mocks.colorRegistrations.length = 0;
+  mocks.elementsTreeFeatures.length = 0;
   mocks.showErrorMessage.mockReset();
   mocks.showWarningMessage.mockReset();
   mocks.showInformationMessage.mockReset();
@@ -708,6 +726,7 @@ afterEach(() => {
   mocks.registerFoldingRangeProvider.mockReset();
   mocks.registerDocumentSymbolProvider.mockReset();
   mocks.registerColorProvider.mockReset();
+  mocks.registerElementsTreeFeature.mockReset();
   mocks.registerCommand.mockReset();
   mocks.onDidChangeActiveTextEditor.mockReset();
   mocks.onDidChangeTextEditorSelection.mockReset();
@@ -721,6 +740,13 @@ afterEach(() => {
 });
 
 describe("VS Code production document lifecycle", () => {
+  it("registers and subscribes the Elements Tree lifecycle feature once", () => {
+    const context = setup();
+
+    expect(mocks.registerElementsTreeFeature).toHaveBeenCalledTimes(1);
+    expect(context.subscriptions).toContain(mocks.elementsTreeFeatures[0]);
+  });
+
   it("registers the standard file-backed nui Signature Help provider", () => {
     setup();
 

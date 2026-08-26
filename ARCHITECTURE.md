@@ -998,8 +998,11 @@ test であり、cross-host UI comparison foundation とは別責務。
 
 ### VS Code Explorer mock surface
 
-The native `nuinuiCAD.elements` Tree View remains backed by
-`vscode-extension/src/elementsTreeProvider.ts`. A sibling
+The native `nuinuiCAD.elements` Tree View is registered and refreshed by
+`vscode-extension/src/elementsTreeFeature.ts`; it owns the Extension Host
+lifecycle only. `vscode-extension/src/elementsTreeProvider.ts` remains the
+semantic/presentation adapter, projecting the exact-current Document Symbols
+into the tree hierarchy. A sibling
 `nuinuiCAD.explorerMock` Webview View is contributed to the same
 `nuinuiCAD.explorer` View Container. `vscode-extension/src/explorerMockFeature.ts`
 owns only that Webview View's host lifecycle and shared-bundle HTML bootstrap.
