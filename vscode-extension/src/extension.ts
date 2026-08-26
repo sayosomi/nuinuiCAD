@@ -77,10 +77,12 @@ import type {
   VscodeCanvasCommandId,
   VscodeBenchmarkConfig,
   VscodeDocumentChangeReason,
-  VscodeOutputPreviewExportAvailability,
-  VscodeOutputPreviewExportRequest,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
+import type {
+  VscodeOutputPreviewExportAvailability,
+  VscodeOutputPreviewExportRequest
+} from "../../src/vscode/outputPreviewProtocol";
 import {
   vscodeWebviewSurfaceDataAttribute,
   type VscodeWebviewSurfaceKind

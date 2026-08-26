@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeScalarDiagnostic } from "../../src/scalars/runtimeScalarDiagnostics";
-import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/protocol";
+import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/runtimeDiagnosticsProtocol";
 import { createRuntimeDiagnosticsSidecar } from "./runtimeDiagnosticsSidecar";
 
 const diagnostic = (bindingId: string): RuntimeScalarDiagnostic => ({

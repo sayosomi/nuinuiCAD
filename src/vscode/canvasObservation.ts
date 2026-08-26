@@ -9,7 +9,7 @@ import type {
   VscodeCanvasObservationIssueSummary,
   VscodeCanvasObservationSnapshot,
   VscodeCanvasObservationSelectionSubject
-} from "./protocol";
+} from "./canvasObservationProtocol";
 
 export const selectedElementSourcesForCanvasObservation = (
   selectedElementIds: readonly string[],

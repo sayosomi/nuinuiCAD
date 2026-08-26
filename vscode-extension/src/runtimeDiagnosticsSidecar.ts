@@ -1,5 +1,5 @@
 import type { DslDiagnostic } from "../../src/dsl/dslTypes";
-import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/protocol";
+import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/runtimeDiagnosticsProtocol";
 
 export type RuntimeDiagnosticsSidecarSnapshot = {
   documentVersion: number;

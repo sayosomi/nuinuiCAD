@@ -2,27 +2,60 @@ import type { BakeOperationSummary } from "../commands/bakeOperationResult";
 import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixtureManifest";
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
-import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
-import type { RustPrintOutputPayload, RustSvgOutputPayload } from "../output/outputCore";
 import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import type { VscodeExtensionToModulePreviewMessage } from "./modulePreviewProtocol";
 import type {
-  VscodeReferencePickCancelRequest,
-  VscodeReferencePickResult,
-  VscodeReferencePickStartRequest
+  VscodeExtensionToOutputPreviewMessage,
+  VscodeOutputPreviewToExtensionMessage
+} from "./outputPreviewProtocol";
+import type {
+  VscodeExtensionToReferencePickMessage,
+  VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
+import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
 
 export type {
+  VscodeCanvasObservationElementSource,
+  VscodeCanvasObservationIssueSummary,
+  VscodeCanvasObservationPublication,
+  VscodeCanvasObservationSelectionSubject,
+  VscodeCanvasObservationSnapshot,
+  VscodeCanvasObservationToExtensionMessage
+} from "./canvasObservationProtocol";
+export type {
+  VscodeExtensionToModulePreviewMessage,
+  VscodeModulePreviewTarget,
+  VscodeModulePreviewTargetUnavailable
+} from "./modulePreviewProtocol";
+export type {
+  VscodeExtensionToOutputPreviewMessage,
+  VscodeOutputPreviewExportAvailability,
+  VscodeOutputPreviewExportFormat,
+  VscodeOutputPreviewExportRequest,
+  VscodeOutputPreviewExportResult,
+  VscodeOutputPreviewPlaceCommit,
+  VscodeOutputPreviewPlaceCoordinatePatch,
+  VscodeOutputPreviewToExtensionMessage
+} from "./outputPreviewProtocol";
+export type {
+  VscodeExtensionToReferencePickMessage,
   VscodeReferencePickCancelRequest,
   VscodeReferencePickConfirmedResult,
   VscodeReferencePickResult,
   VscodeReferencePickStartedResult,
   VscodeReferencePickStartRequest,
   VscodeReferencePickTargetProof,
-  VscodeReferencePickTerminalResult
+  VscodeReferencePickTerminalResult,
+  VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
+export type {
+  VscodeRuntimeDiagnosticsPublication,
+  VscodeRuntimeDiagnosticsToExtensionMessage
+} from "./runtimeDiagnosticsProtocol";
 export type {
   VscodeMultiDocumentGraphPublication,
   VscodeMultiDocumentGraphSnapshot,
@@ -69,108 +102,11 @@ export type VscodeRustEvaluationRequest = {
   input: unknown;
 };
 
-/** JSON-safe runtime layer published only from the current canonical Webview evaluation. */
-export type VscodeRuntimeDiagnosticsPublication = {
-  type: "runtimeDiagnosticsPublication";
-  documentVersion: number;
-  diagnostics: readonly DslDiagnostic[];
-};
-
-export type VscodeCanvasObservationSelectionSubject =
-  | { kind: "elements" }
-  | { kind: "binding"; bindingId: string };
-
-export type VscodeCanvasObservationElementSource = {
-  runtimeElementId: string;
-  sourceStatementIndex: number;
-  elementType: string;
-};
-
-export type VscodeCanvasObservationIssueSummary = {
-  elementId: string;
-  elementName: string;
-  message: string;
-};
-
-/** Compact JSON-safe facts published only from the ordinary canonical Canvas state. */
-export type VscodeCanvasObservationSnapshot = {
-  documentVersion: number;
-  selectedElementIds: readonly string[];
-  /** Source ownership used by agent-facing adapters to project runtime IDs into stable snapshot IDs. */
-  selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
-  selectionSubject: VscodeCanvasObservationSelectionSubject;
-  compiledDocumentRevision: number;
-  previewActive: boolean;
-  evaluationRevision: number;
-  evaluationRequestRevision: number;
-  evaluationStatus: "idle" | "evaluating" | "ready" | "failed";
-  evaluationSource: "reference" | "rust" | "fallback";
-  rustEligible: boolean;
-  isStale: boolean;
-  isCurrent: boolean;
-  errorCount: number;
-  warningCount: number;
-  errorSummaries: readonly VscodeCanvasObservationIssueSummary[];
-  warningSummaries: readonly VscodeCanvasObservationIssueSummary[];
-};
-
-export type VscodeCanvasObservationPublication = {
-  type: "canvasObservationPublication";
-  snapshot: VscodeCanvasObservationSnapshot;
-};
-
 export type VscodeDocumentChangeReason = "edit" | "undo" | "redo";
 
 export type VscodeBakeOperationResult = {
   status: "applied" | "nothing";
   summary: BakeOperationSummary;
-};
-
-export type VscodeOutputPreviewPlaceCoordinatePatch = {
-  range: NormalizedSourceRange;
-  expectedText: string;
-  replacement: string;
-};
-
-export type VscodeOutputPreviewPlaceCommit = {
-  type: "outputPreviewPlaceCommit";
-  documentVersion: number;
-  normalizedSourceSnapshot: string;
-  statementRange: NormalizedSourceRange;
-  patches: readonly VscodeOutputPreviewPlaceCoordinatePatch[];
-};
-
-export type VscodeOutputPreviewExportFormat = "pdf" | "svg";
-
-export type VscodeOutputPreviewExportAvailability = {
-  type: "outputPreviewExportAvailability";
-  documentVersion: number | null;
-  outputKey: string | null;
-  format: VscodeOutputPreviewExportFormat | null;
-};
-
-type VscodeOutputPreviewExportRequestBase = {
-  type: "outputPreviewExportRequest";
-  requestId: number;
-  documentVersion: number;
-  outputKey: string;
-  outputName: string;
-};
-
-export type VscodeOutputPreviewExportRequest =
-  | (VscodeOutputPreviewExportRequestBase & {
-      format: "pdf";
-      payload: RustPrintOutputPayload;
-    })
-  | (VscodeOutputPreviewExportRequestBase & {
-      format: "svg";
-      payload: RustSvgOutputPayload;
-    });
-
-export type VscodeOutputPreviewExportResult = {
-  type: "outputPreviewExportResult";
-  requestId: number;
-  status: "saved" | "cancelled" | "failed";
 };
 
 export type VscodeCanvasNavigationResult =
@@ -183,9 +119,9 @@ export type VscodeToExtensionMessage =
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
-  | VscodeRuntimeDiagnosticsPublication
-  | VscodeCanvasObservationPublication
-  | VscodeReferencePickResult
+  | VscodeRuntimeDiagnosticsToExtensionMessage
+  | VscodeCanvasObservationToExtensionMessage
+  | VscodeReferencePickToExtensionMessage
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | VscodeCanvasNavigationResult
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
@@ -206,15 +142,7 @@ export type VscodeToExtensionMessage =
     }
   | { type: "benchmarkResult"; result: unknown }
   | { type: "benchmarkError"; error: string }
-  | { type: "outputPreviewFit" }
-  | VscodeOutputPreviewExportAvailability
-  | VscodeOutputPreviewExportRequest
-  | {
-      type: "outputPreviewSourceNavigation";
-      documentVersion: number;
-      range: NormalizedSourceRange;
-    }
-  | VscodeOutputPreviewPlaceCommit;
+  | VscodeOutputPreviewToExtensionMessage;
 
 export type VscodeCanvasCommandId =
   | "undo"
@@ -249,8 +177,7 @@ export type ExtensionToVscodeMessage =
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
   | VscodeMultiDocumentGraphPublication
-  | VscodeReferencePickStartRequest
-  | VscodeReferencePickCancelRequest
+  | VscodeExtensionToReferencePickMessage
   | { type: "canvasSourceDefinitionRequest"; requestId: number }
   | { type: "canvasNavigationRequest"; requestId: number; documentVersion: number; normalizedSourceOffset: number }
   | { type: "focusCanvas"; requestId: number }
@@ -282,13 +209,8 @@ export type ExtensionToVscodeMessage =
   | { type: "rustEvaluationResponse"; id: number; payload: unknown }
   | { type: "rustEvaluationError"; id: number; error: string }
   | { type: "benchmarkConfig"; config: VscodeBenchmarkConfig }
-  | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
-  | { type: "outputPreviewFit" }
-  | { type: "outputPreviewClearFocus" }
-  | { type: "outputPreviewExport" }
-  | VscodeOutputPreviewExportResult
-  | { type: "modulePreviewTarget"; documentVersion: number; normalizedSourceOffset: number }
-  | { type: "modulePreviewTargetUnavailable"; documentVersion: number };
+  | VscodeExtensionToOutputPreviewMessage
+  | VscodeExtensionToModulePreviewMessage;
 
 export type VscodeWebviewApi = {
   postMessage: (message: VscodeToExtensionMessage) => void;
