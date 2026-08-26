@@ -558,6 +558,7 @@ Primary:
 - `rust-evaluator/src/output/svg.rs`
 - `rust-evaluator/src/output/pdf.rs`
 - `vscode-extension/src/extension.ts` (Output Preview save host boundary)
+- `vscode-extension/src/outputPreviewSourceInteractionFeature.ts` (Output Preview Source interaction adapter)
 
 `outputCore.ts` is the host-neutral owner of the resolved output plan shared by
 SVG, PDF, and future Preview. It consumes compiler-resolved layouts/outputs,
@@ -591,6 +592,13 @@ separate `exportOutput` envelope without changing the existing `{ id, input }`
 evaluation envelope or the public `evaluate_document(input)` Rust API. Encoding
 finishes in memory before the selected local file is written, so payload or PDF
 character validation errors do not touch the target.
+
+The Output Preview Source interaction adapter owns exact-current source
+navigation and place-commit validation/edit/resync while the Extension Host
+composition root continues to own Output Preview sessions, routing, commands,
+and shared registry/process coordination. It reuses the host-neutral
+`outputPreviewPlaceDrag.ts` safety proof and the existing one-`WorkspaceEdit`
+boundary; it is not a second session or source authority.
 
 ### Rust evaluation
 
