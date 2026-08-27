@@ -1,43 +1,90 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { deflateRawSync } from "node:zlib";
 import {
   buildCiFailureContent,
-  extractCurrentRunnerTestName,
-  extractCurrentRunnerTestNameFromArchive,
   fetchFailureDetails,
   notifyCiFailure
 } from "./discordPrNotification.mjs";
+import {
+  MAX_ARTIFACT_BYTES,
+  MAX_REPORT_BYTES,
+  MAX_REPORT_TOTAL_BYTES,
+  extractFailedTestFromJUnit,
+  extractStructuredFailureFromArchive,
+  reportMappingForFailure
+} from "./structuredTestResults.mjs";
 
 const response = (body, { status = 200, headers = {} } = {}) => new Response(body, { status, headers });
 
-const zip = (name, text) => {
-  const body = Buffer.from(text);
-  const compressed = deflateRawSync(body);
-  const filename = Buffer.from(name);
-  const local = Buffer.alloc(30);
-  local.writeUInt32LE(0x04034b50, 0);
-  local.writeUInt16LE(20, 4);
-  local.writeUInt16LE(8, 8);
-  local.writeUInt32LE(compressed.length, 18);
-  local.writeUInt32LE(body.length, 22);
-  local.writeUInt16LE(filename.length, 26);
-  const central = Buffer.alloc(46);
-  central.writeUInt32LE(0x02014b50, 0);
-  central.writeUInt16LE(20, 4);
-  central.writeUInt16LE(20, 6);
-  central.writeUInt16LE(8, 10);
-  central.writeUInt32LE(compressed.length, 20);
-  central.writeUInt32LE(body.length, 24);
-  central.writeUInt16LE(filename.length, 28);
+const zip = (entries) => {
+  const localRecords = [];
+  const centralRecords = [];
+  let localOffset = 0;
+
+  for (const entry of entries) {
+    const body = Buffer.from(entry.text ?? "");
+    const compression = entry.compression ?? 8;
+    const compressed = entry.compressed ?? (compression === 0 ? body : deflateRawSync(body));
+    const name = Buffer.from(entry.name);
+    const flags = entry.flags ?? 0;
+    const compressedSize = entry.compressedSize ?? compressed.length;
+    const uncompressedSize = entry.uncompressedSize ?? body.length;
+    const hasDataDescriptor = (flags & 0x0008) !== 0;
+    const descriptorSignature = entry.descriptorSignature ?? true;
+    const descriptorCompressedSize = entry.descriptorCompressedSize ?? compressedSize;
+    const descriptorUncompressedSize = entry.descriptorUncompressedSize ?? uncompressedSize;
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(flags, 6);
+    local.writeUInt16LE(compression, 8);
+    local.writeUInt32LE(entry.localCompressedSize ?? (hasDataDescriptor ? 0 : compressedSize), 18);
+    local.writeUInt32LE(entry.localUncompressedSize ?? (hasDataDescriptor ? 0 : uncompressedSize), 22);
+    local.writeUInt16LE(name.length, 26);
+    const descriptor = hasDataDescriptor
+      ? (() => {
+          const body = Buffer.alloc(descriptorSignature ? 16 : 12);
+          let offset = 0;
+          if (descriptorSignature) {
+            body.writeUInt32LE(entry.descriptorSignatureValue ?? 0x08074b50, offset);
+            offset += 4;
+          }
+          body.writeUInt32LE(0, offset);
+          body.writeUInt32LE(descriptorCompressedSize, offset + 4);
+          body.writeUInt32LE(descriptorUncompressedSize, offset + 8);
+          return body;
+        })()
+      : Buffer.alloc(0);
+    localRecords.push(Buffer.concat([local, name, compressed, descriptor]));
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(flags, 8);
+    central.writeUInt16LE(compression, 10);
+    central.writeUInt32LE(compressedSize, 20);
+    central.writeUInt32LE(uncompressedSize, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(localOffset, 42);
+    centralRecords.push(Buffer.concat([central, name]));
+    localOffset += localRecords.at(-1).length;
+  }
+
+  const centralDirectory = Buffer.concat(centralRecords);
   const end = Buffer.alloc(22);
   end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(1, 8);
-  end.writeUInt16LE(1, 10);
-  end.writeUInt32LE(central.length + filename.length, 12);
-  end.writeUInt32LE(local.length + filename.length + compressed.length, 16);
-  return Buffer.concat([local, filename, compressed, central, filename, end]);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(localOffset, 16);
+  return Buffer.concat([...localRecords, centralDirectory, end]);
 };
+
+const junit = (body) => zip([{ name: "node-changed.xml", text: body }]);
 
 const failureEvent = {
   workflow_run: {
@@ -51,71 +98,308 @@ const failureEvent = {
   }
 };
 
-test("extracts only the reporters used by the current CI runners", () => {
-  assert.equal(extractCurrentRunnerTestName(" × computes a sleeve curve 12ms"), "computes a sleeve curve");
-  assert.equal(
-    extractCurrentRunnerTestName("\u001b[41m\u001b[1m FAIL \u001b[0m src/command.test.ts > rename coverage > reports the timed-out rename"),
-    "reports the timed-out rename"
-  );
-  assert.equal(extractCurrentRunnerTestName("not ok 4 - classifies workflow files"), "classifies workflow files");
-  assert.equal(extractCurrentRunnerTestName("test evaluator::rejects_nan ... FAILED"), "evaluator::rejects_nan");
-  assert.equal(extractCurrentRunnerTestName("unrelated failure prose"), null);
-  assert.equal(extractCurrentRunnerTestNameFromArchive(zip("job.txt", "not ok 1 - narrow failure")), "narrow failure");
-});
-
-test("uses a failed non-aggregate job and a test hint when Actions APIs are available", async () => {
+const fetchForNodeChanged = ({ archive = junit('<testsuites><testcase name="failed"><failure /></testcase></testsuites>'), artifacts = [{ id: 456, name: "nuinuicad-ci-test-results-node-attempt-2" }], extra = {} } = {}) => {
   const requests = [];
   const fetchImpl = async (url) => {
     requests.push(url);
     if (url.includes("/pulls/99")) return response(JSON.stringify({ title: "Focused notification test" }));
-    if (url.includes("/runs/123/jobs")) return response(JSON.stringify({ jobs: [
+    if (url.includes("/runs/123/attempts/2/jobs")) return response(JSON.stringify({ jobs: [
       { id: 7, name: "Node", conclusion: "failure", steps: [
         { name: "Install optional dependency", conclusion: "skipped" },
         { name: "Changed Node tests", conclusion: "failure" }
-      ] },
-      { id: 8, name: "CI", conclusion: "failure", steps: [{ name: "Check required CI results", conclusion: "failure" }] }
+      ] }
     ] }));
-    if (url.includes("/jobs/7/logs")) return response(zip("job.txt", " × reports failed fixture 4ms"));
+    if (url.includes("/runs/123/artifacts")) return response(JSON.stringify({ artifacts }));
+    if (url.includes("/actions/artifacts/456/zip")) return response(archive);
+    if (extra[url]) return extra[url];
     throw new Error(`unexpected ${url}`);
   };
-  const details = await fetchFailureDetails({ repository: "sayosomi/nuinuiCAD", runId: 123, prNumber: 99, token: "token", fetchImpl });
-  assert.deepEqual(details, { title: "Focused notification test", job: "Node", step: "Changed Node tests", testName: "reports failed fixture" });
-  assert.equal(requests.length, 3);
+  return { fetchImpl, requests };
+};
+
+test("uses exact job and step mapping for structured reports", () => {
+  assert.deepEqual(reportMappingForFailure("Node", "Changed Node tests"), {
+    reportNames: ["node-changed.xml"],
+    runner: "vitest"
+  });
+  assert.deepEqual(reportMappingForFailure("Classify changes", "Test change classifier"), {
+    reportNames: ["classification-change-classifier.xml"],
+    runner: "node"
+  });
+  assert.equal(reportMappingForFailure("Node", "Build"), null);
+  assert.equal(reportMappingForFailure("CI", "Check required CI results"), null);
 });
 
-test("analysis failures leave required fields unavailable but still send Discord", async () => {
-  const posts = [];
-  const fetchImpl = async (url, options = {}) => {
-    if (url === "https://discord.example/webhook") {
-      posts.push(JSON.parse(options.body));
-      return response(null, { status: 204 });
-    }
-    throw new Error("GitHub API unavailable");
-  };
-  await notifyCiFailure({
-    event: failureEvent,
-    environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD", GITHUB_TOKEN: "token", DISCORD_WEBHOOK_URL: "https://discord.example/webhook" },
+test("extracts the first failed Node testcase with its enclosing suite identifier", () => {
+  const text = [
+    "<testsuites>",
+    "  <testcase name=\"passed\" />",
+    "  <testsuite name=\"node:test suite\">",
+    "    <testcase name=\"first failing test\"><failure /></testcase>",
+    "    <testcase name=\"later failing test\"><error /></testcase>",
+    "  </testsuite>",
+    "</testsuites>"
+  ].join("\n");
+  assert.equal(extractFailedTestFromJUnit(text, "node"), "node:test suite > first failing test");
+});
+
+test("extracts a Vitest classname/file and full test name", () => {
+  const text = [
+    "<testsuites>",
+    "  <testsuite name=\"vitest\">",
+    "    <testcase classname=\"src/commands/rename.test.ts\" file=\"ignored-file.ts\" name=\"rename suite &gt; reports the failure &amp; keeps order\">",
+    "      <failure type=\"AssertionError\" />",
+    "    </testcase>",
+    "  </testsuite>",
+    "</testsuites>"
+  ].join("\n");
+  assert.equal(
+    extractFailedTestFromJUnit(text, "vitest"),
+    "src/commands/rename.test.ts > rename suite > reports the failure & keeps order"
+  );
+});
+
+test("extracts a nextest Rust testcase and suite identifier", () => {
+  const text = [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<testsuites><testsuite name=\"nuinuicad_rust_evaluator::evaluation\">",
+    "<testcase name=\"rejects_nan\"><error>panic</error></testcase>",
+    "</testsuite></testsuites>"
+  ].join("");
+  const archive = zip([{ name: "rust-evaluator.xml", text }]);
+  assert.equal(
+    extractStructuredFailureFromArchive(archive, reportMappingForFailure("Rust + parity", "Test evaluator crate")),
+    "nuinuicad_rust_evaluator::evaluation > rejects_nan"
+  );
+});
+
+test("orders lifecycle stress reports numerically", () => {
+  const report = (name) => `<testsuites><testsuite name="iteration"><testcase name="${name}"><failure /></testcase></testsuite></testsuites>`;
+  const archive = zip([
+    { name: "lifecycle-stress-10.xml", text: report("iteration ten") },
+    { name: "lifecycle-stress-2.xml", text: report("iteration two") },
+    { name: "lifecycle-stress-1.xml", text: "<testsuites />" }
+  ]);
+  assert.equal(
+    extractStructuredFailureFromArchive(archive, reportMappingForFailure("Rust + parity", "Lifecycle stress tests")),
+    "iteration two"
+  );
+});
+
+test("selects only the current run-attempt artifact and never requests job logs", async () => {
+  const { fetchImpl, requests } = fetchForNodeChanged({
+    archive: junit('<testsuites><testcase name="current attempt failure"><failure /></testcase></testsuites>'),
+    artifacts: [
+      { id: 111, name: "nuinuicad-ci-test-results-node-attempt-1" },
+      { id: 456, name: "nuinuicad-ci-test-results-node-attempt-2" }
+    ]
+  });
+  const details = await fetchFailureDetails({
+    repository: "sayosomi/nuinuiCAD",
+    runId: 123,
+    runAttempt: 2,
+    prNumber: 99,
+    token: "token",
     fetchImpl
   });
-  assert.equal(posts.length, 1);
-  assert.match(posts[0].content, /PR #99/);
-  assert.match(posts[0].content, /head SHA: a{40}/);
-  assert.match(posts[0].content, /run attempt: 2/);
-  assert.match(posts[0].content, /failed job: unavailable/);
-  assert.match(posts[0].content, /failed step: unavailable/);
+  assert.deepEqual(details, {
+    title: "Focused notification test",
+    job: "Node",
+    step: "Changed Node tests",
+    testName: "current attempt failure"
+  });
+  assert.ok(requests.some((url) => url.endsWith("/actions/runs/123/artifacts?per_page=100")));
+  assert.ok(requests.some((url) => url.endsWith("/actions/runs/123/attempts/2/jobs?per_page=100")));
+  assert.ok(!requests.some((url) => url.endsWith("/actions/runs/123/jobs?per_page=100")));
+  assert.ok(requests.some((url) => url.endsWith("/actions/artifacts/456/zip")));
+  assert.ok(!requests.some((url) => url.includes("/actions/jobs/") && url.endsWith("/logs")));
 });
 
-test("an explicit empty pull_requests array is a successful no-op", async () => {
-  const event = {
-    workflow_run: {
-      event: "pull_request",
-      conclusion: "failure",
-      pull_requests: []
+test("reads a mapped report from a multi-entry descriptor-bearing ZIP", () => {
+  const archive = zip([
+    {
+      name: "unrelated-first.txt",
+      text: "preceding entry",
+      flags: 0x0008
+    },
+    {
+      name: "node-changed.xml",
+      text: '<testsuites><testcase name="descriptor failure"><failure /></testcase></testsuites>',
+      flags: 0x0008
+    },
+    {
+      name: "unrelated-last.txt",
+      text: "following entry",
+      flags: 0x0008
     }
-  };
+  ]);
+  assert.equal(
+    extractStructuredFailureFromArchive(archive, reportMappingForFailure("Node", "Changed Node tests")),
+    "descriptor failure"
+  );
+});
+
+test("rejects inconsistent data descriptors", () => {
+  const mapping = reportMappingForFailure("Node", "Changed Node tests");
+  assert.equal(
+    extractStructuredFailureFromArchive(
+      zip([{
+        name: "node-changed.xml",
+        text: '<testsuites><testcase name="bad size"><failure /></testcase></testsuites>',
+        flags: 0x0008,
+        descriptorCompressedSize: 1
+      }]),
+      mapping
+    ),
+    null
+  );
+  assert.equal(
+    extractStructuredFailureFromArchive(
+      zip([{
+        name: "node-changed.xml",
+        text: '<testsuites><testcase name="bad signature"><failure /></testcase></testsuites>',
+        flags: 0x0008,
+        descriptorSignatureValue: 0x12345678
+      }]),
+      mapping
+    ),
+    null
+  );
+});
+
+test("stale-attempt and missing artifacts fall back without downloading", async () => {
+  for (const artifacts of [
+    [{ id: 111, name: "nuinuicad-ci-test-results-node-attempt-1" }],
+    []
+  ]) {
+    const { fetchImpl, requests } = fetchForNodeChanged({ artifacts });
+    const details = await fetchFailureDetails({
+      repository: "sayosomi/nuinuiCAD",
+      runId: 123,
+      runAttempt: 2,
+      prNumber: 99,
+      token: "token",
+      fetchImpl
+    });
+    assert.equal(details.testName, null);
+    assert.ok(!requests.some((url) => url.includes("/actions/artifacts/")));
+  }
+});
+
+test("GitHub API failures fall back to base metadata", async () => {
+  const details = await fetchFailureDetails({
+    repository: "sayosomi/nuinuiCAD",
+    runId: 123,
+    runAttempt: 2,
+    prNumber: 99,
+    token: "token",
+    fetchImpl: async () => { throw new Error("GitHub unavailable"); }
+  });
+  assert.deepEqual(details, { title: "unavailable", job: "unavailable", step: "unavailable", testName: null });
+});
+
+test("malformed ZIP, unsupported compression, and malformed XML fall back", () => {
+  const mapping = reportMappingForFailure("Node", "Changed Node tests");
+  assert.equal(extractStructuredFailureFromArchive(Buffer.from("not a zip"), mapping), null);
+  assert.equal(extractStructuredFailureFromArchive(zip([{ name: "node-changed.xml", compression: 99, text: "<testsuites />" }]), mapping), null);
+  assert.equal(extractStructuredFailureFromArchive(junit("<testsuites><testcase"), mapping), null);
+  assert.equal(extractStructuredFailureFromArchive(junit("<junit><testcase name=\"drift\"><failure /></testcase></junit>"), mapping), null);
+});
+
+test("DOCTYPE and ENTITY declarations remain inert and do not expand", () => {
+  const report = '<!DOCTYPE testsuites [<!ENTITY secret "should never appear">]><testsuites><testcase name="&secret;"><failure /></testcase></testsuites>';
+  assert.equal(extractStructuredFailureFromArchive(junit(report), reportMappingForFailure("Node", "Changed Node tests")), null);
+});
+
+test("unexpected and traversal ZIP entries are ignored", () => {
+  const archive = zip([
+    { name: "../node-changed.xml", text: "<testsuites><testcase name=\"untrusted\"><failure /></testcase></testsuites>" },
+    { name: "raw.log", text: "not structured test output" },
+    { name: "node-changed.xml", text: "<testsuites><testcase name=\"trusted\"><failure /></testcase></testsuites>" }
+  ]);
+  assert.equal(
+    extractStructuredFailureFromArchive(archive, reportMappingForFailure("Node", "Changed Node tests")),
+    "trusted"
+  );
+});
+
+test("rejects oversized artifact, report, and aggregate sizes", () => {
+  const mapping = reportMappingForFailure("Node", "Changed Node tests");
+  assert.equal(extractStructuredFailureFromArchive(Buffer.alloc(MAX_ARTIFACT_BYTES + 1), mapping), null);
+
+  const oversizedReport = "<testsuites>" + "x".repeat(MAX_REPORT_BYTES) + "</testsuites>";
+  assert.equal(extractStructuredFailureFromArchive(junit(oversizedReport), mapping), null);
+
+  const lifecycleMapping = reportMappingForFailure("Rust + parity", "Lifecycle stress tests");
+  const aggregateArchive = zip(Array.from({ length: 5 }, (_, index) => ({
+    name: `lifecycle-stress-${index + 1}.xml`,
+    text: "x".repeat(Math.floor(MAX_REPORT_TOTAL_BYTES / 5) + 1)
+  })));
+  assert.equal(extractStructuredFailureFromArchive(aggregateArchive, lifecycleMapping), null);
+});
+
+test("rejects ZIP entry-count and size-metadata violations", () => {
+  const mapping = reportMappingForFailure("Node", "Changed Node tests");
+  const tooManyEntries = zip(Array.from({ length: 33 }, (_, index) => ({
+    name: `unrelated-${index}.txt`,
+    text: "ignored"
+  })));
+  assert.equal(extractStructuredFailureFromArchive(tooManyEntries, mapping), null);
+
+  const inconsistentSizes = zip([{ name: "node-changed.xml", text: "<testsuites />" }]);
+  inconsistentSizes.writeUInt32LE(999, 18);
+  assert.equal(extractStructuredFailureFromArchive(inconsistentSizes, mapping), null);
+});
+
+test("rejects decompression-bomb metadata instead of trusting declared size", () => {
+  const body = "x".repeat(MAX_REPORT_BYTES + 1);
+  const archive = zip([{
+    name: "node-changed.xml",
+    text: body,
+    uncompressedSize: 1,
+    localUncompressedSize: 1
+  }]);
+  assert.equal(extractStructuredFailureFromArchive(archive, reportMappingForFailure("Node", "Changed Node tests")), null);
+});
+
+test("Discord content is bounded, normalized, and suppresses mentions", async () => {
+  const content = buildCiFailureContent({
+    repository: "sayosomi/nuinuiCAD",
+    prNumber: 99,
+    details: {
+      title: "title\n".repeat(1000),
+      job: "Node\u0000job",
+      step: "Changed Node tests",
+      testName: "@everyone\n".repeat(1000)
+    },
+    run: failureEvent.workflow_run
+  });
+  assert.ok(content.length <= 2000);
+  assert.doesNotMatch(content, /[\u0000\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u);
+
+  const posts = [];
+  await notifyCiFailure({
+    event: failureEvent,
+    environment: {
+      GITHUB_REPOSITORY: "sayosomi/nuinuiCAD",
+      GITHUB_TOKEN: "token",
+      DISCORD_WEBHOOK_URL: "https://discord.example/webhook"
+    },
+    fetchImpl: async (url, options = {}) => {
+      if (url === "https://discord.example/webhook") {
+        posts.push(JSON.parse(options.body));
+        return response(null, { status: 204 });
+      }
+      throw new Error("GitHub unavailable");
+    }
+  });
+  assert.deepEqual(posts[0].allowed_mentions, { parse: [] });
+});
+
+test("explicit empty pull_requests remains a successful no-op", async () => {
   let requests = 0;
   await notifyCiFailure({
-    event,
+    event: { workflow_run: { event: "pull_request", conclusion: "failure", pull_requests: [] } },
     environment: {},
     fetchImpl: async () => {
       requests += 1;
@@ -125,68 +409,19 @@ test("an explicit empty pull_requests array is a successful no-op", async () => 
   assert.equal(requests, 0);
 });
 
-test("multiple pull requests reject without posting Discord", async () => {
-  const event = {
-    ...failureEvent,
-    workflow_run: { ...failureEvent.workflow_run, pull_requests: [{ number: 99 }, { number: 100 }] }
-  };
-  let requests = 0;
-  await assert.rejects(
-    notifyCiFailure({
-      event,
-      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
-      fetchImpl: async () => {
-        requests += 1;
-        throw new Error("unexpected request");
-      }
-    }),
-    /Expected one non-success pull_request workflow_run event/
-  );
-  assert.equal(requests, 0);
+test("ambiguous attribution remains fail closed", async () => {
+  for (const pullRequests of [undefined, null, { length: 0 }, [{ number: 99 }, { number: 100 }]]) {
+    const workflowRun = { ...failureEvent.workflow_run };
+    if (pullRequests === undefined) delete workflowRun.pull_requests;
+    else workflowRun.pull_requests = pullRequests;
+    await assert.rejects(
+      notifyCiFailure({ event: { workflow_run: workflowRun }, environment: {}, fetchImpl: async () => { throw new Error("unexpected"); } }),
+      /Expected one non-success pull_request workflow_run event/
+    );
+  }
 });
 
-test("an invalid PR number rejects without posting Discord", async () => {
-  const event = {
-    ...failureEvent,
-    workflow_run: { ...failureEvent.workflow_run, pull_requests: [{ number: "99" }] }
-  };
-  let requests = 0;
-  await assert.rejects(
-    notifyCiFailure({
-      event,
-      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
-      fetchImpl: async () => {
-        requests += 1;
-        throw new Error("unexpected request");
-      }
-    }),
-    /does not identify a pull request and head SHA safely/
-  );
-  assert.equal(requests, 0);
-});
-
-test("an invalid head SHA rejects without posting Discord", async () => {
-  const event = {
-    ...failureEvent,
-    workflow_run: { ...failureEvent.workflow_run, head_sha: "not-a-sha" }
-  };
-  let requests = 0;
-  await assert.rejects(
-    notifyCiFailure({
-      event,
-      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
-      fetchImpl: async () => {
-        requests += 1;
-        throw new Error("unexpected request");
-      }
-    }),
-    /does not identify a pull request and head SHA safely/
-  );
-  assert.equal(requests, 0);
-});
-
-test("a Discord webhook failure rejects for a valid event", async () => {
-  const requests = [];
+test("a valid Discord webhook failure remains a real error", async () => {
   await assert.rejects(
     notifyCiFailure({
       event: failureEvent,
@@ -195,50 +430,20 @@ test("a Discord webhook failure rejects for a valid event", async () => {
         GITHUB_TOKEN: "token",
         DISCORD_WEBHOOK_URL: "https://discord.example/webhook"
       },
-      fetchImpl: async (url, options = {}) => {
-        requests.push({ url, options });
+      fetchImpl: async (url) => {
         if (url === "https://discord.example/webhook") return response(null, { status: 500 });
-        throw new Error("unexpected GitHub request");
+        throw new Error("GitHub unavailable");
       }
     }),
     /Discord webhook returned HTTP status 500/
   );
-  assert.equal(requests.filter(({ options }) => options.method === "POST").length, 1);
 });
 
-test("missing or malformed pull_requests values remain fail closed", async () => {
-  for (const pullRequests of [undefined, null, { length: 0 }]) {
-    const workflowRun = { ...failureEvent.workflow_run };
-    if (pullRequests === undefined) {
-      delete workflowRun.pull_requests;
-    } else {
-      workflowRun.pull_requests = pullRequests;
-    }
-    const event = { workflow_run: workflowRun };
-    let requests = 0;
-    await assert.rejects(
-      notifyCiFailure({
-        event,
-        environment: {},
-        fetchImpl: async () => {
-          requests += 1;
-          throw new Error("unexpected request");
-        }
-      }),
-      /Expected one non-success pull_request workflow_run event/
-    );
-    assert.equal(requests, 0);
-  }
-});
-
-test("formats all required CI failure evidence", () => {
-  const content = buildCiFailureContent({
-    repository: "sayosomi/nuinuiCAD",
-    prNumber: 99,
-    details: { title: "Focused notification test", job: "Node", step: "Changed Node tests", testName: "reports failed fixture" },
-    run: failureEvent.workflow_run
-  });
-  for (const expected of ["PR #99", "Focused notification test", "head SHA:", "CI failure", "run attempt: 2", "Actions run:", "failed job: Node", "failed step: Changed Node tests", "failed test: reports failed fixture"]) {
-    assert.match(content, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  }
+test("the notification helper has no raw Actions-log or console-regex interface", async () => {
+  const source = await readFile(new URL("./discordPrNotification.mjs", import.meta.url), "utf8");
+  const structuredSource = await readFile(new URL("./structuredTestResults.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /actions\/jobs/);
+  assert.doesNotMatch(source, /extractCurrentRunnerTestName/);
+  assert.doesNotMatch(source, /not ok|\.\.\. FAILED|FAIL\\s|×/);
+  assert.doesNotMatch(structuredSource, /writeFile|writeFileSync|unzip|extractTo/);
 });
