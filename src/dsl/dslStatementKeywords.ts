@@ -43,12 +43,10 @@ export const dslStatementKeywords = {
 
 const dslStatementKeywordSpellings = Object.values(dslStatementKeywords);
 
-// SAY-114 owns record syntax/nominal semantics only. Keep `record` recognized
-// as a parser/continuation boundary without silently adding an editor provider;
-// record authoring completion belongs to the later editor child.
-export const dslStatementKeywordCompletions = dslStatementKeywordSpellings.filter(
-  (keyword) => keyword !== dslStatementKeywords.record
-);
+/** Statement keywords offered by the editor. Keep this derived from the
+ * parser-owned keyword table so newly supported statement forms stay aligned
+ * across parsing, continuation safety, and completion. */
+export const dslStatementKeywordCompletions = dslStatementKeywordSpellings;
 
 export type DslContinuationSafetyOptions = {
   /**

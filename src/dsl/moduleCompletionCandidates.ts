@@ -41,6 +41,7 @@ export type ModuleCompletionSite = {
 export type ModuleCompletionParameterMetadata = {
   name: string;
   type: DslModuleParameterType | null;
+  recordTypeIdentity?: string | null;
   optional: boolean;
   definitionStatementId: string;
   parameterIndex: number;
@@ -65,6 +66,7 @@ export type ModuleCompletionRequest = {
   /** Current-source Module signature proven by the live lexical namespace. */
   currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[];
   expectedScalarType?: ScalarType | null;
+  expectedRecordTypeIdentity?: string | null;
   scopeId?: ScopeId;
   sourceOrderIndex?: number;
 };
@@ -73,7 +75,7 @@ export type ModuleCompletionRequest = {
  * CodeMirror/VS Code insertion action; adapters decide how a semantic
  * candidate is presented and applied in their host. */
 export type ModuleCompletionCandidate = {
-  kind: "binding" | "builtin" | "geometry" | "literal" | "module" | "argumentName";
+  kind: "binding" | "record" | "recordConstructor" | "builtin" | "geometry" | "literal" | "module" | "argumentName" | "property";
   label: string;
   detail?: string;
   identity?: string;
@@ -83,6 +85,159 @@ const parameterGeometryKind = moduleRuntimeGeometryKindOf;
 
 const scalarTypeOf = (type: DslModuleParameterType | null | undefined): ScalarType | null =>
   type && ["number", "string", "boolean", "choice"].includes(type.kind) ? type as ScalarType : null;
+
+const recordTypeDefinition = (compiled: CompiledDslDocument, identity: string | null | undefined) =>
+  identity ? compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(identity) ?? null : null;
+
+const recordValueCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expectedTypeIdentity: string,
+  request?: ModuleCompletionRequest
+): ModuleCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records || statementIndex < 0) return [];
+  const result: ModuleCompletionCandidate[] = [];
+  for (const name of bodyNames(compiled, statementIndex, request?.scopeId)) {
+    const resolved = visibleLookup(compiled, statementIndex, name, request?.scopeId, request?.sourceOrderIndex);
+    if (!resolved) continue;
+    const { lookup } = resolved;
+    if (lookup.kind === "parameter") {
+      const recordTypeIdentity = lookup.parameter.value.recordTypeIdentity;
+      if (recordTypeIdentity === expectedTypeIdentity && optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) {
+        result.push({
+          kind: "record",
+          label: name,
+          identity: `module-record-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}`
+        });
+      }
+      continue;
+    }
+    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "recordValue") continue;
+    const value = records.valuesByStatementId.get(lookup.declaration.statementId);
+    if (value?.typeIdentity === expectedTypeIdentity) {
+      result.push({ kind: "record", label: name, identity: value.statementId });
+    }
+  }
+  return result;
+};
+
+const constructorFieldNames = (source: string, from: number, to: number) => {
+  const names: string[] = [];
+  let start = from;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = from; index <= to; index += 1) {
+    const character = source[index] ?? ",";
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === "(" || character === "[") depth += 1;
+    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
+    else if (character === "," && depth === 0) {
+      const segment = source.slice(start, index);
+      const label = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(segment)?.[1];
+      if (label) names.push(label);
+      start = index + 1;
+    }
+  }
+  return names;
+};
+
+const recordConstructorFieldCandidates = (
+  compiled: CompiledDslDocument,
+  expectedTypeIdentity: string,
+  request: ModuleCompletionRequest
+): ModuleCompletionCandidate[] | null => {
+  if (!request.liveStatementText || request.logicalCursorPosition === undefined) return null;
+  const valueSpan = request.argumentValueSpan ?? { start: 0, end: request.logicalCursorPosition };
+  const prefix = request.liveStatementText.slice(valueSpan.start, request.logicalCursorPosition);
+  const open = prefix.indexOf("(");
+  if (open < 0) return null;
+  const definition = recordTypeDefinition(compiled, expectedTypeIdentity);
+  if (!definition || prefix.slice(0, open).trim() !== definition.name) return null;
+  const provided = new Set(constructorFieldNames(prefix, open + 1, prefix.length));
+  const current = prefix.slice(prefix.lastIndexOf(",") + 1);
+  if (current.includes(":")) return [];
+  return definition.fields
+    .filter((field) => !provided.has(field.name))
+    .map((field) => ({ kind: "argumentName" as const, label: field.name, identity: `${definition.statementId}:${field.fieldIndex}` }));
+};
+
+const recordCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  expectedTypeIdentity: string | null | undefined,
+  request?: ModuleCompletionRequest
+): ModuleCompletionCandidate[] => {
+  if (!expectedTypeIdentity) return [];
+  if (request) {
+    const fields = recordConstructorFieldCandidates(compiled, expectedTypeIdentity, request);
+    if (fields) return fields;
+  }
+  const definition = recordTypeDefinition(compiled, expectedTypeIdentity);
+  if (!definition) return [];
+  return [
+    ...recordValueCandidates(compiled, statementIndex, expectedTypeIdentity, request),
+    { kind: "recordConstructor", label: definition.name, detail: "record constructor", identity: definition.statementId }
+  ];
+};
+
+/** Completes nominal fields for the shared `@base.` property lane. */
+export const moduleRecordFieldCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  baseName: string,
+  scopeId?: ScopeId,
+  sourceOrderIndex?: number
+): ModuleCompletionCandidate[] => {
+  const resolved = visibleLookup(compiled, statementIndex, baseName.replace(/^@/, ""), scopeId, sourceOrderIndex);
+  if (!resolved) return [];
+  const typeIdentity = resolved.lookup.kind === "parameter"
+    ? resolved.lookup.parameter.value.recordTypeIdentity
+    : resolved.lookup.kind === "resolved" && resolved.lookup.declaration.kind === "recordValue"
+      ? compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(resolved.lookup.declaration.statementId)?.typeIdentity ?? null
+      : null;
+  const definition = recordTypeDefinition(compiled, typeIdentity);
+  return definition?.fields.map((field) => ({
+    kind: "property" as const,
+    label: field.name,
+    identity: `${definition.statementId}:${field.fieldIndex}`
+  })) ?? [];
+};
+
+/** Completes fields after a qualified Module record export, e.g.
+ * `@source::output.`. The instance/export lookup remains owned by the Module
+ * semantic resolver; this function only projects the resolved nominal fields. */
+export const moduleQualifiedRecordFieldCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  qualifiedName: string,
+  scopeId?: ScopeId,
+  sourceOrderIndex?: number
+): ModuleCompletionCandidate[] => {
+  const separator = qualifiedName.indexOf("::");
+  if (separator < 1) return [];
+  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const exportName = qualifiedName.slice(separator + 2);
+  const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
+  if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(resolved.lookup.declaration.statementId);
+  const definition = instance?.callee
+    ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
+    : null;
+  const exported = definition?.exports.find((entry) => entry.kind === "record" && entry.name === exportName);
+  return exported?.kind === "record"
+    ? exported.definition.fields.map((field) => ({
+        kind: "property" as const,
+        label: field.name,
+        identity: `${field.identity.recordStatementId}:${field.fieldIndex}`
+      }))
+    : [];
+};
 
 const statementIndexAt = (compiled: CompiledDslDocument, position: number) => compiled.statements.findIndex((statement) =>
   statement.physicalSpan.segments.some((segment) => position >= segment.from && position <= segment.to) ||
@@ -185,7 +340,9 @@ const optionalParameterIsAvailable = (
   if (insideHasValueArgument(request)) return true;
   const owner = currentModuleDefinition(compiled, statementIndex, request?.scopeId);
   const body = owner?.bodyStatements.find((candidate) => candidate.statementIndex === statementIndex);
-  return body?.presenceParameterKeys.includes(`${parameter.definitionStatementId}:${parameter.parameterIndex}`) ?? false;
+  if (body?.presenceParameterKeys.includes(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)) return true;
+  const recordValue = owner?.recordValues.find((candidate) => candidate.value.statementIndex === statementIndex);
+  return recordValue?.presenceParameterKeys.includes(`${parameter.definitionStatementId}:${parameter.parameterIndex}`) ?? false;
 };
 
 const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number, expected: DslModuleParameterType | ScalarType | null | undefined, request?: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
@@ -478,7 +635,20 @@ const shorthandCompatible = (
   request: ModuleCompletionRequest
 ) => {
   const resolved = visibleLookup(compiled, statementIndex, parameter.name, request.scopeId, request.sourceOrderIndex);
-  if (!resolved || !parameter.type) return false;
+  if (!resolved) return false;
+  const expectedRecord = parameter.recordTypeIdentity ?? null;
+  if (expectedRecord) {
+    const { lookup } = resolved;
+    if (lookup.kind === "parameter") {
+      return lookup.parameter.value.recordTypeIdentity === expectedRecord &&
+        optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request);
+    }
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
+      return compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId)?.typeIdentity === expectedRecord;
+    }
+    return false;
+  }
+  if (!parameter.type) return false;
   const expectedScalar = scalarTypeOf(parameter.type);
   const expectedGeometry = moduleGeometryInterfaceTypeOf(parameter.type);
   const { lookup } = resolved;
@@ -538,7 +708,17 @@ type ModuleArgumentParameterSlot = {
   definitionStatementId: string;
   parameterIndex: number;
   type: DslModuleParameterType | null;
+  recordTypeIdentity: string | null;
 };
+
+const recordTypeIdentityForSlot = (
+  compiled: CompiledDslDocument,
+  definitionStatementId: string,
+  parameterIndex: number
+) => compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(definitionStatementId)?.parameters[parameterIndex]?.recordTypeIdentity ??
+  compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.moduleParameters.find((parameter) =>
+    parameter.definitionStatementId === definitionStatementId && parameter.parameterIndex === parameterIndex
+  )?.typeIdentity ?? null;
 
 const moduleArgumentParameterSlot = (
   compiled: CompiledDslDocument,
@@ -558,7 +738,8 @@ const moduleArgumentParameterSlot = (
       ? {
 definitionStatementId: parameter.definitionStatementId,
 parameterIndex: parameter.parameterIndex,
-type: parameter.type
+type: parameter.type,
+recordTypeIdentity: parameter.recordTypeIdentity ?? recordTypeIdentityForSlot(compiled, parameter.definitionStatementId, parameter.parameterIndex)
         }
       : null;
   }
@@ -570,14 +751,16 @@ type: parameter.type
     return {
       definitionStatementId: parameter.definitionStatementId,
       parameterIndex: parameter.parameterIndex,
-      type: parameter.type
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity ?? recordTypeIdentityForSlot(compiled, parameter.definitionStatementId, parameter.parameterIndex)
     };
   }
   return binding
     ? {
         definitionStatementId: definition.statementId,
         parameterIndex: binding.parameterIndex,
-        type: binding.parameterType
+        type: binding.parameterType,
+        recordTypeIdentity: recordTypeIdentityForSlot(compiled, definition.statementId, binding.parameterIndex)
       }
     : null;
 };
@@ -660,6 +843,8 @@ const moduleArgumentValues = (compiled: CompiledDslDocument, statementIndex: num
   const arrayContext = moduleArgumentGeometryArrayContext(compiled, statementIndex, argumentIndex, request);
   if (arrayContext) return geometryArrayCandidates(compiled, statementIndex, arrayContext, request);
   const parameterType = moduleArgumentParameterType(compiled, statementIndex, argumentIndex, request);
+  const slot = moduleArgumentParameterSlot(compiled, statementIndex, argumentIndex, request);
+  if (slot?.recordTypeIdentity) return recordCompletions(compiled, statementIndex, slot.recordTypeIdentity, request);
   if (parameterType?.kind === "point") return geometryCompletions(compiled, statementIndex, "point", request);
   const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
   return geometryInterfaceType
@@ -905,6 +1090,13 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
         .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));
     }
     const expected = scalarTypeOf(parameterType);
+    const recordTypeIdentity = moduleArgumentParameterSlot(compiled, statementIndex, request.argumentIndex, request)?.recordTypeIdentity;
+    if (recordTypeIdentity) {
+      return definition.exports
+        .filter((entry): entry is Extract<typeof entry, { kind: "record" }> => entry.kind === "record")
+        .filter((entry) => entry.typeIdentity === recordTypeIdentity)
+        .map((entry) => ({ kind: "record" as const, label: entry.name, identity: entry.exportedStatementId }));
+    }
     if (!expected) return [];
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
@@ -943,6 +1135,9 @@ export const moduleCompletionCandidates = (request: ModuleCompletionRequest): Mo
     if (sourceArrayCandidates !== null) return sourceArrayCandidates;
   }
   if (!request.compiled.moduleSemanticAnalysis) return [];
+  if (request.expectedRecordTypeIdentity && request.kind === "reference") {
+    return recordCompletions(request.compiled, statementIndex, request.expectedRecordTypeIdentity, request);
+  }
   if (request.kind === "value") return moduleArgumentValues(request.compiled, statementIndex, request.argumentIndex ?? 0, request);
   if (request.kind === "qualifiedMember") return qualifiedMemberCompletions(request.compiled, statementIndex, request);
   const owner = currentModuleDefinition(request.compiled, statementIndex, request.scopeId);

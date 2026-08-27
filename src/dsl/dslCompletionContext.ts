@@ -19,7 +19,10 @@ import {
   printNumericAttrKeys,
   svgNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
-import { typedDeclarationInitializerCompletionContext } from "./dslTypedDeclarationCompletionContext";
+import {
+  recordDeclarationInitializerCompletionContextAt,
+  typedDeclarationInitializerCompletionContext
+} from "./dslTypedDeclarationCompletionContext";
 import { geometryArrayDeclarationCompletionContextAt, type GeometryArrayCompletionContext } from "./dslGeometryArrayCompletionContext";
 import { declaredTypeCompletionContextAt } from "./dslDeclaredTypeCompletionContext";
 import { numericTypeOptionCompletionContextAt } from "./dslNumericTypeOptionsCompletionContext";
@@ -41,6 +44,7 @@ export type DslCompletionContext =
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
   | { kind: "declaredType"; from: number; to: number; bindingKind: "const" | "let" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | { kind: "recordInitializer"; from: number; to: number; initializerFrom: number; recordTypeName: string; fieldLabel: boolean; providedFieldNames: readonly string[] }
   | ({ kind: "geometryArrayValue" } & GeometryArrayCompletionContext)
   | { kind: "conditionExpression"; from: number; to: number; positionContext: ScalarExpressionCompletionContext }
   | { kind: "numericTypeOption"; from: number; to: number; options: readonly ("step" | "min" | "max")[] }
@@ -392,6 +396,9 @@ export const dslCompletionContextAt = (
       ...(expectedGeometryKind ? { expectedGeometryKind } : {})
     };
   }
+
+  const recordInitializerContext = recordDeclarationInitializerCompletionContextAt(code, pos);
+  if (recordInitializerContext) return recordInitializerContext;
 
   const conditionContext = conditionalExpressionCompletionContextAt(code, pos);
   if (conditionContext) return conditionContext;

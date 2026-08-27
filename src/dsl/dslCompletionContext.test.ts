@@ -181,6 +181,25 @@ describe("dslCompletionContextAt", () => {
     });
   });
 
+  describe("nominal record initializer narrowing", () => {
+    it("distinguishes whole-record and constructor field positions", () => {
+      const whole = "const value: Pair = @pa";
+      expect(dslCompletionContextAt(whole, whole.length)).toMatchObject({
+        kind: "recordInitializer",
+        recordTypeName: "Pair",
+        fieldLabel: false
+      });
+
+      const fields = "const value: Pair = Pair(x: 1, la)";
+      expect(dslCompletionContextAt(fields, fields.length)).toMatchObject({
+        kind: "recordInitializer",
+        recordTypeName: "Pair",
+        fieldLabel: true,
+        providedFieldNames: ["x"]
+      });
+    });
+  });
+
   describe("reference-kind coordinate literal x/y sub-spans", () => {
     it("narrows to just the @token inside a coordinate literal's y component", () => {
       const line = "line L = segment(start: A, end: (10, @Wi))";

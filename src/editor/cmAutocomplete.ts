@@ -218,10 +218,11 @@ const asSetTargetCompletions = (candidates: readonly Pick<SetTargetCandidate, "n
  * boundary. Marker/colon/parenthesis insertion remains an editor concern. */
 const asModuleCompletions = (candidates: readonly ModuleCompletionCandidate[], bareReferences = false): Completion[] =>
   candidates.map((candidate) => {
-    if (candidate.kind === "binding") {
+    if (candidate.kind === "binding" || candidate.kind === "record") {
       const label = bareReferences ? candidate.label : `@${candidate.label}`;
       return { label, ...(bareReferences ? {} : { apply: label }), type: "constant" };
     }
+    if (candidate.kind === "recordConstructor") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "argumentName") return { label: candidate.label, apply: `${candidate.label}: `, type: "property" };
     if (candidate.kind === "builtin") return { label: candidate.label, apply: `${candidate.label}(`, detail: candidate.detail, type: "function" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
@@ -236,7 +237,7 @@ const asQueryCompletions = (
   bareBindingTargets = false
 ): Completion[] =>
   result.candidates.map((candidate: DslCompletionCandidate): Completion => {
-    if (candidate.kind === "binding") {
+    if (candidate.kind === "binding" || candidate.kind === "record") {
       if (bareBindingTargets) return { label: candidate.label, apply: candidate.label, type: "constant" };
       const markerBinding = !bareReferences && (
         moduleBodyBindings ||
@@ -269,7 +270,7 @@ const asQueryCompletions = (
       };
     }
     if (candidate.kind === "type") return { label: candidate.label, type: "type" };
-    if (candidate.kind === "construction") return { label: candidate.label, apply: candidate.label, detail: candidate.detail, type: "function" };
+    if (candidate.kind === "construction" || candidate.kind === "recordConstructor") return { label: candidate.label, apply: candidate.kind === "recordConstructor" ? `${candidate.label}(` : candidate.label, detail: candidate.detail, type: "function" };
     if (candidate.kind === "property") return { label: candidate.label, type: "constant" };
     if (candidate.kind === "module") return { label: candidate.label, type: "class" };
     if (candidate.kind === "operator") return { label: candidate.label, type: "keyword" };
@@ -846,7 +847,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     )
     : [];
   const neutralHasSourceCandidates = Boolean(neutralQuery?.candidates.some((candidate) =>
-    candidate.kind === "binding" || candidate.kind === "geometry" || candidate.kind === "module" || candidate.kind === "property"
+    candidate.kind === "binding" || candidate.kind === "record" || candidate.kind === "recordConstructor" || candidate.kind === "geometry" || candidate.kind === "module" || candidate.kind === "property"
   ));
   const neutralSemanticIsCurrent = semanticSnapshotMatchesInput(input, semanticInput);
   let usesNeutralQuery = false;
@@ -932,6 +933,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "declaredType") {
     completions = neutralQuery ? neutralCompletions : declaredTypeCompletions(completionContext.bindingKind === "const");
+    usesNeutralQuery = neutralQuery !== null;
+  } else if (completionContext.kind === "recordInitializer") {
+    disablesCompletionFiltering = completionContext.fieldLabel || (referenceToken?.startsWith("@") ?? false);
+    completions = neutralQuery ? neutralCompletions : [];
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "numericTypeOption") {
     completions = neutralQuery ? neutralCompletions : completionContext.options.map((label, index) => ({
