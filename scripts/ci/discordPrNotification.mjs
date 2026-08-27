@@ -158,8 +158,12 @@ export const fetchFailureDetails = async ({ repository, runId, prNumber, token, 
 
 const ciFailureFromEvent = (event) => {
   const run = event?.workflow_run;
-  const pullRequests = Array.isArray(run?.pull_requests) ? run.pull_requests : [];
-  if (run?.event !== "pull_request" || !nonSuccessConclusion(run?.conclusion) || pullRequests.length !== 1) {
+  if (run?.event !== "pull_request" || !nonSuccessConclusion(run?.conclusion) || !Array.isArray(run?.pull_requests)) {
+    throw new Error("Expected one non-success pull_request workflow_run event");
+  }
+  const pullRequests = run.pull_requests;
+  if (pullRequests.length === 0) return { run, pullRequest: null };
+  if (pullRequests.length !== 1) {
     throw new Error("Expected one non-success pull_request workflow_run event");
   }
   const pullRequest = pullRequests[0];
@@ -195,6 +199,7 @@ export const postDiscord = async ({ webhookUrl, content, fetchImpl = fetch }) =>
 
 export const notifyCiFailure = async ({ event, environment = process.env, fetchImpl = fetch }) => {
   const { run, pullRequest } = ciFailureFromEvent(event);
+  if (!pullRequest) return;
   const repository = environment.GITHUB_REPOSITORY;
   if (!repository) throw new Error("GITHUB_REPOSITORY is required");
   const details = await fetchFailureDetails({

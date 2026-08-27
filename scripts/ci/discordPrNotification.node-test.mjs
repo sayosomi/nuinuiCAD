@@ -97,11 +97,138 @@ test("analysis failures leave required fields unavailable but still send Discord
     environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD", GITHUB_TOKEN: "token", DISCORD_WEBHOOK_URL: "https://discord.example/webhook" },
     fetchImpl
   });
+  assert.equal(posts.length, 1);
   assert.match(posts[0].content, /PR #99/);
   assert.match(posts[0].content, /head SHA: a{40}/);
   assert.match(posts[0].content, /run attempt: 2/);
   assert.match(posts[0].content, /failed job: unavailable/);
   assert.match(posts[0].content, /failed step: unavailable/);
+});
+
+test("an explicit empty pull_requests array is a successful no-op", async () => {
+  const event = {
+    workflow_run: {
+      event: "pull_request",
+      conclusion: "failure",
+      pull_requests: []
+    }
+  };
+  let requests = 0;
+  await notifyCiFailure({
+    event,
+    environment: {},
+    fetchImpl: async () => {
+      requests += 1;
+      throw new Error("unexpected request");
+    }
+  });
+  assert.equal(requests, 0);
+});
+
+test("multiple pull requests reject without posting Discord", async () => {
+  const event = {
+    ...failureEvent,
+    workflow_run: { ...failureEvent.workflow_run, pull_requests: [{ number: 99 }, { number: 100 }] }
+  };
+  let requests = 0;
+  await assert.rejects(
+    notifyCiFailure({
+      event,
+      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
+      fetchImpl: async () => {
+        requests += 1;
+        throw new Error("unexpected request");
+      }
+    }),
+    /Expected one non-success pull_request workflow_run event/
+  );
+  assert.equal(requests, 0);
+});
+
+test("an invalid PR number rejects without posting Discord", async () => {
+  const event = {
+    ...failureEvent,
+    workflow_run: { ...failureEvent.workflow_run, pull_requests: [{ number: "99" }] }
+  };
+  let requests = 0;
+  await assert.rejects(
+    notifyCiFailure({
+      event,
+      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
+      fetchImpl: async () => {
+        requests += 1;
+        throw new Error("unexpected request");
+      }
+    }),
+    /does not identify a pull request and head SHA safely/
+  );
+  assert.equal(requests, 0);
+});
+
+test("an invalid head SHA rejects without posting Discord", async () => {
+  const event = {
+    ...failureEvent,
+    workflow_run: { ...failureEvent.workflow_run, head_sha: "not-a-sha" }
+  };
+  let requests = 0;
+  await assert.rejects(
+    notifyCiFailure({
+      event,
+      environment: { GITHUB_REPOSITORY: "sayosomi/nuinuiCAD" },
+      fetchImpl: async () => {
+        requests += 1;
+        throw new Error("unexpected request");
+      }
+    }),
+    /does not identify a pull request and head SHA safely/
+  );
+  assert.equal(requests, 0);
+});
+
+test("a Discord webhook failure rejects for a valid event", async () => {
+  const requests = [];
+  await assert.rejects(
+    notifyCiFailure({
+      event: failureEvent,
+      environment: {
+        GITHUB_REPOSITORY: "sayosomi/nuinuiCAD",
+        GITHUB_TOKEN: "token",
+        DISCORD_WEBHOOK_URL: "https://discord.example/webhook"
+      },
+      fetchImpl: async (url, options = {}) => {
+        requests.push({ url, options });
+        if (url === "https://discord.example/webhook") return response(null, { status: 500 });
+        throw new Error("unexpected GitHub request");
+      }
+    }),
+    /Discord webhook returned HTTP status 500/
+  );
+  assert.equal(requests.filter(({ options }) => options.method === "POST").length, 1);
+});
+
+test("missing or malformed pull_requests values remain fail closed", async () => {
+  for (const pullRequests of [undefined, null, { length: 0 }]) {
+    const workflowRun = { ...failureEvent.workflow_run };
+    if (pullRequests === undefined) {
+      delete workflowRun.pull_requests;
+    } else {
+      workflowRun.pull_requests = pullRequests;
+    }
+    const event = { workflow_run: workflowRun };
+    let requests = 0;
+    await assert.rejects(
+      notifyCiFailure({
+        event,
+        environment: {},
+        fetchImpl: async () => {
+          requests += 1;
+          throw new Error("unexpected request");
+        }
+      }),
+      /Expected one non-success pull_request workflow_run event/
+    );
+    assert.equal(requests, 0);
+  }
 });
 
 test("formats all required CI failure evidence", () => {
