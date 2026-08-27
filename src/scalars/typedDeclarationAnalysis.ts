@@ -262,7 +262,8 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver,
   additionalGeometryResolver,
   additionalInitializers,
-  prepareScalarExpression
+  prepareScalarExpression,
+  additionalRecordPropertyResolver
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -280,6 +281,10 @@ export const analyzeTypedDeclarations = ({
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
   additionalInitializers?: readonly AdditionalScalarInitializer[];
   prepareScalarExpression?: PrepareScalarExpression;
+  additionalRecordPropertyResolver?: (input: {
+    statementIndex: number;
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => import("./recordScalarLowering").AdditionalRecordScalarPropertyResolution | null;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -305,10 +310,16 @@ export const analyzeTypedDeclarations = ({
           ?? recordBindingResolver?.(name, statementIndex, scopeId)
           ?? null
       : undefined;
-  const effectiveAdditionalBindings = [
-    ...(recordPlan?.bindingSeeds ?? []),
-    ...(additionalBindings ?? [])
-  ];
+  const effectiveAdditionalBindings: BindingSeed[] = [];
+  const effectiveAdditionalBindingIds = new Set<BindingId>();
+  for (const binding of [...(recordPlan?.bindingSeeds ?? []), ...(additionalBindings ?? [])]) {
+    // A Module export may intentionally reuse a root record field's scalar
+    // backing identity. Keep one catalog binding for that identity while the
+    // caller's resolver may still expose the export-qualified name.
+    if (effectiveAdditionalBindingIds.has(binding.id)) continue;
+    effectiveAdditionalBindingIds.add(binding.id);
+    effectiveAdditionalBindings.push(binding);
+  }
   const effectiveAdditionalInitializers: AdditionalScalarInitializer[] = [
     ...(recordPlan?.initializers.map((initializer) => ({
       bindingId: initializer.bindingId,
@@ -326,7 +337,8 @@ export const analyzeTypedDeclarations = ({
           sourceNamespace,
           plan: recordPlan,
           referenceResolutions,
-          skipPropertySpanStarts: geometryPropertySpanStarts
+          skipPropertySpanStarts: geometryPropertySpanStarts,
+          additionalPropertyResolver: (node) => additionalRecordPropertyResolver?.({ statementIndex, node }) ?? null
         })
     : undefined;
   // A caller-supplied closed frontend remains authoritative for its own

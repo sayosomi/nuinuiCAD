@@ -18,6 +18,8 @@ import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslModuleParameter
 import {
   moduleParameterPresenceKey,
   parseAndCheckModuleScalarExpression,
+  presenceFactsForSemanticFalse,
+  presenceFactsForSemanticTruth,
   type ModuleGeometryBuiltinReferenceResolver,
   type ModuleGeometryPropertyReferenceInput,
   type ModuleGeometryPropertyReferenceResolution,
@@ -50,8 +52,13 @@ import type {
   ModuleParentReferenceSemantic,
   ModuleParentReferenceSite,
   ModuleParentSourceTarget,
+  ModuleRecordConstructorFieldSemantic,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
+  ModuleRecordFieldSourceTarget,
+  ModuleRecordReferenceSemantic,
+  ModuleRecordSourceTarget,
+  ModuleRecordValueSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarExpressionSite,
   ModuleScalarSourceTarget,
@@ -62,6 +69,12 @@ import type {
   ResolvedModuleParameter,
   ResolvedModuleParameterBinding
 } from "./moduleSemanticTypes";
+import type {
+  RecordConstructorFieldSemantic,
+  RecordDefinitionSemantic,
+  RecordTypeIdentity
+} from "./recordSemanticAnalysis";
+import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
 
 type DiagnosticRelatedSource = {
   statementIndex: number;
@@ -255,6 +268,7 @@ const moduleCalleeDiagnosticCode = (resolution: ModuleInstanceSemantic["calleeRe
 
 export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): ModuleSemanticAnalysis => {
   const { statements, stableStatementIdByIndex, sourceNamespace, spans } = input;
+  const recordAnalysis = sourceNamespace.recordSemanticAnalysis;
   const diagnostics: DslDiagnostic[] = [];
   const localDiagnosticsByStatement = new Map<number, LocalDiagnostic[]>();
   let suppressLocalDiagnostics = false;
@@ -582,11 +596,40 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
       return { target: null, type: null, resolution, diagnostic: issue(code, qualified.memberSpan, message, { relatedSources: qualified.relatedSources }) };
     }
+    const record = recordSourceLookup(statementIndex, ownerIndex, name, referenceSpan);
+    if (record.kind === "record") {
+      return {
+        target: null,
+        type: null,
+        resolution: "invalid",
+        diagnostic: issue(
+          "module-record-value-in-scalar",
+          referenceSpan,
+          `record 値「${name}」は scalar expression では参照できません。record field を指定してください。`
+        )
+      };
+    }
+    if (record.kind === "blocked") {
+      return { target: null, type: null, resolution: record.resolution === "outerCapture" ? "outerCapture" : record.resolution === "ambiguous" ? "invalid" : record.resolution, diagnostic: record.diagnostic };
+    }
     const path = parseDslReferenceToken(name);
     const lookup = path.segments.length > 1
       ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {
+      const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
+      if (recordParameter?.typeIdentity) {
+        return {
+          target: {
+            kind: "parameter",
+            definitionStatementId: lookup.definition.statementId,
+            parameterIndex: lookup.parameter.index
+          },
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue("module-record-value-in-scalar", referenceSpan, `record parameter「${name}」は scalar expression では参照できません。record field を指定してください.`, { relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index) })
+        };
+      }
       const type = scalarTypeOf(lookup.parameter.parameter.type);
       const parameterRelated = relatedForParameter(lookup.definition, lookup.parameter.index);
       if (type) {
@@ -744,9 +787,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!lookup.parameter.parameter.optional) {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は optional module parameter ではありません。`, { relatedSources }) };
     }
+    const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
     const target = scalarTypeOf(lookup.parameter.parameter.type)
       ? scalarParameterTarget(lookup.definition, lookup.parameter)
-      : geometryParameterTarget(lookup.definition, lookup.parameter);
+      : geometryParameterTarget(lookup.definition, lookup.parameter)
+        ?? (recordParameter?.typeIdentity
+          ? {
+              kind: "parameter" as const,
+              definitionStatementId: lookup.definition.statementId,
+              parameterIndex: lookup.parameter.index
+            }
+          : null);
     if (!target) {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は scalar または geometry の optional module parameter ではありません。`, { relatedSources }) };
     }
@@ -919,6 +970,195 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return { kind: "geometry", exportedStatementIndex: exported.statementIndex };
   };
 
+  type RecordSourceLookup =
+    | {
+        kind: "record";
+        target: ModuleRecordSourceTarget;
+        typeIdentity: RecordTypeIdentity;
+        definition: RecordDefinitionSemantic;
+      }
+    | {
+        kind: "blocked";
+        resolution: "undefined" | "forward" | "ambiguous" | "invalid" | "outerCapture";
+        diagnostic?: LocalDiagnostic;
+      }
+    | { kind: "notRecord" };
+
+  function recordDefinitionFor(typeIdentity: RecordTypeIdentity | null) {
+    return typeIdentity ? recordAnalysis?.definitionsByStatementId.get(typeIdentity) ?? null : null;
+  }
+
+  function recordParameterTypeFor(definitionStatementId: StatementIdentity, parameterIndex: number) {
+    return recordAnalysis?.moduleParameters.find((parameter) =>
+      parameter.definitionStatementId === definitionStatementId && parameter.parameterIndex === parameterIndex
+    ) ?? null;
+  }
+
+  function recordSourceLookup(
+    statementIndex: number,
+    ownerIndex: number | null,
+    base: string,
+    span: DslSpan
+  ): RecordSourceLookup {
+    if (!recordAnalysis) return { kind: "notRecord" };
+    const path = parseDslReferenceToken(base);
+    const qualified = path.segments.length > 1
+      ? resolveQualifiedModuleExport(statementIndex, ownerIndex, base, span)
+      : null;
+    if (qualified?.kind === "deferred") {
+      const exported = qualifiedRecordExportFor(qualified);
+      if (exported?.kind === "record") {
+        return {
+          kind: "record",
+          target: {
+            kind: "deferredModuleRecordExport",
+            instanceStatementId: qualified.instance.statementId,
+            instanceStatementIndex: qualified.instance.statementIndex,
+            instanceName: qualified.instanceName,
+            exportName: qualified.exportName,
+            exportedStatementId: exported.exportedStatementId,
+            exportedStatementIndex: exported.exportedStatementIndex,
+            typeIdentity: exported.typeIdentity,
+            referenceSpan: span,
+            instanceSpan: qualified.instanceSpan,
+            memberSpan: qualified.memberSpan
+          },
+          typeIdentity: exported.typeIdentity,
+          definition: exported.definition
+        };
+      }
+      return { kind: "notRecord" };
+    }
+    if (qualified) return { kind: "notRecord" };
+
+    const lookup = path.segments.length > 1
+      ? ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+        : resolveModuleLexicalPath(statementIndex, ownerIndex, path)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base);
+    if (lookup.kind === "parameter") {
+      const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
+      if (!recordParameter?.typeIdentity) return { kind: "notRecord" };
+      const definition = recordDefinitionFor(recordParameter.typeIdentity);
+      return definition
+        ? {
+            kind: "record",
+            target: {
+              kind: "recordParameter",
+              definitionStatementId: lookup.definition.statementId,
+              parameterIndex: lookup.parameter.index,
+              typeIdentity: recordParameter.typeIdentity
+            },
+            typeIdentity: recordParameter.typeIdentity,
+            definition
+          }
+        : { kind: "blocked", resolution: "invalid" };
+    }
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
+      const value = recordAnalysis.valuesByStatementId.get(lookup.declaration.statementId);
+      const definition = recordDefinitionFor(value?.typeIdentity ?? null);
+      if (!value?.typeIdentity || !definition) return { kind: "blocked", resolution: "invalid" };
+      const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        return {
+          kind: "blocked",
+          resolution: "outerCapture",
+          diagnostic: issue(
+            "module-outer-capture",
+            span,
+            `module body から outer record「${base}」を暗黙 capture できません。`,
+            { relatedSources: relatedForDeclaration(lookup.declaration) }
+          )
+        };
+      }
+      return {
+        kind: "record",
+        target: {
+          kind: "recordValue",
+          statementId: value.statementId,
+          statementIndex: value.statementIndex,
+          typeIdentity: value.typeIdentity
+        },
+        typeIdentity: value.typeIdentity,
+        definition
+      };
+    }
+    if (lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
+      return {
+        kind: "blocked",
+        resolution: "forward",
+        diagnostic: issue("module-record-forward-reference", span, `record 値「${base}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup) })
+      };
+    }
+    if (lookup.kind === "ambiguous" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
+      return {
+        kind: "blocked",
+        resolution: "ambiguous",
+        diagnostic: issue("module-record-ambiguous-reference", span, `record 値「${base}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup) })
+      };
+    }
+    if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "recordValue") {
+      return {
+        kind: "blocked",
+        resolution: "invalid",
+        diagnostic: issue("module-record-invalid-reference", span, `record 値「${lookup.declaration.name}」は namespace ではありません。`, { relatedSources: relatedForLookup(lookup) })
+      };
+    }
+    return { kind: "notRecord" };
+  }
+
+  const recordFieldTargetFor = (
+    record: Extract<RecordSourceLookup, { kind: "record" }>,
+    reference: ModuleGeometryPropertyReferenceInput
+  ): ModuleRecordFieldSourceTarget | null => {
+    const field = record.definition.fields.find((candidate) => candidate.name === reference.property);
+    if (!field) return null;
+    return {
+      kind: "recordField",
+      record: record.target,
+      field: field.identity,
+      fieldName: field.name,
+      type: field.type
+    };
+  };
+
+  const statementIsExported = (statement: DslStatement | undefined): boolean =>
+    Boolean(statement && (statement.kind === "typedDeclaration" || statement.kind === "element") && statement.exported);
+
+  function qualifiedRecordExportFor(
+    qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
+  ): { kind: "record"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; typeIdentity: RecordTypeIdentity; definition: RecordDefinitionSemantic }
+    | { kind: "other" }
+    | null {
+    const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
+    const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
+    const value = definition?.bodyStatementIndexes
+      .map((statementIndex) => ({ statementIndex, statement: statements[statementIndex] }))
+      .map(({ statementIndex, statement }) => ({ statementIndex, statement, value: recordAnalysis?.valuesByStatementIndex.get(statementIndex) }))
+      .find(({ statement, value }) =>
+        isDirectModuleChild(statement, definition!.statementIndex) &&
+        value && statement.name === qualified.exportName && statementIsExported(statement)
+      )?.value;
+    if (!value?.typeIdentity) {
+      const hasOtherExport = definition?.bodyStatementIndexes.some((statementIndex) => {
+        const statement = statements[statementIndex];
+        return isDirectModuleChild(statement, definition.statementIndex) && statement.name === qualified.exportName && statementIsExported(statement);
+      });
+      return hasOtherExport ? { kind: "other" } : null;
+    }
+    const recordDefinition = recordDefinitionFor(value.typeIdentity);
+    const exportedStatement = statements[value.statementIndex];
+    return recordDefinition && exportedStatement
+      ? {
+          kind: "record",
+          exportedStatementId: value.statementId,
+          exportedStatementIndex: value.statementIndex,
+          typeIdentity: value.typeIdentity,
+          definition: recordDefinition
+        }
+      : { kind: "other" };
+  }
+
   const qualifiedDiagnostic = (
     statementIndex: number,
     span: DslSpan,
@@ -1084,6 +1324,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       qualifiedDiagnostic(statementIndex, semanticSpan, qualified, expectedDiagnosticType);
       return semantic(null, qualified.kind === "forward" ? "forward" : qualified.kind === "undefined" ? "undefined" : qualified.kind === "outerCapture" ? "outerCapture" : "invalid", null, derivedRole);
     }
+    const record = recordSourceLookup(statementIndex, ownerIndex, base, baseSpan);
+    if (record.kind === "record") {
+      addLocal(statementIndex, issue(
+        "module-record-value-in-geometry",
+        baseSpan,
+        `record 値「${base}」は geometry reference では使用できません。`
+      ));
+      return semantic(null, "invalid", null, derivedRole);
+    }
+    if (record.kind === "blocked") {
+      if (record.diagnostic) addLocal(statementIndex, { ...record.diagnostic, span: baseSpan });
+      return semantic(null, record.resolution === "ambiguous" ? "invalid" : record.resolution, null, derivedRole);
+    }
     const path = parseDslReferenceToken(base);
     const lookup = ownerIndex === null
       ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
@@ -1183,6 +1436,52 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     reference: ModuleGeometryPropertyReferenceInput
   ): ModuleGeometryPropertyReferenceResolution => {
+    const record = recordSourceLookup(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
+    if (record.kind === "record") {
+      const fieldTarget = recordFieldTargetFor(record, reference);
+      if (!fieldTarget) {
+        return {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue(
+            "module-record-field-unknown",
+            reference.propertySpan,
+            `record「${record.definition.name}」に field「${reference.property}」はありません。`
+          )
+        };
+      }
+      const recordParameterTarget = record.target.kind === "recordParameter" ? record.target : null;
+      const parameterDefinition = recordParameterTarget
+        ? definitionStates.find((candidate) => candidate.statementId === recordParameterTarget.definitionStatementId)
+        : undefined;
+      if (
+        recordParameterTarget &&
+        parameterDefinition?.parameters[recordParameterTarget.parameterIndex]?.optional === true &&
+        !reference.presenceFacts?.has(moduleParameterPresenceKey(recordParameterTarget.definitionStatementId, recordParameterTarget.parameterIndex))
+      ) {
+        return {
+          target: fieldTarget,
+          type: null,
+          resolution: "invalid",
+          diagnostic: issue(
+            "module-optional-value-required",
+            reference.elementNameSpan,
+            `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`,
+            { relatedSources: parameterDefinition ? relatedForParameter(parameterDefinition, recordParameterTarget.parameterIndex) : [] }
+          )
+        };
+      }
+      return { target: fieldTarget, type: fieldTarget.type, resolution: "resolved" };
+    }
+    if (record.kind === "blocked") {
+      return {
+        target: null,
+        type: null,
+        resolution: record.resolution === "ambiguous" ? "invalid" : record.resolution,
+        diagnostic: record.diagnostic
+      };
+    }
     const type = isKnownNumericComputedGeometryProperty(reference.property) ? { kind: "number" as const } : null;
     if (!type) {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`) };
@@ -1238,6 +1537,148 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated }) };
     }
     return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
+  };
+
+  const analyzeRecordConstructorFields = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    fields: readonly RecordConstructorFieldSemantic[],
+    presenceFacts: ReadonlySet<string>
+  ): ModuleRecordConstructorFieldSemantic[] => fields.map((field) => ({
+    ...field,
+    expression: analyzeExpression(
+      statementIndex,
+      field.value,
+      field.valueSpan,
+      field.expectedType,
+      (reference, facts) => ownerIndex === null
+        ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span, facts)
+        : resolveBodyScalar(statementIndex, ownerIndex, reference, facts),
+      undefined,
+      (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
+      (reference) => resolveGeometry(
+        statementIndex,
+        ownerIndex,
+        `@${reference.name}`,
+        reference.span,
+        reference.expectedGeometryType,
+        {
+          expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference",
+          presenceFacts
+        }
+      ),
+      (reference) => resolveHasValue(statementIndex, ownerIndex, reference),
+      presenceFacts
+    )
+  }));
+
+  const recordReferenceSemantic = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    raw: string,
+    span: DslSpan,
+    expectedTypeIdentity: RecordTypeIdentity | null,
+    presenceFacts: ReadonlySet<string> = new Set()
+  ): ModuleRecordReferenceSemantic => {
+    const invalid = (
+      resolution: ModuleRecordReferenceSemantic["resolution"],
+      message: string,
+      diagnosticSpan = span,
+      relatedSources: readonly DiagnosticRelatedSource[] = []
+    ): ModuleRecordReferenceSemantic => {
+      addLocal(statementIndex, issue(
+        resolution === "forward" ? "module-record-forward-reference" :
+          resolution === "ambiguous" ? "module-record-ambiguous-reference" :
+            "module-record-reference-invalid",
+        diagnosticSpan,
+        message,
+        { relatedSources }
+      ));
+      return { source: raw, span, typeIdentity: null, target: null, constructor: null, resolution };
+    };
+    if (!expectedTypeIdentity) {
+      return invalid("invalid", "record Module parameter の nominal type を解決できません。");
+    }
+    const trimmed = raw.trim();
+    const parsed = parseDslSourceReference(trimmed);
+    if (parsed.kind === "valid" && parsed.reference.property === null) {
+      const baseSpan = {
+        start: span.start + parsed.reference.pathRange.start,
+        end: span.start + parsed.reference.pathRange.end
+      };
+      const resolved = recordSourceLookup(statementIndex, ownerIndex, parsed.reference.pathText, baseSpan);
+      if (resolved.kind === "record") {
+        if (resolved.typeIdentity !== expectedTypeIdentity) {
+          return invalid(
+            "invalid",
+            `record 値「${parsed.reference.pathText}」の nominal record 型が expected type と一致しません。`,
+            baseSpan,
+            resolved.target.kind === "recordValue"
+              ? relatedAt(resolved.target.statementIndex, statements[resolved.target.statementIndex]?.nameSpan, "Related record value")
+              : []
+            );
+        }
+        const resolvedRecordParameter = resolved.target.kind === "recordParameter" ? resolved.target : null;
+        if (
+          resolvedRecordParameter &&
+          stateByIndex.get(
+            definitionStates.find((candidate) => candidate.statementId === resolvedRecordParameter.definitionStatementId)?.statementIndex ?? -1
+          )?.parameters[resolvedRecordParameter.parameterIndex]?.optional === true &&
+          !presenceFacts.has(moduleParameterPresenceKey(resolvedRecordParameter.definitionStatementId, resolvedRecordParameter.parameterIndex))
+        ) {
+          return invalid(
+            "invalid",
+            `optional module parameter「${parsed.reference.pathText}」は hasValue(@${parsed.reference.pathText}) で存在を確認してから参照してください。`,
+            baseSpan
+          );
+        }
+        return {
+          source: raw,
+          span,
+          typeIdentity: resolved.typeIdentity,
+          target: resolved.target,
+          constructor: null,
+          resolution: "resolved"
+        };
+      }
+      if (resolved.kind === "blocked") {
+        if (resolved.diagnostic) addLocal(statementIndex, { ...resolved.diagnostic, span: baseSpan });
+        return { source: raw, span, typeIdentity: null, target: null, constructor: null, resolution: resolved.resolution };
+      }
+    }
+
+    const expectedDefinition = recordDefinitionFor(expectedTypeIdentity);
+    if (!expectedDefinition) return invalid("invalid", "record Module parameter の definition を解決できません。");
+    const constructor = parseRecordConstructorFields({ initializer: raw, initializerSpan: span, definition: expectedDefinition });
+    if (!constructor) {
+      return invalid("invalid", "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。");
+    }
+    for (const constructorIssue of constructor.issues) addLocal(statementIndex, constructorIssue);
+    const targetLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, constructor.name);
+    const targetDefinition = targetLookup.kind === "resolved" && targetLookup.declaration.kind === "recordDefinition"
+      ? recordAnalysis!.definitionsByStatementIndex.get(targetLookup.declaration.statementIndex)
+      : undefined;
+    if (!targetDefinition) {
+      return invalid("invalid", `record constructor「${constructor.name}」は expected record definition ではありません。`, constructor.nameSpan);
+    }
+    if (targetDefinition.statementId !== expectedTypeIdentity) {
+      return invalid("invalid", `constructor「${constructor.name}」の nominal record 型が expected type と一致しません。`, constructor.nameSpan);
+    }
+    const fields = analyzeRecordConstructorFields(statementIndex, ownerIndex, constructor.fields, presenceFacts);
+    return {
+      source: raw,
+      span,
+      typeIdentity: expectedTypeIdentity,
+      target: null,
+      constructor: {
+        name: constructor.name,
+        nameSpan: constructor.nameSpan,
+        targetTypeIdentity: targetDefinition.statementId,
+        fields
+      },
+      resolution: constructor.issues.length === 0 ? "resolved" : "invalid"
+    };
   };
 
   const resolvePlainScalarTarget = (statementIndex: number, ownerIndex: number | null, name: string): ReferenceResolution => {
@@ -1466,6 +1907,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             continue;
           }
           const parameterScalarType = scalarTypeOf(parameter.type);
+          const recordParameter = recordParameterTypeFor(calleeState.statementId, parameter.parameterIndex);
           let value: ModuleArgumentSemantic | null = null;
           if (parameterScalarType) {
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
@@ -1496,6 +1938,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               parameterTypeRelated
             );
             value = expression ? { kind: "scalar", expression } : null;
+          } else if (recordParameter?.typeIdentity) {
+            const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
+            const reference = recordReferenceSemantic(
+              statementIndex,
+              ownerIndex,
+              argument.value,
+              argument.valueSpan,
+              recordParameter.typeIdentity,
+              presenceFacts
+            );
+            value = { kind: "record", reference };
           } else {
             const parameterGeometryKind = geometryKindOf(parameter.type);
             const parameterInterfaceType = moduleGeometryInterfaceTypeOf(parameter.type);
@@ -1588,6 +2041,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
+  const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
   const exportsByDefinition = new Map<number, ResolvedModuleExport[]>();
   for (const definition of definitionStates) {
     const body = analyzeModuleBody({
@@ -1618,8 +2072,119 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
-    exportsByDefinition.set(definition.statementIndex, body.exports);
     for (const statement of body.bodyStatements) presenceFactsByStatementIndex.set(statement.statementIndex, new Set(statement.presenceParameterKeys));
+    const bodyByStatementIndex = new Map(body.bodyStatements.map((statement) => [statement.statementIndex, statement] as const));
+    const presenceFactsForSourceStatement = (statementIndex: number): ReadonlySet<string> => {
+      const facts = new Set<string>();
+      let enclosing = statements[statementIndex]?.enclosing ?? null;
+      while (enclosing) {
+        const condition = bodyByStatementIndex.get(enclosing.statementIndex)?.scalarExpressions.find((site) => site.parameterKey === "condition")?.expression;
+        if (condition) {
+          const branchFacts = enclosing.branch === "then"
+            ? presenceFactsForSemanticTruth(condition)
+            : presenceFactsForSemanticFalse(condition);
+          for (const fact of branchFacts) facts.add(fact);
+        }
+        enclosing = statements[enclosing.statementIndex]?.enclosing ?? null;
+      }
+      return facts;
+    };
+    const definitionRecordValues: ModuleRecordValueSemantic[] = [...(recordAnalysis?.valuesByStatementId.values() ?? [])]
+      .filter((value) => moduleOwnerIndexOf(statements, value.statementIndex) === definition.statementIndex)
+      .sort((left, right) => left.statementIndex - right.statementIndex)
+      .map((value) => {
+        const statement = statements[value.statementIndex];
+        const presenceParameterKeys = [...presenceFactsForSourceStatement(value.statementIndex)];
+        let target = value.typeIdentity
+          ? value.constructor
+            ? {
+                kind: "recordValue" as const,
+                statementId: value.statementId,
+                statementIndex: value.statementIndex,
+                typeIdentity: value.typeIdentity
+              }
+            : value.reference
+              ? (() => {
+                  const resolved = recordSourceLookup(
+                    value.statementIndex,
+                    definition.statementIndex,
+                    value.reference.name,
+                    value.reference.span
+                  );
+                  if (resolved.kind === "blocked" && resolved.diagnostic) addLocal(value.statementIndex, resolved.diagnostic);
+                  return resolved.kind === "record" && resolved.typeIdentity === value.typeIdentity ? resolved.target : null;
+                })()
+              : null
+          : null;
+        const recordParameterTarget = target?.kind === "recordParameter" ? target : null;
+        if (
+          recordParameterTarget &&
+          stateByIndex.get(
+            definitionStates.find((candidate) => candidate.statementId === recordParameterTarget.definitionStatementId)?.statementIndex ?? -1
+          )?.parameters[recordParameterTarget.parameterIndex]?.optional === true &&
+          !presenceParameterKeys.includes(moduleParameterPresenceKey(recordParameterTarget.definitionStatementId, recordParameterTarget.parameterIndex))
+        ) {
+          addLocal(value.statementIndex, issue(
+            "module-optional-value-required",
+            value.reference?.span ?? statement?.nameSpan ?? statement?.keywordSpan ?? { start: 0, end: 0 },
+            `optional module parameter の record 値「${value.reference?.name ?? value.name}」は hasValue で存在を確認してから参照してください。`
+          ));
+          target = null;
+        }
+        const fields = value.constructor
+          ? analyzeRecordConstructorFields(
+              value.statementIndex,
+              definition.statementIndex,
+              value.constructor.fields,
+              new Set(presenceParameterKeys)
+            )
+          : [];
+        const result: ModuleRecordValueSemantic = {
+          value,
+          target,
+          fields,
+          presenceParameterKeys
+        };
+        if (statementIsExported(statement) && !isDirectModuleChild(statement!, definition.statementIndex)) {
+          addLocal(value.statementIndex, {
+            code: "module-invalid-export",
+            span: (statement!.kind === "typedDeclaration" || statement!.kind === "element" ? statement!.exportSpan : null) ?? statement!.nameSpan ?? statement!.keywordSpan,
+            message: "export は module 直下の名前付き record value にのみ指定できます。"
+          });
+        }
+        return result;
+      });
+    recordValuesByDefinition.set(definition.statementIndex, definitionRecordValues);
+    const definitionExports = [...body.exports];
+    const exportedNames = new Set(definitionExports.map((entry) => entry.name));
+    for (const recordValue of definitionRecordValues) {
+      const statement = statements[recordValue.value.statementIndex];
+      if (!statementIsExported(statement) || !isDirectModuleChild(statement!, definition.statementIndex)) continue;
+      if (!recordValue.value.name || !recordValue.value.typeIdentity || !recordValue.target) continue;
+      if (exportedNames.has(recordValue.value.name)) {
+        addLocal(recordValue.value.statementIndex, {
+          code: "module-duplicate-export",
+          span: (statement!.kind === "typedDeclaration" || statement!.kind === "element" ? statement!.exportSpan : null) ?? statement!.nameSpan ?? statement!.keywordSpan,
+          message: `module export「${recordValue.value.name}」が重複しています。`
+        });
+        continue;
+      }
+      const recordDefinition = recordDefinitionFor(recordValue.value.typeIdentity);
+      if (!recordDefinition) continue;
+      definitionExports.push({
+        kind: "record",
+        ownerModuleDefinitionStatementId: definition.statementId,
+        exportedStatementId: recordValue.value.statementId,
+        exportedStatementIndex: recordValue.value.statementIndex,
+        sourceOrder: recordValue.value.statementIndex,
+        name: recordValue.value.name,
+        typeIdentity: recordValue.value.typeIdentity,
+        definition: recordDefinition,
+        backingTarget: recordValue.target
+      });
+      exportedNames.add(recordValue.value.name);
+    }
+    exportsByDefinition.set(definition.statementIndex, definitionExports);
   }
 
   instances.length = 0;
@@ -1634,6 +2199,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     scopeId: definition.declarationScopeId,
     parameters: definition.parameters,
     localScalars: localScalarsByDefinition.get(definition.statementIndex) ?? [],
+    recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
     exports: exportsByDefinition.get(definition.statementIndex) ?? [],
     bodyStatementIds: definition.bodyStatementIndexes.flatMap((index) => {

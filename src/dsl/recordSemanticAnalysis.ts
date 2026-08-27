@@ -53,6 +53,26 @@ export type RecordConstructorSemantic = {
   fields: readonly RecordConstructorFieldSemantic[];
 };
 
+export type RecordConstructorParseIssue = {
+  code: string;
+  span: DslSpan;
+  message: string;
+};
+
+/**
+ * Parses the already-recognized named fields of a record constructor. Record
+ * semantic analysis remains the owner of constructor shape and field identity;
+ * Module semantic analysis uses this narrow parser for inline Module
+ * arguments without inventing a second constructor grammar.
+ */
+export type RecordConstructorParseResult = {
+  name: string;
+  nameSpan: DslSpan;
+  argsSpan: DslSpan;
+  fields: readonly RecordConstructorFieldSemantic[];
+  issues: readonly RecordConstructorParseIssue[];
+};
+
 export type RecordValueReferenceSemantic = {
   name: string;
   span: DslSpan;
@@ -204,6 +224,95 @@ const constructorCandidate = (
   };
 };
 
+export const parseRecordConstructorFields = ({
+  initializer,
+  initializerSpan,
+  definition
+}: {
+  initializer: string;
+  initializerSpan: DslSpan;
+  definition: RecordDefinitionSemantic;
+}): RecordConstructorParseResult | null => {
+  const candidate = constructorCandidate(initializer, initializerSpan);
+  if (!candidate) return null;
+  const localArgsSpan = {
+    start: candidate.argsSpan.start - initializerSpan.start,
+    end: candidate.argsSpan.end - initializerSpan.start
+  };
+  const scanned = scanCallArgs(initializer, localArgsSpan);
+  const issues: RecordConstructorParseIssue[] = scanned.errors.map((error) => ({
+    code: error.code ?? "record-constructor-invalid-argument",
+    span: {
+      start: initializerSpan.start + error.span.start,
+      end: initializerSpan.start + error.span.end
+    },
+    message: error.message
+  }));
+  const knownFields = new Map(definition.fields.map((field) => [field.name, field] as const));
+  const firstLabel = new Set<string>();
+  const fields: RecordConstructorFieldSemantic[] = [];
+  for (const argument of scanned.args) {
+    const valueSpan = {
+      start: initializerSpan.start + argument.valueSpan.start,
+      end: initializerSpan.start + argument.valueSpan.end
+    };
+    if (argument.key === null || !argument.keySpan) {
+      issues.push({
+        code: "record-constructor-positional-argument",
+        span: valueSpan,
+        message: "record constructor の引数は named-only です。"
+      });
+      continue;
+    }
+    const labelSpan = {
+      start: initializerSpan.start + argument.keySpan.start,
+      end: initializerSpan.start + argument.keySpan.end
+    };
+    if (firstLabel.has(argument.key)) {
+      issues.push({
+        code: "record-constructor-duplicate-field",
+        span: labelSpan,
+        message: `record constructor field「${argument.key}」が重複しています。`
+      });
+      continue;
+    }
+    firstLabel.add(argument.key);
+    const field = knownFields.get(argument.key);
+    if (!field) {
+      issues.push({
+        code: "record-constructor-unknown-field",
+        span: labelSpan,
+        message: `record「${definition.name}」に field「${argument.key}」はありません。`
+      });
+      continue;
+    }
+    fields.push({
+      field: field.identity,
+      fieldName: field.name,
+      labelSpan,
+      value: argument.value,
+      valueSpan,
+      expectedType: field.type
+    });
+  }
+  for (const field of definition.fields) {
+    if (!firstLabel.has(field.name)) {
+      issues.push({
+        code: "record-constructor-missing-field",
+        span: candidate.nameSpan,
+        message: `record constructor「${definition.name}」に必須 field「${field.name}」がありません。`
+      });
+    }
+  }
+  return {
+    name: candidate.name,
+    nameSpan: candidate.nameSpan,
+    argsSpan: candidate.argsSpan,
+    fields: definition.fields.flatMap((field) => fields.filter((entry) => entry.field.fieldIndex === field.fieldIndex)),
+    issues
+  };
+};
+
 const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
   const visited = new Set<number>();
   let enclosing = statements[statementIndex]?.enclosing ?? null;
@@ -327,15 +436,17 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       if (
         parsedReference.kind !== "valid" ||
         parsedReference.reference.path.absolute ||
-        parsedReference.reference.path.segments.length !== 1 ||
+        parsedReference.reference.path.segments.length === 0 ||
         parsedReference.reference.property !== null
       ) {
         diagnostics.push(diagnostic(statement, span, "record-reference-invalid", "record 値の参照は v1 では単一の whole-record `@name` 参照で指定してください。"));
       } else {
-        const name = parsedReference.reference.path.segments[0]!;
+        const name = parsedReference.reference.pathText;
         let targetTypeIdentity: RecordTypeIdentity | null = null;
-        const lookup = input.resolveDeclaration(statementIndex, name);
-        const parameterSemantic = lookup.kind === "resolved" || lookup.kind === "ambiguous"
+        const lookup = parsedReference.reference.path.segments.length === 1
+          ? input.resolveDeclaration(statementIndex, name)
+          : null;
+        const parameterSemantic = lookup === null || lookup.kind === "resolved" || lookup.kind === "ambiguous"
           ? null
           : recordModuleParameterAt(
               statements,
@@ -344,19 +455,19 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               statementIndex,
               name
             );
-        if (lookup.kind === "resolved") {
+        if (lookup !== null && lookup.kind === "resolved") {
           if (lookup.declaration.kind === "recordValue") {
             targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
           } else {
             diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
           }
-        } else if (lookup.kind === "ambiguous") {
+        } else if (lookup !== null && lookup.kind === "ambiguous") {
           diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`));
-        } else if (parameterSemantic) {
+        } else if (lookup !== null && parameterSemantic) {
           targetTypeIdentity = parameterSemantic.typeIdentity;
-        } else if (lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
+        } else if (lookup !== null && lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
           diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`));
-        } else {
+        } else if (lookup !== null) {
           diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
         }
         if (targetTypeIdentity && typeReference.typeIdentity && targetTypeIdentity !== typeReference.typeIdentity) {

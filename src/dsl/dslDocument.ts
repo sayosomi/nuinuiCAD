@@ -51,7 +51,7 @@ import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
-import { compileModuleScalarRuntime, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
@@ -72,7 +72,7 @@ import {
 } from "./dslSerializer";
 import { serializeElementStatementBlock, type SerializedStatement } from "./dslSerializeElement";
 import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "./dslTypes";
-import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken } from "./dslReferenceTokens";
+import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName } from "./dslTokens";
 import {
@@ -1300,12 +1300,22 @@ export const compileDslDocument = (
       moduleSemanticCompilation,
       sourceLexicalNamespace
     );
+    // Runtime-owned Module export bindings are not document scalar
+    // declarations. Do not add them to the fallback document catalog once
+    // Module semantics already has an error, because the runtime path is
+    // intentionally skipped in that case and binding-version construction
+    // must not see an eligible seed without a scalar program initializer.
+    const usableExportBindingSeeds = moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+      ? []
+      : exportBindingSeeds;
     const hasRootGeometryBuiltinOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryBuiltinArguments.length > 0);
-    if (exportBindingSeeds.length > 0 || hasRootGeometryBuiltinOccurrences) {
-      const seedById = new Map(exportBindingSeeds.map((seed) => [seed.id, seed] as const));
+    if (usableExportBindingSeeds.length > 0 || hasRootGeometryBuiltinOccurrences) {
+      const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
-        const path = parseDslReferenceToken(name);
+        const parsedSource = parseDslSourceReference(`@${name}`);
+        const path = parsedSource.kind === "valid" ? parsedSource.reference.path : parseDslReferenceToken(name);
+        const property = parsedSource.kind === "valid" ? parsedSource.reference.property : null;
         if (path.segments.length !== 2) return null;
         const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]);
         if (instanceLookup.kind === "forward" || instanceLookup.kind === "ambiguous") {
@@ -1321,6 +1331,34 @@ export const compileDslDocument = (
         if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
         const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
         const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        if (property !== null) {
+          const exportedRecord = definition?.exports.find((entry) => entry.kind === "record" && entry.name === path.segments[1]);
+          const field = exportedRecord?.kind === "record"
+            ? exportedRecord.definition.fields.find((candidate) => candidate.name === property)
+            : undefined;
+          if (!instance || !definition || !exportedRecord || exportedRecord.kind !== "record" || !field) {
+            return {
+              kind: "blocked",
+              reason: "incompatible",
+              declarationKind: "moduleInstance",
+              statementId: instanceLookup.declaration.statementId
+            };
+          }
+          const bindingId = moduleRecordExportFieldBindingIdFor({
+            moduleSemanticAnalysis: moduleSemanticCompilation,
+            sourceNamespace: sourceLexicalNamespace,
+            instanceStatementId: instance.statementId,
+            exportName: path.segments[1],
+            exportedStatementId: exportedRecord.exportedStatementId,
+            field: field.identity
+          });
+          return bindingId && seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
+            kind: "blocked",
+            reason: "incompatible",
+            declarationKind: "moduleInstance",
+            statementId: instance.statementId
+          };
+        }
         const exported = definition?.exports.find((entry) => entry.kind === "scalar" && entry.name === path.segments[1]);
         if (!instance || !definition || !exported || exported.kind !== "scalar") {
           const privateMember = !definition?.exports.some((entry) => entry.name === path.segments[1]) && definition?.bodyStatements.some((body) =>
@@ -1355,8 +1393,27 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
-        additionalBindings: exportBindingSeeds,
+        additionalBindings: usableExportBindingSeeds,
         additionalBindingResolver,
+        additionalRecordPropertyResolver: ({ statementIndex, node }) => {
+          const statementId = stableStatementIdByIndex.get(statementIndex);
+          const site = statementId
+            ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
+            : undefined;
+          const property = site?.expression.geometryProperties.find((candidate) => candidate.span.start === node.span.start);
+          if (property?.target?.kind !== "recordField" || !property.type) return null;
+          const lookup = additionalBindingResolver(`${node.elementName}.${node.property}`, statementIndex, sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId);
+          return {
+            resolution: {
+              kind: "resolvedType" as const,
+              bindingId: lookup?.kind === "resolved" ? lookup.bindingId : null,
+              type: lookup?.kind === "resolved" ? property.type : null
+            },
+            ...(lookup?.kind === "resolved"
+              ? { dependency: { bindingId: lookup.bindingId, name: `${node.elementName}.${node.property}`, span: node.span } }
+              : {})
+          };
+        },
         additionalGeometryResolver: ({ statementIndex, node, expectedGeometryType }) => {
           const statementId = stableStatementIdByIndex.get(statementIndex);
           const site = statementId
@@ -1438,6 +1495,7 @@ export const compileDslDocument = (
       includeStatement,
       elements: compiled.elements,
       sourceScopeIndex: sourceLexicalNamespace?.scopeIndex,
+      sourceNamespace: sourceLexicalNamespace,
       moduleGeometryRuntime: compiled.moduleGeometryRuntime,
       drawingModifiers: compiled.modifiers
     });

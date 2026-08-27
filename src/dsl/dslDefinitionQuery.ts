@@ -138,7 +138,7 @@ const directShorthandValueOccurrenceAt = (
         target = binding.value.expression.references.find((reference) =>
           reference.nameSpan.start === argument.labelSpan!.start && reference.nameSpan.end === argument.labelSpan!.end
         )?.target ?? null;
-      } else {
+      } else if (binding.value.kind === "geometry") {
         const nameSpan = binding.value.reference.nameSpan;
         if (nameSpan?.start === argument.labelSpan.start && nameSpan.end === argument.labelSpan.end) {
           target = binding.value.reference.target;

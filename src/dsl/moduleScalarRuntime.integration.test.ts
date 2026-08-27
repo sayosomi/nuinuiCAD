@@ -567,6 +567,92 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("materializes Module-local record fields per instance in record declaration order", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      "module Example(seed: number) {",
+      "  const local: Pair = Pair(x: @seed + 1, label: \"local\")",
+      "  const value: number = @local.x",
+      "  point Result = coordinate(x: @value, y: 0)",
+      "}",
+      "instance A = Example(seed: 1)",
+      "instance B = Example(seed: 5)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const recordBindings = compiled.bindingAnalysis!.catalog.bindings.filter((binding) =>
+      binding.kind === "typed" && (binding.name.endsWith(".x") || binding.name.endsWith(".label"))
+    );
+    expect(recordBindings.map((binding) => binding.name)).toEqual(["local.x", "local.label", "local.x", "local.label"]);
+    const recordProgramStatements = compiled.scalarProgram!.statements.filter((statement) =>
+      statement.bindingId.includes("module-record-binding")
+    );
+    expect(recordProgramStatements.map((statement) => statement.declaration.declaredType.kind)).toEqual([
+      "number", "string", "number", "string"
+    ]);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(compiled.document!.elements.filter((element) => element.name === "Result").map((element) =>
+      result.computedGeometry.get(element.id)
+    )).toEqual([
+      expect.objectContaining({ kind: "point", x: 2, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 6, y: 0 })
+    ]);
+  });
+
+  it("keeps optional record slots absent and lowers nested/exported record fields to scalars", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Pair(x: number)",
+      "module Source() {",
+      "  export const output: Pair = Pair(x: 7)",
+      "}",
+      "module Inner(input: Pair) {",
+      "  export const output: Pair = @input",
+      "}",
+      "module Consumer(settings?: Pair) {",
+      "  if (hasValue(@settings)) {",
+      "    const copy: Pair = @settings",
+      "    const x: number = @settings.x",
+      "    point OptionalResult = coordinate(x: @x, y: 0)",
+      "  }",
+      "}",
+      "module Parent(input: Pair) {",
+      "  instance child = Inner(input: @input)",
+      "  const x: number = @child::output.x",
+      "  point NestedResult = coordinate(x: @x, y: 0)",
+      "}",
+      "instance SourceInstance = Source()",
+      "instance Absent = Consumer()",
+      "instance Present = Consumer(settings: Pair(x: 8))",
+      "instance Nested = Parent(input: @SourceInstance::output)",
+      "const exported: number = @SourceInstance::output.x",
+      "point RootResult = coordinate(x: @exported, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const settingsFields = compiled.bindingAnalysis!.catalog.bindings.filter((binding) =>
+      binding.kind === "typed" && binding.name === "settings.x"
+    );
+    expect(settingsFields).toHaveLength(1);
+    const rootInitializer = compiled.scalarProgram!.statements.find((statement) =>
+      statement.bindingId === compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "exported")?.id
+    )?.declaration.initializer;
+    expect(rootInitializer).toMatchObject({ kind: "reference", bindingId: expect.stringContaining("module-record-binding") });
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const points = compiled.document!.elements.filter((element) => ["OptionalResult", "NestedResult", "RootResult"].includes(element.name));
+    expect(points.map((element) => result.computedGeometry.get(element.id))).toEqual([
+      undefined,
+      expect.objectContaining({ kind: "point", x: 8, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 7, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 7, y: 0 })
+    ]);
+  });
+
   it("lowers module-local and child-module geometry exports through the same builtin target", () => {
     const compiled = compileWithIds([
       "nui 4",
