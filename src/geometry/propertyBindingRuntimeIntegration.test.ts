@@ -267,6 +267,42 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     });
   });
 
+  it("requires current computed geometry for choice reads while allowing hidden evaluated targets", () => {
+    const disabled: ArcLineElement = { ...arc("disabled", 0, 90), activity: "disabled" };
+    const failed: ArcLineElement = {
+      ...arc("failed", 0, 90),
+      centerPoint: { mode: "reference", pointId: "missing-center" }
+    };
+    const hidden: ArcLineElement = { ...arc("hidden", 0, 90), activity: "hidden" };
+    const type = directionType();
+    const read = (target: ArcLineElement, evaluation: ReturnType<typeof evaluateElements>) =>
+      resolveDocumentGeometryProperty(
+        {
+          computedGeometry: evaluation.computedGeometry,
+          elementsById: new Map([[target.id, target]]),
+          activities: new Map()
+        },
+        geometryProperty(target.id, "direction", 0, type),
+        1
+      );
+
+    expect(read(disabled, evaluateElements([disabled]))).toEqual({
+      status: "error",
+      type,
+      issueCode: "evaluation-geometry-property-unavailable"
+    });
+    expect(read(failed, evaluateElements([failed]))).toEqual({
+      status: "error",
+      type,
+      issueCode: "evaluation-geometry-property-unavailable"
+    });
+    expect(read(hidden, evaluateElements([hidden]))).toEqual({
+      status: "ok",
+      type,
+      value: { kind: "choice", value: "counterclockwise", options: type.options }
+    });
+  });
+
   it("preserves the concrete choice type for unavailable, invalid-member, and too-late reads", () => {
     const source = arc("source", 0, 90);
     const evaluation = evaluateElements([source]);

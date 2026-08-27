@@ -57,6 +57,9 @@ pub(crate) fn lookup_geometry_property(
             })
             .unwrap_or_else(|| unavailable_geometry_property(property_type)),
         ScalarType::Choice { options } => {
+            if !state.computed_geometry.contains_key(element_id) {
+                return unavailable_geometry_property(property_type);
+            }
             let Some(element) = state
                 .elements_by_id
                 .get(element_id)

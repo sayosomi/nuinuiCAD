@@ -5,8 +5,12 @@
 //! `scalars/property_binding_payload_tests.rs`; these tests exercise the
 //! whole materialize-then-evaluate path against real element evaluators.
 
+use super::scalar_expression_runtime::lookup_geometry_property;
+use super::scalars::{ScalarEvaluation, ScalarType};
+use super::types::EvaluationState;
 use super::*;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 fn input(
     elements: Vec<Value>,
@@ -94,6 +98,24 @@ fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&st
         element["direction"] = json!(direction);
     }
     element
+}
+
+fn state_with_element(id: &str, element: Value) -> EvaluationState {
+    EvaluationState {
+        elements: vec![element],
+        elements_by_id: HashMap::from([(id.to_owned(), 0)]),
+        drawing_modifiers: json!([]),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::new(),
+        computed_geometry_order: Vec::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        warnings: Vec::new(),
+    }
 }
 
 fn geometry_direction_expression(
@@ -257,6 +279,84 @@ fn geometry_property_choice_runtime_preserves_type_options_and_value() {
     );
     assert_eq!(
         evaluation["value"],
+        json!({
+            "kind": "choice",
+            "value": "counterclockwise",
+            "options": options
+        })
+    );
+}
+
+#[test]
+fn choice_geometry_property_requires_current_geometry_even_without_source_order() {
+    let options = vec!["counterclockwise".to_owned(), "clockwise".to_owned()];
+    let state = state_with_element("source", arc("source", 0.0, 90.0, None));
+    let property_type = ScalarType::Choice {
+        options: options.clone(),
+    };
+
+    assert_eq!(
+        lookup_geometry_property(&state, "source", "direction", 0, None, &property_type,),
+        ScalarEvaluation::Error {
+            r#type: property_type,
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    );
+}
+
+#[test]
+fn choice_geometry_property_cannot_leak_disabled_or_failed_targets_but_hidden_targets_remain_readable(
+) {
+    let options = ["counterclockwise", "clockwise"];
+    let property_type = json!({"kind": "choice", "options": options});
+    let read = |element: Value| {
+        let element_id = element["id"].as_str().unwrap().to_owned();
+        let result = evaluate_document_input(input(
+            vec![element],
+            Some(program(vec![statement(
+                "binding:direction",
+                1,
+                "const",
+                property_type.clone(),
+                geometry_direction_expression(&element_id, 0, &options),
+            )])),
+            None,
+        ));
+        result
+            .computed_scalar_bindings
+            .expect("scalar program output")[0]["evaluation"]
+            .clone()
+    };
+
+    let mut disabled = arc("disabled", 0.0, 90.0, None);
+    disabled["activity"] = json!("disabled");
+    let disabled_evaluation = read(disabled);
+    assert_eq!(disabled_evaluation["status"], json!("error"));
+    assert_eq!(disabled_evaluation["type"], property_type);
+    assert_eq!(
+        disabled_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+
+    let mut failed = arc("failed", 0.0, 90.0, None);
+    failed.as_object_mut().unwrap().remove("centerPoint");
+    let failed_evaluation = read(failed);
+    assert_eq!(failed_evaluation["status"], json!("error"));
+    assert_eq!(failed_evaluation["type"], property_type);
+    assert_eq!(
+        failed_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+
+    let mut hidden = arc("hidden", 0.0, 90.0, None);
+    hidden["activity"] = json!("hidden");
+    let hidden_evaluation = read(hidden);
+    assert_eq!(hidden_evaluation["status"], json!("ok"));
+    assert_eq!(hidden_evaluation["type"], property_type);
+    assert_eq!(
+        hidden_evaluation["value"],
         json!({
             "kind": "choice",
             "value": "counterclockwise",

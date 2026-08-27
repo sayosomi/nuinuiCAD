@@ -68,6 +68,9 @@ export const resolveDocumentGeometryProperty = (
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
+  if (!geometry.computedGeometry.has(reference.elementId)) {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
   if (geometry.activities.get(reference.elementId)?.activity === "disabled") {
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
