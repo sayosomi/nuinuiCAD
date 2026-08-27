@@ -28,6 +28,11 @@ type AuthoritativeHostSource = {
   normalizedSource: string;
 };
 
+type ReferencePickStartRequest = Extract<
+  ExtensionToVscodeMessage,
+  { type: "referencePickStartRequest" }
+>;
+
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
 export const useVSCodeReferencePickSession = ({
@@ -40,13 +45,14 @@ export const useVSCodeReferencePickSession = ({
   const [session, setSession] = useState<VscodeReferencePickCanvasSession | null>(null);
   const sessionRef = useRef<VscodeReferencePickCanvasSession | null>(null);
   const authoritativeHostSourceRef = useRef<AuthoritativeHostSource | null>(null);
+  const pendingStartRequestRef = useRef<ReferencePickStartRequest | null>(null);
 
   const replaceSession = useCallback((next: VscodeReferencePickCanvasSession | null) => {
     sessionRef.current = next;
     setSession(next);
   }, []);
 
-  const postStale = useCallback((message: Extract<ExtensionToVscodeMessage, { type: "referencePickStartRequest" }>) => {
+  const postStale = useCallback((message: ReferencePickStartRequest) => {
     api?.postMessage({
       type: "referencePickResult",
       requestId: message.requestId,
@@ -57,6 +63,49 @@ export const useVSCodeReferencePickSession = ({
     });
   }, [api]);
 
+  const tryStart = useCallback((message: ReferencePickStartRequest) => {
+    if (!api) return;
+    const authoritative = authoritativeHostSourceRef.current;
+    const current = currentContextFor();
+    if (
+      !authoritative ||
+      authoritative.documentVersion !== message.documentVersion ||
+      !current ||
+      current.source.normalizedSource !== authoritative.normalizedSource ||
+      current.compiled.spans.sourceMap.source !== authoritative.normalizedSource
+    ) {
+      pendingStartRequestRef.current = null;
+      postStale(message);
+      return;
+    }
+    if (!current.evaluationIsCurrent) {
+      pendingStartRequestRef.current = message;
+      return;
+    }
+
+    pendingStartRequestRef.current = null;
+    const started = startVscodeReferencePickCanvasSession({
+      request: message,
+      // The Extension Host routes the request only to the Canvas session
+      // bound to this Source document. The host snapshot above proves the
+      // matching version/source; target proof and candidates are re-derived
+      // independently in this Webview compiler session.
+      authoritativeDocumentUri: message.documentUri,
+      authoritativeDocumentVersion: authoritative.documentVersion,
+      source: current.source,
+      compiled: current.compiled,
+      evaluation: current.evaluation,
+      evaluationIsCurrent: current.evaluationIsCurrent
+    });
+    api.postMessage(started.result);
+    replaceSession(started.session);
+  }, [api, currentContextFor, postStale, replaceSession]);
+
+  useEffect(() => {
+    const pending = pendingStartRequestRef.current;
+    if (pending) tryStart(pending);
+  }, [tryStart]);
+
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
@@ -65,48 +114,34 @@ export const useVSCodeReferencePickSession = ({
           documentVersion: message.documentVersion,
           normalizedSource: normalizedSourceFor(message.sourceText)
         };
+        pendingStartRequestRef.current = null;
         if (sessionRef.current) replaceSession(null);
         return;
       }
       if (message.type === "referencePickStartRequest") {
         if (!api) return;
+        pendingStartRequestRef.current = null;
         const previous = sessionRef.current;
         if (previous) {
           const canceled = cancelVscodeReferencePickCanvasSession(previous);
           if (canceled.result) api.postMessage(canceled.result);
           replaceSession(null);
         }
-        const authoritative = authoritativeHostSourceRef.current;
-        const current = currentContextFor();
-        if (
-          !authoritative ||
-          authoritative.documentVersion !== message.documentVersion ||
-          !current ||
-          current.source.normalizedSource !== authoritative.normalizedSource ||
-          current.compiled.spans.sourceMap.source !== authoritative.normalizedSource
-        ) {
-          postStale(message);
-          return;
-        }
-        const started = startVscodeReferencePickCanvasSession({
-          request: message,
-          // The Extension Host routes the request only to the Canvas session
-          // bound to this Source document. The host snapshot above proves the
-          // matching version/source; target proof and candidates are re-derived
-          // independently in this Webview compiler session.
-          authoritativeDocumentUri: message.documentUri,
-          authoritativeDocumentVersion: authoritative.documentVersion,
-          source: current.source,
-          compiled: current.compiled,
-          evaluation: current.evaluation,
-          evaluationIsCurrent: current.evaluationIsCurrent
-        });
-        api.postMessage(started.result);
-        replaceSession(started.session);
+        tryStart(message);
         return;
       }
       if (message.type === "referencePickCancelRequest") {
         if (!api) return;
+        const pending = pendingStartRequestRef.current;
+        if (
+          pending &&
+          pending.requestId === message.requestId &&
+          pending.documentUri === message.documentUri &&
+          pending.documentVersion === message.documentVersion
+        ) {
+          pendingStartRequestRef.current = null;
+          return;
+        }
         const current = sessionRef.current;
         if (
           !current ||
@@ -122,7 +157,7 @@ export const useVSCodeReferencePickSession = ({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [api, currentContextFor, postStale, replaceSession]);
+  }, [api, replaceSession, tryStart]);
 
   const setHover = useCallback((hover: ReferencePickHover | null) => {
     const current = sessionRef.current;
