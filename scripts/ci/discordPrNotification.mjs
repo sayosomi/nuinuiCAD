@@ -8,6 +8,9 @@ const UNAVAILABLE = "unavailable";
 const nonSuccessConclusion = (conclusion) =>
   typeof conclusion === "string" && conclusion !== "success";
 
+const failureConclusion = (conclusion) =>
+  ["failure", "cancelled", "timed_out", "action_required"].includes(conclusion);
+
 const asText = (value) =>
   typeof value === "string" && value.trim() ? value.trim() : UNAVAILABLE;
 
@@ -16,16 +19,20 @@ const apiUrl = (repository, path) =>
 
 export const extractCurrentRunnerTestName = (logText) => {
   if (typeof logText !== "string") return null;
+  const normalized = logText.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
 
   // These are the three test reporters used by ci.yml. Keep this deliberately
   // narrow: it is a notification hint, not a general Actions-log parser.
-  const vitest = logText.match(/^\s*×\s+(.+?)(?:\s+\d+ms)?\s*$/m);
+  const vitestFailure = normalized.match(/^\s*FAIL\s+.+?\s+>\s+.+?\s+>\s+(.+?)\s*$/m);
+  if (vitestFailure) return vitestFailure[1].trim();
+
+  const vitest = normalized.match(/^\s*×\s+(.+?)(?:\s+\d+ms)?\s*$/m);
   if (vitest) return vitest[1].trim();
 
-  const nodeTest = logText.match(/^\s*not ok \d+ - (.+?)\s*$/m);
+  const nodeTest = normalized.match(/^\s*not ok \d+ - (.+?)\s*$/m);
   if (nodeTest) return nodeTest[1].trim();
 
-  const cargoTest = logText.match(/^test (.+?) \.\.\. FAILED\s*$/m);
+  const cargoTest = normalized.match(/^test (.+?) \.\.\. FAILED\s*$/m);
   if (cargoTest) return cargoTest[1].trim();
 
   return null;
@@ -113,12 +120,12 @@ const bestEffort = async (callback) => {
 };
 
 const selectFailedJob = (jobs) => {
-  const failed = jobs.filter((job) => nonSuccessConclusion(job.conclusion));
+  const failed = jobs.filter((job) => failureConclusion(job.conclusion));
   return failed.find((job) => job.name !== "CI") ?? failed[0] ?? null;
 };
 
 const selectFailedStep = (job) =>
-  job?.steps?.find((step) => nonSuccessConclusion(step.conclusion)) ?? null;
+  job?.steps?.find((step) => failureConclusion(step.conclusion)) ?? null;
 
 export const fetchFailureDetails = async ({ repository, runId, prNumber, token, fetchImpl = fetch }) => {
   const fallback = { title: UNAVAILABLE, job: UNAVAILABLE, step: UNAVAILABLE, testName: null };

@@ -53,6 +53,10 @@ const failureEvent = {
 
 test("extracts only the reporters used by the current CI runners", () => {
   assert.equal(extractCurrentRunnerTestName(" × computes a sleeve curve 12ms"), "computes a sleeve curve");
+  assert.equal(
+    extractCurrentRunnerTestName("\u001b[41m\u001b[1m FAIL \u001b[0m src/command.test.ts > rename coverage > reports the timed-out rename"),
+    "reports the timed-out rename"
+  );
   assert.equal(extractCurrentRunnerTestName("not ok 4 - classifies workflow files"), "classifies workflow files");
   assert.equal(extractCurrentRunnerTestName("test evaluator::rejects_nan ... FAILED"), "evaluator::rejects_nan");
   assert.equal(extractCurrentRunnerTestName("unrelated failure prose"), null);
@@ -65,7 +69,10 @@ test("uses a failed non-aggregate job and a test hint when Actions APIs are avai
     requests.push(url);
     if (url.includes("/pulls/99")) return response(JSON.stringify({ title: "Focused notification test" }));
     if (url.includes("/runs/123/jobs")) return response(JSON.stringify({ jobs: [
-      { id: 7, name: "Node", conclusion: "failure", steps: [{ name: "Changed Node tests", conclusion: "failure" }] },
+      { id: 7, name: "Node", conclusion: "failure", steps: [
+        { name: "Install optional dependency", conclusion: "skipped" },
+        { name: "Changed Node tests", conclusion: "failure" }
+      ] },
       { id: 8, name: "CI", conclusion: "failure", steps: [{ name: "Check required CI results", conclusion: "failure" }] }
     ] }));
     if (url.includes("/jobs/7/logs")) return response(zip("job.txt", " × reports failed fixture 4ms"));
