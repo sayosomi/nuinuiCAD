@@ -6,14 +6,55 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
+import type {
+  RecordConstructorFieldSemantic,
+  RecordDefinitionSemantic,
+  RecordFieldIdentity,
+  RecordTypeIdentity,
+  RecordValueSemantic
+} from "./recordSemanticAnalysis";
 
 export type ModuleParameterSlot = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
 };
 
+export type ModuleRecordSourceTarget =
+  | {
+      kind: "recordValue";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      typeIdentity: RecordTypeIdentity;
+    }
+  | (ModuleParameterSlot & {
+      kind: "recordParameter";
+      typeIdentity: RecordTypeIdentity;
+    })
+  | {
+      kind: "deferredModuleRecordExport";
+      instanceStatementId: StatementIdentity;
+      instanceStatementIndex: number;
+      instanceName: string;
+      exportName: string;
+      exportedStatementId: StatementIdentity;
+      exportedStatementIndex: number;
+      typeIdentity: RecordTypeIdentity;
+      referenceSpan: DslSpan;
+      instanceSpan: DslSpan;
+      memberSpan: DslSpan;
+    };
+
+export type ModuleRecordFieldSourceTarget = {
+  kind: "recordField";
+  record: ModuleRecordSourceTarget;
+  field: RecordFieldIdentity;
+  fieldName: string;
+  type: ScalarType;
+};
+
 export type ModuleScalarSourceTarget =
   | (ModuleParameterSlot & { kind: "parameter" })
+  | ModuleRecordFieldSourceTarget
   | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
   | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
   | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number }
@@ -72,6 +113,7 @@ export type ModuleParentReferenceSemantic = {
 };
 
 export type ModuleGeometryPropertySourceTarget =
+  | ModuleRecordFieldSourceTarget
   | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string })
   | {
       kind: "sourceGeometryProperty";
@@ -115,6 +157,24 @@ export type ModuleScalarExpressionSemantic = {
     definitionStatementId: StatementIdentity;
     parameterIndex: number;
   }[];
+};
+
+export type ModuleRecordConstructorFieldSemantic = RecordConstructorFieldSemantic & {
+  expression: ModuleScalarExpressionSemantic | null;
+};
+
+export type ModuleRecordReferenceSemantic = {
+  source: string;
+  span: DslSpan;
+  typeIdentity: RecordTypeIdentity | null;
+  target: ModuleRecordSourceTarget | null;
+  constructor: {
+    name: string;
+    nameSpan: DslSpan;
+    targetTypeIdentity: RecordTypeIdentity | null;
+    fields: readonly ModuleRecordConstructorFieldSemantic[];
+  } | null;
+  resolution: "resolved" | "undefined" | "forward" | "ambiguous" | "invalid" | "outerCapture";
 };
 
 export type ModuleGeometryBuiltinArgumentSemantic = {
@@ -168,6 +228,7 @@ export type ResolvedModuleParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
+  recordTypeIdentity: RecordTypeIdentity | null;
   optional: boolean;
   required: boolean;
   defaultValue: string | null;
@@ -177,7 +238,8 @@ export type ResolvedModuleParameter = {
 
 export type ModuleArgumentSemantic =
   | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
-  | { kind: "geometry"; reference: ModuleGeometryReferenceSemantic };
+  | { kind: "geometry"; reference: ModuleGeometryReferenceSemantic }
+  | { kind: "record"; reference: ModuleRecordReferenceSemantic };
 
 /** One entry per callee parameter, already in parameter source order. */
 export type ResolvedModuleParameterBinding = {
@@ -211,7 +273,22 @@ export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
   bindingKind: "const" | "let";
 };
 
-export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport;
+export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
+  kind: "record";
+  typeIdentity: RecordTypeIdentity;
+  definition: RecordDefinitionSemantic;
+  backingTarget: ModuleRecordSourceTarget;
+};
+
+export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport | ResolvedModuleRecordExport;
+
+export type ModuleRecordValueSemantic = {
+  value: RecordValueSemantic;
+  target: ModuleRecordSourceTarget | null;
+  fields: readonly ModuleRecordConstructorFieldSemantic[];
+  /** Optional Module parameters proven present at this declaration site. */
+  presenceParameterKeys: readonly string[];
+};
 
 export type ModuleScalarExpressionSite = {
   parameterKey: string | null;
@@ -275,6 +352,7 @@ export type ModuleDefinitionSemantic = {
     bindingKind: "const" | "let";
     initializer: ModuleScalarExpressionSemantic | null;
   }[];
+  recordValues: readonly ModuleRecordValueSemantic[];
   bodyStatements: readonly ModuleBodyStatementSemantic[];
   exports: readonly ResolvedModuleExport[];
   bodyStatementIds: readonly StatementIdentity[];

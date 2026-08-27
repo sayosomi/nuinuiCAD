@@ -246,6 +246,7 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     elementsById: ReadonlyMap<ElementId, CadElement>
   ): ModuleGeometryPropertyRuntimeTarget | undefined => {
+    if (target.kind === "recordField") return undefined;
     const baseTarget: ModuleGeometrySourceTarget = target.kind === "parameterProperty"
       ? { ...target, kind: "parameter" }
       : target.kind === "sourceGeometryProperty"

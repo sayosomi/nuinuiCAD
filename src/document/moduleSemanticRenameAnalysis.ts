@@ -188,7 +188,9 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
       locals: definition.localScalars.map((local) => ({ id: local.statementId, type: local.type, initializer: expressionFingerprint(local.initializer) })),
       exports: definition.exports.map((entry) => entry.kind === "geometry"
         ? { id: entry.exportedStatementId, kind: entry.kind, category: entry.category }
-        : { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind })
+        : entry.kind === "record"
+          ? { id: entry.exportedStatementId, kind: entry.kind, typeIdentity: entry.typeIdentity }
+          : { id: entry.exportedStatementId, kind: entry.kind, declaredType: entry.declaredType, bindingKind: entry.bindingKind })
     })),
     instances: analysis.instances.map((instance) => ({
       id: instance.statementId,
