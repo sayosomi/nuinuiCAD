@@ -1,6 +1,7 @@
 //! Task 32/33 in-place mutation cursor. Conditional selection is registered
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
 mod for_group_scheduler;
+use super::super::scalar_expression_runtime::lookup_geometry_property;
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
@@ -8,8 +9,7 @@ use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
-use super::types::{BindingId, ScalarEvaluation, ScalarType, ScalarValue};
-use crate::evaluation::numeric_expression::computed_reference_value;
+use super::types::{BindingId, ScalarEvaluation, ScalarType};
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -330,32 +330,16 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
         element_id: &str,
         property: &str,
         target_source_order: usize,
+        property_type: &ScalarType,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
-        match self
-            .state
-            .computed_geometry
-            .get(element_id)
-            .and_then(|geometry| computed_reference_value(geometry, property))
-        {
-            Some(value) => ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: ScalarValue::Number(value),
-            },
-            None => ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            },
-        }
+        lookup_geometry_property(
+            self.state,
+            element_id,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
     }
 
     fn lookup_geometry_builtin_target(

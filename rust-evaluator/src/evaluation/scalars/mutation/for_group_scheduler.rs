@@ -4,7 +4,7 @@
 
 use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
-use crate::evaluation::numeric_expression::computed_reference_value;
+use crate::evaluation::scalar_expression_runtime::lookup_geometry_property;
 use crate::evaluation::scalars::for_group_mutation_core::{
     ForGroupIterationContext, ForGroupMutationEnvironment, ForGroupMutationError,
     ForGroupMutationPlan, ForGroupMutationRunOutcome, LoopRead,
@@ -322,31 +322,15 @@ impl ScalarEvaluationEnvironment for ForGroupMutationEvaluationEnvironment<'_, '
         element_id: &str,
         property: &str,
         target_source_order: usize,
+        property_type: &ScalarType,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
-        match self
-            .state
-            .computed_geometry
-            .get(element_id)
-            .and_then(|geometry| computed_reference_value(geometry, property))
-        {
-            Some(value) => ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: super::super::types::ScalarValue::Number(value),
-            },
-            None => ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            },
-        }
+        lookup_geometry_property(
+            self.state,
+            element_id,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
     }
 }

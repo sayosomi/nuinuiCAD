@@ -167,11 +167,15 @@ fn reference_literal() -> Value {
 }
 
 fn geometry_property_literal() -> Value {
+    geometry_property_with_type(json!({"kind": "number"}))
+}
+
+fn geometry_property_with_type(r#type: Value) -> Value {
     json!({
         "kind": "geometryProperty", "span": {"start": 0, "end": 1},
         "elementNameSpan": {"start": 0, "end": 1}, "propertySpan": {"start": 0, "end": 1},
         "elementName": "line", "elementId": "element:line", "property": "length",
-        "targetSourceOrder": 0, "type": {"kind": "number"}
+        "targetSourceOrder": 0, "type": r#type
     })
 }
 
@@ -347,6 +351,50 @@ fn decodes_builtin_call_and_preserves_nested_argument_order_and_references() {
             ));
         }
         other => panic!("expected a call node, got {other:?}"),
+    }
+}
+
+#[test]
+fn geometry_property_payload_accepts_number_and_choice_and_preserves_resolved_fields() {
+    for r#type in [
+        json!({"kind": "number"}),
+        json!({"kind": "choice", "options": ["counterclockwise", "clockwise"]}),
+    ] {
+        let decoded =
+            validate_typed_expression_payload(&geometry_property_with_type(r#type.clone()))
+                .expect("number and choice geometry properties should decode");
+        let TypedScalarExpression::GeometryProperty {
+            element_id,
+            property,
+            target_source_order,
+            r#type: decoded_type,
+            ..
+        } = &decoded
+        else {
+            panic!("expected a geometryProperty node");
+        };
+        assert_eq!(element_id, "element:line");
+        assert_eq!(property, "length");
+        assert_eq!(*target_source_order, 0);
+        if r#type["kind"] == json!("number") {
+            assert_eq!(decoded_type, &ScalarType::Number);
+        } else {
+            assert_eq!(
+                decoded_type,
+                &ScalarType::Choice {
+                    options: vec!["counterclockwise".to_owned(), "clockwise".to_owned()]
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn geometry_property_payload_rejects_string_and_boolean_types_in_this_slice() {
+    for r#type in [json!({"kind": "string"}), json!({"kind": "boolean"})] {
+        let error = validate_typed_expression_payload(&geometry_property_with_type(r#type))
+            .expect_err("out-of-slice geometry property types must fail closed");
+        assert_eq!(error.code, Code::LiteralTypeMismatch);
     }
 }
 

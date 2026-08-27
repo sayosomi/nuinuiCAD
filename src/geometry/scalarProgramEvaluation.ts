@@ -1,6 +1,7 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
 import { computedReferencePathValue } from "./numericExpressions";
 import { resolveDerivedPoint } from "../model/pointAnchors";
+import { getParameterValue } from "../parameters/parameterAccess";
 import type { BindingReadPosition, BindingVersionGraph } from "../scalars/bindingVersions";
 import {
   createLazyScalarProgramEvaluator,
@@ -48,23 +49,49 @@ export type DocumentGeometryRuntime = {
 };
 
 export const resolveDocumentGeometryProperty = (
-  computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>,
+  geometry: DocumentGeometryRuntime,
   reference: TypedScalarGeometryPropertyReferenceNode,
   sourceOrder: number
 ): ScalarEvaluation => {
   if (reference.type === null) {
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
   }
-  if (reference.type.kind !== "number") {
+  if (reference.type.kind !== "number" && reference.type.kind !== "choice") {
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
-    return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  const value = computedReferencePathValue(computedGeometry.get(reference.elementId), reference.property);
-  return typeof value === "number"
-    ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
-    : { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
+  if (reference.type.kind === "number") {
+    const value = computedReferencePathValue(geometry.computedGeometry.get(reference.elementId), reference.property);
+    return typeof value === "number"
+      ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  if (!geometry.computedGeometry.has(reference.elementId)) {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  if (geometry.activities.get(reference.elementId)?.activity === "disabled") {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+
+  const targetElement = geometry.elementsById.get(reference.elementId);
+  if (!targetElement) {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  let value = getParameterValue(targetElement, reference.property);
+  if (targetElement.type === "arcLine" && reference.property === "direction") {
+    const computed = geometry.computedGeometry.get(reference.elementId);
+    if (!computed || computed.kind !== "arcLine") {
+      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    if (computed.sweepAngleDeg > 0) value = "counterclockwise";
+    else if (computed.sweepAngleDeg < 0) value = "clockwise";
+    else value = getParameterValue(targetElement, reference.property) ?? "counterclockwise";
+  }
+  return typeof value === "string" && reference.type.options.includes(value)
+    ? { status: "ok", type: reference.type, value: { kind: "choice", value, options: reference.type.options } }
+    : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
 };
 
 export const resolveDocumentGeometryTarget = (
@@ -91,7 +118,7 @@ export const createDocumentScalarBindingResolver = (
 ): ScalarBindingResolver => {
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {
@@ -113,7 +140,7 @@ export const createDocumentLinearScalarBindingResolver = (
 ): LinearScalarBindingResolver => {
   const resolveGeometryProperty = geometry
     ? (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number): ScalarEvaluation =>
-        resolveDocumentGeometryProperty(geometry.computedGeometry, reference, sourceOrder)
+        resolveDocumentGeometryProperty(geometry, reference, sourceOrder)
     : undefined;
   const resolveGeometryTarget = geometry
     ? (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number): GeometryBuiltinTargetLookupResult | undefined => {

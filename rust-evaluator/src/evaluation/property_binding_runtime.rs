@@ -70,6 +70,7 @@ pub(crate) fn apply_property_bindings(
     entries: Option<&Vec<ValidatedPropertyBinding>>,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
+    current_source_order: Option<usize>,
 ) -> Result<Value, DependencyError> {
     let Some(entries) = entries else {
         return Ok(element.clone());
@@ -85,7 +86,7 @@ pub(crate) fn apply_property_bindings(
 
     for entry in entries {
         let evaluation = if let Some(expression) = entry.expression.as_ref() {
-            evaluate_document_typed_expression(expression, resolver, state, None)
+            evaluate_document_typed_expression(expression, resolver, state, current_source_order)
         } else if let Some(binding_id) = entry.binding_id.as_ref() {
             resolver.resolve_binding(binding_id, state)
         } else {

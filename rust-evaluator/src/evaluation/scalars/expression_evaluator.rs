@@ -32,6 +32,7 @@ use super::expression_evaluator_ops::{
     finish_eager_binary, finish_logical_right, finish_unary, static_type_null_error,
 };
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
+use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
     ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget, ScalarType,
     ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
@@ -51,9 +52,10 @@ pub(crate) trait ScalarEvaluationEnvironment {
         _element_id: &str,
         _property: &str,
         _target_source_order: usize,
+        property_type: &ScalarType,
     ) -> ScalarEvaluation {
         ScalarEvaluation::Error {
-            r#type: ScalarType::Number,
+            r#type: property_type.clone(),
             issue_code: "evaluation-geometry-property-unavailable".to_owned(),
             binding_id: None,
             context: None,
@@ -260,13 +262,33 @@ fn eval_node<'a>(
             element_id,
             property,
             target_source_order,
+            r#type,
             ..
         } => {
-            output.push(environment.lookup_geometry_property(
+            let result = environment.lookup_geometry_property(
                 element_id,
                 property,
                 *target_source_order,
-            ));
+                r#type,
+            );
+            output.push(match result {
+                ScalarEvaluation::Ok {
+                    r#type: result_type,
+                    value,
+                } if result_type == *r#type && scalar_value_matches_type(&result_type, &value) => {
+                    ScalarEvaluation::Ok {
+                        r#type: result_type,
+                        value,
+                    }
+                }
+                ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                error @ ScalarEvaluation::Error { .. } => error,
+            });
         }
         TypedScalarExpression::Unary {
             operator,

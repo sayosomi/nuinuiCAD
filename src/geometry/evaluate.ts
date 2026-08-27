@@ -38,6 +38,7 @@ import { hasSetVersions } from "../scalars/linearMutationEvaluator";
 import {
   createDocumentLinearScalarBindingResolver,
   createDocumentScalarBindingResolver,
+  resolveDocumentGeometryProperty,
   resolveDocumentGeometryTarget
 } from "./scalarProgramEvaluation";
 import {
@@ -61,7 +62,6 @@ import type { TextTemplateAst } from "../scalars/textTemplate";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
-import { computedReferencePathValue } from "./numericExpressions";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 
 export type EvaluateElementsOptions = {
@@ -268,7 +268,7 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById, activities })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById: runtimeElementsById, activities })
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
@@ -276,26 +276,10 @@ export const evaluateElements = (
       .map((owner) => owner.ownerStatementId)) ?? []
   );
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById, activities })
+    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById: runtimeElementsById, activities })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
-  const resolveScalarGeometryProperty = (
-    reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
-  ): ScalarEvaluation => {
-    if (reference.type === null) {
-      return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
-    }
-    if (reference.type.kind !== "number") {
-      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
-    }
-    if (!reference.elementId || reference.targetSourceOrder === null) {
-      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
-    }
-    const value = computedReferencePathValue(computedGeometry.get(reference.elementId), reference.property);
-    return typeof value === "number" && Number.isFinite(value)
-      ? { status: "ok", type: reference.type, value: { kind: "number", value } }
-      : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
-  };
+  const geometryRuntime = { computedGeometry, elementsById: runtimeElementsById, activities };
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -441,6 +425,17 @@ export const evaluateElements = (
     }
     effectiveEnabledIds.add(element.id);
 
+    const sourceElementId = (sourceElement ?? element).id;
+    const sourceOrder = options.statementInfoByElementId?.get(sourceElementId)?.statementIndex ??
+      options.scalarExecutionPositionByElementId?.get(sourceElementId) ??
+      options.scalarExecutionPositionByElementId?.get(element.id) ??
+      options.sourceExecutionPositionByElementId?.get(sourceElementId) ??
+      options.sourceExecutionPositionByElementId?.get(element.id) ??
+      Number.POSITIVE_INFINITY;
+    const resolveScalarGeometryProperty = (
+      reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
+    ): ScalarEvaluation => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder);
+
     const numericEntriesForElement = numericBindingEntriesByElementId?.get((sourceElement ?? element).id);
     if (numericEntriesForElement?.length) {
       const numericSourceId = (sourceElement ?? element).id;
@@ -456,7 +451,7 @@ export const evaluateElements = (
         numericSourceOrder === undefined
           ? undefined
           : (target) => resolveDocumentGeometryTarget(
-              { computedGeometry, elementsById, activities },
+              geometryRuntime,
               target,
               numericSourceOrder
             )
@@ -466,6 +461,7 @@ export const evaluateElements = (
         return;
       }
       element = materialized.element;
+      runtimeElementsById.set(element.id, element);
     }
 
     const localVariables = iterationLocalVariables(ancestorIterationVariables);
@@ -698,6 +694,7 @@ export const evaluateElements = (
         return;
       }
       elementToEvaluate = materialized.element;
+      runtimeElementsById.set(elementToEvaluate.id, elementToEvaluate);
     }
 
     // Task 27: the bare/compound `text.text` property case is materialized
@@ -716,6 +713,7 @@ export const evaluateElements = (
         return;
       }
       elementToEvaluate = materialized.element;
+      runtimeElementsById.set(elementToEvaluate.id, elementToEvaluate);
     }
 
     // Task 27: a compiled TextTemplateAst for a quoted text value
