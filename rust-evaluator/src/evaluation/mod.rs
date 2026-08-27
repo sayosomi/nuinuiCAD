@@ -1106,24 +1106,33 @@ fn evaluate_document_input_with_scalar_program(
             Some(entries) if !entries.is_empty() => {
                 let resolver = active_scalar_binding_resolver
                     .expect("scalar_binding_resolver must exist when property bindings exist");
-                match apply_property_bindings(&element, Some(entries), resolver, &state) {
-                    Ok(materialized_element) => evaluate_element_by_type(
-                        id.clone(),
-                        materialized_element,
-                        local_variables,
-                        &mut conditional_group_states,
-                        ConditionalGroupContext {
-                            lookup_id: &id,
-                            by_element_id: &condition_by_element_id,
-                            scalar_binding_resolver: active_scalar_binding_resolver,
-                        },
-                        TextTemplateContext {
-                            lookup_id: &id,
-                            by_element_id: &text_templates_by_element_id,
-                            scalar_binding_resolver: active_scalar_binding_resolver,
-                        },
-                        &mut state,
-                    ),
+                match apply_property_bindings(
+                    &element,
+                    Some(entries),
+                    resolver,
+                    &state,
+                    current_source_order,
+                ) {
+                    Ok(materialized_element) => {
+                        state.elements[index] = materialized_element.clone();
+                        evaluate_element_by_type(
+                            id.clone(),
+                            materialized_element,
+                            local_variables,
+                            &mut conditional_group_states,
+                            ConditionalGroupContext {
+                                lookup_id: &id,
+                                by_element_id: &condition_by_element_id,
+                                scalar_binding_resolver: active_scalar_binding_resolver,
+                            },
+                            TextTemplateContext {
+                                lookup_id: &id,
+                                by_element_id: &text_templates_by_element_id,
+                                scalar_binding_resolver: active_scalar_binding_resolver,
+                            },
+                            &mut state,
+                        )
+                    }
                     Err(error) => state.errors.push(error),
                 }
             }

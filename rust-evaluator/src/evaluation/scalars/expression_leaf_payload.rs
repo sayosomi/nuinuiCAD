@@ -391,10 +391,10 @@ pub(crate) fn decode_geometry_property(
             )
         })? as usize;
     let scalar_type = decode_scalar_type(require_field(object, "type", "geometryProperty node")?)?;
-    if scalar_type != ScalarType::Number {
+    if !matches!(scalar_type, ScalarType::Number | ScalarType::Choice { .. }) {
         return Err(issue(
             Code::LiteralTypeMismatch,
-            "geometryProperty node \"type\" must be {\"kind\":\"number\"}",
+            "geometryProperty node \"type\" must be a number or choice type",
         ));
     }
     Ok(TypedScalarExpression::GeometryProperty {

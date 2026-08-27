@@ -328,7 +328,7 @@ fn intermediate_point_value(segments: &[Value], property: &str) -> Option<f64> {
     point_axis_value(segments.get(index)?.get("end"), axis_text)
 }
 
-fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
+pub(crate) fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
     if let Some((prefix, rest)) = key.split_once(':') {
         if prefix == "intermediate" {
             let (point_id, field) = rest.split_once(':')?;
@@ -348,6 +348,14 @@ fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
     }
     if key == "printAnchor" {
         return element.get("printAnchor");
+    }
+    if key == "placementMode"
+        && matches!(
+            element.get("type").and_then(Value::as_str),
+            Some("divisionPoint" | "lineDivisionPoint")
+        )
+    {
+        return element.get("placement")?.get("kind");
     }
     if (key == "distance" || key == "ratio")
         && matches!(

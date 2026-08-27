@@ -8,7 +8,7 @@
 
 use serde_json::Value;
 
-use super::numeric_expression::computed_reference_value;
+use super::scalar_expression_runtime::lookup_geometry_property;
 use super::scalars::{
     evaluate_condition_expression_with_trace, evaluate_typed_expression,
     ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationEnvironment, ScalarType,
@@ -34,28 +34,17 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
         &self,
         element_id: &str,
         property: &str,
-        _target_source_order: usize,
+        target_source_order: usize,
+        property_type: &ScalarType,
     ) -> ScalarEvaluation {
-        let Some(geometry) = self.state.computed_geometry.get(element_id) else {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        };
-        let Some(value) = computed_reference_value(geometry, property) else {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        };
-        ScalarEvaluation::Ok {
-            r#type: ScalarType::Number,
-            value: super::scalars::ScalarValue::Number(value),
-        }
+        lookup_geometry_property(
+            self.state,
+            element_id,
+            property,
+            target_source_order,
+            None,
+            property_type,
+        )
     }
 }
 

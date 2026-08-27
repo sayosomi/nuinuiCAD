@@ -123,6 +123,7 @@ export const buildEvaluationOptions = ({
 
   return {
     evaluationLimitIndex,
+    statementInfoByElementId,
     drawingModifiers: document.modifiers ?? [],
     ...(selectedDrawingProfileId ? { selectedDrawingProfileId } : {}),
     ...(scalarProgram ? { scalarProgram } : {}),

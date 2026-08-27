@@ -288,16 +288,20 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 Some(entries),
                 &loop_binding_resolver,
                 state,
+                resolver.source_order_for_element(&template_id),
             ) {
-                Ok(materialized_element) => self.evaluate_generated_element(
-                    resolver,
-                    environment,
-                    generated_id,
-                    materialized_element,
-                    template_id,
-                    local_variables,
-                    state,
-                ),
+                Ok(materialized_element) => {
+                    state.elements[generated_index] = materialized_element.clone();
+                    self.evaluate_generated_element(
+                        resolver,
+                        environment,
+                        generated_id,
+                        materialized_element,
+                        template_id,
+                        local_variables,
+                        state,
+                    )
+                }
                 Err(error) => {
                     state.errors.push(error);
                     Ok(ForGroupMutationRunOutcome::Completed)

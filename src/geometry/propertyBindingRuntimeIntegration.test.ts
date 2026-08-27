@@ -8,8 +8,12 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "../document/canonicalDocument";
 import { emptyDocument } from "../dsl/dslDocumentTestUtils";
+import type { ArcLineElement, CadElement, PathReverseElement } from "../types/geometry";
+import type { ScalarType } from "../scalars/types";
+import type { TypedScalarExpression, TypedScalarGeometryPropertyReferenceNode } from "../scalars/typedExpressionAst";
 import { evaluateElements } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
+import { resolveDocumentGeometryProperty, type DocumentGeometryRuntime } from "./scalarProgramEvaluation";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
   const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
@@ -47,6 +51,72 @@ const geometryShape = (value: unknown): unknown => {
   }
   return value;
 };
+
+const directionType = (): Extract<ScalarType, { kind: "choice" }> => ({
+  kind: "choice",
+  options: ["counterclockwise", "clockwise"]
+});
+
+const arc = (
+  id: string,
+  startAngleDeg: number,
+  endAngleDeg: number,
+  direction?: ArcLineElement["direction"]
+): ArcLineElement => ({
+  id,
+  name: id,
+  type: "arcLine",
+  activity: "visible",
+  centerPoint: { mode: "coordinate", x: 0, y: 0 },
+  radius: 10,
+  startAngleDeg,
+  endAngleDeg,
+  ...(direction ? { direction } : {})
+});
+
+const geometryProperty = (
+  elementId: string,
+  property: string,
+  targetSourceOrder: number,
+  type: ScalarType = directionType()
+): TypedScalarGeometryPropertyReferenceNode => ({
+  kind: "geometryProperty",
+  span: { start: 0, end: 1 },
+  elementNameSpan: { start: 0, end: 1 },
+  propertySpan: { start: 0, end: 1 },
+  elementName: elementId,
+  elementId,
+  property,
+  targetSourceOrder,
+  type
+});
+
+const choiceLiteral = (value: string): TypedScalarExpression => ({
+  kind: "choiceLiteral",
+  span: { start: 0, end: 1 },
+  value,
+  type: directionType()
+});
+
+const directionBinding = (
+  elementId: string,
+  expression: TypedScalarExpression
+) => ({
+  elementId,
+  parameterKey: "direction",
+  expression,
+  expectedType: directionType()
+});
+
+const evaluateDirectionRead = (
+  elements: CadElement[],
+  entries: ReturnType<typeof directionBinding>[],
+  statementIndexes: ReadonlyArray<readonly [string, number]>
+) => evaluateElements(elements, {
+  scalarProgram: { statements: [] },
+  statementInfoByElementId: new Map(statementIndexes.map(([id, statementIndex]) => [id, { statementIndex }] as const)),
+  propertyBindingEntries: entries
+});
 
 describe("Task 23 standard property runtime, end-to-end through the real compiler", () => {
   it("evaluates a resolved geometry-property expression in a common boolean property", () => {
@@ -179,5 +249,117 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     const literalGeometries = literalFalseRows.map((row) => geometryShape(literalFalseResult.computedGeometry.get(row.generatedElementId)));
     expect(boundGeometries).toEqual(boundGeometries.map(() => boundGeometries[0]));
     expect(boundGeometries[0]).not.toEqual(literalGeometries[0]);
+  });
+
+  it("resolves a choice geometry property with the exact supplied type, options, and value", () => {
+    const source = arc("source", 0, 90);
+    const evaluation = evaluateElements([source]);
+    const runtime: DocumentGeometryRuntime = {
+      computedGeometry: evaluation.computedGeometry,
+      elementsById: new Map([[source.id, source]]),
+      activities: new Map()
+    };
+    const type = directionType();
+    expect(resolveDocumentGeometryProperty(runtime, geometryProperty(source.id, "direction", 0, type), 1)).toEqual({
+      status: "ok",
+      type,
+      value: { kind: "choice", value: "counterclockwise", options: type.options }
+    });
+  });
+
+  it("preserves the concrete choice type for unavailable, invalid-member, and too-late reads", () => {
+    const source = arc("source", 0, 90);
+    const evaluation = evaluateElements([source]);
+    const type = directionType();
+    const runtime: DocumentGeometryRuntime = {
+      computedGeometry: evaluation.computedGeometry,
+      elementsById: new Map([[source.id, source]]),
+      activities: new Map()
+    };
+    expect(resolveDocumentGeometryProperty(runtime, geometryProperty("missing", "direction", 0, type), 1)).toEqual({
+      status: "error",
+      type,
+      issueCode: "evaluation-geometry-property-unavailable"
+    });
+    expect(resolveDocumentGeometryProperty(runtime, geometryProperty(source.id, "direction", 0, { kind: "choice", options: ["clockwise"] }), 1)).toEqual({
+      status: "error",
+      type: { kind: "choice", options: ["clockwise"] },
+      issueCode: "evaluation-geometry-property-unavailable"
+    });
+    expect(resolveDocumentGeometryProperty(runtime, geometryProperty(source.id, "direction", 1, type), 1)).toEqual({
+      status: "error",
+      type,
+      issueCode: "evaluation-geometry-property-unavailable"
+    });
+  });
+
+  it.each([
+    ["positive sweep", arc("source", 0, 90), 90],
+    ["negative sweep", arc("source", 0, 90, "clockwise"), -270],
+    ["zero sweep explicit clockwise", arc("source", 0, 0, "clockwise"), -270],
+    ["zero sweep omitted default", arc("source", 0, 0), 90]
+  ] as const)("uses %s arc.direction runtime semantics", (_label, source, expectedTargetSweep) => {
+    const target = arc("target", 0, 90);
+    const result = evaluateDirectionRead(
+      [source, target],
+      [directionBinding(target.id, geometryProperty(source.id, "direction", 0))],
+      [[source.id, 0], [target.id, 1]]
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(target.id)).toMatchObject({ sweepAngleDeg: expectedTargetSweep });
+    expect(result.computedGeometry.get(target.id)).toBeDefined();
+  });
+
+  it.each(["clockwise", "counterclockwise"] as const)("observes an effectively materialized zero-sweep %s direction value", (boundDirection) => {
+    const source = arc("source", 0, 0);
+    const target = arc("target", 0, 90);
+    const result = evaluateDirectionRead(
+      [source, target],
+      [
+        directionBinding(source.id, choiceLiteral(boundDirection)),
+        directionBinding(target.id, geometryProperty(source.id, "direction", 0))
+      ],
+      [[source.id, 0], [target.id, 1]]
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(target.id)).toMatchObject({
+      sweepAngleDeg: boundDirection === "clockwise" ? -270 : 90
+    });
+  });
+
+  it("lets a pathReverse before the read change arc.direction, while a later reverse is not retroactive", () => {
+    const sourceBefore = arc("source-before", 0, 90);
+    const reverseBefore: PathReverseElement = {
+      id: "reverse-before",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: sourceBefore.id
+    };
+    const targetAfter = arc("target-after", 0, 90);
+    const afterResult = evaluateDirectionRead(
+      [sourceBefore, reverseBefore, targetAfter],
+      [directionBinding(targetAfter.id, geometryProperty(sourceBefore.id, "direction", 0))],
+      [[sourceBefore.id, 0], [reverseBefore.id, 1], [targetAfter.id, 2]]
+    );
+    expect(afterResult.errors).toEqual([]);
+    expect(afterResult.computedGeometry.get(targetAfter.id)).toMatchObject({ sweepAngleDeg: -270 });
+
+    const sourceLater = arc("source-later", 0, 90);
+    const targetBefore = arc("target-before", 0, 90);
+    const reverseLater: PathReverseElement = {
+      id: "reverse-later",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: sourceLater.id
+    };
+    const laterResult = evaluateDirectionRead(
+      [sourceLater, targetBefore, reverseLater],
+      [directionBinding(targetBefore.id, geometryProperty(sourceLater.id, "direction", 0))],
+      [[sourceLater.id, 0], [targetBefore.id, 1], [reverseLater.id, 2]]
+    );
+    expect(laterResult.errors).toEqual([]);
+    expect(laterResult.computedGeometry.get(targetBefore.id)).toMatchObject({ sweepAngleDeg: 90 });
   });
 });
