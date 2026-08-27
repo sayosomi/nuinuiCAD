@@ -194,6 +194,29 @@ silently treated as a value reference. A missing, disabled, invalid, private, or
 too-late reference is a diagnostic and is not repaired by reordering the
 document.
 
+### Scalar geometry-property reads
+
+A resolved geometry property may be used as a scalar expression when its
+property is either a known numeric computed property or a public `choice`
+parameter in the target element's parameter schema. Choice reads use the exact
+`choice(...)` type supplied by that schema, including option identity and order;
+there is no choice subtyping or implicit conversion. String, boolean, and other
+schema properties are not scalar geometry-property reads.
+
+```text
+arc A = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: clockwise)
+const direction: choice(counterclockwise, clockwise) = @A.direction
+const isClockwise: boolean = @A.direction == clockwise
+arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.direction)
+```
+
+The target identity and property are resolved at the read's source position.
+The target must be earlier in document order and available to evaluation there;
+hidden elements remain readable, while disabled, invalid, failed, or not-yet-
+evaluated elements are unavailable and produce the existing dependency
+diagnostic. The read observes the target value materialized at that position;
+later mutations do not retroactively change an earlier read.
+
 ## Namespace and scope
 
 Named declarations participate in one lexical namespace within their scope.
@@ -496,6 +519,12 @@ materialize a non-zero evaluated arc exactly when the directed sweep recomputed
 from its start angle, end angle, and sign equals the evaluated signed sweep; a
 positive sweep serializes as `counterclockwise` and a negative sweep as
 `clockwise`.
+
+The public `direction` property of a concrete arc has the choice type
+`choice(counterclockwise, clockwise)`. Its effective value follows the sign of
+the evaluated sweep: positive is `counterclockwise`, negative is `clockwise`.
+For a zero sweep, the effective value falls back to the authored/materialized
+direction rather than being inferred from a zero sign.
 
 ### Tangent offsets by Bezier curvature side
 

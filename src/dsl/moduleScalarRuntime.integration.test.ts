@@ -1190,6 +1190,22 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 10 });
   });
 
+  it("carries a concrete choice geometry property through module scalar runtime lowering", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  const direction: choice(counterclockwise, clockwise) = @A.direction",
+      "  arc B = arc(center: (0, 0), radius: 20, start: 15, end: 155, direction: @direction)",
+      "}",
+      "instance X = M()"
+    ].join("\n"));
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "B").id)).toMatchObject({ sweepAngleDeg: -220 });
+  });
+
   it("lowers an ordinary document geometry property in a module argument", () => {
     const compiled = compileWithIds([
       "nui 4",

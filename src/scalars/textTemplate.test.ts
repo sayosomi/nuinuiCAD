@@ -214,6 +214,30 @@ describe("compileTextTemplates: typed holes", () => {
     expect(holeAt(template, 0).holeKind).toBe("boolean");
   });
 
+  it("resolves a choice geometry property in a typed equality hole", () => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      'text T = label(text: "clockwise ${@A.direction == clockwise}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const template = compiled.templatesByOccurrenceKey.get(propertyBindingOccurrenceKey(2, "text"))!;
+    expect(holeAt(template, 0).holeKind).toBe("boolean");
+  });
+
+  it("does not route a direct choice geometry property through the raw numeric hole path", () => {
+    const compiled = compileTemplatesFor([
+      "const _unused: number = 0",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      'text T = label(text: "direction ${@A.direction}", anchor: none, size: 3)'
+    ].join("\n"));
+    expect(compiled.templatesByOccurrenceKey.size).toBe(0);
+    expect(compiled.diagnostics).toMatchObject([{
+      code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
+      message: expect.stringContaining("choice")
+    }]);
+  });
+
   it("choice-typed hole is interpolation-type-mismatch", () => {
     const compiled = compileTemplatesFor([
       "const 方向: choice(right, left) = right",
@@ -333,6 +357,26 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     expect(template.segments[0]).toMatchObject({ kind: "literal", cooked: "length {AB.length} = " });
     expect(holeAt(template, 0)).toMatchObject({ holeKind: "numeric", raw: "@AB.length" });
     expect(template.dependencies).toEqual([]);
+  });
+
+  it("rejects a direct choice geometry property even without typed declarations", () => {
+    const source = [
+      "arc A = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: clockwise)",
+      'text T = label(text: "direction ${@A.direction}", anchor: none, size: 3)'
+    ].join("\n");
+    const parsed = parseDsl(source);
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const result = compileTextTemplates({
+      statements: parsed.statements,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+      elements: compiled.elements,
+      bindingAnalysis: undefined,
+      spans: { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom }
+    });
+    expect(result.diagnostics).toMatchObject([{
+      code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
+      message: expect.stringContaining("choice")
+    }]);
   });
 
   it("typed-only syntax (no bindingAnalysis) still fails closed on any reference as unresolved", () => {

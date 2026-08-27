@@ -682,6 +682,39 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("carries the concrete source geometry choice type through module scalar semantics", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M() {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  const direction: choice(counterclockwise, clockwise) = @A.direction",
+      "}"
+    ].join("\n"));
+    const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
+    expect(expression.type).toEqual({ kind: "choice", options: ["counterclockwise", "clockwise"] });
+    expect(expression.geometryProperties[0]).toMatchObject({
+      property: "direction",
+      type: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+      target: { kind: "sourceGeometryProperty", category: "arc" },
+      resolution: "resolved"
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("does not infer a concrete choice subtype for a generic module geometry parameter", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(base: line) {",
+      "  const side: choice(right, left) = @base.side",
+      "}"
+    ].join("\n"));
+    const expression = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!;
+    expect(expression.geometryProperties[0]).toMatchObject({ property: "side", type: null, resolution: "invalid" });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-unknown-geometry-property" })
+    ]));
+  });
+
   it("uses the nearest group-local scalar for a nested module default", () => {
     const compiled = compileWithIds([
       "nui 4",
@@ -1017,6 +1050,29 @@ describe("module semantic analysis", () => {
         exportName: "Output",
         property: "length"
       }
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("carries a choice type through a qualified exported concrete geometry", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module Child() {",
+      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "}",
+      "module M() {",
+      "  instance SomeInstance = Child()",
+      "  const direction: choice(counterclockwise, clockwise) = @SomeInstance::Output.direction",
+      "}"
+    ].join("\n"));
+    const module = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!;
+    const expression = module.localScalars[0].initializer!;
+    expect(expression.type).toEqual({ kind: "choice", options: ["counterclockwise", "clockwise"] });
+    expect(expression.geometryProperties[0]).toMatchObject({
+      property: "direction",
+      type: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+      resolution: "deferred",
+      target: { kind: "deferredModuleExportProperty", exportName: "Output" }
     });
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });

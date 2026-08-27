@@ -9,9 +9,9 @@
 // depend on `bindingAnalysis` being present. Only a hole that actually
 // contains a `@name` reference needing resolution touches the binding
 // catalog, && only when one is available; a document with zero typed
-// declarations classifies every reference-bearing, syntactically-plain hole
-// as numeric local expressions when syntactically valid; references still
-// require a typed binding && otherwise produce a diagnostic.
+// declarations keeps syntactically-plain numeric holes on the numeric path;
+// geometry-property holes are classified from the same typed geometry metadata
+// used by the other scalar frontends.
 
 import type { CadElement, ElementId } from "../types/geometry";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
@@ -35,6 +35,7 @@ import type { ScalarSpan } from "./literalScanner";
 import { scanTextTemplateLiteral, type TextTemplateRawHoleSegment, type TextTemplateRawLiteralSegment } from "./textTemplateScan";
 import { barePropertyReferenceIssues } from "../dsl/expressionReferenceToken";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 
 export type TextTemplateLiteralSegment = TextTemplateRawLiteralSegment;
 
@@ -105,21 +106,22 @@ type ParsedHole = {
   readonly references: ReturnType<typeof collectReferences>;
 };
 
-const hasRecordScalarProperty = (
+const recordScalarPropertySpanStarts = (
   ast: ScalarExpressionAst,
   bindingAnalysis: BindingAnalysis | undefined,
   statementIndex: number
-): boolean => {
-  if (!bindingAnalysis?.catalog.sourceNamespaceBindingResolver) return false;
+): ReadonlySet<number> => {
+  if (!bindingAnalysis?.catalog.sourceNamespaceBindingResolver) return new Set();
   const catalog = bindingAnalysis.catalog;
   const scopeId = catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? catalog.scopeIndex.rootScopeId;
-  let found = false;
+  const found = new Set<number>();
   const visit = (node: ScalarExpressionAst): void => {
-    if (found) return;
     switch (node.kind) {
       case "geometryProperty": {
         const lookup = catalog.sourceNamespaceBindingResolver?.(`${node.elementName}.${node.property}`, statementIndex, scopeId);
-        found = lookup?.kind === "resolved" || (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue");
+        if (lookup?.kind === "resolved" || (lookup?.kind === "blocked" && lookup.declarationKind === "recordValue")) {
+          found.add(node.span.start);
+        }
         return;
       }
       case "unary": visit(node.operand); return;
@@ -139,9 +141,9 @@ const hasRecordScalarProperty = (
  * directory builds (`" ".repeat(valueStart) + value`), since none of these
  * compilers see the full document source - only a `DslAttribute.value`.
  * `bindingAnalysis` is optional: absent whenever the document has no typed
- * declarations at all. Numeric-expression holes contain no `@` binding
- * reference; any `@name` reference is resolved through the typed catalog &&
- * otherwise fails closed.
+ * declarations at all. Numeric-expression holes contain no typed `@name`
+ * binding reference; geometry-property metadata is resolved from the document
+ * element list and source order before deciding whether a hole is numeric.
  */
 export const analyzeTextTemplate = (
   source: string,
@@ -149,7 +151,9 @@ export const analyzeTextTemplate = (
   bindingAnalysis: BindingAnalysis | undefined,
   scopeId: string | undefined,
   statementIndex: number,
-  elementId: ElementId | undefined
+  elementId: ElementId | undefined,
+  elements: readonly CadElement[] = [],
+  sourceOrderByElementId: ReadonlyMap<ElementId, number> = new Map()
 ): { template: TextTemplateAst | null; diagnostics: readonly OccurrenceDiagnostic[] } => {
   const scanned = scanTextTemplateLiteral(source, valueSpan);
   if (scanned.kind === "error") {
@@ -184,6 +188,7 @@ export const analyzeTextTemplate = (
     ? resolveReferencesAtSites(bindingAnalysis!.catalog, requests)
     : new Map<string, BindingResolution>();
   const resolutionAt = (holeIndex: number, referenceIndex: number) => resolutions.get(requestKey(holeIndex, referenceIndex));
+  const currentElement = elementId === undefined ? undefined : elements.find((element) => element.id === elementId);
 
   const diagnostics: OccurrenceDiagnostic[] = [];
   const dependencies: TextTemplateDependency[] = [];
@@ -228,7 +233,23 @@ export const analyzeTextTemplate = (
       continue;
     }
     const ast = hole.ast;
-    const ownsRecordProperty = hasRecordScalarProperty(ast, bindingAnalysis, statementIndex);
+    const recordPropertySpanStarts = recordScalarPropertySpanStarts(ast, bindingAnalysis, statementIndex);
+    const geometryResolution = resolveGeometryPropertyMetadata(ast, elements, sourceOrderByElementId, {
+      currentElement,
+      currentSourceOrder: statementIndex,
+      skipPropertySpanStarts: recordPropertySpanStarts
+    });
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) => ({
+        span: issue.span,
+        code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
+        message: issue.message
+      })));
+      continue;
+    }
+    const hasChoiceGeometryProperty = [...geometryResolution.geometryPropertyReferences.values()]
+      .some((reference) => reference?.type.kind === "choice");
+    const ownsRecordProperty = recordPropertySpanStarts.size > 0;
 
     // A syntactically numeric hole with no references, whose every reference
     // resolves to a non-typed catalog kind (iteration), or whose references
@@ -240,6 +261,7 @@ export const analyzeTextTemplate = (
     // `reference` AST node before compile-time lowering.
     const isNumericEligible =
       !ownsRecordProperty &&
+      !hasChoiceGeometryProperty &&
       !containsNonNumericScalarSyntax(ast) &&
       (hole.references.length === 0 ||
         !canResolve ||
@@ -331,7 +353,8 @@ export const analyzeTextTemplate = (
 
     const checked = typecheckScalarExpression(prepared?.ast ?? ast, {
       expectedType: null,
-      references: prepared?.references ?? referenceResolutions
+      references: prepared?.references ?? referenceResolutions,
+      geometryPropertyReferences: geometryResolution.geometryPropertyReferences
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) => ({ span: diagnostic.span, code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE, message: diagnostic.message })));
@@ -410,6 +433,9 @@ export const compileTextTemplates = ({
   includeStatement
 }: CompileTextTemplatesInput): TextTemplateCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const sourceOrderByElementId = new Map<ElementId, number>(
+    [...elementIdByStatementIndex].map(([statementIndex, elementId]) => [elementId, statementIndex])
+  );
   const diagnostics: DslDiagnostic[] = [];
   const templatesByOccurrenceKey = new Map<string, TextTemplateAst>();
 
@@ -428,7 +454,16 @@ export const compileTextTemplates = ({
       ? bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId
       : undefined;
 
-    const { template, diagnostics: occurrenceDiagnostics } = analyzeTextTemplate(paddedSource, span, bindingAnalysis, scopeId, statementIndex, elementId);
+    const { template, diagnostics: occurrenceDiagnostics } = analyzeTextTemplate(
+      paddedSource,
+      span,
+      bindingAnalysis,
+      scopeId,
+      statementIndex,
+      elementId,
+      elements,
+      sourceOrderByElementId
+    );
     if (occurrenceDiagnostics.length > 0) {
       diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message)));
       return;
