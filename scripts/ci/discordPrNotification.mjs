@@ -114,13 +114,22 @@ const artifactNameForJob = (jobName, runAttempt) => {
 
 export const fetchFailureDetails = async ({ repository, runId, runAttempt, prNumber, token, fetchImpl = fetch }) => {
   const fallback = { title: UNAVAILABLE, job: UNAVAILABLE, step: UNAVAILABLE, testName: null };
-  if (!token || !repository || !Number.isSafeInteger(runId) || runId <= 0 || !Number.isSafeInteger(prNumber) || prNumber <= 0) {
+  if (
+    !token ||
+    !repository ||
+    !Number.isSafeInteger(runId) ||
+    runId <= 0 ||
+    !Number.isSafeInteger(runAttempt) ||
+    runAttempt <= 0 ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber <= 0
+  ) {
     return fallback;
   }
 
   const [pr, jobsPayload] = await Promise.all([
     bestEffort(async () => (await request(apiUrl(repository, `/pulls/${prNumber}`), token, fetchImpl)).json()),
-    bestEffort(async () => (await request(apiUrl(repository, `/actions/runs/${runId}/jobs?per_page=100`), token, fetchImpl)).json())
+    bestEffort(async () => (await request(apiUrl(repository, `/actions/runs/${runId}/attempts/${runAttempt}/jobs?per_page=100`), token, fetchImpl)).json())
   ]);
   const job = selectFailedJob(Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : []);
   const step = selectFailedStep(job);

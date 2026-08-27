@@ -31,16 +31,34 @@ const zip = (entries) => {
     const flags = entry.flags ?? 0;
     const compressedSize = entry.compressedSize ?? compressed.length;
     const uncompressedSize = entry.uncompressedSize ?? body.length;
+    const hasDataDescriptor = (flags & 0x0008) !== 0;
+    const descriptorSignature = entry.descriptorSignature ?? true;
+    const descriptorCompressedSize = entry.descriptorCompressedSize ?? compressedSize;
+    const descriptorUncompressedSize = entry.descriptorUncompressedSize ?? uncompressedSize;
 
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
     local.writeUInt16LE(flags, 6);
     local.writeUInt16LE(compression, 8);
-    local.writeUInt32LE(compressedSize, 18);
-    local.writeUInt32LE(entry.localUncompressedSize ?? uncompressedSize, 22);
+    local.writeUInt32LE(entry.localCompressedSize ?? (hasDataDescriptor ? 0 : compressedSize), 18);
+    local.writeUInt32LE(entry.localUncompressedSize ?? (hasDataDescriptor ? 0 : uncompressedSize), 22);
     local.writeUInt16LE(name.length, 26);
-    localRecords.push(Buffer.concat([local, name, compressed]));
+    const descriptor = hasDataDescriptor
+      ? (() => {
+          const body = Buffer.alloc(descriptorSignature ? 16 : 12);
+          let offset = 0;
+          if (descriptorSignature) {
+            body.writeUInt32LE(entry.descriptorSignatureValue ?? 0x08074b50, offset);
+            offset += 4;
+          }
+          body.writeUInt32LE(0, offset);
+          body.writeUInt32LE(descriptorCompressedSize, offset + 4);
+          body.writeUInt32LE(descriptorUncompressedSize, offset + 8);
+          return body;
+        })()
+      : Buffer.alloc(0);
+    localRecords.push(Buffer.concat([local, name, compressed, descriptor]));
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
@@ -85,7 +103,7 @@ const fetchForNodeChanged = ({ archive = junit('<testsuites><testcase name="fail
   const fetchImpl = async (url) => {
     requests.push(url);
     if (url.includes("/pulls/99")) return response(JSON.stringify({ title: "Focused notification test" }));
-    if (url.includes("/runs/123/jobs")) return response(JSON.stringify({ jobs: [
+    if (url.includes("/runs/123/attempts/2/jobs")) return response(JSON.stringify({ jobs: [
       { id: 7, name: "Node", conclusion: "failure", steps: [
         { name: "Install optional dependency", conclusion: "skipped" },
         { name: "Changed Node tests", conclusion: "failure" }
@@ -191,8 +209,62 @@ test("selects only the current run-attempt artifact and never requests job logs"
     testName: "current attempt failure"
   });
   assert.ok(requests.some((url) => url.endsWith("/actions/runs/123/artifacts?per_page=100")));
+  assert.ok(requests.some((url) => url.endsWith("/actions/runs/123/attempts/2/jobs?per_page=100")));
+  assert.ok(!requests.some((url) => url.endsWith("/actions/runs/123/jobs?per_page=100")));
   assert.ok(requests.some((url) => url.endsWith("/actions/artifacts/456/zip")));
   assert.ok(!requests.some((url) => url.includes("/actions/jobs/") && url.endsWith("/logs")));
+});
+
+test("reads a mapped report from a multi-entry descriptor-bearing ZIP", () => {
+  const archive = zip([
+    {
+      name: "unrelated-first.txt",
+      text: "preceding entry",
+      flags: 0x0008
+    },
+    {
+      name: "node-changed.xml",
+      text: '<testsuites><testcase name="descriptor failure"><failure /></testcase></testsuites>',
+      flags: 0x0008
+    },
+    {
+      name: "unrelated-last.txt",
+      text: "following entry",
+      flags: 0x0008
+    }
+  ]);
+  assert.equal(
+    extractStructuredFailureFromArchive(archive, reportMappingForFailure("Node", "Changed Node tests")),
+    "descriptor failure"
+  );
+});
+
+test("rejects inconsistent data descriptors", () => {
+  const mapping = reportMappingForFailure("Node", "Changed Node tests");
+  assert.equal(
+    extractStructuredFailureFromArchive(
+      zip([{
+        name: "node-changed.xml",
+        text: '<testsuites><testcase name="bad size"><failure /></testcase></testsuites>',
+        flags: 0x0008,
+        descriptorCompressedSize: 1
+      }]),
+      mapping
+    ),
+    null
+  );
+  assert.equal(
+    extractStructuredFailureFromArchive(
+      zip([{
+        name: "node-changed.xml",
+        text: '<testsuites><testcase name="bad signature"><failure /></testcase></testsuites>',
+        flags: 0x0008,
+        descriptorSignatureValue: 0x12345678
+      }]),
+      mapping
+    ),
+    null
+  );
 });
 
 test("stale-attempt and missing artifacts fall back without downloading", async () => {

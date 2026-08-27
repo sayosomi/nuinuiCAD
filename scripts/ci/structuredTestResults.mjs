@@ -102,7 +102,7 @@ const parseZipEntries = (archive) => {
     centralDirectoryOffset + centralDirectorySize !== endOffset
   ) return null;
 
-  const entries = [];
+  const centralEntries = [];
   let offset = centralDirectoryOffset;
   for (let index = 0; index < entryCount; index += 1) {
     if (offset > endOffset - 46 || archive.readUInt32LE(offset) !== ZIP_CENTRAL_DIRECTORY) return null;
@@ -121,7 +121,44 @@ const parseZipEntries = (archive) => {
 
     const nameBytes = archive.subarray(offset + 46, offset + 46 + nameLength);
     const name = nameLength <= MAX_ZIP_ENTRY_NAME_BYTES ? strictUtf8(nameBytes) : null;
-    if (localOffset > archive.length - 30 || archive.readUInt32LE(localOffset) !== ZIP_LOCAL_FILE) return null;
+    centralEntries.push({
+      flags,
+      compression,
+      compressedSize,
+      uncompressedSize,
+      nameLength,
+      nameBytes,
+      name,
+      localOffset
+    });
+    offset = centralEntryEnd;
+  }
+
+  if (offset !== endOffset) return null;
+
+  const sortedLocalOffsets = [...new Set(centralEntries.map((entry) => entry.localOffset))].sort((left, right) => left - right);
+  if (sortedLocalOffsets.length !== centralEntries.length) return null;
+
+  const entries = [];
+  for (const centralEntry of centralEntries) {
+    const {
+      flags,
+      compression,
+      compressedSize,
+      uncompressedSize,
+      nameLength,
+      nameBytes,
+      name,
+      localOffset
+    } = centralEntry;
+    const localIndex = sortedLocalOffsets.indexOf(localOffset);
+    const nextLocalOffset = sortedLocalOffsets[localIndex + 1] ?? centralDirectoryOffset;
+    if (
+      localOffset >= centralDirectoryOffset ||
+      nextLocalOffset > centralDirectoryOffset ||
+      localOffset > archive.length - 30 ||
+      archive.readUInt32LE(localOffset) !== ZIP_LOCAL_FILE
+    ) return null;
 
     const localFlags = archive.readUInt16LE(localOffset + 6);
     const localCompression = archive.readUInt16LE(localOffset + 8);
@@ -139,7 +176,7 @@ const parseZipEntries = (archive) => {
       !archive.subarray(localOffset + 30, dataStart).equals(nameBytes) ||
       dataStart > archive.length ||
       dataEnd > archive.length ||
-      dataEnd > centralDirectoryOffset
+      dataEnd > nextLocalOffset
     ) return null;
 
     const hasDataDescriptor = (flags & 0x0008) !== 0;
@@ -154,11 +191,11 @@ const parseZipEntries = (archive) => {
     ) return null;
 
     if (hasDataDescriptor) {
-      const descriptorLength = centralDirectoryOffset - dataEnd;
+      const descriptorLength = nextLocalOffset - dataEnd;
       if (descriptorLength !== 12 && descriptorLength !== 16) return null;
       const descriptorOffset = dataEnd;
-      const hasSignature = descriptorLength === 16;
-      if (hasSignature && archive.readUInt32LE(descriptorOffset) !== ZIP_DATA_DESCRIPTOR) return null;
+      const hasSignature = archive.readUInt32LE(descriptorOffset) === ZIP_DATA_DESCRIPTOR;
+      if (hasSignature !== (descriptorLength === 16)) return null;
       const descriptorValueOffset = descriptorOffset + (hasSignature ? 4 : 0);
       const descriptorCompressedSize = archive.readUInt32LE(descriptorValueOffset + 4);
       const descriptorUncompressedSize = archive.readUInt32LE(descriptorValueOffset + 8);
@@ -172,7 +209,6 @@ const parseZipEntries = (archive) => {
       uncompressedSize,
       compressed: archive.subarray(dataStart, dataEnd)
     });
-    offset = centralEntryEnd;
   }
 
   return offset === endOffset ? entries : null;

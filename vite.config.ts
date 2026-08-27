@@ -1,11 +1,20 @@
 import { configDefaults, defineConfig } from "vitest/config";
+import type { VitestPluginContext } from "vitest/node";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
 const junitOutputFile = process.env.VITEST_JUNIT_OUTPUT_FILE?.trim();
+const junitReporterPlugin = junitOutputFile
+  ? {
+      name: "nuinuicad-junit-reporter",
+      configureVitest: ({ project }: VitestPluginContext) => {
+        project.config.reporters.push(["junit", {}]);
+      }
+    }
+  : null;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ...(junitReporterPlugin ? [junitReporterPlugin] : [])],
   clearScreen: false,
   resolve: {
     alias: {
@@ -39,7 +48,6 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, "automation/linear-github-mirror/test/**/*.test.js"],
     ...(junitOutputFile
       ? {
-          reporters: ["default", "junit"],
           outputFile: { junit: junitOutputFile }
         }
       : {})
