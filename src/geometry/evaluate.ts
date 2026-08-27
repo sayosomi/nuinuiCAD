@@ -282,7 +282,16 @@ export const evaluateElements = (
   const resolveScalarGeometryProperty = (
     reference: Extract<TypedScalarExpression, { kind: "geometryProperty" }>
   ): ScalarEvaluation => {
-    const value = computedReferencePathValue(computedGeometry.get(reference.elementId!), reference.property);
+    if (reference.type === null) {
+      return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
+    }
+    if (reference.type.kind !== "number") {
+      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    if (!reference.elementId || reference.targetSourceOrder === null) {
+      return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
+    const value = computedReferencePathValue(computedGeometry.get(reference.elementId), reference.property);
     return typeof value === "number" && Number.isFinite(value)
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };

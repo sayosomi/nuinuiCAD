@@ -10,7 +10,11 @@ import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
-import type { ScalarExpressionResolvedReference, ScalarExpressionTypecheckResult } from "./typedExpressionAst";
+import type {
+  ScalarExpressionResolvedGeometryProperty,
+  ScalarExpressionResolvedReference,
+  ScalarExpressionTypecheckResult
+} from "./typedExpressionAst";
 import type { ScalarType } from "./types";
 import * as builtinFunctions from "./builtinFunctions";
 import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
@@ -391,6 +395,64 @@ describe("typecheckScalarExpression / builtin calls", () => {
     expect(withSidecar.type).toEqual({ kind: "number" });
     if (withSidecar.typed.kind !== "call") throw new Error("expected call");
     expect(withSidecar.typed.args[0]).toMatchObject({ kind: "geometryReference", expectedGeometryType: "point", target });
+  });
+
+  it("uses compiler-supplied geometry-property metadata for a concrete scalar type and identity", () => {
+    const source = "@AB.length";
+    const metadata: ScalarExpressionResolvedGeometryProperty = {
+      elementId: "line-ab",
+      property: "length",
+      targetSourceOrder: 2,
+      type: { kind: "number" }
+    };
+    const result = typecheckScalarExpression(astFor(source), {
+      expectedType: { kind: "number" },
+      references: [],
+      geometryPropertyReferences: new Map([[0, metadata]])
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toEqual({ kind: "number" });
+    expect(result.typed).toMatchObject({
+      kind: "geometryProperty",
+      elementId: "line-ab",
+      property: "length",
+      targetSourceOrder: 2,
+      type: { kind: "number" }
+    });
+  });
+
+  it("accepts a supplied non-number geometry-property type without manufacturing number", () => {
+    const metadata: ScalarExpressionResolvedGeometryProperty = {
+      elementId: "line-ab",
+      property: "side",
+      targetSourceOrder: 2,
+      type: { kind: "choice", options: ["left", "right"] }
+    };
+    const result = typecheckScalarExpression(astFor("@AB.side"), {
+      expectedType: metadata.type,
+      references: [],
+      geometryPropertyReferences: new Map([[0, metadata]])
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.type).toEqual(metadata.type);
+    expect(result.typed).toMatchObject({ kind: "geometryProperty", type: metadata.type });
+  });
+
+  it("fails closed for an absent or failed geometry-property resolution", () => {
+    const absent = check("@AB.length", { kind: "number" });
+    const failed = typecheckScalarExpression(astFor("@AB.length"), {
+      expectedType: { kind: "number" },
+      references: [],
+      geometryPropertyReferences: new Map([[0, null]])
+    });
+
+    for (const result of [absent, failed]) {
+      expect(result.diagnostics).toEqual([]);
+      expect(result.type).toBeNull();
+      expect(result.typed).toMatchObject({ kind: "geometryProperty", elementId: null, targetSourceOrder: null, type: null });
+    }
   });
 
   it.each([
