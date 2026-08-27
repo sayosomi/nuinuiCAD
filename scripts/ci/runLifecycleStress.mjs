@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 
 const DEFAULT_ITERATIONS = 20;
 const TEST_FILE = "src/node/vscodeObservationBridge.test.ts";
@@ -21,9 +22,15 @@ const iterations = parseIterations();
 
 for (let iteration = 1; iteration <= iterations; iteration += 1) {
   console.log(`[lifecycle-stress] iteration ${iteration}/${iterations}`);
+  const testEnvironment = process.env.RUNNER_TEMP
+    ? {
+        ...process.env,
+        VITEST_JUNIT_OUTPUT_FILE: join(process.env.RUNNER_TEMP, `lifecycle-stress-${iteration}.xml`)
+      }
+    : process.env;
   const result = spawnSync(npmCommand, ["test", "--", TEST_FILE], {
     stdio: "inherit",
-    env: process.env
+    env: testEnvironment
   });
 
   if (result.error) throw result.error;
