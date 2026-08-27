@@ -13,6 +13,7 @@ import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type {
   ModuleDefinitionSemantic,
   ModuleGeometryReferenceSemantic,
+  ModuleRecordReferenceSemantic,
   ModuleScalarExpressionSemantic,
   ModuleSemanticAnalysis,
   ResolvedModuleParameterBinding
@@ -206,6 +207,9 @@ const expressionIsResolved = (expression: ModuleScalarExpressionSemantic): boole
   ) &&
   expression.geometryBuiltinArguments.every((argument) => referenceIsResolved(argument.reference));
 
+const recordReferenceIsResolved = (reference: ModuleRecordReferenceSemantic): boolean =>
+  reference.resolution === "resolved" && (reference.target !== null || reference.constructor !== null);
+
 const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => {
   if (binding.state === "requiredOmitted") return false;
   if (binding.state === "optionalOmitted") return true;
@@ -213,7 +217,9 @@ const bindingIsResolved = (binding: ResolvedModuleParameterBinding): boolean => 
   if (!binding.value) return false;
   return binding.value.kind === "scalar"
     ? expressionIsResolved(binding.value.expression)
-    : referenceIsResolved(binding.value.reference);
+    : binding.value.kind === "geometry"
+      ? referenceIsResolved(binding.value.reference)
+      : recordReferenceIsResolved(binding.value.reference);
 };
 
 const callerSourceStatementIsSafe = (
@@ -341,13 +347,15 @@ const parameterBindingIsSafe = (
         callerModuleStatementIndexes,
         statements
       )
-    : callerGeometryReferenceIsSafe(
+    : binding.value.kind === "geometry"
+      ? callerGeometryReferenceIsSafe(
         binding.value.reference,
         cutoffStatementIndex,
         allowedParameterDefinitionIds,
         callerModuleStatementIndexes,
         statements
-      );
+      )
+      : recordReferenceIsResolved(binding.value.reference);
 };
 
 const reachableDefinitionIdsFrom = (

@@ -88,6 +88,15 @@ export type PreparedRecordScalarExpression = RecordScalarPropertyResolution & {
   references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
 };
 
+export type AdditionalRecordScalarPropertyResolution = {
+  resolution: ScalarExpressionResolvedReference;
+  dependency?: {
+    bindingId: BindingId;
+    name: string;
+    span: DslSpan;
+  };
+};
+
 const fieldIdentityTuple = (field: RecordFieldIdentity) => [
   field.recordStatementId,
   String(field.fieldIndex)
@@ -602,7 +611,8 @@ export const prepareRecordScalarExpression = ({
   sourceNamespace,
   plan,
   referenceResolutions,
-  skipPropertySpanStarts
+  skipPropertySpanStarts,
+  additionalPropertyResolver
 }: {
   ast: ScalarExpressionAst;
   statementIndex: number;
@@ -611,6 +621,7 @@ export const prepareRecordScalarExpression = ({
   plan: RecordScalarLoweringPlan;
   referenceResolutions: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   skipPropertySpanStarts?: ReadonlySet<number>;
+  additionalPropertyResolver?: (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => AdditionalRecordScalarPropertyResolution | null;
 }): PreparedRecordScalarExpression => {
   const propertyResolution = resolveRecordScalarProperties({
     ast,
@@ -620,6 +631,14 @@ export const prepareRecordScalarExpression = ({
     plan,
     ...(skipPropertySpanStarts ? { skipPropertySpanStarts } : {})
   });
+  const additionalPropertiesBySpanStart = new Map<number, AdditionalRecordScalarPropertyResolution>();
+  const resolveAdditionalProperty = (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => {
+    const existing = additionalPropertiesBySpanStart.get(node.span.start);
+    if (existing) return existing;
+    const resolved = additionalPropertyResolver?.(node) ?? null;
+    if (resolved) additionalPropertiesBySpanStart.set(node.span.start, resolved);
+    return resolved;
+  };
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let referenceCursor = 0;
 
@@ -635,7 +654,8 @@ export const prepareRecordScalarExpression = ({
         return node;
       }
       case "geometryProperty": {
-        const resolution = propertyResolution.referencesBySpanStart.get(node.span.start);
+        const additional = propertyResolution.referencesBySpanStart.has(node.span.start) ? null : resolveAdditionalProperty(node);
+        const resolution = propertyResolution.referencesBySpanStart.get(node.span.start) ?? additional?.resolution;
         if (!resolution || resolution.kind !== "resolvedType") return node;
         references.push(resolution);
         return {
@@ -667,5 +687,13 @@ export const prepareRecordScalarExpression = ({
       `recordScalarLowering: ${referenceResolutions.length - referenceCursor} unconsumed scalar reference resolution(s)`
     );
   }
-  return { ...propertyResolution, ast: rewritten, references };
+  return {
+    ...propertyResolution,
+    ast: rewritten,
+    references,
+    dependencies: [
+      ...propertyResolution.dependencies,
+      ...[...additionalPropertiesBySpanStart.values()].flatMap((property) => property.dependency ? [property.dependency] : [])
+    ]
+  };
 };

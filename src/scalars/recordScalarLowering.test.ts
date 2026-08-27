@@ -201,7 +201,7 @@ describe("record scalar lowering planner", () => {
     expect(prepared.references).toEqual([{ kind: "resolvedType", bindingId: null, type: null }]);
   });
 
-  it("fails closed for Module-parameter aliases because Module record integration is outside SAY-128", () => {
+  it("leaves Module-parameter alias storage to the Module runtime owner", () => {
     const { sourceNamespace, records } = analyze([
       "nui 4",
       "record Pair(x: number)",

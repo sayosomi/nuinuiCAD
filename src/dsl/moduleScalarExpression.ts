@@ -15,6 +15,7 @@ import type {
   ModuleGeometryPropertyReference,
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
+  ModuleRecordFieldSourceTarget,
   ModuleScalarExpressionSemantic,
   ModuleScalarReference,
   ModuleSourceTarget
@@ -116,7 +117,7 @@ export type ModuleScalarReferenceResolution = {
 };
 
 export type ModuleGeometryPropertyReferenceResolution = {
-  target: ModuleGeometryPropertySourceTarget | null;
+  target: ModuleGeometryPropertySourceTarget | ModuleRecordFieldSourceTarget | null;
   type: ScalarType | null;
   resolution: ModuleGeometryPropertyReference["resolution"];
   diagnostic?: ModuleScalarLocalDiagnostic;
@@ -156,6 +157,9 @@ const geometryPropertyMetadataFor = (
   }
   if (target.kind === "deferredModuleExportProperty") {
     return { elementId: target.instanceStatementId, property: target.property, targetSourceOrder: target.instanceStatementIndex, type };
+  }
+  if (target.kind === "recordField") {
+    throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
   return { elementId: target.definitionStatementId, property: target.property, targetSourceOrder: -1, type };
 };
@@ -325,6 +329,24 @@ const resolveAndTypecheck = ({
             type: resolution.type,
             resolution: resolution.resolution
           });
+          if (resolution.target?.kind === "recordField") {
+            const recordReference = {
+              name: `${node.elementName}.${node.property}`,
+              nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
+              span: node.span,
+              target: resolution.target,
+              resolution: resolution.resolution === "resolved" ? "resolved" as const : "invalid" as const
+            };
+            resolvedReferences.push(recordReference);
+            resolvedTypes.push({ kind: "resolvedType", bindingId: null, type: resolution.type });
+            if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
+            return {
+              kind: "reference",
+              span: node.span,
+              nameSpan: recordReference.nameSpan,
+              name: recordReference.name
+            };
+          }
           geometryPropertyReferences.set(
             node.span.start,
             resolution.target && resolution.type

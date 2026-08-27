@@ -194,7 +194,7 @@ const semanticCandidates = (
     for (const binding of instance.parameterBindings) {
       if (!binding.value) continue;
       if (binding.value.kind === "geometry") addReference(instance.statementIndex, binding.value.reference);
-      else addExpression(instance.statementIndex, binding.value.expression);
+      else if (binding.value.kind === "scalar") addExpression(instance.statementIndex, binding.value.expression);
     }
   }
 

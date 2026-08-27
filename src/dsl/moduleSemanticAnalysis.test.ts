@@ -234,6 +234,115 @@ describe("module semantic analysis", () => {
     ]);
   });
 
+  it("resolves exact nominal record arguments, shorthand, inline constructors, and nested exports", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      "record Other(x: number, label: string)",
+      "const settings: Pair = Pair(x: 3, label: \"root\")",
+      "const wrong: Other = Other(x: 8, label: \"wrong\")",
+      "module Inner(settings: Pair) {",
+      "  const copy: Pair = @settings",
+      "  const x: number = @settings.x",
+      "  export const output: Pair = @copy",
+      "}",
+      "module Outer(settings: Pair) {",
+      "  const local: Pair = Pair(x: 4, label: \"local\")",
+      "  instance child = Inner(settings: @local)",
+      "  export const output: Pair = @child::output",
+      "}",
+      "module WrongOuter(settings: Other) {",
+      "  instance bad = Inner(@settings)",
+      "}",
+      "instance Root = Inner(@settings)",
+      "instance Inline = Inner(settings: Pair(x: 5, label: \"inline\"))",
+      "instance Parent = Outer(settings: @settings)",
+      "instance Wrong = WrongOuter(@wrong)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-record-reference-invalid" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "scalar-type-mismatch" }),
+      expect.objectContaining({ code: "module-record-value-in-scalar" })
+    ]));
+
+    const recordType = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.moduleParameters.find((parameter) =>
+      parameter.name === "settings"
+    );
+    expect(recordType?.typeIdentity).toBe("statement:test:1");
+
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const instanceByName = new Map(analysis.instances.map((instance) => [instance.name, instance]));
+    expect(analysis.definitions.find((definition) => definition.name === "Inner")?.parameters[0]?.recordTypeIdentity).toBe("statement:test:1");
+    expect(analysis.definitions.find((definition) => definition.name === "WrongOuter")?.parameters[0]?.recordTypeIdentity).toBe("statement:test:2");
+    expect(analysis.definitions.find((definition) => definition.name === "Inner")?.parameters[0]?.recordTypeIdentity).not.toBe(
+      analysis.definitions.find((definition) => definition.name === "WrongOuter")?.parameters[0]?.recordTypeIdentity
+    );
+    for (const name of ["Root", "Inline", "Parent"]) {
+      expect(instanceByName.get(name)?.parameterBindings[0]?.state).toBe("requiredSupplied");
+    }
+    expect(instanceByName.get("Wrong")?.parameterBindings[0]?.state).toBe("requiredOmitted");
+    expect(instanceByName.get("bad")?.parameterBindings[0]?.value).toMatchObject({
+      kind: "record",
+      reference: { resolution: "invalid", typeIdentity: null }
+    });
+    expect(instanceByName.get("Root")?.parameterBindings[0]?.value).toMatchObject({
+      kind: "record",
+      reference: { resolution: "resolved", typeIdentity: "statement:test:1", target: { kind: "recordValue" } }
+    });
+    expect(instanceByName.get("Inline")?.parameterBindings[0]?.value).toMatchObject({
+      kind: "record",
+      reference: { resolution: "resolved", typeIdentity: "statement:test:1", constructor: { targetTypeIdentity: "statement:test:1" } }
+    });
+
+    const outer = analysis.definitions.find((definition) => definition.name === "Outer")!;
+    expect(outer.recordValues.find((value) => value.value.name === "local")?.target).toMatchObject({ kind: "recordValue" });
+    expect(outer.recordValues.find((value) => value.value.name === "output")?.target).toMatchObject({ kind: "deferredModuleRecordExport", exportName: "output" });
+    expect(outer.exports).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "record", name: "output", typeIdentity: "statement:test:1" })
+    ]));
+  });
+
+  it("shares optional record presence proof across whole and field access", () => {
+    const guarded = compileWithIds([
+      "nui 4",
+      "record Pair(x: number)",
+      "module M(settings?: Pair) {",
+      "  if (hasValue(@settings)) {",
+      "    const copy: Pair = @settings",
+      "    const x: number = @settings.x",
+      "  }",
+      "}",
+      "instance Absent = M()",
+      "instance Present = M(settings: Pair(x: 6))"
+    ].join("\n"));
+    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(guarded.moduleSemanticAnalysis!.instances.map((instance) => instance.parameterBindings[0]?.state)).toEqual([
+      "optionalOmitted",
+      "optionalSupplied"
+    ]);
+    expect(guarded.moduleSemanticAnalysis!.definitions[0].recordValues[0]?.presenceParameterKeys).toEqual(["statement:test:2:0"]);
+
+    const unguarded = compileWithIds([
+      "nui 4",
+      "record Pair(x: number)",
+      "module M(settings?: Pair) {",
+      "  const copy: Pair = @settings",
+      "  const x: number = @settings.x",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+    expect(unguarded.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "scalar-type-mismatch" }),
+      expect.objectContaining({ code: "geometry-property-invalid" })
+    ]));
+  });
+
   it("keeps module geometry builtin operands separate from scalar references", () => {
     const compiled = compileWithIds([
       "nui 4",
@@ -249,6 +358,7 @@ describe("module semantic analysis", () => {
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Example")!;
+    expect(definition.parameters.map((parameter) => parameter.recordTypeIdentity)).toEqual([null, null, null]);
     for (const [name, expected] of [["radius", ["point", "point"]], ["direction", ["point", "point"]], ["height", ["point", "line"]]] as const) {
       const expression = definition.localScalars.find((scalar) => scalar.name === name)!.initializer!;
       expect(expression.type).toEqual({ kind: "number" });
@@ -256,6 +366,30 @@ describe("module semantic analysis", () => {
       expect(expression.geometryBuiltinArguments.map((occurrence) => occurrence.expectedGeometryType)).toEqual(expected);
       expect(expression.geometryBuiltinArguments.every((occurrence) => occurrence.reference.target !== null)).toBe(true);
     }
+  });
+
+  it("keeps scalar and geometry parameter metadata separate from nominal record identity", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(width: number, anchor: point, label: string) {",
+      "}",
+      "instance Use = M(width: 10, anchor: (0, 0), label: \"ok\")"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].parameters.map((parameter) => ({
+      name: parameter.name,
+      recordTypeIdentity: parameter.recordTypeIdentity
+    }))).toEqual([
+      { name: "width", recordTypeIdentity: null },
+      { name: "anchor", recordTypeIdentity: null },
+      { name: "label", recordTypeIdentity: null }
+    ]);
+    expect(compiled.moduleSemanticAnalysis!.instances[0].parameterBindings.map((binding) => binding.value?.kind ?? null)).toEqual([
+      "scalar",
+      "geometry",
+      "scalar"
+    ]);
   });
 
   it("typechecks derived point geometry builtin operands", () => {
