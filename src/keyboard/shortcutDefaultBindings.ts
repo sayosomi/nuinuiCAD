@@ -59,7 +59,6 @@ const defaultBindings: ShortcutBinding[] = [
   binding("normal", "extendSelectionToPreviousElement", [ch("ArrowUp", { shift: true })]),
   binding("normal", "extendSelectionToNextElement", [ch("ArrowDown", { shift: true })]),
   binding("normal", "toggleGroupExpanded", [ch("ArrowRight")]),
-  binding("normal", "selectParentGroup", [ch("ArrowLeft")]),
   binding("normal", "outdentSelectedElements", []),
   binding("normal", "indentSelectedElements", []),
   binding("normal", "deleteSelectedElement", [ch("d"), ch("Delete"), ch("Backspace")]),

@@ -57,4 +57,8 @@ describe("Canvas selection commands", () => {
     expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
     expect(useCadUiStore.getState().selectionAnchorElementId).toBeNull();
   });
+
+  it("does not declare a default ArrowLeft shortcut for parent-group selection", () => {
+    expect("shortcuts" in selectionCommandDefinitions.selectParentGroup).toBe(false);
+  });
 });

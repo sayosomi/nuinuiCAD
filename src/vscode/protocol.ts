@@ -148,6 +148,7 @@ export type VscodeCanvasCommandId =
   | "undo"
   | "redo"
   | "clearCanvasSelection"
+  | "selectParentGroup"
   | "resetCanvasView"
   | "fitDrawing"
   | "toggleCanvasPointNames"

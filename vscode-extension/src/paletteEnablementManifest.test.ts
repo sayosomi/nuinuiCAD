@@ -38,6 +38,7 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.stepSourceValueForward", `${sourceWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`],
   ["nuinuiCAD.stepSourceValueBackward", `${sourceWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`],
   ["nuinuiCAD.clearCanvasSelection", canvasSelectionEnablement],
+  ["nuinuiCAD.selectParentGroup", canvasSelectionEnablement],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
   ["nuinuiCAD.bakeBaseShape", bakeEnablement]
 ]);
@@ -50,6 +51,7 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.stepSourceValueForward", sourceWhen],
   ["nuinuiCAD.stepSourceValueBackward", sourceWhen],
   ["nuinuiCAD.clearCanvasSelection", canvasWhen],
+  ["nuinuiCAD.selectParentGroup", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
   ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen]
 ]);
