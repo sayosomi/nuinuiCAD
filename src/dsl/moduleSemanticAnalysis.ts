@@ -31,7 +31,7 @@ import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import { splitDslList } from "./dslTokens";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
@@ -241,6 +241,17 @@ const declarationGeometryPropertyTarget = (
     category: declaration.statement.category,
     property
   };
+};
+
+const choiceGeometryPropertyTypeForStatement = (
+  statement: DslStatement | undefined,
+  property: string
+): ScalarType | null => {
+  if (statement?.kind !== "element" || !statement.type) return null;
+  const definition = getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never)
+    .find((candidate) => candidate.key === property);
+  const type = scalarTypeForParameterDefinition(definition);
+  return type?.kind === "choice" ? type : null;
 };
 
 const declarationParentTarget = (
@@ -1482,12 +1493,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         diagnostic: record.diagnostic
       };
     }
-    const type = isKnownNumericComputedGeometryProperty(reference.property) ? { kind: "number" as const } : null;
-    if (!type) {
-      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`) };
-    }
+    const numericType = isKnownNumericComputedGeometryProperty(reference.property) ? { kind: "number" as const } : null;
+    const unknownProperty = (): ModuleGeometryPropertyReferenceResolution => ({
+      target: null,
+      type: null,
+      resolution: "invalid",
+      diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`)
+    });
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
+      const exported = numericType ? null : qualifiedScalarExportFor(qualified);
+      const type = numericType ?? (exported?.kind === "geometry"
+        ? choiceGeometryPropertyTypeForStatement(statements[exported.exportedStatementIndex], reference.property)
+        : null);
+      if (!type) return unknownProperty();
       return {
         target: {
           kind: "deferredModuleExportProperty",
@@ -1521,6 +1540,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (lookup.parameter.parameter.optional && !reference.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
         return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`, { relatedSources }) };
       }
+      const type = numericType;
+      if (!type) return unknownProperty();
       return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type, resolution: "resolved" };
     }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`) };
@@ -1536,6 +1557,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
       return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated }) };
     }
+    const type = numericType ?? choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
+    if (!type) return unknownProperty();
     return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
   };
 

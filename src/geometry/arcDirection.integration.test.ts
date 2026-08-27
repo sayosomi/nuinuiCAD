@@ -72,6 +72,21 @@ describe("nui4 concrete arc direction", () => {
     expect(computedArc(evaluate(compiled), arc.id).sweepAngleDeg).toBe(-220);
   });
 
+  it("compiles and evaluates direction as a public choice geometry property", () => {
+    const compiled = compile([
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = @A.direction"
+    ].join("\n"));
+    const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === "direction");
+    expect(binding).toBeDefined();
+    expect(evaluate(compiled).computedScalarBindings?.get(binding!.id)).toEqual({
+      status: "ok",
+      type: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+      value: { kind: "choice", options: ["counterclockwise", "clockwise"], value: "clockwise" }
+    });
+  });
+
   it("keeps equal angles at canonical zero and Hover reports no direction", () => {
     const compiled = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 0, direction: clockwise)");
     const arc = arcByName(compiled, "A");

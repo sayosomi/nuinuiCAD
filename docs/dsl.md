@@ -106,6 +106,27 @@ line AB = segment(
 const endX: number = @AB.end.x
 ```
 
+### geometry property の scalar read
+
+解決済み geometry property は、既存の numeric computed property または対象要素の
+parameter schema で公開された `choice` parameter の場合だけ scalar expression として
+読めます。choice は schema の `choice(...)` 型をそのまま使い、option の identity と順序も
+型の一部です。choice の部分型や暗黙変換はありません。string / boolean などの schema
+property は scalar geometry-property read としては公開されません。
+
+```text
+arc A = arc(center: (0, 0), radius: 20, start: 0, end: 90, direction: clockwise)
+const direction: choice(counterclockwise, clockwise) = @A.direction
+const isClockwise: boolean = @A.direction == clockwise
+arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.direction)
+```
+
+read は参照元の source position で target identity と property を解決します。target は
+文書順で先にあり、その位置で評価可能でなければなりません。hidden は評価されるため読めますが、
+disabled、invalid、評価失敗、まだ評価されていない要素は利用できず、既存の dependency
+diagnostic になります。read はその位置で materialize された値を読み、後の mutation が
+先に行われた read の値を遡って変更することはありません。
+
 ### 算術演算子
 
 数値式では `+`、`-`、`*`、`/`、`%`、`^` を使えます。`%` は percent ではなく
@@ -381,6 +402,10 @@ arc B = arc(
 ```
 
 runtime の方向は signed `sweepAngleDeg` が正です。反時計回りは正、時計回りは負です。`start == end` は 0 sweep で、`0 -> 360` のように明示した full turn は `counterclockwise` なら `+360`、`clockwise` なら `-360` になります。`through(...)` と `corner(...)` には `direction` 引数を追加しません。
+
+concrete arc の公開 property `direction` は `choice(counterclockwise, clockwise)` です。
+評価済み sweep が正なら `counterclockwise`、負なら `clockwise` が effective value です。
+0 sweep では符号から推測せず、authored / materialized direction に戻ります。
 
 ### tangentOffset の曲率側
 
