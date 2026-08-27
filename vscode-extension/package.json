@@ -118,6 +118,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.selectParentGroup",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.resetCanvasView",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -242,6 +246,10 @@
         {
           "command": "nuinuiCAD.clearCanvasSelection",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.selectParentGroup",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
         {
           "command": "nuinuiCAD.fitOutputPreview",
@@ -372,6 +380,11 @@
       {
         "command": "nuinuiCAD.clearCanvasSelection",
         "title": "nuinuiCAD: Clear Canvas Selection",
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
+      },
+      {
+        "command": "nuinuiCAD.selectParentGroup",
+        "title": "nuinuiCAD: Select Parent Group",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {

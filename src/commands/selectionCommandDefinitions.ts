@@ -459,7 +459,6 @@ export const selectionCommandDefinitions = {
     id: "selectParentGroup",
     label: "親グループを選択",
     palette: { order: 39, keywords: ["parent", "group", "親", "グループ"] },
-    shortcuts: [{ keys: "ArrowLeft" }],
     run: () => selectParentGroup()
   },
   movePointElementByDelta: {
