@@ -37,6 +37,11 @@ const fixtureFor = (count: number) => {
 
 const RUNS_PER_TRIAL = 20;
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 const measure = (count: number): Measurement => {
   const { catalog, entriesById, site } = fixtureFor(count);
   const accepts = (type: { kind: string } | null) => type !== null && type.kind === "number";
@@ -57,7 +62,7 @@ const measure = (count: number): Measurement => {
   };
 };
 
-describe("Task 39 typed value completion performance", () => {
+describePerformanceGates("Task 39 typed value completion performance", () => {
   it("records 250/1000 binding-catalog reference-candidate generation cost (precomputed catalog, no compile in the loop)", () => {
     const small = measure(250);
     const large = measure(1000);

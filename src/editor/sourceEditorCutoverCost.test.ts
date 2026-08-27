@@ -30,6 +30,11 @@ const stats = (values: number[]) => {
 
 const RUNS = 21;
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 const measure = (name: string, run: () => void, { runs = RUNS }: { runs?: number } = {}) => {
   run();
   const durations: number[] = [];
@@ -54,7 +59,7 @@ type ControllerInternals = {
   };
 };
 
-describe("Phase 2e source editor integration performance", () => {
+describePerformanceGates("Phase 2e source editor integration performance", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());

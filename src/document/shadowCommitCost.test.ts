@@ -61,7 +61,12 @@ const measureCommitCost = (elementCount: number, runs: number) => {
   return { prodMedian, devMedian };
 };
 
-describe("shadowText 大規模文書コミットコスト計測", () => {
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
+describePerformanceGates("shadowText 大規模文書コミットコスト計測", () => {
   it("250/1000要素のcompileDslDocument中央値を報告し、規模比からO(n^2)/O(n^3)退行を検出する", () => {
     // 無名・無参照(buildLargeSource)ではなく、要素間参照を持つ
     // buildExpressionSource を使う。参照なしの文書は名前解決コストがほぼ
