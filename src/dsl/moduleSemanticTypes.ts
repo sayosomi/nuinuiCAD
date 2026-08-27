@@ -228,6 +228,7 @@ export type ResolvedModuleParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
+  recordTypeIdentity: RecordTypeIdentity | null;
   optional: boolean;
   required: boolean;
   defaultValue: string | null;

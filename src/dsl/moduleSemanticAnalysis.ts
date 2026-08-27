@@ -280,6 +280,12 @@ const moduleCalleeDiagnosticCode = (resolution: ModuleInstanceSemantic["calleeRe
 export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): ModuleSemanticAnalysis => {
   const { statements, stableStatementIdByIndex, sourceNamespace, spans } = input;
   const recordAnalysis = sourceNamespace.recordSemanticAnalysis;
+  const recordTypeIdentityByParameter = new Map(
+    (recordAnalysis?.moduleParameters ?? []).map((parameter) => [
+      `${parameter.definitionStatementId}:${parameter.parameterIndex}`,
+      parameter.typeIdentity
+    ] as const)
+  );
   const diagnostics: DslDiagnostic[] = [];
   const localDiagnosticsByStatement = new Map<number, LocalDiagnostic[]>();
   let suppressLocalDiagnostics = false;
@@ -317,6 +323,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       parameterIndex,
       name: parameter.name,
       type: parameter.type,
+      recordTypeIdentity: recordTypeIdentityByParameter.get(`${statementId}:${parameterIndex}`) ?? null,
       optional: parameter.optional,
       required: !parameter.optional && parameter.defaultValue === null,
       defaultValue: parameter.defaultValue,
@@ -628,8 +635,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {
-      const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
-      if (recordParameter?.typeIdentity) {
+      if (lookup.parameter.parameter.recordTypeIdentity) {
         return {
           target: {
             kind: "parameter",
@@ -798,11 +804,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!lookup.parameter.parameter.optional) {
       return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は optional module parameter ではありません。`, { relatedSources }) };
     }
-    const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
     const target = scalarTypeOf(lookup.parameter.parameter.type)
       ? scalarParameterTarget(lookup.definition, lookup.parameter)
       : geometryParameterTarget(lookup.definition, lookup.parameter)
-        ?? (recordParameter?.typeIdentity
+        ?? (lookup.parameter.parameter.recordTypeIdentity
           ? {
               kind: "parameter" as const,
               definitionStatementId: lookup.definition.statementId,
@@ -999,12 +1004,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return typeIdentity ? recordAnalysis?.definitionsByStatementId.get(typeIdentity) ?? null : null;
   }
 
-  function recordParameterTypeFor(definitionStatementId: StatementIdentity, parameterIndex: number) {
-    return recordAnalysis?.moduleParameters.find((parameter) =>
-      parameter.definitionStatementId === definitionStatementId && parameter.parameterIndex === parameterIndex
-    ) ?? null;
-  }
-
   function recordSourceLookup(
     statementIndex: number,
     ownerIndex: number | null,
@@ -1048,9 +1047,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : resolveModuleLexicalPath(statementIndex, ownerIndex, path)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, base);
     if (lookup.kind === "parameter") {
-      const recordParameter = recordParameterTypeFor(lookup.definition.statementId, lookup.parameter.index);
-      if (!recordParameter?.typeIdentity) return { kind: "notRecord" };
-      const definition = recordDefinitionFor(recordParameter.typeIdentity);
+      const typeIdentity = lookup.parameter.parameter.recordTypeIdentity;
+      if (!typeIdentity) return { kind: "notRecord" };
+      const definition = recordDefinitionFor(typeIdentity);
       return definition
         ? {
             kind: "record",
@@ -1058,9 +1057,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               kind: "recordParameter",
               definitionStatementId: lookup.definition.statementId,
               parameterIndex: lookup.parameter.index,
-              typeIdentity: recordParameter.typeIdentity
+              typeIdentity
             },
-            typeIdentity: recordParameter.typeIdentity,
+            typeIdentity,
             definition
           }
         : { kind: "blocked", resolution: "invalid" };
@@ -1930,7 +1929,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             continue;
           }
           const parameterScalarType = scalarTypeOf(parameter.type);
-          const recordParameter = recordParameterTypeFor(calleeState.statementId, parameter.parameterIndex);
           let value: ModuleArgumentSemantic | null = null;
           if (parameterScalarType) {
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
@@ -1961,14 +1959,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               parameterTypeRelated
             );
             value = expression ? { kind: "scalar", expression } : null;
-          } else if (recordParameter?.typeIdentity) {
+          } else if (parameter.recordTypeIdentity) {
             const presenceFacts = presenceFactsByStatementIndex.get(statementIndex) ?? new Set<string>();
             const reference = recordReferenceSemantic(
               statementIndex,
               ownerIndex,
               argument.value,
               argument.valueSpan,
-              recordParameter.typeIdentity,
+              parameter.recordTypeIdentity,
               presenceFacts
             );
             value = { kind: "record", reference };

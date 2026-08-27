@@ -275,6 +275,11 @@ describe("module semantic analysis", () => {
 
     const analysis = compiled.moduleSemanticAnalysis!;
     const instanceByName = new Map(analysis.instances.map((instance) => [instance.name, instance]));
+    expect(analysis.definitions.find((definition) => definition.name === "Inner")?.parameters[0]?.recordTypeIdentity).toBe("statement:test:1");
+    expect(analysis.definitions.find((definition) => definition.name === "WrongOuter")?.parameters[0]?.recordTypeIdentity).toBe("statement:test:2");
+    expect(analysis.definitions.find((definition) => definition.name === "Inner")?.parameters[0]?.recordTypeIdentity).not.toBe(
+      analysis.definitions.find((definition) => definition.name === "WrongOuter")?.parameters[0]?.recordTypeIdentity
+    );
     for (const name of ["Root", "Inline", "Parent"]) {
       expect(instanceByName.get(name)?.parameterBindings[0]?.state).toBe("requiredSupplied");
     }
@@ -353,6 +358,7 @@ describe("module semantic analysis", () => {
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "Example")!;
+    expect(definition.parameters.map((parameter) => parameter.recordTypeIdentity)).toEqual([null, null, null]);
     for (const [name, expected] of [["radius", ["point", "point"]], ["direction", ["point", "point"]], ["height", ["point", "line"]]] as const) {
       const expression = definition.localScalars.find((scalar) => scalar.name === name)!.initializer!;
       expect(expression.type).toEqual({ kind: "number" });
@@ -360,6 +366,30 @@ describe("module semantic analysis", () => {
       expect(expression.geometryBuiltinArguments.map((occurrence) => occurrence.expectedGeometryType)).toEqual(expected);
       expect(expression.geometryBuiltinArguments.every((occurrence) => occurrence.reference.target !== null)).toBe(true);
     }
+  });
+
+  it("keeps scalar and geometry parameter metadata separate from nominal record identity", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "module M(width: number, anchor: point, label: string) {",
+      "}",
+      "instance Use = M(width: 10, anchor: (0, 0), label: \"ok\")"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0].parameters.map((parameter) => ({
+      name: parameter.name,
+      recordTypeIdentity: parameter.recordTypeIdentity
+    }))).toEqual([
+      { name: "width", recordTypeIdentity: null },
+      { name: "anchor", recordTypeIdentity: null },
+      { name: "label", recordTypeIdentity: null }
+    ]);
+    expect(compiled.moduleSemanticAnalysis!.instances[0].parameterBindings.map((binding) => binding.value?.kind ?? null)).toEqual([
+      "scalar",
+      "geometry",
+      "scalar"
+    ]);
   });
 
   it("typechecks derived point geometry builtin operands", () => {
