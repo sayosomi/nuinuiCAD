@@ -59,6 +59,7 @@ import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps
 import { NUMERIC_COMPUTED_GEOMETRY_PROPERTIES } from "../geometry/numericExpressions";
 import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import type { CadElement } from "../types/geometry";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
 import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
@@ -425,7 +426,8 @@ const sourceGeometryQualifiedMembers = (
 const sourceGeometryPropertyCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  elementToken: string
+  elementToken: string,
+  expectedType: ScalarType | null
 ) => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace || statementIndex < 0) return [];
@@ -433,11 +435,27 @@ const sourceGeometryPropertyCandidates = (
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry") return [];
   const elementType = dslStatementElementType(lookup.declaration.statement);
   if (!elementType) return [];
-  return NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.map((label) => ({
-    kind: "property" as const,
-    label,
-    identity: `${lookup.declaration.statementId}:${label}`
-  }));
+  if (expectedType?.kind === "number") {
+    return NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.map((label) => ({
+      kind: "property" as const,
+      label,
+      identity: `${lookup.declaration.statementId}:${label}`
+    }));
+  }
+  if (expectedType?.kind !== "choice") return [];
+  const element = compiled.sourceElementsByStatementIndex.get(lookup.declaration.statementIndex);
+  if (!element) return [];
+  return getParameterDefinitions(element)
+    .filter((definition) => definition.kind === "choice")
+    .filter((definition) => {
+      const candidateType = scalarTypeForParameterDefinition(definition);
+      return candidateType !== null && isScalarTypeAssignable(candidateType, expectedType);
+    })
+    .map((definition) => ({
+      kind: "property" as const,
+      label: definition.key,
+      identity: `${lookup.declaration.statementId}:${definition.key}`
+    }));
 };
 
 const scalarCandidatesAt = (
@@ -750,7 +768,7 @@ const queryCandidates = (
   }
   if (context.kind === "elementParameter") {
     return compiled && exact
-      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken)
+      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType)
       : [];
   }
   if (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") {
@@ -771,8 +789,9 @@ const queryCandidates = (
     const target = deps
       ? setTargetCandidates(deps).find((candidate) => candidate.name === context.targetName)
       : undefined;
-    if (!deps || !target || context.geometryProperty) return context.geometryProperty && compiled && exact
-      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.geometryProperty.elementToken)
+    if (!deps || !target) return [];
+    if (context.geometryProperty) return compiled && exact
+      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.geometryProperty.elementToken, target.type)
       : [];
     return setRhsScalarCandidates(input.lineText, context.expressionSpan, input.localPosition, target.type, deps).map(scalarCandidate);
   }

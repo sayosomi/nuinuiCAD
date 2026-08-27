@@ -39,6 +39,22 @@ describe("propertyScalarValueCompletionContext", () => {
     expect(context).toEqual({ kind: "reference", from: span.start, to: line.length, expectedType: { kind: "choice", options: ["right", "left"] } });
   });
 
+  it("recognizes an unfinished geometry property in a choice property with its exact schema type", () => {
+    const line = "direction: @A.";
+    const span = { start: "direction: ".length, end: line.length };
+    const context = propertyScalarValueCompletionContext(line, span, line.length, {
+      key: "direction",
+      label: "進行方向",
+      kind: "choice",
+      choiceOptions: ["counterclockwise", "clockwise"]
+    });
+    expect(context).toMatchObject({
+      kind: "geometryProperty",
+      expectedType: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+      geometryProperty: { elementToken: "A", from: line.length, to: line.length }
+    });
+  });
+
   it("uses the schema type for a text property", () => {
     const line = "name: @x";
     const span = { start: "name: ".length, end: line.length };

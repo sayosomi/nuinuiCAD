@@ -2,6 +2,7 @@ import type { Completion } from "@codemirror/autocomplete";
 import { dslElementParameterCompletionOptions } from "../dsl/dslElementParameterCompletionCandidates";
 import type { DslLiveStatementIdentity } from "../dsl/dslCompletionCandidates";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
+import type { ScalarType } from "../scalars/types";
 
 /** Editor adapter shared by numeric && typed expression property completion. */
 export const elementPropertyCompletions = ({
@@ -10,6 +11,7 @@ export const elementPropertyCompletions = ({
   statementElementIds,
   elements,
   elementToken,
+  expectedScalarType = { kind: "number" },
   computedGeometry,
   effectiveEnabledElementIds,
   errors,
@@ -20,6 +22,7 @@ export const elementPropertyCompletions = ({
   statementElementIds: DslLiveStatementIdentity;
   elements: readonly CadElement[];
   elementToken: string;
+  expectedScalarType?: ScalarType;
   computedGeometry: Map<ElementId, ComputedGeometry>;
   effectiveEnabledElementIds?: Set<ElementId>;
   errors: DependencyError[];
@@ -32,6 +35,7 @@ export const elementPropertyCompletions = ({
     statementElementIds,
     elements,
     elementToken,
+    expectedScalarType,
     computedGeometry,
     effectiveEnabledElementIds,
     errors

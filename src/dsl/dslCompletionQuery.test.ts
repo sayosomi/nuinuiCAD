@@ -356,6 +356,52 @@ describe("queryDslCompletion", () => {
     expect(property?.replacementRange.from).toBe(source.indexOf("@AB.le") + "@AB.".length);
   });
 
+  it("offers only exactly assignable choice geometry properties", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = @A."
+    ].join("\n");
+    const property = exactQuery(source, "@A.", 3);
+    expect(property?.category).toBe("elementParameter");
+    expect(labels(property)).toEqual(["direction"]);
+
+    const wrongType = source.replace("choice(counterclockwise, clockwise)", "choice(left, right)");
+    expect(labels(exactQuery(wrongType, "@A.", 3))).toEqual([]);
+  });
+
+  it("uses the same typed choice-property lane for another schema choice", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point D = between(start: @A, end: @B, ratio: 0.5)",
+      "const mode: choice(distance, ratio) = @D."
+    ].join("\n");
+    const result = exactQuery(source, "@D.", 3);
+    expect(result?.category).toBe("elementParameter");
+    expect(labels(result)).toEqual(["placementMode"]);
+  });
+
+  it("resolves set RHS geometry properties using the target's exact type", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "let direction: choice(counterclockwise, clockwise) = clockwise",
+      "set direction = @A."
+    ].join("\n");
+    const choiceResult = exactQuery(source, "@A.", 3);
+    expect(choiceResult?.category).toBe("setRhs");
+    expect(labels(choiceResult)).toEqual(["direction"]);
+
+    const numericSource = source.replace(
+      "let direction: choice(counterclockwise, clockwise) = clockwise",
+      "let length: number = 1"
+    ).replace("set direction", "set length");
+    const numericResult = exactQuery(numericSource, "@A.", 3);
+    expect(labels(numericResult)).toContain("length");
+  });
+
   it("completes qualified members in the ordinary CAD namespace", () => {
     const source = [
       "nui 4",

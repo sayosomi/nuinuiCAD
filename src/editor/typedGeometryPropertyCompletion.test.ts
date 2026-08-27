@@ -122,13 +122,13 @@ describe("typed geometry-property completion", () => {
     expect(result?.options.map((option) => option.label)).toContain("length");
   });
 
-  it("keeps @ binding completion separate and rejects non-number typed sites", async () => {
+  it("keeps @ binding completion separate and returns no properties for unsupported typed sites", async () => {
     const fixture = compiledFixture();
     const bindingResult = await completionAt({ fixture, source: `${baseSource}\nconst total: number = @` });
     expect(bindingResult?.options.map((option) => option.label)).toContain("amount");
     expect(bindingResult?.options.map((option) => option.label)).not.toContain("AB");
 
-    expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = @AB.` })).toBeNull();
+    expect(await completionAt({ fixture, source: `${baseSource}\nconst text: string = @AB.` })).toMatchObject({ options: [] });
     const stringSet = await completionAt({ fixture, source: `${baseSource}\nset label = @AB.` });
     expect(stringSet?.options).toEqual([]);
   });

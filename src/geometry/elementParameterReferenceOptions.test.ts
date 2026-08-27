@@ -29,6 +29,23 @@ const lineGeometry = (elementId: string): ComputedLine => ({
   endTangentAngleDeg: 0
 });
 
+const arcGeometry = (elementId: string): ComputedGeometry => ({
+  kind: "arcLine",
+  elementId,
+  name: elementId,
+  centerPointId: null,
+  center: point("center", 0, 0),
+  start: point("start", 10, 0),
+  end: point("end", 0, 10),
+  radius: 10,
+  startAngleDeg: 0,
+  endAngleDeg: 90,
+  startTangentAngleDeg: 90,
+  endTangentAngleDeg: 180,
+  sweepAngleDeg: 90,
+  length: 15.708
+});
+
 const lineElement = (id: string, name: string): CadElement => ({
   id,
   name,
@@ -189,6 +206,57 @@ describe("elementParameterReferenceOptionsForPosition", () => {
     });
     expect(options).toEqual([]);
     void laterElement;
+  });
+
+  it("lists only exactly assignable choice properties in schema order", () => {
+    const element: CadElement = {
+      id: "arc1",
+      name: "円弧A",
+      type: "arcLine",
+      activity: "visible",
+      centerPoint: { mode: "coordinate", x: 0, y: 0 },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      direction: "clockwise"
+    };
+    const options = elementParameterReferenceOptionsForPosition({
+      referenceElements: [element],
+      elementToken: "円弧A",
+      expectedScalarType: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+      evaluation: baseEvaluation({
+        computedGeometry: new Map([[element.id, arcGeometry(element.id)]]),
+        effectiveEnabledElementIds: new Set([element.id])
+      })
+    });
+    expect(options.map((option) => option.path)).toEqual(["direction"]);
+  });
+
+  it("does not expose a choice property for a different exact choice or without computed geometry", () => {
+    const element: CadElement = {
+      id: "arc1",
+      name: "円弧A",
+      type: "arcLine",
+      activity: "visible",
+      centerPoint: { mode: "coordinate", x: 0, y: 0 },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      direction: "clockwise"
+    };
+    const base = {
+      referenceElements: [element],
+      elementToken: "円弧A",
+      evaluation: baseEvaluation({ effectiveEnabledElementIds: new Set([element.id]) })
+    };
+    expect(elementParameterReferenceOptionsForPosition({
+      ...base,
+      expectedScalarType: { kind: "choice", options: ["left", "right"] }
+    })).toEqual([]);
+    expect(elementParameterReferenceOptionsForPosition({
+      ...base,
+      expectedScalarType: { kind: "choice", options: ["counterclockwise", "clockwise"] }
+    })).toEqual([]);
   });
 });
 

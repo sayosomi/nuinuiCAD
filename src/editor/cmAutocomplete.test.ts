@@ -956,6 +956,55 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     view.destroy();
     parent.remove();
   });
+
+  it("offers only the exact choice property for a schema-typed element property", async () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "arc B = arc(center: (20, 0), radius: 10, start: 0, end: 90, direction: clockwise)"
+    ].join("\n");
+    const compiled = compileDslDocument(source);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    const doc = EditorState.create({ doc: source }).doc;
+    const elements = compiled.document!.elements;
+    const statementRanges = createStatementRangeIndex(doc, compiled.statementMap!);
+    const arcAId = elements.find((element) => element.name === "A")!.id;
+    const directionStart = source.lastIndexOf("direction: ") + "direction: ".length;
+    const state = EditorState.create({ doc: source.slice(0, directionStart) + "@A." + source.slice(directionStart) });
+    const position = directionStart + "@A.".length;
+    const completionSource = createDslCompletionSource({
+      elements: () => elements,
+      statementRanges: () => statementRanges,
+      isComposing: () => false,
+      computedGeometry: () => new Map([[arcAId, {
+        kind: "arcLine" as const,
+        elementId: arcAId,
+        name: "A",
+        centerPointId: null,
+        center: { kind: "point" as const, elementId: "center", name: "center", x: 0, y: 0 },
+        start: { kind: "point" as const, elementId: "start", name: "start", x: 10, y: 0 },
+        end: { kind: "point" as const, elementId: "end", name: "end", x: 0, y: 10 },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90,
+        startTangentAngleDeg: 90,
+        endTangentAngleDeg: 180,
+        sweepAngleDeg: 90,
+        length: 15.708
+      }]]),
+      effectiveEnabledElementIds: () => new Set([arcAId]),
+      evaluationErrors: () => [],
+      bindingAnalysis: () => undefined,
+      typedDeclarationRanges: () => new Map(),
+      scopeBodyRanges: () => [],
+      statementInfoByElementId: () => compiled.statementMap!.byElementId,
+      evaluationIsCurrent: () => true
+    });
+
+    const result = await Promise.resolve(completionSource({ state, pos: position, explicit: true } as never));
+    expect(result?.options.map((option) => option.label)).toEqual(["direction"]);
+  });
 });
 
 describe("typed value completion (Task 39)", () => {
