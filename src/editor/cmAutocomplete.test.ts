@@ -1005,6 +1005,86 @@ describe("choice value completion at a zero-length value (Task 51 manual E2E rer
     const result = await Promise.resolve(completionSource({ state, pos: position, explicit: true } as never));
     expect(result?.options.map((option) => option.label)).toEqual(["direction"]);
   });
+
+  it("keeps choice set RHS geometry properties behind current eligible evaluation", async () => {
+    const committedSource = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "let direction: choice(counterclockwise, clockwise) = clockwise",
+      "set direction = clockwise"
+    ].join("\n");
+    const liveSource = committedSource.replace("set direction = clockwise", "set direction = @A.");
+    const compileWithIds = (source: string) => compileDslDocument(source, {
+      assignedStatementIds: new Map(parseDsl(source).statements.map((_, index) => [index, `choice-set:${index}`]))
+    });
+    const compiled = compileWithIds(committedSource);
+    const liveCompiled = compileWithIds(liveSource);
+    expect(compiled.document).not.toBeNull();
+    expect(compiled.statementMap).not.toBeNull();
+    expect(compiled.bindingAnalysis).not.toBeNull();
+    expect(liveCompiled.sourceLexicalNamespace).not.toBeNull();
+
+    const committedDoc = EditorState.create({ doc: committedSource }).doc;
+    const arcAId = compiled.document!.elements.find((element) => element.name === "A")!.id;
+    const statementRanges = createStatementRangeIndex(committedDoc, compiled.statementMap!);
+    const typedRanges = createTypedDeclarationRangeIndex(committedDoc, compiled.statementMap!);
+    const scopeRanges = createScopeBodyRangeIndex(
+      committedDoc,
+      compiled.statementMap!,
+      compiled.bindingAnalysis!.catalog.scopeIndex
+    );
+    const computedGeometry = new Map([[arcAId, {
+      kind: "arcLine" as const,
+      elementId: arcAId,
+      name: "A",
+      centerPointId: null,
+      center: { kind: "point" as const, elementId: "center", name: "center", x: 0, y: 0 },
+      start: { kind: "point" as const, elementId: "start", name: "start", x: 10, y: 0 },
+      end: { kind: "point" as const, elementId: "end", name: "end", x: 0, y: 10 },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      startTangentAngleDeg: 90,
+      endTangentAngleDeg: 180,
+      sweepAngleDeg: 90,
+      length: 15.708
+    }]]);
+
+    const completionFor = ({
+      evaluationIsCurrent = true,
+      enabled = new Set([arcAId]),
+      errors = [],
+      geometry = computedGeometry
+    }: {
+      evaluationIsCurrent?: boolean;
+      enabled?: Set<string>;
+      errors?: never[];
+      geometry?: typeof computedGeometry;
+    } = {}) => {
+      const state = EditorState.create({ doc: liveSource });
+      const completionSource = createDslCompletionSource({
+        elements: () => compiled.document!.elements,
+        statementRanges: () => statementRanges,
+        isComposing: () => false,
+        computedGeometry: () => geometry,
+        effectiveEnabledElementIds: () => enabled,
+        evaluationErrors: () => errors,
+        bindingAnalysis: () => compiled.bindingAnalysis,
+        typedDeclarationRanges: () => typedRanges,
+        scopeBodyRanges: () => scopeRanges,
+        statementInfoByElementId: () => compiled.statementMap!.byElementId,
+        evaluationIsCurrent: () => evaluationIsCurrent,
+        moduleSemanticMetadata: () => liveCompiled
+      });
+      return Promise.resolve(completionSource({ state, pos: liveSource.length, explicit: true } as never));
+    };
+
+    expect((await completionFor())?.options.map((option) => option.label)).toEqual(["direction"]);
+    expect((await completionFor({ evaluationIsCurrent: false }))?.options).toEqual([]);
+    expect((await completionFor({ enabled: new Set() }))?.options).toEqual([]);
+    expect((await completionFor({ errors: [{ elementId: arcAId } as never] }))?.options).toEqual([]);
+    expect((await completionFor({ geometry: new Map() }))?.options).toEqual([]);
+  });
 });
 
 describe("typed value completion (Task 39)", () => {

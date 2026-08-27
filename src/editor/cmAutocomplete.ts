@@ -1045,7 +1045,8 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
     const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
       .find((candidate) => candidate.name === completionContext.targetName);
-    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent) {
+    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent &&
+      !(completionContext.geometryProperty && target?.type.kind === "choice")) {
       completions = neutralCompletions;
       usesNeutralQuery = true;
     } else {
