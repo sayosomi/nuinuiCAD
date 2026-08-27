@@ -764,16 +764,20 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
   if (!input) return false;
   const completionContext = completionContextForInput(input);
   if (!completionContext) return false;
-  const elementToken = completionContext.kind === "elementParameter"
-    ? completionContext.elementToken
-    : completionContext.kind === "setRhs" && completionContext.geometryProperty
-      ? (() => {
-          const bindingAnalysis = options.bindingAnalysis();
-          const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
-            .find((candidate) => candidate.name === completionContext.targetName);
-          return target?.type.kind === "number" ? completionContext.geometryProperty.elementToken : null;
-        })()
-      : null;
+  let elementToken: string | null = null;
+  let expectedScalarType: ScalarType | undefined;
+  if (completionContext.kind === "elementParameter") {
+    elementToken = completionContext.elementToken;
+    expectedScalarType = completionContext.expectedScalarType;
+  } else if (completionContext.kind === "setRhs" && completionContext.geometryProperty) {
+    const bindingAnalysis = options.bindingAnalysis();
+    const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
+      .find((candidate) => candidate.name === completionContext.targetName);
+    if (target) {
+      elementToken = completionContext.geometryProperty.elementToken;
+      expectedScalarType = target.type;
+    }
+  }
   if (!elementToken?.trim()) return false;
   return elementPropertyCompletions({
     source: input.source,
@@ -781,6 +785,7 @@ export const isElementParameterRetryContext = (options: DslAutocompleteOptions, 
     statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
     elements: options.elements(),
     elementToken,
+    expectedScalarType,
     computedGeometry: options.computedGeometry() ?? new Map(),
     effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
     errors: options.evaluationErrors() ?? [],
@@ -963,6 +968,7 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
       statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
       elements: options.elements(),
       elementToken: completionContext.elementToken,
+      expectedScalarType: completionContext.expectedScalarType,
       computedGeometry: options.computedGeometry() ?? new Map(),
       effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
       errors: options.evaluationErrors() ?? [],
@@ -1039,18 +1045,20 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     const deps = bindingAnalysis ? setCompletionSiteDeps(options, bindingAnalysis, context.pos) : null;
     const target = mergedSetTargetCandidates(options, input, context.pos, bindingAnalysis)
       .find((candidate) => candidate.name === completionContext.targetName);
-    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent) {
+    if (neutralQuery && neutralCompletions.length > 0 && neutralSemanticIsCurrent &&
+      !(completionContext.geometryProperty && target?.type.kind === "choice")) {
       completions = neutralCompletions;
       usesNeutralQuery = true;
     } else {
       completions = completionContext.geometryProperty
-        ? target?.type.kind === "number"
+        ? target
           ? elementPropertyCompletions({
           source: input.source,
           cursorLine: input.cursorLineNumber,
           statementElementIds: statementElementIdsByLiveLine(input.doc, options.statementRanges()),
           elements: options.elements(),
           elementToken: completionContext.geometryProperty.elementToken,
+          expectedScalarType: target.type,
           computedGeometry: options.computedGeometry() ?? new Map(),
           effectiveEnabledElementIds: options.effectiveEnabledElementIds(),
           errors: options.evaluationErrors() ?? [],

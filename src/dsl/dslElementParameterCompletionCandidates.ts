@@ -5,6 +5,7 @@ import {
   type ElementParameterReferenceOption
 } from "../geometry/elementParameterReferenceOptions";
 import type { CadElement, ComputedGeometry, DependencyError, ElementId } from "../types/geometry";
+import type { ScalarType } from "../scalars/types";
 import type { DslStatement } from "./dslTypes";
 
 const attrValue = (statement: DslStatement, key: string) => statement.attrs.find((attr) => attr.key === key)?.value;
@@ -31,6 +32,7 @@ export const dslElementParameterCompletionOptions = ({
   statementElementIds,
   elements,
   elementToken,
+  expectedScalarType = { kind: "number" },
   computedGeometry,
   effectiveEnabledElementIds,
   errors
@@ -40,6 +42,7 @@ export const dslElementParameterCompletionOptions = ({
   statementElementIds: DslLiveStatementIdentity;
   elements: readonly CadElement[];
   elementToken: string;
+  expectedScalarType?: ScalarType;
   computedGeometry: Map<ElementId, ComputedGeometry>;
   effectiveEnabledElementIds?: Set<ElementId>;
   errors: DependencyError[];
@@ -85,6 +88,7 @@ export const dslElementParameterCompletionOptions = ({
   return elementParameterReferenceOptionsForPosition({
     referenceElements: trustworthyLive,
     elementToken,
+    expectedScalarType,
     currentElement: { parentGroupId },
     evaluation: {
       computedGeometry,
