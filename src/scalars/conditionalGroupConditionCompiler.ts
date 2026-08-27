@@ -20,7 +20,7 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
@@ -139,9 +139,28 @@ export const compileConditionalGroupConditions = ({
       return;
     }
 
+    const element = elementsById.get(elementId);
+    const geometryResolution = resolveGeometryPropertyMetadata(
+      prepared.ast,
+      elements,
+      sourceOrderByElementId,
+      {
+        currentElement: element,
+        nameContext,
+        currentSourceOrder: statementIndex
+      }
+    );
+    if (geometryResolution.issues.length > 0) {
+      diagnostics.push(...geometryResolution.issues.map((issue) =>
+        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message)
+      ));
+      return;
+    }
+
     const checked = typecheckScalarExpression(prepared.ast, {
       expectedType: { kind: "boolean" },
-      references: prepared.references
+      references: prepared.references,
+      geometryPropertyReferences: geometryResolution.geometryPropertyReferences
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
@@ -160,24 +179,7 @@ export const compileConditionalGroupConditions = ({
       return;
     }
 
-    const element = elementsById.get(elementId);
-    const geometryResolution = resolveTypedGeometryProperties(
-      checked.typed,
-      elements,
-      sourceOrderByElementId,
-      {
-        currentElement: element,
-        nameContext,
-        currentSourceOrder: statementIndex
-      }
-    );
-    if (geometryResolution.issues.length > 0) {
-      diagnostics.push(...geometryResolution.issues.map((issue) =>
-        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message)
-      ));
-      return;
-    }
-    sourcesByOccurrenceKey.set(occurrenceKey, geometryResolution.expression);
+    sourcesByOccurrenceKey.set(occurrenceKey, checked.typed);
   });
 
   return { sourcesByOccurrenceKey, diagnostics };

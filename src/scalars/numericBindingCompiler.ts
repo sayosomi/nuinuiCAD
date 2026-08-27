@@ -33,7 +33,7 @@ import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
-import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
@@ -315,9 +315,8 @@ export const compileNumericBindings = ({
       // intentionally removes `@` from geometry measurements (for example
       // `@AB.length` becomes `AB.length`) for the legacy numeric evaluator,
       // but that representation is not valid input for the shared scalar
-      // parser. Geometry properties themselves are already typed as number;
-      // typed binding occurrences use the supplied resolutions; geometry
-      // properties remain intrinsic numeric nodes.
+      // parser. Typed binding occurrences and geometry-property occurrences
+      // receive their resolved metadata through closed compiler sidecars.
       const typedParsed = parseScalarExpression(candidate.source, { start: 0, end: candidate.source.length });
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
@@ -366,9 +365,20 @@ export const compileNumericBindings = ({
           )));
           continue;
         }
+        const geometryPropertyResolution = resolveGeometryPropertyMetadata(
+          prepared.ast,
+          elements,
+          sourceOrderByElementId,
+          {
+            currentElement: candidate.elementId ? byId.get(candidate.elementId) : undefined,
+            nameContext,
+            currentSourceOrder: candidate.statementIndex
+          }
+        );
         const typedChecked = typecheckScalarExpression(prepared.ast, {
           expectedType: { kind: "number" },
-          references: prepared.references
+          references: prepared.references,
+          geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
           if (hasLegacyOwnedReference) {
@@ -400,18 +410,8 @@ export const compileNumericBindings = ({
           }
           typedRefs.sort((left, right) => left.reference.span.start - right.reference.span.start);
         }
-        const geometryResolution = resolveTypedGeometryProperties(
-          typedChecked.typed,
-          elements,
-          sourceOrderByElementId,
-          {
-            currentElement: candidate.elementId ? byId.get(candidate.elementId) : undefined,
-            nameContext,
-            currentSourceOrder: candidate.statementIndex
-          }
-        );
-        if (!hasLegacyOwnedReference && geometryResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
-          typedExpression = geometryResolution.expression;
+        if (!hasLegacyOwnedReference && geometryPropertyResolution.issues.length === 0 && typedChecked.type?.kind === "number") {
+          typedExpression = typedChecked.typed;
         }
       }
     }

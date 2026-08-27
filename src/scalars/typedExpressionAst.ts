@@ -8,6 +8,7 @@ import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
+import type { ElementId } from "../types/geometry";
 
 export interface TypedScalarNumberLiteralNode {
   readonly kind: "numberLiteral";
@@ -84,6 +85,16 @@ export type ScalarExpressionResolvedReference =
       readonly target: ScalarExpressionResolvedGeometryTarget | null;
     };
 
+/** Compiler/frontend-resolved metadata for a scalar geometry-property read.
+ * The common expression typechecker consumes this closed result; it does not
+ * resolve element names, property schemas, or source order itself. */
+export type ScalarExpressionResolvedGeometryProperty = {
+  readonly elementId: ElementId;
+  readonly property: string;
+  readonly targetSourceOrder: number;
+  readonly type: ScalarType;
+};
+
 /** Resolved at compile time. `elementId` is never re-resolved by a runtime. */
 export interface TypedScalarGeometryPropertyReferenceNode {
   readonly kind: "geometryProperty";
@@ -94,7 +105,7 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly elementId: string | null;
   readonly property: string;
   readonly targetSourceOrder: number | null;
-  readonly type: Extract<ScalarType, { kind: "number" }>;
+  readonly type: ScalarType | null;
 }
 
 export interface TypedScalarUnaryExpressionNode {
@@ -194,6 +205,10 @@ export interface ScalarExpressionTypecheckContext {
    * operands. It is keyed by the parser-owned node span and never enters the
    * scalar reference occurrence sequence. */
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
+  /** Closed-frontend-resolved geometry-property metadata, keyed by the
+   * parser-owned node span. A null entry is an explicit failed resolution and
+   * must remain type-null rather than falling back to number. */
+  readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
   /** Optional closed-frontend hook for bare choice tokens that are actually
    * local semantic values (for example a legacy Module iteration value). */
   readonly resolveChoiceLiteral?: (

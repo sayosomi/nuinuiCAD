@@ -23,7 +23,7 @@ import { collectScalarExpressionReferences } from "./expressionReferenceCollecto
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
-import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 
@@ -252,27 +252,11 @@ export const compilePropertyBindings = ({
       continue;
     }
 
-    const checked = typecheckScalarExpression(prepared.ast, {
-      expectedType: candidate.expectedType,
-      references: prepared.references
-    });
-    if (checked.diagnostics.length > 0 || checked.type === null) {
-      diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(
-        spans,
-        candidate.statement,
-        diagnostic.span,
-        PROPERTY_BINDING_TYPE_MISMATCH_CODE,
-        diagnostic.message
-      )));
-      if (checked.diagnostics.length === 0) diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.span, PROPERTY_BINDING_INVALID_CODE, `"${candidate.parameterKey}" のtyped expressionを解決できません。`));
-      continue;
-    }
-
     const element = elementIdByStatementIndex.get(candidate.statementIndex)
       ? elementsById.get(elementIdByStatementIndex.get(candidate.statementIndex)!)
       : undefined;
-    const geometryResolution = resolveTypedGeometryProperties(
-      checked.typed,
+    const geometryResolution = resolveGeometryPropertyMetadata(
+      prepared.ast,
       elements,
       sourceOrderByElementId,
       {
@@ -285,6 +269,23 @@ export const compilePropertyBindings = ({
       diagnostics.push(...geometryResolution.issues.map((issue) =>
         diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
       ));
+      continue;
+    }
+
+    const checked = typecheckScalarExpression(prepared.ast, {
+      expectedType: candidate.expectedType,
+      references: prepared.references,
+      geometryPropertyReferences: geometryResolution.geometryPropertyReferences
+    });
+    if (checked.diagnostics.length > 0 || checked.type === null) {
+      diagnostics.push(...checked.diagnostics.map((diagnostic) => diagnosticAt(
+        spans,
+        candidate.statement,
+        diagnostic.span,
+        PROPERTY_BINDING_TYPE_MISMATCH_CODE,
+        diagnostic.message
+      )));
+      if (checked.diagnostics.length === 0) diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.span, PROPERTY_BINDING_INVALID_CODE, `"${candidate.parameterKey}" のtyped expressionを解決できません。`));
       continue;
     }
 
@@ -304,7 +305,7 @@ export const compilePropertyBindings = ({
         name: candidate.ast.name
       });
     } else {
-      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: geometryResolution.expression, type: checked.type, span: candidate.span });
+      sourcesByOccurrenceKey.set(candidate.key, { kind: "expression", expression: checked.typed, type: checked.type, span: candidate.span });
     }
   }
 

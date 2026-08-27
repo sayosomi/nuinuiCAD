@@ -172,6 +172,10 @@ const evaluateGeometryProperty = (
   node: Extract<TypedScalarExpression, { kind: "geometryProperty" }>,
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
+  if (node.type === null) return staticTypeNullError();
+  if (node.type.kind !== "number") {
+    return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
   if (!node.elementId || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }

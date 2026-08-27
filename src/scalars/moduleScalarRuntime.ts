@@ -31,7 +31,12 @@ import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
 import { lowerScalarProgram, type ScalarProgram } from "./scalarProgram";
 import type { ScalarType } from "./types";
-import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type {
+  ScalarExpressionResolvedGeometryProperty,
+  ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedReference,
+  TypedScalarExpression
+} from "./typedExpressionAst";
 import type { TextTemplateAst, TextTemplateDependency, TextTemplateSegment } from "./textTemplate";
 import { scanTextTemplateLiteral } from "./textTemplateScan";
 import { typecheckScalarExpression } from "./expressionTypecheck";
@@ -276,6 +281,45 @@ const lowerExpression = (
   const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>(
     semantic.geometryBuiltinArguments.map((occurrence) => [occurrence.span.start, typecheckGeometryTargetFor(occurrence)])
   );
+  const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
+  for (const property of semantic.geometryProperties) {
+    if (!property.target || !property.type) {
+      geometryPropertyReferences.set(property.span.start, null);
+      continue;
+    }
+    const runtimeTarget = geometryPropertyForTarget?.(property.target);
+    if (runtimeTarget?.kind === "runtime") {
+      geometryPropertyReferences.set(property.span.start, {
+        elementId: runtimeTarget.elementId,
+        property: runtimeTarget.property,
+        targetSourceOrder: runtimeTarget.targetSourceOrder ?? (
+          property.target.kind === "sourceGeometryProperty"
+            ? property.target.statementIndex
+            : property.target.kind === "deferredModuleExportProperty"
+              ? property.target.instanceStatementIndex
+              : -1
+        ),
+        type: property.type
+      });
+      continue;
+    }
+    const elementId = property.target.kind === "sourceGeometryProperty"
+      ? property.target.statementId
+      : property.target.kind === "deferredModuleExportProperty"
+        ? property.target.instanceStatementId
+        : property.target.definitionStatementId;
+    const targetSourceOrder = property.target.kind === "sourceGeometryProperty"
+      ? property.target.statementIndex
+      : property.target.kind === "deferredModuleExportProperty"
+        ? property.target.instanceStatementIndex
+        : -1;
+    geometryPropertyReferences.set(property.span.start, {
+      elementId,
+      property: property.target.property,
+      targetSourceOrder,
+      type: property.type
+    });
+  }
   const geometryBuiltinForCallArgument = (call: Extract<TypedScalarExpression, { kind: "call" }>, argumentIndex: number) =>
     semantic.geometryBuiltinArguments.find((occurrence) =>
       occurrence.builtinName === call.name &&
@@ -337,7 +381,8 @@ const lowerExpression = (
   const checked = typecheckScalarExpression(runtimeAst, {
     expectedType: semantic.type,
     references: typecheckResolutions,
-    geometryBuiltinArguments: geometryBuiltinArgumentTargets
+    geometryBuiltinArguments: geometryBuiltinArgumentTargets,
+    geometryPropertyReferences
   });
   const lowerGeometryProperties = (node: TypedScalarExpression): { node: TypedScalarExpression; references: InitializerReference[] } => {
     if (node.kind === "geometryProperty") {
