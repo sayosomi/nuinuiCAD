@@ -173,7 +173,7 @@ const evaluateGeometryProperty = (
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
   if (node.type === null) return staticTypeNullError();
-  if (node.type.kind !== "number") {
+  if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (!node.elementId || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
@@ -181,7 +181,7 @@ const evaluateGeometryProperty = (
   }
   const result = environment.lookupGeometryProperty(node);
   if (result.status === "error") return result;
-  if (result.type.kind !== "number" || result.value.kind !== "number") {
+  if (!scalarTypesEqual(node.type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;

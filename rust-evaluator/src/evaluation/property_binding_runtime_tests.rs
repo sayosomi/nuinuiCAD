@@ -5,8 +5,12 @@
 //! `scalars/property_binding_payload_tests.rs`; these tests exercise the
 //! whole materialize-then-evaluate path against real element evaluators.
 
+use super::scalar_expression_runtime::lookup_geometry_property;
+use super::scalars::{ScalarEvaluation, ScalarType};
+use super::types::EvaluationState;
 use super::*;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 fn input(
     elements: Vec<Value>,
@@ -81,6 +85,68 @@ fn line(id: &str, start: &str, end: &str) -> Value {
         "id": id, "name": id, "type": "line", "activity": "visible",
         "startPoint": {"mode": "reference", "pointId": start},
         "endPoint": {"mode": "reference", "pointId": end}
+    })
+}
+
+fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&str>) -> Value {
+    let mut element = json!({
+        "id": id, "name": id, "type": "arcLine", "activity": "visible",
+        "centerPoint": {"mode": "coordinate", "x": 0, "y": 0},
+        "radius": 10, "startAngleDeg": start_angle_deg, "endAngleDeg": end_angle_deg
+    });
+    if let Some(direction) = direction {
+        element["direction"] = json!(direction);
+    }
+    element
+}
+
+fn state_with_element(id: &str, element: Value) -> EvaluationState {
+    EvaluationState {
+        elements: vec![element],
+        elements_by_id: HashMap::from([(id.to_owned(), 0)]),
+        drawing_modifiers: json!([]),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::new(),
+        computed_geometry_order: Vec::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        warnings: Vec::new(),
+    }
+}
+
+fn geometry_direction_expression(
+    element_id: &str,
+    target_source_order: usize,
+    options: &[&str],
+) -> Value {
+    json!({
+        "kind": "geometryProperty",
+        "span": {"start": 0, "end": 1},
+        "elementNameSpan": {"start": 0, "end": 1},
+        "propertySpan": {"start": 0, "end": 1},
+        "elementName": element_id,
+        "elementId": element_id,
+        "property": "direction",
+        "targetSourceOrder": target_source_order,
+        "type": {"kind": "choice", "options": options}
+    })
+}
+
+fn expression_property_binding(
+    element_id: &str,
+    parameter_key: &str,
+    expression: Value,
+    expected_type: Value,
+) -> Value {
+    json!({
+        "elementId": element_id,
+        "parameterKey": parameter_key,
+        "expression": expression,
+        "expectedType": expected_type
     })
 }
 
@@ -186,6 +252,278 @@ fn offset_line_side_bound_to_a_choice_binding_flips_the_offset_direction() {
     let bound_geometry = geometry(&bound, "off").expect("bound offset must be computed");
     assert_eq!(bound_geometry, geometry(&literal_left, "off").unwrap());
     assert_ne!(bound_geometry, geometry(&literal_right, "off").unwrap());
+}
+
+#[test]
+fn geometry_property_choice_runtime_preserves_type_options_and_value() {
+    let options = ["counterclockwise", "clockwise"];
+    let result = evaluate_document_input(input(
+        vec![arc("source", 0.0, 90.0, None)],
+        Some(program(vec![statement(
+            "binding:direction",
+            1,
+            "const",
+            json!({"kind": "choice", "options": options}),
+            geometry_direction_expression("source", 0, &options),
+        )])),
+        None,
+    ));
+
+    let evaluation = &result
+        .computed_scalar_bindings
+        .expect("scalar program output")[0]["evaluation"];
+    assert_eq!(evaluation["status"], json!("ok"));
+    assert_eq!(
+        evaluation["type"],
+        json!({"kind": "choice", "options": options})
+    );
+    assert_eq!(
+        evaluation["value"],
+        json!({
+            "kind": "choice",
+            "value": "counterclockwise",
+            "options": options
+        })
+    );
+}
+
+#[test]
+fn choice_geometry_property_requires_current_geometry_even_without_source_order() {
+    let options = vec!["counterclockwise".to_owned(), "clockwise".to_owned()];
+    let state = state_with_element("source", arc("source", 0.0, 90.0, None));
+    let property_type = ScalarType::Choice {
+        options: options.clone(),
+    };
+
+    assert_eq!(
+        lookup_geometry_property(&state, "source", "direction", 0, None, &property_type,),
+        ScalarEvaluation::Error {
+            r#type: property_type,
+            issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    );
+}
+
+#[test]
+fn choice_geometry_property_cannot_leak_disabled_or_failed_targets_but_hidden_targets_remain_readable(
+) {
+    let options = ["counterclockwise", "clockwise"];
+    let property_type = json!({"kind": "choice", "options": options});
+    let read = |element: Value| {
+        let element_id = element["id"].as_str().unwrap().to_owned();
+        let result = evaluate_document_input(input(
+            vec![element],
+            Some(program(vec![statement(
+                "binding:direction",
+                1,
+                "const",
+                property_type.clone(),
+                geometry_direction_expression(&element_id, 0, &options),
+            )])),
+            None,
+        ));
+        result
+            .computed_scalar_bindings
+            .expect("scalar program output")[0]["evaluation"]
+            .clone()
+    };
+
+    let mut disabled = arc("disabled", 0.0, 90.0, None);
+    disabled["activity"] = json!("disabled");
+    let disabled_evaluation = read(disabled);
+    assert_eq!(disabled_evaluation["status"], json!("error"));
+    assert_eq!(disabled_evaluation["type"], property_type);
+    assert_eq!(
+        disabled_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+
+    let mut failed = arc("failed", 0.0, 90.0, None);
+    failed.as_object_mut().unwrap().remove("centerPoint");
+    let failed_evaluation = read(failed);
+    assert_eq!(failed_evaluation["status"], json!("error"));
+    assert_eq!(failed_evaluation["type"], property_type);
+    assert_eq!(
+        failed_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+
+    let mut hidden = arc("hidden", 0.0, 90.0, None);
+    hidden["activity"] = json!("hidden");
+    let hidden_evaluation = read(hidden);
+    assert_eq!(hidden_evaluation["status"], json!("ok"));
+    assert_eq!(hidden_evaluation["type"], property_type);
+    assert_eq!(
+        hidden_evaluation["value"],
+        json!({
+            "kind": "choice",
+            "value": "counterclockwise",
+            "options": options
+        })
+    );
+}
+
+#[test]
+fn geometry_property_choice_runtime_fails_closed_with_concrete_type_for_invalid_and_too_late_reads()
+{
+    let invalid_options = ["clockwise"];
+    let invalid = evaluate_document_input(input(
+        vec![arc("source", 0.0, 90.0, None)],
+        Some(program(vec![statement(
+            "binding:invalid",
+            1,
+            "const",
+            json!({"kind": "choice", "options": invalid_options}),
+            geometry_direction_expression("source", 0, &invalid_options),
+        )])),
+        None,
+    ));
+    let invalid_evaluation = &invalid
+        .computed_scalar_bindings
+        .expect("scalar program output")[0]["evaluation"];
+    assert_eq!(invalid_evaluation["status"], json!("error"));
+    assert_eq!(
+        invalid_evaluation["type"],
+        json!({"kind": "choice", "options": invalid_options})
+    );
+    assert_eq!(
+        invalid_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+
+    let too_late_options = ["counterclockwise", "clockwise"];
+    let too_late = evaluate_document_input(input(
+        vec![arc("source", 0.0, 90.0, None)],
+        Some(program(vec![statement(
+            "binding:too-late",
+            1,
+            "const",
+            json!({"kind": "choice", "options": too_late_options}),
+            geometry_direction_expression("source", 1, &too_late_options),
+        )])),
+        None,
+    ));
+    let too_late_evaluation = &too_late
+        .computed_scalar_bindings
+        .expect("scalar program output")[0]["evaluation"];
+    assert_eq!(too_late_evaluation["status"], json!("error"));
+    assert_eq!(
+        too_late_evaluation["type"],
+        json!({"kind": "choice", "options": too_late_options})
+    );
+    assert_eq!(
+        too_late_evaluation["issueCode"],
+        json!("evaluation-geometry-property-unavailable")
+    );
+}
+
+#[test]
+fn arc_direction_choice_runtime_matches_sweep_sign_zero_fallback_and_reverse_order() {
+    let options = ["counterclockwise", "clockwise"];
+    let direction_type = json!({"kind": "choice", "options": options});
+    let target = |id: &str, expression: Value| {
+        expression_property_binding(id, "direction", expression, direction_type.clone())
+    };
+    let target_arc = |id: &str| arc(id, 0.0, 90.0, None);
+
+    let positive = evaluate_document_input(input(
+        vec![arc("source", 0.0, 90.0, None), target_arc("target")],
+        Some(program(vec![])),
+        Some(json!([target(
+            "target",
+            geometry_direction_expression("source", 0, &options)
+        )])),
+    ));
+    assert!(positive.errors.is_empty());
+    assert_eq!(
+        geometry(&positive, "target").unwrap()["sweepAngleDeg"],
+        json!(90.0)
+    );
+
+    let negative = evaluate_document_input(input(
+        vec![
+            arc("source", 0.0, 90.0, Some("clockwise")),
+            target_arc("target"),
+        ],
+        Some(program(vec![])),
+        Some(json!([target(
+            "target",
+            geometry_direction_expression("source", 0, &options)
+        )])),
+    ));
+    assert!(negative.errors.is_empty());
+    assert_eq!(
+        geometry(&negative, "target").unwrap()["sweepAngleDeg"],
+        json!(-270.0)
+    );
+
+    for direction in ["counterclockwise", "clockwise"] {
+        let source_direction = choice_literal(direction, &options);
+        let zero_effective = evaluate_document_input(input(
+            vec![arc("source", 0.0, 0.0, None), target_arc("target")],
+            Some(program(vec![])),
+            Some(json!([
+                expression_property_binding(
+                    "source",
+                    "direction",
+                    source_direction,
+                    direction_type.clone()
+                ),
+                target(
+                    "target",
+                    geometry_direction_expression("source", 0, &options)
+                )
+            ])),
+        ));
+        assert!(zero_effective.errors.is_empty());
+        let expected_sweep = if direction == "clockwise" {
+            -270.0
+        } else {
+            90.0
+        };
+        assert_eq!(
+            geometry(&zero_effective, "target").unwrap()["sweepAngleDeg"],
+            json!(expected_sweep)
+        );
+    }
+
+    let reverse_before = evaluate_document_input(input(
+        vec![
+            arc("source", 0.0, 90.0, None),
+            json!({"id": "reverse", "name": "", "type": "pathReverse", "activity": "visible", "targetLineId": "source"}),
+            target_arc("target"),
+        ],
+        Some(program(vec![])),
+        Some(json!([target(
+            "target",
+            geometry_direction_expression("source", 0, &options)
+        )])),
+    ));
+    assert!(reverse_before.errors.is_empty());
+    assert_eq!(
+        geometry(&reverse_before, "target").unwrap()["sweepAngleDeg"],
+        json!(-270.0)
+    );
+
+    let reverse_after = evaluate_document_input(input(
+        vec![
+            arc("source", 0.0, 90.0, None),
+            target_arc("target"),
+            json!({"id": "reverse", "name": "", "type": "pathReverse", "activity": "visible", "targetLineId": "source"}),
+        ],
+        Some(program(vec![])),
+        Some(json!([target(
+            "target",
+            geometry_direction_expression("source", 0, &options)
+        )])),
+    ));
+    assert!(reverse_after.errors.is_empty());
+    assert_eq!(
+        geometry(&reverse_after, "target").unwrap()["sweepAngleDeg"],
+        json!(90.0)
+    );
 }
 
 #[test]

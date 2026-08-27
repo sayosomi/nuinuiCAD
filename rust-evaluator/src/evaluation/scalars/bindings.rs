@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
 
+use super::super::scalar_expression_runtime::lookup_geometry_property;
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
@@ -12,7 +13,6 @@ use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
     BindingId, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType, ScalarValue,
 };
-use crate::evaluation::numeric_expression::computed_reference_value;
 use crate::evaluation::types::EvaluationState;
 
 const BINDING_UNAVAILABLE: &str = "evaluation-binding-unavailable";
@@ -187,32 +187,16 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
         element_id: &str,
         property: &str,
         target_source_order: usize,
+        property_type: &ScalarType,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
-            return ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            };
-        }
-        match self
-            .state
-            .computed_geometry
-            .get(element_id)
-            .and_then(|geometry| computed_reference_value(geometry, property))
-        {
-            Some(value) => ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: ScalarValue::Number(value),
-            },
-            None => ScalarEvaluation::Error {
-                r#type: ScalarType::Number,
-                issue_code: "evaluation-geometry-property-unavailable".to_owned(),
-                binding_id: None,
-                context: None,
-            },
-        }
+        lookup_geometry_property(
+            self.state,
+            element_id,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
     }
 
     fn lookup_geometry_builtin_target(

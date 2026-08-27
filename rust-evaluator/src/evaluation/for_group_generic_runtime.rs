@@ -230,24 +230,33 @@ impl<'a> GenericForGroupRuntime<'a> {
                 let resolver = self
                     .active_scalar_binding_resolver
                     .expect("scalar_binding_resolver must exist when property bindings exist");
-                match apply_property_bindings(&generated_element, Some(entries), resolver, state) {
-                    Ok(materialized_element) => evaluate_element_by_type(
-                        generated_id,
-                        materialized_element,
-                        local_variables,
-                        self.conditional_group_states,
-                        ConditionalGroupContext {
-                            lookup_id: &template_id,
-                            by_element_id: self.condition_by_element_id,
-                            scalar_binding_resolver: self.active_scalar_binding_resolver,
-                        },
-                        TextTemplateContext {
-                            lookup_id: &template_id,
-                            by_element_id: self.text_templates_by_element_id,
-                            scalar_binding_resolver: self.active_scalar_binding_resolver,
-                        },
-                        state,
-                    ),
+                match apply_property_bindings(
+                    &generated_element,
+                    Some(entries),
+                    resolver,
+                    state,
+                    None,
+                ) {
+                    Ok(materialized_element) => {
+                        state.elements[generated_index] = materialized_element.clone();
+                        evaluate_element_by_type(
+                            generated_id,
+                            materialized_element,
+                            local_variables,
+                            self.conditional_group_states,
+                            ConditionalGroupContext {
+                                lookup_id: &template_id,
+                                by_element_id: self.condition_by_element_id,
+                                scalar_binding_resolver: self.active_scalar_binding_resolver,
+                            },
+                            TextTemplateContext {
+                                lookup_id: &template_id,
+                                by_element_id: self.text_templates_by_element_id,
+                                scalar_binding_resolver: self.active_scalar_binding_resolver,
+                            },
+                            state,
+                        )
+                    }
                     Err(error) => state.errors.push(error),
                 }
             }
