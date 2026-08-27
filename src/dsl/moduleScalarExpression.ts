@@ -3,7 +3,11 @@ import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { getBuiltinFunctionDefinition, type BuiltinFunctionName } from "../scalars/builtinFunctions";
-import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedReference } from "../scalars/typedExpressionAst";
+import type {
+  ScalarExpressionResolvedGeometryProperty,
+  ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedReference
+} from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
@@ -143,6 +147,19 @@ const scalarTypeFromTarget = (target: ModuleSourceTarget, resolution: ModuleScal
   return resolution.type;
 };
 
+const geometryPropertyMetadataFor = (
+  target: ModuleGeometryPropertySourceTarget,
+  type: ScalarType
+): ScalarExpressionResolvedGeometryProperty => {
+  if (target.kind === "sourceGeometryProperty") {
+    return { elementId: target.statementId, property: target.property, targetSourceOrder: target.statementIndex, type };
+  }
+  if (target.kind === "deferredModuleExportProperty") {
+    return { elementId: target.instanceStatementId, property: target.property, targetSourceOrder: target.instanceStatementIndex, type };
+  }
+  return { elementId: target.definitionStatementId, property: target.property, targetSourceOrder: -1, type };
+};
+
 const isBuiltinGeometryParameterType = (
   type: unknown
 ): type is Extract<ModuleGeometryInterfaceType, "point" | "line"> => type === "point" || type === "line";
@@ -177,6 +194,7 @@ const resolveAndTypecheck = ({
   const resolvedReferences: ModuleScalarReference[] = [];
   const geometryProperties: ModuleGeometryPropertyReference[] = [];
   const geometryBuiltinArguments: ModuleGeometryBuiltinArgumentSemantic[] = [];
+  const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
   const hasValueParameters: { span: DslSpan; definitionStatementId: string; parameterIndex: number }[] = [];
@@ -283,7 +301,8 @@ const resolveAndTypecheck = ({
       case "geometryProperty":
         if (!resolveGeometryProperty) {
           diagnostics.push(localIssue("module-geometry-property-reference", node.span, "module の scalar expression では geometry property を解決できません。"));
-          geometryProperties.push({ geometryName: node.elementName, property: node.property, elementNameSpan: node.elementNameSpan, propertySpan: node.propertySpan, span: node.span, target: null, resolution: "invalid" });
+          geometryProperties.push({ geometryName: node.elementName, property: node.property, elementNameSpan: node.elementNameSpan, propertySpan: node.propertySpan, span: node.span, target: null, type: null, resolution: "invalid" });
+          geometryPropertyReferences.set(node.span.start, null);
           invalidGeometryProperty = true;
           return node;
         }
@@ -303,8 +322,15 @@ const resolveAndTypecheck = ({
             propertySpan: node.propertySpan,
             span: node.span,
             target: resolution.target,
+            type: resolution.type,
             resolution: resolution.resolution
           });
+          geometryPropertyReferences.set(
+            node.span.start,
+            resolution.target && resolution.type
+              ? geometryPropertyMetadataFor(resolution.target, resolution.type)
+              : null
+          );
           if (resolution.diagnostic) diagnostics.push(resolution.diagnostic);
           if (!resolution.target) invalidGeometryProperty = true;
           return node;
@@ -331,6 +357,7 @@ const resolveAndTypecheck = ({
     expectedType,
     references: resolvedTypes,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
+    geometryPropertyReferences,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
   });
   for (const diagnostic of checked.diagnostics) {

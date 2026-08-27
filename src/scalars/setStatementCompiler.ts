@@ -32,7 +32,7 @@ import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
-import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
 import { resolveBuiltinGeometryArguments } from "./builtinGeometryArgumentResolution";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
@@ -363,29 +363,19 @@ export const compileSetStatements = ({
       continue;
     }
 
-    const checked = typecheckScalarExpression(prepared.ast, {
-      expectedType: binding.declaredType,
-      references: prepared.references,
-      geometryBuiltinArguments: builtinGeometryResolution?.geometryPropertyTargets
-    });
-    if (checked.diagnostics.length > 0) {
-      diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-        diagnosticAt(spans, candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message)
-      ));
-      continue;
-    }
     const sourceOrderByElementId = new Map<ElementId, number>();
     for (const [sourceOrder, elementId] of elementIdByStatementIndex ?? []) sourceOrderByElementId.set(elementId, sourceOrder);
     const ownerContainerId = bindingAnalysis.catalog.containerIndex.ownerContainerIdByStatementIndex.get(candidate.statementIndex);
     // Pass a namespace-only current element. Passing the owner CadElement
     // itself would make parentGroupId point at the owner's parent namespace.
-    const geometryResolution = resolveTypedGeometryProperties(
-      checked.typed,
+    const geometryResolution = resolveGeometryPropertyMetadata(
+      prepared.ast,
       elements ?? [],
       sourceOrderByElementId,
       {
         currentElement: { parentGroupId: ownerContainerId ?? undefined },
-        nameContext
+        nameContext,
+        skipPropertySpanStarts: new Set(builtinGeometryResolution?.geometryPropertyTargets.keys() ?? [])
       }
     );
     if (geometryResolution.issues.length > 0) {
@@ -395,6 +385,18 @@ export const compileSetStatements = ({
       continue;
     }
 
+    const checked = typecheckScalarExpression(prepared.ast, {
+      expectedType: binding.declaredType,
+      references: prepared.references,
+      geometryBuiltinArguments: builtinGeometryResolution?.geometryPropertyTargets,
+      geometryPropertyReferences: geometryResolution.geometryPropertyReferences
+    });
+    if (checked.diagnostics.length > 0) {
+      diagnostics.push(...checked.diagnostics.map((diagnostic) =>
+        diagnosticAt(spans, candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message)
+      ));
+      continue;
+    }
     const statementId = stableStatementIdByIndex.get(candidate.statementIndex);
     // Proven present by the identity-contract check at the top of this
     // function - no `!`, no fallback.
@@ -411,7 +413,7 @@ export const compileSetStatements = ({
       targetName: candidate.statement.name,
       targetSpan: candidate.targetSpan,
       expressionSpan: candidate.expressionSpan,
-      expression: geometryResolution.expression
+      expression: checked.typed
     });
   }
 

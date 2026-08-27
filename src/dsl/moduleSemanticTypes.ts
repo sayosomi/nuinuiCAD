@@ -133,6 +133,7 @@ export type ModuleGeometryPropertyReference = {
   propertySpan: DslSpan;
   span: DslSpan;
   target: ModuleGeometryPropertySourceTarget | null;
+  type: ScalarType | null;
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 

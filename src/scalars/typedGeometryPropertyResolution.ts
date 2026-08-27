@@ -8,7 +8,8 @@ import { tokenize } from "../geometry/numericExpressionParser";
 import { createElementNameContext } from "../model/elementNames";
 import type { ElementNameContext } from "../model/elementNames";
 import type { CadElement, ElementId } from "../types/geometry";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { ScalarExpressionAst } from "./expressionAst";
+import type { ScalarExpressionResolvedGeometryProperty } from "./typedExpressionAst";
 
 export type GeometryPropertyResolutionIssue = {
   span: { start: number; end: number };
@@ -21,6 +22,10 @@ export type TypedGeometryPropertyResolutionContext = {
   /** Source-order position of the expression owner. Geometry reads must point
    * strictly earlier in document order. */
   currentSourceOrder?: number;
+  /** Geometry-property occurrences already claimed as direct builtin geometry
+   * operands are owned by the geometry builtin resolver, not this numeric
+   * property resolver. */
+  skipPropertySpanStarts?: ReadonlySet<number>;
 };
 
 const normalizedReference = (
@@ -43,16 +48,21 @@ const normalizedReference = (
   }
 };
 
-export const resolveTypedGeometryProperties = (
-  expression: TypedScalarExpression,
+export const resolveGeometryPropertyMetadata = (
+  expression: ScalarExpressionAst,
   elements: readonly CadElement[],
   sourceOrderByElementId: ReadonlyMap<ElementId, number>,
   context?: TypedGeometryPropertyResolutionContext
-): { expression: TypedScalarExpression; issues: readonly GeometryPropertyResolutionIssue[] } => {
+): {
+  geometryPropertyReferences: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
+  issues: readonly GeometryPropertyResolutionIssue[];
+} => {
   const issues: GeometryPropertyResolutionIssue[] = [];
+  const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
   const nameContext = context?.nameContext ?? createElementNameContext([...elements]);
-  const visit = (node: TypedScalarExpression): TypedScalarExpression => {
+  const visit = (node: ScalarExpressionAst): void => {
     if (node.kind === "geometryProperty") {
+      if (context?.skipPropertySpanStarts?.has(node.span.start)) return;
       const reference = normalizedReference(
         node.elementName,
         node.property,
@@ -61,41 +71,41 @@ export const resolveTypedGeometryProperties = (
         nameContext
       );
       if (!reference) {
+        geometryPropertyReferences.set(node.span.start, null);
         issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」を一意に解決できません。` });
-        return { ...node, elementId: null, targetSourceOrder: null };
+        return;
       }
       if (!isKnownNumericComputedGeometryProperty(reference.property)) {
+        geometryPropertyReferences.set(node.span.start, null);
         issues.push({ span: node.propertySpan, message: `要素プロパティ「${node.property}」は数値参照として使用できません。` });
-        return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
+        return;
       }
       const targetSourceOrder = sourceOrderByElementId.get(reference.elementId);
       if (targetSourceOrder === undefined) {
+        geometryPropertyReferences.set(node.span.start, null);
         issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」のsource orderを解決できません。` });
-        return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
+        return;
       }
       if (context?.currentSourceOrder !== undefined && targetSourceOrder >= context.currentSourceOrder) {
+        geometryPropertyReferences.set(node.span.start, null);
         issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。` });
-        return { ...node, property: reference.property, elementId: null, targetSourceOrder: null };
+        return;
       }
-      return {
-        ...node,
-        property: reference.property,
+      geometryPropertyReferences.set(node.span.start, {
         elementId: reference.elementId,
-        targetSourceOrder
-      };
+        property: reference.property,
+        targetSourceOrder,
+        type: { kind: "number" }
+      });
+      return;
     }
-    if (node.kind === "unary") return { ...node, operand: visit(node.operand) };
-    if (node.kind === "binary") return { ...node, left: visit(node.left), right: visit(node.right) };
-    if (node.kind === "group") return { ...node, expression: visit(node.expression) };
+    if (node.kind === "unary") { visit(node.operand); return; }
+    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
+    if (node.kind === "group") { visit(node.expression); return; }
     if (node.kind === "call") {
-      return {
-        ...node,
-        args: node.args.map((argument) =>
-          argument.kind === "scalar" ? { ...argument, expression: visit(argument.expression) } : argument
-        )
-      };
+      node.args.forEach((argument) => visit(argument.expression));
     }
-    return node;
   };
-  return { expression: visit(expression), issues };
+  visit(expression);
+  return { geometryPropertyReferences, issues };
 };

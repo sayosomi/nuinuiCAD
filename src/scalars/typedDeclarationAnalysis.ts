@@ -20,7 +20,7 @@ import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarType } from "./types";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
-import { resolveTypedGeometryProperties } from "./typedGeometryPropertyResolution";
+import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
@@ -571,24 +571,28 @@ export const analyzeTypedDeclarations = ({
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const prepared = preparedByBindingId.get(binding.id);
-    const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: binding.declaredType,
-      references: prepared?.references ?? geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
-      geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
-    });
-    const statement = statements[binding.statementIndex];
-    if (!statement) throw new Error(`typedDeclarationAnalysis: no owner statement for ${binding.id}`);
     const ownerContainerId = adapter.containerIndex.ownerContainerIdByStatementIndex.get(binding.statementIndex);
-    const geometryResolution = resolveTypedGeometryProperties(
-      checked.typed,
+    const geometryPropertyResolution = resolveGeometryPropertyMetadata(
+      prepared?.ast ?? parsed.ast,
       reconciledContainers.elements,
       sourceOrderByElementId,
       {
         currentElement: { parentGroupId: ownerContainerId ?? undefined },
-        nameContext
+        nameContext,
+        skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
+          ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
+          : undefined
       }
     );
-    typedInitializerByBindingId.set(binding.id, geometryResolution.expression);
+    const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
+      expectedType: binding.declaredType,
+      references: prepared?.references ?? geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
+      geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets,
+      geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
+    });
+    const statement = statements[binding.statementIndex];
+    if (!statement) throw new Error(`typedDeclarationAnalysis: no owner statement for ${binding.id}`);
+    typedInitializerByBindingId.set(binding.id, checked.typed);
     diagnostics.push(...checked.diagnostics.map((diagnostic) =>
       compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
         expectedType: diagnostic.expectedType,
@@ -596,7 +600,7 @@ export const analyzeTypedDeclarations = ({
         bindingId: binding.id
       })
     ));
-    diagnostics.push(...geometryResolution.issues.map((issue) =>
+    diagnostics.push(...geometryPropertyResolution.issues.map((issue) =>
       compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, { bindingId: binding.id })
     ));
   }

@@ -25,6 +25,7 @@ import {
 } from "./builtinFunctions";
 import type {
   ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedReference,
   ScalarExpressionTypecheckContext,
   ScalarExpressionTypecheckDiagnostic,
@@ -42,6 +43,7 @@ const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean"
 interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
+  readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
@@ -239,18 +241,20 @@ const checkNode = (
       return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: binding.id, type };
     }
 
-    case "geometryProperty":
+    case "geometryProperty": {
+      const resolved = state.geometryPropertyReferences?.get(node.span.start) ?? null;
       return {
         kind: "geometryProperty",
         span: node.span,
         elementNameSpan: node.elementNameSpan,
         propertySpan: node.propertySpan,
         elementName: node.elementName,
-        elementId: null,
-        property: node.property,
-        targetSourceOrder: null,
-        type: NUMBER_TYPE
+        elementId: resolved?.elementId ?? null,
+        property: resolved?.property ?? node.property,
+        targetSourceOrder: resolved?.targetSourceOrder ?? null,
+        type: resolved?.type ?? null
       };
+    }
 
     case "unary": {
       const requiredType = node.operator === "!" ? BOOLEAN_TYPE : NUMBER_TYPE;
@@ -482,6 +486,7 @@ export const typecheckScalarExpression = (
   const state: TraversalState = {
     references: context.references,
     geometryBuiltinArguments: context.geometryBuiltinArguments,
+    geometryPropertyReferences: context.geometryPropertyReferences,
     cursor: 0,
     diagnostics: [],
     resolveChoiceLiteral: context.resolveChoiceLiteral

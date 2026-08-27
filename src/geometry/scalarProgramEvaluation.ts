@@ -52,6 +52,12 @@ export const resolveDocumentGeometryProperty = (
   reference: TypedScalarGeometryPropertyReferenceNode,
   sourceOrder: number
 ): ScalarEvaluation => {
+  if (reference.type === null) {
+    return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
+  }
+  if (reference.type.kind !== "number") {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
   if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-property-unavailable" };
   }

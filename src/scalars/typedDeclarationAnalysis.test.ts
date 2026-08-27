@@ -254,19 +254,22 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       elementName: property.elementName,
       elementId: property.elementId,
       property: property.property,
-      targetSourceOrder: property.targetSourceOrder
+      targetSourceOrder: property.targetSourceOrder,
+      type: property.type
     }))).toEqual([
       {
         elementName: "後ろ身頃::先に縫う",
         elementId: first?.id,
         property: "endTangentAngleDeg",
-        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "先に縫う")
+        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "先に縫う"),
+        type: { kind: "number" }
       },
       {
         elementName: "脇コピー",
         elementId: second?.id,
         property: "endTangentAngleDeg",
-        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "脇コピー")
+        targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "脇コピー"),
+        type: { kind: "number" }
       }
     ]);
   });

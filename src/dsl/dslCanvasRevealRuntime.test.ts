@@ -99,6 +99,7 @@ const propertyTarget = (
       propertySpan: { start: 8, end: 14 },
       span: { start: 0, end: 14 },
       target,
+      type: { kind: "number" },
       resolution: "resolved"
     }
   }
