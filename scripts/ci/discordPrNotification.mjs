@@ -1,9 +1,25 @@
-import { inflateRawSync } from "node:zlib";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import {
+  MAX_ARTIFACT_BYTES,
+  extractStructuredFailureFromArchive,
+  reportMappingForFailure
+} from "./structuredTestResults.mjs";
 
-const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const UNAVAILABLE = "unavailable";
+const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+const DISPLAY_CAPS = Object.freeze({
+  repository: 180,
+  conclusion: 40,
+  prNumber: 32,
+  title: 400,
+  headSha: 64,
+  runAttempt: 32,
+  runUrl: 350,
+  job: 160,
+  step: 160,
+  testName: 400
+});
 
 const nonSuccessConclusion = (conclusion) =>
   typeof conclusion === "string" && conclusion !== "success";
@@ -11,93 +27,27 @@ const nonSuccessConclusion = (conclusion) =>
 const failureConclusion = (conclusion) =>
   ["failure", "cancelled", "timed_out", "action_required"].includes(conclusion);
 
-const asText = (value) =>
-  typeof value === "string" && value.trim() ? value.trim() : UNAVAILABLE;
+const truncate = (value, maxLength) => {
+  const characters = Array.from(value);
+  if (characters.length <= maxLength) return value;
+  return `${characters.slice(0, Math.max(0, maxLength - 1)).join("")}…`;
+};
+
+const normalizeDisplay = (value) => {
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "bigint") return "";
+  return String(value)
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+};
+
+const asText = (value, maxLength) => {
+  const normalized = normalizeDisplay(value);
+  return normalized ? truncate(normalized, maxLength) : UNAVAILABLE;
+};
 
 const apiUrl = (repository, path) =>
   `https://api.github.com/repos/${repository}${path}`;
-
-export const extractCurrentRunnerTestName = (logText) => {
-  if (typeof logText !== "string") return null;
-  const normalized = logText.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
-
-  // These are the three test reporters used by ci.yml. Keep this deliberately
-  // narrow: it is a notification hint, not a general Actions-log parser.
-  const vitestFailure = normalized.match(/^\s*FAIL\s+.+?\s+>\s+.+?\s+>\s+(.+?)\s*$/m);
-  if (vitestFailure) return vitestFailure[1].trim();
-
-  const vitest = normalized.match(/^\s*×\s+(.+?)(?:\s+\d+ms)?\s*$/m);
-  if (vitest) return vitest[1].trim();
-
-  const nodeTest = normalized.match(/^\s*not ok \d+ - (.+?)\s*$/m);
-  if (nodeTest) return nodeTest[1].trim();
-
-  const cargoTest = normalized.match(/^test (.+?) \.\.\. FAILED\s*$/m);
-  if (cargoTest) return cargoTest[1].trim();
-
-  return null;
-};
-
-const readZipEntries = (archive) => {
-  const endSignature = 0x06054b50;
-  const directorySignature = 0x02014b50;
-  const localSignature = 0x04034b50;
-  let end = -1;
-
-  for (let index = archive.length - 22; index >= Math.max(0, archive.length - 65557); index -= 1) {
-    if (archive.readUInt32LE(index) === endSignature) {
-      end = index;
-      break;
-    }
-  }
-  if (end < 0) return [];
-
-  const entryCount = archive.readUInt16LE(end + 10);
-  let offset = archive.readUInt32LE(end + 16);
-  const entries = [];
-
-  for (let index = 0; index < entryCount; index += 1) {
-    if (offset + 46 > archive.length || archive.readUInt32LE(offset) !== directorySignature) break;
-    const compression = archive.readUInt16LE(offset + 10);
-    const compressedSize = archive.readUInt32LE(offset + 20);
-    const nameLength = archive.readUInt16LE(offset + 28);
-    const extraLength = archive.readUInt16LE(offset + 30);
-    const commentLength = archive.readUInt16LE(offset + 32);
-    const localOffset = archive.readUInt32LE(offset + 42);
-    const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
-    offset += 46 + nameLength + extraLength + commentLength;
-
-    if (localOffset + 30 > archive.length || archive.readUInt32LE(localOffset) !== localSignature) continue;
-    const localNameLength = archive.readUInt16LE(localOffset + 26);
-    const localExtraLength = archive.readUInt16LE(localOffset + 28);
-    const start = localOffset + 30 + localNameLength + localExtraLength;
-    const endOffset = start + compressedSize;
-    if (endOffset > archive.length) continue;
-
-    try {
-      const compressed = archive.subarray(start, endOffset);
-      const body = compression === 0
-        ? compressed
-        : compression === 8
-          ? inflateRawSync(compressed)
-          : null;
-      if (body) entries.push({ name, text: body.toString("utf8") });
-    } catch {
-      // One malformed log entry must not prevent the Discord notification.
-    }
-  }
-
-  return entries;
-};
-
-export const extractCurrentRunnerTestNameFromArchive = (archive) => {
-  if (!Buffer.isBuffer(archive) || archive.length > MAX_LOG_BYTES) return null;
-  for (const entry of readZipEntries(archive)) {
-    const testName = extractCurrentRunnerTestName(entry.text);
-    if (testName) return testName;
-  }
-  return null;
-};
 
 const request = async (url, token, fetchImpl) => {
   const response = await fetchImpl(url, {
@@ -111,6 +61,31 @@ const request = async (url, token, fetchImpl) => {
   return response;
 };
 
+const readBoundedResponse = async (response, maxBytes) => {
+  const contentLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) return null;
+
+  if (!response.body?.getReader) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return buffer.length <= maxBytes ? buffer : null;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+};
+
 const bestEffort = async (callback) => {
   try {
     return await callback();
@@ -120,16 +95,28 @@ const bestEffort = async (callback) => {
 };
 
 const selectFailedJob = (jobs) => {
-  const failed = jobs.filter((job) => failureConclusion(job.conclusion));
-  return failed.find((job) => job.name !== "CI") ?? failed[0] ?? null;
+  const failed = jobs.filter((job) => failureConclusion(job?.conclusion));
+  return failed.find((job) => job?.name !== "CI") ?? failed[0] ?? null;
 };
 
 const selectFailedStep = (job) =>
-  job?.steps?.find((step) => failureConclusion(step.conclusion)) ?? null;
+  (Array.isArray(job?.steps) ? job.steps : []).find((step) => failureConclusion(step?.conclusion)) ?? null;
 
-export const fetchFailureDetails = async ({ repository, runId, prNumber, token, fetchImpl = fetch }) => {
+const artifactNameForJob = (jobName, runAttempt) => {
+  if (!Number.isSafeInteger(runAttempt) || runAttempt <= 0) return null;
+  const artifactKey = {
+    "Classify changes": "classification",
+    Node: "node",
+    "Rust + parity": "rust-parity"
+  }[jobName];
+  return artifactKey ? `nuinuicad-ci-test-results-${artifactKey}-attempt-${runAttempt}` : null;
+};
+
+export const fetchFailureDetails = async ({ repository, runId, runAttempt, prNumber, token, fetchImpl = fetch }) => {
   const fallback = { title: UNAVAILABLE, job: UNAVAILABLE, step: UNAVAILABLE, testName: null };
-  if (!token || !repository || !runId || !prNumber) return fallback;
+  if (!token || !repository || !Number.isSafeInteger(runId) || runId <= 0 || !Number.isSafeInteger(prNumber) || prNumber <= 0) {
+    return fallback;
+  }
 
   const [pr, jobsPayload] = await Promise.all([
     bestEffort(async () => (await request(apiUrl(repository, `/pulls/${prNumber}`), token, fetchImpl)).json()),
@@ -138,21 +125,32 @@ export const fetchFailureDetails = async ({ repository, runId, prNumber, token, 
   const job = selectFailedJob(Array.isArray(jobsPayload?.jobs) ? jobsPayload.jobs : []);
   const step = selectFailedStep(job);
   const details = {
-    title: asText(pr?.title),
-    job: asText(job?.name),
-    step: asText(step?.name),
+    title: asText(pr?.title, DISPLAY_CAPS.title),
+    job: asText(job?.name, DISPLAY_CAPS.job),
+    step: asText(step?.name, DISPLAY_CAPS.step),
     testName: null
   };
 
-  if (!job || !step || !/test|tests|parity|stress/i.test(step.name ?? "")) return details;
+  const reportSpec = reportMappingForFailure(job?.name, step?.name);
+  const artifactName = artifactNameForJob(job?.name, runAttempt);
+  if (!reportSpec || !artifactName) return details;
+
   const archive = await bestEffort(async () => {
-    const response = await request(apiUrl(repository, `/actions/jobs/${job.id}/logs`), token, fetchImpl);
-    const contentLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(contentLength) && contentLength > MAX_LOG_BYTES) return null;
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return buffer.length <= MAX_LOG_BYTES ? buffer : null;
+    const artifactsPayload = await (await request(
+      apiUrl(repository, `/actions/runs/${runId}/artifacts?per_page=100`),
+      token,
+      fetchImpl
+    )).json();
+    const matchingArtifacts = (Array.isArray(artifactsPayload?.artifacts) ? artifactsPayload.artifacts : [])
+      .filter((artifact) => artifact?.name === artifactName);
+    if (matchingArtifacts.length !== 1 || matchingArtifacts[0]?.expired === true) return null;
+
+    const artifactId = matchingArtifacts[0]?.id;
+    if (!Number.isSafeInteger(artifactId) || artifactId <= 0) return null;
+    const response = await request(apiUrl(repository, `/actions/artifacts/${artifactId}/zip`), token, fetchImpl);
+    return readBoundedResponse(response, MAX_ARTIFACT_BYTES);
   });
-  details.testName = extractCurrentRunnerTestNameFromArchive(archive);
+  details.testName = extractStructuredFailureFromArchive(archive, reportSpec);
   return details;
 };
 
@@ -175,16 +173,17 @@ const ciFailureFromEvent = (event) => {
 
 export const buildCiFailureContent = ({ repository, prNumber, details, run }) => {
   const lines = [
-    `⚠️ [${repository}] CI ${asText(run.conclusion)} — PR #${prNumber}`,
-    details.title,
-    `head SHA: ${asText(run.head_sha)}`,
-    `run attempt: ${asText(run.run_attempt == null ? null : String(run.run_attempt))}`,
-    `Actions run: ${asText(run.html_url)}`,
-    `failed job: ${details.job}`,
-    `failed step: ${details.step}`
+    `⚠️ [${asText(repository, DISPLAY_CAPS.repository)}] CI ${asText(run?.conclusion, DISPLAY_CAPS.conclusion)} — PR #${asText(prNumber, DISPLAY_CAPS.prNumber)}`,
+    asText(details?.title, DISPLAY_CAPS.title),
+    `head SHA: ${asText(run?.head_sha, DISPLAY_CAPS.headSha)}`,
+    `run attempt: ${asText(run?.run_attempt, DISPLAY_CAPS.runAttempt)}`,
+    `Actions run: ${asText(run?.html_url, DISPLAY_CAPS.runUrl)}`,
+    `failed job: ${asText(details?.job, DISPLAY_CAPS.job)}`,
+    `failed step: ${asText(details?.step, DISPLAY_CAPS.step)}`
   ];
-  if (details.testName) lines.push(`failed test: ${details.testName}`);
-  return lines.join("\n");
+  const testName = asText(details?.testName, DISPLAY_CAPS.testName);
+  if (testName !== UNAVAILABLE) lines.push(`failed test: ${testName}`);
+  return truncate(lines.join("\n"), MAX_DISCORD_MESSAGE_LENGTH);
 };
 
 export const postDiscord = async ({ webhookUrl, content, fetchImpl = fetch }) => {
@@ -192,7 +191,7 @@ export const postDiscord = async ({ webhookUrl, content, fetchImpl = fetch }) =>
   const response = await fetchImpl(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content })
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
   });
   if (!response.ok) throw new Error(`Discord webhook returned HTTP status ${response.status}`);
 };
@@ -205,6 +204,7 @@ export const notifyCiFailure = async ({ event, environment = process.env, fetchI
   const details = await fetchFailureDetails({
     repository,
     runId: run.id,
+    runAttempt: run.run_attempt,
     prNumber: pullRequest.number,
     token: environment.GITHUB_TOKEN,
     fetchImpl
@@ -217,13 +217,13 @@ export const notifyCiFailure = async ({ event, environment = process.env, fetchI
 };
 
 export const notifyMergedPullRequest = async ({ environment = process.env, fetchImpl = fetch }) => {
-  const repository = asText(environment.REPOSITORY_NAME);
-  const number = asText(environment.PR_NUMBER);
-  const title = asText(environment.PR_TITLE);
-  const url = asText(environment.PR_URL);
+  const repository = asText(environment.REPOSITORY_NAME, DISPLAY_CAPS.repository);
+  const number = asText(environment.PR_NUMBER, DISPLAY_CAPS.prNumber);
+  const title = asText(environment.PR_TITLE, DISPLAY_CAPS.title);
+  const url = asText(environment.PR_URL, DISPLAY_CAPS.runUrl);
   await postDiscord({
     webhookUrl: environment.DISCORD_WEBHOOK_URL,
-    content: `✅ [${repository}] PR #${number} merged\n${title}\n${url}`,
+    content: truncate(`✅ [${repository}] PR #${number} merged\n${title}\n${url}`, MAX_DISCORD_MESSAGE_LENGTH),
     fetchImpl
   });
 };

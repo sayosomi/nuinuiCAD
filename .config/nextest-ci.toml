@@ -1,0 +1,7 @@
+# Shared CI execution policy. JUnit's per-job destination is supplied by
+# scripts/ci/runNextestWithJunit.mjs so reports remain under runner.temp.
+[profile.ci]
+fail-fast = false
+status-level = "all"
+final-status-level = "all"
+failure-output = "immediate-final"

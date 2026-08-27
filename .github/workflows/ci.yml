@@ -37,10 +37,22 @@ jobs:
           node-version: 24
 
       - name: Test change classifier
-        run: node --test scripts/ci/classifyChanges.node-test.mjs
+        run: >-
+          node --test
+          --test-reporter=spec
+          --test-reporter=junit
+          --test-reporter-destination=stdout
+          --test-reporter-destination=${{ runner.temp }}/classification-change-classifier.xml
+          scripts/ci/classifyChanges.node-test.mjs
 
       - name: Test Discord PR notification helper
-        run: node --test scripts/ci/discordPrNotification.node-test.mjs
+        run: >-
+          node --test
+          --test-reporter=spec
+          --test-reporter=junit
+          --test-reporter-destination=stdout
+          --test-reporter-destination=${{ runner.temp }}/classification-discord-notification.xml
+          scripts/ci/discordPrNotification.node-test.mjs
 
       - name: Resolve diff base
         id: base
@@ -95,6 +107,18 @@ jobs:
             node scripts/ci/classifyChanges.mjs --full </dev/null >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Upload structured test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuinuicad-ci-test-results-classification-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/classification-change-classifier.xml
+            ${{ runner.temp }}/classification-discord-notification.xml
+          if-no-files-found: ignore
+          retention-days: 1
+
   node:
     name: Node
     needs: classification
@@ -126,15 +150,30 @@ jobs:
         if: ${{ needs.classification.outputs.full_node != 'true' }}
         env:
           BASE_SHA: ${{ needs.classification.outputs.base_sha }}
+          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/node-changed.xml
         run: npm test -- --changed "$BASE_SHA" --passWithNoTests
 
       - name: Filesystem-backed binding resolution invariant
         if: ${{ needs.classification.outputs.full_node != 'true' }}
+        env:
+          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/node-binding-resolution.xml
         run: npm test -- test/bindingResolutionPublicSurface.test.ts
 
       - name: Build VS Code extension
         if: ${{ needs.classification.outputs.vscode == 'true' }}
         run: npm run build:vscode
+
+      - name: Upload structured test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuinuicad-ci-test-results-node-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/node-changed.xml
+            ${{ runner.temp }}/node-binding-resolution.xml
+          if-no-files-found: ignore
+          retention-days: 1
 
   rust_parity:
     name: Rust + parity
@@ -150,6 +189,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Install cargo-nextest
+        if: ${{ needs.classification.outputs.rust == 'true' }}
+        uses: taiki-e/install-action@nextest
 
       - name: Install Tauri Linux dependencies
         if: ${{ hashFiles('src-tauri/Cargo.toml') != '' }}
@@ -172,7 +215,7 @@ jobs:
 
       - name: Test evaluator crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
-        run: cargo test --manifest-path rust-evaluator/Cargo.toml
+        run: node scripts/ci/runNextestWithJunit.mjs rust-evaluator.xml --manifest-path rust-evaluator/Cargo.toml
 
       - name: Clippy evaluator crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
@@ -211,6 +254,8 @@ jobs:
 
       - name: Full Node tests
         if: ${{ needs.classification.outputs.full_node == 'true' }}
+        env:
+          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/full-node.xml
         run: npm test
 
       - name: Lifecycle stress tests
@@ -219,7 +264,23 @@ jobs:
 
       - name: TypeScript/Rust parity
         if: ${{ needs.classification.outputs.parity == 'true' }}
+        env:
+          VITEST_JUNIT_OUTPUT_FILE: ${{ runner.temp }}/parity.xml
         run: npm run test:parity
+
+      - name: Upload structured test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuinuicad-ci-test-results-rust-parity-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/rust-evaluator.xml
+            ${{ runner.temp }}/full-node.xml
+            ${{ runner.temp }}/lifecycle-stress-*.xml
+            ${{ runner.temp }}/parity.xml
+          if-no-files-found: ignore
+          retention-days: 1
 
   ci:
     name: CI
