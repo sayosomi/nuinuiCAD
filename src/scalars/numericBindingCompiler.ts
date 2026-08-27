@@ -375,13 +375,14 @@ export const compileNumericBindings = ({
             currentSourceOrder: candidate.statementIndex
           }
         );
+        const hasGeometryProperty = geometryPropertyResolution.geometryPropertyReferences.size > 0;
         const typedChecked = typecheckScalarExpression(prepared.ast, {
           expectedType: { kind: "number" },
           references: prepared.references,
           geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
         });
         if (typedChecked.diagnostics.length > 0 || typedChecked.type === null) {
-          if (hasLegacyOwnedReference) {
+          if (hasLegacyOwnedReference || hasGeometryProperty) {
             for (const issue of typedChecked.diagnostics) diagnostics.push(diagnosticAt(
               spans,
               candidate.statement,

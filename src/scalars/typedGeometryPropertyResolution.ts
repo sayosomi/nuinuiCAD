@@ -5,8 +5,9 @@ import {
   normalizeNumericExpressionInput
 } from "../geometry/numericExpressions";
 import { tokenize } from "../geometry/numericExpressionParser";
-import { createElementNameContext } from "../model/elementNames";
+import { createElementNameContext, resolveElementName } from "../model/elementNames";
 import type { ElementNameContext } from "../model/elementNames";
+import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedGeometryProperty } from "./typedExpressionAst";
@@ -48,6 +49,15 @@ const normalizedReference = (
   }
 };
 
+const choiceGeometryPropertyTypeFor = (
+  element: CadElement | undefined,
+  property: string
+) => {
+  const definition = element ? findParameterDefinition(element, property) : undefined;
+  const type = scalarTypeForParameterDefinition(definition);
+  return type?.kind === "choice" ? type : null;
+};
+
 export const resolveGeometryPropertyMetadata = (
   expression: ScalarExpressionAst,
   elements: readonly CadElement[],
@@ -59,6 +69,7 @@ export const resolveGeometryPropertyMetadata = (
 } => {
   const issues: GeometryPropertyResolutionIssue[] = [];
   const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
   const nameContext = context?.nameContext ?? createElementNameContext([...elements]);
   const visit = (node: ScalarExpressionAst): void => {
     if (node.kind === "geometryProperty") {
@@ -75,12 +86,25 @@ export const resolveGeometryPropertyMetadata = (
         issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」を一意に解決できません。` });
         return;
       }
-      if (!isKnownNumericComputedGeometryProperty(reference.property)) {
+      // Numeric normalization is intentionally retained as the canonical
+      // property parser, but an authored name can equal a generated/explicit
+      // element id (for example `id: AB`). In that case the numeric normalizer's
+      // later bare-token pass can produce a stale id; recover the already
+      // resolved source name before applying schema typing.
+      const targetElement = elementsById.get(reference.elementId) ?? (() => {
+        const resolved = resolveElementName({ token: node.elementName, elements: [...elements], currentElement: context?.currentElement, context: nameContext });
+        return resolved.status === "resolved" ? resolved.element : undefined;
+      })();
+      const targetElementId = targetElement?.id ?? reference.elementId;
+      const type = isKnownNumericComputedGeometryProperty(reference.property)
+        ? { kind: "number" as const }
+        : choiceGeometryPropertyTypeFor(targetElement, reference.property);
+      if (!type) {
         geometryPropertyReferences.set(node.span.start, null);
-        issues.push({ span: node.propertySpan, message: `要素プロパティ「${node.property}」は数値参照として使用できません。` });
+        issues.push({ span: node.propertySpan, message: `要素プロパティ「${node.property}」は公開されたgeometry propertyとして使用できません。` });
         return;
       }
-      const targetSourceOrder = sourceOrderByElementId.get(reference.elementId);
+      const targetSourceOrder = sourceOrderByElementId.get(targetElementId);
       if (targetSourceOrder === undefined) {
         geometryPropertyReferences.set(node.span.start, null);
         issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」のsource orderを解決できません。` });
@@ -92,10 +116,10 @@ export const resolveGeometryPropertyMetadata = (
         return;
       }
       geometryPropertyReferences.set(node.span.start, {
-        elementId: reference.elementId,
+        elementId: targetElementId,
         property: reference.property,
         targetSourceOrder,
-        type: { kind: "number" }
+        type
       });
       return;
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
 import { BARE_PROPERTY_REFERENCE_CODE } from "./expressionReferenceToken";
+import { propertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 
 const errorsOf = (source: string) =>
   compileDslDocument(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
@@ -134,6 +135,57 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
       assignedStatementIds: new Map([[2, "test:x"], [3, "test:set-x"]])
     }).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
     expect(errors).toEqual([]);
+  });
+
+  it("compiles public choice geometry properties through declarations, equality, and set", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "const direction: choice(counterclockwise, clockwise) = @A.direction",
+      "const isClockwise: boolean = @A.direction == clockwise",
+      "if (@A.direction == clockwise) {",
+      "  point Marker = coordinate(x: 0, y: 0)",
+      "}",
+      "let copied: choice(counterclockwise, clockwise) = counterclockwise",
+      "set copied = @A.direction"
+    ].join("\n");
+    const result = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) });
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(result.scalarProgram).toBeDefined();
+  });
+
+  it("carries an exact non-arc choice geometry property into a compatible property binding", () => {
+    const source = [
+      "nui 4",
+      "const _unused: number = 0",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "line Off = offset(sources: [@Base], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
+      "line Off2 = offset(sources: [@Base], distance: 20, side: @Off.side, closed: false, suppressTrimWarnings: false)"
+    ].join("\n");
+    const result = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) });
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(result.propertyBindings?.get(propertyBindingOccurrenceKey(6, "side"))).toMatchObject({
+      kind: "expression",
+      type: { kind: "choice", options: ["right", "left"] },
+      expression: {
+        kind: "geometryProperty",
+        property: "side",
+        targetSourceOrder: 5,
+        type: { kind: "choice", options: ["right", "left"] }
+      }
+    });
+  });
+
+  it("rejects a choice geometry property in a number-only property context", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "point P = coordinate(x: @A.direction, y: 0)"
+    ].join("\n");
+    const errors = errorsOf(source);
+    expect(errors.some((error) => error.message.includes("choice"))).toBe(true);
   });
 
   it("reports an unknown typed geometry property target at compile time", () => {

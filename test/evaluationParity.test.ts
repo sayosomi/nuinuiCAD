@@ -232,6 +232,27 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("asserts public choice geometry properties through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-choice-geometry-properties.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(scalarBindingFor(fixture, payload, "direction")).toEqual({
+        status: "ok",
+        type: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+        value: { kind: "choice", options: ["counterclockwise", "clockwise"], value: "clockwise" }
+      });
+      expect(scalarBindingFor(fixture, payload, "isClockwise")).toMatchObject({
+        status: "ok",
+        value: { kind: "boolean", value: true }
+      });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts nui4 trigonometric scalar, geometry, module, and text values in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui4-trigonometric-functions.nui");
     const options = optionsFor(fixture);
