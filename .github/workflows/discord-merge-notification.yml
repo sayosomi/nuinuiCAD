@@ -6,14 +6,28 @@ on:
       - main
     types:
       - closed
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
 
-permissions: {}
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
 
 jobs:
-  notify-discord:
-    if: github.event.pull_request.merged == true
+  notify-merged-pull-request:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout trusted default branch notification helper
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Send merged pull request notification
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MERGE_WEBHOOK_URL }}
@@ -21,28 +35,23 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        shell: bash
-        run: |
-          set -euo pipefail
+        run: node scripts/ci/discordPrNotification.mjs merge
 
-          payload="$(jq -n \
-            --arg repository "$REPOSITORY_NAME" \
-            --arg number "$PR_NUMBER" \
-            --arg title "$PR_TITLE" \
-            --arg url "$PR_URL" \
-            '{content: ("✅ [" + $repository + "] PR #" + $number + " merged\n" + $title + "\n" + $url)}')"
+  notify-ci-failure:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout trusted default branch notification helper
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
-          http_status="$(curl \
-            --silent \
-            --show-error \
-            --output /dev/null \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "$payload" \
-            "$DISCORD_WEBHOOK_URL")"
-
-          if [[ "$http_status" != 2?? ]]; then
-            echo "Discord webhook returned HTTP status $http_status" >&2
-            exit 1
-          fi
+      - name: Send CI failure notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MERGE_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/discordPrNotification.mjs ci-failure

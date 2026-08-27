@@ -39,6 +39,9 @@ jobs:
       - name: Test change classifier
         run: node --test scripts/ci/classifyChanges.node-test.mjs
 
+      - name: Test Discord PR notification helper
+        run: node --test scripts/ci/discordPrNotification.node-test.mjs
+
       - name: Resolve diff base
         id: base
         env:
