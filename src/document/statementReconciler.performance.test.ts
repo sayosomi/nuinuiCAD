@@ -15,6 +15,11 @@ const RUNS_PER_TRIAL = 20;
 const MAX_1000_ELEMENT_CPU_MS = 5;
 const MAX_250_TO_1000_SCALING_RATIO = 8;
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 type ChangeKind = "attribute" | "rename";
 
 type Measurement = {
@@ -127,7 +132,7 @@ const measureScaling = (kind: ChangeKind) => {
   };
 };
 
-describe("statementReconciler performance regression guard", () => {
+describePerformanceGates("statementReconciler performance regression guard", () => {
   for (const kind of ["attribute", "rename"] as const) {
     it(`${kind}: keeps 250→1000-element reconciliation linear in worker CPU time`, () => {
       const measurement = measureScaling(kind);

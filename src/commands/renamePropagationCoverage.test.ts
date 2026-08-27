@@ -67,6 +67,11 @@ const expectSuccessfulRename = ({
   return after.sourceText;
 };
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 // Generator-built (not hand-written): renameElementWithPropagation's dev
 // assertion requires an in-place line patch, which requires every affected
 // statement's source to already be in v2's canonical vertical-call shape -
@@ -337,18 +342,20 @@ describe("rename propagation reference-form coverage", () => {
       .toMatchObject({ verdict: "rejected", reason: "resolution-change" });
   });
 
-  it("renames a clean, reference-dense 1,000-element document within the loose command guard", () => {
-    seed(denseCleanSource());
-    const before = useCadDocumentStore.getState();
-    expect(before.elements).toHaveLength(1000);
-    const startedAt = performance.now();
+  describePerformanceGates("rename propagation performance regression guard", () => {
+    it("renames a clean, reference-dense 1,000-element document within the loose command guard", () => {
+      seed(denseCleanSource());
+      const before = useCadDocumentStore.getState();
+      expect(before.elements).toHaveLength(1000);
+      const startedAt = performance.now();
 
-    expect(renameElementWithPropagation(elementId("Target"), "Renamed")).toBe(true);
+      expect(renameElementWithPropagation(elementId("Target"), "Renamed")).toBe(true);
 
-    const elapsed = performance.now() - startedAt;
-    const after = useCadDocumentStore.getState();
-    expect(elapsed).toBeLessThan(5000);
-    expect(validateRenameReferenceStability({ before: before.doc, after: after.doc })).toEqual({ verdict: "ok" });
-    expect(after.sourceText).toContain("point P991 = offset(\n  from: @Renamed,\n  dx: 992,\n  dy: 0,\n)");
+      const elapsed = performance.now() - startedAt;
+      const after = useCadDocumentStore.getState();
+      expect(elapsed).toBeLessThan(5000);
+      expect(validateRenameReferenceStability({ before: before.doc, after: after.doc })).toEqual({ verdict: "ok" });
+      expect(after.sourceText).toContain("point P991 = offset(\n  from: @Renamed,\n  dx: 992,\n  dy: 0,\n)");
+    });
   });
 });

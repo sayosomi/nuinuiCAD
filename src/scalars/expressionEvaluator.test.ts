@@ -26,6 +26,11 @@ type TypedExpressionVector = {
 
 const fixture = fixtureJson as unknown as { vectors: TypedExpressionVector[] };
 
+const runPerformanceGates = (globalThis as {
+  process?: { env?: Record<string, string | undefined> };
+}).process?.env?.VITE_RUN_PERFORMANCE_GATES === "1";
+const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
+
 const builtinCall = (
   targetName: BuiltinFunctionName,
   args: TypedScalarExpression[],
@@ -811,36 +816,47 @@ describe("evaluateTypedExpression / runtime value trust boundary", () => {
   });
 });
 
-describe("evaluateTypedExpression / large expression sanity timing", () => {
-  const numberLeaf = (): TypedScalarExpression => ({ kind: "numberLiteral", span: { start: 0, end: 0 }, value: 1, type: { kind: "number" } });
+const numberLeaf = (): TypedScalarExpression => ({ kind: "numberLiteral", span: { start: 0, end: 0 }, value: 1, type: { kind: "number" } });
 
-  /** A balanced tree keeps recursion depth at O(log leafCount) instead of
-   * O(leafCount) - this evaluator is linear in AST node count, not stack
-   * depth, && a left-deep chain would conflate the two. */
-  const buildBalancedSumTree = (leafCount: number): TypedScalarExpression => {
-    let level: TypedScalarExpression[] = Array.from({ length: leafCount }, () => numberLeaf());
-    while (level.length > 1) {
-      const next: TypedScalarExpression[] = [];
-      for (let i = 0; i < level.length; i += 2) {
-        if (i + 1 >= level.length) {
-          next.push(level[i]);
-          continue;
-        }
-        next.push({
-          kind: "binary",
-          span: { start: 0, end: 0 },
-          operator: "+",
-          type: { kind: "number" },
-          left: level[i],
-          right: level[i + 1]
-        });
+/** A balanced tree keeps recursion depth at O(log leafCount) instead of
+ * O(leafCount) - this evaluator is linear in AST node count, not stack
+ * depth, && a left-deep chain would conflate the two. */
+const buildBalancedSumTree = (leafCount: number): TypedScalarExpression => {
+  let level: TypedScalarExpression[] = Array.from({ length: leafCount }, () => numberLeaf());
+  while (level.length > 1) {
+    const next: TypedScalarExpression[] = [];
+    for (let i = 0; i < level.length; i += 2) {
+      if (i + 1 >= level.length) {
+        next.push(level[i]);
+        continue;
       }
-      level = next;
+      next.push({
+        kind: "binary",
+        span: { start: 0, end: 0 },
+        operator: "+",
+        type: { kind: "number" },
+        left: level[i],
+        right: level[i + 1]
+      });
     }
-    return level[0];
-  };
+    level = next;
+  }
+  return level[0];
+};
 
-  it("evaluates a wide balanced arithmetic tree in linear time (recorded only, no hard gate)", () => {
+describe("evaluateTypedExpression / large expression sanity", () => {
+  it("evaluates a wide balanced arithmetic tree", () => {
+    const leafCount = 4096;
+    const node = buildBalancedSumTree(leafCount);
+    const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
+
+    const result = evaluateTypedExpression(node, environment);
+    expect(result).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: leafCount } });
+  });
+});
+
+describePerformanceGates("evaluateTypedExpression / large expression sanity timing", () => {
+  it("records wide balanced arithmetic tree evaluation time", () => {
     const leafCount = 4096;
     const node = buildBalancedSumTree(leafCount);
     const environment: ScalarEvaluationEnvironment = { lookupBinding: () => { throw new Error("not used"); } };
@@ -850,7 +866,6 @@ describe("evaluateTypedExpression / large expression sanity timing", () => {
     const elapsedMs = performance.now() - start;
 
     expect(result).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: leafCount } });
-    // Recorded only - no threshold assertion, per the task doc's performance section.
     console.info(`expressionEvaluator large-expression sanity: ${leafCount} nodes in ${elapsedMs.toFixed(2)}ms`);
   });
 });
