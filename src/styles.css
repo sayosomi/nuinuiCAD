@@ -4305,6 +4305,7 @@ textarea {
 .output-preview-toolbar {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-height: 40px;
@@ -4312,6 +4313,15 @@ textarea {
   border-bottom: 1px solid var(--vscode-panel-border, #454545);
   background: var(--vscode-titleBar-activeBackground, var(--vscode-editorWidget-background, #252526));
   color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground, #cccccc));
+}
+
+.output-preview-toolbar > .command-ribbon,
+.output-preview-toolbar > .output-preview-status {
+  flex: 0 0 auto;
+}
+
+.output-preview-viewport-status-ribbon {
+  margin-left: auto;
 }
 
 .output-preview-toolbar select,
@@ -4379,6 +4389,22 @@ textarea {
 
 .vscode-canvas-webview .output-preview-output-group > select:disabled {
   color: var(--vscode-canvas-ribbon-disabled);
+}
+
+@media (max-width: 640px) {
+  .output-preview-output-group {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .output-preview-output-group > select {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .output-preview-viewport-status-ribbon {
+    margin-left: 0;
+  }
 }
 
 .output-preview-status {
