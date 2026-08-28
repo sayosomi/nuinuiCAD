@@ -206,6 +206,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, []);
 
+  const currentReferencePickAuthorityFor = useCallback((expectedDocumentVersion: number) => {
+    const current = currentAuthoritativeDocument(expectedDocumentVersion);
+    return current
+      ? {
+          documentVersion: expectedDocumentVersion,
+          normalizedSource: current.source.normalizedSource
+        }
+      : null;
+  }, [currentAuthoritativeDocument]);
+
   const publishCanvasObservation = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
     if (!current) return;
@@ -747,6 +757,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }}
         onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
+        currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
         postCanonicalSourceText={(sourceText) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;

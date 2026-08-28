@@ -8,9 +8,11 @@ import type { EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
+import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string) => void) | null,
+  currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
@@ -38,12 +40,15 @@ vi.mock("../geometry/useEvaluationEngine", () => ({
 vi.mock("./VSCodeDrawingCanvas", () => ({
   VSCodeDrawingCanvas: ({
     canvasFocusRef,
-    postCanonicalSourceText
+    postCanonicalSourceText,
+    currentReferencePickAuthorityFor
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanonicalSourceText: (sourceText: string) => void;
+    currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
   }) => {
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
+    drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -62,12 +67,33 @@ describe("VSCodeApp Canvas history coordinator", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     drawingCanvasProps.postCanonicalSourceText = null;
+    drawingCanvasProps.currentReferencePickAuthorityFor = null;
     drawingCanvasProps.bakeSandboxTargetIds = null;
     drawingCanvasProps.bakeSandboxPromise = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("passes the VSCodeApp-owned Reference Pick authority through the Canvas boundary", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const currentReferencePickAuthorityFor = drawingCanvasProps.currentReferencePickAuthorityFor;
+    expect(currentReferencePickAuthorityFor).not.toBeNull();
+    expect(currentReferencePickAuthorityFor!(7)).toEqual({
+      documentVersion: 7,
+      normalizedSource: source
+    });
+    expect(currentReferencePickAuthorityFor!(6)).toBeNull();
+  });
 
   it("queues Canvas history until the authoritative result and restores focus after completion", async () => {
     const oldSource = sourceForSelectionChronology(0);
