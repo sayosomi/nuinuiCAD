@@ -38,7 +38,10 @@ import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
 import { vscodeCanvasContextDataFor } from "./protocol";
-import { useVSCodeReferencePickSession } from "./useVSCodeReferencePickSession";
+import {
+  useVSCodeReferencePickSession,
+  type VscodeReferencePickAuthorityFor
+} from "./useVSCodeReferencePickSession";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 
 type VSCodeDrawingCanvasProps = {
@@ -51,6 +54,7 @@ type VSCodeDrawingCanvasProps = {
   onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   onEditCanvasRibbon?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
+  currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
 };
 
 const mutationWasApplied = (value: unknown): boolean =>
@@ -66,7 +70,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     canvasRibbonRibbons = [],
     onCanvasRibbonPositionCommit,
     onEditCanvasRibbon,
-    measureCanvasTextWidth
+    measureCanvasTextWidth,
+    currentReferencePickAuthorityFor
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const elements = useCadDocumentStore(effectiveElements);
@@ -132,6 +137,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
 
     const currentReferencePickContext = useCallback(() => {
       const state = useCadDocumentStore.getState();
+      if (
+        effectiveElements(state) !== elements ||
+        state.compiledDocumentRevision !== compiledDocumentRevision
+      ) return null;
       const compiled = effectiveCompiledDocument(state);
       const normalizedSource = state.sourceText.replace(/\r\n/g, "\n");
       if (
@@ -150,7 +159,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
           state.compiledDocumentRevision
         )
       };
-    }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState]);
+    }, [
+      canvasPresentation.renderEvaluation,
+      canvasPresentation.renderEvaluationState,
+      compiledDocumentRevision,
+      elements
+    ]);
     const {
       session: referencePickSession,
       setHover: setReferencePickHover,
@@ -159,7 +173,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       cancel: cancelReferencePick
     } = useVSCodeReferencePickSession({
       api: vscodeWebviewApi(),
-      currentContextFor: currentReferencePickContext
+      currentContextFor: currentReferencePickContext,
+      currentReferencePickAuthorityFor
     });
 
     const ribbonCommandContext = useMemo(() => ({

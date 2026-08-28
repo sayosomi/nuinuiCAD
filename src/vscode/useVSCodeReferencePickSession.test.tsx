@@ -97,6 +97,14 @@ const contextFor = (
   evaluationIsCurrent
 });
 
+const authorityFor = (
+  fixture: ReturnType<typeof fixtureFor>,
+  documentVersion = DOCUMENT_VERSION
+) => ({
+  documentVersion,
+  normalizedSource: fixture.source
+});
+
 const createApi = () => ({ postMessage: vi.fn() }) satisfies VscodeWebviewApi;
 
 const dispatch = (data: ExtensionToVscodeMessage): void => {
@@ -112,15 +120,15 @@ const resultMessages = (api: ReturnType<typeof createApi>) => api.postMessage.mo
   );
 
 describe("useVSCodeReferencePickSession readiness lifecycle", () => {
-  it("retains a cold-open request until matching evaluation is current and starts it once", () => {
+  it("retains a cold-open request without hook hydration until matching evaluation is current and starts it once", () => {
     const fixture = fixtureFor();
     const api = createApi();
     const hook = renderHook(({ evaluationIsCurrent }) => useVSCodeReferencePickSession({
       api,
-      currentContextFor: () => contextFor(fixture, evaluationIsCurrent)
+      currentContextFor: () => contextFor(fixture, evaluationIsCurrent),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
     }), { initialProps: { evaluationIsCurrent: false } });
 
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(fixture.request);
 
     expect(resultMessages(api)).toEqual([]);
@@ -145,10 +153,10 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const api = createApi();
     const hook = renderHook(({ evaluationIsCurrent }) => useVSCodeReferencePickSession({
       api,
-      currentContextFor: () => contextFor(fixture, evaluationIsCurrent)
+      currentContextFor: () => contextFor(fixture, evaluationIsCurrent),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
     }), { initialProps: { evaluationIsCurrent: true } });
 
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(fixture.request);
 
     expect(resultMessages(api)).toHaveLength(1);
@@ -160,20 +168,40 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const fixture = fixtureFor();
     const replacement = fixtureFor(sourceFor(20));
     const api = createApi();
-    const hook = renderHook(({ fixture: currentFixture, evaluationIsCurrent }) => useVSCodeReferencePickSession({
+    const hook = renderHook(({ fixture: currentFixture, evaluationIsCurrent, documentVersion }) => useVSCodeReferencePickSession({
       api,
-      currentContextFor: () => contextFor(currentFixture, evaluationIsCurrent)
-    }), { initialProps: { fixture, evaluationIsCurrent: false } });
+      currentContextFor: () => contextFor(currentFixture, evaluationIsCurrent),
+      currentReferencePickAuthorityFor: () => authorityFor(currentFixture, documentVersion)
+    }), { initialProps: { fixture, evaluationIsCurrent: false, documentVersion: DOCUMENT_VERSION } });
 
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(fixture.request);
     expect(resultMessages(api)).toEqual([]);
 
-    dispatch({ type: "replaceTextDocument", sourceText: replacement.source, documentVersion: DOCUMENT_VERSION + 1 });
-    act(() => hook.rerender({ fixture: replacement, evaluationIsCurrent: true }));
+    act(() => hook.rerender({
+      fixture: replacement,
+      evaluationIsCurrent: true,
+      documentVersion: DOCUMENT_VERSION + 1
+    }));
 
     expect(resultMessages(api)).toEqual([]);
     expect(hook.result.current.session).toBeNull();
+    hook.unmount();
+
+    const activeFixture = fixtureFor();
+    const activeApi = createApi();
+    const activeHook = renderHook(({ documentVersion }) => useVSCodeReferencePickSession({
+      api: activeApi,
+      currentContextFor: () => contextFor(activeFixture, true),
+      currentReferencePickAuthorityFor: () => authorityFor(activeFixture, documentVersion)
+    }), { initialProps: { documentVersion: DOCUMENT_VERSION } });
+    dispatch(activeFixture.request);
+    expect(resultMessages(activeApi)).toMatchObject([{ status: "started" }]);
+
+    act(() => activeHook.rerender({ documentVersion: DOCUMENT_VERSION + 1 }));
+
+    expect(resultMessages(activeApi)).toHaveLength(1);
+    expect(activeHook.result.current.session).toBeNull();
+    activeHook.unmount();
   });
 
   it("supersedes a pending request with the latest exact request", () => {
@@ -181,11 +209,11 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const api = createApi();
     const hook = renderHook(({ evaluationIsCurrent }) => useVSCodeReferencePickSession({
       api,
-      currentContextFor: () => contextFor(fixture, evaluationIsCurrent)
+      currentContextFor: () => contextFor(fixture, evaluationIsCurrent),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
     }), { initialProps: { evaluationIsCurrent: false } });
     const replacementRequest = { ...fixture.request, requestId: fixture.request.requestId + 1 };
 
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(fixture.request);
     dispatch(replacementRequest);
     act(() => hook.rerender({ evaluationIsCurrent: true }));
@@ -200,10 +228,10 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const api = createApi();
     const mismatchedHook = renderHook(() => useVSCodeReferencePickSession({
       api,
-      currentContextFor: () => contextFor(mismatched, true)
+      currentContextFor: () => contextFor(mismatched, true),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
     }));
 
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(fixture.request);
     expect(resultMessages(api)).toMatchObject([{ status: "stale", requestId: fixture.request.requestId }]);
     mismatchedHook.unmount();
@@ -216,9 +244,9 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const validContextApi = createApi();
     renderHook(() => useVSCodeReferencePickSession({
       api: validContextApi,
-      currentContextFor: () => contextFor(fixture, true)
+      currentContextFor: () => contextFor(fixture, true),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
     }));
-    dispatch({ type: "replaceTextDocument", sourceText: fixture.source, documentVersion: DOCUMENT_VERSION });
     dispatch(invalidProofRequest);
     expect(resultMessages(validContextApi)).toMatchObject([{ status: "stale", requestId: invalidProofRequest.requestId }]);
   });
@@ -228,10 +256,10 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const pendingApi = createApi();
     const pendingHook = renderHook(({ evaluationIsCurrent }) => useVSCodeReferencePickSession({
       api: pendingApi,
-      currentContextFor: () => contextFor(pendingFixture, evaluationIsCurrent)
+      currentContextFor: () => contextFor(pendingFixture, evaluationIsCurrent),
+      currentReferencePickAuthorityFor: () => authorityFor(pendingFixture)
     }), { initialProps: { evaluationIsCurrent: false } });
     const pendingSource = pendingFixture.source;
-    dispatch({ type: "replaceTextDocument", sourceText: pendingSource, documentVersion: DOCUMENT_VERSION });
     dispatch(pendingFixture.request);
     dispatch({
       type: "referencePickCancelRequest",
@@ -249,10 +277,10 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
     const activeApi = createApi();
     const activeHook = renderHook(() => useVSCodeReferencePickSession({
       api: activeApi,
-      currentContextFor: () => contextFor(activeFixture, true)
+      currentContextFor: () => contextFor(activeFixture, true),
+      currentReferencePickAuthorityFor: () => authorityFor(activeFixture)
     }));
     const activeSource = activeFixture.source;
-    dispatch({ type: "replaceTextDocument", sourceText: activeSource, documentVersion: DOCUMENT_VERSION });
     dispatch(activeFixture.request);
     const replacementRequest = { ...activeFixture.request, requestId: activeFixture.request.requestId + 1 };
     dispatch(replacementRequest);

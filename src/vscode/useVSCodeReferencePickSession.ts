@@ -23,28 +23,43 @@ export type VscodeReferencePickCurrentContext = {
   evaluationIsCurrent: boolean;
 };
 
-type AuthoritativeHostSource = {
+export type VscodeReferencePickAuthority = {
   documentVersion: number;
   normalizedSource: string;
 };
+
+export type VscodeReferencePickAuthorityFor = (
+  expectedDocumentVersion: number
+) => VscodeReferencePickAuthority | null;
 
 type ReferencePickStartRequest = Extract<
   ExtensionToVscodeMessage,
   { type: "referencePickStartRequest" }
 >;
 
-const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+const contextMatchesAuthority = (
+  message: ReferencePickStartRequest,
+  authoritative: VscodeReferencePickAuthority | null,
+  current: VscodeReferencePickCurrentContext | null
+): boolean => Boolean(
+  authoritative &&
+  authoritative.documentVersion === message.documentVersion &&
+  current &&
+  current.source.normalizedSource === authoritative.normalizedSource &&
+  current.compiled.spans.sourceMap.source === authoritative.normalizedSource
+);
 
 export const useVSCodeReferencePickSession = ({
   api,
-  currentContextFor
+  currentContextFor,
+  currentReferencePickAuthorityFor
 }: {
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeReferencePickCurrentContext | null;
+  currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
 }) => {
   const [session, setSession] = useState<VscodeReferencePickCanvasSession | null>(null);
   const sessionRef = useRef<VscodeReferencePickCanvasSession | null>(null);
-  const authoritativeHostSourceRef = useRef<AuthoritativeHostSource | null>(null);
   const pendingStartRequestRef = useRef<ReferencePickStartRequest | null>(null);
 
   const replaceSession = useCallback((next: VscodeReferencePickCanvasSession | null) => {
@@ -65,14 +80,12 @@ export const useVSCodeReferencePickSession = ({
 
   const tryStart = useCallback((message: ReferencePickStartRequest) => {
     if (!api) return;
-    const authoritative = authoritativeHostSourceRef.current;
+    const authoritative = currentReferencePickAuthorityFor(message.documentVersion);
     const current = currentContextFor();
     if (
       !authoritative ||
-      authoritative.documentVersion !== message.documentVersion ||
       !current ||
-      current.source.normalizedSource !== authoritative.normalizedSource ||
-      current.compiled.spans.sourceMap.source !== authoritative.normalizedSource
+      !contextMatchesAuthority(message, authoritative, current)
     ) {
       pendingStartRequestRef.current = null;
       postStale(message);
@@ -99,25 +112,41 @@ export const useVSCodeReferencePickSession = ({
     });
     api.postMessage(started.result);
     replaceSession(started.session);
-  }, [api, currentContextFor, postStale, replaceSession]);
+  }, [api, currentContextFor, currentReferencePickAuthorityFor, postStale, replaceSession]);
 
   useEffect(() => {
+    const current = currentContextFor();
     const pending = pendingStartRequestRef.current;
-    if (pending) tryStart(pending);
-  }, [tryStart]);
+    if (
+      pending &&
+      !contextMatchesAuthority(
+        pending,
+        currentReferencePickAuthorityFor(pending.documentVersion),
+        current
+      )
+    ) {
+      pendingStartRequestRef.current = null;
+    }
+
+    const active = sessionRef.current;
+    if (
+      active &&
+      !contextMatchesAuthority(
+        active.request,
+        currentReferencePickAuthorityFor(active.request.documentVersion),
+        current
+      )
+    ) {
+      replaceSession(null);
+    }
+
+    const currentPending = pendingStartRequestRef.current;
+    if (currentPending) tryStart(currentPending);
+  }, [currentContextFor, currentReferencePickAuthorityFor, replaceSession, tryStart]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
-      if (message.type === "replaceTextDocument" || message.type === "commitText") {
-        authoritativeHostSourceRef.current = {
-          documentVersion: message.documentVersion,
-          normalizedSource: normalizedSourceFor(message.sourceText)
-        };
-        pendingStartRequestRef.current = null;
-        if (sessionRef.current) replaceSession(null);
-        return;
-      }
       if (message.type === "referencePickStartRequest") {
         if (!api) return;
         pendingStartRequestRef.current = null;
