@@ -13,6 +13,7 @@ import { activePickCandidates, applyPickReference } from "../commands/pickComman
 import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { CommandLineBar } from "./CommandLineBar";
 
 // CommandLineBar defers post-edit focus restoration to a real
@@ -52,6 +53,7 @@ describe("CommandLineBar", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText("nui 4", "test");
+    publishTestCanvasSelectionEligibility();
   });
 
   afterEach(() => {
@@ -228,6 +230,7 @@ describe("CommandLineBar", () => {
       "stop",
       "point C = coordinate(x: 200, y: 0)"
     ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
     renderBar();
     const pointA = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
     const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;

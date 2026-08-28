@@ -26,7 +26,8 @@ import {
 import { useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import {
   selectionEligibleElementIds,
-  useCadUiStore
+  useCadUiStore,
+  type CanvasSelectionEligibility
 } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { CommandContext } from "./commandTypes";
@@ -176,10 +177,11 @@ export const replaceCanvasSelection = (
   elementIds: readonly ElementId[],
   primaryElementId?: ElementId,
   recordHistory = false,
-  ordering: "document" | "requested" = "document"
+  ordering: "document" | "requested" = "document",
+  canvasEligibility?: CanvasSelectionEligibility
 ) => {
   const elements = useCadDocumentStore.getState().elements;
-  const selectableIds = selectionEligibleElementIds(elements);
+  const selectableIds = selectionEligibleElementIds(elements, canvasEligibility);
   const requested = new Set(elementIds);
   const orderedIds = ordering === "requested"
     ? Array.from(requested).filter((id) => selectableIds.has(id))
@@ -191,7 +193,11 @@ export const replaceCanvasSelection = (
     ? primaryElementId
     : orderedIds[0];
   mutateCanvasSelection(recordHistory, () =>
-    useCadUiStore.getState().setSelectedElementIds(orderedIds, primaryId)
+    useCadUiStore.getState().applySelection(elements, {
+      selectedElementId: primaryId,
+      selectedElementIds: orderedIds,
+      selectionAnchorElementId: primaryId
+    }, canvasEligibility)
   );
   clearTransientSelectionUi();
   return true;
@@ -226,6 +232,7 @@ export const selectAllElements = (recordHistory = false) => {
   const allElementIds = elements
     .filter((element) => selectableIds.has(element.id))
     .map((element) => element.id);
+  if (allElementIds.length === 0) return;
   const primaryId =
     selectedElementId && allElementIds.includes(selectedElementId)
       ? selectedElementId

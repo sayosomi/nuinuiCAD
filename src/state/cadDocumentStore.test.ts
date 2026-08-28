@@ -12,6 +12,7 @@ import {
   useCadDocumentStore
 } from "./cadDocumentStore";
 import { useCadUiStore } from "./cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import {
   abortBenchmarkSample,
   beginBenchmarkSample,
@@ -26,6 +27,7 @@ import {
 describe("cadDocumentStore file state", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
+    publishTestCanvasSelectionEligibility();
   });
 
   afterEach(() => {
@@ -108,7 +110,7 @@ describe("cadDocumentStore file state", () => {
     expect(useCadDocumentStore.getState().dirtySinceSave).toBe(true);
   });
 
-  it("applies command selection after commit and preserves it across undo then redo", () => {
+  it("keeps command selection admission closed until Canvas republishes after a commit", () => {
     const before = useCadDocumentStore.getState();
     const beforeSelection = {
       selectedElementId: before.elements[1].id,
@@ -129,12 +131,32 @@ describe("cadDocumentStore file state", () => {
     }, afterSelection);
 
     expect(useCadDocumentStore.getState().past).toHaveLength(1);
-    expect(useCadUiStore.getState()).toMatchObject(afterSelection);
+    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
+    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
 
     useCadDocumentStore.getState().undo();
-    expect(useCadUiStore.getState()).toMatchObject(beforeSelection);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
     useCadDocumentStore.getState().redo();
-    expect(useCadUiStore.getState()).toMatchObject(afterSelection);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
   });
 
   it("leaves selection unchanged when a command commit is rejected", () => {

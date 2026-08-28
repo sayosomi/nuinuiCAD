@@ -13,6 +13,7 @@ import { createCadElement } from "../model/elementFactory";
 import { sampleElements } from "../sampleData";
 import { initialCadDocumentState, useCadDocumentStore, type CadDocumentState } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import type { CadElement, CadElementType } from "../types/geometry";
 import { InspectorPanel } from "./InspectorPanel";
 
@@ -83,6 +84,7 @@ describe("InspectorPanel mouse-only actions", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
   });
 
   it("jumps from a clicked parameter row to the Source Editor value span", () => {

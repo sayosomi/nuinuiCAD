@@ -1,4 +1,5 @@
 import { effectiveVisibleElementIds } from "../model/groups";
+import { isContainerElement } from "../model/containers";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import { runtimeOnlyElementTypes } from "../types/geometry";
 import type {
@@ -7,6 +8,7 @@ import type {
   ComputedBezierSegment,
   ComputedOffsetLineSegment,
   ComputedText,
+  ElementId,
   EvaluationResult,
   VisibilityProfile
 } from "../types/geometry";
@@ -184,6 +186,53 @@ export const effectiveCanvasVisibleElementIds = ({
   return new Set([...baseVisibleIds].filter((id) =>
     profileVisibleIds.has(templateIdByGeneratedId.get(id) ?? id)
   ));
+};
+
+/**
+ * Resolves which elements have a normal, current Canvas presentation. This is
+ * intentionally independent of viewport bounds: offscreen geometry is still
+ * a valid presentation and remains selectable. Transient reference-pick
+ * overlays have their own candidate path and do not use this set.
+ */
+export const canvasPresentationEligibleElementIds = ({
+  elements,
+  evaluation,
+  visibilityProfiles,
+  activeVisibilityProfileId,
+  showCanvasPoints
+}: {
+  elements: readonly CadElement[];
+  evaluation: EvaluationResult;
+  visibilityProfiles: readonly VisibilityProfile[];
+  activeVisibilityProfileId: string | null;
+  showCanvasPoints: boolean;
+}): Set<ElementId> => {
+  const visibleIds = effectiveCanvasVisibleElementIds({
+    elements,
+    evaluation,
+    visibilityProfiles,
+    activeVisibilityProfileId
+  });
+  const evaluatedIds = evaluation.evaluatedElementIds ?? new Set(evaluation.computedGeometry.keys());
+  const enabledIds = evaluation.effectiveEnabledElementIds ?? new Set(evaluation.computedGeometry.keys());
+  const conditionInactiveIds = evaluation.conditionInactiveElementIds ?? new Set<ElementId>();
+  const elementById = new Map(elements.map((element) => [element.id, element]));
+
+  return new Set(
+    [...visibleIds].filter((elementId) => {
+      const element = elementById.get(elementId);
+      const geometry = evaluation.computedGeometry.get(elementId);
+      if (!element) return false;
+      if (isContainerElement(element)) return false;
+      if (runtimeOnlyElementTypes.has(element.type) || !geometry) return false;
+      if (!evaluatedIds.has(elementId) || !enabledIds.has(elementId) || conditionInactiveIds.has(elementId)) {
+        return false;
+      }
+      if (geometry.kind === "text" && !geometry.anchor) return false;
+      if (geometry.kind === "point" && !showCanvasPoints) return false;
+      return true;
+    })
+  );
 };
 
 export const visibleCanvasDrawingBounds = ({

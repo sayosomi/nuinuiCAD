@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 
 type ControllerInternals = {
@@ -40,6 +41,7 @@ describe("SourceEditorController typed binding selection - mutual exclusion with
 
   it("auto-selects a typed binding when the cursor enters its declaration, clearing an active element selection", () => {
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     const pointId = elementId("A");
     const baseId = typedBindingId("base");
     useCadUiStore.getState().setSelectedElementId(pointId);
@@ -62,6 +64,7 @@ describe("SourceEditorController typed binding selection - mutual exclusion with
 
   it("auto-selects an element when the cursor enters its statement, clearing an active binding selection", () => {
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     const pointId = elementId("A");
     const baseId = typedBindingId("base");
     useCadUiStore.getState().setSelectedBindingId(baseId);
@@ -82,6 +85,7 @@ describe("SourceEditorController typed binding selection - mutual exclusion with
 
   it("jumpToBindingDeclaration moves the cursor to the declaration and clears an active element selection", () => {
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     const pointId = elementId("A");
     const anchorId = typedBindingId("anchor");
     useCadUiStore.getState().setSelectedElementId(pointId);
@@ -102,6 +106,7 @@ describe("SourceEditorController typed binding selection - mutual exclusion with
 
   it("jumpToBindingDeclaration returns false for an unknown binding id, without changing selection", () => {
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     const pointId = elementId("A");
     useCadUiStore.getState().setSelectedElementId(pointId);
 

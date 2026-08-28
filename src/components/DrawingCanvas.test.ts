@@ -7,6 +7,7 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
@@ -142,6 +143,7 @@ const resetStore = () => {
     showCanvasPointNames: true,
     showCanvasGeometryNames: false,
     showCanvasPoints: true,
+    canvasSelectionEligibleElementIds: null,
     showShortcutHelp: false,
     showShortcutSettings: false,
     shortcutSettings: { version: 1, overrides: [] },
@@ -357,6 +359,49 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("does not publish stale Canvas presentation eligibility", async () => {
+    const hostAdapter = createFakeCanvasHostAdapter({ compiledDocumentRevision: 1 });
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const staleEvaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0,
+      mode: "reference",
+      source: "reference",
+      status: "idle",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState: staleEvaluationState,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+
+    await act(async () => {
+      view.rerender(createElement(DrawingCanvas, {
+        evaluation,
+        evaluationState: { ...staleEvaluationState, evaluationRevision: 1, evaluationRequestRevision: 1 },
+        canvasFocusRef: createRef<HTMLDivElement>(),
+        hostAdapter
+      }));
+    });
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toEqual(
+      canvasPresentationEligibleElementIds({
+        elements: hostAdapter.elements,
+        evaluation,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        showCanvasPoints: true
+      })
+    );
+  });
+
   it("classifies context-menu hits through the existing hit-test without selecting or suppressing the native menu", () => {
     const publishCanvasContextMenu = vi.fn();
     const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu });
@@ -817,15 +862,57 @@ describe("DrawingCanvas rendering", () => {
     expect(selectedPointGlow).toHaveClass("overlay-selected-point-glow");
   });
 
-  it("hides unselected overlay points while keeping the selected point visible", () => {
+  it("hides all normal point overlays when point presentation is disabled", () => {
     const { container, getByRole } = renderDrawingCanvas();
 
     expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
 
     fireEvent.click(getByRole("button", { name: "点" }));
 
-    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(0);
     expect(useCadStore.getState().showCanvasPoints).toBe(false);
+
+    fireEvent.click(getByRole("button", { name: "点" }));
+
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
+    expect(useCadStore.getState().showCanvasPoints).toBe(true);
+  });
+
+  it("does not hit an otherwise presented point at its normal location when point presentation is disabled", () => {
+    const pointElement: CadElement = {
+      id: "point-only",
+      name: "Point only",
+      type: "freePoint",
+      activity: "visible",
+      x: 0,
+      y: 0
+    };
+    const selectElement = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      elements: [pointElement],
+      canonicalElements: [pointElement],
+      selectedElementId: null,
+      selectedElementIds: [],
+      showCanvasPoints: false,
+      selectElement
+    });
+    const screen = screenFor({ x: pointElement.x as number, y: pointElement.y as number });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: screen.x,
+      clientY: screen.y,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: screen.x,
+      clientY: screen.y,
+      pointerId: 1
+    });
+
+    expect(selectElement).not.toHaveBeenCalled();
   });
 });
 

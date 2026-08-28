@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 
 describe("selection move commands", () => {
@@ -19,6 +20,7 @@ describe("selection move commands", () => {
       "point After = coordinate(x: 2, y: 2)"
     ].join("\n"), "test");
     const elements = useCadDocumentStore.getState().elements;
+    publishTestCanvasSelectionEligibility(elements);
     const group = elements.find((element) => element.name === "G")!;
     useCadUiStore.getState().setSelectedElementIds(elements.map((element) => element.id), elements[0]!.id);
 
@@ -31,10 +33,11 @@ describe("selection move commands", () => {
       "G", "Child", "Before", "After"
     ]);
     expect(useCadUiStore.getState().selectedElementIds).toEqual([
-      group.id,
-      elements.find((element) => element.name === "Child")!.id
+      elements.find((element) => element.name === "Before")!.id,
+      elements.find((element) => element.name === "Child")!.id,
+      elements.find((element) => element.name === "After")!.id
     ]);
-    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
+    expect(useCadUiStore.getState().selectedElementId).toBe(elements.find((element) => element.name === "Before")!.id);
     expect(useCadDocumentStore.getState().sourceText).toMatch(
       /group G \{\n {2}point Child = coordinate\(x: 1, y: 1\)\n\}\npoint Before/
     );

@@ -15,7 +15,10 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import type { VisibilityProfile } from "../types/geometry";
-import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
+import {
+  canvasPresentationEligibleElementIds,
+  effectiveCanvasVisibleElementIds
+} from "../geometry/canvasDrawingBounds";
 import { imageWorldCorners } from "../geometry/imageGeometry";
 import {
   selectablePointsForGeometry
@@ -86,6 +89,7 @@ export const useCanvasOverlayData = ({
   canvasViewport,
   visibilityProfiles,
   activeVisibilityProfileId,
+  showCanvasPoints = true,
   resolveImageSourceUrl
 }: {
   evaluation: EvaluationResult;
@@ -97,6 +101,7 @@ export const useCanvasOverlayData = ({
   canvasViewport: CanvasViewport;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  showCanvasPoints?: boolean;
   resolveImageSourceUrl: (sourcePath: string) => string;
 }): CanvasOverlayData => {
   const visibleElementIds = useMemo(
@@ -112,6 +117,22 @@ export const useCanvasOverlayData = ({
       activeVisibilityProfileId,
       elements,
       evaluation,
+      visibilityProfiles
+    ]
+  );
+  const selectionEligibleElementIds = useMemo(
+    () => canvasPresentationEligibleElementIds({
+      elements,
+      evaluation,
+      visibilityProfiles,
+      activeVisibilityProfileId,
+      showCanvasPoints
+    }),
+    [
+      activeVisibilityProfileId,
+      elements,
+      evaluation,
+      showCanvasPoints,
       visibilityProfiles
     ]
   );
@@ -439,6 +460,7 @@ export const useCanvasOverlayData = ({
     texts,
     points,
     visibleElementIds,
+    selectionEligibleElementIds,
     overlayLines,
     overlayPoints,
     overlayArcs,

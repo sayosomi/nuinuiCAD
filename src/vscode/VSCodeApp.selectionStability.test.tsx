@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { selectElement } from "../commands/selectionCommands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { VSCodeApp } from "./VSCodeApp";
 
 const evaluation = {
@@ -105,6 +106,7 @@ describe("VSCodeApp transient invalid-source selection lifecycle", () => {
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
+    publishTestCanvasSelectionEligibility();
     await selectCanvasElement(initialA!.id);
     expect(selectedElementId()).toBe(initialA!.id);
 

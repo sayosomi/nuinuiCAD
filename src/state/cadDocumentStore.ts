@@ -1048,9 +1048,23 @@ export const useCadDocumentStore = create<CadDocumentState>((set, get) => ({
 }));
 
 useCadDocumentStore.subscribe((state, previous) => {
-  const elementsChanged = state.doc.document.elements !== previous.doc.document.elements;
-  const drawingModifiersChanged = state.doc.document.modifiers !== previous.doc.document.modifiers;
+  const elementsChanged = state.elements !== previous.elements;
+  const drawingModifiersChanged = state.modifiers !== previous.modifiers;
+  const canvasPresentationInputsChanged =
+    state.doc !== previous.doc ||
+    state.elements !== previous.elements ||
+    state.modifiers !== previous.modifiers ||
+    state.visibilityProfiles !== previous.visibilityProfiles ||
+    state.activeVisibilityProfileId !== previous.activeVisibilityProfileId ||
+    state.evaluationLimitIndex !== previous.evaluationLimitIndex ||
+    state.compiledDocumentRevision !== previous.compiledDocumentRevision ||
+    state.previewElements !== previous.previewElements ||
+    state.previewCompiledDocument !== previous.previewCompiledDocument ||
+    state.previewEvaluationLimitIndex !== previous.previewEvaluationLimitIndex;
+  if (canvasPresentationInputsChanged) {
+    useCadUiStore.getState().invalidateCanvasSelectionEligibility();
+  }
   if (!elementsChanged && !drawingModifiersChanged) return;
-  useCadUiStore.getState().pruneGroupFold(new Set(state.doc.document.elements.map((element) => element.id)));
-  useCadUiStore.getState().reconcileSelectionWithElements(state.doc.document.elements);
+  useCadUiStore.getState().pruneGroupFold(new Set(state.elements.map((element) => element.id)));
+  useCadUiStore.getState().reconcileSelectionWithElements(state.elements);
 });

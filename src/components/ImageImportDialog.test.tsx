@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
 import { DEFAULT_CANVAS_VIEWPORT, useCadStore } from "../state/useCadStore";
+import { useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { ImageImportDialog } from "./ImageImportDialog";
 
 const resetStore = () => {
@@ -39,7 +41,7 @@ const resetStore = () => {
 describe("ImageImportDialog", () => {
   beforeEach(resetStore);
 
-  it("creates and selects an image element when confirmed", () => {
+  it("creates an image and admits it after Canvas publishes the fresh presentation", () => {
     useCadStore.setState({
       pendingImageImport: {
         sourcePath: "/tmp/underlay.png",
@@ -71,7 +73,10 @@ describe("ImageImportDialog", () => {
       targetPixelsPerMm: 10
     });
     expect(image && image.type === "image" ? image.scale : null).toBeCloseTo(72.009 / 254);
-    expect(state.selectedElementId).toBe(image?.id);
+    expect(state.selectedElementId).toBe(sampleElements[0].id);
+    publishTestCanvasSelectionEligibility(state.elements);
+    useCadUiStore.getState().setSelectedElementId(image!.id);
+    expect(useCadStore.getState().selectedElementId).toBe(image?.id);
     expect(state.pendingImageImport).toBeNull();
   });
 

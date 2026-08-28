@@ -3,12 +3,14 @@ import { compileDslDocument } from "../dsl/dslDocument";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { cancelStaleCommandLineSession, startCommandLineCreation } from "./commandLineSessionCommands";
 import { assertRenameBridgeCommit } from "./renameBridgeDevAssert";
 import { renameElementWithPropagation } from "./renameElementWithPropagation";
 
 const seed = (sourceText: string) => {
   useCadDocumentStore.getState().commitText(sourceText, "test");
+  publishTestCanvasSelectionEligibility();
   useCadDocumentStore.setState({ past: [], future: [], dirtySinceSave: false });
 };
 

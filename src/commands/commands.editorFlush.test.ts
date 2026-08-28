@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { dispatchCommand } from "./commands";
 
 describe("dispatchCommand editor flush boundary", () => {
@@ -16,6 +17,7 @@ describe("dispatchCommand editor flush boundary", () => {
 
   it("flushes pending editor text before running the command, applying one patch against the latest model", () => {
     useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    publishTestCanvasSelectionEligibility();
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
 
@@ -80,6 +82,7 @@ describe("dispatchCommand editor flush boundary", () => {
 
   it("leaves rename flushing to its confirm-time core instead of opening with a second flush", () => {
     useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    publishTestCanvasSelectionEligibility();
     const elementId = useCadDocumentStore.getState().elements[0].id;
     useCadUiStore.getState().setSelectedElementIds([elementId]);
     const flush = vi.fn(() => "flushed" as const);
