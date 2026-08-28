@@ -9,7 +9,6 @@ import type { CommandLineSession } from "../commands/commandLineSession";
 import type { SourceCreationInsertion } from "../commands/sourceCreationInsertion";
 import type {
   CadElement,
-  DrawingModifierDefinition,
   ElementId,
   PointAnchor
 } from "../types/geometry";
@@ -118,6 +117,8 @@ const currentDocumentElements = () => useCadDocumentStore.getState().elements;
 
 const currentDocumentDrawingModifiers = () => useCadDocumentStore.getState().modifiers ?? [];
 
+export type CanvasSelectionEligibility = ReadonlySet<ElementId>;
+
 /**
  * A live editor compile may intentionally publish a partial document while a
  * recoverable error (notably missing-attribute-value) is still present. That
@@ -134,15 +135,20 @@ const selectionReconciliationWaitsForEditorRecovery = () => {
 };
 
 /**
- * Shared Canvas/source selection eligibility. Activity is the only semantic
- * gate here: selection does not depend on computed geometry, drawing bounds,
- * evaluation order, or presentation-only visibility state.
+ * Projects the authoritative Canvas presentation boundary onto the current
+ * element list. The document-only fallback is retained for non-Canvas source
+ * interactions before a Canvas host has published its first presentation.
  */
 export const selectionEligibleElementIds = (
   elements: readonly CadElement[],
-  drawingModifiers: readonly DrawingModifierDefinition[] = currentDocumentDrawingModifiers()
+  canvasEligibility?: CanvasSelectionEligibility
 ) => {
-  const activities = effectiveElementActivityById(elements, drawingModifiers);
+  const authoritativeEligibility = canvasEligibility ?? useCadUiStore.getState().canvasSelectionEligibleElementIds;
+  if (authoritativeEligibility) {
+    return new Set(elements.filter((element) => authoritativeEligibility.has(element.id)).map((element) => element.id));
+  }
+
+  const activities = effectiveElementActivityById(elements, currentDocumentDrawingModifiers());
   return new Set(
     elements
       .filter((element) => effectiveElementActivity(element, activities).activity === "visible")
@@ -153,8 +159,8 @@ export const selectionEligibleElementIds = (
 export const isElementSelectionEligible = (
   elements: readonly CadElement[],
   elementId: ElementId,
-  drawingModifiers: readonly DrawingModifierDefinition[] = currentDocumentDrawingModifiers()
-) => selectionEligibleElementIds(elements, drawingModifiers).has(elementId);
+  canvasEligibility?: CanvasSelectionEligibility
+) => selectionEligibleElementIds(elements, canvasEligibility).has(elementId);
 
 export type CadElementSelection = {
   selectedElementId: ElementId | null;
@@ -176,10 +182,11 @@ export type CadSelectionSubject =
 
 const normalizedSelection = (
   elements: readonly CadElement[],
-  selection: CadElementSelection
+  selection: CadElementSelection,
+  canvasEligibility?: CanvasSelectionEligibility
 ): CadElementSelection => {
   const existingIds = new Set(elements.map((element) => element.id));
-  const selectableIds = selectionEligibleElementIds(elements);
+  const selectableIds = selectionEligibleElementIds(elements, canvasEligibility);
   const selectedElementIds = uniqueElementIds(selection.selectedElementIds)
     .filter((id) => existingIds.has(id) && selectableIds.has(id));
   const selectedElementId =
@@ -203,6 +210,17 @@ const normalizedSelection = (
   };
 };
 
+const selectionEqual = (left: CadElementSelection, right: CadElementSelection) =>
+  left.selectedElementId === right.selectedElementId &&
+  left.selectionAnchorElementId === right.selectionAnchorElementId &&
+  left.selectedElementIds.length === right.selectedElementIds.length &&
+  left.selectedElementIds.every((id, index) => id === right.selectedElementIds[index]);
+
+const eligibilityEqual = (
+  left: CanvasSelectionEligibility | null,
+  right: CanvasSelectionEligibility
+) => Boolean(left) && left!.size === right.size && [...right].every((id) => left!.has(id));
+
 export type CadUiState = CadElementSelection & {
   /** Which kind of thing selectedElementId/selectedBindingId-style state currently refers to. */
   selectionSubject: CadSelectionSubject;
@@ -223,6 +241,8 @@ export type CadUiState = CadElementSelection & {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  /** Latest authoritative normal Canvas presentation boundary. */
+  canvasSelectionEligibleElementIds: CanvasSelectionEligibility | null;
   showElementListColorAccents: boolean;
   showShortcutHelp: boolean;
   showShortcutSettings: boolean;
@@ -267,6 +287,10 @@ export type CadUiState = CadElementSelection & {
   setShowCanvasPointNames: (showCanvasPointNames: boolean) => void;
   setShowCanvasGeometryNames: (showCanvasGeometryNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
+  setCanvasSelectionEligibility: (
+    elements: readonly CadElement[],
+    canvasSelectionEligibleElementIds: CanvasSelectionEligibility
+  ) => void;
   setShowElementListColorAccents: (showElementListColorAccents: boolean) => void;
   setShowShortcutHelp: (showShortcutHelp: boolean) => void;
   setShowShortcutSettings: (showShortcutSettings: boolean) => void;
@@ -313,7 +337,10 @@ export type CadUiState = CadElementSelection & {
   setSelectedBindingId: (bindingId: BindingId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
   applySelection: (elements: CadElement[], selection: CadElementSelection) => void;
-  reconcileSelectionWithElements: (elements: CadElement[]) => void;
+  reconcileSelectionWithElements: (
+    elements: CadElement[],
+    canvasSelectionEligibleElementIds?: CanvasSelectionEligibility
+  ) => void;
 };
 
 export const initialCadUiState = (): Omit<
@@ -333,6 +360,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPointNames"
   | "setShowCanvasGeometryNames"
   | "setShowCanvasPoints"
+  | "setCanvasSelectionEligibility"
   | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
   | "setShowShortcutSettings"
@@ -391,6 +419,7 @@ export const initialCadUiState = (): Omit<
   showCanvasPointNames: true,
   showCanvasGeometryNames: false,
   showCanvasPoints: true,
+  canvasSelectionEligibleElementIds: null,
   showElementListColorAccents: false,
   showShortcutHelp: false,
   showShortcutSettings: false,
@@ -499,6 +528,26 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
   setShowCanvasPointNames: (showCanvasPointNames) => set({ showCanvasPointNames }),
   setShowCanvasGeometryNames: (showCanvasGeometryNames) => set({ showCanvasGeometryNames }),
   setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
+  setCanvasSelectionEligibility: (elements, canvasSelectionEligibleElementIds) =>
+    set((state) => {
+      const nextEligibility = new Set(canvasSelectionEligibleElementIds);
+      const currentSelection = {
+        selectedElementId: state.selectedElementId,
+        selectedElementIds: state.selectedElementIds,
+        selectionAnchorElementId: state.selectionAnchorElementId
+      };
+      const nextSelection = state.selectionSubject.kind === "binding" || selectionReconciliationWaitsForEditorRecovery()
+        ? currentSelection
+        : normalizedSelection(elements, currentSelection, nextEligibility);
+      const eligibilityUnchanged = eligibilityEqual(state.canvasSelectionEligibleElementIds, nextEligibility);
+      if (eligibilityUnchanged && selectionEqual(currentSelection, nextSelection)) return {};
+      return {
+        canvasSelectionEligibleElementIds: eligibilityUnchanged
+          ? state.canvasSelectionEligibleElementIds!
+          : nextEligibility,
+        ...(selectionEqual(currentSelection, nextSelection) ? {} : nextSelection)
+      };
+    }),
   setShowElementListColorAccents: (showElementListColorAccents) =>
     set({ showElementListColorAccents }),
   setShowShortcutHelp: (showShortcutHelp) => set({ showShortcutHelp }),
@@ -627,20 +676,34 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     }),
   applySelection: (elements, selection) =>
     set(() => ({ ...normalizedSelection(elements, selection), selectionSubject: { kind: "elements" } })),
-  reconcileSelectionWithElements: (elements) =>
-    set((state) =>
-      // A typed binding is the active subject: element selection was deliberately
-      // cleared (setSelectedBindingId) && must stay cleared on document recompile.
-      // An errorful live-editor snapshot is likewise non-authoritative for
-      // selection pruning; the next error-free editor revision reconciles it.
-      state.selectionSubject.kind === "binding" || selectionReconciliationWaitsForEditorRecovery()
-        ? {}
-        : normalizedSelection(elements, {
-            selectedElementId: state.selectedElementId,
-            selectedElementIds: state.selectedElementIds,
-            selectionAnchorElementId: state.selectionAnchorElementId
-          })
-    ),
+  reconcileSelectionWithElements: (elements, canvasSelectionEligibleElementIds) =>
+    set((state) => {
+      const nextEligibility = canvasSelectionEligibleElementIds
+        ? new Set(canvasSelectionEligibleElementIds)
+        : state.canvasSelectionEligibleElementIds;
+      const currentSelection = {
+        selectedElementId: state.selectedElementId,
+        selectedElementIds: state.selectedElementIds,
+        selectionAnchorElementId: state.selectionAnchorElementId
+      };
+      const nextSelection = state.selectionSubject.kind === "binding" || selectionReconciliationWaitsForEditorRecovery()
+        ? currentSelection
+        : normalizedSelection(elements, currentSelection, nextEligibility ?? undefined);
+      const eligibilityUnchanged =
+        canvasSelectionEligibleElementIds === undefined ||
+        eligibilityEqual(state.canvasSelectionEligibleElementIds, nextEligibility!);
+      if (eligibilityUnchanged && selectionEqual(currentSelection, nextSelection)) return {};
+      return {
+        ...(canvasSelectionEligibleElementIds
+          ? {
+              canvasSelectionEligibleElementIds: eligibilityUnchanged
+                ? state.canvasSelectionEligibleElementIds!
+                : nextEligibility!
+            }
+          : {}),
+        ...(selectionEqual(currentSelection, nextSelection) ? {} : nextSelection)
+      };
+    }),
   setSelectedElementId: (selectedElementId) =>
     set(() => {
       const elements = currentDocumentElements();

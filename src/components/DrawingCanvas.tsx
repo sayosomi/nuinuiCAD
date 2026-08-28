@@ -34,7 +34,7 @@ import {
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
-import type { CanvasViewport } from "../state/cadUiStore";
+import { useCadUiStore, type CanvasViewport } from "../state/cadUiStore";
 import {
   hitTestBezierHandle,
   hitTestPointPickCandidates
@@ -172,11 +172,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const canvasInvalidationInputsRef = useRef<{
     evaluation: EvaluationResult | null;
     visibleElementIds: ReadonlySet<ElementId> | null;
+    selectionEligibleElementIds: ReadonlySet<ElementId> | null;
     canvasViewport: CanvasViewport | null;
     viewportSize: ViewportSize | null;
   }>({
     evaluation: null,
     visibleElementIds: null,
+    selectionEligibleElementIds: null,
     canvasViewport: null,
     viewportSize: null
   });
@@ -268,6 +270,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     polylines,
     points,
     visibleElementIds,
+    selectionEligibleElementIds,
     overlayLines,
     overlayPoints,
     overlayArcs,
@@ -291,6 +294,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     visibilityProfiles,
     activeVisibilityProfileId,
+    showCanvasPoints,
     resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });
   const moduleInstanceSelectionFrames = useMemo(() => moduleInstanceSelectionFrameOverlays({
@@ -315,40 +319,58 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     visibilityProfiles
   ]);
   const interactiveOverlayLines = useMemo(
-    () => overlayLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
-    [overlayLines, previewElementIds]
+    () => overlayLines.filter(({ line }) =>
+      !previewElementIds.has(line.elementId) && selectionEligibleElementIds.has(line.elementId)
+    ),
+    [overlayLines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayPoints = useMemo(
-    () => overlayPoints.filter(({ point }) => !previewElementIds.has(point.elementId)),
-    [overlayPoints, previewElementIds]
+    () => overlayPoints.filter(({ point }) =>
+      !previewElementIds.has(point.elementId) && selectionEligibleElementIds.has(point.elementId)
+    ),
+    [overlayPoints, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayArcs = useMemo(
-    () => overlayArcs.filter(({ arc }) => !previewElementIds.has(arc.elementId)),
-    [overlayArcs, previewElementIds]
+    () => overlayArcs.filter(({ arc }) =>
+      !previewElementIds.has(arc.elementId) && selectionEligibleElementIds.has(arc.elementId)
+    ),
+    [overlayArcs, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayCurves = useMemo(
-    () => overlayCurves.filter(({ curve }) => !previewElementIds.has(curve.elementId)),
-    [overlayCurves, previewElementIds]
+    () => overlayCurves.filter(({ curve }) =>
+      !previewElementIds.has(curve.elementId) && selectionEligibleElementIds.has(curve.elementId)
+    ),
+    [overlayCurves, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayOffsetLines = useMemo(
-    () => overlayOffsetLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
-    [overlayOffsetLines, previewElementIds]
+    () => overlayOffsetLines.filter(({ line }) =>
+      !previewElementIds.has(line.elementId) && selectionEligibleElementIds.has(line.elementId)
+    ),
+    [overlayOffsetLines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayPolylines = useMemo(
-    () => overlayPolylines.filter(({ polyline }) => !previewElementIds.has(polyline.elementId)),
-    [overlayPolylines, previewElementIds]
+    () => overlayPolylines.filter(({ polyline }) =>
+      !previewElementIds.has(polyline.elementId) && selectionEligibleElementIds.has(polyline.elementId)
+    ),
+    [overlayPolylines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayImages = useMemo(
-    () => overlayImages.filter(({ image }) => !previewElementIds.has(image.elementId)),
-    [overlayImages, previewElementIds]
+    () => overlayImages.filter(({ image }) =>
+      !previewElementIds.has(image.elementId) && selectionEligibleElementIds.has(image.elementId)
+    ),
+    [overlayImages, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayTexts = useMemo(
-    () => overlayTexts.filter(({ text }) => !previewElementIds.has(text.elementId)),
-    [overlayTexts, previewElementIds]
+    () => overlayTexts.filter(({ text }) =>
+      !previewElementIds.has(text.elementId) && selectionEligibleElementIds.has(text.elementId)
+    ),
+    [overlayTexts, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayIdentityCandidates = useMemo(
-    () => overlayIdentityCandidates.filter(({ elementId }) => !previewElementIds.has(elementId)),
-    [overlayIdentityCandidates, previewElementIds]
+    () => overlayIdentityCandidates.filter(({ elementId }) =>
+      !previewElementIds.has(elementId) && selectionEligibleElementIds.has(elementId)
+    ),
+    [overlayIdentityCandidates, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayIdentityCandidatesById = useMemo(
     () => new Map(interactiveOverlayIdentityCandidates.map((candidate) => [candidate.elementId, candidate])),
@@ -853,10 +875,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [clearHoveredElement, hoverSuppressed]);
 
   useEffect(() => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, selectionEligibleElementIds);
+  }, [elements, selectionEligibleElementIds]);
+
+  useEffect(() => {
     const previous = canvasInvalidationInputsRef.current;
     const hasChanged = previous.evaluation !== null && (
       previous.evaluation !== evaluation ||
       previous.visibleElementIds !== visibleElementIds ||
+      previous.selectionEligibleElementIds !== selectionEligibleElementIds ||
       previous.canvasViewport?.panX !== canvasViewport.panX ||
       previous.canvasViewport?.panY !== canvasViewport.panY ||
       previous.canvasViewport?.zoom !== canvasViewport.zoom ||
@@ -866,12 +893,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasInvalidationInputsRef.current = {
       evaluation,
       visibleElementIds,
+      selectionEligibleElementIds,
       canvasViewport: { ...canvasViewport },
       viewportSize: { ...viewportSize }
     };
     if (!overlapCandidateSessionRef.current || !hasChanged) return;
     finalizeOverlapSession();
-  }, [canvasViewport, evaluation, finalizeOverlapSession, visibleElementIds, viewportSize]);
+  }, [
+    canvasViewport,
+    evaluation,
+    finalizeOverlapSession,
+    selectionEligibleElementIds,
+    visibleElementIds,
+    viewportSize
+  ]);
 
   useEffect(() => {
     if (overlapCandidateSession && (activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget || commandLineSession)) {

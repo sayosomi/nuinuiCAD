@@ -112,7 +112,7 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
   });
 
-  it("keeps ordinary geometry Reveal immediate while evaluation is not current", async () => {
+  it("rejects ordinary geometry Reveal when no current evaluation presentation is available", async () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)"
@@ -134,13 +134,12 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
       }));
     });
 
-    const point = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
-    expect(useCadUiStore.getState().selectedElementId).toBe(point.id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(navigationResultsFor(api, 421)).toContainEqual({
       type: "canvasNavigationResult",
       requestId: 421,
-      status: "resolved",
-      degradations: []
+      status: "failed",
+      reason: "no-revealable-runtime-target"
     });
   });
 

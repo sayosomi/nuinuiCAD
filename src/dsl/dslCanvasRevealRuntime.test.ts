@@ -127,11 +127,17 @@ const runtime = ({
 
 const revealability = (
   allIds: readonly ElementId[],
-  options: { visible?: readonly ElementId[]; enabled?: readonly ElementId[]; profile?: readonly ElementId[] } = {}
+  options: {
+    visible?: readonly ElementId[];
+    enabled?: readonly ElementId[];
+    profile?: readonly ElementId[];
+    presented?: readonly ElementId[];
+  } = {}
 ) => ({
   effectiveVisibleElementIds: new Set(options.visible ?? allIds),
   effectiveEnabledElementIds: new Set(options.enabled ?? allIds),
-  profileVisibleElementIds: new Set(options.profile ?? allIds)
+  profileVisibleElementIds: new Set(options.profile ?? allIds),
+  canvasPresentationEligibleElementIds: new Set(options.presented ?? allIds)
 });
 
 const materializedModule = (): readonly Partial<MaterializedExecutionStatement>[] => [
@@ -225,6 +231,67 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       primaryRuntimeElementId: "Out1",
       degradations: [{ kind: "owner-fallback", cause: "hidden", referenceText: "@input" }]
     });
+  });
+
+  it("uses the shared presentation boundary for semantic partial targets", () => {
+    const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
+    const allIds = elements.map((item) => item.id);
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: parameterTarget() }),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        builtin: new Map([
+          [JSON.stringify(["S1"]), "P1"],
+          [JSON.stringify(["S2"]), "P2"]
+        ])
+      }),
+      elements,
+      ...revealability(allIds, { presented: ["P1"] })
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["P1"],
+      primaryRuntimeElementId: "P1",
+      degradations: [{ kind: "partial-targets", omittedCount: 1, causes: ["runtime-target-unavailable"] }]
+    });
+  });
+
+  it("falls back to presented owners when semantic targets are not presented", () => {
+    const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
+    const allIds = elements.map((item) => item.id);
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: parameterTarget(), referenceText: "@input" }),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        builtin: new Map([
+          [JSON.stringify(["S1"]), "P1"],
+          [JSON.stringify(["S2"]), "P2"]
+        ])
+      }),
+      elements,
+      ...revealability(allIds, { presented: ["Out1", "Out2"] })
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["Out1", "Out2"],
+      primaryRuntimeElementId: "Out1",
+      degradations: [{ kind: "owner-fallback", cause: "runtime-target-unavailable", referenceText: "@input" }]
+    });
+  });
+
+  it("fails Reveal when neither semantic targets nor their owners are presented", () => {
+    const elements = ["P1", "P2", "Out1", "Out2", "M1", "M2"].map(element);
+    const allIds = elements.map((item) => item.id);
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: geometryTarget({ sourceStatementIndex: 2, target: parameterTarget() }),
+      compiled: compiled({ entries: materializedModule(), analysis: analysisForBody("def", 2) }),
+      moduleGeometryRuntime: runtime({
+        builtin: new Map([
+          [JSON.stringify(["S1"]), "P1"],
+          [JSON.stringify(["S2"]), "P2"]
+        ])
+      }),
+      elements,
+      ...revealability(allIds, { presented: [] })
+    })).toEqual({ status: "failed", reason: "no-revealable-runtime-target" });
   });
 
   it("resolves geometry properties to their base runtime geometry and deduplicates IDs", () => {

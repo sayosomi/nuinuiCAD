@@ -281,6 +281,16 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
       }));
+    });
+    const editorTarget = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(editorTarget.id, {
+      kind: "point",
+      elementId: editorTarget.id,
+      name: editorTarget.name,
+      x: 20,
+      y: 0
+    });
+    await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasNavigationRequest", requestId: 12, documentVersion: 7, normalizedSourceOffset: source.indexOf("B") }
       }));
@@ -603,6 +613,16 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: localSource, documentVersion: 8, reason: "edit" }
       }));
+    });
+    const localTarget = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(localTarget.id, {
+      kind: "point",
+      elementId: localTarget.id,
+      name: localTarget.name,
+      x: 0,
+      y: 0
+    });
+    await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasNavigationRequest", requestId: 15, documentVersion: 8, normalizedSourceOffset: source.indexOf("A") }
       }));
@@ -677,6 +697,15 @@ describe("VSCodeApp Canvas history coordinator", () => {
       .filter((element) => owners.get(element.id)?.sourceStatementIndex === statementIndex)
       .map((element) => element.id);
     expect(runtimeIds.length).toBeGreaterThan(1);
+    for (const runtimeId of runtimeIds) {
+      drawingCanvasProps.evaluation.computedGeometry.set(runtimeId, {
+        kind: "point",
+        elementId: runtimeId,
+        name: runtimeId,
+        x: 10,
+        y: 20
+      });
+    }
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {

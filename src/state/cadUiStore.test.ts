@@ -4,6 +4,7 @@ import { isElseExpanded, isFoldTargetExpanded, isGroupExpanded, isStatementExpan
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { startSession } from "../commands/commandLineSession";
 import type { CreationRecipe } from "../commands/creationRecipes";
+import { replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import type { CadElement } from "../types/geometry";
 
 const commandLineRecipe: CreationRecipe = {
@@ -449,6 +450,89 @@ describe("cadUiStore activity-aware element selection", () => {
       selectedElementIds: ["visible"],
       selectionAnchorElementId: "visible"
     });
+  });
+});
+
+describe("cadUiStore Canvas presentation eligibility boundary", () => {
+  const elements: CadElement[] = [
+    { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+    { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+    { id: "c", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 }
+  ];
+
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
+  });
+
+  it("reconciles only newly ineligible ids, preserving survivor order and choosing the surviving primary", () => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "b", "c"]));
+    useCadUiStore.setState({
+      selectedElementId: "b",
+      selectedElementIds: ["a", "b", "c"],
+      selectionAnchorElementId: "b"
+    });
+
+    useCadDocumentStore.setState({ selectionPast: [] });
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "c"]));
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "a",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "a"
+    });
+    expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
+
+    useCadUiStore.setState({
+      selectedElementId: "a",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "c"
+    });
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a"]));
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a"
+    });
+  });
+
+  it("filters multi-target selection and makes an invalid single-target attempt a no-op", () => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "c"]));
+    expect(replaceCanvasSelection(["c", "b", "a"], "c", false, "requested")).toBe(true);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "c",
+      selectedElementIds: ["c", "a"],
+      selectionAnchorElementId: "c"
+    });
+
+    const before = {
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    };
+    selectElement("b", "replace", true);
+    expect(useCadUiStore.getState()).toMatchObject(before);
+    expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
+  });
+
+  it("does not let selection-only emphasis bootstrap eligibility and blocks ineligible history restore", () => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "b"]));
+    selectElement("b", "replace", true);
+    selectElement("a", "replace", true);
+
+    useCadUiStore.setState({
+      selectedElementId: "b",
+      selectedElementIds: ["b"],
+      selectionAnchorElementId: "b"
+    });
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a"]));
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    selectElement("a");
+
+    expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(["a"]);
   });
 });
 

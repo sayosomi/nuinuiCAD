@@ -23,7 +23,10 @@ import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
 import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
-import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import {
+  canvasElementDrawingBounds,
+  canvasPresentationEligibleElementIds
+} from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
   normalizeVscodeCanvasRibbons,
@@ -586,6 +589,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: [...runtimeElements],
           profile: activeVisibilityProfile
         });
+        const currentEvaluation = evaluationRef.current;
+        const canvasPresentationIds = currentEvaluation
+          ? canvasPresentationEligibleElementIds({
+              elements: runtimeElements,
+              evaluation: currentEvaluation,
+              visibilityProfiles: current.state.visibilityProfiles,
+              activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+              showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
+              includeContainerPresentation: true
+            })
+          : new Set<string>();
         const revealResult = queryDslCanvasRevealRuntimeTarget({
           target: sourceTarget.target,
           compiled: current.compiled,
@@ -593,7 +607,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: runtimeElements,
           effectiveVisibleElementIds,
           effectiveEnabledElementIds,
-          profileVisibleElementIds
+          profileVisibleElementIds,
+          canvasPresentationEligibleElementIds: canvasPresentationIds
         });
         if (revealResult.status === "failed") {
           api.postMessage({
@@ -605,7 +620,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
-        const currentEvaluation = evaluationRef.current;
         const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
           evaluationStateRef.current,
           current.state.compiledDocumentRevision
