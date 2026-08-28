@@ -62,6 +62,10 @@ import {
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
+import {
+  registerVscodeCanvasQuickCreateFeature,
+  type VscodeCanvasCreationEndpoint
+} from "./canvasQuickCreateFeature";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
 import type {
   ExtensionToVscodeMessage,
@@ -1435,6 +1439,37 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
     languageAnalysisSessionFor
   });
+  const canvasQuickCreateFeature = registerVscodeCanvasQuickCreateFeature({
+    activeCanvasEndpoint: (): VscodeCanvasCreationEndpoint | null => {
+      const session = canvasSessionForCommand();
+      if (
+        !session ||
+        !session.webviewReady ||
+        session.authoritativeDocumentVersion !== session.document.version ||
+        !isOpenDocument(session.document) ||
+        sessions.get(session.documentUri, "canvas") !== session
+      ) return null;
+      const documentVersion = session.document.version;
+      const isCurrent = (): boolean =>
+        canvasSessionForCommand() === session &&
+        sessions.get(session.documentUri, "canvas") === session &&
+        isOpenDocument(session.document) &&
+        session.webviewReady &&
+        session.authoritativeDocumentVersion === documentVersion &&
+        session.document.version === documentVersion;
+      return {
+        sessionToken: session,
+        isCurrent,
+        postCreationCommand: (commandId) => {
+          if (!isCurrent()) return;
+          void session.panel.webview.postMessage({
+            type: "canvasCreationCommand",
+            commandId
+          } satisfies ExtensionToVscodeMessage);
+        }
+      };
+    }
+  });
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
     const activeSession = canvasSessionForCommand();
@@ -1673,6 +1708,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     revealInCanvasCommand,
     referencePickFeature,
     sourceValueStepFeature,
+    canvasQuickCreateFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,

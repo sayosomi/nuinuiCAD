@@ -18,6 +18,7 @@ import type {
   VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
+import type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 
 export type {
   VscodeCanvasObservationElementSource,
@@ -65,6 +66,7 @@ export type {
   VscodeMultiDocumentSourceLocation,
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
+export type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 
 export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview", "explorerMock"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
@@ -200,6 +202,7 @@ export type ExtensionToVscodeMessage =
       includeHiddenGeometry?: boolean;
       includeDisabledGeometry?: boolean;
     }
+  | { type: "canvasCreationCommand"; commandId: VscodeCanvasCreationCommandId }
   | {
       type: "bakeSourceRequest";
       requestId: number;

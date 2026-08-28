@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import {
+  VSCODE_CANVAS_QUICK_CREATE_SETTING,
+  VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT,
+  vscodeCanvasCreationCommands,
+  vscodeCanvasCreationCommandIdFor
+} from "../../src/vscode/vscodeCanvasCreationCommands";
 
 type Keybinding = {
   command: string;
@@ -16,7 +22,8 @@ type Command = {
 };
 
 type CommandPaletteMenu = {
-  command: string;
+  command?: string;
+  submenu?: string;
   when: string;
   group?: string;
 };
@@ -31,12 +38,14 @@ type ExtensionManifest = {
         items?: unknown;
       }>;
     };
+    submenus?: Array<{ id: string; label: string }>;
     commands?: Command[];
     keybindings?: Keybinding[];
     menus?: {
       commandPalette?: CommandPaletteMenu[];
       "webview/context"?: CommandPaletteMenu[];
       "editor/context"?: CommandPaletteMenu[];
+      "nuinuiCAD.create"?: CommandPaletteMenu[];
     };
   };
 };
@@ -85,7 +94,34 @@ const commandIds = [
   "nuinuiCAD.modulePreview.fitDrawing",
   "nuinuiCAD.modulePreview.togglePointNames",
   "nuinuiCAD.modulePreview.toggleGeometryNames",
-  "nuinuiCAD.modulePreview.togglePoints"
+  "nuinuiCAD.modulePreview.togglePoints",
+  "nuinuiCAD.createGeometry",
+  "nuinuiCAD.create.addFreePoint",
+  "nuinuiCAD.create.addText",
+  "nuinuiCAD.create.addOffsetPoint",
+  "nuinuiCAD.create.addPolarOffsetPoint",
+  "nuinuiCAD.create.addDivisionPoint",
+  "nuinuiCAD.create.addLineDivisionPoint",
+  "nuinuiCAD.create.addIntersectionPoint",
+  "nuinuiCAD.create.addLineTangentOffsetPoint",
+  "nuinuiCAD.create.addBezierBulgePoint",
+  "nuinuiCAD.create.addBezierExtremePoint",
+  "nuinuiCAD.create.addLine",
+  "nuinuiCAD.create.addAngleLengthLine",
+  "nuinuiCAD.create.addCommonTangentLine",
+  "nuinuiCAD.create.addArcLine",
+  "nuinuiCAD.create.addThreePointArcLine",
+  "nuinuiCAD.create.addCornerRadiusArcLine",
+  "nuinuiCAD.create.addEdge",
+  "nuinuiCAD.create.addExtendTrim",
+  "nuinuiCAD.create.addBezierCurve",
+  "nuinuiCAD.create.addOffsetLine",
+  "nuinuiCAD.create.addCopyLine",
+  "nuinuiCAD.create.addSymmetricCopyLine",
+  "nuinuiCAD.create.addMove",
+  "nuinuiCAD.create.addSymmetricMove",
+  "nuinuiCAD.create.addSplitLine",
+  "nuinuiCAD.configureQuickCreate"
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
@@ -161,7 +197,34 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Fit Module Preview Drawing",
       "nuinuiCAD: Toggle Module Preview Point Names",
       "nuinuiCAD: Toggle Module Preview Geometry Names",
-      "nuinuiCAD: Toggle Module Preview Points"
+      "nuinuiCAD: Toggle Module Preview Points",
+      "nuinuiCAD: Create Geometry…",
+      "nuinuiCAD: Create Free Point",
+      "nuinuiCAD: Create Text",
+      "nuinuiCAD: Create Offset Point",
+      "nuinuiCAD: Create Polar Offset Point",
+      "nuinuiCAD: Create Division Point",
+      "nuinuiCAD: Create Line Division Point",
+      "nuinuiCAD: Create Intersection Point",
+      "nuinuiCAD: Create Line Tangent Offset Point",
+      "nuinuiCAD: Create Bezier Bulge Point",
+      "nuinuiCAD: Create Bezier Extreme Point",
+      "nuinuiCAD: Create Line",
+      "nuinuiCAD: Create Angle Length Line",
+      "nuinuiCAD: Create Common Tangent Line",
+      "nuinuiCAD: Create Arc Line",
+      "nuinuiCAD: Create Three-Point Arc Line",
+      "nuinuiCAD: Create Corner Radius Arc Line",
+      "nuinuiCAD: Create Edge",
+      "nuinuiCAD: Create Extend/Trim",
+      "nuinuiCAD: Create Bezier Curve",
+      "nuinuiCAD: Create Offset Line",
+      "nuinuiCAD: Create Copy Line",
+      "nuinuiCAD: Create Symmetric Copy Line",
+      "nuinuiCAD: Create Move",
+      "nuinuiCAD: Create Symmetric Move",
+      "nuinuiCAD: Create Split Line",
+      "nuinuiCAD: Configure Quick Create…"
     ]);
   });
 
@@ -220,7 +283,34 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.fitDrawing", when: "false" },
       { command: "nuinuiCAD.modulePreview.togglePointNames", when: "false" },
       { command: "nuinuiCAD.modulePreview.toggleGeometryNames", when: "false" },
-      { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" }
+      { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" },
+      { command: "nuinuiCAD.createGeometry", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.create.addFreePoint", when: "false" },
+      { command: "nuinuiCAD.create.addText", when: "false" },
+      { command: "nuinuiCAD.create.addOffsetPoint", when: "false" },
+      { command: "nuinuiCAD.create.addPolarOffsetPoint", when: "false" },
+      { command: "nuinuiCAD.create.addDivisionPoint", when: "false" },
+      { command: "nuinuiCAD.create.addLineDivisionPoint", when: "false" },
+      { command: "nuinuiCAD.create.addIntersectionPoint", when: "false" },
+      { command: "nuinuiCAD.create.addLineTangentOffsetPoint", when: "false" },
+      { command: "nuinuiCAD.create.addBezierBulgePoint", when: "false" },
+      { command: "nuinuiCAD.create.addBezierExtremePoint", when: "false" },
+      { command: "nuinuiCAD.create.addLine", when: "false" },
+      { command: "nuinuiCAD.create.addAngleLengthLine", when: "false" },
+      { command: "nuinuiCAD.create.addCommonTangentLine", when: "false" },
+      { command: "nuinuiCAD.create.addArcLine", when: "false" },
+      { command: "nuinuiCAD.create.addThreePointArcLine", when: "false" },
+      { command: "nuinuiCAD.create.addCornerRadiusArcLine", when: "false" },
+      { command: "nuinuiCAD.create.addEdge", when: "false" },
+      { command: "nuinuiCAD.create.addExtendTrim", when: "false" },
+      { command: "nuinuiCAD.create.addBezierCurve", when: "false" },
+      { command: "nuinuiCAD.create.addOffsetLine", when: "false" },
+      { command: "nuinuiCAD.create.addCopyLine", when: "false" },
+      { command: "nuinuiCAD.create.addSymmetricCopyLine", when: "false" },
+      { command: "nuinuiCAD.create.addMove", when: "false" },
+      { command: "nuinuiCAD.create.addSymmetricMove", when: "false" },
+      { command: "nuinuiCAD.create.addSplitLine", when: "false" },
+      { command: "nuinuiCAD.configureQuickCreate", when: "false" }
     ]);
     expect(commandPalette.find(({ command }) => command === "nuinuiCAD.openModulePreview")?.when)
       .not.toContain("modulePreviewSourceTarget");
@@ -238,6 +328,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
+      { command: "nuinuiCAD.createGeometry", when: canvasBlankWhen, group: "1_create@0" },
+      { submenu: "nuinuiCAD.create", when: canvasBlankWhen, group: "1_create@1" },
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen },
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasBlankWhen },
@@ -293,6 +385,64 @@ describe("VS Code extension manifest command contributions", () => {
       expect(contextCommands).not.toContain("nuinuiCAD.outputPreviewUndo");
       expect(contextCommands).not.toContain("nuinuiCAD.outputPreviewRedo");
     }
+  });
+
+  it("contributes the Canvas creation search command and configurable six-slot native submenu", async () => {
+    const manifest = await readManifest();
+    const commands = manifest.contributes?.commands ?? [];
+    const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+    const submenu = manifest.contributes?.menus?.["nuinuiCAD.create"] ?? [];
+    const creationCommandIds = vscodeCanvasCreationCommands.map(({ commandId }) => commandId);
+
+    expect(manifest.contributes?.submenus).toContainEqual({ id: "nuinuiCAD.create", label: "Create" });
+    expect(commands.find(({ command }) => command === "nuinuiCAD.createGeometry")).toEqual({
+      command: "nuinuiCAD.createGeometry",
+      title: "nuinuiCAD: Create Geometry…"
+    });
+    expect(commandPalette).toContainEqual({
+      command: "nuinuiCAD.createGeometry",
+      when: canvasPaletteWhen
+    });
+    expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
+      command: "nuinuiCAD.createGeometry",
+      when: canvasBlankWhen,
+      group: "1_create@0"
+    });
+
+    for (const entry of vscodeCanvasCreationCommands) {
+      expect(commands.find(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId))).toMatchObject({
+        command: vscodeCanvasCreationCommandIdFor(entry.commandId),
+        title: entry.title
+      });
+      expect(commandPalette).toContainEqual({
+        command: vscodeCanvasCreationCommandIdFor(entry.commandId),
+        when: "false"
+      });
+      expect(keybindings.some(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId))).toBe(false);
+    }
+
+    const slotEntries = submenu.filter(({ command }) => command !== "nuinuiCAD.configureQuickCreate");
+    expect(slotEntries).toHaveLength(VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT * vscodeCanvasCreationCommands.length);
+    for (let slot = 1; slot <= VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT; slot += 1) {
+      const entries = slotEntries.filter(({ when }) => when.includes(`nuinuiCAD.quickCreateSlot${slot}`));
+      expect(entries.map(({ command }) => command)).toEqual(
+        creationCommandIds.map((commandId) => vscodeCanvasCreationCommandIdFor(commandId))
+      );
+      expect(entries.every(({ group }) => group === `quickCreate@${slot}`)).toBe(true);
+    }
+    expect(submenu).toContainEqual({ command: "nuinuiCAD.configureQuickCreate", group: "configuration@100" });
+
+    const createSurfaceEntries = (manifest.contributes?.menus?.["webview/context"] ?? [])
+      .filter(({ command, submenu: child }) =>
+        command === "nuinuiCAD.createGeometry" || child === "nuinuiCAD.create"
+      );
+    expect(createSurfaceEntries.every(({ when }) => when === canvasBlankWhen)).toBe(true);
+    expect(manifest.contributes?.configuration?.properties?.[VSCODE_CANVAS_QUICK_CREATE_SETTING]).toMatchObject({
+      type: "array",
+      scope: "application",
+      default: []
+    });
   });
 });
 
