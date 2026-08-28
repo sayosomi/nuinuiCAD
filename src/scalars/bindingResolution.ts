@@ -1,4 +1,5 @@
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
+import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import type { ScopeId } from "./lexicalScopeIndex";
 import {
   activateFrameNames,
@@ -211,7 +212,9 @@ const resolutionFor = (
       // current document snapshot, so its identity claim is valid only while
       // the virtual binding still carries that source name. Otherwise let the
       // established sweep observe the virtual rename.
-      if (binding && binding.name === name) return { kind: "resolved", binding };
+      const path = parseDslReferenceToken(name);
+      const finalName = path.segments.at(-1);
+      if (binding && (binding.name === name || binding.name === finalName)) return { kind: "resolved", binding };
     } else if (sourceLookup?.kind === "blocked") {
       return {
         kind: "namespace",
