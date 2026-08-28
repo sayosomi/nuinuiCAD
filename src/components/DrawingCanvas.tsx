@@ -40,7 +40,6 @@ import {
   hitTestPointPickCandidates
 } from "./canvasInteractionHitTest";
 import {
-  type AxisLockKeys,
   type ViewportSize,
   constrainedWorldDelta
 } from "./canvasViewport";
@@ -99,6 +98,8 @@ type PointDragState = {
   elementId: ElementId;
   startClientX: number;
   startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
   zoom: number;
   dragActivated: boolean;
   baseElements: CadElement[];
@@ -152,7 +153,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
   const syntheticPointerEventRef = useRef(false);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
-  const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
+  const shiftKeyRef = useRef(false);
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -536,23 +537,57 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     visibleElementIds
   ]);
 
+  const clearPointDragFeedback = useCallback(() => {
+    shiftKeyRef.current = false;
+    setPointDragFeedback(null);
+  }, []);
+
+  const previewPointDragAtLastPointer = useCallback((drag: PointDragState) => {
+    const worldDelta = constrainedWorldDelta({
+      screenDx: drag.lastClientX - drag.startClientX,
+      screenDy: drag.lastClientY - drag.startClientY,
+      zoom: drag.zoom,
+      shiftKey: shiftKeyRef.current
+    });
+    const result = hostAdapter.movePointElementByDelta({
+      elementId: drag.elementId,
+      dx: worldDelta.dx,
+      dy: worldDelta.dy,
+      angleLocked: polarLockKeysRef.current.angle,
+      distanceLocked: polarLockKeysRef.current.distance,
+      commitMode: "preview",
+      baseElements: drag.baseElements,
+      baseEvaluation: drag.baseEvaluation
+    });
+    if (isRejectedDocumentMutation(result)) {
+      captureLedger.release(drag.pointerId);
+      pointDragRef.current = null;
+      clearPointDragFeedback();
+      setIsPointDragging(false);
+    }
+    return result;
+  }, [captureLedger, clearPointDragFeedback, hostAdapter]);
+
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
       const key = event.key.toLowerCase();
-      if (key !== "x" && key !== "y" && key !== "r" && key !== "f") return;
+      if (key === "shift") {
+        const pointDrag = pointDragRef.current;
+        if (!pointDrag) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (shiftKeyRef.current === isPressed) return;
+        shiftKeyRef.current = isPressed;
+        setPointDragFeedback((feedback) => feedback
+          ? { ...feedback, shiftKey: isPressed }
+          : feedback);
+        if (pointDrag.dragActivated) previewPointDragAtLastPointer(pointDrag);
+        return;
+      }
+      if (key !== "r" && key !== "f") return;
       if (pointDragRef.current || bezierHandleDragRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
-      }
-      if (key === "x" || key === "y") {
-        const nextAxisLockKeys = {
-          ...axisLockKeysRef.current,
-          [key]: isPressed
-        };
-        axisLockKeysRef.current = nextAxisLockKeys;
-        setPointDragFeedback((feedback) => feedback
-          ? { ...feedback, axisLockKeys: nextAxisLockKeys }
-          : feedback);
       }
       if (key === "r") {
         polarLockKeysRef.current = {
@@ -569,10 +604,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
 
     const clearDragLockKeys = () => {
-      axisLockKeysRef.current = { x: false, y: false };
+      shiftKeyRef.current = false;
       polarLockKeysRef.current = { angle: false, distance: false };
       setPointDragFeedback((feedback) => feedback
-        ? { ...feedback, axisLockKeys: { x: false, y: false } }
+        ? { ...feedback, shiftKey: false }
         : feedback);
     };
 
@@ -587,7 +622,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       window.removeEventListener("keyup", onKeyUp, { capture: true });
       window.removeEventListener("blur", clearDragLockKeys);
     };
-  }, []);
+  }, [previewPointDragAtLastPointer]);
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -1125,7 +1160,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           screenDx: intent.latest.clientX - intent.start.clientX,
           screenDy: intent.latest.clientY - intent.start.clientY,
           zoom: canvasViewport.zoom,
-          axisLockKeys: axisLockKeysRef.current
+          shiftKey: intent.modifiers.shiftKey
         });
         hostAdapter.movePointElementByDelta({
           elementId,
@@ -1148,6 +1183,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       elementId,
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
+      lastClientX: intent.start.clientX,
+      lastClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
       dragActivated: false,
       ...dragBase,
@@ -1157,9 +1194,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         overlapSelectionMode: selectionMode
       } : {})
     };
+    shiftKeyRef.current = intent.modifiers.shiftKey;
     setPointDragFeedback({
       origin: screen,
-      axisLockKeys: { ...axisLockKeysRef.current }
+      current: screen,
+      shiftKey: intent.modifiers.shiftKey
     });
     setIsPointDragging(true);
   }, [
@@ -1306,7 +1345,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       };
       captureLedger.release(event.pointerId);
       pointDragRef.current = null;
-      setPointDragFeedback(null);
+      clearPointDragFeedback();
       setIsPointDragging(false);
       discardEditorFocusReservation(event.pointerId);
       openOverlapSession(
@@ -1319,7 +1358,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     if (!dragActivated) {
       pointDragRef.current = null;
-      setPointDragFeedback(null);
+      clearPointDragFeedback();
       setIsPointDragging(false);
       return;
     }
@@ -1330,7 +1369,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       screenDx,
       screenDy,
       zoom: drag.zoom,
-      axisLockKeys: axisLockKeysRef.current
+      shiftKey: shiftKeyRef.current
     });
 
     hostAdapter.movePointElementByDelta({
@@ -1345,7 +1384,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
 
     pointDragRef.current = null;
-    setPointDragFeedback(null);
+    clearPointDragFeedback();
     setIsPointDragging(false);
   };
 
@@ -1526,11 +1565,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const movement = Math.hypot(screenDx, screenDy);
+      let activePointDrag: PointDragState = {
+        ...pointDrag,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY
+      };
+      pointDragRef.current = activePointDrag;
+      setPointDragFeedback((feedback) => feedback
+        ? {
+            ...feedback,
+            current: {
+              x: feedback.origin.x + screenDx,
+              y: feedback.origin.y + screenDy
+            }
+          }
+        : feedback);
       if (!pointDrag.dragActivated && movement < POINT_DRAG_THRESHOLD_PX) return;
 
-      let activePointDrag = pointDrag;
       if (!pointDrag.dragActivated) {
-        activePointDrag = { ...pointDrag, dragActivated: true };
+        activePointDrag = { ...activePointDrag, dragActivated: true };
         pointDragRef.current = activePointDrag;
       }
 
@@ -1544,29 +1597,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         };
         pointDragRef.current = activePointDrag;
       }
-      const worldDelta = constrainedWorldDelta({
-        screenDx,
-        screenDy,
-        zoom: activePointDrag.zoom,
-        axisLockKeys: axisLockKeysRef.current
-      });
-
-      const result = hostAdapter.movePointElementByDelta({
-        elementId: activePointDrag.elementId,
-        dx: worldDelta.dx,
-        dy: worldDelta.dy,
-        angleLocked: polarLockKeysRef.current.angle,
-        distanceLocked: polarLockKeysRef.current.distance,
-        commitMode: "preview",
-        baseElements: activePointDrag.baseElements,
-        baseEvaluation: activePointDrag.baseEvaluation
-      });
-      if (isRejectedDocumentMutation(result)) {
-        captureLedger.release(event.pointerId);
-        pointDragRef.current = null;
-        setPointDragFeedback(null);
-        setIsPointDragging(false);
-      }
+      previewPointDragAtLastPointer(activePointDrag);
       return;
     }
 

@@ -51,30 +51,41 @@ describe("canvasViewport", () => {
     expect(visibleGridStep(0.02, options)).toBe(1250);
   });
 
-  it("constrains drag deltas by axis locks and zoom", () => {
+  it("returns the free 2D world delta without Shift", () => {
     expect(
       constrainedWorldDelta({
         screenDx: 20,
         screenDy: -10,
         zoom: 2,
-        axisLockKeys: { x: false, y: false }
+        shiftKey: false
       })
     ).toEqual({ dx: 10, dy: 5 });
+  });
+
+  it("constrains Shift-held drag deltas to the dominant axis", () => {
     expect(
       constrainedWorldDelta({
         screenDx: 20,
         screenDy: -10,
         zoom: 2,
-        axisLockKeys: { x: true, y: false }
+        shiftKey: true
       })
     ).toEqual({ dx: 10, dy: 0 });
     expect(
       constrainedWorldDelta({
-        screenDx: 20,
-        screenDy: -10,
+        screenDx: 10,
+        screenDy: -20,
         zoom: 2,
-        axisLockKeys: { x: false, y: true }
+        shiftKey: true
       })
-    ).toEqual({ dx: 0, dy: 5 });
+    ).toEqual({ dx: 0, dy: 10 });
+    expect(
+      constrainedWorldDelta({
+        screenDx: 20,
+        screenDy: -20,
+        zoom: 2,
+        shiftKey: true
+      })
+    ).toEqual({ dx: 10, dy: 0 });
   });
 });
