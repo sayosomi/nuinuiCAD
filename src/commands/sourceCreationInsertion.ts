@@ -85,7 +85,7 @@ const scopeForLine = (
   statementMap: StatementMap
 ): ScopeResolution => {
   const elementById = new Map(elements.map((element) => [element.id, element]));
-  const containingGroups = elements.flatMap((element) => {
+  const containingGroups = elements.flatMap((element): Array<{ element: CadElement; info: StatementInfo | null }> => {
     if (!isGroupElement(element)) return [];
     const info = statementMap.byElementId.get(element.id);
     if (!info) return [{ element, info: null }];
