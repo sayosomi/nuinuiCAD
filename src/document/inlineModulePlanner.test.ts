@@ -305,22 +305,50 @@ describe("planInlineModule Checkpoint 1", () => {
       "instance Copy = Stamp()",
       "point User = offset(from: @Copy::Anchor, dx: 1, dy: 0)"
     ].join("\n");
-    const { compiled, result } = plan(source, ["Copy"]);
+    const { result } = plan(source, ["Copy"]);
 
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
     const next = compileCurrent(nextSource, "inline-next");
-    const userBefore = compiled.statements.findIndex((statement) => statement.name === "User");
-    const userAfter = next.statements.findIndex((statement) => statement.name === "User");
-    const beforeOwners = createDslSemanticOccurrenceIndex(compiled).occurrences
-      .filter((occurrence) => occurrence.kind === "reference" && occurrence.from >= compiled.statements[userBefore]!.documentRange.from)
-      .map((occurrence) => dslSemanticIdentityKey(occurrence.identity));
-    const afterOwners = createDslSemanticOccurrenceIndex(next).occurrences
-      .filter((occurrence) => occurrence.kind === "reference" && occurrence.from >= next.statements[userAfter]!.documentRange.from)
-      .map((occurrence) => dslSemanticIdentityKey(occurrence.identity));
-    expect(beforeOwners).toHaveLength(2);
-    expect(afterOwners).toHaveLength(2);
+
+    const afterIndex = createDslSemanticOccurrenceIndex(next);
+    const statementRange = (statementIndex: number) => next.statements[statementIndex]!.documentRange;
+    const occurrenceFor = (
+      statementIndex: number,
+      token: string,
+      kind: "declaration" | "reference"
+    ) => afterIndex.occurrences.find((occurrence) => {
+      const range = statementRange(statementIndex);
+      return occurrence.kind === kind &&
+        nextSource.slice(occurrence.from, occurrence.to) === token &&
+        occurrence.from >= range.from &&
+        occurrence.to <= range.to;
+    });
+
+    const copyGroupIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Copy"
+    );
+    const anchorIndex = next.statements.findIndex((statement) =>
+      statement.name === "Anchor" && statement.enclosing?.statementIndex === copyGroupIndex
+    );
+    const userIndex = next.statements.findIndex((statement) => statement.name === "User");
+    expect(copyGroupIndex).toBeGreaterThanOrEqual(0);
+    expect(anchorIndex).toBeGreaterThanOrEqual(0);
+    expect(userIndex).toBeGreaterThanOrEqual(0);
+
+    const copyDeclaration = occurrenceFor(copyGroupIndex, "Copy", "declaration");
+    const anchorDeclaration = occurrenceFor(anchorIndex, "Anchor", "declaration");
+    const copyReference = occurrenceFor(userIndex, "Copy", "reference");
+    const anchorReference = occurrenceFor(userIndex, "Anchor", "reference");
+    expect(copyDeclaration).toBeDefined();
+    expect(anchorDeclaration).toBeDefined();
+    expect(copyReference).toBeDefined();
+    expect(anchorReference).toBeDefined();
+    if (!copyDeclaration || !anchorDeclaration || !copyReference || !anchorReference) return;
+
+    expect(dslSemanticIdentityKey(copyReference.identity)).toBe(dslSemanticIdentityKey(copyDeclaration.identity));
+    expect(dslSemanticIdentityKey(anchorReference.identity)).toBe(dslSemanticIdentityKey(anchorDeclaration.identity));
     expect(result.targets[0]).toMatchObject({ status: "inlined", generatedGroupName: "Copy" });
   });
 
