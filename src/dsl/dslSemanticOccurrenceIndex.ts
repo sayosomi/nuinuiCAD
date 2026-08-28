@@ -212,6 +212,23 @@ const addNumericGeometryPropertyOccurrences = (
   }
 };
 
+const addTypedGeometryPropertyOccurrences = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  expression: TypedScalarExpression,
+  addQualifiedPathOccurrences: (
+    statementIndex: number,
+    nameSpan: { start: number; end: number },
+    finalTarget: DslSemanticIdentity | null
+  ) => void
+) => {
+  for (const reference of geometryPropertiesIn(expression)) {
+    const identity = elementIdentity(compiled, reference.elementId);
+    if (identity) addQualifiedPathOccurrences(statementIndex, reference.elementNameSpan, identity);
+  }
+};
+
 /** Record fields are source-semantic names, not hidden scalar bindings created
  * by record lowering. Keep those implementation bindings out of navigation
  * and rename candidates; the record occurrence pass below supplies the
@@ -244,15 +261,12 @@ const addTypedOccurrences = (
         bindingId: reference.bindingId
       }, "reference");
     }
+    addTypedGeometryPropertyOccurrences(compiled, add, statementIndex, expression, addQualifiedPathOccurrences);
   };
   for (const statement of compiled.scalarProgram?.statements ?? []) {
     const statementIndex = analysis.catalog.bindingsById.get(statement.bindingId)?.statementIndex;
     if (statementIndex !== undefined) {
       addExpression(statementIndex, statement.declaration.initializer);
-      for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
-        const identity = elementIdentity(compiled, reference.elementId);
-        if (identity) addQualifiedPathOccurrences(statementIndex, reference.elementNameSpan, identity);
-      }
     }
   }
   for (const reference of analysis.initializerReferences) {

@@ -114,6 +114,44 @@ describe("queryDslReferences", () => {
     expect(outer!.referenceRanges.every((range) => source.slice(range.from, range.to) === "Outer")).toBe(true);
   });
 
+  it("indexes choice geometry properties across typed expression consumers", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "}",
+      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction",
+      "arc B = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: @Outer::A.direction)",
+      "if (@Outer::A.direction == clockwise) {",
+      "  point Marker = coordinate(x: 0, y: 0)",
+      "}",
+      "let copied: choice(counterclockwise, clockwise) = clockwise",
+      "set copied = @Outer::A.direction",
+      "text Label = label(text: \"clockwise ${@Outer::A.direction == clockwise}\", anchor: none, size: 3)"
+    ].join("\n");
+    const declaration = queryAt(source, "A");
+    const referenceStarts = [
+      source.indexOf("@Outer::A.direction"),
+      source.indexOf("@Outer::A.direction", source.indexOf("arc B")),
+      source.indexOf("@Outer::A.direction", source.indexOf("if (")),
+      source.indexOf("@Outer::A.direction", source.indexOf("set copied")),
+      source.indexOf("@Outer::A.direction", source.indexOf("text Label"))
+    ];
+
+    expect(declaration).not.toBeNull();
+    expect(slices(source, declaration!.declarationRange)).toEqual(["A"]);
+    expect(declaration!.referenceRanges).toEqual(referenceStarts.map((start) => ({
+      from: start + 1 + "Outer::".length,
+      to: start + 1 + "Outer::A".length
+    })));
+    expect(declaration!.referenceRanges.every((range) => source.slice(range.from, range.to) === "A")).toBe(true);
+    expect(queryDslReferences({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position: referenceStarts[0]! + "@Outer::A.".length + 1,
+      semantic: snapshot(source)
+    })).toBeNull();
+  });
+
   it("uses BindingId identity and preserves typed shadowing", () => {
     const source = [
       "nui 4",
