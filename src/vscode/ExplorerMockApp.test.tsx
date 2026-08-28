@@ -91,6 +91,27 @@ describe("ExplorerMockApp", () => {
     expect(Number.parseInt(elementsDetail.getAttribute("style")?.match(/height: (\d+)px/)?.[1] ?? "0", 10)).toBeGreaterThan(260);
   });
 
+  it("supports scoped top-level tab interaction without capturing wheel input from the list", () => {
+    render(<ExplorerMockApp api={api} />);
+    const strip = screen.getByTestId("top-tab-strip");
+    const elementsTab = screen.getByRole("tab", { name: /Elements/ });
+    const modifiersTab = screen.getByRole("tab", { name: /Modifiers/ });
+
+    expect(elementsTab).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(strip, { key: "ArrowRight" });
+    expect(modifiersTab).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(strip, { key: "Home" });
+    expect(elementsTab).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(strip, { key: "End" });
+    expect(modifiersTab).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(elementsTab);
+    fireEvent.wheel(strip, { deltaX: 40, deltaY: 1 });
+    expect(modifiersTab).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.wheel(screen.getByRole("region", { name: "Modifiers list" }), { deltaY: -40 });
+    expect(modifiersTab).toHaveAttribute("aria-selected", "true");
+  });
+
   it("opens scoped geometry detail tabs by click, keyboard, and wheel without changing the detail body scroll", () => {
     render(<ExplorerMockApp api={api} />);
     expandFrontPanel();
@@ -106,6 +127,9 @@ describe("ExplorerMockApp", () => {
     expect(screen.getByTestId("dependencies-detail")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Direct inputs"));
     expect(screen.getByTestId("dependencies-detail")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Presentation" }));
+    fireEvent.click(screen.getByText("Cascade / history"));
+    expect(screen.queryByText("Active drawing profile")).not.toBeInTheDocument();
   });
 
   it("keeps zero-use and Profile-only Modifiers and renders multi-Modifier comparison", () => {
@@ -117,8 +141,21 @@ describe("ExplorerMockApp", () => {
     expect(screen.getByTestId("modifier-selection-summary")).toBeInTheDocument();
     expect(screen.getByText("Comparison")).toBeInTheDocument();
     expect(screen.getByText(/Profile comparison/)).toBeInTheDocument();
+    expect(screen.getByText("Print")).toBeInTheDocument();
+    expect(screen.getByText(/Profile Hem: #fb7185/)).toBeInTheDocument();
+    expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Seam Guide:/)).not.toBeInTheDocument();
     expect(screen.getByTestId("modifier-row-modifier-seam-guide")).toBeInTheDocument();
     expect(screen.getByTestId("modifier-row-modifier-profile")).toHaveTextContent("Profile only");
+
+    fireEvent.click(screen.getByTestId("modifier-row-modifier-base"));
+    fireEvent.click(screen.getByTestId("modifier-row-modifier-profile"), { ctrlKey: true });
+    expect(screen.getByText(/Profile Hem: #fb7185/)).toBeInTheDocument();
+    expect(screen.queryByText(/Base Line Style:/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("modifier-row-modifier-base"));
+    fireEvent.click(screen.getByTestId("modifier-row-modifier-seam-guide"), { ctrlKey: true });
+    expect(screen.queryByText(/Profile comparison/)).not.toBeInTheDocument();
   });
 
   it("keeps local context menus and reference activation inside the mock", () => {

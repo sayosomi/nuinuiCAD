@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type WheelEvent } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -46,6 +46,7 @@ type DetailTab = "geometry" | "dependencies" | "presentation";
 type FilterKey = "type:bezier" | "type:path" | "activity:hidden" | "activity:disabled" | "diagnostics" | "category:presentation" | "category:construction";
 type ContextMenuState = { x: number; y: number; kind: "background" | "row" | "reference" | "operation"; id?: string };
 const DETAIL_TABS: ReadonlyArray<readonly [DetailTab, string]> = [["geometry", "Geometry"], ["dependencies", "Dependencies"], ["presentation", "Presentation"]];
+const EXPLORER_TABS: ReadonlyArray<readonly [ExplorerMockTab, ReactNode]> = [["elements", <>Elements <span>{explorerMockGeometry.length}</span></>], ["modifiers", <>Modifiers <span>{explorerMockModifiers.length}</span></>]];
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   "type:bezier": "Type · Bezier",
@@ -228,7 +229,7 @@ const GeometryDetail = ({
       <div className="explorer-mock-detail-heading"><div><span className="explorer-mock-eyebrow">Effective presentation</span><h3>{geometry.name}</h3></div></div>
       <PropertyRows values={[["Color", geometry.color], ["Width", `${geometry.width.toFixed(1)} mm`], ["Style", geometry.style], ["State", activityLabel[geometry.activity]]]} />
       <div className="explorer-mock-winning-source"><span>Winning source</span><strong>{detail.winningSource ?? "Element declaration"}</strong></div>
-      <details className="explorer-mock-cascade"><summary>Cascade / history</summary><div className="explorer-mock-history"><span>Element declaration</span><span>Base Line Style</span><span>Active drawing profile</span></div></details>
+      <details className="explorer-mock-cascade"><summary>Cascade / history</summary><div className="explorer-mock-history"><span>Element declaration</span><span>Base Line Style</span></div></details>
       {detail.modifierId ? <button type="button" className="explorer-mock-reference-button" onClick={() => navigateToModifier(detail.modifierId!)} onContextMenu={onReferenceContextMenu}><Link size={13} aria-hidden="true" />Open {displayNameFor(detail.modifierId)}<ArrowUpRight size={12} aria-hidden="true" /></button> : null}
     </div>
   );
@@ -262,7 +263,8 @@ const ModifierDetail = ({
 }) => {
   if (selected.length > 1) {
     const names = unionStrings(selected.flatMap((modifier) => modifier.effects.map((effect) => effect.name)));
-    const profileNames = unionStrings(selected.flatMap((modifier) => modifier.profiles.map((profile) => profile.name)));
+    const profileOverrides = selected.flatMap((modifier) => modifier.profiles.filter((profile) => profile.cells.some((cell) => cell.overridden)).map((profile) => ({ modifier, profile })));
+    const profileNames = unionStrings(profileOverrides.map(({ profile }) => profile.name));
     const effectivenessRank = { "Not Effective": 1, "Partially Effective": 2, Effective: 3 } as const;
     const appliedToByLabel = new Map<string, "Effective" | "Partially Effective" | "Not Effective">();
     selected.flatMap((modifier) => modifier.appliedTo).forEach((entry) => {
@@ -276,7 +278,7 @@ const ModifierDetail = ({
         <section className="explorer-mock-detail-section"><h4>Shared values</h4><div className="explorer-mock-chip-list"><span className="explorer-mock-chip">Category · {unionStrings(selected.map((modifier) => modifier.category)).length === 1 ? selected[0].category : "Mixed"}</span><span className="explorer-mock-chip">Profiles · {profileNames.length}</span></div></section>
         <section className="explorer-mock-detail-section"><h4>Mixed values</h4><div className="explorer-mock-chip-list">{names.map((name) => <span className="explorer-mock-chip is-muted" key={name}>{name}</span>)}</div></section>
         <section className="explorer-mock-detail-section"><h4>Comparison</h4><div className="explorer-mock-comparison-table" role="table" aria-label="Modifier comparison"><div className="explorer-mock-comparison-row header" role="row"><span>Modifier</span><span>Effect</span><span>Usage</span></div>{selected.map((modifier) => <div className="explorer-mock-comparison-row" role="row" key={modifier.id}><span>{modifier.name}</span><span>{modifier.effectSummary}</span><span>{modifier.usageCount}</span></div>)}</div></section>
-        <section className="explorer-mock-detail-section"><h4>Profile comparison · Drawing Profile</h4>{profileNames.map((profileName) => <div className="explorer-mock-profile-comparison" key={profileName}><strong>{profileName}</strong>{selected.map((modifier) => <span key={modifier.id}>{modifier.name}: {modifier.profiles.find((profile) => profile.name === profileName)?.cells.map((cell) => cell.value).join(" · ") ?? "—"}</span>)}</div>)}</section>
+        {profileNames.length > 0 ? <section className="explorer-mock-detail-section"><h4>Profile comparison · Drawing Profile</h4>{profileNames.map((profileName) => <div className="explorer-mock-profile-comparison" key={profileName}><strong>{profileName}</strong>{profileOverrides.filter(({ profile }) => profile.name === profileName).map(({ modifier, profile }) => <span key={modifier.id}>{modifier.name}: {profile.cells.map((cell) => cell.value).join(" · ")}</span>)}</div>)}</section> : null}
         <section className="explorer-mock-detail-section"><h4>Applied To · combined local union</h4><EffectivenessGroup label="Effective" entries={combinedAppliedTo.filter((entry) => entry.effectiveness === "Effective")} /><EffectivenessGroup label="Partially Effective" entries={combinedAppliedTo.filter((entry) => entry.effectiveness === "Partially Effective")} /><EffectivenessGroup label="Not Effective" entries={combinedAppliedTo.filter((entry) => entry.effectiveness === "Not Effective")} /></section>
       </div>
     );
@@ -296,17 +298,32 @@ const ModifierDetail = ({
   );
 };
 
-const DetailTabs = ({ activeTab, onChange }: { activeTab: DetailTab; onChange: (tab: DetailTab) => void }) => {
+const ScopedTabStrip = <Tab extends string>({
+  activeTab,
+  tabs,
+  onChange,
+  className,
+  ariaLabel,
+  testId,
+}: {
+  activeTab: Tab;
+  tabs: ReadonlyArray<readonly [Tab, ReactNode]>;
+  onChange: (tab: Tab) => void;
+  className: string;
+  ariaLabel: string;
+  testId: string;
+}) => {
   const lastWheelAtRef = useRef(0);
   const moveTab = useCallback((offset: number) => {
-    const index = DETAIL_TABS.findIndex(([tab]) => tab === activeTab);
-    onChange(DETAIL_TABS[Math.max(0, Math.min(DETAIL_TABS.length - 1, index + offset))][0]);
-  }, [activeTab, onChange]);
+    const index = tabs.findIndex(([tab]) => tab === activeTab);
+    if (index < 0) return;
+    onChange(tabs[Math.max(0, Math.min(tabs.length - 1, index + offset))][0]);
+  }, [activeTab, onChange, tabs]);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "ArrowLeft") { event.preventDefault(); moveTab(-1); }
     if (event.key === "ArrowRight") { event.preventDefault(); moveTab(1); }
-    if (event.key === "Home") { event.preventDefault(); onChange("geometry"); }
-    if (event.key === "End") { event.preventDefault(); onChange("presentation"); }
+    if (event.key === "Home") { event.preventDefault(); onChange(tabs[0][0]); }
+    if (event.key === "End") { event.preventDefault(); onChange(tabs[tabs.length - 1][0]); }
   };
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
@@ -317,10 +334,14 @@ const DetailTabs = ({ activeTab, onChange }: { activeTab: DetailTab; onChange: (
     event.preventDefault();
     moveTab(delta > 0 ? 1 : -1);
   };
-  return <div className="explorer-mock-detail-tabs" role="tablist" aria-label="Geometry detail" tabIndex={0} onKeyDown={onKeyDown} onWheel={onWheel} data-testid="detail-tab-strip">
-    {DETAIL_TABS.map(([tab, label]) => <button type="button" role="tab" aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? "is-active" : ""} key={tab} onClick={() => onChange(tab)}>{label}</button>)}
+  return <div className={className} role="tablist" aria-label={ariaLabel} tabIndex={0} onKeyDown={onKeyDown} onWheel={onWheel} data-testid={testId}>
+    {tabs.map(([tab, label]) => <button type="button" role="tab" aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? "is-active" : ""} key={tab} onClick={() => onChange(tab)}>{label}</button>)}
   </div>;
 };
+
+const DetailTabs = ({ activeTab, onChange }: { activeTab: DetailTab; onChange: (tab: DetailTab) => void }) => (
+  <ScopedTabStrip activeTab={activeTab} tabs={DETAIL_TABS} onChange={onChange} className="explorer-mock-detail-tabs" ariaLabel="Geometry detail" testId="detail-tab-strip" />
+);
 
 const ContextMenu = ({ menu, onClose, onFeedback }: { menu: ContextMenuState; onClose: () => void; onFeedback: (message: string) => void }) => {
   const actions = menu.kind === "background" ? ["Inspect Explorer", "Create mock geometry"] : menu.kind === "reference" ? ["Navigate locally", "Copy reference"] : menu.kind === "operation" ? ["Inspect source flow", "Copy operation"] : ["Navigate", "Inspect", "Copy", "Modify"];
@@ -514,7 +535,7 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
       <div className="explorer-mock-title-row"><div><span className="explorer-mock-eyebrow">nuinuiCAD Explorer</span><h1>Explorer Mock</h1></div><button type="button" className="explorer-mock-more-button" aria-label="Explorer Mock actions" onClick={() => setFeedback("Explorer actions are local to this mock.")}><MoreHorizontal size={16} /></button></div>
       <div className="explorer-mock-header-actions"><button type="button" onClick={() => setFeedback("Go to Source is represented locally in this mock.")}><FileCode size={13} /> Go to Source</button><button type="button" onClick={() => setFeedback("Reveal in Canvas is represented locally in this mock.")}><Square size={13} /> Reveal in Canvas</button></div>
     </header>
-    <div className="explorer-mock-top-tabs" role="tablist" aria-label="Explorer data"><button type="button" role="tab" aria-selected={activeTab === "elements"} className={activeTab === "elements" ? "is-active" : ""} onClick={() => setActiveTab("elements")}>Elements <span>{explorerMockGeometry.length}</span></button><button type="button" role="tab" aria-selected={activeTab === "modifiers"} className={activeTab === "modifiers" ? "is-active" : ""} onClick={() => setActiveTab("modifiers")}>Modifiers <span>{explorerMockModifiers.length}</span></button></div>
+    <ScopedTabStrip activeTab={activeTab} tabs={EXPLORER_TABS} onChange={setActiveTab} className="explorer-mock-top-tabs" ariaLabel="Explorer data" testId="top-tab-strip" />
     <section className="explorer-mock-list-region" aria-label={activeTab === "elements" ? "Elements hierarchy" : "Modifiers list"}>
       <div className="explorer-mock-search-row"><div className="explorer-mock-search-field"><Search size={14} aria-hidden="true" /><input aria-label="Search Explorer Mock" placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /><button type="button" className="explorer-mock-clear-search" aria-label="Clear search" hidden={!search} onClick={() => setSearch("")}><X size={13} /></button></div><div className="explorer-mock-filter-wrap"><button type="button" className={activeFilters.length > 0 ? "has-filters" : ""} aria-expanded={isFilterOpen} onClick={() => setIsFilterOpen((open) => !open)}><SlidersHorizontal size={14} /> Filter</button>{isFilterOpen ? <div className="explorer-mock-filter-popover" role="dialog" aria-label="Structured filters"><strong>Filter</strong>{(Object.keys(FILTER_LABELS) as FilterKey[]).map((filter) => <label key={filter}><input type="checkbox" checked={activeFilters.includes(filter)} onChange={() => toggleFilter(filter)} />{FILTER_LABELS[filter]}</label>)}<button type="button" className="explorer-mock-filter-done" onClick={() => setIsFilterOpen(false)}>Done</button></div> : null}</div></div>
       {activeFilters.length > 0 ? <div className="explorer-mock-filter-chips" aria-label="Active filters">{activeFilters.map((filter) => <button type="button" className="explorer-mock-filter-chip" key={filter} onClick={() => toggleFilter(filter)}>{FILTER_LABELS[filter]} <X size={11} /></button>)}</div> : null}
