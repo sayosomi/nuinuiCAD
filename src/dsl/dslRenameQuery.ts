@@ -17,8 +17,10 @@ import {
 } from "../document/typedRenameSplice";
 import {
   analyzeModuleSemanticRename,
+  analyzeRecordSemanticRename,
   moduleSemanticStableFingerprint,
-  type ModuleRenameAnalysisRejected
+  type ModuleRenameAnalysisRejected,
+  type RecordRenameAnalysisRejected
 } from "../document/moduleSemanticRenameAnalysis";
 import {
   analyzeRename,
@@ -56,6 +58,7 @@ export type DslRenameRejection =
   | { reason: "reference-resolution-change"; family: "typed"; referencedName: string }
   | { reason: "reference-resolution-change"; family: "element"; line?: number }
   | { reason: "reference-resolution-change"; family: "module" }
+  | { reason: "reference-resolution-change"; family: "record" }
   | { reason: "unavailable" };
 
 export type DslRenameEditPlanResult =
@@ -142,8 +145,12 @@ const candidateAt = (compiled: CompiledDslDocument, position: number): { candida
   const shortest = candidates[0]!.to - candidates[0]!.from;
   const shortestCandidates = candidates.filter((candidate) => candidate.to - candidate.from === shortest);
   const keys = new Set(shortestCandidates.map((candidate) => identityKey(candidate.identity)));
-  if (keys.size !== 1) return null;
-  const candidate = shortestCandidates[0]!;
+  const candidate = keys.size === 1
+    ? shortestCandidates[0]!
+    : shortestCandidates.find((entry) => entry.identity.kind === "recordValue" &&
+        shortestCandidates.every((other) => other.identity.kind === "recordValue" ||
+          (other.identity.kind === "module" && other.identity.target.kind === "moduleParameter"))) ?? null;
+  if (!candidate) return null;
   const oldName = candidate.identity.kind === "modifier"
     ? candidate.identity.name
     : compiled.spans.sourceMap.source.slice(candidate.from, candidate.to);
@@ -220,6 +227,33 @@ const moduleRenameRejection = (
     }
     case "capture":
       return { reason: "reference-resolution-change", family: "module" };
+    case "target-not-found":
+    case "stale":
+    case "span-mismatch":
+    case "overlap":
+      return unavailableRenameRejection();
+  }
+};
+
+const recordRenameRejection = (
+  analysis: RecordRenameAnalysisRejected,
+  compiled: CompiledDslDocument
+): DslRenameRejection => {
+  switch (analysis.reason) {
+    case "invalid-name":
+      return { reason: "invalid-name", message: analysis.detail ?? "名前をDSL識別子として安全に表現できません。" };
+    case "same-scope-collision": {
+      const conflictingLine = analysis.conflictingRange
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, analysis.conflictingRange.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
+    case "capture":
+      return { reason: "reference-resolution-change", family: "record" };
     case "target-not-found":
     case "stale":
     case "span-mismatch":
@@ -565,6 +599,12 @@ export const planDslRenameEditsResult = (
   } else if (identity.kind === "module") {
     const analysis = analyzeModuleSemanticRename(exact.source.normalizedSource, exact.compiled, identity.target, newName);
     if (analysis.verdict !== "ok") return { status: "rejected", rejection: moduleRenameRejection(analysis, newName, exact.compiled) };
+    const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
+    if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+    edits = projection.edits.map((edit) => ({ ...edit }));
+  } else if (identity.kind === "recordType" || identity.kind === "recordValue" || identity.kind === "recordField") {
+    const analysis = analyzeRecordSemanticRename(exact.source.normalizedSource, exact.compiled, identity, newName);
+    if (analysis.verdict !== "ok") return { status: "rejected", rejection: recordRenameRejection(analysis, exact.compiled) };
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
     if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
     edits = projection.edits.map((edit) => ({ ...edit }));

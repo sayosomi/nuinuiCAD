@@ -441,6 +441,47 @@ typed scalar binding and reference that binding instead, for example
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.
 
+## Records
+
+Records are source-only nominal value types for grouping scalar fields. A record
+definition is top-level and uses a named field list:
+
+```nui
+record Pair(
+  x: number,
+  label: string,
+)
+```
+
+Record fields are required, named, and scalar-only. Geometry fields, arrays,
+nested record fields, field defaults, and optional fields are not part of nui4
+v1. Record type identity is the identity of the record definition statement;
+two definitions with the same field names and scalar types are still different
+types. Definitions and values obey the normal non-hoisted source order.
+
+A record value is declared with `const` and either a named-field constructor or
+a whole-record reference:
+
+```nui
+const first: Pair = Pair(x: 10, label: "first")
+const second: Pair = @first
+```
+
+Constructors are named-only and must provide every field exactly once. The
+constructor name and the declared type must identify the same record definition;
+record values cannot be declared with `let`. A record value can be referenced
+as a whole with `@name` or read through a scalar field such as `@first.x`.
+Record values do not become scalar runtime values and are not a replacement for
+geometry elements.
+
+Module parameters may use a record type, and Module locals and exports may use
+record values. Module record parameters and record values are read-only. A
+record value passed to another Module must have the exact nominal type expected
+by that parameter. Optional record parameters use the existing `hasValue`
+presence proof before they are read; omitted optional records remain absent.
+Exported record values can be read from an instance with a qualified reference,
+for example `@front::output.x`.
+
 ### Scalar declarations and mutation
 
 The scalar declaration forms are:

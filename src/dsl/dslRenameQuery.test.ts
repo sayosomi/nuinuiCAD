@@ -23,6 +23,11 @@ const snapshot = (source: string, sourceRevision = 7): DslRenameSnapshot => ({
 
 const at = (source: string, token: string, offset = 0) => source.indexOf(token) + offset;
 
+const applyEdits = (source: string, edits: readonly { from: number; to: number; newText: string }[]) =>
+  [...edits]
+    .sort((left, right) => right.from - left.from || right.to - left.to)
+    .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
+
 describe("host-neutral DSL rename query", () => {
   it("renames a typed declaration from either its declaration or reference", () => {
     const source = [
@@ -253,6 +258,60 @@ describe("host-neutral DSL rename query", () => {
     const parameter = planDslRenameEdits(snapshot(source), at(source, "width: number"), "length");
     expect(definition?.edits.length).toBe(2);
     expect(parameter?.edits.length).toBe(3);
+  });
+
+  it("renames nominal record types, values, fields, and record Module parameters safely", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      "record Other(x: number, label: string)",
+      'const input: Pair = Pair(x: 1, label: "root")',
+      'const other: Other = Other(x: 2, label: "other")',
+      "const alias: Pair = @input",
+      "module Inner(input: Pair) {",
+      "  const copy: Pair = @input",
+      "  const member: number = @input.x",
+      "  export const output: Pair = @copy",
+      "}",
+      "instance Use = Inner(@input)",
+      "const exported: number = @Use::output.x"
+    ].join("\n");
+    const current = snapshot(source);
+
+    const typePlan = planDslRenameEdits(current, at(source, "record Pair") + "record ".length, "Duo");
+    expect(typePlan).not.toBeNull();
+    expect(typePlan?.edits.every((edit) => source.slice(edit.from, edit.to) === "Pair")).toBe(true);
+    expect(typePlan?.edits.some((edit) => source.slice(edit.from, edit.to) === "Other")).toBe(false);
+
+    const valueReferenceOffset = source.indexOf("@input", source.indexOf("const alias")) + 1;
+    const valuePlan = planDslRenameEdits(current, valueReferenceOffset, "config");
+    expect(valuePlan).not.toBeNull();
+    expect(valuePlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual([
+      "input", "input", "@input"
+    ]);
+    expect(valuePlan?.edits.find((edit) => source.slice(edit.from, edit.to) === "@input")?.newText).toBe("input: @config");
+
+    const fieldPlan = planDslRenameEdits(current, at(source, "x: number"), "amount");
+    expect(fieldPlan).not.toBeNull();
+    expect(fieldPlan?.edits.every((edit) => source.slice(edit.from, edit.to) === "x")).toBe(true);
+    expect(fieldPlan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["x", "x", "x", "x"]);
+
+    const parameterOffset = source.indexOf("input", source.indexOf("module Inner"));
+    const parameterPlan = planDslRenameEdits(current, parameterOffset + 1, "source");
+    expect(parameterPlan).not.toBeNull();
+    const renamed = applyEdits(source, parameterPlan!.edits);
+    expect(renamed).toContain("module Inner(source: Pair)");
+    expect(renamed).toContain("@source.x");
+    expect(renamed).toContain("Inner(source: @input)");
+
+    expect(planDslRenameEditsResult(current, at(source, "record Pair") + "record ".length, "Other")).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "Other", conflictingLine: 3 }
+    });
+    expect(planDslRenameEditsResult(current, at(source, "x: number"), "label")).toEqual({
+      status: "rejected",
+      rejection: { reason: "same-scope-collision", conflictingName: "label", conflictingLine: 2 }
+    });
   });
 
   it("fails closed for stale, fatal, unresolved, and module-iteration snapshots", () => {
