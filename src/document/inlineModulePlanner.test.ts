@@ -260,16 +260,384 @@ describe("planInlineModule Checkpoint 1", () => {
     });
   });
 
-  it("keeps parameterized Modules fail-closed as a structured non-applicable result", () => {
+  it("lowers required supplied scalar parameters in callee order and preserves authored types", () => {
     const source = [
       "nui 4",
-      "module Shift(dx: number) {",
-      "  point P = coordinate(x: @dx, y: 0)",
+      "module Scalars(width: number(max: 200, step: 5, min: 0), label: string, enabled: boolean, side: choice(right, left)) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "  const bodyLabel: string = @label",
+      "  const bodyEnabled: boolean = @enabled",
+      "  const bodySide: choice(right, left) = @side",
       "}",
-      "instance Moved = Shift(dx: 10)"
+      "instance Copy = Scalars(width: 10, label: \"front\", enabled: true, side: left)"
     ].join("\n");
-    const { result } = plan(source, ["Moved"]);
+    const planned = plan(source, ["Copy"]).result;
+    expect(planned.status).toBe("planned");
+    if (planned.status !== "planned") return;
+    const nextSource = applyLineSplices(source, planned.splices);
+    expect(nextSource).toContain("const width: number(max: 200, step: 5, min: 0) = 10");
+    expect(nextSource).toContain("const label: string = \"front\"");
+    expect(nextSource).toContain("const enabled: boolean = true");
+    expect(nextSource).toContain("const side: choice(right, left) = left");
+    const next = compileCurrent(nextSource, "inline-next");
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    const generated = next.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(generated.slice(0, 4).map((statement) => statement.name)).toEqual([
+      "width",
+      "label",
+      "enabled",
+      "side"
+    ]);
+    const afterIndex = createDslSemanticOccurrenceIndex(next);
+    for (const [bodyName, parameterName] of [["bodyLabel", "label"], ["bodyEnabled", "enabled"], ["bodySide", "side"]] as const) {
+      const bodyIndex = next.statements.findIndex((statement) =>
+        statement.name === bodyName && statement.enclosing?.statementIndex === groupIndex
+      );
+      const parameterIndex = generated.findIndex((statement) => statement.name === parameterName);
+      expect(bodyIndex).toBeGreaterThanOrEqual(0);
+      expect(parameterIndex).toBeGreaterThanOrEqual(0);
+      const parameterStatement = generated[parameterIndex]!;
+      const parameterDeclaration = afterIndex.occurrences.find((occurrence) =>
+        occurrence.kind === "declaration" &&
+        occurrence.from >= parameterStatement.documentRange.from &&
+        occurrence.to <= parameterStatement.documentRange.to &&
+        nextSource.slice(occurrence.from, occurrence.to) === parameterName
+      );
+      const bodyStatement = next.statements[bodyIndex]!;
+      const bodyReferences = afterIndex.occurrences.filter((occurrence) =>
+        occurrence.kind === "reference" &&
+        occurrence.from >= bodyStatement.documentRange.from &&
+        occurrence.to <= bodyStatement.documentRange.to &&
+        nextSource.slice(occurrence.from, occurrence.to) === parameterName
+      );
+      expect(parameterDeclaration).toBeDefined();
+      expect(bodyReferences.length).toBeGreaterThan(0);
+      if (parameterDeclaration && bodyReferences.length > 0) {
+        expect(bodyReferences.some((reference) =>
+          dslSemanticIdentityKey(reference.identity) === dslSemanticIdentityKey(parameterDeclaration.identity)
+        )).toBe(true);
+      }
+    }
+  });
 
+  it("lowers defaulted scalar parameters in parameter order and remaps earlier defaults to generated consts", () => {
+    const source = [
+      "nui 4",
+      "module Defaults(width: number, depth: number = @width + 5) {",
+      "  point P = coordinate(x: @width, y: @depth)",
+      "}",
+      "instance Copy = Defaults(width: 10)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const width: number = 10");
+    expect(nextSource).toContain("const depth: number = @width + 5");
+    expect(nextSource.indexOf("const width")).toBeLessThan(nextSource.indexOf("const depth"));
+    const next = compileCurrent(nextSource, "inline-next");
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    const declarations = next.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const occurrenceIndex = createDslSemanticOccurrenceIndex(next);
+    const declarationFor = (statement: typeof declarations[number]) => occurrenceIndex.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" &&
+      occurrence.from >= statement.documentRange.from &&
+      occurrence.to <= statement.documentRange.to
+    );
+    const widthDeclaration = declarationFor(declarations.find((statement) => statement.name === "width")!);
+    const depthDeclaration = declarationFor(declarations.find((statement) => statement.name === "depth")!);
+    const depthStatement = declarations.find((statement) => statement.name === "depth")!;
+    const depthReferences = occurrenceIndex.occurrences.filter((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from >= depthStatement.documentRange.from &&
+      occurrence.to <= depthStatement.documentRange.to
+    );
+    const bodyIndex = next.statements.findIndex((statement) => statement.name === "P" && statement.enclosing?.statementIndex === groupIndex);
+    const bodyReferences = occurrenceIndex.occurrences.filter((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from >= next.statements[bodyIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[bodyIndex]!.documentRange.to
+    );
+    expect(widthDeclaration).toBeDefined();
+    expect(depthDeclaration).toBeDefined();
+    expect(depthReferences.some((occurrence) =>
+      dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(widthDeclaration!.identity)
+    )).toBe(true);
+    expect(bodyReferences.some((occurrence) =>
+      dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(depthDeclaration!.identity)
+    )).toBe(true);
+  });
+
+  it("treats explicit and SAY-12 shorthand bindings equivalently and preserves safe same-name references", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 50",
+      "module Box(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "instance Explicit = Box(width: @width)",
+      "instance Shorthand = Box(@width)"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const explicit = compiled.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Explicit")!;
+    const shorthand = compiled.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Shorthand")!;
+    expect(explicit.parameterBindings[0]).toMatchObject({ parameterIndex: 0, argumentIndex: 0, argumentLabel: "width" });
+    expect(shorthand.parameterBindings[0]).toMatchObject({ parameterIndex: 0, argumentIndex: 0, argumentLabel: "width" });
+
+    const result = planInlineModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      targets: [targetFor(compiled, "Explicit"), targetFor(compiled, "Shorthand")],
+      policy: DEFAULT_POLICY
+    });
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource.match(/const width: number = @width/g)).toHaveLength(2);
+    const next = compileCurrent(nextSource, "inline-next");
+    const rootWidth = createDslSemanticOccurrenceIndex(next).occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && nextSource.slice(occurrence.from, occurrence.to) === "width" &&
+      next.statements.find((statement) => statement.documentRange.from <= occurrence.from && occurrence.to <= statement.documentRange.to)?.enclosing === null
+    );
+    expect(rootWidth).toBeDefined();
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const generatedGroupIndexes = new Set(next.statements.flatMap((statement, statementIndex) =>
+      statement.kind === "group" ? [statementIndex] : []
+    ));
+    const generatedWidths = next.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.name === "width" &&
+      generatedGroupIndexes.has(statement.enclosing?.statementIndex ?? -1)
+    );
+    expect(generatedWidths).toHaveLength(2);
+    if (rootWidth) {
+      const rootWidthIdentity = dslSemanticIdentityKey(rootWidth.identity);
+      for (const generated of generatedWidths) {
+        expect(nextIndex.occurrences.some((occurrence) =>
+          occurrence.kind === "reference" &&
+          occurrence.from >= generated.documentRange.from &&
+          occurrence.to <= generated.documentRange.to &&
+          dslSemanticIdentityKey(occurrence.identity) === rootWidthIdentity
+        )).toBe(true);
+      }
+    }
+    expect(result.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
+  });
+
+  it("canonicalizes only a moved cross-parameter reference captured by an earlier generated const", () => {
+    const source = [
+      "nui 4",
+      "const a: number = 50",
+      "module Pair(a: number, b: number) {",
+      "  point P = coordinate(x: @a, y: @b)",
+      "}",
+      "instance Copy = Pair(a: 1, b: @a)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const a: number = 1");
+    expect(nextSource).toContain("const b: number = @::a");
+    expect(nextSource.match(/@::a/g)).toHaveLength(1);
+    expect(nextSource).toContain("point P = coordinate(x: @a, y: @b)");
+
+    const next = compileCurrent(nextSource, "inline-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    const generated = next.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const generatedA = generated.find((statement) => statement.name === "a");
+    const generatedB = generated.find((statement) => statement.name === "b");
+    const copiedPoint = next.statements.find((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const rootA = next.statements.find((statement, statementIndex) =>
+      statementIndex < groupIndex && statement.kind === "typedDeclaration" && statement.name === "a" && statement.enclosing === null
+    );
+    expect(generatedA).toBeDefined();
+    expect(generatedB).toBeDefined();
+    expect(copiedPoint).toBeDefined();
+    expect(rootA).toBeDefined();
+    if (!generatedA || !generatedB || !copiedPoint || !rootA) return;
+
+    const typedDeclarationIdentity = (statement: typeof generatedA) => {
+      const occurrence = nextIndex.occurrences.find((candidate) =>
+        candidate.kind === "declaration" && candidate.identity.kind === "typed" &&
+        candidate.from >= statement.documentRange.from && candidate.to <= statement.documentRange.to
+      );
+      return occurrence ? dslSemanticIdentityKey(occurrence.identity) : null;
+    };
+    const generatedAIdentity = typedDeclarationIdentity(generatedA);
+    const generatedBIdentity = typedDeclarationIdentity(generatedB);
+    const rootAIdentity = nextIndex.occurrences.find((candidate) =>
+      candidate.kind === "declaration" && candidate.identity.kind === "typed" &&
+      candidate.from >= rootA.documentRange.from && candidate.to <= rootA.documentRange.to
+    );
+    expect(generatedAIdentity).not.toBeNull();
+    expect(generatedBIdentity).not.toBeNull();
+    expect(rootAIdentity).toBeDefined();
+    if (!generatedAIdentity || !generatedBIdentity || !rootAIdentity) return;
+
+    const referencesIn = (statement: typeof copiedPoint) => nextIndex.occurrences.filter((candidate) =>
+      candidate.kind === "reference" &&
+      candidate.from >= statement.documentRange.from && candidate.to <= statement.documentRange.to
+    );
+    const bInitializerReferences = nextIndex.occurrences.filter((candidate) =>
+      candidate.kind === "reference" &&
+      candidate.from >= generatedB.documentRange.from && candidate.to <= generatedB.documentRange.to
+    );
+    const bodyReferences = referencesIn(copiedPoint);
+    expect(bInitializerReferences.some((candidate) =>
+      dslSemanticIdentityKey(candidate.identity) === dslSemanticIdentityKey(rootAIdentity.identity)
+    )).toBe(true);
+    expect(bodyReferences.some((candidate) => dslSemanticIdentityKey(candidate.identity) === generatedAIdentity)).toBe(true);
+    expect(bodyReferences.some((candidate) => dslSemanticIdentityKey(candidate.identity) === generatedBIdentity)).toBe(true);
+  });
+
+  it("keeps default parameter remapping local for multiple instances of one Module", () => {
+    const source = [
+      "nui 4",
+      "module Defaults(width: number, depth: number = @width + 5) {",
+      "  point P = coordinate(x: @width, y: @depth)",
+      "}",
+      "instance First = Defaults(width: 10)",
+      "instance Second = Defaults(width: 20)"
+    ].join("\n");
+    const { result } = plan(source, ["First", "Second"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
+
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("group First {");
+    expect(nextSource).toContain("group Second {");
+    expect(nextSource).toContain("const width: number = 10");
+    expect(nextSource).toContain("const width: number = 20");
+    expect(nextSource.match(/const depth: number = @width \+ 5/g)).toHaveLength(2);
+    expect(nextSource).not.toContain("const depth: number = @::width + 5");
+
+    const next = compileCurrent(nextSource, "inline-multi-target-default-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const statementsForGroup = (name: string) => {
+      const groupIndex = next.statements.findIndex(
+        (statement) => statement.kind === "group" && statement.name === name
+      );
+      expect(groupIndex).toBeGreaterThanOrEqual(0);
+      const group = next.statements[groupIndex];
+      if (!group || group.kind !== "group") throw new Error(`Missing group ${name}`);
+
+      const typedDeclarations = next.statements.filter((statement) =>
+        statement.kind === "typedDeclaration" &&
+        statement.enclosing?.statementIndex === groupIndex
+      );
+      const width = typedDeclarations.find((statement) => statement.name === "width");
+      const depth = typedDeclarations.find((statement) => statement.name === "depth");
+      const point = next.statements.find((statement) =>
+        statement.kind === "element" &&
+        statement.name === "P" &&
+        statement.enclosing?.statementIndex === groupIndex
+      );
+      expect(width).toBeDefined();
+      expect(depth).toBeDefined();
+      expect(point).toBeDefined();
+      if (
+        !width || width.kind !== "typedDeclaration" ||
+        !depth || depth.kind !== "typedDeclaration" ||
+        !point || point.kind !== "element"
+      ) {
+        throw new Error(`Missing generated statements for ${name}`);
+      }
+      return { width, depth, point };
+    };
+    const typedDeclarationKey = (statement: (typeof next.statements)[number]) => {
+      const occurrence = nextIndex.occurrences.find((candidate) =>
+        candidate.kind === "declaration" &&
+        candidate.identity.kind === "typed" &&
+        candidate.from >= statement.documentRange.from &&
+        candidate.to <= statement.documentRange.to
+      );
+      expect(occurrence).toBeDefined();
+      if (!occurrence || occurrence.identity.kind !== "typed") {
+        throw new Error(`Missing typed declaration identity for ${statement.name}`);
+      }
+      return dslSemanticIdentityKey(occurrence.identity);
+    };
+    const referenceKeys = (statement: (typeof next.statements)[number]) =>
+      nextIndex.occurrences
+        .filter((candidate) =>
+          candidate.kind === "reference" &&
+          candidate.from >= statement.documentRange.from &&
+          candidate.to <= statement.documentRange.to
+        )
+        .map((candidate) => dslSemanticIdentityKey(candidate.identity));
+
+    const first = statementsForGroup("First");
+    const second = statementsForGroup("Second");
+    const firstWidthKey = typedDeclarationKey(first.width);
+    const firstDepthKey = typedDeclarationKey(first.depth);
+    const secondWidthKey = typedDeclarationKey(second.width);
+    const secondDepthKey = typedDeclarationKey(second.depth);
+
+    const firstDepthReferences = referenceKeys(first.depth);
+    const secondDepthReferences = referenceKeys(second.depth);
+    expect(firstDepthReferences).toContain(firstWidthKey);
+    expect(firstDepthReferences).not.toContain(secondWidthKey);
+    expect(secondDepthReferences).toContain(secondWidthKey);
+    expect(secondDepthReferences).not.toContain(firstWidthKey);
+
+    const firstBodyReferences = referenceKeys(first.point);
+    const secondBodyReferences = referenceKeys(second.point);
+    expect(firstBodyReferences).toContain(firstWidthKey);
+    expect(firstBodyReferences).toContain(firstDepthKey);
+    expect(firstBodyReferences).not.toContain(secondWidthKey);
+    expect(firstBodyReferences).not.toContain(secondDepthKey);
+    expect(secondBodyReferences).toContain(secondWidthKey);
+    expect(secondBodyReferences).toContain(secondDepthKey);
+    expect(secondBodyReferences).not.toContain(firstWidthKey);
+    expect(secondBodyReferences).not.toContain(firstDepthKey);
+  });
+
+  it("does not rewrite a caller expression whose owner remains valid after moving", () => {
+    const source = [
+      "nui 4",
+      "const base: number = 50",
+      "module Box(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}",
+      "instance Copy = Box(width: @base)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const width: number = @base");
+    expect(nextSource).not.toContain("const width: number = @::base");
+  });
+
+  it.each([
+    [
+      "optional scalar",
+      ["nui 4", "module Box(width?: number) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box()"].join("\n")
+    ],
+    [
+      "geometry parameter",
+      ["nui 4", "point A = coordinate(x: 0, y: 0)", "module Box(anchor: point) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box(anchor: @A)"].join("\n")
+    ],
+    [
+      "record parameter",
+      ["nui 4", "record Pair(x: number)", "module Box(settings: Pair) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box(settings: Pair(x: 1))"].join("\n")
+    ]
+  ])("keeps %s outside this scalar lowering slice", (_label, source) => {
+    const { result } = plan(source, ["Copy"]);
     expect(result).toMatchObject({
       status: "planned",
       splices: [],
@@ -299,10 +667,10 @@ describe("planInlineModule Checkpoint 1", () => {
   it("preserves external instance-member resolution to the generated group member", () => {
     const source = [
       "nui 4",
-      "module Stamp() {",
-      "  export point Anchor = coordinate(x: 0, y: 0)",
+      "module Stamp(width: number) {",
+      "  export point Anchor = coordinate(x: @width, y: 0)",
       "}",
-      "instance Copy = Stamp()",
+      "instance Copy = Stamp(width: 10)",
       "point User = offset(from: @Copy::Anchor, dx: 1, dy: 0)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);

@@ -8,12 +8,23 @@ import {
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
 import { parseElementActivityLiteral } from "../dsl/dslActivity";
+import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { geometryArrayTypeOfTypedDeclaration } from "../dsl/geometryArraySourceAnnotations";
 import { parseDslSnapshot } from "../dsl/dslParser";
-import type { DslStatement } from "../dsl/dslTypes";
+import {
+  formatDslReferencePath,
+  parseDslSourceReference,
+  parseDslSourceReferenceAt
+} from "../dsl/dslReferenceTokens";
+import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
-import type { ModuleDefinitionSemantic, ModuleInstanceSemantic } from "../dsl/moduleSemanticTypes";
+import type {
+  ModuleDefinitionSemantic,
+  ModuleInstanceSemantic,
+  ResolvedModuleParameterBinding
+} from "../dsl/moduleSemanticTypes";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
+import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
 import { applyLineSplices, type LineSplice } from "./textPatch";
@@ -110,6 +121,21 @@ type BodyRange = {
   entries: readonly StatementEntry[];
 };
 
+type ScalarParameterLowering = {
+  parameterIndex: number;
+  parameterName: string;
+  parameter: DslModuleParameter;
+  nameSource: string;
+  typeSource: string;
+  initializerSource: string;
+  originalExpressionRange: { from: number; to: number };
+};
+
+type ScalarParameterPreparation =
+  | { kind: "supported"; parameters: readonly ScalarParameterLowering[] }
+  | { kind: "unsupported"; reason: string }
+  | { kind: "unsafe"; code: "unsafe-source-span" | "unsafe-rewrite"; message: string };
+
 type InlineEntry = {
   target: InlineModuleTargetIdentity;
   statementIndex: number;
@@ -118,12 +144,23 @@ type InlineEntry = {
   definition: ModuleDefinitionSemantic;
   activity: Activity;
   statementInfo: NonNullable<CompiledDslDocument["statementMap"]>["statements"][number];
+  body: BodyRange;
+  scalarParameters: readonly ScalarParameterLowering[];
+};
+
+type GeneratedScalarParameterMapping = {
+  parameterIndex: number;
+  statementIndex: number;
+  statementId: StatementIdentity;
+  bindingId: string;
+  initializerRange: { from: number; to: number };
 };
 
 type OwnerMapping = {
   targetStatementId: StatementIdentity;
   generatedGroupStatementId: StatementIdentity;
   bodyStatementIds: ReadonlyMap<StatementIdentity, StatementIdentity>;
+  parameterBindings: ReadonlyMap<string, GeneratedScalarParameterMapping>;
 };
 
 type OccurrenceSlot = {
@@ -131,6 +168,17 @@ type OccurrenceSlot = {
   token: string;
   ordinal: number;
   owners: readonly string[];
+};
+
+type ReferenceOccurrence = DslSemanticOccurrence & {
+  sourceFrom: number;
+  sourceTo: number;
+};
+
+type InitializerRewrite = {
+  targetStatementId: StatementIdentity;
+  parameterIndex: number;
+  replacement: AbsoluteReplacement;
 };
 
 const reject = (
@@ -173,6 +221,174 @@ const singlePhysicalRange = (
   span?.sourceRevision === sourceRevision && span.segments.length === 1
     ? span.segments[0] ?? null
     : null;
+
+const parameterSlotKey = (definitionStatementId: StatementIdentity, parameterIndex: number): string =>
+  encodeIdentityTuple([definitionStatementId, String(parameterIndex)]);
+
+const isSupportedScalarParameterType = (
+  type: DslModuleParameter["type"]
+): boolean =>
+  type?.kind === "number" ||
+  type?.kind === "string" ||
+  type?.kind === "boolean" ||
+  type?.kind === "choice";
+
+const directChildEntriesForGroup = (
+  compiled: CompiledDslDocument,
+  groupIndex: number
+): StatementEntry[] => compiled.statements
+  .map((statement, statementIndex) => ({ statement, statementIndex }))
+  .filter(({ statement, statementIndex }) =>
+    statementIndex !== groupIndex &&
+    statement.enclosing?.statementIndex === groupIndex &&
+    statement.kind !== "blockEnd" &&
+    statement.kind !== "blockElse"
+  )
+  .map(({ statement, statementIndex }) => ({
+    statementId: statementIdAt(compiled, statementIndex)!,
+    statementIndex,
+    statement
+  }))
+  .filter((entry): entry is StatementEntry => entry.statementId !== null);
+
+const prepareScalarParameterLowering = (
+  source: string,
+  sourceRevision: number,
+  compiled: CompiledDslDocument,
+  entry: {
+    statement: Extract<DslStatement, { kind: "moduleInstance" }>;
+    instance: ModuleInstanceSemantic;
+    definition: ModuleDefinitionSemantic;
+  }
+): ScalarParameterPreparation => {
+  const definitionStatement = compiled.statements[entry.definition.statementIndex];
+  if (definitionStatement?.kind !== "moduleDefinition") {
+    return {
+      kind: "unsafe",
+      code: "unsafe-rewrite",
+      message: "Resolved Module definition の authored parameter source を取得できません。"
+    };
+  }
+  if (entry.definition.parameters.length === 0 && entry.instance.parameterBindings.length === 0) {
+    return { kind: "supported", parameters: [] };
+  }
+  if (
+    definitionStatement.parameters.length !== entry.definition.parameters.length ||
+    entry.instance.parameterBindings.length !== entry.definition.parameters.length
+  ) {
+    return {
+      kind: "unsafe",
+      code: "unsafe-rewrite",
+      message: "Module parameter と compiler binding の source-order mapping を証明できません。"
+    };
+  }
+
+  const bindingsByParameterIndex = new Map<number, ResolvedModuleParameterBinding>();
+  for (const binding of entry.instance.parameterBindings) {
+    if (bindingsByParameterIndex.has(binding.parameterIndex)) {
+      return {
+        kind: "unsafe",
+        code: "unsafe-rewrite",
+        message: "Module parameter binding に重複した parameterIndex があります。"
+      };
+    }
+    bindingsByParameterIndex.set(binding.parameterIndex, binding);
+  }
+
+  const parameters: ScalarParameterLowering[] = [];
+  for (const resolvedParameter of entry.definition.parameters) {
+    const parameterIndex = resolvedParameter.parameterIndex;
+    const parameter = definitionStatement.parameters[parameterIndex];
+    const binding = bindingsByParameterIndex.get(parameterIndex);
+    if (!parameter || !binding || parameterIndex !== parameters.length) {
+      return {
+        kind: "unsafe",
+        code: "unsafe-rewrite",
+        message: "Module parameter の authored source order と compiler binding mapping が一致しません。"
+      };
+    }
+    const parameterType = parameter.type;
+    if (
+      parameter.optional ||
+      resolvedParameter.optional ||
+      parameter.recordTypeReference ||
+      !isSupportedScalarParameterType(parameterType) ||
+      binding.parameterType?.kind !== parameterType?.kind
+    ) {
+      return {
+        kind: "unsupported",
+        reason: "optional または scalar 以外の Module parameter はこの Checkpoint では lowering しません。"
+      };
+    }
+
+    const nameRange = singlePhysicalRange(parameter.namePhysicalSpan, sourceRevision);
+    const typeRange = singlePhysicalRange(parameter.typePhysicalSpan, sourceRevision);
+    if (!nameRange || !typeRange || nameRange.from >= nameRange.to || typeRange.from >= typeRange.to) {
+      return {
+        kind: "unsafe",
+        code: "unsafe-source-span",
+        message: "Module parameter の exact-current name/type source span を解決できません。"
+      };
+    }
+
+    let initializerRange: { from: number; to: number } | null;
+    if (binding.state === "requiredSupplied") {
+      if (binding.argumentIndex === null || binding.argumentIndex < 0) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `required Module parameter「${resolvedParameter.name}」の compiler argumentIndex がありません。`
+        };
+      }
+      const argument = entry.statement.arguments[binding.argumentIndex];
+      if (!argument || binding.value?.kind !== "scalar") {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の compiler argument binding が scalar value と一致しません。`
+        };
+      }
+      initializerRange = singlePhysicalRange(argument.valuePhysicalSpan, sourceRevision);
+    } else if (binding.state === "defaultedOmitted") {
+      if (
+        binding.argumentIndex !== null ||
+        parameter.defaultValue === null ||
+        resolvedParameter.defaultValue === null ||
+        !binding.usesDefault ||
+        binding.value?.kind !== "scalar"
+      ) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `defaulted Module parameter「${resolvedParameter.name}」の compiler default binding が一致しません。`
+        };
+      }
+      initializerRange = singlePhysicalRange(parameter.defaultPhysicalSpan, sourceRevision);
+    } else {
+      return {
+        kind: "unsupported",
+        reason: "required omitted / optional supplied / optional omitted の binding state はこの Checkpoint では lowering しません。"
+      };
+    }
+    if (!initializerRange || initializerRange.from >= initializerRange.to) {
+      return {
+        kind: "unsafe",
+        code: "unsafe-source-span",
+        message: `Module parameter「${resolvedParameter.name}」の exact-current value/default source span を解決できません。`
+      };
+    }
+    parameters.push({
+      parameterIndex,
+      parameterName: resolvedParameter.name,
+      parameter,
+      nameSource: source.slice(nameRange.from, nameRange.to),
+      typeSource: source.slice(typeRange.from, typeRange.to),
+      initializerSource: source.slice(initializerRange.from, initializerRange.to),
+      originalExpressionRange: initializerRange
+    });
+  }
+  return { kind: "supported", parameters };
+};
 
 const applyAbsoluteReplacements = (
   source: string,
@@ -444,6 +660,165 @@ const ownerTokenForIdentity = (
     : `statement:${statementId}`;
 };
 
+const remappedOwnerTokenForIdentity = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  currentMapping: OwnerMapping,
+  mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
+): string => {
+  if (identity.kind === "module") {
+    if (identity.target.kind === "moduleParameter") {
+      const generated = currentMapping.parameterBindings.get(
+        parameterSlotKey(
+          identity.target.slot.definitionStatementId,
+          identity.target.slot.parameterIndex
+        )
+      );
+      if (generated) return `statement:${generated.statementId}`;
+    } else if (identity.target.kind === "moduleInstance") {
+      const mapping = mappingsByTarget.get(identity.target.statementId);
+      if (mapping) return `statement:${mapping.generatedGroupStatementId}`;
+    } else if (identity.target.kind === "moduleSource") {
+      for (const mapping of mappingsByTarget.values()) {
+        const copiedStatementId = mapping.bodyStatementIds.get(identity.target.statementId);
+        if (copiedStatementId) return `statement:${copiedStatementId}`;
+      }
+    }
+  }
+  return ownerTokenForIdentity(compiled, identity);
+};
+
+const sourceReferenceRangeForOccurrence = (
+  source: string,
+  occurrences: readonly DslSemanticOccurrence[],
+  occurrence: DslSemanticOccurrence,
+  range: { from: number; to: number }
+): { from: number; to: number } | null => {
+  let firstFrom = occurrence.from;
+  let cursor = occurrence.from;
+  while (true) {
+    let prior: DslSemanticOccurrence | null = null;
+    for (const candidate of occurrences) {
+      if (
+        candidate.kind === "reference" &&
+        candidate.to + 2 === cursor &&
+        source.slice(candidate.to, cursor) === "::" &&
+        candidate.from >= range.from &&
+        candidate.to <= range.to &&
+        (!prior || candidate.from > prior.from)
+      ) prior = candidate;
+    }
+    if (!prior) break;
+    firstFrom = prior.from;
+    cursor = prior.from;
+  }
+  const sigilFrom = source[firstFrom] === "@"
+    ? firstFrom
+    : source[firstFrom - 1] === "@"
+      ? firstFrom - 1
+      : source.slice(firstFrom - 3, firstFrom) === "@::"
+        ? firstFrom - 3
+        : null;
+  if (sigilFrom === null || sigilFrom < range.from) return null;
+  const parsed = parseDslSourceReferenceAt(source, sigilFrom, range.to);
+  if (parsed.kind !== "valid" || parsed.reference.fullRange.start < range.from || parsed.end > range.to) return null;
+  return { from: parsed.reference.fullRange.start, to: parsed.end };
+};
+
+const finalReferenceOccurrencesForRange = (
+  source: string,
+  index: DslSemanticOccurrenceIndex,
+  range: { from: number; to: number }
+): ReferenceOccurrence[] => {
+  const references = index.occurrences.filter((occurrence) =>
+    occurrence.kind === "reference" &&
+    occurrence.from >= range.from &&
+    occurrence.to <= range.to &&
+    source.slice(occurrence.to, occurrence.to + 2) !== "::"
+  );
+  const seen = new Set<string>();
+  const result: ReferenceOccurrence[] = [];
+  for (const occurrence of references) {
+    const sourceRange = sourceReferenceRangeForOccurrence(source, index.occurrences, occurrence, range);
+    if (!sourceRange) continue;
+    const key = `${sourceRange.from}:${sourceRange.to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ ...occurrence, sourceFrom: sourceRange.from, sourceTo: sourceRange.to });
+  }
+  return result.sort((left, right) => left.sourceFrom - right.sourceFrom || left.sourceTo - right.sourceTo);
+};
+
+const sourceDeclarationForIdentity = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity
+) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return null;
+  let statementId: StatementIdentity | null = null;
+  if (identity.kind === "typed") {
+    const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
+    statementId = statementIndex === undefined ? null : statementIdAt(compiled, statementIndex);
+  } else if (identity.kind === "element") {
+    const statementIndex = compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex;
+    statementId = statementIndex === undefined ? null : statementIdAt(compiled, statementIndex);
+  } else if (identity.kind === "module") {
+    if (identity.target.kind === "documentBinding") {
+      const statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.target.bindingId)?.statementIndex;
+      statementId = statementIndex === undefined ? null : statementIdAt(compiled, statementIndex);
+    } else if (identity.target.kind === "moduleInstance" || identity.target.kind === "moduleSource") {
+      statementId = identity.target.statementId;
+    }
+  }
+  if (!statementId) return null;
+  const declarations = namespace.allDeclarations.filter((declaration) => declaration.statementId === statementId);
+  return declarations.length === 1 ? declarations[0] : null;
+};
+
+const canonicalPathForDeclaration = (
+  compiled: CompiledDslDocument,
+  declaration: NonNullable<ReturnType<typeof sourceDeclarationForIdentity>>,
+  referenceStatementIndex: number
+) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || !declaration.name) return null;
+  const containerNames: string[] = [];
+  let scopeId: string | null = declaration.scopeId;
+  while (scopeId !== null && scopeId !== namespace.scopeIndex.rootScopeId) {
+    const scope = namespace.scopeIndex.scopes.get(scopeId);
+    if (!scope || scope.openingStatementIndex === null || scope.kind === "module" || scope.kind === "layout") return null;
+    const opening = compiled.statements[scope.openingStatementIndex];
+    if (!opening?.name) return null;
+    const openingDeclaration = namespace.allDeclarations.find((candidate) =>
+      candidate.statementIndex === scope.openingStatementIndex && candidate.name === opening.name
+    );
+    if (!openingDeclaration) return null;
+    containerNames.unshift(opening.name);
+    scopeId = scope.parentId;
+  }
+  const path = { absolute: true, segments: [...containerNames, declaration.name] };
+  const resolved = resolveSourceLexicalPath(namespace, referenceStatementIndex, path);
+  return resolved.kind === "resolved" && resolved.declaration.statementId === declaration.statementId
+    ? path
+    : null;
+};
+
+const canonicalSourceReferenceFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity,
+  reference: ReferenceOccurrence,
+  referenceStatementIndex: number
+): string | null => {
+  const parsed = parseDslSourceReference(source.slice(reference.sourceFrom, reference.sourceTo));
+  if (parsed.kind !== "valid") return null;
+  const declaration = sourceDeclarationForIdentity(compiled, identity);
+  if (!declaration) return null;
+  const path = canonicalPathForDeclaration(compiled, declaration, referenceStatementIndex);
+  if (!path) return null;
+  return `@${formatDslReferencePath(path)}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+};
+
 const occurrenceSlotsForStatement = (
   source: string,
   compiled: CompiledDslDocument,
@@ -577,7 +952,9 @@ const verifyPreservedSemanticOwners = (
       const candidates = statementOccurrences.filter((candidate) =>
         candidate.kind === slot.kind && source.slice(candidate.from, candidate.to) === slot.token
       );
-      const candidate = candidates[slot.ordinal];
+      // Module semantic occurrences are authoritative when binding analysis
+      // also reports a synthetic typed occurrence at the same source span.
+      const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
       if (candidate) owners.add(expectedOwnerToken(source, compiled, candidate, statementOccurrences, mappingsByTarget));
       return { ...slot, owners: [...owners].sort() };
     });
@@ -591,16 +968,11 @@ const copyOwnerMappingFor = (
   compiled: CompiledDslDocument,
   nextCompiled: CompiledDslDocument,
   groupIndex: number,
-  entry: InlineEntry
+  entry: InlineEntry,
+  parameterBindings: ReadonlyMap<string, GeneratedScalarParameterMapping>
 ): OwnerMapping | null => {
-  const nextEntries = nextCompiled.statements
-    .map((statement, statementIndex) => ({ statement, statementIndex }))
-    .filter(({ statement, statementIndex }) =>
-      statementIndex !== groupIndex &&
-      statement.enclosing?.statementIndex === groupIndex &&
-      statement.kind !== "blockEnd" &&
-      statement.kind !== "blockElse"
-    );
+  const nextEntries = directChildEntriesForGroup(nextCompiled, groupIndex)
+    .slice(entry.scalarParameters.length);
   if (nextEntries.length !== entry.definition.bodyStatementIds.length) return null;
 
   const bodyStatementIds = new Map<StatementIdentity, StatementIdentity>();
@@ -623,7 +995,8 @@ const copyOwnerMappingFor = (
     ? {
         targetStatementId: entry.target.statementId,
         generatedGroupStatementId,
-        bodyStatementIds
+        bodyStatementIds,
+        parameterBindings
       }
     : null;
 };
@@ -655,8 +1028,19 @@ const verifyCopiedBodyOwners = (
         const candidates = oldStatementOccurrences.filter((occurrence) =>
           occurrence.kind === slot.kind && source.slice(occurrence.from, occurrence.to) === slot.token
         );
-        const candidate = candidates[slot.ordinal];
+        // A module-parameter reference can also have a synthetic typed-binding
+        // occurrence at the same source span. Prefer the module-semantic
+        // occurrence so the copied-body proof follows the actual parameter
+        // identity and maps it to the generated const.
+        const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
         if (!candidate) return [];
+        if (candidate.identity.kind === "module" && candidate.identity.target.kind === "moduleParameter") {
+          const generated = mapping.parameterBindings.get(parameterSlotKey(
+            candidate.identity.target.slot.definitionStatementId,
+            candidate.identity.target.slot.parameterIndex
+          ));
+          return generated ? [`statement:${generated.statementId}`] : [];
+        }
         const owner = ownerStatementIdForIdentity(compiled, candidate.identity);
         const copied = owner ? mapping.bodyStatementIds.get(owner) : undefined;
         return [copied ? `statement:${copied}` : ownerTokenForIdentity(compiled, candidate.identity)];
@@ -682,6 +1066,48 @@ const generatedGroupFor = (
     declaration.scopeId === scopeId
   );
   return candidates.length === 1 ? candidates[0]!.statementIndex : null;
+};
+
+const generatedScalarParameterMappingsFor = (
+  nextCompiled: CompiledDslDocument,
+  groupIndex: number,
+  entry: InlineEntry
+): ReadonlyMap<string, GeneratedScalarParameterMapping> | null => {
+  const children = directChildEntriesForGroup(nextCompiled, groupIndex);
+  const generated = children.slice(0, entry.scalarParameters.length);
+  if (generated.length !== entry.scalarParameters.length) return null;
+  const mappings = new Map<string, GeneratedScalarParameterMapping>();
+  for (const [index, parameter] of entry.scalarParameters.entries()) {
+    const child = generated[index];
+    if (
+      !child ||
+      child.statement.kind !== "typedDeclaration" ||
+      child.statement.bindingKind !== "const" ||
+      child.statement.name !== parameter.parameterName ||
+      child.statement.declaredType?.kind !== parameter.parameter.type?.kind
+    ) return null;
+    const bindingCandidates = [...(nextCompiled.bindingAnalysis?.catalog.bindings.values() ?? [])]
+      .filter((binding) => binding.kind === "typed" && binding.statementIndex === child.statementIndex);
+    if (bindingCandidates.length !== 1) return null;
+    const binding = bindingCandidates[0]!;
+    const statementId = child.statementId;
+    if (!statementId) return null;
+    const initializer = exactPhysicalSpan(
+      nextCompiled.spans,
+      child.statement,
+      child.statement.payloadSpans.initializer
+    );
+    const initializerRange = singlePhysicalRange(initializer, nextCompiled.spans.sourceMap.sourceRevision);
+    if (!initializerRange) return null;
+    mappings.set(parameterSlotKey(entry.definition.statementId, parameter.parameterIndex), {
+      parameterIndex: parameter.parameterIndex,
+      statementIndex: child.statementIndex,
+      statementId,
+      bindingId: binding.id,
+      initializerRange
+    });
+  }
+  return mappings;
 };
 
 const replacementFor = (
@@ -714,18 +1140,174 @@ const replacementFor = (
     ? []
     : rebaseBodyLines(bodyText.split("\n"), body.definitionIndent, instanceIndent);
   const activityText = entry.activity === "visible" ? "" : `(state: ${entry.activity})`;
+  const parameterLines = entry.scalarParameters.map((parameter) =>
+    `${instanceIndent}${DSL_INDENT}const ${parameter.nameSource}: ${parameter.typeSource} = ${parameter.initializerSource}`
+  );
   return {
     startLine: entry.statementInfo.range.startLine,
     endLine: entry.statementInfo.range.endLine,
     replacementLines: [
       `${instanceIndent}group ${formatDslName(entry.statement.name)}${activityText} {${suffix}`,
+      ...parameterLines,
       ...rewrittenBodyLines,
       `${instanceIndent}}`
     ]
   };
 };
 
-/** Plan a safe, host-neutral Checkpoint 1 Module inline mutation. */
+const ownerMappingsFor = (
+  compiled: CompiledDslDocument,
+  nextCompiled: CompiledDslDocument,
+  entries: readonly InlineEntry[]
+): ReadonlyMap<StatementIdentity, OwnerMapping> | null => {
+  const mappings = new Map<StatementIdentity, OwnerMapping>();
+  for (const entry of entries) {
+    const groupIndex = generatedGroupFor(compiled, nextCompiled, entry);
+    if (groupIndex === null) return null;
+    const parameterBindings = generatedScalarParameterMappingsFor(nextCompiled, groupIndex, entry);
+    if (!parameterBindings) return null;
+    const mapping = copyOwnerMappingFor(compiled, nextCompiled, groupIndex, entry, parameterBindings);
+    if (!mapping) return null;
+    mappings.set(entry.target.statementId, mapping);
+  }
+  return mappings;
+};
+
+type InitializerRewriteResult =
+  | { kind: "ok"; rewrites: readonly InitializerRewrite[] }
+  | { kind: "invalid"; message: string; target?: InlineModuleTargetIdentity };
+
+const initializerRewritesFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  nextCompiled: CompiledDslDocument,
+  entries: readonly InlineEntry[],
+  mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
+): InitializerRewriteResult => {
+  const beforeIndex = createDslSemanticOccurrenceIndex(compiled);
+  const afterIndex = createDslSemanticOccurrenceIndex(nextCompiled);
+  const rewrites: InitializerRewrite[] = [];
+  for (const entry of entries) {
+    const mapping = mappingsByTarget.get(entry.target.statementId);
+    if (!mapping) return { kind: "invalid", message: "生成した Module group の semantic mapping がありません。", target: entry.target };
+    for (const parameter of entry.scalarParameters) {
+      const generated = mapping.parameterBindings.get(
+        parameterSlotKey(entry.definition.statementId, parameter.parameterIndex)
+      );
+      if (!generated) return { kind: "invalid", message: "生成した scalar parameter const の semantic mapping がありません。", target: entry.target };
+      const before = finalReferenceOccurrencesForRange(
+        source,
+        beforeIndex,
+        parameter.originalExpressionRange
+      );
+      const nextSource = nextCompiled.spans.sourceMap.source;
+      const after = finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
+      if (before.length !== after.length) {
+        return {
+          kind: "invalid",
+          message: `Module parameter「${parameter.parameterName}」の moved initializer reference 数を証明できません。`,
+          target: entry.target
+        };
+      }
+      for (const [index, original] of before.entries()) {
+        const candidate = after[index];
+        if (!candidate) {
+          return { kind: "invalid", message: "moved initializer の reference 対応を証明できません。", target: entry.target };
+        }
+        const expectedOwner = remappedOwnerTokenForIdentity(
+          compiled,
+          original.identity,
+          mapping,
+          mappingsByTarget
+        );
+        const actualOwner = ownerTokenForIdentity(nextCompiled, candidate.identity);
+        const originalReferenceSource = source.slice(original.sourceFrom, original.sourceTo);
+        if (expectedOwner === actualOwner) continue;
+        const canonical = canonicalSourceReferenceFor(
+          source,
+          compiled,
+          original.identity,
+          original,
+          entry.statementIndex
+        );
+        if (!canonical || canonical === originalReferenceSource) {
+          return {
+            kind: "invalid",
+            message: `Module parameter「${parameter.parameterName}」の moved reference を安全に canonicalize できません。`,
+            target: entry.target
+          };
+        }
+        if (!rewrites.some((rewrite) =>
+          rewrite.targetStatementId === entry.target.statementId &&
+          rewrite.parameterIndex === parameter.parameterIndex &&
+          rewrite.replacement.from === original.sourceFrom &&
+          rewrite.replacement.to === original.sourceTo
+        )) {
+          rewrites.push({
+            targetStatementId: entry.target.statementId,
+            parameterIndex: parameter.parameterIndex,
+            replacement: {
+              from: original.sourceFrom,
+              to: original.sourceTo,
+              text: canonical
+            }
+          });
+        }
+      }
+    }
+  }
+  return { kind: "ok", rewrites };
+};
+
+const entriesWithInitializerRewrites = (
+  source: string,
+  entries: readonly InlineEntry[],
+  rewrites: readonly InitializerRewrite[]
+): readonly InlineEntry[] | null => {
+  const rewrittenEntries = entries.map((entry): InlineEntry | null => {
+    const scalarParameters = entry.scalarParameters.map((parameter) => {
+      const replacements = rewrites
+        .filter((rewrite) =>
+          rewrite.targetStatementId === entry.target.statementId &&
+          rewrite.parameterIndex === parameter.parameterIndex
+        )
+        .map((rewrite) => rewrite.replacement);
+      if (replacements.length === 0) return parameter;
+      const initializerSource = applyAbsoluteReplacements(
+        source,
+        parameter.originalExpressionRange.from,
+        parameter.originalExpressionRange.to,
+        replacements
+      );
+      if (initializerSource === null) return null;
+      return { ...parameter, initializerSource };
+    });
+    return scalarParameters.some((parameter) => parameter === null)
+      ? null
+      : { ...entry, scalarParameters: scalarParameters as readonly ScalarParameterLowering[] };
+  });
+  return rewrittenEntries.some((entry) => entry === null)
+    ? null
+    : rewrittenEntries.filter((entry): entry is InlineEntry => entry !== null);
+};
+
+const buildInlineSplices = (
+  source: string,
+  starts: readonly number[],
+  compiled: CompiledDslDocument,
+  entries: readonly InlineEntry[]
+): readonly LineSplice[] | InlineModuleRejection => {
+  const splices: LineSplice[] = [];
+  for (const entry of entries) {
+    const replacement = replacementFor(source, starts, compiled, entry, entry.body);
+    if ("status" in replacement) return replacement;
+    splices.push(replacement);
+  }
+  splices.sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
+  return splices;
+};
+
+/** Plan a safe, host-neutral Module inline mutation with scalar parameter lowering. */
 export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlanResult => {
   const { source: snapshot, compiled, policy } = input;
   const source = snapshot.normalizedSource;
@@ -791,7 +1373,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
 
   const starts = lineStarts(source);
   const results: InlineModuleTargetResult[] = [];
-  const splices: LineSplice[] = [];
+  let splices: LineSplice[] = [];
   const inlined: InlineEntry[] = [];
 
   for (const entry of resolved) {
@@ -851,15 +1433,24 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       results.push(skip(target, statementIndex, statement.name, "disabled-excluded", "disabled instance は現在の policy で除外されています。"));
       continue;
     }
-    if (definition.parameters.length > 0 || instance.parameterBindings.length > 0) {
+    const scalarParameterPreparation = prepareScalarParameterLowering(
+      source,
+      snapshot.sourceRevision,
+      compiled,
+      { statement, instance, definition }
+    );
+    if (scalarParameterPreparation.kind === "unsupported") {
       results.push(skip(
         target,
         statementIndex,
         statement.name,
         "parameter-lowering-required",
-        "この Checkpoint 1 slice では parameter lowering を未実装のため parameterized Module を安全側で除外します。"
+        scalarParameterPreparation.reason
       ));
       continue;
+    }
+    if (scalarParameterPreparation.kind === "unsafe") {
+      return reject(scalarParameterPreparation.code, scalarParameterPreparation.message, target);
     }
     if (instance.callerModuleDefinitionStatementId !== null) {
       results.push(skip(
@@ -905,7 +1496,9 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       instance,
       definition,
       activity,
-      statementInfo: info
+      statementInfo: info,
+      body,
+      scalarParameters: scalarParameterPreparation.parameters
     }, body);
     if ("status" in replacement) return replacement;
     splices.push(replacement);
@@ -916,7 +1509,9 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       instance,
       definition,
       activity,
-      statementInfo: info
+      statementInfo: info,
+      body,
+      scalarParameters: scalarParameterPreparation.parameters
     });
     results.push({
       status: "inlined",
@@ -930,7 +1525,6 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     });
   }
 
-  splices.sort((left, right) => left.startLine - right.startLine || left.endLine - right.endLine);
   try {
     applyLineSplices(source, splices);
   } catch (error) {
@@ -948,26 +1542,59 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
   }
 
   const nextRevision = snapshot.sourceRevision + 1;
-  let nextCompiled: CompiledDslDocument;
-  try {
-    const parsed = parseDslSnapshot({ normalizedSource: candidateSource, sourceRevision: nextRevision });
+  const compileCandidate = (sourceText: string): CompiledDslDocument | null => {
+    try {
+    const parsed = parseDslSnapshot({ normalizedSource: sourceText, sourceRevision: nextRevision });
     const reconciled = reconcileStatements({
       oldStatements: compiled.statements,
       oldLines: compiled.sourceLines,
       oldElementIds: statementMap.elementIdByStatementIndex,
       oldStatementIds: statementMap.statementIdByStatementIndex,
       newStatements: parsed.statements,
-      newLines: candidateSource.split("\n")
+      newLines: sourceText.split("\n")
     });
-    nextCompiled = compileDslDocument(candidateSource, {
+    return compileDslDocument(sourceText, {
       preparsed: parsed,
       sourceRevision: nextRevision,
       assignedElementIds: reconciled.assignedIds,
       assignedStatementIds: reconciled.assignedIds
     });
-  } catch (error) {
-    return reject("unsafe-rewrite", error instanceof Error ? error.message : String(error));
+    } catch {
+      return null;
+    }
+  };
+
+  let nextCompiled = compileCandidate(candidateSource);
+  if (!nextCompiled) return reject("unsafe-rewrite", "Inline 後の source semantics を再コンパイルできません。");
+
+  let activeEntries: readonly InlineEntry[] = inlined;
+  let mappings = ownerMappingsFor(compiled, nextCompiled, activeEntries);
+  if (!mappings) return reject("unsafe-rewrite", "生成した group / scalar parameter const の semantic owner を解決できません。");
+  let rewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+  if (rewriteResult.kind === "invalid") return reject("unsafe-rewrite", rewriteResult.message, rewriteResult.target);
+  if (rewriteResult.rewrites.length > 0) {
+    const rewrittenEntries = entriesWithInitializerRewrites(source, activeEntries, rewriteResult.rewrites);
+    if (!rewrittenEntries) return reject("unsafe-rewrite", "moved initializer の atomic source rewrite を構成できません。");
+    activeEntries = rewrittenEntries;
+    const rebuiltSplices = buildInlineSplices(source, starts, compiled, activeEntries);
+    if ("status" in rebuiltSplices) return rebuiltSplices;
+    splices = [...rebuiltSplices];
+    try {
+      candidateSource = applyLineSplices(source, splices);
+    } catch (error) {
+      return reject("unsafe-rewrite", error instanceof Error ? error.message : String(error));
+    }
+    nextCompiled = compileCandidate(candidateSource);
+    if (!nextCompiled) return reject("unsafe-rewrite", "canonicalized Inline source を再コンパイルできません。");
+    mappings = ownerMappingsFor(compiled, nextCompiled, activeEntries);
+    if (!mappings) return reject("unsafe-rewrite", "canonicalized group / scalar parameter const の semantic owner を解決できません。");
+    rewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+    if (rewriteResult.kind === "invalid") return reject("unsafe-rewrite", rewriteResult.message, rewriteResult.target);
+    if (rewriteResult.rewrites.length > 0) {
+      return reject("unsafe-rewrite", "moved initializer の semantic owner を一度の canonical rewrite で証明できません。");
+    }
   }
+
   if (
     !nextCompiled.statementMap ||
     !nextCompiled.sourceLexicalNamespace ||
@@ -980,18 +1607,14 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     return reject("unsafe-rewrite", diagnostic?.message ?? "Inline 後の source semantics を安全に再コンパイルできません。");
   }
 
-  const mappings = new Map<StatementIdentity, OwnerMapping>();
-  for (const entry of inlined) {
-    const groupIndex = generatedGroupFor(compiled, nextCompiled, entry);
-    if (groupIndex === null) return reject("unsafe-rewrite", "生成した group の exact semantic owner を解決できません。", entry.target);
-    const mapping = copyOwnerMappingFor(compiled, nextCompiled, groupIndex, entry);
+  for (const entry of activeEntries) {
+    const mapping = mappings.get(entry.target.statementId);
     if (!mapping || !verifyCopiedBodyOwners(source, compiled, nextCompiled, entry, mapping)) {
       return reject("unsafe-rewrite", "コピーした Module body の semantic ownership を証明できません。", entry.target);
     }
-    mappings.set(entry.target.statementId, mapping);
   }
 
-  const replacedIds = new Set(inlined.map((entry) => entry.target.statementId));
+  const replacedIds = new Set(activeEntries.map((entry) => entry.target.statementId));
   if (!verifyPreservedSemanticOwners(source, compiled, nextCompiled, replacedIds, mappings)) {
     return reject("unsafe-rewrite", "Inline 後に preserved statement の semantic resolution が変化するため適用できません。");
   }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bindingIssuesToDiagnostics } from "./bindingIssueDiagnostics";
+import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { lowerScalarProgram } from "./scalarProgram";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
 import { geometryPropertiesIn, referencesIn } from "./typedDependencyGraph";
@@ -148,6 +149,47 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     ].join("\n"), { expectNoDiagnostics: false });
 
     expect(fixture.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["scalar-namespace-type-mismatch"]);
+  });
+
+  it("resolves a rooted scalar reference to the outer binding through a shadowing group", () => {
+    const source = [
+      "nui 4",
+      "const width: number = 50",
+      "group Copy {",
+      "  const width: number = @::width",
+      "}"
+    ].join("\n");
+    const fixture = typedDeclarationAnalysisFor(source);
+    const rootWidth = fixture.bindingAnalysis.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "width" && binding.statementIndex === 1
+    );
+    const groupIndex = fixture.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    const nestedWidthIndex = fixture.statements.findIndex((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "width" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    const nestedWidth = fixture.statements[nestedWidthIndex];
+    const nestedWidthBinding = fixture.bindingAnalysis.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "width" && binding.statementIndex === nestedWidthIndex
+    );
+    expect(fixture.diagnostics).toEqual([]);
+    expect(rootWidth).toBeDefined();
+    expect(nestedWidth).toBeDefined();
+    expect(nestedWidthBinding).toBeDefined();
+    if (!rootWidth || !nestedWidth || !nestedWidthBinding) return;
+
+    const initializer = fixture.analysis.typedInitializerByBindingId.get(nestedWidthBinding.id);
+    const references = initializer ? referencesIn(initializer).filter((reference) => reference.kind === "reference") : [];
+    expect(references).toHaveLength(1);
+    const reference = references[0];
+    expect(reference?.bindingId).toBe(rootWidth.id);
+    if (reference?.kind === "reference") {
+      const physical = exactPhysicalSpan(fixture.spans, nestedWidth, reference.span);
+      expect(physical?.segments).toHaveLength(1);
+      const segment = physical?.segments[0];
+      expect(segment && source.slice(segment.from, segment.to)).toBe("@::width");
+    }
   });
 
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
