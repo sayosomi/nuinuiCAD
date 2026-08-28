@@ -33,6 +33,7 @@ export type VscodeReferencePickStartRequest = {
   documentVersion: number;
   normalizedSourceOffset: number;
   targetProof: VscodeReferencePickTargetProof;
+  initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
 };
 
 export type VscodeReferencePickCancelRequest = {

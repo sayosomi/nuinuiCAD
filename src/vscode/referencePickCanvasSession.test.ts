@@ -151,6 +151,51 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(staleProof.result.status).toBe("stale");
   });
 
+  it("revalidates restored draft references against the current candidates", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Straight = segment(start: @A, end: @B)",
+      "module M(straight: line) {",
+      "}",
+      "instance X = M(straight: @Straight)"
+    ].join("\n");
+    const host = setup(source, "straight: @Straight");
+    const canvasCompiled = compile(source, CANVAS_REVISION, "canvas-restore");
+    const canvasEvaluation = evaluate(canvasCompiled);
+    const restored = startSession({
+      source,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION,
+      request: {
+        ...host.request,
+        requestId: host.request.requestId + 1,
+        initialDraftReferences: [{ base: "Straight" }]
+      }
+    });
+
+    expect(restored.result.status).toBe("started");
+    expect(restored.session?.draft.draftReferences).toEqual([{ base: "Straight" }]);
+
+    const missing = startSession({
+      source,
+      ...host,
+      compiled: canvasCompiled,
+      evaluation: canvasEvaluation,
+      sourceRevision: CANVAS_REVISION,
+      request: {
+        ...host.request,
+        requestId: host.request.requestId + 2,
+        initialDraftReferences: [{ base: "Missing" }]
+      }
+    });
+    expect(missing.session).toBeNull();
+    expect(missing.result.status).toBe("rejected");
+  });
+
   it("seeds a multiple draft, toggles candidates, and confirms without mutating Source", () => {
     const source = [
       "nui 4",
