@@ -41,6 +41,7 @@ import { replaceCanvasSelection } from "../commands/selectionCommands";
 import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
+import { isVscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import type {
@@ -514,6 +515,21 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           void runCanvasBake(message);
           return;
         }
+        dispatchCommand(message.commandId, {
+          evaluation: evaluationRef.current,
+          baseEvaluation: evaluationRef.current,
+          evaluationIsCurrent: evaluationStateIsCurrentFor(
+            evaluationStateRef.current,
+            useCadDocumentStore.getState().compiledDocumentRevision
+          ),
+          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+          measureCanvasTextWidth,
+          recordSelectionHistory: true,
+          finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+          canvasHistory: requestCanvasHistory
+        });
+      } else if (message.type === "canvasCreationCommand") {
+        if (!isVscodeCanvasCreationCommandId(message.commandId)) return;
         dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
           baseEvaluation: evaluationRef.current,

@@ -1534,6 +1534,29 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
+  it("routes individual Canvas creation commands through the allowlisted creation protocol", async () => {
+    setup();
+    const panel = openPanelFor();
+    const document = mocks.activeTextEditor!.document;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({
+      type: "webviewAuthoritativeDocumentReady",
+      documentVersion: document.version
+    });
+
+    commandHandlerFor("nuinuiCAD.create.addLine")?.();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCreationCommand",
+      commandId: "addLine"
+    });
+
+    panel.webview.postMessage.mockClear();
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    commandHandlerFor("nuinuiCAD.create.addLine")?.();
+    expect(panel.webview.postMessage).not.toHaveBeenCalled();
+  });
+
   it("routes Bake Current Shape from a dynamic Canvas tab to Canvas", () => {
     setup();
     const panel = openPanelFor();

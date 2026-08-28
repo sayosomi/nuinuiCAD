@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { selectElement } from "../commands/selectionCommands";
+import * as commandRegistry from "../commands/commands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import type { EvaluationResult } from "../types/geometry";
@@ -101,6 +102,41 @@ describe("VSCodeApp Canvas history coordinator", () => {
       normalizedSource: source
     });
     expect(currentReferencePickAuthorityFor!(6)).toBeNull();
+  });
+
+  it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {
+    const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCreationCommand", commandId: "addLine" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCreationCommand", commandId: "not-allowlisted" }
+      }));
+    });
+
+    expect(dispatchCommand).toHaveBeenCalledTimes(1);
+    expect(dispatchCommand).toHaveBeenCalledWith("addLine", expect.objectContaining({
+      recordSelectionHistory: true
+    }));
+  });
+
+  it("starts the existing command-line creation session for a valid Canvas creation message", async () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCreationCommand", commandId: "addLine" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      recipe: { type: "line" }
+    });
   });
 
   it("queues Canvas history until the authoritative result and restores focus after completion", async () => {
