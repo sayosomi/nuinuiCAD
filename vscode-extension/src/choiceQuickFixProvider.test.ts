@@ -246,6 +246,168 @@ describe("VS Code choice Quick Fix provider", () => {
     );
   });
 
+  it("offers a native category repair for a known construction mismatch", () => {
+    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const document = documentFor(source, "/tmp/category-mismatch.nui");
+    mocks.textDocuments.push(document);
+    const diagnostic = diagnosticFor(document, "construction-category-mismatch");
+    const { actions } = actionsFor(document, [diagnostic]);
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.title).toBe("Change category to 'line'");
+    expect(actions[0]?.diagnostics).toEqual([diagnostic]);
+    expect(actions[0]?.isPreferred).toBeUndefined();
+    expect(payloadFor(actions[0]!)).toMatchObject({ targetCategory: "line" });
+  });
+
+  it("matches a category diagnostic by source, code, and range even when its message differs", () => {
+    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const document = documentFor(source, "/tmp/category-context-message.nui");
+    mocks.textDocuments.push(document);
+    const compilerDiagnostic = diagnosticFor(document, "construction-category-mismatch");
+    const contextDiagnostic = new vscode.Diagnostic(
+      compilerDiagnostic.range,
+      "localized category mismatch",
+      0
+    );
+    contextDiagnostic.code = compilerDiagnostic.code;
+    contextDiagnostic.source = compilerDiagnostic.source;
+
+    const { actions } = actionsFor(document, [contextDiagnostic]);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.diagnostics).toEqual([contextDiagnostic]);
+  });
+
+  it("preserves canonical order and never prefers multiple category repairs", () => {
+    const source = "nui 4\narc P = offset(sources: [@A], distance: 2)\n";
+    const document = documentFor(source, "/tmp/category-multiple.nui");
+    mocks.textDocuments.push(document);
+    const diagnostic = diagnosticFor(document, "construction-category-mismatch");
+    const { actions } = actionsFor(document, [diagnostic]);
+
+    expect(actions.map((action) => action.title)).toEqual([
+      "Change category to 'point'",
+      "Change category to 'line'"
+    ]);
+    expect(actions.every((action) => action.isPreferred === undefined)).toBe(true);
+  });
+
+  it("does not expose category repairs for wrong source or code", () => {
+    const document = documentFor("nui 4\npoint P = segment(start: @A, end: @B)\n", "/tmp/category-context.nui");
+    mocks.textDocuments.push(document);
+    const matching = diagnosticFor(document, "construction-category-mismatch");
+
+    const wrongCode = new vscode.Diagnostic(matching.range, matching.message, 0);
+    wrongCode.code = "unknown-construction";
+    wrongCode.source = "nuinuiCAD";
+    expect(actionsFor(document, [wrongCode]).actions).toEqual([]);
+
+    const wrongSource = new vscode.Diagnostic(matching.range, matching.message, 0);
+    wrongSource.code = matching.code;
+    wrongSource.source = "other";
+    expect(actionsFor(document, [wrongSource]).actions).toEqual([]);
+  });
+
+  it("applies only the category token through the composed handler", async () => {
+    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const document = documentFor(source, "/tmp/category-apply.nui");
+    mocks.textDocuments.push(document);
+    const { actions, apply } = actionsFor(
+      document,
+      [diagnosticFor(document, "construction-category-mismatch")]
+    );
+
+    await apply(payloadFor(actions[0]!));
+
+    expect(mocks.applyEdit).toHaveBeenCalledTimes(1);
+    const edit = mocks.applyEdit.mock.calls[0]?.[0] as {
+      edits: Array<{ range: vscode.Range; newText: string }>;
+    };
+    expect(edit.edits).toHaveLength(1);
+    expect(edit.edits[0]?.newText).toBe("line");
+    expect(edit.edits[0]?.range).toMatchObject({
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: "point".length }
+    });
+    const categoryFrom = source.indexOf("point");
+    const categoryTo = categoryFrom + "point".length;
+    expect(`${source.slice(0, categoryFrom)}${edit.edits[0]?.newText}${source.slice(categoryTo)}`).toBe(
+      "nui 4\nline P = segment(start: @A, end: @B)\n"
+    );
+  });
+
+  it("applies category repairs with the shared CRLF normalized/raw adapter", async () => {
+    const normalized = [
+      "nui 4",
+      "// 😀 前置",
+      "point P = segment(start: @A, end: @B)"
+    ].join("\n");
+    const source = normalized.replace(/\n/g, "\r\n");
+    const document = documentFor(source, "/tmp/category-crlf.nui");
+    mocks.textDocuments.push(document);
+    const { actions, apply } = actionsFor(
+      document,
+      [diagnosticFor(document, "construction-category-mismatch")]
+    );
+
+    await apply(payloadFor(actions[0]!));
+
+    const edit = mocks.applyEdit.mock.calls[0]?.[0] as {
+      edits: Array<{ range: vscode.Range; newText: string }>;
+    };
+    expect(edit.edits).toHaveLength(1);
+    expect(edit.edits[0]?.newText).toBe("line");
+    expect(edit.edits[0]?.range).toMatchObject({
+      start: { line: 2, character: 0 },
+      end: { line: 2, character: "point".length }
+    });
+  });
+
+  it("fails closed for stale category payload state and non-current target categories", async () => {
+    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+
+    const versionDocument = documentFor(source, "/tmp/category-version.nui");
+    mocks.textDocuments.push(versionDocument);
+    const versionCase = actionsFor(versionDocument, [diagnosticFor(versionDocument, "construction-category-mismatch")]);
+    versionDocument.version = 2;
+    await versionCase.apply(payloadFor(versionCase.actions[0]!));
+
+    const rawDocument = documentFor(source, "/tmp/category-raw.nui");
+    mocks.textDocuments.push(rawDocument);
+    const rawCase = actionsFor(rawDocument, [diagnosticFor(rawDocument, "construction-category-mismatch")]);
+    rawDocument.setSourceText(source.replace("point", "arc"));
+    await rawCase.apply(payloadFor(rawCase.actions[0]!));
+
+    const semanticDocument = documentFor(source, "/tmp/category-semantic.nui");
+    mocks.textDocuments.push(semanticDocument);
+    const semanticCase = actionsFor(semanticDocument, [diagnosticFor(semanticDocument, "construction-category-mismatch")]);
+    vi.spyOn(semanticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue(undefined);
+    await semanticCase.apply(payloadFor(semanticCase.actions[0]!));
+
+    const missingDiagnosticDocument = documentFor(source, "/tmp/category-missing-diagnostic.nui");
+    mocks.textDocuments.push(missingDiagnosticDocument);
+    const missingDiagnosticCase = actionsFor(missingDiagnosticDocument, [diagnosticFor(missingDiagnosticDocument, "construction-category-mismatch")]);
+    const missingCurrent = missingDiagnosticCase.session.choiceQuickFixSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: missingDiagnosticCase.session.getSourceRevision()
+    });
+    if (!missingCurrent) throw new Error("expected current semantic snapshot");
+    vi.spyOn(missingDiagnosticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue({
+      ...missingCurrent,
+      currentCompiled: { ...missingCurrent.currentCompiled, diagnostics: [] }
+    });
+    await missingDiagnosticCase.apply(payloadFor(missingDiagnosticCase.actions[0]!));
+
+    const forgedDocument = documentFor(source, "/tmp/category-forged.nui");
+    mocks.textDocuments.push(forgedDocument);
+    const forgedCase = actionsFor(forgedDocument, [diagnosticFor(forgedDocument, "construction-category-mismatch")]);
+    const forgedPayload = payloadFor(forgedCase.actions[0]!);
+    forgedPayload.targetCategory = "point";
+    await forgedCase.apply(forgedPayload);
+
+    expect(mocks.applyEdit).not.toHaveBeenCalled();
+  });
+
   it("rejects a stale missing-declared-type descriptor through the composed provider", async () => {
     const source = "nui 4\nlet width = 10\n";
     const document = documentFor(source, "/tmp/missing-descriptor-payload.nui");

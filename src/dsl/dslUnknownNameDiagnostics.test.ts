@@ -42,6 +42,12 @@ describe("stable unknown-name diagnostics", () => {
     expect(exactText(source, diagnostic)).toBe("segmnt");
   });
 
+  it("marks a known construction in the wrong category with a separate exact diagnostic", () => {
+    const source = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const diagnostic = parsedDiagnostic(source, "construction-category-mismatch");
+    expect(exactText(source, diagnostic)).toBe("segment");
+  });
+
   it("marks an unknown construction argument with a stable code and exact key span", () => {
     const source = "nui 4\npoint P = coordinate(xx: 0, y: 0)";
     const diagnostic = parsedDiagnostic(source, "unknown-construction-argument");

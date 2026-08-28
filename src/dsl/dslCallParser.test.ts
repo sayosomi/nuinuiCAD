@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { categoriesForConstruction, constructionCandidatesFor, constructionFor } from "./dslConstructions";
-import { UNCLOSED_CALL_CODE, parseDslCallStatement } from "./dslCallParser";
+import {
+  CONSTRUCTION_CATEGORY_MISMATCH_CODE,
+  UNCLOSED_CALL_CODE,
+  parseDslCallStatement
+} from "./dslCallParser";
 import { parseDsl } from "./dslParser";
 
 const parse = (source: string, opensBlock = false) => parseDslCallStatement(source, { opensBlock });
@@ -69,7 +73,16 @@ describe("DSL nui 4 call parser", () => {
     const unknownCategory = parse("shape A = coordinate(x: 0)");
     expect(unknownCategory.statement).not.toBeNull();
     expect(unknownCategory.diagnostics[0]).toMatchObject({ message: expect.stringContaining("未知の category"), span: { start: 0, end: 5 } });
+    const categoryMismatch = parse("point A = segment(start: A, end: B)");
+    expect(categoryMismatch.diagnostics).toContainEqual(expect.objectContaining({
+      code: CONSTRUCTION_CATEGORY_MISMATCH_CODE,
+      span: { start: "point A = ".length, end: "point A = segment".length }
+    }));
     expect(messages("point A = segment(start: A, end: B)").join("\n")).toMatch(/point.*segment.*不一致.*line/);
+    expect(parse("line L = segmnt(start: A, end: B)").diagnostics).toContainEqual(expect.objectContaining({
+      code: "unknown-construction",
+      span: { start: "line L = ".length, end: "line L = segmnt".length }
+    }));
     expect(messages("point A = missing(x: 0)").join("\n")).toContain("候補: coordinate");
     expect(messages("point A = coordinate(z: 0)").join("\n")).toContain("引数「z」");
     expect(messages("point A = coordinate(x: 0, x: 1)").join("\n")).toContain("重複");
