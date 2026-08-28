@@ -25,6 +25,32 @@ const geometryCandidate = (elementId: string): ReferencePickCandidate => ({
 });
 
 describe("referencePickHitTest", () => {
+  it("preserves direct and derived point references at the same coordinate", () => {
+    const hits = hitTestReferencePickPoints({
+      screen: { x: 10, y: 10 },
+      candidates: [
+        pointCandidate("C", 10, 10),
+        {
+          elementId: "Arc",
+          actualGeometryInterface: "path",
+          options: [{
+            kind: "point",
+            label: "center",
+            anchor: { mode: "derived", elementId: "Arc", pointKey: "center" },
+            point: { kind: "point", elementId: "Arc", name: "center", x: 10, y: 10 },
+            reference: { base: "Arc", pointKey: "center" }
+          }]
+        }
+      ],
+      worldToScreen: (point) => point
+    });
+
+    expect(hits.map((hit) => hit.option.reference)).toEqual([
+      { base: "Arc", pointKey: "center" },
+      { base: "C" }
+    ]);
+  });
+
   it("reuses point-pick screen distance and keeps its topmost ordering", () => {
     const candidates = [pointCandidate("first", 10, 10), pointCandidate("second", 11, 10)];
     const hits = hitTestReferencePickPoints({

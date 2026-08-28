@@ -25,6 +25,7 @@ import {
   referencePickReferenceKey,
   referencePickSeedReferences,
   referencePickTargetMatchesProof,
+  isCanonicalReferencePickReference,
   sameReferencePickTargetProof,
   type VscodeReferencePickConfirmedResult,
   type VscodeReferencePickResult,
@@ -115,13 +116,25 @@ export const startVscodeReferencePickCanvasSession = ({
   }
 
   const candidates = referencePickCandidates({ compiled, evaluation, target });
+  const candidateReferenceKeys = new Set(uniqueCandidateReferences(candidates).map(referencePickReferenceKey));
+  const seedReferences = request.initialDraftReferences ?? (
+    target.multiplicity === "multiple" ? referencePickSeedReferences(request.targetProof) : []
+  );
+  if (
+    request.initialDraftReferences !== undefined &&
+    (
+      !seedReferences.every(isCanonicalReferencePickReference) ||
+      (target.multiplicity === "single" && seedReferences.length !== 1) ||
+      seedReferences.some((reference) => !candidateReferenceKeys.has(referencePickReferenceKey(reference)))
+    )
+  ) {
+    return { session: null, result: rejected("rejected") };
+  }
   const draft = startReferencePickSession({
     expectedGeometryInterface: target.expectedGeometryInterface,
     role: target.role,
     multiplicity: target.multiplicity,
-    seedReferences: target.multiplicity === "multiple"
-      ? referencePickSeedReferences(request.targetProof)
-      : []
+    seedReferences
   });
   const session: VscodeReferencePickCanvasSession = { request, target, candidates, draft };
   const result: VscodeReferencePickStartedResult = {
