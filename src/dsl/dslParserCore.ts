@@ -21,7 +21,13 @@ import {
   type LogicalStatement,
   type SourceSnapshot
 } from "./logicalStatementSourceMap";
-import { parseDslCallStatement, UNCLOSED_CALL_CODE, type DslCallParseResult, type DslCallStatement } from "./dslCallParser";
+import {
+  CONSTRUCTION_CATEGORY_MISMATCH_CODE,
+  parseDslCallStatement,
+  UNCLOSED_CALL_CODE,
+  type DslCallParseResult,
+  type DslCallStatement
+} from "./dslCallParser";
 import { parseDslSettingsStatement, type DslSettingsParseResult, type DslSettingsStatement } from "./dslSettingsParser";
 import {
   parseDslTypedDeclarationStatement,
@@ -133,6 +139,7 @@ const exactUnknownNameDiagnosticCodes = new Set([
   "unknown-dsl-keyword",
   "unknown-type",
   "unknown-construction",
+  CONSTRUCTION_CATEGORY_MISMATCH_CODE,
   "unknown-construction-argument"
 ]);
 
