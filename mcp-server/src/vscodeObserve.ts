@@ -7,7 +7,8 @@ import {
   type VscodeObservationDiscoveryOptions,
   type VscodeObservationLiveInstance
 } from "../../src/node/vscodeObservationBridge";
-import { stableSnapshotElementId } from "./documentSnapshot";
+import { materializedRuntimeElementId } from "../../src/dsl/moduleMaterialization";
+import { stableSnapshotElementId, stableSnapshotStatementId } from "./documentSnapshot";
 
 export type VscodeObserveInput = {
   instanceId?: string;
@@ -26,6 +27,10 @@ type CanvasElementSource = {
   runtimeElementId: string;
   sourceStatementIndex: number;
   elementType: string;
+} | {
+  runtimeElementId: string;
+  runtimeKind: "moduleInstance" | "moduleBody";
+  sourceStatementPath: number[];
 };
 
 const isObject = (value: unknown): value is JsonObject =>
@@ -66,10 +71,32 @@ const observationNeedsStableSelectionProjection = (observation: unknown): boolea
 const canvasElementSources = (value: unknown): CanvasElementSource[] | null => {
   if (!Array.isArray(value)) return null;
   const result: CanvasElementSource[] = [];
+  const runtimeElementIds = new Set<string>();
   for (const item of value) {
+    if (!isObject(item) || typeof item.runtimeElementId !== "string" || item.runtimeElementId.length === 0) {
+      return null;
+    }
+    if (runtimeElementIds.has(item.runtimeElementId)) return null;
+    runtimeElementIds.add(item.runtimeElementId);
+
+    if (item.runtimeKind === "moduleInstance" || item.runtimeKind === "moduleBody") {
+      if (
+        !Array.isArray(item.sourceStatementPath) ||
+        item.sourceStatementPath.length === 0 ||
+        !item.sourceStatementPath.every((index): index is number =>
+          Number.isSafeInteger(index) && index >= 0
+        )
+      ) return null;
+      result.push({
+        runtimeElementId: item.runtimeElementId,
+        runtimeKind: item.runtimeKind,
+        sourceStatementPath: [...item.sourceStatementPath]
+      });
+      continue;
+    }
+
     if (
-      !isObject(item) ||
-      typeof item.runtimeElementId !== "string" ||
+      item.runtimeKind !== undefined ||
       !Number.isSafeInteger(item.sourceStatementIndex) ||
       (item.sourceStatementIndex as number) < 0 ||
       typeof item.elementType !== "string" ||
@@ -96,18 +123,29 @@ const projectCanvasSelection = (
   ) return canvas;
 
   const sources = canvasElementSources(canvas.selectedElementSources);
-  if (!sources || sources.length === 0) return canvas;
+  if (!sources || sources.length !== runtimeSelectedElementIds.length || sources.length === 0) return canvas;
+  if (new Set(runtimeSelectedElementIds).size !== runtimeSelectedElementIds.length) return canvas;
   const sourceByRuntimeId = new Map(sources.map((source) => [source.runtimeElementId, source] as const));
   const selectedSources = runtimeSelectedElementIds.map((runtimeElementId) => sourceByRuntimeId.get(runtimeElementId));
-  if (selectedSources.some((source) => source === undefined)) return canvas;
+  if (
+    selectedSources.some((source) => source === undefined) ||
+    sources.some((source) => !runtimeSelectedElementIds.includes(source.runtimeElementId))
+  ) return canvas;
 
   const sourceHash = createHash("sha256").update(sourceText, "utf8").digest("hex");
   return {
     ...canvas,
     runtimeSelectedElementIds: [...runtimeSelectedElementIds],
-    selectedElementIds: selectedSources.map((source) =>
-      stableSnapshotElementId(sourceHash, source!.sourceStatementIndex, source!.elementType)
-    )
+    selectedElementIds: selectedSources.map((source) => {
+      const selectedSource = source!;
+      if (!("runtimeKind" in selectedSource)) {
+        return stableSnapshotElementId(sourceHash, selectedSource.sourceStatementIndex, selectedSource.elementType);
+      }
+      const stablePath = selectedSource.sourceStatementPath.map((statementIndex) =>
+        stableSnapshotStatementId(sourceHash, statementIndex)
+      );
+      return materializedRuntimeElementId(selectedSource.runtimeKind, stablePath);
+    })
   };
 };
 

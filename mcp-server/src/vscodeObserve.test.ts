@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { compileDslDocument } from "../../src/dsl/dslDocument";
+import { parseDsl } from "../../src/dsl/dslParser";
+import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
 import { VscodeObservationBridge } from "../../src/node/vscodeObservationBridge";
 import { inspectNuiDocument } from "./documentSnapshot";
 import { observeVscode } from "./vscodeObserve";
@@ -198,6 +201,162 @@ describe("vscode_observe", () => {
     expect(canvas.runtimeSelectedElementIds).toEqual([runtimeAbId]);
     expect(document).not.toHaveProperty("sourceText");
     expect(sourceRequests).toEqual([false, true]);
+  });
+
+  it("projects compiler-backed Module selections to the same ordered identities as document_inspect", async () => {
+    const descriptorDirectory = temporaryDirectory();
+    const documentPath = join(descriptorDirectory, "module-selection.nui");
+    const sourceText = [
+      "nui 4",
+      "module Inner() {",
+      "  group Body {",
+      "    point P = coordinate(x: 1, y: 2)",
+      "  }",
+      "}",
+      "module Outer() {",
+      "  instance Nested = Inner()",
+      "  point Q = coordinate(x: 3, y: 4)",
+      "}",
+      "instance First = Outer()",
+      "instance Second = Outer()"
+    ].join("\n");
+    writeFileSync(documentPath, sourceText, "utf8");
+
+    const parsed = parseDsl(sourceText);
+    const liveCompiled = compileDslDocument(sourceText, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
+    });
+    expect(liveCompiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(liveCompiled.document).not.toBeNull();
+
+    const liveElements = liveCompiled.document!.elements;
+    const first = liveElements.find((element) => element.name === "First")!;
+    const second = liveElements.find((element) => element.name === "Second")!;
+    const firstNested = liveElements.find((element) => element.name === "Nested" && element.parentGroupId === first.id)!;
+    const secondNested = liveElements.find((element) => element.name === "Nested" && element.parentGroupId === second.id)!;
+    const firstBody = liveElements.find((element) => element.name === "Body" && element.parentGroupId === firstNested.id)!;
+    const secondBody = liveElements.find((element) => element.name === "Body" && element.parentGroupId === secondNested.id)!;
+    const selected = [first, secondBody, firstNested, second, firstBody];
+    const selectedElementIds = selected.map((element) => element.id);
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(
+      selectedElementIds,
+      liveCompiled,
+      liveElements
+    );
+    expect(selectedElementSources).toHaveLength(selected.length);
+
+    const inspected = await inspectNuiDocument(documentPath);
+    const inspectedById = new Map(inspected.summary.elements.map((element) => [element.id, element] as const));
+    const inspectedChain = (id: string): string[] => {
+      const element = inspectedById.get(id);
+      if (!element) throw new Error(`missing inspected element ${id}`);
+      return element.parentGroupId ? [...inspectedChain(element.parentGroupId), element.name] : [element.name];
+    };
+    const liveById = new Map(liveElements.map((element) => [element.id, element] as const));
+    const liveChain = (id: string): string[] => {
+      const element = liveById.get(id);
+      if (!element) throw new Error(`missing live element ${id}`);
+      return element.parentGroupId ? [...liveChain(element.parentGroupId), element.name] : [element.name];
+    };
+    const expectedStableIds = selected.map((element) => {
+      const chain = liveChain(element.id);
+      return inspected.summary.elements.find((candidate) =>
+        candidate.type === element.type &&
+        candidate.name === element.name &&
+        JSON.stringify(inspectedChain(candidate.id)) === JSON.stringify(chain)
+      )?.id;
+    });
+    expect(expectedStableIds.every((id): id is string => id !== undefined)).toBe(true);
+
+    await bridgeFor(descriptorDirectory, 11, documentPath, {
+      activeSurface: "canvas",
+      canvasSessionPresent: true,
+      sourceText,
+      canvas: {
+        documentVersion: 3,
+        selectedElementIds,
+        selectedElementSources,
+        selectionSubject: { kind: "elements" },
+        compiledDocumentRevision: 1,
+        previewActive: false,
+        evaluationRevision: 1,
+        evaluationRequestRevision: 1,
+        evaluationStatus: "ready",
+        evaluationSource: "rust",
+        rustEligible: true,
+        isStale: false,
+        isCurrent: true,
+        errorCount: 0,
+        warningCount: 0,
+        errorSummaries: [],
+        warningSummaries: []
+      }
+    });
+
+    const result = await observeVscode({ documentPath }, { descriptorDirectory });
+    expect(result.status).toBe("ok");
+    const observation = result.observation as { documents: Array<Record<string, unknown>> };
+    const canvas = observation.documents[0]!.canvas as Record<string, unknown>;
+    expect(canvas.selectedElementIds).toEqual(expectedStableIds);
+    expect(canvas.runtimeSelectedElementIds).toEqual(selectedElementIds);
+  });
+
+  it("fails closed without a partial stable/runtime selection when proof is incomplete or duplicated", async () => {
+    const sourceText = "nui 4\npoint A = coordinate(x: 0, y: 0)\n";
+
+    const cases = [
+      [{ runtimeElementId: "runtime-a", sourceStatementIndex: 1, elementType: "freePoint" }],
+      [
+        { runtimeElementId: "runtime-a", sourceStatementIndex: 1, elementType: "freePoint" },
+        { runtimeElementId: "runtime-a", sourceStatementIndex: 1, elementType: "freePoint" }
+      ],
+      [
+        { runtimeElementId: "runtime-a", runtimeKind: "moduleBody", sourceStatementPath: [-1] },
+        { runtimeElementId: "runtime-b", runtimeKind: "moduleBody", sourceStatementPath: [1] }
+      ]
+    ];
+    for (const [index, selectedElementSources] of cases.entries()) {
+      const descriptorDirectory = temporaryDirectory();
+      const documentPath = join(descriptorDirectory, "invalid-selection.nui");
+      writeFileSync(documentPath, sourceText, "utf8");
+      const bridge = await bridgeFor(
+        descriptorDirectory,
+        12 + index,
+        documentPath,
+        {
+          activeSurface: "canvas",
+          canvasSessionPresent: true,
+          sourceText,
+          canvas: {
+            documentVersion: 3,
+            selectedElementIds: ["runtime-a", "runtime-b"],
+            selectedElementSources,
+            selectionSubject: { kind: "elements" },
+            compiledDocumentRevision: 1,
+            previewActive: false,
+            evaluationRevision: 1,
+            evaluationRequestRevision: 1,
+            evaluationStatus: "ready",
+            evaluationSource: "rust",
+            rustEligible: true,
+            isStale: false,
+            isCurrent: true,
+            errorCount: 0,
+            warningCount: 0,
+            errorSummaries: [],
+            warningSummaries: []
+          }
+        }
+      );
+      expect(bridge.descriptor.instanceId).toBeDefined();
+      const result = await observeVscode({ documentPath }, { descriptorDirectory });
+      expect(result.status).toBe("ok");
+      const observation = result.observation as { documents: Array<Record<string, unknown>> };
+      const canvas = observation.documents[0]!.canvas as Record<string, unknown>;
+      expect(canvas.selectedElementIds).toEqual(["runtime-a", "runtime-b"]);
+      expect(canvas).not.toHaveProperty("runtimeSelectedElementIds");
+    }
   });
 
   it("uses explicit instanceId before other candidates", async () => {

@@ -1,4 +1,5 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
+import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { effectiveCompiledDocument, effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -22,15 +23,46 @@ export const selectedElementSourcesForCanvasObservation = (
     statementMap: compiledDocument.statementMap
   });
   const elementsById = new Map(elements.map((element) => [element.id, element] as const));
+  const materialization = compiledDocument.moduleMaterialization;
+  const statementIdsByIndex = compiledDocument.statementMap.statementIdByStatementIndex;
+  const statementIndexesById = compiledDocument.statementMap.statementIndexByStatementId;
 
-  return selectedElementIds.flatMap((runtimeElementId) => {
+  return selectedElementIds.flatMap((runtimeElementId): VscodeCanvasObservationElementSource[] => {
     const owner = owners.get(runtimeElementId);
     const element = elementsById.get(runtimeElementId);
-    if (!owner || owner.kind !== "ordinary" || !element) return [];
+    if (!owner || !element) return [];
+    if (owner.kind === "ordinary") {
+      return [{
+        runtimeElementId,
+        sourceStatementIndex: owner.sourceStatementIndex,
+        elementType: element.type
+      }];
+    }
+
+    const runtimeIdentity = materialization?.runtimeIdentityByElementId.get(runtimeElementId);
+    if (
+      !runtimeIdentity ||
+      runtimeIdentity.kind !== owner.kind ||
+      materializedRuntimeElementId(runtimeIdentity.kind, runtimeIdentity.path) !== runtimeElementId ||
+      !statementIdsByIndex ||
+      !statementIndexesById
+    ) return [];
+
+    const sourceStatementPath: number[] = [];
+    for (const statementId of runtimeIdentity.path) {
+      const statementIndex = statementIndexesById.get(statementId);
+      if (
+        statementIndex === undefined ||
+        statementIdsByIndex.get(statementIndex) !== statementId
+      ) return [];
+      sourceStatementPath.push(statementIndex);
+    }
+    if (sourceStatementPath.length === 0) return [];
+
     return [{
       runtimeElementId,
-      sourceStatementIndex: owner.sourceStatementIndex,
-      elementType: element.type
+      runtimeKind: runtimeIdentity.kind,
+      sourceStatementPath
     }];
   });
 };
