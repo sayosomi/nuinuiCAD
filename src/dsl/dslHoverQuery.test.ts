@@ -103,6 +103,28 @@ describe("queryDslGeometryHoverTarget", () => {
     expect(queryAt(source, compiled, source.indexOf("length", from) + 2)).toBeNull();
   });
 
+  it("targets a qualified element segment for a choice geometry property", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  point Start = coordinate(x: 0, y: 0)",
+      "  point End = coordinate(x: 10, y: 0)",
+      "  line Base = segment(start: @Start, end: @End)",
+      "  line A = offset(sources: [@Base], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "const side: choice(right, left) = @Outer::A.side"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const referenceStart = source.indexOf("@Outer::A.side");
+    const elementStart = referenceStart + 1 + "Outer::".length;
+    const result = queryAt(source, compiled, elementStart + 1);
+
+    expect(result).not.toBeNull();
+    expect(source.slice(result!.range.from, result!.range.to)).toBe("A");
+    expect(compiled.document?.elements.find((element) => element.id === result!.elementId)?.name).toBe("A");
+    expect(queryAt(source, compiled, referenceStart + "@Outer::A.".length + 1)).toBeNull();
+  });
+
   it("does not target language keywords, construction names, parameter keys, containers, text, or typed bindings", () => {
     const source = [
       "nui 4",
