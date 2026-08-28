@@ -7,6 +7,7 @@ import {
   fixedColorContrastWarningsFor
 } from "./canvasThemeWarningFeature";
 import { contrastRatio, parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
+import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 
 const sourceSnapshotFor = (source: string, sourceRevision = 1) => ({
   normalizedSource: source.replace(/\r\n/g, "\n"),
@@ -109,7 +110,13 @@ describe("fixed-color Canvas contrast warnings", () => {
 describe("Canvas theme warning observation lifecycle", () => {
   it("accepts only fresh current-session observations and reevaluates on invalidation", () => {
     const onDiagnosticsChanged = vi.fn();
-    const feature = createCanvasThemeWarningFeature({ onDiagnosticsChanged });
+    const onPreviewThemeChanged = vi.fn();
+    let currentGeneration = 4;
+    const feature = createCanvasThemeWarningFeature({
+      onDiagnosticsChanged,
+      currentThemeGeneration: () => currentGeneration,
+      onPreviewThemeChanged
+    });
     const sessionToken = {};
     const otherSessionToken = {};
     const source = modifierSource(["#999999"]);
@@ -122,11 +129,13 @@ describe("Canvas theme warning observation lifecycle", () => {
       sessionIsCurrent: true,
       currentDocumentVersion: 4,
       documentVersion: 4,
-      background: "#ffffff"
+      generation: 4,
+      theme: { ...LEGACY_CANVAS_THEME, background: "#ffffff" }
     };
 
-    expect(feature.acceptCanvasBackgroundPublication(publication)).toBe(true);
+    expect(feature.acceptCanvasThemePublication(publication)).toBe(true);
     expect(onDiagnosticsChanged).toHaveBeenCalledWith(publication.sessionDocumentUri);
+    expect(feature.currentCanvasTheme()).toEqual(publication.theme);
     expect(feature.warningsFor({
       sessionToken,
       documentUri: publication.sessionDocumentUri,
@@ -134,32 +143,73 @@ describe("Canvas theme warning observation lifecycle", () => {
       source: snapshot,
       semantic
     })).toHaveLength(1);
-    expect(feature.acceptCanvasBackgroundPublication({
+    expect(feature.acceptCanvasThemePublication({
       ...publication,
       documentVersion: 3,
       currentDocumentVersion: 3
     })).toBe(false);
-    expect(feature.acceptCanvasBackgroundPublication({
+    expect(feature.acceptCanvasThemePublication({
       ...publication,
       sessionToken: otherSessionToken
     })).toBe(false);
-    expect(feature.acceptCanvasBackgroundPublication({
+    expect(feature.acceptCanvasThemePublication({
       ...publication,
       sessionIsCurrent: false
     })).toBe(false);
+
+    currentGeneration = 5;
+    feature.invalidateCanvasThemeGeneration(currentGeneration);
+    expect(feature.currentCanvasTheme()).toBeNull();
+    expect(onPreviewThemeChanged).toHaveBeenCalledTimes(2);
+    expect(onDiagnosticsChanged).toHaveBeenLastCalledWith(publication.sessionDocumentUri);
+
+    expect(feature.acceptCanvasThemePublication({
+      ...publication,
+      generation: 4
+    })).toBe(false);
+    expect(feature.acceptCanvasThemePublication({
+      ...publication,
+      generation: 5,
+      theme: { ...publication.theme, accent: "#123456" }
+    })).toBe(true);
+    expect(feature.currentCanvasTheme()).toEqual({ ...publication.theme, accent: "#123456" });
 
     feature.invalidateCanvasSession({
       sessionToken,
       sessionDocumentUri: publication.sessionDocumentUri
     });
-    expect(feature.warningsFor({
+    expect(feature.currentCanvasTheme()).toBeNull();
+    expect(onPreviewThemeChanged).toHaveBeenCalledTimes(4);
+    expect(JSON.parse(JSON.stringify(publication))).toEqual(publication);
+    feature.dispose();
+  });
+
+  it("leaves no preview theme after the last current Canvas observation is removed", () => {
+    const currentGeneration = 1;
+    const feature = createCanvasThemeWarningFeature({
+      onDiagnosticsChanged: vi.fn(),
+      currentThemeGeneration: () => currentGeneration,
+      onPreviewThemeChanged: vi.fn()
+    });
+    const firstToken = {};
+    const secondToken = {};
+    const theme = { ...LEGACY_CANVAS_THEME, background: "#ffffff" };
+    const publication = (sessionToken: object, documentUri: string) => ({
       sessionToken,
-      documentUri: publication.sessionDocumentUri,
-      documentVersion: 4,
-      source: snapshot,
-      semantic
-    })).toEqual([]);
-    expect(onDiagnosticsChanged).toHaveBeenLastCalledWith(publication.sessionDocumentUri);
+      sessionDocumentUri: documentUri,
+      sessionIsCurrent: true,
+      currentDocumentVersion: 1,
+      documentVersion: 1,
+      generation: currentGeneration,
+      theme
+    });
+
+    expect(feature.acceptCanvasThemePublication(publication(firstToken, "file:///first.nui"))).toBe(true);
+    expect(feature.acceptCanvasThemePublication(publication(secondToken, "file:///second.nui"))).toBe(true);
+    feature.removeCanvasSession({ sessionToken: firstToken, sessionDocumentUri: "file:///first.nui" });
+    expect(feature.currentCanvasTheme()).toEqual(theme);
+    feature.removeCanvasSession({ sessionToken: secondToken, sessionDocumentUri: "file:///second.nui" });
+    expect(feature.currentCanvasTheme()).toBeNull();
     feature.dispose();
   });
 });

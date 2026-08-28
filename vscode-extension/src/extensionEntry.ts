@@ -7,7 +7,11 @@ import {
   patchVscodeCanvasRibbonPosition,
   VSCODE_CANVAS_RIBBON_SETTING
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
-import { activate as activateExtension, deactivate as deactivateExtension } from "./extension";
+import {
+  activate as activateExtension,
+  currentCanvasThemeGeneration,
+  deactivate as deactivateExtension
+} from "./extension";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   registerModulePreviewFeature,
@@ -121,6 +125,7 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
 
   const feature = registerModulePreviewFeature({
     languageAnalysisSessionFor: sessionFor,
+    canvasThemeGeneration: currentCanvasThemeGeneration,
     webviewHtml: (panel) => modulePreviewWebviewHtml(panel, context),
     canvasRibbons: modulePreviewCanvasRibbons,
     updateCanvasRibbonPosition: updateModulePreviewCanvasRibbonPosition,

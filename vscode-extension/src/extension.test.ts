@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
+import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import type { VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { vscodeObservationState } from "./vscodeObservationState";
 
@@ -693,14 +694,18 @@ const publishCanvasObservation = (
   snapshot
 });
 
-const publishCanvasBackground = (
+const publishCanvasTheme = (
   panel: TestPanel,
   documentVersion: number,
-  background: string
+  themeOrBackground: typeof LEGACY_CANVAS_THEME | string = LEGACY_CANVAS_THEME,
+  generation = 0
 ): Promise<void> => messageHandlerFor(panel)({
-  type: "canvasBackgroundPublication",
+  type: "canvasThemePublication",
   documentVersion,
-  background
+  generation,
+  theme: typeof themeOrBackground === "string"
+    ? { ...LEGACY_CANVAS_THEME, background: themeOrBackground }
+    : themeOrBackground
 });
 
 afterEach(() => {
@@ -2081,9 +2086,9 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.activeColorThemeListeners).toHaveLength(1);
     mocks.activeColorThemeListeners[0]!();
 
-    expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
-    expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
-    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panelA.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
+    expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
     expect(panelA.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(panelB.webview.postMessage).toHaveBeenCalledTimes(1);
     expect(outputPreviewPanel.webview.postMessage).toHaveBeenCalledTimes(1);
@@ -3123,14 +3128,15 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     return diagnostics?.map((diagnostic) => diagnostic.code) ?? [];
   };
 
-  const synchronizeCanvasBackground = async (
+  const synchronizeCanvasTheme = async (
     panel: TestPanel,
     documentVersion: number,
-    background: string
+    background: string,
+    generation = 0
   ): Promise<void> => {
     const handler = messageHandlerFor(panel);
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion });
-    await publishCanvasBackground(panel, documentVersion, background);
+    await publishCanvasTheme(panel, documentVersion, background, generation);
   };
 
   it("publishes an authoritative initial background into the existing Source diagnostics", async () => {
@@ -3143,7 +3149,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
-    await synchronizeCanvasBackground(panel, document.version, "#ffffff");
+    await synchronizeCanvasTheme(panel, document.version, "#ffffff");
 
     expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
     const warning = (collection.set.mock.calls.at(-1)?.[1] as Array<{
@@ -3172,7 +3178,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
-    await synchronizeCanvasBackground(panel, document.version, "#ffffff");
+    await synchronizeCanvasTheme(panel, document.version, "#ffffff");
 
     const diagnostics = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
       code?: string | number;
@@ -3194,7 +3200,7 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
-    await synchronizeCanvasBackground(panel, 1, "#ffffff");
+    await synchronizeCanvasTheme(panel, 1, "#ffffff");
     const collection = mocks.diagnosticCollections[0]!;
     expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
 
@@ -3202,14 +3208,14 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     document.setSourceText(sourceFor("#0000ff"));
     emitDocumentChange(document);
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
-    await synchronizeCanvasBackground(panel, 2, "#ffffff");
+    await synchronizeCanvasTheme(panel, 2, "#ffffff");
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
 
     document.version = 3;
     document.setSourceText(sourceFor("#999999"));
     emitDocumentChange(document);
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
-    await synchronizeCanvasBackground(panel, 3, "#ffffff");
+    await synchronizeCanvasTheme(panel, 3, "#ffffff");
     expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
   });
 
@@ -3220,11 +3226,11 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     const firstPanel = openPanelFor(editor);
     const firstHandler = messageHandlerFor(firstPanel);
     await firstHandler({ type: "webviewReady" });
-    await synchronizeCanvasBackground(firstPanel, 1, "#ffffff");
+    await synchronizeCanvasTheme(firstPanel, 1, "#ffffff");
     const collection = mocks.diagnosticCollections[0]!;
     const callsAfterFresh = collection.set.mock.calls.length;
 
-    await publishCanvasBackground(firstPanel, 0, "#000000");
+    await publishCanvasTheme(firstPanel, 0, "#000000");
     expect(collection.set.mock.calls).toHaveLength(callsAfterFresh);
 
     firstPanel.dispose();
@@ -3233,9 +3239,10 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     await secondHandler({ type: "webviewReady" });
     await secondHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
     await firstHandler({
-      type: "canvasBackgroundPublication",
+      type: "canvasThemePublication",
       documentVersion: 1,
-      background: "#ffffff"
+      generation: 0,
+      theme: { ...LEGACY_CANVAS_THEME, background: "#ffffff" }
     });
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
   });
@@ -3246,15 +3253,15 @@ describe("VS Code Canvas theme warning lifecycle", () => {
     setup(false, editor, [document]);
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
-    await synchronizeCanvasBackground(panel, 1, "#ffffff");
+    await synchronizeCanvasTheme(panel, 1, "#ffffff");
     const collection = mocks.diagnosticCollections[0]!;
     expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
 
     mocks.activeColorThemeListeners[0]!();
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
-    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
 
-    await publishCanvasBackground(panel, 1, "#000000");
+    await publishCanvasTheme(panel, 1, "#000000", 0);
     expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
 
     panel.dispose();
@@ -3382,7 +3389,7 @@ describe("VS Code native document symbol lifecycle", () => {
 
 describe("VS Code native fixed-color lifecycle", () => {
   it("registers one nui/file color provider with the session lifecycle", () => {
-    const context = setup(false, null, []);
+    setup(false, null, []);
     const registration = mocks.colorRegistrations[0]!;
 
     expect(mocks.colorRegistrations).toHaveLength(1);
@@ -3391,7 +3398,34 @@ describe("VS Code native fixed-color lifecycle", () => {
       provideDocumentColors: expect.any(Function),
       provideColorPresentations: expect.any(Function)
     }));
-    expect(context.subscriptions).toContain(registration.disposable);
+  });
+
+  it("refreshes one current registration as Canvas theme availability changes", async () => {
+    const source = ["nui 4", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await publishCanvasTheme(panel, 1, { ...LEGACY_CANVAS_THEME, accent: "#123456" });
+    expect(mocks.colorRegistrations).toHaveLength(2);
+    expect(mocks.colorRegistrations[0]!.disposable.dispose).toHaveBeenCalledTimes(1);
+
+    mocks.activeColorThemeListeners[0]!();
+    expect(mocks.colorRegistrations).toHaveLength(3);
+    expect(mocks.colorRegistrations[1]!.disposable.dispose).toHaveBeenCalledTimes(1);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged", generation: 1 });
+
+    await publishCanvasTheme(panel, 1, { ...LEGACY_CANVAS_THEME, accent: "#654321" }, 1);
+    expect(mocks.colorRegistrations).toHaveLength(4);
+    expect(mocks.colorRegistrations[2]!.disposable.dispose).toHaveBeenCalledTimes(1);
+
+    panel.dispose();
+    expect(mocks.colorRegistrations).toHaveLength(5);
+    expect(mocks.colorRegistrations[3]!.disposable.dispose).toHaveBeenCalledTimes(1);
   });
 });
 

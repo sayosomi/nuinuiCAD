@@ -1,6 +1,7 @@
 import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
 import type { DslCompletionRecoveryInput, DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import type { DslFixedColorSemanticSnapshot } from "../../src/dsl/dslFixedColorQuery";
+import type { DslThemeRoleColorSemanticSnapshot } from "../../src/dsl/dslThemeRoleColorQuery";
 import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
 import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
 import type { DslHoverSemanticSnapshot } from "../../src/dsl/dslHoverQuery";
@@ -77,6 +78,9 @@ export type NuiLanguageAnalysisSession = {
   fixedColorSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslFixedColorSemanticSnapshot | undefined;
+  themeRoleColorSemanticSnapshot: (
+    source: SourceSnapshot
+  ) => DslThemeRoleColorSemanticSnapshot | undefined;
   valueStepSemanticSnapshot: (
     source: SourceSnapshot
   ) => DslSourceValueStepSemanticSnapshot | undefined;
@@ -231,6 +235,10 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
     source: SourceSnapshot
   ): DslFixedColorSemanticSnapshot | undefined => semanticSnapshotFor(source);
 
+  const themeRoleColorSemanticSnapshot = (
+    source: SourceSnapshot
+  ): DslThemeRoleColorSemanticSnapshot | undefined => semanticSnapshotFor(source);
+
   const sourceStructureSnapshot = (
     source: SourceSnapshot
   ): NuiFoldingSyntaxSnapshot | undefined => {
@@ -295,6 +303,7 @@ export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAn
         : undefined;
     },
     fixedColorSemanticSnapshot,
+    themeRoleColorSemanticSnapshot,
     valueStepSemanticSnapshot: semanticSnapshotFor,
     signatureHelpSemanticSnapshot,
     definitionSemanticSnapshot: semanticSnapshotFor,
