@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultVisibilityProfile } from "../model/visibilityProfiles";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
-import { canvasElementDrawingBounds, visibleCanvasDrawingBounds } from "./canvasDrawingBounds";
+import {
+  canvasElementDrawingBounds,
+  canvasPresentationEligibleElementIds,
+  visibleCanvasDrawingBounds
+} from "./canvasDrawingBounds";
 
 const element = (id: string, type: CadElement["type"], activity: CadElement["activity"] = "visible") => ({
   id,
@@ -10,11 +14,22 @@ const element = (id: string, type: CadElement["type"], activity: CadElement["act
   activity
 } as CadElement);
 
-const evaluationFor = (geometry: ComputedGeometry[], visibleIds: string[]): EvaluationResult => ({
+const evaluationFor = (
+  geometry: ComputedGeometry[],
+  visibleIds: string[],
+  options: {
+    evaluatedIds?: string[];
+    enabledIds?: string[];
+    conditionInactiveIds?: string[];
+  } = {}
+): EvaluationResult => ({
   computedGeometry: new Map(geometry.map((item) => [item.elementId, item])),
   errors: [],
   warnings: [],
-  effectiveVisibleElementIds: new Set(visibleIds)
+  effectiveVisibleElementIds: new Set(visibleIds),
+  evaluatedElementIds: new Set(options.evaluatedIds ?? visibleIds),
+  effectiveEnabledElementIds: new Set(options.enabledIds ?? visibleIds),
+  conditionInactiveElementIds: new Set(options.conditionInactiveIds ?? [])
 });
 
 const textGeometry = ({
@@ -309,5 +324,163 @@ describe("visibleCanvasDrawingBounds", () => {
       visibilityProfiles: profiles,
       activeVisibilityProfileId: profiles[0]!.id
     })).toBeNull();
+  });
+});
+
+describe("canvasPresentationEligibleElementIds", () => {
+  const pointGeometry = (elementId: string, x = 0, y = 0): ComputedGeometry => ({
+    kind: "point",
+    elementId,
+    name: elementId,
+    x,
+    y
+  });
+
+  it("prunes hidden, disabled, profile-excluded, condition-inactive, limited, and absent presentations", () => {
+    const elements = [
+      element("visible", "freePoint"),
+      element("hidden", "freePoint", "hidden"),
+      element("disabled", "freePoint", "disabled"),
+      element("profile", "freePoint"),
+      element("condition", "freePoint"),
+      element("limited", "freePoint"),
+      element("absent", "freePoint")
+    ];
+    const profile = {
+      id: "draft",
+      name: "Draft",
+      defaultRoleVisible: true,
+      roleVisibility: { construction: false }
+    };
+    const profileGroup = {
+      id: "profile-group",
+      name: "Profile group",
+      type: "group" as const,
+      activity: "visible" as const,
+      visibilityRoleIds: ["construction"]
+    };
+    const profileChild = {
+      id: "profile-child",
+      name: "Profile child",
+      type: "freePoint" as const,
+      activity: "visible" as const,
+      parentGroupId: "profile-group",
+      x: 0,
+      y: 0
+    };
+    const allElements = [
+      ...elements.map((item) => item.id === "profile" ? { ...item, parentGroupId: "profile-group" } : item),
+      profileGroup,
+      profileChild
+    ];
+    const geometry = [
+      pointGeometry("visible"),
+      pointGeometry("hidden"),
+      pointGeometry("disabled"),
+      pointGeometry("profile"),
+      pointGeometry("condition"),
+      pointGeometry("limited"),
+      pointGeometry("profile-child")
+    ];
+    const ids = canvasPresentationEligibleElementIds({
+      elements: allElements,
+      evaluation: evaluationFor(geometry, allElements.map((item) => item.id), {
+        evaluatedIds: ["visible", "hidden", "profile", "condition", "profile-child"],
+        enabledIds: ["visible", "hidden", "profile", "condition", "profile-child"],
+        conditionInactiveIds: ["condition"]
+      }),
+      visibilityProfiles: [profile],
+      activeVisibilityProfileId: "draft",
+      showCanvasPoints: true
+    });
+
+    expect(ids).toEqual(new Set(["visible"]));
+  });
+
+  it("requires a normal computed presentation and a real text anchor", () => {
+    const anchoredText = textGeometry({ elementId: "anchored" });
+    const unanchoredText = { ...anchoredText, elementId: "unanchored", anchor: null };
+    const staleContainerGeometry = pointGeometry("group");
+    const staleRuntimeGeometry = pointGeometry("module");
+    const elements = [
+      element("anchored", "text"),
+      element("unanchored", "text"),
+      element("group", "group"),
+      element("module", "moduleInstance")
+    ];
+    const ids = canvasPresentationEligibleElementIds({
+      elements,
+      evaluation: evaluationFor([anchoredText, unanchoredText, staleContainerGeometry, staleRuntimeGeometry], elements.map((item) => item.id)),
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    });
+
+    expect(ids).toEqual(new Set(["anchored"]));
+  });
+
+  it("excludes structural/container elements even when stale computed geometry is present", () => {
+    const elements = [element("group", "group"), element("module", "moduleInstance")];
+    const evaluation = evaluationFor([], ["group", "module"]);
+
+    expect(canvasPresentationEligibleElementIds({
+      elements,
+      evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    })).toEqual(new Set());
+  });
+
+  it("excludes normal points when point presentation is disabled without affecting other presented geometry", () => {
+    const point = pointGeometry("point", 1_000_000, 1_000_000);
+    const image: ComputedGeometry = {
+      kind: "image",
+      elementId: "image",
+      name: "image",
+      sourcePath: "reference.png",
+      origin: { kind: "point", elementId: "image-origin", name: "origin", x: 0, y: 0 },
+      naturalWidthPx: 100,
+      naturalHeightPx: 100,
+      sourceDpi: 96,
+      targetPixelsPerMm: 1,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false,
+      widthMm: 100,
+      heightMm: 100
+    };
+    const elements = [element("point", "freePoint"), element("image", "image")];
+    const evaluation = evaluationFor([point, image], ["point", "image"]);
+
+    expect(canvasPresentationEligibleElementIds({
+      elements,
+      evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: false
+    })).toEqual(new Set(["image"]));
+    expect(visibleCanvasDrawingBounds({
+      elements,
+      evaluation,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null
+    })).toEqual({
+      minX: 1_000_000,
+      minY: 1_000_000,
+      maxX: 1_000_000,
+      maxY: 1_000_000
+    });
+  });
+
+  it("keeps ordinary offscreen presented geometry eligible", () => {
+    const offscreen = pointGeometry("offscreen", -1_000_000, 1_000_000);
+    expect(canvasPresentationEligibleElementIds({
+      elements: [element("offscreen", "freePoint")],
+      evaluation: evaluationFor([offscreen], ["offscreen"]),
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: true
+    })).toEqual(new Set(["offscreen"]));
   });
 });

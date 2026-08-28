@@ -22,6 +22,7 @@ import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
 import type { CreationRecipe } from "./creationRecipes";
 import { legacyCreationCommandRecipeMap } from "./legacyCreationRecipes";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 describe("command-line session commands", () => {
   let unregister = () => {};
@@ -74,7 +75,7 @@ describe("command-line session commands", () => {
       x: 12,
       y: { kind: "expression", expression: "waist / 2" }
     });
-    expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[0].id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(focusSourceEditorAtElementEnd).toHaveBeenCalledWith(document.elements[0].id);
   });
@@ -497,6 +498,7 @@ describe("command-line session commands", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
     const pointB = useCadDocumentStore.getState().elements[1];
 
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointB.id })).toBe(true);
@@ -526,7 +528,7 @@ describe("command-line session commands", () => {
     const document = useCadDocumentStore.getState();
     expect(document.elements.map((element) => element.name)).toEqual(["A", "", "B"]);
     expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
-    expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[1]!.id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
   });
 
   it("keeps Source Editor element cursors after that statement instead of appending", () => {

@@ -11,6 +11,7 @@ import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialGroupFoldForLoadedDocument } from "../model/groups";
 import { dispatchCommand } from "../commands/commands";
 import { startCommandLineCreation } from "../commands/commandLineSessionCommands";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 
 const freePoint = (id: string, name: string, x: number, y: number): DslDocumentData["elements"][number] => ({
@@ -126,6 +127,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("selects a parameter value without letting selection sync project it back to the line start", () => {
     useCadDocumentStore.getState().commitText(twoPointSource([12, 34], [56, 78]), "test");
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -198,7 +200,7 @@ describe("SourceEditorController commit and history boundaries", () => {
     const { head } = internals.view.state.selection.main;
     const source = internals.view.state.doc.toString();
     expect(source.slice(0, head)).toMatch(/\n}$/);
-    expect(useCadUiStore.getState().selectedElementId).toBe(group.id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(parent.contains(document.activeElement)).toBe(true);
     controller.destroy();
     parent.remove();
@@ -400,6 +402,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("opens the rename prompt from its explicit F2 function-key binding", () => {
     useCadDocumentStore.getState().commitText(onePointSource(12, 34), "test");
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     document.body.append(parent);
     const controller = new SourceEditorController(parent);
@@ -786,6 +789,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)",
       "test"
     );
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -808,6 +812,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       freePoint("a", "A", 0, 0),
       freePoint("u", "", 1, 1)
     ]), "test");
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -833,6 +838,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       freePoint("b", "B", 1, 1)
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -862,6 +868,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       { ...freePoint("a", "A", 0, 0), parentGroupId: "g" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -940,6 +947,7 @@ describe("SourceEditorController commit and history boundaries", () => {
       { id: "else", name: "Else", type: "freePoint", activity: "visible", x: 1, y: 1, parentGroupId: "inner" }
     ]);
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
     collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);

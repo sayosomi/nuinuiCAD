@@ -40,7 +40,7 @@ describe("container creation from the Source Editor", () => {
       expect(inserted.type).toBe(type);
       const insertedHeader = type === "group" ? "group" : type === "conditionalGroup" ? "if" : "for";
       expect(next.sourceText.indexOf("const BANGS_WIDTH")).toBeLessThan(next.sourceText.indexOf(insertedHeader));
-      expect(useCadUiStore.getState().selectedElementId).toBe(inserted.id);
+      expect(useCadUiStore.getState().selectedElementId).toBeNull();
     }
   );
 

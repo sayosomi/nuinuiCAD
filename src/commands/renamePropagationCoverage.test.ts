@@ -4,10 +4,13 @@ import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { analyzeRename, validateRenameReferenceStability } from "../document/renameAnalysis";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
+import { isContainerElement } from "../model/containers";
 import { renameElementWithPropagation } from "./renameElementWithPropagation";
 
 const seed = (sourceText: string) => {
   useCadDocumentStore.getState().commitText(sourceText, "test");
+  publishTestCanvasSelectionEligibility();
   useCadDocumentStore.setState({ past: [], future: [], dirtySinceSave: false });
 };
 
@@ -58,7 +61,9 @@ const expectSuccessfulRename = ({
   expect(changedLines(before.sourceText, after.sourceText)).toEqual(changedLineNumbers);
   expect(validateRenameReferenceStability({ before: before.doc, after: after.doc })).toEqual({ verdict: "ok" });
   expect(after.past).toHaveLength(1);
-  expect(useCadUiStore.getState().selectedElementIds).toEqual([id]);
+  expect(useCadUiStore.getState().selectedElementIds).toEqual(
+    isContainerElement(useCadDocumentStore.getState().elements.find((element) => element.id === id)!) ? [] : [id]
+  );
 
   useCadDocumentStore.getState().undo();
   expect(useCadDocumentStore.getState().sourceText).toBe(source);

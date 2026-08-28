@@ -62,6 +62,14 @@ const sourceForSelectionChronology = (x: number) => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
 ]);
 
+const publishAllCurrentElementsAsPresented = () => {
+  const elements = useCadDocumentStore.getState().elements;
+  useCadUiStore.getState().setCanvasSelectionEligibility(
+    elements,
+    new Set(elements.map((element) => element.id))
+  );
+};
+
 describe("VSCodeApp Canvas history coordinator", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -102,6 +110,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       currentFilePath: null,
       dirtySinceSave: false
     });
+    publishAllCurrentElementsAsPresented();
     const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
     useCadUiStore.getState().setSelectedElementId(a!);
     selectElement(b!, "replace", true);
@@ -143,6 +152,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: oldSource, documentVersion: 2, reason: "undo" }
       }));
+      publishAllCurrentElementsAsPresented();
     });
 
     expect(useCadDocumentStore.getState().sourceText).toBe(oldSource);
@@ -186,6 +196,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       currentFilePath: null,
       dirtySinceSave: false
     });
+    publishAllCurrentElementsAsPresented();
     const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
     useCadUiStore.getState().setSelectedElementId(a!);
     selectElement(b!, "replace", true);
@@ -233,6 +244,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       currentFilePath: null,
       dirtySinceSave: false
     });
+    publishAllCurrentElementsAsPresented();
     const [a, b] = useCadDocumentStore.getState().elements.map((element) => element.id);
     useCadUiStore.getState().setSelectedElementId(a!);
     selectElement(b!, "replace", true);
@@ -249,6 +261,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: oldSource, documentVersion: 2, reason: "undo" }
       }));
+      publishAllCurrentElementsAsPresented();
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
@@ -281,6 +294,16 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
       }));
+    });
+    const editorTarget = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(editorTarget.id, {
+      kind: "point",
+      elementId: editorTarget.id,
+      name: editorTarget.name,
+      x: 20,
+      y: 0
+    });
+    await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasNavigationRequest", requestId: 12, documentVersion: 7, normalizedSourceOffset: source.indexOf("B") }
       }));
@@ -603,6 +626,16 @@ describe("VSCodeApp Canvas history coordinator", () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "commitText", sourceText: localSource, documentVersion: 8, reason: "edit" }
       }));
+    });
+    const localTarget = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(localTarget.id, {
+      kind: "point",
+      elementId: localTarget.id,
+      name: localTarget.name,
+      x: 0,
+      y: 0
+    });
+    await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: "canvasNavigationRequest", requestId: 15, documentVersion: 8, normalizedSourceOffset: source.indexOf("A") }
       }));
@@ -677,6 +710,15 @@ describe("VSCodeApp Canvas history coordinator", () => {
       .filter((element) => owners.get(element.id)?.sourceStatementIndex === statementIndex)
       .map((element) => element.id);
     expect(runtimeIds.length).toBeGreaterThan(1);
+    for (const runtimeId of runtimeIds) {
+      drawingCanvasProps.evaluation.computedGeometry.set(runtimeId, {
+        kind: "point",
+        elementId: runtimeId,
+        name: runtimeId,
+        x: 10,
+        y: 20
+      });
+    }
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -701,7 +743,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it.each([
     ["hidden", "nui 4\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
     ["disabled", "nui 4\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
-    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", true]
+    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
   ] as const)("handles a %s primary without changing activity or viewport", async (_label, source, token, shouldSelect) => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -744,7 +786,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().canvasViewport).toEqual(beforeViewport);
   });
 
-  it("uses the captured Canvas selection for a target-scoped Bake sandbox", async () => {
+  it("does not use an ineligible Module instance for a target-scoped Bake sandbox", async () => {
     const source = [
       "nui 4",
       "module M() {",
@@ -761,9 +803,6 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
     const instance = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
-    const broken = useCadDocumentStore.getState().elements.find(
-      (element) => element.name === "Broken" && element.parentGroupId === instance.id
-    )!;
     selectElement(instance.id, "replace", true);
 
     await act(async () => {
@@ -779,7 +818,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       await Promise.resolve();
     });
 
-    expect(drawingCanvasProps.bakeSandboxTargetIds).toEqual([broken.id]);
+    expect(drawingCanvasProps.bakeSandboxTargetIds).toBeNull();
   });
 
   it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {
@@ -871,7 +910,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
-  it("reveals a concrete Module instance as one identity and centers its point-like descendant bounds without zooming", async () => {
+  it("fails a concrete Module instance Reveal when only descendant bounds are available", async () => {
     const source = [
       "nui 4",
       "module M() {",
@@ -922,19 +961,19 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
 
-    expect(useCadUiStore.getState().selectedElementIds).toEqual([instance.id]);
-    expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().selectedElementIds).not.toContain(child.id);
-    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -80, panY: 0, zoom: 1 });
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: 0, panY: 0, zoom: 1 });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 311,
-      status: "resolved",
-      degradations: []
+      status: "failed",
+      reason: "no-revealable-runtime-target"
     });
   });
 
-  it("selects a Module instance without moving the viewport when it has no renderable descendants", async () => {
+  it("keeps the existing selection and viewport when a Module instance has no own presentation", async () => {
     const source = [
       "nui 4",
       "point Existing = coordinate(x: 0, y: 0)",
@@ -962,6 +1001,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
       x: 80,
       y: 0
     });
+    useCadUiStore.getState().setCanvasSelectionEligibility(state.elements, new Set([existing.id]));
     selectElement(existing.id, "replace", true);
     useCadUiStore.getState().setCanvasViewport({ panX: 17, panY: -9, zoom: 2 });
     const viewportBefore = { ...useCadUiStore.getState().canvasViewport };
@@ -978,16 +1018,16 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
 
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: instance.id,
-      selectedElementIds: [instance.id],
-      selectionAnchorElementId: instance.id
+      selectedElementId: existing.id,
+      selectedElementIds: [existing.id],
+      selectionAnchorElementId: existing.id
     });
     expect(useCadUiStore.getState().canvasViewport).toEqual(viewportBefore);
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 321,
-      status: "resolved",
-      degradations: []
+      status: "failed",
+      reason: "no-revealable-runtime-target"
     });
   });
 

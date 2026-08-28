@@ -94,6 +94,61 @@ describe("useCanvasOverlayData", () => {
     expect(result.current.overlayPointPickCandidates).toEqual([]);
   });
 
+  it("shares point presentation eligibility with normal overlays while preserving transient pick candidates", () => {
+    const elements: CadElement[] = [{
+      id: "point",
+      name: "Point",
+      type: "freePoint",
+      activity: "visible",
+      x: 20,
+      y: 0
+    }];
+    const evaluation = evaluateElements(elements);
+    const pointPickCandidates = pickCandidates(elements, evaluation, {
+      activePointPickTarget: {
+        elementId: COMMAND_LINE_PICK_TARGET_ID,
+        parameterKey: "startPoint",
+        insertionIndex: 1
+      },
+      activeLinePickTarget: null,
+      activeNumericReferencePickTarget: null,
+      referenceElements: elements
+    });
+
+    const normalResult = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: false,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
+    }));
+
+    expect(normalResult.result.current.selectionEligibleElementIds).toEqual(new Set());
+    expect(normalResult.result.current.overlayPoints).toHaveLength(1);
+
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates,
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      showCanvasPoints: false,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
+    }));
+
+    expect(result.current.selectionEligibleElementIds).toEqual(new Set());
+    expect(result.current.overlayPoints).toHaveLength(1);
+    expect(result.current.overlayPointPickCandidates).toHaveLength(1);
+  });
+
   it("does not draw a moduleInstance even when stale computed geometry is present", () => {
     const elements: CadElement[] = [{
       id: "module",

@@ -24,6 +24,7 @@ import {
 } from "./commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import type { CreationRecipe } from "./creationRecipes";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 const source = [
   "nui 4",
@@ -52,6 +53,7 @@ describe("command-line pick routing", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(source, "test");
+    publishTestCanvasSelectionEligibility();
   });
 
   it("fills point, endpoint, line, line-list, and numeric steps without mutating the document", () => {
@@ -244,15 +246,21 @@ describe("command-line pick routing", () => {
 
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
       expect(transitions).toEqual([
+        { editingStepIndex: null, parameterKey: null },
         { editingStepIndex: null, parameterKey: null }
       ]);
       transitions.length = 0;
       expect(startCommandLineStepEdit(0)).toBe(true);
-      expect(transitions).toEqual([{ editingStepIndex: 0, parameterKey: "startPoint" }]);
+      expect(transitions).toEqual([
+        { editingStepIndex: 0, parameterKey: "startPoint" },
+        { editingStepIndex: 0, parameterKey: "startPoint" }
+      ]);
       transitions.length = 0;
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
       expect(transitions).toEqual([
         { editingStepIndex: 0, parameterKey: "startPoint" },
+        { editingStepIndex: 0, parameterKey: "startPoint" },
+        { editingStepIndex: null, parameterKey: null },
         { editingStepIndex: null, parameterKey: null }
       ]);
       expect(useCadUiStore.getState().commandLineSession).toMatchObject({
