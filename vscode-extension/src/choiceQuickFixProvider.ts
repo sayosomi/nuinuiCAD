@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import { MISSING_DECLARED_TYPE_CODE } from "../../src/dsl/dslDeclarationParser";
 import type {
   TypedVariableQuickFixDescriptor,
   TypedVariableQuickFixSplice
@@ -30,16 +31,25 @@ const INVALID_CHOICE_LITERAL_CODE = "invalid-choice-literal";
 type ChoiceDiagnosticFingerprint = {
   source: "nuinuiCAD";
   code: typeof INVALID_CHOICE_LITERAL_CODE;
-  message: string;
   range: CompilerDiagnosticRange;
 };
+
+type MissingDeclaredTypeDiagnosticFingerprint = {
+  source: "nuinuiCAD";
+  code: typeof MISSING_DECLARED_TYPE_CODE;
+  range: CompilerDiagnosticRange;
+};
+
+type NativeDiagnosticFingerprint =
+  | ChoiceDiagnosticFingerprint
+  | MissingDeclaredTypeDiagnosticFingerprint;
 
 type ChoiceQuickFixPayload = {
   uri: string;
   documentVersion: number;
   rawSource: string;
   sourceRevision: number;
-  targetDiagnostic: ChoiceDiagnosticFingerprint;
+  targetDiagnostic: NativeDiagnosticFingerprint;
   descriptor: TypedVariableQuickFixDescriptor;
 };
 
@@ -55,7 +65,17 @@ const fingerprintFor = (diagnostic: CompilerDiagnostic): ChoiceDiagnosticFingerp
   return {
     source: diagnostic.source,
     code: INVALID_CHOICE_LITERAL_CODE,
-    message: diagnostic.message,
+    range: diagnostic.range
+  };
+};
+
+const missingDeclaredTypeFingerprintFor = (
+  diagnostic: CompilerDiagnostic
+): MissingDeclaredTypeDiagnosticFingerprint | undefined => {
+  if (diagnostic.source !== "nuinuiCAD" || diagnostic.code !== MISSING_DECLARED_TYPE_CODE) return undefined;
+  return {
+    source: diagnostic.source,
+    code: MISSING_DECLARED_TYPE_CODE,
     range: diagnostic.range
   };
 };
@@ -72,34 +92,39 @@ const sameRange = (
   samePosition(left.start, right.start) && samePosition(left.end, right.end);
 
 const sameDiagnostic = (
-  fingerprint: ChoiceDiagnosticFingerprint,
+  fingerprint: NativeDiagnosticFingerprint,
   diagnostic: {
     source?: string;
     code?: unknown;
-    message: string;
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
   }
 ): boolean =>
   diagnostic.source === fingerprint.source &&
   diagnostic.code === fingerprint.code &&
-  diagnostic.message === fingerprint.message &&
   sameRange(fingerprint.range, diagnostic.range);
 
 const contextDiagnosticFor = (
-  fingerprint: ChoiceDiagnosticFingerprint,
+  fingerprint: NativeDiagnosticFingerprint,
   diagnostics: readonly vscode.Diagnostic[]
 ): vscode.Diagnostic | undefined => diagnostics.find((diagnostic) => sameDiagnostic(fingerprint, diagnostic));
 
-const choiceDescriptorsFor = (
+const nativeDescriptorsFor = (
+  code: NativeDiagnosticFingerprint["code"],
   descriptors: readonly TypedVariableQuickFixDescriptor[]
-): TypedVariableQuickFixDescriptor[] => descriptors.filter((descriptor) =>
-  descriptor.id.startsWith("choice-replace:")
-);
+): TypedVariableQuickFixDescriptor[] => {
+  if (code === INVALID_CHOICE_LITERAL_CODE) {
+    return descriptors.filter((descriptor) => descriptor.id.startsWith("choice-replace:"));
+  }
+  if (code === MISSING_DECLARED_TYPE_CODE) {
+    return descriptors.filter((descriptor) => descriptor.id.startsWith("missing-declared-type:"));
+  }
+  return [];
+};
 
 const payloadFor = (
   document: vscode.TextDocument,
   source: SourceSnapshot,
-  diagnostic: ChoiceDiagnosticFingerprint,
+  diagnostic: NativeDiagnosticFingerprint,
   descriptor: TypedVariableQuickFixDescriptor
 ): ChoiceQuickFixPayload => ({
   uri: document.uri.toString(),
@@ -146,16 +171,20 @@ const createNuiChoiceOnlyQuickFixProvider = (
 
     semantic.currentCompiled.diagnostics.forEach((diagnostic, index) => {
       const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
-      const fingerprint = projected && fingerprintFor(projected);
+      const fingerprint = projected && (
+        fingerprintFor(projected) ?? missingDeclaredTypeFingerprintFor(projected)
+      );
       if (!fingerprint) return;
       const target = contextDiagnosticFor(fingerprint, context.diagnostics);
       if (!target) return;
 
-      const descriptors = choiceDescriptorsFor(descriptorsByDiagnostic[index] ?? []);
+      const descriptors = nativeDescriptorsFor(fingerprint.code, descriptorsByDiagnostic[index] ?? []);
       for (const descriptor of descriptors) {
         const action = new vscode.CodeAction(descriptor.label, vscode.CodeActionKind.QuickFix);
         action.diagnostics = [target];
-        if (descriptors.length === 1) action.isPreferred = true;
+        if (fingerprint.code === INVALID_CHOICE_LITERAL_CODE && descriptors.length === 1) {
+          action.isPreferred = true;
+        }
         action.command = {
           command: NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
           title: descriptor.label,
@@ -192,7 +221,8 @@ const isDescriptor = (value: unknown): value is TypedVariableQuickFixDescriptor 
   const descriptor = value as Partial<TypedVariableQuickFixDescriptor>;
   const action = descriptor.action as Partial<TypedVariableQuickFixSplice> | undefined;
   return typeof descriptor.id === "string" &&
-    descriptor.id.startsWith("choice-replace:") &&
+    (descriptor.id.startsWith("choice-replace:") ||
+      descriptor.id.startsWith("missing-declared-type:")) &&
     typeof descriptor.label === "string" &&
     typeof descriptor.sourceSnapshot === "string" &&
     action?.kind === "splice" &&
@@ -208,7 +238,16 @@ const isChoiceDiagnosticFingerprint = (value: unknown): value is ChoiceDiagnosti
   const diagnostic = value as Partial<ChoiceDiagnosticFingerprint>;
   return diagnostic.source === "nuinuiCAD" &&
     diagnostic.code === INVALID_CHOICE_LITERAL_CODE &&
-    typeof diagnostic.message === "string" &&
+    isRange(diagnostic.range);
+};
+
+const isMissingDeclaredTypeDiagnosticFingerprint = (
+  value: unknown
+): value is MissingDeclaredTypeDiagnosticFingerprint => {
+  if (!value || typeof value !== "object") return false;
+  const diagnostic = value as Partial<MissingDeclaredTypeDiagnosticFingerprint>;
+  return diagnostic.source === "nuinuiCAD" &&
+    diagnostic.code === MISSING_DECLARED_TYPE_CODE &&
     isRange(diagnostic.range);
 };
 
@@ -219,7 +258,8 @@ const isPayload = (value: unknown): value is ChoiceQuickFixPayload => {
     isInteger(payload.documentVersion) &&
     typeof payload.rawSource === "string" &&
     isInteger(payload.sourceRevision) &&
-    isChoiceDiagnosticFingerprint(payload.targetDiagnostic) &&
+    (isChoiceDiagnosticFingerprint(payload.targetDiagnostic) ||
+      isMissingDeclaredTypeDiagnosticFingerprint(payload.targetDiagnostic)) &&
     isDescriptor(payload.descriptor);
 };
 
@@ -273,10 +313,9 @@ const descriptorForPayload = (
     if (!projected || !sameDiagnostic(payload.targetDiagnostic, {
       source: projected.source,
       code: projected.code,
-      message: projected.message,
       range: projected.range
     })) continue;
-    const descriptor = choiceDescriptorsFor(descriptorsByDiagnostic[index] ?? [])
+    const descriptor = nativeDescriptorsFor(payload.targetDiagnostic.code, descriptorsByDiagnostic[index] ?? [])
       .find((candidate) => descriptorMatches(payload.descriptor, candidate));
     if (descriptor) return descriptor;
   }
