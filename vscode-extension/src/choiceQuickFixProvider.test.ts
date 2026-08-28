@@ -106,9 +106,9 @@ const documentFor = (
 
 const diagnosticFor = (
   document: TestDocument,
-  code = "invalid-choice-literal"
+  code = "invalid-choice-literal",
+  session = createLanguageAnalysisSession(document.getText())
 ): vscode.Diagnostic => {
-  const session = createLanguageAnalysisSession(document.getText());
   const compiler = session.getDiagnostics().find((diagnostic) => diagnostic.code === code);
   if (!compiler) throw new Error(`missing ${code} diagnostic`);
   const diagnostic = new vscode.Diagnostic(
@@ -244,6 +244,59 @@ describe("VS Code choice Quick Fix provider", () => {
     expect(`${source.slice(0, insertion)}${edit.edits[0]?.newText}${source.slice(insertion)}`).toBe(
       "nui 4\nlet width:  = 10\n"
     );
+  });
+
+  it("rejects a stale missing-declared-type descriptor through the composed provider", async () => {
+    const source = "nui 4\nlet width = 10\n";
+    const document = documentFor(source, "/tmp/missing-descriptor-payload.nui");
+    mocks.textDocuments.push(document);
+    const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
+
+    const payload = payloadFor(actions[0]!);
+    const descriptor = payload.descriptor as Record<string, unknown>;
+    (descriptor.action as Record<string, unknown>).expectedOldText = "stale";
+
+    await apply(payload);
+
+    expect(mocks.applyEdit).not.toHaveBeenCalled();
+  });
+
+  it("routes the existing typo Quick Fix through the composed provider and apply handler", async () => {
+    const source = [
+      "nui 4",
+      "const width: number = 10",
+      "const result: number = @widht"
+    ].join("\n");
+    const document = documentFor(source, "/tmp/composed-typo.nui");
+    const session = createLanguageAnalysisSession(source);
+    mocks.textDocuments.push(document);
+    const diagnostic = diagnosticFor(document, "undefined-binding", session);
+    const provider = createNuiChoiceQuickFixProvider(() => session);
+    const actions = provider.provideCodeActions(
+      document as unknown as vscode.TextDocument,
+      diagnostic.range,
+      { diagnostics: [diagnostic] } as unknown as vscode.CodeActionContext,
+      undefined as never
+    ) as vscode.CodeAction[];
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.title).toBe("Change to 'width'");
+    expect(actions[0]?.diagnostics).toEqual([diagnostic]);
+    expect(actions[0]?.command?.command).toBe(NUI_CHOICE_QUICK_FIX_APPLY_COMMAND);
+
+    const apply = createNuiChoiceQuickFixApplyHandler(() => session);
+    await apply(actions[0]?.command?.arguments?.[0]);
+
+    expect(mocks.applyEdit).toHaveBeenCalledTimes(1);
+    const edit = mocks.applyEdit.mock.calls[0]?.[0] as {
+      edits: Array<{ range: vscode.Range; newText: string }>;
+    };
+    expect(edit.edits).toHaveLength(1);
+    expect(edit.edits[0]?.newText).toBe("width");
+    expect(edit.edits[0]?.range).toMatchObject({
+      start: { line: 2, character: "const result: number = @".length },
+      end: { line: 2, character: "const result: number = @widht".length }
+    });
   });
 
   it("does not attach actions to unrelated, wrong-code, or unsupported diagnostics", () => {
