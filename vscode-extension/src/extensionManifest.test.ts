@@ -18,6 +18,7 @@ type Command = {
 type CommandPaletteMenu = {
   command: string;
   when: string;
+  group?: string;
 };
 
 type ExtensionManifest = {
@@ -88,6 +89,8 @@ const commandIds = [
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
+const sourceValueStepContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`;
+const bakeSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.bakeSourceTarget`;
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
@@ -202,15 +205,17 @@ describe("VS Code extension manifest command contributions", () => {
       .not.toContain("modulePreviewSourceTarget");
   });
 
-  it("adds exact Source, Canvas, and non-writing Module Preview context menus", async () => {
+  it("adds the complete deterministic Source context menu alongside Canvas and Module Preview menus", async () => {
     const manifest = await readManifest();
-    expect(manifest.contributes?.menus).toMatchObject({
-      "editor/context": [
-        { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
-        { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen },
-        { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen }
-      ]
-    });
+    expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
+      { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen, group: "navigation@1" },
+      { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@2" },
+      { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
+      { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
+      { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "1_modification@3" },
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "1_modification@4" },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" }
+    ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen },
@@ -233,6 +238,16 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection` }
     ]);
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command }) => command);
+    expect(editorContextCommands).toEqual([
+      "nuinuiCAD.revealInCanvas",
+      "nuinuiCAD.openModulePreview",
+      "nuinuiCAD.pickReferenceFromCanvas",
+      "nuinuiCAD.stepSourceValueForward",
+      "nuinuiCAD.stepSourceValueBackward",
+      "nuinuiCAD.bakeCurrentShape",
+      "nuinuiCAD.bakeBaseShape"
+    ]);
+    expect(editorContextCommands).not.toContain("nuinuiCAD.openCanvas");
     expect(editorContextCommands).not.toContain("nuinuiCAD.openOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.clearOutputPreviewFocus");

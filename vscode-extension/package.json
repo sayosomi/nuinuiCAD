@@ -299,15 +299,38 @@
       "editor/context": [
         {
           "command": "nuinuiCAD.revealInCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
+          "group": "navigation@1"
         },
         {
           "command": "nuinuiCAD.openModulePreview",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
+          "group": "navigation@2"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueForward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueBackward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "nuinuiCAD.bakeCurrentShape",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
+          "group": "1_modification@4"
+        },
+        {
+          "command": "nuinuiCAD.bakeBaseShape",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
+          "group": "1_modification@5"
         }
       ]
     },
