@@ -660,30 +660,19 @@ const ownerTokenForIdentity = (
     : `statement:${statementId}`;
 };
 
-const generatedParameterFor = (
-  mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>,
-  definitionStatementId: StatementIdentity,
-  parameterIndex: number
-): GeneratedScalarParameterMapping | null => {
-  const key = parameterSlotKey(definitionStatementId, parameterIndex);
-  for (const mapping of mappingsByTarget.values()) {
-    const generated = mapping.parameterBindings.get(key);
-    if (generated) return generated;
-  }
-  return null;
-};
-
 const remappedOwnerTokenForIdentity = (
   compiled: CompiledDslDocument,
   identity: DslSemanticIdentity,
+  currentMapping: OwnerMapping,
   mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
 ): string => {
   if (identity.kind === "module") {
     if (identity.target.kind === "moduleParameter") {
-      const generated = generatedParameterFor(
-        mappingsByTarget,
-        identity.target.slot.definitionStatementId,
-        identity.target.slot.parameterIndex
+      const generated = currentMapping.parameterBindings.get(
+        parameterSlotKey(
+          identity.target.slot.definitionStatementId,
+          identity.target.slot.parameterIndex
+        )
       );
       if (generated) return `statement:${generated.statementId}`;
     } else if (identity.target.kind === "moduleInstance") {
@@ -1225,7 +1214,12 @@ const initializerRewritesFor = (
         if (!candidate) {
           return { kind: "invalid", message: "moved initializer の reference 対応を証明できません。", target: entry.target };
         }
-        const expectedOwner = remappedOwnerTokenForIdentity(compiled, original.identity, mappingsByTarget);
+        const expectedOwner = remappedOwnerTokenForIdentity(
+          compiled,
+          original.identity,
+          mapping,
+          mappingsByTarget
+        );
         const actualOwner = ownerTokenForIdentity(nextCompiled, candidate.identity);
         const originalReferenceSource = source.slice(original.sourceFrom, original.sourceTo);
         if (expectedOwner === actualOwner) continue;

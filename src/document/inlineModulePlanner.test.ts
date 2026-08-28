@@ -502,6 +502,110 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(bodyReferences.some((candidate) => dslSemanticIdentityKey(candidate.identity) === generatedBIdentity)).toBe(true);
   });
 
+  it("keeps default parameter remapping local for multiple instances of one Module", () => {
+    const source = [
+      "nui 4",
+      "module Defaults(width: number, depth: number = @width + 5) {",
+      "  point P = coordinate(x: @width, y: @depth)",
+      "}",
+      "instance First = Defaults(width: 10)",
+      "instance Second = Defaults(width: 20)"
+    ].join("\n");
+    const { result } = plan(source, ["First", "Second"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
+
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("group First {");
+    expect(nextSource).toContain("group Second {");
+    expect(nextSource).toContain("const width: number = 10");
+    expect(nextSource).toContain("const width: number = 20");
+    expect(nextSource.match(/const depth: number = @width \+ 5/g)).toHaveLength(2);
+    expect(nextSource).not.toContain("const depth: number = @::width + 5");
+
+    const next = compileCurrent(nextSource, "inline-multi-target-default-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const statementsForGroup = (name: string) => {
+      const groupIndex = next.statements.findIndex(
+        (statement) => statement.kind === "group" && statement.name === name
+      );
+      expect(groupIndex).toBeGreaterThanOrEqual(0);
+      const group = next.statements[groupIndex];
+      if (!group || group.kind !== "group") throw new Error(`Missing group ${name}`);
+
+      const typedDeclarations = next.statements.filter((statement) =>
+        statement.kind === "typedDeclaration" &&
+        statement.enclosing?.statementIndex === groupIndex
+      );
+      const width = typedDeclarations.find((statement) => statement.name === "width");
+      const depth = typedDeclarations.find((statement) => statement.name === "depth");
+      const point = next.statements.find((statement) =>
+        statement.kind === "element" &&
+        statement.name === "P" &&
+        statement.enclosing?.statementIndex === groupIndex
+      );
+      expect(width).toBeDefined();
+      expect(depth).toBeDefined();
+      expect(point).toBeDefined();
+      if (
+        !width || width.kind !== "typedDeclaration" ||
+        !depth || depth.kind !== "typedDeclaration" ||
+        !point || point.kind !== "element"
+      ) {
+        throw new Error(`Missing generated statements for ${name}`);
+      }
+      return { width, depth, point };
+    };
+    const typedDeclarationKey = (statement: (typeof next.statements)[number]) => {
+      const occurrence = nextIndex.occurrences.find((candidate) =>
+        candidate.kind === "declaration" &&
+        candidate.identity.kind === "typed" &&
+        candidate.from >= statement.documentRange.from &&
+        candidate.to <= statement.documentRange.to
+      );
+      expect(occurrence).toBeDefined();
+      if (!occurrence || occurrence.identity.kind !== "typed") {
+        throw new Error(`Missing typed declaration identity for ${statement.name}`);
+      }
+      return dslSemanticIdentityKey(occurrence.identity);
+    };
+    const referenceKeys = (statement: (typeof next.statements)[number]) =>
+      nextIndex.occurrences
+        .filter((candidate) =>
+          candidate.kind === "reference" &&
+          candidate.from >= statement.documentRange.from &&
+          candidate.to <= statement.documentRange.to
+        )
+        .map((candidate) => dslSemanticIdentityKey(candidate.identity));
+
+    const first = statementsForGroup("First");
+    const second = statementsForGroup("Second");
+    const firstWidthKey = typedDeclarationKey(first.width);
+    const firstDepthKey = typedDeclarationKey(first.depth);
+    const secondWidthKey = typedDeclarationKey(second.width);
+    const secondDepthKey = typedDeclarationKey(second.depth);
+
+    const firstDepthReferences = referenceKeys(first.depth);
+    const secondDepthReferences = referenceKeys(second.depth);
+    expect(firstDepthReferences).toContain(firstWidthKey);
+    expect(firstDepthReferences).not.toContain(secondWidthKey);
+    expect(secondDepthReferences).toContain(secondWidthKey);
+    expect(secondDepthReferences).not.toContain(firstWidthKey);
+
+    const firstBodyReferences = referenceKeys(first.point);
+    const secondBodyReferences = referenceKeys(second.point);
+    expect(firstBodyReferences).toContain(firstWidthKey);
+    expect(firstBodyReferences).toContain(firstDepthKey);
+    expect(firstBodyReferences).not.toContain(secondWidthKey);
+    expect(firstBodyReferences).not.toContain(secondDepthKey);
+    expect(secondBodyReferences).toContain(secondWidthKey);
+    expect(secondBodyReferences).toContain(secondDepthKey);
+    expect(secondBodyReferences).not.toContain(firstWidthKey);
+    expect(secondBodyReferences).not.toContain(firstDepthKey);
+  });
+
   it("does not rewrite a caller expression whose owner remains valid after moving", () => {
     const source = [
       "nui 4",
