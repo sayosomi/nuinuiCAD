@@ -104,7 +104,7 @@ export const stableSnapshotElementId = (
   elementType: string
 ): ElementId => `${elementType}-mcp-${sourceHash}-${statementIndex}`;
 
-const stableSnapshotStatementId = (
+export const stableSnapshotStatementId = (
   sourceHash: string,
   statementIndex: number
 ): string => `statement:mcp:${sourceHash}:${statementIndex}`;
