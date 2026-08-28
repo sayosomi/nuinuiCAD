@@ -212,6 +212,29 @@ describe("host-neutral DSL rename query", () => {
     expect(queryDslRenameTarget(snapshot(source), referenceStart + "@Outer::A.".length + 1)).toBeNull();
   });
 
+  it("rejects semantic fallback renames that capture an ordinary reference", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "group Nested {",
+      "  arc Taken = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
+      "  line Use = offset(sources: [@A], distance: 5, side: right, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "const direction: choice(counterclockwise, clockwise) = @A.direction"
+    ].join("\n");
+    const referenceStart = at(source, "@A.direction");
+    const result = planDslRenameEditsResult(snapshot(source), referenceStart + 1, "Taken");
+
+    expect(result).toEqual({
+      status: "rejected",
+      rejection: {
+        reason: "reference-resolution-change",
+        family: "element",
+        line: 5
+      }
+    });
+  });
+
   it("starts element rename from derived endpoint geometry properties", () => {
     const source = [
       "nui 4",

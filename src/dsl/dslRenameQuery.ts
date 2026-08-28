@@ -409,14 +409,17 @@ const projectElementSemanticRenameEdits = (
   elementId: ElementId,
   newName: string
 ): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
-  const target = compiled.document?.elements.find((element) => element.id === elementId);
   const beforeStatementMap = compiled.statementMap;
-  if (!target || !beforeStatementMap || !compiled.sourceLexicalNamespace) {
+  if (!beforeStatementMap || !compiled.sourceLexicalNamespace) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
 
+  const validation = validateElementRenameRequest({ compiled, targetElementId: elementId, newName });
+  if (!validation.ok) return { ok: false, rejection: elementRenameRejection(validation.rejection) };
+  const { target, newName: validatedName } = validation;
+
   const targetIdentifier = formatDslName(target.name);
-  const replacementIdentifier = formatDslName(newName);
+  const replacementIdentifier = formatDslName(validatedName);
   if (targetIdentifier === replacementIdentifier) return { ok: true, edits: [] };
 
   const replacements = new Map<string, DslRenameEdit>();
@@ -454,12 +457,26 @@ const projectElementSemanticRenameEdits = (
     !after.document ||
     !after.statementMap ||
     !after.sourceLexicalNamespace ||
-    !after.document.elements.some((element) => element.id === elementId && element.name === newName) ||
+    !after.document.elements.some((element) => element.id === elementId && element.name === validatedName) ||
     !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
     (beforeStatementMap.statementIdByStatementIndex !== undefined &&
       (!after.statementMap.statementIdByStatementIndex ||
         !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
   ) return { ok: false, rejection: unavailableRenameRejection() };
+
+  const referenceStability = validateRenameReferenceStability({ before: compiled, after });
+  if (referenceStability.verdict !== "ok") {
+    return {
+      ok: false,
+      rejection: referenceStability.reason === "resolution-change"
+        ? {
+            reason: "reference-resolution-change",
+            family: "element",
+            ...(referenceStability.detail.changes[0] ? { line: referenceStability.detail.changes[0].line } : {})
+          }
+        : unavailableRenameRejection()
+    };
+  }
 
   return { ok: true, edits: orderedReplacements };
 };
@@ -645,9 +662,10 @@ export const planDslRenameEditsResult = (
         newName.trim()
       );
       if (analysis.verdict !== "ok") {
-        if (analysis.reason !== "analysis-incomplete" || !semanticProjection.ok) {
+        if (analysis.reason !== "analysis-incomplete") {
           return { status: "rejected", rejection: elementRenameRejection(analysis) };
         }
+        if (!semanticProjection.ok) return { status: "rejected", rejection: semanticProjection.rejection };
         edits = semanticProjection.edits;
       } else {
         const projection = projectElementRenameEdits({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, analysis });
