@@ -1,5 +1,9 @@
 import { resolveElementName } from "../model/elementNames";
 import { runtimeOnlyElementTypes, type CadElement, type ElementId, type EvaluationResult } from "../types/geometry";
+import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
+import { getParameterValue } from "../parameters/parameterAccess";
+import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
+import type { ScalarType } from "../scalars/types";
 import {
   computedPathsForGeometry,
   formatValue,
@@ -78,6 +82,37 @@ export const referenceablePathsForElement = (
   });
 };
 
+const choiceReferenceablePathsForElement = (
+  element: CadElement,
+  expectedType: Extract<ScalarType, { kind: "choice" }>,
+  evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">
+): ReferenceablePath[] => {
+  if (runtimeOnlyElementTypes.has(element.type)) return [];
+  if (!elementIsCurrentlyReferenceable(element.id, evaluation)) return [];
+  // Choice properties are runtime geometry properties. Unlike numeric params.*
+  // paths, they are unavailable for elements that have no computed geometry.
+  if (!evaluation.computedGeometry.has(element.id)) return [];
+
+  return getParameterDefinitions(element).flatMap((definition) => {
+    if (definition.kind !== "choice") return [];
+    const candidateType = scalarTypeForParameterDefinition(definition);
+    if (!candidateType || !isScalarTypeAssignable(candidateType, expectedType)) return [];
+    const value = getParameterValue(element, definition.key);
+    return [{ path: definition.key, valueLabel: typeof value === "string" ? value : "" }];
+  });
+};
+
+const referenceablePropertiesForElement = (
+  element: CadElement,
+  elements: readonly CadElement[],
+  expectedType: ScalarType,
+  evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">
+): ReferenceablePath[] => expectedType.kind === "number"
+  ? referenceablePathsForElement(element, elements, evaluation)
+  : expectedType.kind === "choice"
+    ? choiceReferenceablePathsForElement(element, expectedType, evaluation)
+    : [];
+
 export type ElementParameterReferencePosition = {
   /** Elements visible from this position, already sliced to it (document order). */
   referenceElements: readonly CadElement[];
@@ -86,6 +121,9 @@ export type ElementParameterReferencePosition = {
   currentElement?: Pick<CadElement, "parentGroupId">;
   currentElementId?: ElementId;
   moduleSemanticContext?: ModuleSemanticCandidateContext;
+  /** Exact scalar type expected by the surrounding expression. Defaults to
+   * number for established numeric element-property callers. */
+  expectedScalarType?: ScalarType;
   evaluation: Pick<EvaluationResult, "computedGeometry" | "effectiveEnabledElementIds" | "errors">;
 };
 
@@ -102,6 +140,7 @@ export const elementParameterReferenceOptionsForPosition = ({
   currentElement,
   currentElementId,
   moduleSemanticContext,
+  expectedScalarType = { kind: "number" },
   evaluation
 }: ElementParameterReferencePosition): ElementParameterReferenceOption[] => {
   const resolution = resolveElementName({
@@ -121,10 +160,10 @@ export const elementParameterReferenceOptionsForPosition = ({
     context: moduleSemanticContext
   })) return [];
 
-  return referenceablePathsForElement(resolution.element, referenceElements, evaluation).map(({ path, valueLabel }) => ({
+  return referenceablePropertiesForElement(resolution.element, referenceElements, expectedScalarType, evaluation).map(({ path, valueLabel }) => ({
     path,
     label: path,
-    detail: `${resolution.element.name} · ${valueLabel}`,
+    detail: valueLabel ? `${resolution.element.name} · ${valueLabel}` : resolution.element.name,
     elementId: resolution.element.id
   }));
 };

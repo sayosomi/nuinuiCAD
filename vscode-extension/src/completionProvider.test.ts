@@ -134,6 +134,25 @@ describe("VS Code native nui completion provider", () => {
     expect(abs.preselect).toBeUndefined();
   });
 
+  it("projects a query-selected choice geometry property through the native provider", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "let direction: choice(counterclockwise, clockwise) = clockwise",
+      "set direction = @A."
+    ].join("\n");
+    const line = source.split("\n")[3]!;
+    const items = itemsFor(source);
+    const direction = items.find((item) => item.label === "direction")!;
+
+    expect(direction.kind).toBe(vscodeMocks.CompletionItemKind.Property);
+    expect(direction.insertText).toBe("direction");
+    expect(direction.range).toMatchObject({
+      start: { line: 3, character: line.length },
+      end: { line: 3, character: line.length }
+    });
+  });
+
   it("inserts named arguments with a trailing colon and space", () => {
     const source = "nui 4\nconst value: number = spreadAngle(";
     const items = itemsFor(source);

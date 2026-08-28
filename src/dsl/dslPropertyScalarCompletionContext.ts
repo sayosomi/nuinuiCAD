@@ -12,9 +12,14 @@ import type { ScalarType } from "../scalars/types";
 import type { DslSpan } from "./dslTypes";
 import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
+import {
+  typedGeometryPropertyCompletionContextAt,
+  type TypedGeometryPropertyCompletionContext
+} from "./dslTypedGeometryPropertyCompletionContext";
 
 export type PropertyScalarValueCompletionContext =
   | { readonly kind: "reference"; readonly from: number; readonly to: number; readonly expectedType: ScalarType }
+  | { readonly kind: "geometryProperty"; readonly geometryProperty: TypedGeometryPropertyCompletionContext; readonly expectedType: ScalarType }
   | { readonly kind: "booleanLiteral"; readonly from: number; readonly to: number }
   | { readonly kind: "expression"; readonly from: number; readonly to: number; readonly positionContext: ScalarExpressionCompletionContext };
 
@@ -37,16 +42,19 @@ export const propertyScalarValueCompletionContext = (
   // "\${@name}" is not the whole property value && must reach the template
   // hole completion lane below dslCompletionContext.ts.
   if (definition.kind === "text" && /^["']/.test(lineText.slice(span.start).trimStart())) return null;
+  const expectedType = scalarTypeForParameterDefinition(definition);
+  if (definition.kind === "choice" && expectedType) {
+    const geometryProperty = typedGeometryPropertyCompletionContextAt(lineText, pos, span, expectedType);
+    if (geometryProperty) return { kind: "geometryProperty", geometryProperty, expectedType };
+  }
   const reference = expressionReferenceTokenEndingAt(lineText, pos, { boundaryStart: span.start });
   if (reference?.kind === "binding") {
-    const expectedType = scalarTypeForParameterDefinition(definition);
     return expectedType ? { kind: "reference", from: reference.from, to: reference.to, expectedType } : null;
   }
   // Boolean properties use the same expression-position analysis
   // as declarations and set RHS values. This is what makes a builtin such as
   // `isClose(` available in a boolean property while preserving the existing
   // direct `@name` lane above.
-  const expectedType = scalarTypeForParameterDefinition(definition);
   if (definition.kind === "boolean" && expectedType?.kind === "boolean" && lineText.slice(span.start, pos).trim().length === 0) {
     return { kind: "booleanLiteral", from: span.start, to: pos };
   }

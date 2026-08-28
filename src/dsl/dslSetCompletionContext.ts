@@ -71,10 +71,10 @@ export const setCompletionContextAt = (logicalText: string, pos: number): SetCom
 
   const expressionSpan = expressionSpanIncludingEmpty(logicalText, statement.payloadSpans.expression);
   if (!expressionSpan || pos < expressionSpan.start || pos > expressionSpan.end) return null;
-  // The target's declared type is resolved by cmAutocomplete. Recognize the
-  // shape here with a number placeholder, then let that caller suppress it
-  // for a non-number target.
-  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, expressionSpan, { kind: "number" });
+  // The target's declared type is resolved by the completion owner. Recognize
+  // the token shape structurally here; candidate generation supplies the
+  // target's actual type later.
+  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, expressionSpan, null);
   if (geometryProperty) {
     return {
       kind: "rhs",

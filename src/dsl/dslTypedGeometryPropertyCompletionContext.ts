@@ -20,7 +20,6 @@ export const typedGeometryPropertyCompletionContextAt = (
   expressionSpan: DslSpan,
   expectedType: ScalarType | null
 ): TypedGeometryPropertyCompletionContext | null => {
-  if (expectedType?.kind !== "number") return null;
   const reference = expressionReferenceTokenEndingAt(text, pos, { boundaryStart: expressionSpan.start });
   if (!reference || reference.kind !== "elementProperty" || !reference.sigil) return null;
 

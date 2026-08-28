@@ -71,6 +71,7 @@ const renderCurrent = (evaluation: EvaluationResult, state: EvaluationEngineStat
     evaluationState={state}
     canvasFocusRef={createRef()}
     postCanonicalSourceText={vi.fn()}
+    currentReferencePickAuthorityFor={() => null}
   />
 );
 

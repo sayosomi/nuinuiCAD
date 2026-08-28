@@ -167,9 +167,22 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    it("does not treat @ alone or non-number initializers as geometry properties", () => {
+    it("does not treat @ alone as a geometry property and carries unsupported types without candidates", () => {
       expect(dslCompletionContextAt("const length: number = @", "const length: number = @".length)).toMatchObject({ kind: "typedInitializer" });
-      expect(dslCompletionContextAt("const label: string = @AB.", "const label: string = @AB.".length)).toBeNull();
+      expect(dslCompletionContextAt("const label: string = @AB.", "const label: string = @AB.".length)).toMatchObject({
+        kind: "elementParameter",
+        expectedScalarType: { kind: "string" }
+      });
+    });
+
+    it("carries an exact choice type through a schema-typed element property", () => {
+      const line = "arc B = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @A.,)";
+      const pos = line.indexOf("@A.") + "@A.".length;
+      expect(dslCompletionContextAt(line, pos)).toMatchObject({
+        kind: "elementParameter",
+        elementToken: "A",
+        expectedScalarType: { kind: "choice", options: ["counterclockwise", "clockwise"] }
+      });
     });
 
     it("retains an unfinished geometry-property token for set RHS type resolution", () => {

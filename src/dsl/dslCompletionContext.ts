@@ -41,7 +41,7 @@ export type DslCompletionContext =
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
-  | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean }
+  | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean; expectedScalarType: ScalarType }
   | { kind: "declaredType"; from: number; to: number; bindingKind: "const" | "let" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "recordInitializer"; from: number; to: number; initializerFrom: number; recordTypeName: string; fieldLabel: boolean; providedFieldNames: readonly string[] }
@@ -113,7 +113,8 @@ const numberFieldCompletionContext = (
     to: match.to,
     elementToken: match.elementToken,
     tokenStart: match.tokenStart,
-    sigil: match.sigil
+    sigil: match.sigil,
+    expectedScalarType: { kind: "number" }
   };
 };
 
@@ -243,6 +244,17 @@ const scalarPropertyOrHoleCompletionContext = (
   if (definition.kind !== "text" && definition.kind !== "choice" && definition.kind !== "boolean") return null;
 
   const propertyContext = propertyScalarValueCompletionContext(code, span, pos, definition);
+  if (propertyContext?.kind === "geometryProperty") {
+    return {
+      kind: "elementParameter",
+      from: propertyContext.geometryProperty.from,
+      to: propertyContext.geometryProperty.to,
+      elementToken: propertyContext.geometryProperty.elementToken,
+      tokenStart: propertyContext.geometryProperty.tokenStart,
+      sigil: true,
+      expectedScalarType: propertyContext.expectedType
+    };
+  }
   if (propertyContext) return { kind: "propertyScalarValue", from: propertyContext.from, to: propertyContext.to, propertyContext };
 
   if (definition.kind !== "text") return null;
@@ -424,7 +436,8 @@ export const dslCompletionContextAt = (
         to: typedDeclarationContext.geometryProperty.to,
         elementToken: typedDeclarationContext.geometryProperty.elementToken,
         tokenStart: typedDeclarationContext.geometryProperty.tokenStart,
-        sigil: true
+        sigil: true,
+        expectedScalarType: typedDeclarationContext.declaredType
       };
     }
     return {
