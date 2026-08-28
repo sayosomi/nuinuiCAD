@@ -16,7 +16,6 @@ import { isGroupExpanded } from "../model/groups";
 import type { FoldTarget, GroupFoldById, GroupFoldState } from "../model/groups";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ModuleSemanticTarget } from "../dsl/moduleSemanticEditor";
-import { effectiveElementActivity, effectiveElementActivityById } from "../model/elementActivity";
 
 export type MeasurementInsertMode = "distance" | "angle" | "lineDistance";
 export type MeasurementPointSlot = "point1" | "point2";
@@ -115,8 +114,6 @@ const uniqueElementIds = (ids: ElementId[]) => Array.from(new Set(ids));
 
 const currentDocumentElements = () => useCadDocumentStore.getState().elements;
 
-const currentDocumentDrawingModifiers = () => useCadDocumentStore.getState().modifiers ?? [];
-
 export type CanvasSelectionEligibility = ReadonlySet<ElementId>;
 
 /**
@@ -136,24 +133,16 @@ const selectionReconciliationWaitsForEditorRecovery = () => {
 
 /**
  * Projects the authoritative Canvas presentation boundary onto the current
- * element list. The document-only fallback is retained for non-Canvas source
- * interactions before a Canvas host has published its first presentation.
+ * element list. Selection fails closed until a Canvas host publishes its
+ * first presentation for the current document state.
  */
 export const selectionEligibleElementIds = (
   elements: readonly CadElement[],
   canvasEligibility?: CanvasSelectionEligibility
 ) => {
   const authoritativeEligibility = canvasEligibility ?? useCadUiStore.getState().canvasSelectionEligibleElementIds;
-  if (authoritativeEligibility) {
-    return new Set(elements.filter((element) => authoritativeEligibility.has(element.id)).map((element) => element.id));
-  }
-
-  const activities = effectiveElementActivityById(elements, currentDocumentDrawingModifiers());
-  return new Set(
-    elements
-      .filter((element) => effectiveElementActivity(element, activities).activity === "visible")
-      .map((element) => element.id)
-  );
+  if (!authoritativeEligibility) return new Set<ElementId>();
+  return new Set(elements.filter((element) => authoritativeEligibility.has(element.id)).map((element) => element.id));
 };
 
 export const isElementSelectionEligible = (
@@ -209,6 +198,37 @@ const normalizedSelection = (
     selectionAnchorElementId
   };
 };
+
+const selectionWithExistingElements = (
+  elements: readonly CadElement[],
+  selection: CadElementSelection
+): CadElementSelection => {
+  const existingIds = new Set(elements.map((element) => element.id));
+  const selectedElementIds = uniqueElementIds(selection.selectedElementIds)
+    .filter((id) => existingIds.has(id));
+  const selectedElementId =
+    selection.selectedElementId && existingIds.has(selection.selectedElementId)
+      ? selection.selectedElementId
+      : selectedElementIds[0] ?? null;
+  const normalizedIds =
+    selectedElementId && !selectedElementIds.includes(selectedElementId)
+      ? [...selectedElementIds, selectedElementId]
+      : selectedElementIds;
+  const selectionAnchorElementId =
+    selection.selectionAnchorElementId && existingIds.has(selection.selectionAnchorElementId)
+      ? selection.selectionAnchorElementId
+      : selectedElementId;
+  return {
+    selectedElementId,
+    selectedElementIds: normalizedIds,
+    selectionAnchorElementId
+  };
+};
+
+const selectionHasTargets = (selection: CadElementSelection) =>
+  selection.selectedElementId !== null ||
+  selection.selectedElementIds.length > 0 ||
+  selection.selectionAnchorElementId !== null;
 
 const selectionEqual = (left: CadElementSelection, right: CadElementSelection) =>
   left.selectedElementId === right.selectedElementId &&
@@ -287,6 +307,8 @@ export type CadUiState = CadElementSelection & {
   setShowCanvasPointNames: (showCanvasPointNames: boolean) => void;
   setShowCanvasGeometryNames: (showCanvasGeometryNames: boolean) => void;
   setShowCanvasPoints: (showCanvasPoints: boolean) => void;
+  /** Invalidates the last Canvas presentation snapshot without touching selection. */
+  invalidateCanvasSelectionEligibility: () => void;
   setCanvasSelectionEligibility: (
     elements: readonly CadElement[],
     canvasSelectionEligibleElementIds: CanvasSelectionEligibility
@@ -336,7 +358,11 @@ export type CadUiState = CadElementSelection & {
   /** Selects a typed const/let binding as the current subject, clearing any active element selection. */
   setSelectedBindingId: (bindingId: BindingId) => void;
   setSourceCursorLine: (sourceCursorLine: number | null) => void;
-  applySelection: (elements: CadElement[], selection: CadElementSelection) => void;
+  applySelection: (
+    elements: CadElement[],
+    selection: CadElementSelection,
+    canvasEligibility?: CanvasSelectionEligibility
+  ) => void;
   reconcileSelectionWithElements: (
     elements: CadElement[],
     canvasSelectionEligibleElementIds?: CanvasSelectionEligibility
@@ -360,6 +386,7 @@ export const initialCadUiState = (): Omit<
   | "setShowCanvasPointNames"
   | "setShowCanvasGeometryNames"
   | "setShowCanvasPoints"
+  | "invalidateCanvasSelectionEligibility"
   | "setCanvasSelectionEligibility"
   | "setShowElementListColorAccents"
   | "setShowShortcutHelp"
@@ -527,7 +554,14 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
     set({ elementSearchPickableOnly, elementSearchCursorId: null }),
   setShowCanvasPointNames: (showCanvasPointNames) => set({ showCanvasPointNames }),
   setShowCanvasGeometryNames: (showCanvasGeometryNames) => set({ showCanvasGeometryNames }),
-  setShowCanvasPoints: (showCanvasPoints) => set({ showCanvasPoints }),
+  setShowCanvasPoints: (showCanvasPoints) =>
+    set((state) => state.showCanvasPoints === showCanvasPoints
+      ? {}
+      : { showCanvasPoints, canvasSelectionEligibleElementIds: null }),
+  invalidateCanvasSelectionEligibility: () =>
+    set((state) => state.canvasSelectionEligibleElementIds === null
+      ? {}
+      : { canvasSelectionEligibleElementIds: null }),
   setCanvasSelectionEligibility: (elements, canvasSelectionEligibleElementIds) =>
     set((state) => {
       const nextEligibility = new Set(canvasSelectionEligibleElementIds);
@@ -674,11 +708,19 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       );
       return groupFoldById.size === state.groupFoldById.size ? {} : { groupFoldById };
     }),
-  applySelection: (elements, selection) =>
-    set(() => ({ ...normalizedSelection(elements, selection), selectionSubject: { kind: "elements" } })),
+  applySelection: (elements, selection, canvasEligibility) =>
+    set((state) => {
+      if (selectionHasTargets(selection) &&
+        canvasEligibility === undefined && state.canvasSelectionEligibleElementIds === null) return {};
+      return {
+        ...normalizedSelection(elements, selection, canvasEligibility),
+        selectionSubject: { kind: "elements" }
+      };
+    }),
   reconcileSelectionWithElements: (elements, canvasSelectionEligibleElementIds) =>
     set((state) => {
-      const nextEligibility = canvasSelectionEligibleElementIds
+      const publishesEligibility = canvasSelectionEligibleElementIds !== undefined;
+      const nextEligibility = publishesEligibility
         ? new Set(canvasSelectionEligibleElementIds)
         : state.canvasSelectionEligibleElementIds;
       const currentSelection = {
@@ -688,13 +730,15 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       };
       const nextSelection = state.selectionSubject.kind === "binding" || selectionReconciliationWaitsForEditorRecovery()
         ? currentSelection
-        : normalizedSelection(elements, currentSelection, nextEligibility ?? undefined);
+        : nextEligibility
+          ? normalizedSelection(elements, currentSelection, nextEligibility)
+          : selectionWithExistingElements(elements, currentSelection);
       const eligibilityUnchanged =
-        canvasSelectionEligibleElementIds === undefined ||
+        !publishesEligibility ||
         eligibilityEqual(state.canvasSelectionEligibleElementIds, nextEligibility!);
       if (eligibilityUnchanged && selectionEqual(currentSelection, nextSelection)) return {};
       return {
-        ...(canvasSelectionEligibleElementIds
+        ...(publishesEligibility
           ? {
               canvasSelectionEligibleElementIds: eligibilityUnchanged
                 ? state.canvasSelectionEligibleElementIds!
@@ -721,16 +765,21 @@ export const useCadUiStore = create<CadUiState>((set, get) => ({
       };
     }),
   setSelectedElementIds: (selectedElementIds, primaryId) =>
-    set(() => ({
-      ...normalizedSelection(currentDocumentElements(), {
-        selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
-        selectedElementIds,
-        selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null
-      }),
-      selectionSubject: { kind: "elements" }
-    })),
+    set((state) => {
+      if ((selectedElementIds.length > 0 || (primaryId !== undefined && primaryId !== null)) &&
+        state.canvasSelectionEligibleElementIds === null) return {};
+      return {
+        ...normalizedSelection(currentDocumentElements(), {
+          selectedElementId: primaryId ?? selectedElementIds[0] ?? null,
+          selectedElementIds,
+          selectionAnchorElementId: primaryId ?? selectedElementIds[0] ?? null
+        }),
+        selectionSubject: { kind: "elements" }
+      };
+    }),
   setSelectedElementRange: (anchorId, targetId) =>
-    set(() => {
+    set((state) => {
+      if (state.canvasSelectionEligibleElementIds === null) return {};
       const elements = currentDocumentElements();
       const anchorIndex = elements.findIndex((element) => element.id === anchorId);
       const targetIndex = elements.findIndex((element) => element.id === targetId);

@@ -590,14 +590,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           profile: activeVisibilityProfile
         });
         const currentEvaluation = evaluationRef.current;
+        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current.state.compiledDocumentRevision
+        );
         const canvasPresentationIds = currentEvaluation
           ? canvasPresentationEligibleElementIds({
               elements: runtimeElements,
               evaluation: currentEvaluation,
               visibilityProfiles: current.state.visibilityProfiles,
               activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-              showCanvasPoints: useCadUiStore.getState().showCanvasPoints,
-              includeContainerPresentation: true
+              showCanvasPoints: useCadUiStore.getState().showCanvasPoints
             })
           : new Set<string>();
         const revealResult = queryDslCanvasRevealRuntimeTarget({
@@ -620,10 +623,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
-        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
-          evaluationStateRef.current,
-          current.state.compiledDocumentRevision
-        );
         const selectionIds = [...revealResult.runtimeElementIds];
         const primarySelectionId = revealResult.primaryRuntimeElementId;
         let revealBounds = null;
@@ -645,7 +644,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
         }
 
-        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true, "requested")) {
+        if (!replaceCanvasSelection(
+          selectionIds,
+          primarySelectionId,
+          true,
+          "requested",
+          currentEvaluationIsCurrent ? canvasPresentationIds : undefined
+        )) {
           api.postMessage({
             type: "canvasNavigationResult",
             requestId: message.requestId,

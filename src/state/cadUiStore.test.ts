@@ -19,6 +19,11 @@ describe("cadUiStore group fold state", () => {
   beforeEach(() => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
+    const elements = useCadDocumentStore.getState().elements;
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      elements,
+      new Set(elements.map((element) => element.id))
+    );
   });
 
   it("uses the visual defaults for unregistered ids and supports set/toggle", () => {
@@ -233,6 +238,11 @@ describe("cadUiStore element/binding selection mutual exclusion", () => {
   beforeEach(() => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState(initialCadDocumentState());
+    const elements = useCadDocumentStore.getState().elements;
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      elements,
+      new Set(elements.map((element) => element.id))
+    );
   });
 
   it("clears the element selection when a typed binding is selected", () => {
@@ -325,7 +335,7 @@ describe("cadUiStore element/binding selection mutual exclusion", () => {
   });
 });
 
-describe("cadUiStore activity-aware element selection", () => {
+describe("cadUiStore published Canvas eligibility selection", () => {
   const elements: CadElement[] = [
     { id: "visible", name: "Visible", type: "freePoint", activity: "visible", x: 0, y: 0 },
     { id: "visible-second", name: "Visible Second", type: "freePoint", activity: "visible", x: 0, y: 1 },
@@ -374,6 +384,10 @@ describe("cadUiStore activity-aware element selection", () => {
   beforeEach(() => {
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      elements,
+      new Set(["visible", "visible-second"])
+    );
   });
 
   it.each(["hidden", "disabled"] as const)("prunes directly %s elements", (activity) => {
@@ -411,6 +425,7 @@ describe("cadUiStore activity-aware element selection", () => {
         { name: "disable", state: "disabled" }
       ]
     });
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["visible", "visible-second"]));
     useCadUiStore.getState().applySelection(elements, {
       selectedElementId: "modifier-hidden",
       selectedElementIds: ["modifier-hidden", "modifier-disabled"],
@@ -450,6 +465,67 @@ describe("cadUiStore activity-aware element selection", () => {
       selectedElementIds: ["visible"],
       selectionAnchorElementId: "visible"
     });
+  });
+});
+
+describe("cadUiStore Canvas eligibility freshness", () => {
+  const elements: CadElement[] = [
+    { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+    { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+    { id: "c", name: "C", type: "freePoint", activity: "visible", x: 20, y: 0 }
+  ];
+
+  beforeEach(() => {
+    useCadUiStore.setState(initialCadUiState());
+    useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
+  });
+
+  it("fails closed for new selection attempts without an authoritative snapshot", () => {
+    useCadUiStore.getState().setSelectedElementId("a");
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "b"]));
+    useCadUiStore.getState().setSelectedElementId("a");
+    useCadUiStore.getState().invalidateCanvasSelectionEligibility();
+
+    useCadUiStore.getState().setSelectedElementId("b");
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a",
+      canvasSelectionEligibleElementIds: null
+    });
+  });
+
+  it("preserves existing elements during invalidation and selectively prunes on fresh publication", () => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "b", "c"]));
+    useCadUiStore.setState({
+      selectedElementId: "b",
+      selectedElementIds: ["a", "b", "c"],
+      selectionAnchorElementId: "b"
+    });
+
+    useCadUiStore.getState().invalidateCanvasSelectionEligibility();
+    useCadUiStore.getState().reconcileSelectionWithElements(elements);
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "b",
+      selectedElementIds: ["a", "b", "c"],
+      selectionAnchorElementId: "b",
+      canvasSelectionEligibleElementIds: null
+    });
+
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a", "c"]));
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "a",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "a"
+    });
+  });
+
+  it("invalidates the snapshot when a document presentation input changes", () => {
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(["a"]));
+    useCadDocumentStore.setState({ modifiers: [{ name: "hide", state: "hidden" }] });
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
   });
 });
 

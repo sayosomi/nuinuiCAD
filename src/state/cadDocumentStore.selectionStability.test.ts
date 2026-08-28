@@ -3,6 +3,7 @@ import { dslFlatTextForElements } from "../dsl/dslDocumentTestUtils";
 import type { CadElement } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 const pointA: CadElement = {
   id: "selection-a",
@@ -80,20 +81,24 @@ const selection = () => {
   };
 };
 
-const selectA = () => useCadUiStore.getState().applySelection(
-  useCadDocumentStore.getState().elements,
-  {
-    selectedElementId: "selection-a",
-    selectedElementIds: ["selection-a"],
-    selectionAnchorElementId: "selection-a"
-  }
-);
+const selectA = () => {
+  publishTestCanvasSelectionEligibility();
+  useCadUiStore.getState().applySelection(
+    useCadDocumentStore.getState().elements,
+    {
+      selectedElementId: "selection-a",
+      selectedElementIds: ["selection-a"],
+      selectionAnchorElementId: "selection-a"
+    }
+  );
+};
 
 describe("editor selection stability across transient invalid source", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(validSource, "test");
+    publishTestCanvasSelectionEligibility();
     selectA();
     expect(selection().selectedElementId).toBe("selection-a");
   });
@@ -123,6 +128,7 @@ describe("editor selection stability across transient invalid source", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(vscodeE2eBaseline, "test");
+    publishTestCanvasSelectionEligibility();
 
     const initialA = useCadDocumentStore.getState().elements.find((element) => element.name === "A");
     expect(initialA).toBeDefined();
@@ -164,6 +170,7 @@ describe("editor selection stability across transient invalid source", () => {
     expect(selection().selectedElementId).toBe("selection-a");
 
     useCadDocumentStore.getState().commitText(bOnlySource, "editor");
+    publishTestCanvasSelectionEligibility();
     expect(selection()).toEqual({
       selectedElementId: null,
       selectedElementIds: [],
@@ -181,6 +188,7 @@ describe("editor selection stability across transient invalid source", () => {
         dslFlatTextForElements([{ ...pointA, activity }, pointB]),
         "editor"
       );
+      publishTestCanvasSelectionEligibility();
       expect(selection()).toEqual({
         selectedElementId: null,
         selectedElementIds: [],

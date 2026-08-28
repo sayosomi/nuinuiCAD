@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchCommand } from "../commands/commands";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { RenameElementDialog } from "./RenameElementDialog";
 
 // RenameElementDialogContent defers its initial name-field focus to a real
@@ -48,6 +49,7 @@ const seed = () => {
     ["nui 4", "point A = coordinate(", "  x: 0,", "  y: 0", ")", "point B = coordinate(", "  x: 10,", "  y: 0", ")"].join("\n"),
     "test"
   );
+  publishTestCanvasSelectionEligibility();
   useCadDocumentStore.setState({ past: [], future: [], dirtySinceSave: false });
   const targetId = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!.id;
   const otherId = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!.id;

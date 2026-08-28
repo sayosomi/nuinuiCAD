@@ -57,10 +57,10 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
-  it("defers a freshly opened Module instance Reveal until current evaluation is available", async () => {
+  it("fails a Module instance Reveal when only descendant geometry is presented", async () => {
     const source = moduleSource();
     const api = { postMessage: vi.fn() };
-    const view = render(<VSCodeAppForTest api={api} />);
+    render(<VSCodeAppForTest api={api} />);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -91,25 +91,13 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
-    expect(navigationResultsFor(api, 411)).toEqual([]);
-
-    drawingCanvasProps.evaluationIsCurrent = true;
-    await act(async () => {
-      view.rerender(<VSCodeAppForTest api={api} />);
-      await Promise.resolve();
-    });
-
-    expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: instance.id,
-      selectedElementIds: [instance.id],
-      selectionAnchorElementId: instance.id
-    });
     expect(navigationResultsFor(api, 411)).toContainEqual({
       type: "canvasNavigationResult",
       requestId: 411,
-      status: "resolved",
-      degradations: []
+      status: "failed",
+      reason: "no-revealable-runtime-target"
     });
+    expect(instance).toBeDefined();
   });
 
   it("rejects ordinary geometry Reveal when no current evaluation presentation is available", async () => {
@@ -143,7 +131,7 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
   });
 
-  it("drops a deferred container Reveal when a newer authoritative source arrives", async () => {
+  it("does not defer a structural Module Reveal for a newer authoritative source", async () => {
     const source = moduleSource();
     const newerSource = moduleSource("// newer authoritative source");
     const api = { postMessage: vi.fn() };
@@ -186,6 +174,11 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
-    expect(navigationResultsFor(api, 431)).toEqual([]);
+    expect(navigationResultsFor(api, 431)).toContainEqual({
+      type: "canvasNavigationResult",
+      requestId: 431,
+      status: "failed",
+      reason: "no-revealable-runtime-target"
+    });
   });
 });

@@ -7,6 +7,7 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
@@ -358,6 +359,49 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("does not publish stale Canvas presentation eligibility", async () => {
+    const hostAdapter = createFakeCanvasHostAdapter({ compiledDocumentRevision: 1 });
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const staleEvaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0,
+      mode: "reference",
+      source: "reference",
+      status: "idle",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState: staleEvaluationState,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+
+    await act(async () => {
+      view.rerender(createElement(DrawingCanvas, {
+        evaluation,
+        evaluationState: { ...staleEvaluationState, evaluationRevision: 1, evaluationRequestRevision: 1 },
+        canvasFocusRef: createRef<HTMLDivElement>(),
+        hostAdapter
+      }));
+    });
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toEqual(
+      canvasPresentationEligibleElementIds({
+        elements: hostAdapter.elements,
+        evaluation,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        showCanvasPoints: true
+      })
+    );
+  });
+
   it("classifies context-menu hits through the existing hit-test without selecting or suppressing the native menu", () => {
     const publishCanvasContextMenu = vi.fn();
     const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { cycleElementActivity, setElementActivity, setElementsActivity } from "./selectionCommands";
 
 const twoPointsAndVariableSource = [
@@ -19,6 +20,7 @@ describe("activity commands", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText(twoPointsAndVariableSource, "test");
+    publishTestCanvasSelectionEligibility();
   });
 
   it("cycles a drawable element through all three states back to the start", () => {
@@ -72,6 +74,7 @@ describe("activity commands", () => {
     const pastLengthBefore = useCadDocumentStore.getState().past.length;
 
     setElementsActivity("hidden");
+    publishTestCanvasSelectionEligibility();
 
     expect(elementNamed("A")).toMatchObject({ activity: "hidden" });
     expect(elementNamed("B")).toMatchObject({ activity: "hidden" });
@@ -93,6 +96,7 @@ describe("activity commands", () => {
     const pastLengthBefore = useCadDocumentStore.getState().past.length;
 
     setElementsActivity("hidden");
+    publishTestCanvasSelectionEligibility();
 
     expect(elementById("W")).toMatchObject({ activity: "visible" });
     expect(useCadDocumentStore.getState().past.length).toBe(pastLengthBefore);
@@ -109,13 +113,15 @@ describe("activity commands", () => {
     expect(elementById("W")).toMatchObject({ activity: "visible" });
   });
 
-  it("prunes a selected element when it is hidden or disabled without adding selection history", () => {
+  it("waits for fresh Canvas eligibility before pruning a hidden or disabled selection", () => {
     const pointA = elementNamed("A");
     useCadUiStore.getState().setSelectedElementId(pointA.id);
     const selectionHistoryBefore = useCadDocumentStore.getState().selectionPast.length;
 
     setElementActivity(pointA.id, "hidden");
 
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
+    publishTestCanvasSelectionEligibility();
     expect(useCadUiStore.getState()).toMatchObject({
       selectedElementId: null,
       selectedElementIds: [],
@@ -126,8 +132,12 @@ describe("activity commands", () => {
     // The same transition remains eligible for the disabled state once the
     // document is restored by Undo; the direct command itself is covered here.
     useCadDocumentStore.getState().undo();
+    publishTestCanvasSelectionEligibility();
+    useCadUiStore.getState().setSelectedElementId(pointA.id);
     expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
     setElementActivity(pointA.id, "disabled");
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
+    publishTestCanvasSelectionEligibility();
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(selectionHistoryBefore);
   });
@@ -138,6 +148,7 @@ describe("activity commands", () => {
     useCadUiStore.getState().setSelectedElementIds([pointA.id, pointB.id], pointA.id);
 
     setElementActivity(pointA.id, "hidden");
+    publishTestCanvasSelectionEligibility();
 
     expect(useCadUiStore.getState()).toMatchObject({
       selectedElementId: pointB.id,
@@ -159,6 +170,7 @@ describe("activity commands", () => {
     });
 
     expect(result.status).toBe("applied");
+    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements, new Set());
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
   });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import {
   confirmCommandLineSession,
   startCommandLineCreation,
@@ -116,6 +117,7 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
       ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       "test"
     );
+    publishTestCanvasSelectionEligibility();
     const pointA = useCadDocumentStore.getState().elements[0]!;
     useCadUiStore.getState().setSelectedElementId(pointA.id);
 

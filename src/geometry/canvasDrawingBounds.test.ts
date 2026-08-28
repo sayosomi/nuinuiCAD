@@ -419,7 +419,7 @@ describe("canvasPresentationEligibleElementIds", () => {
     expect(ids).toEqual(new Set(["anchored"]));
   });
 
-  it("keeps the established container-owner presentation available to Reveal without making it normal-selectable", () => {
+  it("excludes structural/container elements even when stale computed geometry is present", () => {
     const elements = [element("group", "group"), element("module", "moduleInstance")];
     const evaluation = evaluationFor([], ["group", "module"]);
 
@@ -430,14 +430,6 @@ describe("canvasPresentationEligibleElementIds", () => {
       activeVisibilityProfileId: null,
       showCanvasPoints: true
     })).toEqual(new Set());
-    expect(canvasPresentationEligibleElementIds({
-      elements,
-      evaluation,
-      visibilityProfiles: [],
-      activeVisibilityProfileId: null,
-      showCanvasPoints: true,
-      includeContainerPresentation: true
-    })).toEqual(new Set(["group", "module"]));
   });
 
   it("excludes normal points when point presentation is disabled without affecting other presented geometry", () => {

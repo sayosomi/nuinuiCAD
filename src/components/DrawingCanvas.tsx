@@ -875,8 +875,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [clearHoveredElement, hoverSuppressed]);
 
   useEffect(() => {
+    if (!evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
     useCadUiStore.getState().setCanvasSelectionEligibility(elements, selectionEligibleElementIds);
-  }, [elements, selectionEligibleElementIds]);
+  }, [compiledDocumentRevision, elements, evaluationState, selectionEligibleElementIds]);
 
   useEffect(() => {
     const previous = canvasInvalidationInputsRef.current;

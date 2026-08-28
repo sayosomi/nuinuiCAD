@@ -199,16 +199,13 @@ export const canvasPresentationEligibleElementIds = ({
   evaluation,
   visibilityProfiles,
   activeVisibilityProfileId,
-  showCanvasPoints,
-  includeContainerPresentation = false
+  showCanvasPoints
 }: {
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   showCanvasPoints: boolean;
-  /** Reveal may target the established container-owner presentation path. */
-  includeContainerPresentation?: boolean;
 }): Set<ElementId> => {
   const visibleIds = effectiveCanvasVisibleElementIds({
     elements,
@@ -226,9 +223,7 @@ export const canvasPresentationEligibleElementIds = ({
       const element = elementById.get(elementId);
       const geometry = evaluation.computedGeometry.get(elementId);
       if (!element) return false;
-      if (isContainerElement(element)) {
-        return includeContainerPresentation && !conditionInactiveIds.has(elementId);
-      }
+      if (isContainerElement(element)) return false;
       if (runtimeOnlyElementTypes.has(element.type) || !geometry) return false;
       if (!evaluatedIds.has(elementId) || !enabledIds.has(elementId) || conditionInactiveIds.has(elementId)) {
         return false;

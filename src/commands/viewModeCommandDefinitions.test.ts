@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { viewModeCommandDefinitions } from "./viewModeCommandDefinitions";
 
 const pointElement = (id: string, x: number, y: number): CadElement => ({
@@ -56,6 +57,7 @@ const emptySelection = {
 const prepareDocumentHistory = () => {
   const beforeSourceText = useCadDocumentStore.getState().sourceText;
   useCadDocumentStore.getState().commitText(`${beforeSourceText}\n// document history`, "test");
+  publishTestCanvasSelectionEligibility();
   const secondElement = useCadDocumentStore.getState().elements[1];
   if (!secondElement) throw new Error("Expected the fixture document to contain two elements");
   return {
@@ -210,6 +212,7 @@ describe("Canvas history fallback commands", () => {
     useCadDocumentStore.getState().undo();
     expect(useCadDocumentStore.getState().sourceText).toBe(beforeSourceText);
 
+    publishTestCanvasSelectionEligibility();
     useCadUiStore.getState().setSelectedElementId(secondElementId);
     useCadDocumentStore.getState().recordCanvasSelection(emptySelection);
     expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
