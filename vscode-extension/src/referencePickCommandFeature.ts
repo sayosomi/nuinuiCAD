@@ -2,10 +2,15 @@ import * as vscode from "vscode";
 import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
-import type { VscodeReferencePickResult } from "../../src/vscode/referencePickProtocol";
+import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
+import type {
+  VscodeReferencePickResult,
+  VscodeReferencePickTargetProof
+} from "../../src/vscode/referencePickProtocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createVscodeReferencePickSourceBridge,
+  type VscodeReferencePickAppliedHandoff,
   type VscodeReferencePickSourceBridge
 } from "./referencePickSourceBridge";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
@@ -28,8 +33,16 @@ type ActiveReferencePick = {
   requestId: number;
   endpoint: VscodeReferencePickCanvasEndpoint;
   bridge: VscodeReferencePickSourceBridge | null;
+  initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
+  expectedTargetProof?: VscodeReferencePickTargetProof;
   webviewDisposable: vscode.Disposable;
   panelDisposable: vscode.Disposable;
+};
+
+type ReferencePickHistoryHandoff = VscodeReferencePickAppliedHandoff & {
+  editor: vscode.TextEditor;
+  endpoint: VscodeReferencePickCanvasEndpoint;
+  state: "confirmed" | "restored";
 };
 
 export type VscodeSourceTargetAvailability = {
@@ -123,6 +136,7 @@ export const registerVscodeReferencePickFeature = ({
 }): vscode.Disposable => {
   let nextRequestId = 1;
   let active: ActiveReferencePick | null = null;
+  let historyHandoff: ReferencePickHistoryHandoff | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
 
   const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
@@ -168,6 +182,10 @@ export const registerVscodeReferencePickFeature = ({
     if (disposeBridge) current.bridge?.dispose();
   };
 
+  const clearHistoryHandoff = (): void => {
+    historyHandoff = null;
+  };
+
   const cancelActive = (): void => {
     const current = active;
     if (!current) return;
@@ -200,13 +218,40 @@ export const registerVscodeReferencePickFeature = ({
       languageAnalysisSession: languageAnalysisSessionFor(current.editor.document),
       requestId: current.requestId,
       normalizedSourceOffset: current.normalizedSourceOffset,
+      ...(current.initialDraftReferences !== undefined
+        ? { initialDraftReferences: current.initialDraftReferences }
+        : {}),
+      ...(current.expectedTargetProof ? { expectedTargetProof: current.expectedTargetProof } : {}),
       postMessage: (message) => current.endpoint.panel.webview.postMessage(message)
     });
     current.bridge = bridge;
     if (!bridge.start()) {
       clearActive(true);
+      clearHistoryHandoff();
       refreshContext(current.editor);
     }
+  };
+
+  const attachActive = (current: ActiveReferencePick): void => {
+    active = current;
+    current.webviewDisposable = current.endpoint.panel.webview.onDidReceiveMessage((message: unknown) => {
+      if (active !== current || typeof message !== "object" || message === null || !("type" in message)) return;
+      const typed = message as { type: string };
+      if (typed.type === "webviewAuthoritativeDocumentReady") {
+        tryStartActive();
+        return;
+      }
+      if (typed.type === "referencePickResult") {
+        void handleReferencePickResult(message as VscodeReferencePickResult);
+      }
+    });
+    current.panelDisposable = current.endpoint.panel.onDidDispose(() => {
+      if (active === current) {
+        clearActive(true);
+        clearHistoryHandoff();
+      }
+    });
+    tryStartActive();
   };
 
   const handleReferencePickResult = async (result: VscodeReferencePickResult): Promise<void> => {
@@ -220,8 +265,53 @@ export const registerVscodeReferencePickFeature = ({
       return;
     }
     if (outcome === "ignored") return;
+    if (outcome === "applied") {
+      const applied = bridge.appliedHandoff();
+      clearActive(false);
+      if (applied) {
+        historyHandoff = {
+          ...applied,
+          editor: current.editor,
+          endpoint: current.endpoint,
+          state: "confirmed"
+        };
+      } else {
+        clearHistoryHandoff();
+      }
+      refreshContext(vscode.window.activeTextEditor);
+      return;
+    }
     clearActive(false);
+    clearHistoryHandoff();
     refreshContext(vscode.window.activeTextEditor);
+  };
+
+  const startRestoredReferencePick = (handoff: ReferencePickHistoryHandoff): void => {
+    if (historyHandoff !== handoff || active) return;
+    if (
+      !isSupportedSourceEditor(handoff.editor) ||
+      !sameDocument(handoff.editor.document, handoff.endpoint.document) ||
+      handoff.editor.document.getText() !== handoff.preConfirmSource
+    ) {
+      clearHistoryHandoff();
+      return;
+    }
+
+    const documentVersion = handoff.editor.document.version;
+    const current: ActiveReferencePick = {
+      editor: handoff.editor,
+      normalizedSourceOffset: handoff.normalizedSourceOffset,
+      documentVersion,
+      requestId: nextRequestId++,
+      endpoint: handoff.endpoint,
+      bridge: null,
+      initialDraftReferences: handoff.references,
+      expectedTargetProof: handoff.targetProof,
+      webviewDisposable: { dispose: () => undefined },
+      panelDisposable: { dispose: () => undefined }
+    };
+    handoff.endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
+    attachActive(current);
   };
 
   const command = vscode.commands.registerCommand(VSCODE_REFERENCE_PICK_COMMAND_ID, async () => {
@@ -240,6 +330,7 @@ export const registerVscodeReferencePickFeature = ({
     }
 
     cancelActive();
+    clearHistoryHandoff();
     const documentVersion = editor.document.version;
     const sourceSelection = editor.selection;
     const endpoint = await ensureCanvas(editor.document);
@@ -271,22 +362,7 @@ export const registerVscodeReferencePickFeature = ({
       webviewDisposable: { dispose: () => undefined },
       panelDisposable: { dispose: () => undefined }
     };
-    active = current;
-    current.webviewDisposable = endpoint.panel.webview.onDidReceiveMessage((message: unknown) => {
-      if (active !== current || typeof message !== "object" || message === null || !("type" in message)) return;
-      const typed = message as { type: string };
-      if (typed.type === "webviewAuthoritativeDocumentReady") {
-        tryStartActive();
-        return;
-      }
-      if (typed.type === "referencePickResult") {
-        void handleReferencePickResult(message as VscodeReferencePickResult);
-      }
-    });
-    current.panelDisposable = endpoint.panel.onDidDispose(() => {
-      if (active === current) clearActive(true);
-    });
-    tryStartActive();
+    attachActive(current);
   });
 
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => refreshContext(editor));
@@ -294,18 +370,54 @@ export const registerVscodeReferencePickFeature = ({
     if (event.textEditor === vscode.window.activeTextEditor) refreshContext(event.textEditor);
   });
   const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-    if (
-      active &&
-      sameDocument(event.document, active.editor.document) &&
-      event.contentChanges.length > 0
-    ) {
-      cancelActive();
+    if (event.contentChanges.length > 0) {
+      const current = active;
+      const handoff = historyHandoff;
+      const sameActiveDocument = current && sameDocument(event.document, current.editor.document);
+      const sameHandoffDocument = handoff && sameDocument(event.document, handoff.editor.document);
+
+      if (sameActiveDocument && typeof current.bridge?.isApplying === "function" && current.bridge.isApplying()) {
+        // The bridge owns exactly this one edit. Its freshness listener is
+        // likewise suppressed while the native editor transaction is in flight.
+      } else if (sameHandoffDocument && handoff) {
+        const sourceText = event.document.getText();
+        const isOwnConfirmChange = event.document.version === handoff.documentVersion &&
+          sourceText === handoff.postConfirmSource;
+        const isMatchingUndo = handoff.state === "confirmed" &&
+          event.reason === vscode.TextDocumentChangeReason.Undo &&
+          event.document.version > handoff.documentVersion &&
+          sourceText === handoff.preConfirmSource;
+        const isMatchingRedo = handoff.state === "restored" &&
+          event.reason === vscode.TextDocumentChangeReason.Redo &&
+          event.document.version > handoff.documentVersion &&
+          sourceText === handoff.postConfirmSource;
+
+        if (isOwnConfirmChange) {
+          // The successful bridge edit may be observed after the bridge result
+          // is delivered. Keep the one-step handoff eligible in that case.
+        } else if (isMatchingUndo) {
+          historyHandoff = { ...handoff, state: "restored" };
+          startRestoredReferencePick(historyHandoff);
+        } else if (isMatchingRedo) {
+          cancelActive();
+          clearHistoryHandoff();
+        } else {
+          cancelActive();
+          clearHistoryHandoff();
+        }
+      } else if (sameActiveDocument) {
+        cancelActive();
+        clearHistoryHandoff();
+      } else if (handoff) {
+        clearHistoryHandoff();
+      }
     }
     const editor = vscode.window.activeTextEditor;
     if (editor && sameDocument(editor.document, event.document)) refreshContext(editor);
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (active && sameDocument(document, active.editor.document)) cancelActive();
+    if (historyHandoff && sameDocument(document, historyHandoff.editor.document)) clearHistoryHandoff();
     refreshContext(vscode.window.activeTextEditor);
   });
 
@@ -320,6 +432,7 @@ export const registerVscodeReferencePickFeature = ({
     {
       dispose: () => {
         cancelActive();
+        clearHistoryHandoff();
         setSourceTargetContexts(unavailableSourceTargets());
       }
     }

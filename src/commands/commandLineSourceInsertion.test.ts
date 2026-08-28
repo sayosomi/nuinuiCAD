@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
-import { sourceInsertionForCreation } from "./sourceCreationInsertion";
+import {
+  resolveSourceCreationInsertion,
+  sourceInsertionForCreation
+} from "./sourceCreationInsertion";
 
-const compiled = (lines: string[]) => {
-  const result = compileDslDocument(lines.join("\n"));
+const compiled = (lines: string[], assignedStatementIds?: Map<number, string>) => {
+  const result = compileDslDocument(lines.join("\n"), { assignedStatementIds });
   if (!result.document || !result.statementMap) throw new Error("fixture must compile");
   return result;
 };
@@ -68,5 +71,102 @@ describe("command-line source insertion", () => {
       insertionTarget: { insertionIndex: 1 },
       sourceInsertionLine: 4
     });
+  });
+
+  it("normalizes an interior line of a non-element logical statement to its header", () => {
+    const result = compiled([
+      "nui 4",
+      "const width: number = (",
+      "  10",
+      ")",
+      "point B = coordinate(x: 1, y: 1)"
+    ], new Map([[1, "typed-width"]]));
+    const statement = result.statementMap!.statements.find((info) => info.kind === "typedDeclaration")!;
+    const insertion = sourceInsertionForCreation({
+      cursor: {
+        sourceRevision: result.statementMap!.sourceRevision,
+        line: statement.line + 1,
+        lineCount: result.sourceLines.length,
+        elementId: null
+      },
+      elements: result.document!.elements,
+      statementMap: result.statementMap!
+    });
+
+    expect(statement.endLine).toBe(statement.line + 2);
+    expect(insertion?.sourceInsertionLine).toBe(statement.line);
+    expect(result.sourceLines[insertion!.sourceInsertionLine - 1]).toContain("const width");
+    expect(result.sourceLines[insertion!.sourceInsertionLine - 1]).not.toContain("10");
+  });
+
+  it("distinguishes no Source target, safe insertion, and unsafe current metadata", () => {
+    const result = compiled([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ]);
+    const statementMap = result.statementMap!;
+    const cursor = {
+      sourceRevision: statementMap.sourceRevision,
+      line: 1,
+      lineCount: result.sourceLines.length,
+      elementId: null
+    };
+
+    expect(resolveSourceCreationInsertion({
+      cursor: null,
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap: null
+    })).toEqual({ kind: "none" });
+    expect(resolveSourceCreationInsertion({
+      cursor,
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap
+    })).toMatchObject({ kind: "safe" });
+    expect(resolveSourceCreationInsertion({
+      cursor: { ...cursor, sourceRevision: statementMap.sourceRevision - 1 },
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap
+    })).toEqual({ kind: "unsafe", reason: "stale-source-revision" });
+    expect(resolveSourceCreationInsertion({
+      cursor,
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap: null
+    })).toEqual({ kind: "unsafe", reason: "missing-statement-metadata" });
+  });
+
+  it("fails closed for unresolved and ambiguous Source locations", () => {
+    const result = compiled([
+      "nui 4",
+      "const width: number = (",
+      "  10",
+      ")",
+      "point B = coordinate(x: 1, y: 1)"
+    ], new Map([[1, "typed-width"]]));
+    const statementMap = result.statementMap!;
+    const cursor = {
+      sourceRevision: statementMap.sourceRevision,
+      line: 3,
+      lineCount: result.sourceLines.length,
+      elementId: null
+    };
+    const logicalStatement = statementMap.statements.find((info) => info.kind === "typedDeclaration")!;
+
+    expect(resolveSourceCreationInsertion({
+      cursor: { ...cursor, elementId: "missing-element" },
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap
+    })).toEqual({ kind: "unsafe", reason: "missing-element-statement" });
+
+    expect(resolveSourceCreationInsertion({
+      cursor,
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap: { ...statementMap, statements: [...statementMap.statements, logicalStatement] }
+    })).toEqual({ kind: "unsafe", reason: "ambiguous-source-location" });
   });
 });

@@ -1,13 +1,15 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useCallback, useEffect, useMemo } from "react";
-import { hitTestCanvasGeometryAll } from "../components/DrawingCanvasHitTest";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hitTestCanvasGeometryAll, type ScreenPoint } from "../components/DrawingCanvasHitTest";
 import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
 import { canvasThemeCssVariables, type CanvasTheme } from "../components/canvasTheme";
+import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
 import {
   filterReferencePickGeometryHits,
   hitTestReferencePickPoints
 } from "../model/referencePickHitTest";
+import type { ReferencePickPointHit } from "../model/referencePickHitTest";
 import { referencePickDraftKey, type ReferencePickHover } from "../model/referencePickSession";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
@@ -15,7 +17,10 @@ import {
   referencePickHoverForCanvasOption,
   type VscodeReferencePickCanvasSession
 } from "./referencePickCanvasSession";
-import { referencePickReferenceKey } from "./referencePickProtocol";
+import {
+  referencePickReferenceKey,
+  referencePickSourceForReference
+} from "./referencePickProtocol";
 
 type VSCodeReferencePickOverlayProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -47,6 +52,13 @@ const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
 const eventTargetsReferencePickUi = (event: Event): boolean =>
   event.target instanceof Element && Boolean(event.target.closest("[data-reference-pick-ui='true']"));
 
+type ReferencePickPointCandidateMenu = {
+  anchor: ScreenPoint;
+  hits: readonly ReferencePickPointHit[];
+  activeIndex: number;
+  requestId: number;
+};
+
 export const VSCodeReferencePickOverlay = ({
   canvasFocusRef,
   viewportSize,
@@ -62,6 +74,12 @@ export const VSCodeReferencePickOverlay = ({
   onConfirm,
   onCancel
 }: VSCodeReferencePickOverlayProps) => {
+  const [pointCandidateMenu, setPointCandidateMenuState] = useState<ReferencePickPointCandidateMenu | null>(null);
+  const pointCandidateMenuRef = useRef<ReferencePickPointCandidateMenu | null>(null);
+  const setPointCandidateMenu = useCallback((next: ReferencePickPointCandidateMenu | null) => {
+    pointCandidateMenuRef.current = next;
+    setPointCandidateMenuState(next);
+  }, []);
   const overlay = useCanvasOverlayData({
     evaluation,
     elements,
@@ -74,13 +92,15 @@ export const VSCodeReferencePickOverlay = ({
     resolveImageSourceUrl: (sourcePath) => sourcePath
   });
 
+  const pointHitsAt = useCallback((screen: ScreenPoint): ReferencePickPointHit[] => hitTestReferencePickPoints({
+    screen,
+    candidates: session.candidates,
+    worldToScreen: (point) => worldToScreen(point, viewportSize, canvasViewport)
+  }), [canvasViewport, session.candidates, viewportSize]);
+
   const hitAt = useCallback((screen: { x: number; y: number }): ReferencePickHover | null => {
     if (session.target.expectedGeometryInterface === "point") {
-      const hit = hitTestReferencePickPoints({
-        screen,
-        candidates: session.candidates,
-        worldToScreen: (point) => worldToScreen(point, viewportSize, canvasViewport)
-      })[0];
+      const hit = pointHitsAt(screen)[0];
       return hit
         ? { candidateElementId: hit.candidateElementId, reference: hit.option.reference }
         : null;
@@ -102,7 +122,6 @@ export const VSCodeReferencePickOverlay = ({
     const option = candidate?.options.find((item) => item.kind === "geometry");
     return candidate && option ? referencePickHoverForCanvasOption(candidate, option) : null;
   }, [
-    canvasViewport,
     overlay.overlayArcs,
     overlay.overlayCurves,
     overlay.overlayImages,
@@ -113,8 +132,26 @@ export const VSCodeReferencePickOverlay = ({
     overlay.overlayTexts,
     session.candidates,
     session.target.expectedGeometryInterface,
-    viewportSize
+    pointHitsAt
   ]);
+
+  const activatePointCandidate = useCallback((index: number) => {
+    const menu = pointCandidateMenuRef.current;
+    if (!menu || menu.requestId !== session.request.requestId || menu.hits.length === 0) return;
+    const wrappedIndex = ((index % menu.hits.length) + menu.hits.length) % menu.hits.length;
+    const hit = menu.hits[wrappedIndex];
+    if (!hit) return;
+    onSelect({ candidateElementId: hit.candidateElementId, reference: hit.option.reference });
+    setPointCandidateMenu(null);
+    canvasFocusRef.current?.focus({ preventScroll: true });
+  }, [canvasFocusRef, onSelect, session.request.requestId, setPointCandidateMenu]);
+
+  const cyclePointCandidate = useCallback((offset: number) => {
+    const menu = pointCandidateMenuRef.current;
+    if (!menu || menu.requestId !== session.request.requestId) return;
+    const next = ((menu.activeIndex + offset) % menu.hits.length + menu.hits.length) % menu.hits.length;
+    setPointCandidateMenu({ ...menu, activeIndex: next });
+  }, [session.request.requestId, setPointCandidateMenu]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -135,13 +172,56 @@ export const VSCodeReferencePickOverlay = ({
       if (session.draft.hover) onHover(null);
     };
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || eventTargetsReferencePickUi(event)) return;
+      if (event.button !== 0) return;
+      const pointMenu = pointCandidateMenuRef.current;
+      if (pointMenu && pointMenu.requestId === session.request.requestId) {
+        if (eventTargetsReferencePickUi(event)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setPointCandidateMenu(null);
+        viewport.focus();
+        return;
+      }
+      if (eventTargetsReferencePickUi(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      onSelect(hitAt(pointerScreenPoint(event, viewport)));
+      const screen = pointerScreenPoint(event, viewport);
+      if (session.target.expectedGeometryInterface === "point") {
+        const hits = pointHitsAt(screen);
+        if (hits.length > 1) {
+          setPointCandidateMenu({ anchor: screen, hits, activeIndex: 0, requestId: session.request.requestId });
+        } else {
+          const hit = hits[0];
+          onSelect(hit ? { candidateElementId: hit.candidateElementId, reference: hit.option.reference } : null);
+        }
+      } else {
+        onSelect(hitAt(screen));
+      }
       viewport.focus();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      const pointMenu = pointCandidateMenuRef.current;
+      if (pointMenu && pointMenu.requestId === session.request.requestId) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          cyclePointCandidate(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          activatePointCandidate(pointMenu.activeIndex);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          setPointCandidateMenu(null);
+          viewport.focus();
+          return;
+        }
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -168,7 +248,7 @@ export const VSCodeReferencePickOverlay = ({
       viewport.removeEventListener("pointerdown", handlePointerDown, true);
       viewport.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [canvasFocusRef, hitAt, onCancel, onConfirm, onHover, onSelect, session.draft]);
+  }, [activatePointCandidate, canvasFocusRef, cyclePointCandidate, hitAt, onCancel, onConfirm, onHover, onSelect, pointHitsAt, session.draft, session.request.requestId, session.target.expectedGeometryInterface, setPointCandidateMenu]);
 
   const draftKeys = useMemo(
     () => new Set(session.draft.draftReferences.map(referencePickDraftKey)),
@@ -269,6 +349,14 @@ export const VSCodeReferencePickOverlay = ({
     : selectionCount === 0
       ? "Select a candidate"
       : "Reference selected";
+  const currentPointCandidateMenu = pointCandidateMenu?.requestId === session.request.requestId
+    ? pointCandidateMenu
+    : null;
+  const pointMenuCandidates = currentPointCandidateMenu?.hits.map((hit, index) => ({
+    id: `${index}-${hit.candidateElementId}-${referencePickReferenceKey(hit.option.reference)}`,
+    name: referencePickSourceForReference(hit.option.reference),
+    detail: `${hit.option.label} · ${hit.candidateElementId}`
+  })) ?? [];
 
   return (
     <>
@@ -306,6 +394,61 @@ export const VSCodeReferencePickOverlay = ({
           );
         })}
       </svg>
+      {session.draft.status === "active" ? (
+        <>
+          <div
+            data-reference-pick-frame="true"
+            aria-hidden="true"
+            style={{
+              ...canvasThemeCssVariables(canvasTheme),
+              position: "absolute",
+              inset: 0,
+              boxSizing: "border-box",
+              border: "2px solid var(--canvas-accent)",
+              pointerEvents: "none",
+              zIndex: 4
+            }}
+          />
+          <div
+            data-reference-pick-badge="true"
+            data-reference-pick-ui="true"
+            style={{
+              ...canvasThemeCssVariables(canvasTheme),
+              position: "absolute",
+              top: 8,
+              left: 8,
+              boxSizing: "border-box",
+              border: "1px solid var(--canvas-accent)",
+              borderRadius: 4,
+              background: "color-mix(in srgb, var(--canvas-background) 88%, transparent)",
+              color: "var(--canvas-foreground)",
+              padding: "4px 7px",
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: 1,
+              pointerEvents: "none",
+              userSelect: "none",
+              zIndex: 5
+            }}
+          >
+            Pick · {targetLabel}
+          </div>
+        </>
+      ) : null}
+      {currentPointCandidateMenu ? (
+        <div data-reference-pick-ui="true">
+          <CanvasOverlapCandidateMenu
+            anchor={currentPointCandidateMenu.anchor}
+            candidates={pointMenuCandidates}
+            activeIndex={currentPointCandidateMenu.activeIndex}
+            viewportSize={viewportSize}
+            idPrefix="reference-pick-point-candidate"
+            ariaLabel="Reference Pick point candidates"
+            onFocusViewport={() => canvasFocusRef.current?.focus()}
+            onActivate={activatePointCandidate}
+          />
+        </div>
+      ) : null}
       <aside
         className="point-drag-axis-lock-hint"
         data-reference-pick-ui="true"

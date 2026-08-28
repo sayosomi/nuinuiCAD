@@ -11,6 +11,8 @@ export type AxisLockKeys = {
   y: boolean;
 };
 
+export type PointDragAxis = "horizontal" | "vertical";
+
 export const worldToScreen = (
   point: { x: number; y: number },
   size: ViewportSize,
@@ -55,7 +57,39 @@ export const visibleGridStep = (
   return step;
 };
 
+export const pointDragAxisForScreenDelta = ({
+  screenDx,
+  screenDy,
+  shiftKey
+}: {
+  screenDx: number;
+  screenDy: number;
+  shiftKey: boolean;
+}): PointDragAxis | null => {
+  if (!shiftKey) return null;
+  return Math.abs(screenDx) >= Math.abs(screenDy) ? "horizontal" : "vertical";
+};
+
 export const constrainedWorldDelta = ({
+  screenDx,
+  screenDy,
+  zoom,
+  shiftKey
+}: {
+  screenDx: number;
+  screenDy: number;
+  zoom: number;
+  shiftKey: boolean;
+}) => {
+  const axis = pointDragAxisForScreenDelta({ screenDx, screenDy, shiftKey });
+  return {
+    dx: axis === "vertical" ? 0 : screenDx / zoom,
+    dy: axis === "horizontal" ? 0 : -screenDy / zoom
+  };
+};
+
+/** Preserves X/Y axis-lock semantics for Output Preview placement. */
+export const axisLockedWorldDelta = ({
   screenDx,
   screenDy,
   zoom,

@@ -3,6 +3,7 @@ import { dispatchCommand } from "../commands/commands";
 import { clearCanvasSelection, replaceCanvasSelection, selectElement } from "../commands/selectionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { initialCadUiState, useCadUiStore } from "./cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import {
   initialCadDocumentState,
   useCadDocumentStore
@@ -29,6 +30,7 @@ const reset = () => {
     currentFilePath: "/tmp/history.nui",
     dirtySinceSave: false
   });
+  publishTestCanvasSelectionEligibility();
   useCadDocumentStore.setState({ past: [], future: [] });
 };
 
@@ -94,6 +96,7 @@ describe("VS Code Canvas selection history", () => {
     expect(useCadDocumentStore.getState().future).toHaveLength(0);
 
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(0), "undo")).toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     selectElement(b!, "replace", true);
     expect(useCadDocumentStore.getState().future).toHaveLength(1);
     expect(useCadDocumentStore.getState().selectionFuture).toHaveLength(0);
@@ -141,6 +144,7 @@ describe("VS Code Canvas point-drag chronology", () => {
       currentFilePath: "/tmp/history.nui",
       dirtySinceSave: false
     });
+    publishTestCanvasSelectionEligibility();
     const elements = useCadDocumentStore.getState().elements;
     const pointC = elements.find((element) => element.name === "C");
     const lineAB = elements.find((element) => element.name === "AB");
@@ -194,6 +198,7 @@ describe("VS Code Canvas point-drag chronology", () => {
 
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(preDragSource, "undo"))
       .toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     expect(useCadDocumentStore.getState().sourceText).toBe(preDragSource);
     expect(useCadUiStore.getState().selectedElementId).toBe(pointC!.id);
     expect(useCadDocumentStore.getState().selectionPast.at(-1)).toMatchObject({
@@ -217,6 +222,7 @@ describe("VS Code Canvas point-drag chronology", () => {
     useCadDocumentStore.getState().commitText(sourceFor(40), "editor");
 
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(0), "undo")).toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
     expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
     expect(useCadUiStore.getState()).toMatchObject({
@@ -229,6 +235,7 @@ describe("VS Code Canvas point-drag chronology", () => {
     expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(40), "redo")).toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceFor(40));
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
   });
@@ -239,9 +246,11 @@ describe("VS Code Canvas point-drag chronology", () => {
     useCadDocumentStore.getState().commitText(sourceFor(40), "editor");
 
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(0), "undo")).toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
     expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory(sourceFor(40), "redo")).toBe("reconciled");
+    publishTestCanvasSelectionEligibility();
     expect(useCadUiStore.getState().selectedElementId).toBe(b);
   });
 

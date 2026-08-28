@@ -13,8 +13,17 @@ import {
 import { parseGeometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import {
   resolveSourceLexicalPathSegments,
+  resolveSourceLexicalDeclaration,
   type SourceLexicalDeclaration
 } from "./sourceLexicalNamespaceIndex";
+import type {
+  RecordFieldIdentity
+} from "./recordSemanticAnalysis";
+import type {
+  ModuleRecordReferenceSemantic,
+  ModuleRecordSourceTarget,
+  ModuleScalarExpressionSemantic
+} from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
 import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
@@ -28,6 +37,9 @@ import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
+  | { kind: "recordType"; statementId: string }
+  | { kind: "recordValue"; statementId: string }
+  | { kind: "recordField"; field: RecordFieldIdentity }
   | { kind: "module"; target: ModuleSemanticTarget }
   | { kind: "element"; elementId: ElementId }
   | { kind: "modifier"; name: string }
@@ -60,6 +72,9 @@ const physicalRange = (
 
 export const dslSemanticIdentityKey = (identity: DslSemanticIdentity): string => {
   if (identity.kind === "typed") return `typed:${identity.bindingId}`;
+  if (identity.kind === "recordType") return `recordType:${identity.statementId}`;
+  if (identity.kind === "recordValue") return `recordValue:${identity.statementId}`;
+  if (identity.kind === "recordField") return `recordField:${identity.field.recordStatementId}:${identity.field.fieldIndex}`;
   if (identity.kind === "element") return `element:${identity.elementId}`;
   if (identity.kind === "modifier") return `modifier:${identity.name}`;
   if (identity.kind === "source") return `source:${identity.statementId}`;
@@ -99,6 +114,8 @@ const declarationIdentity = (
 ): DslSemanticIdentity | null => {
   const elementId = elementIdForStatementIndex(compiled, declaration.statementIndex);
   if (elementId) return { kind: "element", elementId };
+  if (declaration.kind === "recordDefinition") return { kind: "recordType", statementId: declaration.statementId };
+  if (declaration.kind === "recordValue") return { kind: "recordValue", statementId: declaration.statementId };
   if (
     declaration.kind === "group" ||
     declaration.kind === "geometry" ||
@@ -195,6 +212,30 @@ const addNumericGeometryPropertyOccurrences = (
   }
 };
 
+const addTypedGeometryPropertyOccurrences = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  expression: TypedScalarExpression,
+  addQualifiedPathOccurrences: (
+    statementIndex: number,
+    nameSpan: { start: number; end: number },
+    finalTarget: DslSemanticIdentity | null
+  ) => void
+) => {
+  for (const reference of geometryPropertiesIn(expression)) {
+    const identity = elementIdentity(compiled, reference.elementId);
+    if (identity) addQualifiedPathOccurrences(statementIndex, reference.elementNameSpan, identity);
+  }
+};
+
+/** Record fields are source-semantic names, not hidden scalar bindings created
+ * by record lowering. Keep those implementation bindings out of navigation
+ * and rename candidates; the record occurrence pass below supplies the
+ * nominal identities instead. */
+const isSyntheticRecordBinding = (bindingId: string) =>
+  bindingId.startsWith("record-field-binding:") || bindingId.startsWith("module-record-binding:");
+
 const addTypedOccurrences = (
   compiled: CompiledDslDocument,
   bindingAnalysis: BindingAnalysis | undefined,
@@ -214,24 +255,23 @@ const addTypedOccurrences = (
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {
     for (const reference of referencesIn(expression)) {
       if (!reference.bindingId) continue;
+      if (isSyntheticRecordBinding(reference.bindingId)) continue;
       addPhysicalOccurrence(add, compiled, statementIndex, reference.nameSpan, {
         kind: "typed",
         bindingId: reference.bindingId
       }, "reference");
     }
+    addTypedGeometryPropertyOccurrences(compiled, add, statementIndex, expression, addQualifiedPathOccurrences);
   };
   for (const statement of compiled.scalarProgram?.statements ?? []) {
     const statementIndex = analysis.catalog.bindingsById.get(statement.bindingId)?.statementIndex;
     if (statementIndex !== undefined) {
       addExpression(statementIndex, statement.declaration.initializer);
-      for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
-        const identity = elementIdentity(compiled, reference.elementId);
-        if (identity) addQualifiedPathOccurrences(statementIndex, reference.elementNameSpan, identity);
-      }
     }
   }
   for (const reference of analysis.initializerReferences) {
     if (reference.resolution.kind !== "resolved" || !reference.span) continue;
+    if (isSyntheticRecordBinding(reference.resolution.binding.id)) continue;
     const statementIndex = analysis.catalog.bindingsById.get(reference.fromBindingId)?.statementIndex;
     if (statementIndex === undefined) continue;
     addPhysicalOccurrence(add, compiled, statementIndex, {
@@ -243,6 +283,7 @@ const addTypedOccurrences = (
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
     if (!Number.isInteger(statementIndex)) continue;
     if (source.kind === "binding") {
+      if (isSyntheticRecordBinding(source.bindingId)) continue;
       addPhysicalOccurrence(add, compiled, statementIndex, source.nameSpan, { kind: "typed", bindingId: source.bindingId }, "reference");
     } else if (source.kind === "expression") {
       addExpression(statementIndex, source.expression);
@@ -276,7 +317,7 @@ const addTypedOccurrences = (
       const physical = reference.physicalNameSpan?.segments.length === 1
         ? reference.physicalNameSpan.segments[0]
         : null;
-      if (physical) add("reference", physical.from, physical.to, { kind: "typed", bindingId: reference.bindingId });
+      if (physical && !isSyntheticRecordBinding(reference.bindingId)) add("reference", physical.from, physical.to, { kind: "typed", bindingId: reference.bindingId });
     }
   }
 };
@@ -303,6 +344,195 @@ const addQualifiedPathOccurrences = (
     const range = ranges.segments[index];
     if (range) add("reference", range.start, range.end, identity);
   });
+};
+
+const recordTypeIdentityOccurrence = (identity: string): DslSemanticIdentity => ({ kind: "recordType", statementId: identity });
+const recordValueIdentityOccurrence = (identity: string): DslSemanticIdentity => ({ kind: "recordValue", statementId: identity });
+const recordFieldIdentityOccurrence = (identity: RecordFieldIdentity): DslSemanticIdentity => ({ kind: "recordField", field: identity });
+
+const isModuleBodyStatement = (compiled: CompiledDslDocument, statementIndex: number) => {
+  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  return statementId ? Boolean(analysis?.definitions.some((definition) => definition.bodyStatementIds.includes(statementId))) : false;
+};
+
+const addRecordConstructorOccurrences = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  constructor: { nameSpan: { start: number; end: number }; targetTypeIdentity: string | null; fields: readonly { field: RecordFieldIdentity; labelSpan: { start: number; end: number } }[] }
+) => {
+  if (constructor.targetTypeIdentity) addPhysicalOccurrence(add, compiled, statementIndex, constructor.nameSpan, recordTypeIdentityOccurrence(constructor.targetTypeIdentity), "reference");
+  for (const field of constructor.fields) {
+    addPhysicalOccurrence(add, compiled, statementIndex, field.labelSpan, recordFieldIdentityOccurrence(field.field), "reference");
+  }
+};
+
+const addRecordOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records) return;
+
+  for (const definition of records.definitionsByStatementId.values()) {
+    const statement = compiled.statements[definition.statementIndex];
+    if (!statement) continue;
+    if (statement.nameSpan) addPhysicalOccurrence(add, compiled, definition.statementIndex, statement.nameSpan, recordTypeIdentityOccurrence(definition.statementId), "declaration");
+    for (const field of definition.fields) {
+      addPhysicalOccurrence(add, compiled, definition.statementIndex, field.nameSpan, recordFieldIdentityOccurrence(field.identity), "declaration");
+    }
+  }
+
+  for (const value of records.valuesByStatementId.values()) {
+    const statement = compiled.statements[value.statementIndex];
+    if (!statement) continue;
+    if (statement.nameSpan) addPhysicalOccurrence(add, compiled, value.statementIndex, statement.nameSpan, recordValueIdentityOccurrence(value.statementId), "declaration");
+    if (value.typeReference.typeIdentity) {
+      addPhysicalOccurrence(add, compiled, value.statementIndex, value.typeReference.span, recordTypeIdentityOccurrence(value.typeReference.typeIdentity), "reference");
+    }
+    if (value.constructor) addRecordConstructorOccurrences(compiled, add, value.statementIndex, value.constructor);
+    if (value.reference && !isModuleBodyStatement(compiled, value.statementIndex)) {
+      const lookup = resolveSourceLexicalDeclaration(namespace, value.statementIndex, value.reference.name);
+      if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
+        addPhysicalOccurrence(add, compiled, value.statementIndex, {
+          start: value.reference.span.start + 1,
+          end: value.reference.span.end
+        }, recordValueIdentityOccurrence(lookup.declaration.statementId), "reference");
+      }
+    }
+  }
+
+  for (const parameter of records.moduleParameters) {
+    if (parameter.typeReference.typeIdentity) {
+      const statementIndex = statementIndexForId(compiled, parameter.definitionStatementId);
+      if (statementIndex !== undefined) {
+        addPhysicalOccurrence(add, compiled, statementIndex, parameter.typeReference.span, recordTypeIdentityOccurrence(parameter.typeReference.typeIdentity), "reference");
+      }
+    }
+  }
+};
+
+const moduleParameterIdentity = (target: { definitionStatementId: string; parameterIndex: number }): DslSemanticIdentity => ({
+  kind: "module",
+  target: {
+    kind: "moduleParameter",
+    slot: {
+      definitionStatementId: target.definitionStatementId,
+      parameterIndex: target.parameterIndex
+    }
+  }
+});
+
+const addModuleRecordTarget = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  target: ModuleRecordSourceTarget,
+  nameSpan?: { start: number; end: number }
+) => {
+  if (target.kind === "recordValue") {
+    if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, recordValueIdentityOccurrence(target.statementId), "reference");
+    return;
+  }
+  if (target.kind === "recordParameter") {
+    if (nameSpan) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, moduleParameterIdentity(target), "reference");
+    return;
+  }
+  addPhysicalOccurrence(add, compiled, statementIndex, target.instanceSpan, {
+    kind: "module",
+    target: { kind: "moduleInstance", statementId: target.instanceStatementId }
+  }, "reference");
+  addPhysicalOccurrence(add, compiled, statementIndex, target.memberSpan, {
+    kind: "module",
+    target: { kind: "moduleSource", statementId: target.exportedStatementId }
+  }, "reference");
+};
+
+const addModuleRecordReferenceOccurrences = (
+  compiled: CompiledDslDocument,
+  add: AddOccurrence,
+  statementIndex: number,
+  reference: ModuleRecordReferenceSemantic
+) => {
+  if (reference.target) {
+    const nameSpan = reference.span.start < reference.span.end
+      ? { start: reference.span.start + 1, end: reference.span.end }
+      : reference.span;
+    addModuleRecordTarget(compiled, add, statementIndex, reference.target, nameSpan);
+  }
+  if (reference.constructor) addRecordConstructorOccurrences(compiled, add, statementIndex, reference.constructor);
+  for (const field of reference.constructor?.fields ?? []) {
+    for (const nested of field.expression?.geometryProperties ?? []) {
+      if (nested.target?.kind === "recordField") {
+        addModuleRecordTarget(compiled, add, statementIndex, nested.target.record, nested.elementNameSpan);
+        addPhysicalOccurrence(add, compiled, statementIndex, nested.propertySpan, recordFieldIdentityOccurrence(nested.target.field), "reference");
+      }
+    }
+  }
+};
+
+/** The scalar compiler intentionally lowers record fields to hidden typed
+ * bindings. Project only their authored source spans back to nominal record
+ * identities; the hidden binding names themselves never become editor
+ * occurrences. */
+const addSyntheticRecordFieldOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  const catalog = compiled.bindingAnalysis?.catalog;
+  if (!namespace || !records || !catalog) return;
+  const source = compiled.spans.sourceMap.source;
+  for (const statement of compiled.scalarProgram?.statements ?? []) {
+    const statementIndex = catalog.bindingsById.get(statement.bindingId)?.statementIndex;
+    if (statementIndex === undefined) continue;
+    const moduleBody = isModuleBodyStatement(compiled, statementIndex);
+    for (const reference of referencesIn(statement.declaration.initializer)) {
+      if (!reference.bindingId || !isSyntheticRecordBinding(reference.bindingId)) continue;
+      if (moduleBody) continue;
+      const physical = physicalRange(compiled, statementIndex, reference.nameSpan);
+      if (!physical) continue;
+      const dot = source.indexOf(".", physical.from);
+      if (dot < physical.from || dot >= physical.to) continue;
+      const baseRange = { start: physical.from, end: dot };
+      const fieldRange = { start: dot + 1, end: physical.to };
+      const baseName = source.slice(baseRange.start, baseRange.end);
+      const fieldName = source.slice(fieldRange.start, fieldRange.end);
+      const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, baseName);
+      if (lookup.kind === "resolved" && lookup.declaration.kind === "recordValue") {
+        const value = records.valuesByStatementId.get(lookup.declaration.statementId);
+        const definition = value?.typeIdentity ? records.definitionsByStatementId.get(value.typeIdentity) : null;
+        const field = definition?.fields.find((candidate) => candidate.name === fieldName);
+        if (!value || !field) continue;
+        add("reference", baseRange.start, baseRange.end, recordValueIdentityOccurrence(value.statementId));
+        add("reference", fieldRange.start, fieldRange.end, recordFieldIdentityOccurrence(field.identity));
+        continue;
+      }
+
+      // A qualified Module record export is not part of the source lexical
+      // namespace path, so resolve its instance/export through the existing
+      // Module semantic owner while keeping the field nominal identity.
+      const path = readDslReferencePathSegments(source, baseRange.start, baseRange.end);
+      if (path.kind !== "valid" || path.segments.length !== 2) continue;
+      const instanceLookup = resolveSourceLexicalDeclaration(namespace, statementIndex, path.segments[0]!.name);
+      if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") continue;
+      const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(instanceLookup.declaration.statementId);
+      const moduleDefinition = instance?.callee
+        ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
+        : null;
+      const exported = moduleDefinition?.exports.find((entry) => entry.kind === "record" && entry.name === path.segments[1]!.name);
+      const field = exported?.kind === "record"
+        ? exported.definition.fields.find((candidate) => candidate.name === fieldName)
+        : null;
+      if (!instance || !exported || exported.kind !== "record" || !field) continue;
+      add("reference", path.segments[0]!.start, path.segments[0]!.end, {
+        kind: "module",
+        target: { kind: "moduleInstance", statementId: instance.statementId }
+      });
+      add("reference", path.segments[1]!.start, path.segments[1]!.end, {
+        kind: "module",
+        target: { kind: "moduleSource", statementId: exported.exportedStatementId }
+      });
+      add("reference", fieldRange.start, fieldRange.end, recordFieldIdentityOccurrence(field.identity));
+    }
+  }
 };
 
 const geometryArrayValueIdentity = (
@@ -445,15 +675,38 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
 const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (!analysis) return;
-  const addGeometry = (statementIndex: number, reference: { nameSpan?: { start: number; end: number }; target: unknown }) => {
-    if (!reference.nameSpan || !reference.target) return;
+  const addGeometry = (statementIndex: number, reference: { nameSpan?: { start: number; end: number }; elementNameSpan?: { start: number; end: number }; propertySpan?: { start: number; end: number }; target: unknown }) => {
+    const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
+    if (!nameSpan || !reference.target) return;
     const target = reference.target as { kind?: string; statementId?: string };
+    if (target.kind === "recordField") {
+      const recordTarget = reference.target as Extract<ModuleScalarExpressionSemantic["geometryProperties"][number]["target"], { kind: "recordField" }>;
+      const property = reference as ModuleScalarExpressionSemantic["geometryProperties"][number];
+      const baseSpan = property.propertySpan
+        ? { start: nameSpan.start, end: Math.max(nameSpan.start, property.propertySpan.start - 1) }
+        : nameSpan;
+      addModuleRecordTarget(compiled, add, statementIndex, recordTarget.record, baseSpan);
+      if (property.propertySpan) addPhysicalOccurrence(add, compiled, statementIndex, property.propertySpan, recordFieldIdentityOccurrence(recordTarget.field), "reference");
+      return;
+    }
+    if (target.kind === "parameter" || target.kind === "parameterProperty") {
+      const parameterTarget = target as { definitionStatementId: string; parameterIndex: number };
+      const identity = semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleParameter",
+        slot: {
+          definitionStatementId: parameterTarget.definitionStatementId,
+          parameterIndex: parameterTarget.parameterIndex
+        }
+      });
+      if (identity) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, identity, "reference");
+      return;
+    }
     const finalTarget = target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty"
       ? target.statementId
         ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
         : null
       : null;
-    addQualifiedPathOccurrences(compiled, add, statementIndex, reference.nameSpan, finalTarget);
+    addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
   };
   for (const [statementId, references] of analysis.rootGeometryReferencesByStatementId) {
     const statementIndex = statementIndexForId(compiled, statementId);
@@ -484,6 +737,26 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
         for (const reference of site.expression.geometryProperties) addGeometry(body.statementIndex, reference);
       }
     }
+    for (const recordValue of definition.recordValues) {
+      if (recordValue.target && recordValue.value.reference) {
+        addModuleRecordTarget(compiled, add, recordValue.value.statementIndex, recordValue.target, {
+          start: recordValue.value.reference.span.start + 1,
+          end: recordValue.value.reference.span.end
+        });
+      }
+      if (recordValue.value.constructor) addRecordConstructorOccurrences(compiled, add, recordValue.value.statementIndex, recordValue.value.constructor);
+      for (const field of recordValue.fields) {
+        for (const reference of field.expression?.geometryProperties ?? []) addGeometry(recordValue.value.statementIndex, reference);
+      }
+    }
+  }
+
+  for (const instance of analysis.instances) {
+    for (const binding of instance.parameterBindings) {
+      if (binding.value?.kind === "record") {
+        addModuleRecordReferenceOccurrences(compiled, add, instance.statementIndex, binding.value.reference);
+      }
+    }
   }
 };
 
@@ -493,7 +766,13 @@ const addModuleOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
     : { ...compiled, moduleSemanticAnalysis: compiled.sourceSemanticAnalysis };
   const index = createModuleSemanticRangeIndex(semanticCompiled);
   const source = compiled.spans.sourceMap.source;
+  const recordValueStatementIds = new Set(
+    compiled.sourceLexicalNamespace?.allDeclarations
+      .filter((declaration) => declaration.kind === "recordValue")
+      .map((declaration) => declaration.statementId)
+  );
   for (const token of index.tokens) {
+    if (token.target.kind === "moduleSource" && recordValueStatementIds.has(token.target.statementId)) continue;
     const identity = semanticIdentityForModuleTarget(compiled, token.target);
     if (!identity) continue;
     const declaration = index.declarationByTarget.get(moduleSemanticTargetKey(token.target));
@@ -587,6 +866,8 @@ export const createDslSemanticOccurrenceIndex = (
   ) => addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
 
   addTypedOccurrences(compiled, bindingAnalysis, add, addQualifiedPath);
+  addRecordOccurrences(compiled, add);
+  addSyntheticRecordFieldOccurrences(compiled, add);
   addRootDeclarations(compiled, add);
   addModuleOccurrences(compiled, add);
   addGeometryArrayOccurrences(compiled, add);

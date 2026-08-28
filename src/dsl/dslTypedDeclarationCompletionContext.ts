@@ -19,6 +19,16 @@ export type TypedDeclarationInitializerCompletionContext = {
   geometryProperty?: TypedGeometryPropertyCompletionContext;
 };
 
+export type RecordDeclarationInitializerCompletionContext = {
+  kind: "recordInitializer";
+  from: number;
+  to: number;
+  initializerFrom: number;
+  recordTypeName: string;
+  fieldLabel: boolean;
+  providedFieldNames: readonly string[];
+};
+
 /**
  * `parseDslTypedDeclarationStatement`'s own `payloadSpans.initializer`, when
  * present, is trimmed of trailing whitespace (mirrors every other payload
@@ -74,4 +84,105 @@ export const typedDeclarationInitializerCompletionContext = (
   const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, span, statement.declaredType);
   if (!positionContext) return null;
   return { declaredType: statement.declaredType, positionContext };
+};
+
+const topLevelColon = (source: string, from: number, to: number) => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = from; index < to; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === "(" || character === "[") depth += 1;
+    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
+    else if (character === ":" && depth === 0) return index;
+  }
+  return -1;
+};
+
+const constructorArgumentSegments = (source: string, open: number, end: number) => {
+  const segments: { start: number; end: number }[] = [];
+  let start = open + 1;
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = start; index < end; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === "(" || character === "[") depth += 1;
+    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
+    else if (character === "," && depth === 0) {
+      segments.push({ start, end: index });
+      start = index + 1;
+    }
+  }
+  segments.push({ start, end });
+  return segments;
+};
+
+/** Record constructor field-label completion is deliberately syntax-only
+ * here. Nominal identity and the set of legal fields are supplied by the
+ * semantic query; this helper only finds the active label token/range. */
+export const recordDeclarationInitializerCompletionContextAt = (
+  logicalText: string,
+  pos: number
+): RecordDeclarationInitializerCompletionContext | null => {
+  const { statement } = parseDslTypedDeclarationStatement(logicalText);
+  const recordTypeName = statement?.recordTypeReference?.name;
+  if (!statement || !recordTypeName) return null;
+  const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
+  if (!span || pos < span.start || pos > span.end) return null;
+
+  const prefix = logicalText.slice(span.start, pos);
+  const open = prefix.indexOf("(");
+  if (open < 0) {
+    return {
+      kind: "recordInitializer",
+      from: span.start,
+      to: pos,
+      initializerFrom: span.start,
+      recordTypeName,
+      fieldLabel: false,
+      providedFieldNames: []
+    };
+  }
+
+  const segments = constructorArgumentSegments(prefix, open, prefix.length);
+  const current = segments[segments.length - 1]!;
+  const providedFieldNames: string[] = [];
+  for (const segment of segments) {
+    const colon = topLevelColon(prefix, segment.start, segment.end);
+    if (colon < 0) continue;
+    const name = prefix.slice(segment.start, colon).trim();
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) providedFieldNames.push(name);
+  }
+  const currentColon = topLevelColon(prefix, current.start, current.end);
+  if (currentColon >= 0) {
+    return {
+      kind: "recordInitializer",
+      from: pos,
+      to: pos,
+      initializerFrom: span.start,
+      recordTypeName,
+      fieldLabel: false,
+      providedFieldNames
+    };
+  }
+  let from = span.start + current.start;
+  while (from < span.start + current.end && /\s/.test(logicalText[from] ?? "")) from += 1;
+  return {
+    kind: "recordInitializer",
+    from,
+    to: pos,
+    initializerFrom: span.start,
+    recordTypeName,
+    fieldLabel: true,
+    providedFieldNames
+  };
 };

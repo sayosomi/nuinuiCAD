@@ -100,7 +100,10 @@ const createEditor = (document: TestDocument) => {
   };
 };
 
-const createBridgeFixture = (requestId: number) => {
+const createBridgeFixture = (
+  requestId: number,
+  initialDraftReferences?: readonly { base: string; pointKey?: string }[]
+) => {
   const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
   const document = createDocument(source);
   const editor = createEditor(document);
@@ -111,6 +114,7 @@ const createBridgeFixture = (requestId: number) => {
     languageAnalysisSession: createLanguageAnalysisSession(source),
     requestId,
     normalizedSourceOffset: source.indexOf("@A", source.indexOf("offset")) + 1,
+    initialDraftReferences,
     postMessage
   });
   return { source, document, editor, postMessage, bridge };
@@ -169,11 +173,28 @@ describe("createVscodeReferencePickSourceBridge", () => {
     expect(editor.edit).toHaveBeenCalledTimes(1);
     expect(editor.edit.mock.calls[0]?.[1]).toEqual({ undoStopBefore: true, undoStopAfter: true });
     expect(document.getText()).toContain("from: @B");
+    expect(bridge.appliedHandoff()).toEqual({
+      documentUri: "file:///pick.nui",
+      documentVersion: 4,
+      preConfirmSource: source,
+      postConfirmSource: document.getText(),
+      normalizedSourceOffset: position,
+      targetProof: request!.targetProof,
+      references: [{ base: "B" }]
+    });
     expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
     expect(mocks.showTextDocument.mock.calls[0]?.[1]).toMatchObject({
       preserveFocus: false,
       preview: false
     });
+  });
+
+  it("carries an optional restored draft into a fresh start request", () => {
+    const { bridge } = createBridgeFixture(20, [{ base: "A" }]);
+    const request = bridge.start();
+
+    expect(request).not.toBeNull();
+    expect(request?.initialDraftReferences).toEqual([{ base: "A" }]);
   });
 
   it("cancels the draft immediately when the captured Source document changes", () => {

@@ -6,6 +6,7 @@ import {
   canvasRectangleSelectionForMembers,
   commitCanvasRectangleSelection
 } from "./canvasRectangleSelectionCommands";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 const elements = [
   { id: "a", name: "A", type: "freePoint" as const, activity: "visible" as const, x: 0, y: 0 },
@@ -19,6 +20,7 @@ describe("Canvas rectangle selection commands", () => {
   beforeEach(() => {
     useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
     useCadUiStore.setState(initialCadUiState());
+    publishTestCanvasSelectionEligibility(elements);
   });
 
   it("normalizes replace members to eligible document order", () => {

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { VSCodeApp } from "./VSCodeApp";
 
 vi.mock("./VSCodeDrawingCanvas", () => ({
@@ -112,6 +113,7 @@ describe.skipIf(!existsSync(rustBinary))("VS Code production Bake path", () => {
     render(<VSCodeApp api={api} />);
     await replaceSource(api);
     const derived = useCadDocumentStore.getState().elements.find((element) => element.name === "Derived")!;
+    publishTestCanvasSelectionEligibility();
     useCadUiStore.getState().setSelectedElementId(derived.id);
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {

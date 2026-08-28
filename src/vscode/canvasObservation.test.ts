@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
+import { parseDsl } from "../dsl/dslParser";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { VscodeCanvasObservationElementSource } from "./canvasObservationProtocol";
 import {
@@ -92,25 +93,74 @@ describe("canvasObservationSnapshot", () => {
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}"
     ].join("\n"));
+    const group = compiled.document?.elements.find((element) => element.name === "G");
     const line = compiled.document?.elements.find((element) => element.name === "AB");
     expect(compiled.statementMap).not.toBeNull();
+    expect(group).toBeDefined();
     expect(line).toBeDefined();
 
     const sources = selectedElementSourcesForCanvasObservation(
-      [line!.id],
+      [group!.id, line!.id],
       compiled,
       compiled.document!.elements
     );
 
     expect(sources).toEqual([{
+      runtimeElementId: group!.id,
+      sourceStatementIndex: 1,
+      elementType: "group"
+    }, {
       runtimeElementId: line!.id,
       sourceStatementIndex: 2,
       elementType: "line"
     }]);
     expect(snapshot({
-      selectedElementIds: [line!.id],
+      selectedElementIds: [group!.id, line!.id],
       selectedElementSources: sources
     }).selectedElementSources).toEqual(sources);
+  });
+
+  it("publishes complete Module instance and body identity paths for repeated nested selections", () => {
+    const source = [
+      "nui 4",
+      "module Inner() {",
+      "  group Body {",
+      "    point P = coordinate(x: 1, y: 2)",
+      "  }",
+      "}",
+      "module Outer() {",
+      "  instance Nested = Inner()",
+      "  point Q = coordinate(x: 3, y: 4)",
+      "}",
+      "instance First = Outer()",
+      "instance Second = Outer()"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    const compiled = compileDslDocument(source, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
+    });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document).not.toBeNull();
+
+    const elements = compiled.document!.elements;
+    const first = elements.find((element) => element.name === "First")!;
+    const second = elements.find((element) => element.name === "Second")!;
+    const firstNested = elements.find((element) => element.name === "Nested" && element.parentGroupId === first.id)!;
+    const secondNested = elements.find((element) => element.name === "Nested" && element.parentGroupId === second.id)!;
+    const firstBody = elements.find((element) => element.name === "Body" && element.parentGroupId === firstNested.id)!;
+    const secondBody = elements.find((element) => element.name === "Body" && element.parentGroupId === secondNested.id)!;
+    const firstPoint = elements.find((element) => element.name === "P" && element.parentGroupId === firstBody.id)!;
+
+    const selected = [first, second, firstNested, secondBody, firstPoint];
+    expect(selected.every(Boolean)).toBe(true);
+    expect(selectedElementSourcesForCanvasObservation(selected.map((element) => element.id), compiled, elements)).toEqual([
+      { runtimeElementId: first.id, runtimeKind: "moduleInstance", sourceStatementPath: [10] },
+      { runtimeElementId: second.id, runtimeKind: "moduleInstance", sourceStatementPath: [11] },
+      { runtimeElementId: firstNested.id, runtimeKind: "moduleInstance", sourceStatementPath: [10, 7] },
+      { runtimeElementId: secondBody.id, runtimeKind: "moduleBody", sourceStatementPath: [11, 7, 2] },
+      { runtimeElementId: firstPoint.id, runtimeKind: "moduleBody", sourceStatementPath: [10, 7, 3] }
+    ]);
   });
 
   it("treats missing issue arrays in partial evaluation fixtures as empty observation facts", () => {

@@ -75,6 +75,7 @@ const renderCanvas = (
       evaluationState={evaluationState}
       canvasFocusRef={createRef()}
       postCanonicalSourceText={postCanonicalSourceText}
+      currentReferencePickAuthorityFor={() => null}
       canvasRibbonRibbons={canvasRibbonRibbons}
       onEditCanvasRibbon={onEditCanvasRibbon}
     />
@@ -267,6 +268,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
           evaluationState={makeEvaluationState(evaluation, 2, { status: "ready" })}
           canvasFocusRef={createRef()}
           postCanonicalSourceText={vi.fn()}
+          currentReferencePickAuthorityFor={() => null}
         />
       );
       await Promise.resolve();
@@ -302,6 +304,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
           evaluationState={makeEvaluationState(evaluation, 2, { status: "ready", isStale: true })}
           canvasFocusRef={createRef()}
           postCanonicalSourceText={vi.fn()}
+          currentReferencePickAuthorityFor={() => null}
         />
       );
       await Promise.resolve();
@@ -315,6 +318,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
           evaluationState={makeEvaluationState(evaluation, 3, { status: "failed" })}
           canvasFocusRef={createRef()}
           postCanonicalSourceText={vi.fn()}
+          currentReferencePickAuthorityFor={() => null}
         />
       );
       await Promise.resolve();
@@ -358,6 +362,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
           evaluationState={makeEvaluationState(evaluation, 2, { status: "ready" })}
           canvasFocusRef={createRef()}
           postCanonicalSourceText={postCanonicalSourceText}
+          currentReferencePickAuthorityFor={() => null}
         />
       );
       await Promise.resolve();

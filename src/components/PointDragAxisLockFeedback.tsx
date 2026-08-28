@@ -1,10 +1,11 @@
 import { canvasThemeCssVariables, type CanvasTheme } from "./canvasTheme";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
-import type { AxisLockKeys, ViewportSize } from "./canvasViewport";
+import { pointDragAxisForScreenDelta, type ViewportSize } from "./canvasViewport";
 
 export type PointDragAxisLockFeedbackState = {
   origin: ScreenPoint;
-  axisLockKeys: AxisLockKeys;
+  current: ScreenPoint;
+  shiftKey: boolean;
 };
 
 type PointDragAxisLockFeedbackProps = {
@@ -18,7 +19,11 @@ export const PointDragAxisLockFeedback = ({
   viewportSize,
   canvasTheme
 }: PointDragAxisLockFeedbackProps) => {
-  const activeAxis = feedback.axisLockKeys.x ? "x" : feedback.axisLockKeys.y ? "y" : null;
+  const activeAxis = pointDragAxisForScreenDelta({
+    screenDx: feedback.current.x - feedback.origin.x,
+    screenDy: feedback.current.y - feedback.origin.y,
+    shiftKey: feedback.shiftKey
+  });
 
   return (
     <div
@@ -37,7 +42,7 @@ export const PointDragAxisLockFeedback = ({
           height={viewportSize.height}
           viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
         >
-          {activeAxis === "x" ? (
+          {activeAxis === "horizontal" ? (
             <line
               data-point-drag-axis-guide="x"
               x1={0}
@@ -62,16 +67,16 @@ export const PointDragAxisLockFeedback = ({
         data-point-drag-axis-lock-hint-position="bottom-right"
         style={{ right: 0, bottom: 0 }}
       >
-        {"Press "}
+        {"Hold Shift for "}
         <span
-          className={`point-drag-axis-lock-action ${activeAxis === "x" ? "is-active" : ""}`.trim()}
+          className={`point-drag-axis-lock-action ${activeAxis === "horizontal" ? "is-active" : ""}`.trim()}
           data-axis="x"
-        >X for Horizontal</span>
-        {", "}
+        >Horizontal</span>
+        {" / "}
         <span
-          className={`point-drag-axis-lock-action ${activeAxis === "y" ? "is-active" : ""}`.trim()}
+          className={`point-drag-axis-lock-action ${activeAxis === "vertical" ? "is-active" : ""}`.trim()}
           data-axis="y"
-        >Y for Vertical</span>
+        >Vertical</span>
       </div>
     </div>
   );

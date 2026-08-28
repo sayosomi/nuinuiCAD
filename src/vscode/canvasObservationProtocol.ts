@@ -6,6 +6,12 @@ export type VscodeCanvasObservationElementSource = {
   runtimeElementId: string;
   sourceStatementIndex: number;
   elementType: string;
+} | {
+  runtimeElementId: string;
+  /** Runtime identity kind for a materialized Module element. */
+  runtimeKind: "moduleInstance" | "moduleBody";
+  /** The complete runtime identity path, expressed in current source indexes. */
+  sourceStatementPath: readonly number[];
 };
 
 export type VscodeCanvasObservationIssueSummary = {

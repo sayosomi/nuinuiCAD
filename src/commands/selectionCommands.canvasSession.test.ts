@@ -11,6 +11,7 @@ import {
   selectElement,
   selectElementByOffset
 } from "./selectionCommands";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 const elements = [
   { id: "a", name: "A", type: "freePoint" as const, activity: "visible" as const, x: 0, y: 0 },
@@ -22,6 +23,7 @@ describe("ephemeral Canvas overlap selection", () => {
   beforeEach(() => {
     useCadDocumentStore.setState({ ...initialCadDocumentState(), elements });
     useCadUiStore.setState(initialCadUiState());
+    publishTestCanvasSelectionEligibility(elements);
   });
 
   it("calculates replace, toggle, and document-order range selection from a snapshot", () => {
@@ -86,6 +88,7 @@ describe("ephemeral Canvas overlap selection", () => {
     finalizeCanvasSelectionSession(before);
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
 
+    console.log("before undo", useCadUiStore.getState().selectedElementId, useCadUiStore.getState().selectedElementIds);
     expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
@@ -115,6 +118,7 @@ describe("ephemeral Canvas overlap selection", () => {
     expect(useCadDocumentStore.getState().selectionPast).toHaveLength(1);
 
     useCadUiStore.setState(initialCadUiState());
+    publishTestCanvasSelectionEligibility(elements);
     expect(replaceCanvasSelection(["c", "a", "b"], "c")).toBe(true);
     expect(useCadUiStore.getState()).toMatchObject({
       selectedElementId: "c",
@@ -132,6 +136,7 @@ describe("ephemeral Canvas overlap selection", () => {
           : element
     );
     useCadDocumentStore.setState({ elements: mixedElements });
+    publishTestCanvasSelectionEligibility(mixedElements);
     useCadUiStore.getState().setSelectedElementId("a");
 
     expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "b", "replace"))
@@ -163,6 +168,7 @@ describe("ephemeral Canvas overlap selection", () => {
         element.id === "b" ? { ...element, activity: "hidden" as const } : element
       )
     });
+    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements);
 
     expect(useCadDocumentStore.getState().undoCanvasSelection()).toBe(true);
     expect(useCadUiStore.getState()).toMatchObject({

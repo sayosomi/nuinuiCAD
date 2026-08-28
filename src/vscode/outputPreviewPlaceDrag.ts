@@ -1,4 +1,4 @@
-import { constrainedWorldDelta, type AxisLockKeys } from "../components/canvasViewport";
+import { axisLockedWorldDelta, type AxisLockKeys } from "../components/canvasViewport";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { OutputPlan } from "../output/outputCore";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
@@ -160,7 +160,7 @@ export const outputPreviewPlaceDragCoordinatesFor = ({
     !Number.isFinite(zoom) ||
     zoom <= 0
   ) return null;
-  const delta = constrainedWorldDelta({ screenDx, screenDy, zoom, axisLockKeys });
+  const delta = axisLockedWorldDelta({ screenDx, screenDy, zoom, axisLockKeys });
   const x = proof.x.literal + delta.dx;
   const y = proof.y.literal + delta.dy;
   return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;

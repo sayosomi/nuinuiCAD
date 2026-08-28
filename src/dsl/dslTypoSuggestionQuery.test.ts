@@ -236,5 +236,17 @@ describe("queryDslTypoSuggestions", () => {
       diagnostic: forwardDiagnostic!,
       semantic: { sourceRevision: SOURCE_REVISION, compiled: forwardCompiled }
     })).toBeNull();
+
+    const mismatchSource = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const mismatchCompiled = compileWithIds(mismatchSource);
+    const mismatchDiagnostic = diagnosticsOf(mismatchCompiled).find(
+      (diagnostic) => diagnostic.code === "construction-category-mismatch"
+    );
+    expect(mismatchDiagnostic).toBeDefined();
+    expect(queryDslTypoSuggestions({
+      source: { normalizedSource: mismatchSource, sourceRevision: SOURCE_REVISION },
+      diagnostic: mismatchDiagnostic!,
+      semantic: { sourceRevision: SOURCE_REVISION, compiled: mismatchCompiled }
+    })).toBeNull();
   });
 });

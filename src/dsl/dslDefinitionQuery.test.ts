@@ -261,6 +261,40 @@ describe("queryDslDefinition", () => {
     expect(parameter && sourceSlice(source, parameter.declarationRange)).toBe("width");
   });
 
+  it("resolves nominal record types, values, fields, Module parameters, and qualified exports", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      'const input: Pair = Pair(x: 1, label: "root")',
+      "const alias: Pair = @input",
+      "module Inner(input: Pair) {",
+      "  const copy: Pair = @input",
+      "  const member: number = @input.x",
+      "  export const output: Pair = @copy",
+      "}",
+      "instance Use = Inner(input: @input)",
+      "const exported: number = @Use::output.x"
+    ].join("\n");
+    const query = (needle: string, offset = needle.length) => exactQuery(source, needle, 7, offset);
+
+    const type = query("Pair(x: 1", "Pair".length);
+    expect(type && sourceSlice(source, type.declarationRange)).toBe("Pair");
+
+    const field = query("Pair(x: 1", "Pair(x".length);
+    expect(field && sourceSlice(source, field.declarationRange)).toBe("x");
+
+    const value = query("const alias: Pair = @input", "const alias: Pair = @input".length);
+    expect(value && sourceSlice(source, value.declarationRange)).toBe("input");
+
+    const parameter = query("const copy: Pair = @input", "const copy: Pair = @input".length);
+    expect(parameter && sourceSlice(source, parameter.declarationRange)).toBe("input");
+    expect(parameter?.declarationRange.from).toBe(source.indexOf("input: Pair", source.indexOf("module Inner")));
+
+    const qualifiedField = query("const exported: number = @Use::output.x");
+    expect(qualifiedField && sourceSlice(source, qualifiedField.declarationRange)).toBe("x");
+    expect(qualifiedField?.declarationRange.from).toBe(source.indexOf("x: number"));
+  });
+
   it("resolves Module body source references by StatementIdentity", () => {
     const source = [
       "nui 4",
@@ -376,6 +410,61 @@ describe("queryDslDefinition", () => {
     const base = query(source.indexOf("@Base") + "@Base".length);
     expect(base).not.toBeNull();
     expect(sourceSlice(source, base!.declarationRange)).toBe("Base");
+  });
+
+  it("resolves a qualified choice geometry property from its element path only", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "}",
+      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const query = (position: number) => queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position,
+      semantic: { sourceRevision: 7, compiled }
+    });
+    const referenceStart = source.indexOf("@Outer::A.direction");
+    const elementStart = referenceStart + 1 + "Outer::".length;
+    const result = query(elementStart + 1);
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("A");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("A");
+    expect(query(referenceStart + "@Outer::A.".length + 1)).toBeNull();
+  });
+
+  it("resolves choice geometry properties in Module arguments and body expressions", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "module M(direction: choice(counterclockwise, clockwise)) {",
+      "  arc Local = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
+      "  const inside: choice(counterclockwise, clockwise) = @Local.direction",
+      "}",
+      "instance Use = M(direction: @A.direction)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const query = (position: number) => queryDslDefinition({
+      source: { normalizedSource: source, sourceRevision: 7 },
+      position,
+      semantic: { sourceRevision: 7, compiled }
+    });
+    const argumentStart = source.indexOf("@A.direction");
+    const bodyStart = source.indexOf("@Local.direction");
+    const argument = query(argumentStart + 2);
+    const body = query(bodyStart + 3);
+
+    expect(argument).not.toBeNull();
+    expect(sourceSlice(source, argument!.referenceRange)).toBe("A");
+    expect(sourceSlice(source, argument!.declarationRange)).toBe("A");
+    expect(body).not.toBeNull();
+    expect(sourceSlice(source, body!.referenceRange)).toBe("Local");
+    expect(sourceSlice(source, body!.declarationRange)).toBe("Local");
+    expect(query(argumentStart + "@A.".length + 1)).toBeNull();
+    expect(query(bodyStart + "@Local.".length + 1)).toBeNull();
   });
 
   it("preserves exact Japanese and UTF-16 offsets", () => {

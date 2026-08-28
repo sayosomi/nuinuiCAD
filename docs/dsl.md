@@ -299,6 +299,37 @@ move(
 inline literal へ展開されません。一般-purpose collection API、index access、spread、
 nested array、scalar array はこの geometry 配列機能には含まれません。
 
+## Record 値
+
+`record` は複数の scalar 値を名前付きでまとめる source-only の nominal 型です。
+definition はトップレベルに置き、field は必須の scalar 型だけを宣言します。
+geometry、array、nested record、default、optional field は nui4 v1 では使えません。
+
+```nui
+record Pair(
+  x: number,
+  label: string,
+)
+
+const first: Pair = Pair(
+  x: 10,
+  label: "first",
+)
+const second: Pair = @first
+const name: string = @first.label
+```
+
+constructor は named-only で、すべての field を一度ずつ指定します。record の型は
+definition ごとの nominal identity なので、同じ field 構成の別 `record` は代入できません。
+record value は `const` だけで宣言でき、`let` や geometry element ではありません。
+宣言と参照は通常の document order に従い、後から宣言した record type/value は前の文から
+参照できません。
+
+Module の parameter、local、export にも record 型を使えます。record parameter / value は
+read-only で、別 Module へ渡す場合も同じ nominal type が必要です。optional record parameter
+は `hasValue(@parameter)` で presence を確認した branch 内だけで読めます。export した record
+value の field は instance の外から `@front::output.x` のように参照できます。
+
 ## 要素、グループ、制御
 
 代表的な要素の宣言は category、名前、construction の順です。construction の参照値にも `@` を付けます。

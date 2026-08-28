@@ -16,14 +16,20 @@ import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
+import {
+  readVSCodeCanvasBackground,
+  readVSCodeCanvasTheme
+} from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
 import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
-import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import {
+  canvasElementDrawingBounds,
+  canvasPresentationEligibleElementIds
+} from "../geometry/canvasDrawingBounds";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
   normalizeVscodeCanvasRibbons,
@@ -35,6 +41,7 @@ import { replaceCanvasSelection } from "../commands/selectionCommands";
 import { vscodeBakeOperationResultFromCommand } from "./vscodeBakeOperationResult";
 import { canvasObservationSnapshot } from "./canvasObservation";
 import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarget";
+import { isVscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
 import type {
@@ -206,6 +213,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, []);
 
+  const currentReferencePickAuthorityFor = useCallback((expectedDocumentVersion: number) => {
+    const current = currentAuthoritativeDocument(expectedDocumentVersion);
+    return current
+      ? {
+          documentVersion: expectedDocumentVersion,
+          normalizedSource: current.source.normalizedSource
+        }
+      : null;
+  }, [currentAuthoritativeDocument]);
+
   const publishCanvasObservation = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
     if (!current) return;
@@ -220,6 +237,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         previewActive: current.state.previewElements !== null,
         evaluationState: evaluationStateRef.current
       })
+    });
+  }, [api, currentAuthoritativeDocument]);
+
+  const publishCanvasBackground = useCallback((documentVersion: number) => {
+    if (!currentAuthoritativeDocument(documentVersion)) return;
+    const background = readVSCodeCanvasBackground();
+    if (!background) return;
+    api.postMessage({
+      type: "canvasBackgroundPublication",
+      documentVersion,
+      background
     });
   }, [api, currentAuthoritativeDocument]);
 
@@ -284,7 +312,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   ]);
 
   useEffect(() => {
-    const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
+    const refreshCanvasTheme = () => {
+      setCanvasTheme(readVSCodeCanvasTheme());
+      const documentVersion = latestHostDocumentVersionRef.current;
+      if (documentVersion !== null) publishCanvasBackground(documentVersion);
+    };
     refreshCanvasTheme();
     const runCanvasBake = async (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
@@ -496,6 +528,21 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
           canvasHistory: requestCanvasHistory
         });
+      } else if (message.type === "canvasCreationCommand") {
+        if (!isVscodeCanvasCreationCommandId(message.commandId)) return;
+        dispatchCommand(message.commandId, {
+          evaluation: evaluationRef.current,
+          baseEvaluation: evaluationRef.current,
+          evaluationIsCurrent: evaluationStateIsCurrentFor(
+            evaluationStateRef.current,
+            useCadDocumentStore.getState().compiledDocumentRevision
+          ),
+          getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+          measureCanvasTextWidth,
+          recordSelectionHistory: true,
+          finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+          canvasHistory: requestCanvasHistory
+        });
       } else if (message.type === "bakeSourceRequest") {
         void runSourceBake(message);
         return;
@@ -576,6 +623,20 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: [...runtimeElements],
           profile: activeVisibilityProfile
         });
+        const currentEvaluation = evaluationRef.current;
+        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current.state.compiledDocumentRevision
+        );
+        const canvasPresentationIds = currentEvaluation
+          ? canvasPresentationEligibleElementIds({
+              elements: runtimeElements,
+              evaluation: currentEvaluation,
+              visibilityProfiles: current.state.visibilityProfiles,
+              activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+              showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+            })
+          : new Set<string>();
         const revealResult = queryDslCanvasRevealRuntimeTarget({
           target: sourceTarget.target,
           compiled: current.compiled,
@@ -583,7 +644,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: runtimeElements,
           effectiveVisibleElementIds,
           effectiveEnabledElementIds,
-          profileVisibleElementIds
+          profileVisibleElementIds,
+          canvasPresentationEligibleElementIds: canvasPresentationIds
         });
         if (revealResult.status === "failed") {
           api.postMessage({
@@ -595,11 +657,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
-        const currentEvaluation = evaluationRef.current;
-        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
-          evaluationStateRef.current,
-          current.state.compiledDocumentRevision
-        );
         const selectionIds = [...revealResult.runtimeElementIds];
         const primarySelectionId = revealResult.primaryRuntimeElementId;
         let revealBounds = null;
@@ -621,7 +678,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           if (containerTarget.status === "ready") revealBounds = containerTarget.bounds;
         }
 
-        if (!replaceCanvasSelection(selectionIds, primarySelectionId, true, "requested")) {
+        if (!replaceCanvasSelection(
+          selectionIds,
+          primarySelectionId,
+          true,
+          "requested",
+          currentEvaluationIsCurrent ? canvasPresentationIds : undefined
+        )) {
           api.postMessage({
             type: "canvasNavigationResult",
             requestId: message.requestId,
@@ -686,6 +749,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           dirtySinceSave: false
         });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanvasBackground(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "commitText") {
@@ -706,6 +770,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanvasBackground(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "benchmarkConfig") {
@@ -719,7 +784,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasBackground, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig
     ? {
@@ -747,6 +812,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }}
         onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
+        currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
         postCanonicalSourceText={(sourceText) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;

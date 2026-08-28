@@ -34,13 +34,12 @@ import {
 } from "./DrawingCanvasHitTest";
 import type { LineMeasurementCandidate } from "./DrawingCanvasHitTest";
 import type { ScreenPoint } from "./DrawingCanvasHitTest";
-import type { CanvasViewport } from "../state/cadUiStore";
+import { useCadUiStore, type CanvasViewport } from "../state/cadUiStore";
 import {
   hitTestBezierHandle,
   hitTestPointPickCandidates
 } from "./canvasInteractionHitTest";
 import {
-  type AxisLockKeys,
   type ViewportSize,
   constrainedWorldDelta
 } from "./canvasViewport";
@@ -99,6 +98,8 @@ type PointDragState = {
   elementId: ElementId;
   startClientX: number;
   startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
   zoom: number;
   dragActivated: boolean;
   baseElements: CadElement[];
@@ -152,7 +153,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
   const syntheticPointerEventRef = useRef(false);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
-  const axisLockKeysRef = useRef<AxisLockKeys>({ x: false, y: false });
+  const shiftKeyRef = useRef(false);
   const polarLockKeysRef = useRef<PolarLockKeys>({ angle: false, distance: false });
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -172,11 +173,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const canvasInvalidationInputsRef = useRef<{
     evaluation: EvaluationResult | null;
     visibleElementIds: ReadonlySet<ElementId> | null;
+    selectionEligibleElementIds: ReadonlySet<ElementId> | null;
     canvasViewport: CanvasViewport | null;
     viewportSize: ViewportSize | null;
   }>({
     evaluation: null,
     visibleElementIds: null,
+    selectionEligibleElementIds: null,
     canvasViewport: null,
     viewportSize: null
   });
@@ -268,6 +271,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     polylines,
     points,
     visibleElementIds,
+    selectionEligibleElementIds,
     overlayLines,
     overlayPoints,
     overlayArcs,
@@ -291,6 +295,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     visibilityProfiles,
     activeVisibilityProfileId,
+    showCanvasPoints,
     resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });
   const moduleInstanceSelectionFrames = useMemo(() => moduleInstanceSelectionFrameOverlays({
@@ -315,40 +320,58 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     visibilityProfiles
   ]);
   const interactiveOverlayLines = useMemo(
-    () => overlayLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
-    [overlayLines, previewElementIds]
+    () => overlayLines.filter(({ line }) =>
+      !previewElementIds.has(line.elementId) && selectionEligibleElementIds.has(line.elementId)
+    ),
+    [overlayLines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayPoints = useMemo(
-    () => overlayPoints.filter(({ point }) => !previewElementIds.has(point.elementId)),
-    [overlayPoints, previewElementIds]
+    () => overlayPoints.filter(({ point }) =>
+      !previewElementIds.has(point.elementId) && selectionEligibleElementIds.has(point.elementId)
+    ),
+    [overlayPoints, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayArcs = useMemo(
-    () => overlayArcs.filter(({ arc }) => !previewElementIds.has(arc.elementId)),
-    [overlayArcs, previewElementIds]
+    () => overlayArcs.filter(({ arc }) =>
+      !previewElementIds.has(arc.elementId) && selectionEligibleElementIds.has(arc.elementId)
+    ),
+    [overlayArcs, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayCurves = useMemo(
-    () => overlayCurves.filter(({ curve }) => !previewElementIds.has(curve.elementId)),
-    [overlayCurves, previewElementIds]
+    () => overlayCurves.filter(({ curve }) =>
+      !previewElementIds.has(curve.elementId) && selectionEligibleElementIds.has(curve.elementId)
+    ),
+    [overlayCurves, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayOffsetLines = useMemo(
-    () => overlayOffsetLines.filter(({ line }) => !previewElementIds.has(line.elementId)),
-    [overlayOffsetLines, previewElementIds]
+    () => overlayOffsetLines.filter(({ line }) =>
+      !previewElementIds.has(line.elementId) && selectionEligibleElementIds.has(line.elementId)
+    ),
+    [overlayOffsetLines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayPolylines = useMemo(
-    () => overlayPolylines.filter(({ polyline }) => !previewElementIds.has(polyline.elementId)),
-    [overlayPolylines, previewElementIds]
+    () => overlayPolylines.filter(({ polyline }) =>
+      !previewElementIds.has(polyline.elementId) && selectionEligibleElementIds.has(polyline.elementId)
+    ),
+    [overlayPolylines, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayImages = useMemo(
-    () => overlayImages.filter(({ image }) => !previewElementIds.has(image.elementId)),
-    [overlayImages, previewElementIds]
+    () => overlayImages.filter(({ image }) =>
+      !previewElementIds.has(image.elementId) && selectionEligibleElementIds.has(image.elementId)
+    ),
+    [overlayImages, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayTexts = useMemo(
-    () => overlayTexts.filter(({ text }) => !previewElementIds.has(text.elementId)),
-    [overlayTexts, previewElementIds]
+    () => overlayTexts.filter(({ text }) =>
+      !previewElementIds.has(text.elementId) && selectionEligibleElementIds.has(text.elementId)
+    ),
+    [overlayTexts, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayIdentityCandidates = useMemo(
-    () => overlayIdentityCandidates.filter(({ elementId }) => !previewElementIds.has(elementId)),
-    [overlayIdentityCandidates, previewElementIds]
+    () => overlayIdentityCandidates.filter(({ elementId }) =>
+      !previewElementIds.has(elementId) && selectionEligibleElementIds.has(elementId)
+    ),
+    [overlayIdentityCandidates, previewElementIds, selectionEligibleElementIds]
   );
   const interactiveOverlayIdentityCandidatesById = useMemo(
     () => new Map(interactiveOverlayIdentityCandidates.map((candidate) => [candidate.elementId, candidate])),
@@ -514,23 +537,57 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     visibleElementIds
   ]);
 
+  const clearPointDragFeedback = useCallback(() => {
+    shiftKeyRef.current = false;
+    setPointDragFeedback(null);
+  }, []);
+
+  const previewPointDragAtLastPointer = useCallback((drag: PointDragState) => {
+    const worldDelta = constrainedWorldDelta({
+      screenDx: drag.lastClientX - drag.startClientX,
+      screenDy: drag.lastClientY - drag.startClientY,
+      zoom: drag.zoom,
+      shiftKey: shiftKeyRef.current
+    });
+    const result = hostAdapter.movePointElementByDelta({
+      elementId: drag.elementId,
+      dx: worldDelta.dx,
+      dy: worldDelta.dy,
+      angleLocked: polarLockKeysRef.current.angle,
+      distanceLocked: polarLockKeysRef.current.distance,
+      commitMode: "preview",
+      baseElements: drag.baseElements,
+      baseEvaluation: drag.baseEvaluation
+    });
+    if (isRejectedDocumentMutation(result)) {
+      captureLedger.release(drag.pointerId);
+      pointDragRef.current = null;
+      clearPointDragFeedback();
+      setIsPointDragging(false);
+    }
+    return result;
+  }, [captureLedger, clearPointDragFeedback, hostAdapter]);
+
   useEffect(() => {
     const setDragLockKey = (event: KeyboardEvent, isPressed: boolean) => {
       const key = event.key.toLowerCase();
-      if (key !== "x" && key !== "y" && key !== "r" && key !== "f") return;
+      if (key === "shift") {
+        const pointDrag = pointDragRef.current;
+        if (!pointDrag) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (shiftKeyRef.current === isPressed) return;
+        shiftKeyRef.current = isPressed;
+        setPointDragFeedback((feedback) => feedback
+          ? { ...feedback, shiftKey: isPressed }
+          : feedback);
+        if (pointDrag.dragActivated) previewPointDragAtLastPointer(pointDrag);
+        return;
+      }
+      if (key !== "r" && key !== "f") return;
       if (pointDragRef.current || bezierHandleDragRef.current) {
         event.preventDefault();
         event.stopImmediatePropagation();
-      }
-      if (key === "x" || key === "y") {
-        const nextAxisLockKeys = {
-          ...axisLockKeysRef.current,
-          [key]: isPressed
-        };
-        axisLockKeysRef.current = nextAxisLockKeys;
-        setPointDragFeedback((feedback) => feedback
-          ? { ...feedback, axisLockKeys: nextAxisLockKeys }
-          : feedback);
       }
       if (key === "r") {
         polarLockKeysRef.current = {
@@ -547,10 +604,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
 
     const clearDragLockKeys = () => {
-      axisLockKeysRef.current = { x: false, y: false };
+      shiftKeyRef.current = false;
       polarLockKeysRef.current = { angle: false, distance: false };
       setPointDragFeedback((feedback) => feedback
-        ? { ...feedback, axisLockKeys: { x: false, y: false } }
+        ? { ...feedback, shiftKey: false }
         : feedback);
     };
 
@@ -565,7 +622,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       window.removeEventListener("keyup", onKeyUp, { capture: true });
       window.removeEventListener("blur", clearDragLockKeys);
     };
-  }, []);
+  }, [previewPointDragAtLastPointer]);
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
@@ -853,10 +910,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, [clearHoveredElement, hoverSuppressed]);
 
   useEffect(() => {
+    if (!evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, selectionEligibleElementIds);
+  }, [compiledDocumentRevision, elements, evaluationState, selectionEligibleElementIds]);
+
+  useEffect(() => {
     const previous = canvasInvalidationInputsRef.current;
     const hasChanged = previous.evaluation !== null && (
       previous.evaluation !== evaluation ||
       previous.visibleElementIds !== visibleElementIds ||
+      previous.selectionEligibleElementIds !== selectionEligibleElementIds ||
       previous.canvasViewport?.panX !== canvasViewport.panX ||
       previous.canvasViewport?.panY !== canvasViewport.panY ||
       previous.canvasViewport?.zoom !== canvasViewport.zoom ||
@@ -866,12 +929,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasInvalidationInputsRef.current = {
       evaluation,
       visibleElementIds,
+      selectionEligibleElementIds,
       canvasViewport: { ...canvasViewport },
       viewportSize: { ...viewportSize }
     };
     if (!overlapCandidateSessionRef.current || !hasChanged) return;
     finalizeOverlapSession();
-  }, [canvasViewport, evaluation, finalizeOverlapSession, visibleElementIds, viewportSize]);
+  }, [
+    canvasViewport,
+    evaluation,
+    finalizeOverlapSession,
+    selectionEligibleElementIds,
+    visibleElementIds,
+    viewportSize
+  ]);
 
   useEffect(() => {
     if (overlapCandidateSession && (activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget || commandLineSession)) {
@@ -1089,7 +1160,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           screenDx: intent.latest.clientX - intent.start.clientX,
           screenDy: intent.latest.clientY - intent.start.clientY,
           zoom: canvasViewport.zoom,
-          axisLockKeys: axisLockKeysRef.current
+          shiftKey: intent.modifiers.shiftKey
         });
         hostAdapter.movePointElementByDelta({
           elementId,
@@ -1112,6 +1183,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       elementId,
       startClientX: intent.start.clientX,
       startClientY: intent.start.clientY,
+      lastClientX: intent.start.clientX,
+      lastClientY: intent.start.clientY,
       zoom: canvasViewport.zoom,
       dragActivated: false,
       ...dragBase,
@@ -1121,9 +1194,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         overlapSelectionMode: selectionMode
       } : {})
     };
+    shiftKeyRef.current = intent.modifiers.shiftKey;
     setPointDragFeedback({
       origin: screen,
-      axisLockKeys: { ...axisLockKeysRef.current }
+      current: screen,
+      shiftKey: intent.modifiers.shiftKey
     });
     setIsPointDragging(true);
   }, [
@@ -1270,7 +1345,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       };
       captureLedger.release(event.pointerId);
       pointDragRef.current = null;
-      setPointDragFeedback(null);
+      clearPointDragFeedback();
       setIsPointDragging(false);
       discardEditorFocusReservation(event.pointerId);
       openOverlapSession(
@@ -1283,7 +1358,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
     if (!dragActivated) {
       pointDragRef.current = null;
-      setPointDragFeedback(null);
+      clearPointDragFeedback();
       setIsPointDragging(false);
       return;
     }
@@ -1294,7 +1369,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       screenDx,
       screenDy,
       zoom: drag.zoom,
-      axisLockKeys: axisLockKeysRef.current
+      shiftKey: shiftKeyRef.current
     });
 
     hostAdapter.movePointElementByDelta({
@@ -1309,7 +1384,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     });
 
     pointDragRef.current = null;
-    setPointDragFeedback(null);
+    clearPointDragFeedback();
     setIsPointDragging(false);
   };
 
@@ -1490,11 +1565,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const screenDx = event.clientX - pointDrag.startClientX;
       const screenDy = event.clientY - pointDrag.startClientY;
       const movement = Math.hypot(screenDx, screenDy);
+      let activePointDrag: PointDragState = {
+        ...pointDrag,
+        lastClientX: event.clientX,
+        lastClientY: event.clientY
+      };
+      pointDragRef.current = activePointDrag;
+      setPointDragFeedback((feedback) => feedback
+        ? {
+            ...feedback,
+            current: {
+              x: feedback.origin.x + screenDx,
+              y: feedback.origin.y + screenDy
+            }
+          }
+        : feedback);
       if (!pointDrag.dragActivated && movement < POINT_DRAG_THRESHOLD_PX) return;
 
-      let activePointDrag = pointDrag;
       if (!pointDrag.dragActivated) {
-        activePointDrag = { ...pointDrag, dragActivated: true };
+        activePointDrag = { ...activePointDrag, dragActivated: true };
         pointDragRef.current = activePointDrag;
       }
 
@@ -1508,29 +1597,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         };
         pointDragRef.current = activePointDrag;
       }
-      const worldDelta = constrainedWorldDelta({
-        screenDx,
-        screenDy,
-        zoom: activePointDrag.zoom,
-        axisLockKeys: axisLockKeysRef.current
-      });
-
-      const result = hostAdapter.movePointElementByDelta({
-        elementId: activePointDrag.elementId,
-        dx: worldDelta.dx,
-        dy: worldDelta.dy,
-        angleLocked: polarLockKeysRef.current.angle,
-        distanceLocked: polarLockKeysRef.current.distance,
-        commitMode: "preview",
-        baseElements: activePointDrag.baseElements,
-        baseEvaluation: activePointDrag.baseEvaluation
-      });
-      if (isRejectedDocumentMutation(result)) {
-        captureLedger.release(event.pointerId);
-        pointDragRef.current = null;
-        setPointDragFeedback(null);
-        setIsPointDragging(false);
-      }
+      previewPointDragAtLastPointer(activePointDrag);
       return;
     }
 

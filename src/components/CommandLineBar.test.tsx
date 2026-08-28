@@ -13,6 +13,7 @@ import { activePickCandidates, applyPickReference } from "../commands/pickComman
 import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { CommandLineBar } from "./CommandLineBar";
 
 // CommandLineBar defers post-edit focus restoration to a real
@@ -52,6 +53,7 @@ describe("CommandLineBar", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
     useCadDocumentStore.getState().commitText("nui 4", "test");
+    publishTestCanvasSelectionEligibility();
   });
 
   afterEach(() => {
@@ -228,6 +230,7 @@ describe("CommandLineBar", () => {
       "stop",
       "point C = coordinate(x: 200, y: 0)"
     ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
     renderBar();
     const pointA = useCadDocumentStore.getState().elements.find((item) => item.name === "A")!;
     const pointB = useCadDocumentStore.getState().elements.find((item) => item.name === "B")!;
@@ -871,6 +874,7 @@ describe("CommandLineBar", () => {
       "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
+    const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
       startCommandLineCreation("freePoint", {
@@ -878,7 +882,7 @@ describe("CommandLineBar", () => {
           sourceRevision: documentState.sourceRevision,
           line: 7,
           lineCount: 7,
-          elementId: null
+          elementId: existing.id
         })
       });
     });
@@ -932,6 +936,7 @@ describe("CommandLineBar", () => {
       "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
+    const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
       startCommandLineCreation("freePoint", {
@@ -939,7 +944,7 @@ describe("CommandLineBar", () => {
           sourceRevision: documentState.sourceRevision,
           line: bindingCount + 2,
           lineCount: bindingCount + 2,
-          elementId: null
+          elementId: existing.id
         })
       });
     });
@@ -997,7 +1002,7 @@ describe("CommandLineBar", () => {
     }
   });
 
-  it("fails closed for stale typed-binding metadata in a free point x field", () => {
+  it("fails closed for stale Source metadata before starting a free point session", () => {
     const validSource = [
       "nui 4",
       "const length: number = 12.3456",
@@ -1008,8 +1013,9 @@ describe("CommandLineBar", () => {
     const documentState = useCadDocumentStore.getState();
     expect(documentState.docText).not.toBe(documentState.sourceText);
     renderBar();
+    let started = true;
     act(() => {
-      startCommandLineCreation("freePoint", {
+      started = startCommandLineCreation("freePoint", {
         currentSourceCursor: () => ({
           sourceRevision: documentState.sourceRevision,
           line: 3,
@@ -1018,11 +1024,10 @@ describe("CommandLineBar", () => {
         })
       });
     });
-    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    fireEvent.change(input, { target: { value: "@" } });
-    input.setSelectionRange(1, 1);
-    fireEvent.select(input);
-    expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
+    expect(started).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "x" })).not.toBeInTheDocument();
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("安全な挿入境界");
   });
 
   it("does not offer a typed number binding declared after the pending source insertion", () => {
@@ -1033,6 +1038,7 @@ describe("CommandLineBar", () => {
       "const later: number = 99"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
+    const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
       startCommandLineCreation("freePoint", {
@@ -1040,7 +1046,7 @@ describe("CommandLineBar", () => {
           sourceRevision: documentState.sourceRevision,
           line: 3,
           lineCount: 4,
-          elementId: null
+          elementId: existing.id
         })
       });
     });
@@ -1085,6 +1091,7 @@ describe("CommandLineBar", () => {
       "point Outside = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
+    const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
       startCommandLineCreation("freePoint", {
@@ -1092,7 +1099,7 @@ describe("CommandLineBar", () => {
           sourceRevision: documentState.sourceRevision,
           line: 5,
           lineCount: 7,
-          elementId: null
+          elementId: existing.id
         })
       });
     });
@@ -1117,6 +1124,7 @@ describe("CommandLineBar", () => {
       "}"
     ].join("\n"), "test");
     const documentState = useCadDocumentStore.getState();
+    const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
       startCommandLineCreation("freePoint", {
@@ -1124,7 +1132,7 @@ describe("CommandLineBar", () => {
           sourceRevision: documentState.sourceRevision,
           line: 7,
           lineCount: 8,
-          elementId: null
+          elementId: existing.id
         })
       });
     });

@@ -22,6 +22,7 @@ export type DslCanvasRevealRuntimeInput = {
   effectiveVisibleElementIds: ReadonlySet<ElementId>;
   effectiveEnabledElementIds: ReadonlySet<ElementId>;
   profileVisibleElementIds: ReadonlySet<ElementId>;
+  canvasPresentationEligibleElementIds: ReadonlySet<ElementId>;
 };
 
 type RuntimeCandidate = ElementId | null;
@@ -167,7 +168,8 @@ const filterRevealable = ({
   elements,
   effectiveVisibleElementIds,
   effectiveEnabledElementIds,
-  profileVisibleElementIds
+  profileVisibleElementIds,
+  canvasPresentationEligibleElementIds
 }: Omit<DslCanvasRevealRuntimeInput, "target" | "compiled" | "moduleGeometryRuntime"> & {
   candidates: readonly RuntimeCandidate[];
 }): RevealableSet => {
@@ -183,6 +185,7 @@ const filterRevealable = ({
     else if (!effectiveEnabledElementIds.has(candidate)) cause = "disabled";
     else if (!effectiveVisibleElementIds.has(candidate)) cause = "hidden";
     else if (!profileVisibleElementIds.has(candidate)) cause = "profile-excluded";
+    else if (!canvasPresentationEligibleElementIds.has(candidate)) cause = "runtime-target-unavailable";
 
     if (cause) {
       omittedCount += 1;
@@ -245,7 +248,8 @@ const ownerFallback = ({
     elements: input.elements,
     effectiveVisibleElementIds: input.effectiveVisibleElementIds,
     effectiveEnabledElementIds: input.effectiveEnabledElementIds,
-    profileVisibleElementIds: input.profileVisibleElementIds
+    profileVisibleElementIds: input.profileVisibleElementIds,
+    canvasPresentationEligibleElementIds: input.canvasPresentationEligibleElementIds
   });
   if (ownerSet.ids.length === 0) return { status: "failed", reason: "no-revealable-runtime-target" };
 
@@ -273,7 +277,8 @@ export const queryDslCanvasRevealRuntimeTarget = (
       elements: input.elements,
       effectiveVisibleElementIds: input.effectiveVisibleElementIds,
       effectiveEnabledElementIds: input.effectiveEnabledElementIds,
-      profileVisibleElementIds: input.profileVisibleElementIds
+      profileVisibleElementIds: input.profileVisibleElementIds,
+      canvasPresentationEligibleElementIds: input.canvasPresentationEligibleElementIds
     });
     if (ownerSet.ids.length === 0) return { status: "failed", reason: "no-revealable-runtime-target" };
     const partial = partialDegradation(ownerSet);
@@ -301,7 +306,8 @@ export const queryDslCanvasRevealRuntimeTarget = (
     elements: input.elements,
     effectiveVisibleElementIds: input.effectiveVisibleElementIds,
     effectiveEnabledElementIds: input.effectiveEnabledElementIds,
-    profileVisibleElementIds: input.profileVisibleElementIds
+    profileVisibleElementIds: input.profileVisibleElementIds,
+    canvasPresentationEligibleElementIds: input.canvasPresentationEligibleElementIds
   });
   if (semanticSet.ids.length > 0) {
     const partial = partialDegradation(semanticSet);

@@ -24,6 +24,19 @@ export type ModuleRenameAnalysis =
   | { verdict: "ok"; target: ModuleSemanticTarget; oldName: string; newName: string; entries: readonly SourceSemanticRenameSpliceEntry[] }
   | ModuleRenameAnalysisRejected;
 
+export type RecordRenameTarget =
+  | { kind: "recordType"; statementId: string }
+  | { kind: "recordValue"; statementId: string }
+  | { kind: "recordField"; field: { recordStatementId: string; fieldIndex: number } };
+
+export type RecordRenameAnalysisRejected =
+  | { verdict: "rejected"; reason: "target-not-found" | "stale" | "span-mismatch" | "invalid-name" | "capture" | "overlap"; detail?: string }
+  | { verdict: "rejected"; reason: "same-scope-collision"; detail: string; conflictingRange?: { from: number; to: number } };
+
+export type RecordRenameAnalysis =
+  | { verdict: "ok"; target: RecordRenameTarget; oldName: string; newName: string; entries: readonly SourceSemanticRenameSpliceEntry[] }
+  | RecordRenameAnalysisRejected;
+
 const validIdentifier = (name: string) => {
   if (!name || ![...name].every(isBareDslIdentifierChar) || !/^[^0-9\s]/.test(name)) return false;
   return !new Set(["true", "false", "module", "export", "point", "line", "curve", "arc"]).has(name);
@@ -113,7 +126,13 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
   const targetFingerprint = (target: unknown): unknown => {
     if (!target || typeof target !== "object") return target;
     const value = target as Record<string, unknown>;
-    if (value.kind === "parameter" || value.kind === "parameterProperty") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
+    if (value.kind === "parameter" || value.kind === "parameterProperty" || value.kind === "recordParameter") return { kind: value.kind, definitionStatementId: value.definitionStatementId, parameterIndex: value.parameterIndex };
+    if (value.kind === "recordValue") return { kind: value.kind, statementId: value.statementId, typeIdentity: value.typeIdentity };
+    if (value.kind === "recordField") return {
+      kind: value.kind,
+      record: targetFingerprint(value.record),
+      field: value.field
+    };
     if (value.kind === "sourceGeometry" || value.kind === "sourceGeometryProperty" || value.kind === "moduleLocal" || value.kind === "iteration") return { kind: value.kind, statementId: value.statementId, variableIndex: value.variableIndex ?? null };
     if (value.kind === "documentBinding") return { kind: value.kind, bindingId: value.bindingId };
     if (value.kind === "deferredModuleScalarExport" || value.kind === "deferredModuleExport" || value.kind === "deferredModuleExportProperty") {
@@ -125,6 +144,14 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
         instanceStatementId: value.instanceStatementId,
         exportedStatementId: value.exportedStatementId ?? exported?.exportedStatementId ?? null,
         property: value.property ?? null
+      };
+    }
+    if (value.kind === "deferredModuleRecordExport") {
+      return {
+        kind: value.kind,
+        instanceStatementId: value.instanceStatementId,
+        exportedStatementId: value.exportedStatementId,
+        typeIdentity: value.typeIdentity
       };
     }
     return value.kind;
@@ -184,8 +211,21 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
     definitions: analysis.definitions.map((definition) => ({
       id: definition.statementId,
       body: definition.bodyStatementIds,
-      parameters: definition.parameters.map((parameter) => ({ index: parameter.parameterIndex, type: parameter.type, default: expressionFingerprint(parameter.defaultExpression) })),
+      parameters: definition.parameters.map((parameter) => ({ index: parameter.parameterIndex, type: parameter.type, recordTypeIdentity: parameter.recordTypeIdentity, default: expressionFingerprint(parameter.defaultExpression) })),
       locals: definition.localScalars.map((local) => ({ id: local.statementId, type: local.type, initializer: expressionFingerprint(local.initializer) })),
+      records: definition.recordValues.map((record) => ({
+        id: record.value.statementId,
+        typeIdentity: record.value.typeIdentity,
+        reference: record.value.reference?.targetTypeIdentity ?? null,
+        constructor: record.value.constructor
+          ? {
+              typeIdentity: record.value.constructor.targetTypeIdentity,
+              fields: record.value.constructor.fields.map((field) => [field.field, field.expectedType])
+            }
+          : null,
+        target: targetFingerprint(record.target),
+        fields: record.fields.map((field) => ({ field: field.field, expression: expressionFingerprint(field.expression) }))
+      })),
       exports: definition.exports.map((entry) => entry.kind === "geometry"
         ? { id: entry.exportedStatementId, kind: entry.kind, category: entry.category }
         : entry.kind === "record"
@@ -204,6 +244,21 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
           ? { kind: "scalar", expression: expressionFingerprint(binding.value.expression) }
           : binding.value?.kind === "geometry"
             ? { kind: "geometry", reference: geometryFingerprint(binding.value.reference) }
+          : binding.value?.kind === "record"
+            ? {
+                kind: "record",
+                reference: {
+                  resolution: binding.value.reference.resolution,
+                  target: targetFingerprint(binding.value.reference.target),
+                  typeIdentity: binding.value.reference.typeIdentity,
+                  constructor: binding.value.reference.constructor
+                    ? {
+                        targetTypeIdentity: binding.value.reference.constructor.targetTypeIdentity,
+                        fields: binding.value.reference.constructor.fields.map((field) => [field.field, field.expectedType, expressionFingerprint(field.expression)])
+                      }
+                    : null
+                }
+              }
             : null
       }))
     })),
@@ -258,7 +313,7 @@ type RenameReplacement = {
   newName: string;
 };
 
-const shorthandLabelTargetKey = (
+export const shorthandLabelTargetKey = (
   compiled: CompiledDslDocument,
   from: number,
   to: number
@@ -283,7 +338,7 @@ const shorthandLabelTargetKey = (
   });
 };
 
-const shorthandRenameReplacement = (
+export const shorthandRenameReplacement = (
   sourceText: string,
   compiled: CompiledDslDocument,
   index: ReturnType<typeof createModuleSemanticRangeIndex>,
@@ -377,4 +432,156 @@ export const analyzeModuleSemanticRename = (
     return { verdict: "rejected", reason: "capture" };
   }
   return { verdict: "ok", target, oldName, newName, entries };
+};
+
+const recordSemanticStableFingerprint = (compiled: CompiledDslDocument) => {
+  const analysis = compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+  if (!analysis) return null;
+  return JSON.stringify({
+    definitions: [...analysis.definitionsByStatementId.values()].map((definition) => ({
+      id: definition.statementId,
+      fields: definition.fields.map((field) => ({ index: field.fieldIndex, type: field.type }))
+    })),
+    values: [...analysis.valuesByStatementId.values()].map((value) => ({
+      id: value.statementId,
+      typeIdentity: value.typeIdentity,
+      typeReference: [value.typeReference.typeIdentity, value.typeReference.resolution],
+      reference: value.reference?.targetTypeIdentity ?? null,
+      constructor: value.constructor
+        ? {
+            targetTypeIdentity: value.constructor.targetTypeIdentity,
+            fields: value.constructor.fields.map((field) => [field.field, field.expectedType])
+          }
+        : null
+    })),
+    parameters: analysis.moduleParameters.map((parameter) => ({
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex,
+      typeIdentity: parameter.typeIdentity,
+      typeReference: [parameter.typeReference.typeIdentity, parameter.typeReference.resolution]
+    }))
+  });
+};
+
+const recordRenameCollision = (
+  compiled: CompiledDslDocument,
+  target: RecordRenameTarget,
+  newName: string,
+  occurrenceIndex: ReturnType<typeof createDslSemanticOccurrenceIndex>
+): ModuleRenameCollision | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records) return { conflictingName: newName };
+  if (target.kind === "recordField") {
+    const definition = records.definitionsByStatementId.get(target.field.recordStatementId);
+    const conflict = definition?.fields.find((field) => field.fieldIndex !== target.field.fieldIndex && field.name === newName);
+    if (!conflict) return null;
+    const identity = dslSemanticIdentityKey({ kind: "recordField", field: conflict.identity });
+    const range = occurrenceIndex.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && dslSemanticIdentityKey(occurrence.identity) === identity
+    );
+    return { conflictingName: conflict.name, ...(range ? { conflictingRange: { from: range.from, to: range.to } } : {}) };
+  }
+  const declaration = namespace.allDeclarations.find((candidate) =>
+    candidate.statementId === target.statementId &&
+    (target.kind === "recordType" ? candidate.kind === "recordDefinition" : candidate.kind === "recordValue")
+  );
+  if (!declaration) return { conflictingName: newName };
+  const conflict = (namespace.declarationsByScopeAndName.get(declaration.scopeId)?.get(newName) ?? [])
+    .find((candidate) => candidate.statementId !== target.statementId);
+  if (!conflict) return null;
+  const range = conflict.nameSpan
+    ? occurrenceIndex.occurrences.find((occurrence) => occurrence.kind === "declaration" && occurrence.from >= 0 && occurrence.to > occurrence.from &&
+        occurrence.from === (conflict.statement.namePhysicalSpan?.segments[0]?.from ?? -1) &&
+        occurrence.to === (conflict.statement.namePhysicalSpan?.segments[0]?.to ?? -1))
+    : undefined;
+  return { conflictingName: conflict.name, ...(range ? { conflictingRange: { from: range.from, to: range.to } } : {}) };
+};
+
+/** Safe source-semantic rename for nominal record identities. This deliberately
+ * uses the same occurrence index, compile-after-splice, stable statement IDs,
+ * and physical splice projection as Module rename. */
+export const analyzeRecordSemanticRename = (
+  sourceText: string,
+  compiled: CompiledDslDocument,
+  target: RecordRenameTarget,
+  newName: string
+): RecordRenameAnalysis => {
+  if (!compiled.statementMap || !compiled.sourceLexicalNamespace) return { verdict: "rejected", reason: "stale" };
+  if (sourceText.replace(/\r\n/g, "\n") !== compiled.spans.sourceMap.source) return { verdict: "rejected", reason: "stale" };
+  if (!validIdentifier(newName)) return { verdict: "rejected", reason: "invalid-name", detail: "名前をDSL識別子として安全に表現できません。" };
+
+  const occurrenceIndex = createDslSemanticOccurrenceIndex(compiled);
+  const identityKey = dslSemanticIdentityKey(target);
+  const occurrences = occurrenceIndex.occurrences.filter((occurrence) => dslSemanticIdentityKey(occurrence.identity) === identityKey);
+  const declaration = occurrences.find((occurrence) => occurrence.kind === "declaration");
+  if (!declaration || occurrences.filter((occurrence) => occurrence.kind === "declaration").length !== 1) {
+    return { verdict: "rejected", reason: "target-not-found" };
+  }
+  const oldName = sourceText.slice(declaration.from, declaration.to);
+  if (!oldName || !validIdentifier(oldName)) return { verdict: "rejected", reason: "span-mismatch" };
+  if (newName === oldName) return { verdict: "ok", target, oldName, newName, entries: [] };
+  const collision = recordRenameCollision(compiled, target, newName, occurrenceIndex);
+  if (collision) return { verdict: "rejected", reason: "same-scope-collision", detail: collision.conflictingName, ...(collision.conflictingRange ? { conflictingRange: collision.conflictingRange } : {}) };
+
+  const moduleIndex = createModuleSemanticRangeIndex(compiled);
+  const entries: SourceSemanticRenameSpliceEntry[] = [];
+  const seen = new Set<string>();
+  for (const occurrence of occurrences) {
+    if (occurrence.to <= occurrence.from || sourceText.slice(occurrence.from, occurrence.to) !== oldName) {
+      return { verdict: "rejected", reason: "span-mismatch" };
+    }
+    let from = occurrence.from;
+    let to = occurrence.to;
+    let expectedText = oldName;
+    let replacement = newName;
+    if (target.kind === "recordValue") {
+      const moduleTarget: ModuleSemanticTarget = { kind: "moduleSource", statementId: target.statementId };
+      const moduleToken = moduleIndex.tokens.find((token) => token.from === occurrence.from && token.to === occurrence.to && moduleSemanticTargetKey(token.target) === moduleSemanticTargetKey(moduleTarget));
+      if (moduleToken) {
+        const shorthand = shorthandRenameReplacement(sourceText, compiled, moduleIndex, moduleToken, moduleTarget, oldName, newName);
+        if (shorthand) {
+          from = shorthand.from;
+          to = shorthand.to;
+          expectedText = shorthand.oldName;
+          replacement = shorthand.newName;
+        }
+      }
+    }
+    const key = `${from}:${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push({
+      statementIndex: statementIndexForOffset(compiled, occurrence.from),
+      span: { start: 0, end: 0 },
+      oldName: expectedText,
+      newName: replacement,
+      physicalSpan: { segments: [{ from, to }], sourceRevision: compiled.spans.sourceMap.sourceRevision }
+    });
+  }
+  if (entries.length === 0) return { verdict: "rejected", reason: "target-not-found" };
+  const ordered = [...entries].sort((left, right) => left.physicalSpan!.segments[0]!.from - right.physicalSpan!.segments[0]!.from);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index]!.physicalSpan!.segments[0]!.from < ordered[index - 1]!.physicalSpan!.segments[0]!.to) return { verdict: "rejected", reason: "overlap" };
+  }
+  const edited = ordered.reduceRight((text, entry) => {
+    const span = entry.physicalSpan!.segments[0]!;
+    return `${text.slice(0, span.from)}${entry.newName}${text.slice(span.to)}`;
+  }, sourceText.replace(/\r\n/g, "\n"));
+  const after = compileWithStableIds(edited, compiled);
+  const afterRecords = after.sourceLexicalNamespace?.recordSemanticAnalysis;
+  const targetStillNamed = target.kind === "recordType"
+    ? afterRecords?.definitionsByStatementId.get(target.statementId)?.name === newName
+    : target.kind === "recordValue"
+      ? afterRecords?.valuesByStatementId.get(target.statementId)?.name === newName
+      : afterRecords?.definitionsByStatementId.get(target.field.recordStatementId)?.fields[target.field.fieldIndex]?.name === newName;
+  if (
+    after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    !after.sourceLexicalNamespace ||
+    !afterRecords ||
+    !targetStillNamed ||
+    recordSemanticStableFingerprint(after) !== recordSemanticStableFingerprint(compiled) ||
+    moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)
+  ) return { verdict: "rejected", reason: "capture" };
+  return { verdict: "ok", target, oldName, newName, entries: ordered };
 };

@@ -57,7 +57,7 @@ export const startReferencePickSession = ({
   role,
   multiplicity,
   hover: null,
-  draftReferences: multiplicity === "multiple" ? uniqueReferences(seedReferences) : [],
+  draftReferences: uniqueReferences(seedReferences).slice(0, multiplicity === "single" ? 1 : undefined),
   status: "active"
 });
 

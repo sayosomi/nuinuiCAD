@@ -36,7 +36,7 @@ const installBrowserImagePicker = ({
     value: revokeObjectURL
   });
 
-  vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
+  const pickerClick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
     Object.defineProperty(this, "files", {
       configurable: true,
       value: file ? [file] : []
@@ -62,7 +62,7 @@ const installBrowserImagePicker = ({
   }
   vi.stubGlobal("Image", FakeImage);
 
-  return { createObjectURL, revokeObjectURL };
+  return { createObjectURL, revokeObjectURL, pickerClick };
 };
 
 const resetStore = () => {
@@ -180,8 +180,32 @@ describe("imageCreationCommands", () => {
     expect(next.elements.map((element) => element.type)).toEqual(["freePoint", "image", "freePoint"]);
   });
 
-  it("rejects an image import when its captured source revision is stale", async () => {
+  it("rejects an unsafe Source cursor before opening the image picker", async () => {
     useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    const before = useCadStore.getState();
+    const { createObjectURL, pickerClick } = installBrowserImagePicker();
+
+    await addImage({
+      currentSourceCursor: () => ({
+        sourceRevision: before.sourceRevision - 1,
+        line: 2,
+        lineCount: 2,
+        elementId: null
+      })
+    });
+
+    const after = useCadStore.getState();
+    expect(pickerClick).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(after.sourceText).toBe(before.sourceText);
+    expect(after.sourceRevision).toBe(before.sourceRevision);
+    expect(after.elements).toBe(before.elements);
+    expect(after.pendingImageImport).toBeNull();
+    expect(useCadStore.getState().commandErrorMessage).toContain("安全な挿入境界");
+  });
+
+  it("rejects an image import when its captured source revision is stale", async () => {
+    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n// capture", "test");
     const document = useCadStore.getState();
     installBrowserImagePicker();
     await addImage({

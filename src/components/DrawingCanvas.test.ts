@@ -7,6 +7,7 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
+import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
@@ -142,6 +143,7 @@ const resetStore = () => {
     showCanvasPointNames: true,
     showCanvasGeometryNames: false,
     showCanvasPoints: true,
+    canvasSelectionEligibleElementIds: null,
     showShortcutHelp: false,
     showShortcutSettings: false,
     shortcutSettings: { version: 1, overrides: [] },
@@ -357,6 +359,49 @@ beforeEach(() => {
 });
 
 describe("DrawingCanvas rendering", () => {
+  it("does not publish stale Canvas presentation eligibility", async () => {
+    const hostAdapter = createFakeCanvasHostAdapter({ compiledDocumentRevision: 1 });
+    const evaluation = evaluateElements(hostAdapter.elements);
+    const staleEvaluationState: EvaluationEngineState = {
+      evaluation,
+      evaluationRevision: 0,
+      evaluationRequestRevision: 0,
+      mode: "reference",
+      source: "reference",
+      status: "idle",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    const view = render(createElement(DrawingCanvas, {
+      evaluation,
+      evaluationState: staleEvaluationState,
+      canvasFocusRef: createRef<HTMLDivElement>(),
+      hostAdapter
+    }));
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toBeNull();
+
+    await act(async () => {
+      view.rerender(createElement(DrawingCanvas, {
+        evaluation,
+        evaluationState: { ...staleEvaluationState, evaluationRevision: 1, evaluationRequestRevision: 1 },
+        canvasFocusRef: createRef<HTMLDivElement>(),
+        hostAdapter
+      }));
+    });
+
+    expect(useCadUiStore.getState().canvasSelectionEligibleElementIds).toEqual(
+      canvasPresentationEligibleElementIds({
+        elements: hostAdapter.elements,
+        evaluation,
+        visibilityProfiles: [],
+        activeVisibilityProfileId: null,
+        showCanvasPoints: true
+      })
+    );
+  });
+
   it("classifies context-menu hits through the existing hit-test without selecting or suppressing the native menu", () => {
     const publishCanvasContextMenu = vi.fn();
     const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu });
@@ -817,15 +862,57 @@ describe("DrawingCanvas rendering", () => {
     expect(selectedPointGlow).toHaveClass("overlay-selected-point-glow");
   });
 
-  it("hides unselected overlay points while keeping the selected point visible", () => {
+  it("hides all normal point overlays when point presentation is disabled", () => {
     const { container, getByRole } = renderDrawingCanvas();
 
     expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
 
     fireEvent.click(getByRole("button", { name: "点" }));
 
-    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(1);
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(0);
     expect(useCadStore.getState().showCanvasPoints).toBe(false);
+
+    fireEvent.click(getByRole("button", { name: "点" }));
+
+    expect(container.querySelectorAll(".overlay-draggable-point")).toHaveLength(3);
+    expect(useCadStore.getState().showCanvasPoints).toBe(true);
+  });
+
+  it("does not hit an otherwise presented point at its normal location when point presentation is disabled", () => {
+    const pointElement: CadElement = {
+      id: "point-only",
+      name: "Point only",
+      type: "freePoint",
+      activity: "visible",
+      x: 0,
+      y: 0
+    };
+    const selectElement = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      elements: [pointElement],
+      canonicalElements: [pointElement],
+      selectedElementId: null,
+      selectedElementIds: [],
+      showCanvasPoints: false,
+      selectElement
+    });
+    const screen = screenFor({ x: pointElement.x as number, y: pointElement.y as number });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: screen.x,
+      clientY: screen.y,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: screen.x,
+      clientY: screen.y,
+      pointerId: 1
+    });
+
+    expect(selectElement).not.toHaveBeenCalled();
   });
 });
 
@@ -982,7 +1069,7 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(feedback()).not.toBeNull();
-    expect(hint()).toHaveTextContent(/^Press X for Horizontal, Y for Vertical$/);
+    expect(hint()).toHaveTextContent(/^Hold Shift for Horizontal \/ Vertical$/);
     expect(hint()).toHaveAttribute("data-point-drag-axis-lock-hint-position", "bottom-right");
     expect(hint()).toHaveStyle({ right: "0px", bottom: "0px" });
     expect(feedback()).toHaveStyle({ pointerEvents: "none" });
@@ -1042,7 +1129,69 @@ describe("DrawingCanvas point dragging", () => {
     });
   });
 
-  it("shows an active horizontal guide for x and removes it on x release while keeping the hint", () => {
+  it("seeds Shift from pointerdown, switches the guide with the dominant axis, and releases to free movement", () => {
+    const { container, hostAdapter, viewport } = renderWithHostAdapter();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1,
+      shiftKey: true
+    });
+
+    const xAction = container.querySelector<HTMLElement>('[data-point-drag-axis-lock-hint] [data-axis="x"]');
+    expect(xAction).toHaveClass("is-active");
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
+    expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
+
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 330,
+      clientY: 260,
+      pointerId: 1
+    });
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
+    expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
+    expect(hostAdapter.movePointElementByDelta).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dx: 30, dy: 0, commitMode: "preview" })
+    );
+
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 310,
+      clientY: 290,
+      pointerId: 1
+    });
+    expect(container.querySelector('[data-point-drag-axis-guide="x"]')).toBeNull();
+    const yGuide = container.querySelector<SVGLineElement>('[data-point-drag-axis-guide="y"]');
+    expect(yGuide).not.toBeNull();
+    expect(yGuide).toHaveAttribute("x1", "300");
+    expect(yGuide).toHaveAttribute("x2", "300");
+    expect(hostAdapter.movePointElementByDelta).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dx: 0, dy: -40, commitMode: "preview" })
+    );
+
+    fireEvent.keyUp(window, { key: "Shift" });
+
+    expect(container.querySelector('[data-point-drag-axis-guide]')).toBeNull();
+    expect(container.querySelector("[data-point-drag-axis-lock-hint]")).toHaveTextContent(
+      /^Hold Shift for Horizontal \/ Vertical$/
+    );
+    expect(hostAdapter.movePointElementByDelta).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dx: 10, dy: -40, commitMode: "preview" })
+    );
+
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 310,
+      clientY: 290,
+      pointerId: 1
+    });
+  });
+
+  it("activates Shift pressed during an active point drag", () => {
     const { container, viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1052,7 +1201,13 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+    fireEvent.keyDown(window, { key: "Shift" });
 
     const xAction = container.querySelector<HTMLElement>('[data-point-drag-axis-lock-hint] [data-axis="x"]');
     const xGuide = container.querySelector<SVGLineElement>('[data-point-drag-axis-guide="x"]');
@@ -1062,7 +1217,7 @@ describe("DrawingCanvas point dragging", () => {
     expect(xGuide).toHaveAttribute("y1", "250");
     expect(xGuide).toHaveAttribute("y2", "250");
 
-    fireEvent.keyUp(window, { key: "x" });
+    fireEvent.keyUp(window, { key: "Shift" });
 
     expect(xAction).not.toHaveClass("is-active");
     expect(container.querySelector('[data-point-drag-axis-guide="x"]')).toBeNull();
@@ -1070,47 +1225,14 @@ describe("DrawingCanvas point dragging", () => {
 
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 300,
-      clientY: 250,
+      clientX: 320,
+      clientY: 260,
       pointerId: 1
     });
   });
 
-  it("shows an active vertical guide for y and removes it on y release", () => {
-    const { container, viewport } = renderDrawingCanvas();
-
-    fireEvent.pointerDown(viewport, {
-      button: 0,
-      buttons: 1,
-      clientX: 300,
-      clientY: 250,
-      pointerId: 1
-    });
-    fireEvent.keyDown(window, { key: "y" });
-
-    const yAction = container.querySelector<HTMLElement>('[data-point-drag-axis-lock-hint] [data-axis="y"]');
-    const yGuide = container.querySelector<SVGLineElement>('[data-point-drag-axis-guide="y"]');
-    expect(yAction).toHaveClass("is-active");
-    expect(yGuide).toHaveAttribute("x1", "300");
-    expect(yGuide).toHaveAttribute("x2", "300");
-    expect(yGuide).toHaveAttribute("y1", "0");
-    expect(yGuide).toHaveAttribute("y2", "400");
-
-    fireEvent.keyUp(window, { key: "y" });
-
-    expect(yAction).not.toHaveClass("is-active");
-    expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
-
-    fireEvent.pointerUp(viewport, {
-      buttons: 0,
-      clientX: 300,
-      clientY: 250,
-      pointerId: 1
-    });
-  });
-
-  it("shows only the effective x lock when x and y are held together", () => {
-    const { container, viewport } = renderDrawingCanvas();
+  it("does not activate a point-drag axis lock for X or Y", () => {
+    const { container, hostAdapter, viewport } = renderWithHostAdapter();
 
     fireEvent.pointerDown(viewport, {
       button: 0,
@@ -1121,18 +1243,55 @@ describe("DrawingCanvas point dragging", () => {
     });
     fireEvent.keyDown(window, { key: "x" });
     fireEvent.keyDown(window, { key: "y" });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+
+    expect(container.querySelector('[data-point-drag-axis-guide]')).toBeNull();
+    expect(hostAdapter.movePointElementByDelta).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dx: 20, dy: -10, commitMode: "preview" })
+    );
+
+    fireEvent.keyUp(window, { key: "y" });
+    fireEvent.keyUp(window, { key: "x" });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 320,
+      clientY: 260,
+      pointerId: 1
+    });
+  });
+
+  it("uses horizontal for equal Shift displacement", () => {
+    const { container, viewport } = renderDrawingCanvas();
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerMove(viewport, {
+      buttons: 1,
+      clientX: 320,
+      clientY: 270,
+      pointerId: 1
+    });
 
     expect(container.querySelector('[data-axis="x"]')).toHaveClass("is-active");
     expect(container.querySelector('[data-axis="y"]')).not.toHaveClass("is-active");
     expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
     expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
 
-    fireEvent.keyUp(window, { key: "y" });
-    fireEvent.keyUp(window, { key: "x" });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 300,
-      clientY: 250,
+      clientX: 320,
+      clientY: 270,
       pointerId: 1
     });
   });
@@ -1147,7 +1306,7 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.keyDown(window, { key: "Shift" });
     expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
 
     fireEvent.blur(window);
@@ -1172,7 +1331,7 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 250,
       pointerId: 1
     });
-    fireEvent.keyDown(window, { key: "x" });
+    fireEvent.keyDown(window, { key: "Shift" });
     expect(cancelled.container.querySelector("[data-point-drag-axis-lock-feedback]")).not.toBeNull();
     fireEvent.pointerCancel(cancelled.viewport, {
       clientX: 300,
@@ -1180,7 +1339,7 @@ describe("DrawingCanvas point dragging", () => {
       pointerId: 1
     });
     expect(cancelled.container.querySelector("[data-point-drag-axis-lock-feedback]")).toBeNull();
-    fireEvent.keyUp(window, { key: "x" });
+    fireEvent.keyUp(window, { key: "Shift" });
     cancelled.unmount();
 
     const rejected = renderWithHostAdapter({
@@ -1886,7 +2045,7 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 60, y: -55 });
   });
 
-  it("locks movement to the x axis while x is pressed", () => {
+  it("locks movement to the dominant horizontal axis while Shift is held", () => {
     const { viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1894,9 +2053,9 @@ describe("DrawingCanvas point dragging", () => {
       buttons: 1,
       clientX: 300,
       clientY: 250,
-      pointerId: 1
+      pointerId: 1,
+      shiftKey: true
     });
-    fireEvent.keyDown(window, { key: "x" });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
       clientX: 320,
@@ -1909,12 +2068,10 @@ describe("DrawingCanvas point dragging", () => {
       clientY: 270,
       pointerId: 1
     });
-    fireEvent.keyUp(window, { key: "x" });
-
     expect(useCadStore.getState().elements[0]).toMatchObject({ x: 70, y: -50 });
   });
 
-  it("locks movement to the y axis while y is pressed", () => {
+  it("locks movement to the dominant vertical axis while Shift is held", () => {
     const { viewport } = renderDrawingCanvas();
 
     fireEvent.pointerDown(viewport, {
@@ -1922,24 +2079,23 @@ describe("DrawingCanvas point dragging", () => {
       buttons: 1,
       clientX: 300,
       clientY: 250,
-      pointerId: 1
+      pointerId: 1,
+      shiftKey: true
     });
-    fireEvent.keyDown(window, { key: "y" });
     fireEvent.pointerMove(viewport, {
       buttons: 1,
-      clientX: 320,
-      clientY: 270,
+      clientX: 310,
+      clientY: 280,
       pointerId: 1
     });
     fireEvent.pointerUp(viewport, {
       buttons: 0,
-      clientX: 320,
-      clientY: 270,
+      clientX: 310,
+      clientY: 280,
       pointerId: 1
     });
-    fireEvent.keyUp(window, { key: "y" });
 
-    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -70 });
+    expect(useCadStore.getState().elements[0]).toMatchObject({ x: 50, y: -80 });
   });
 
   it("locks polar angle while r is pressed during point dragging", () => {

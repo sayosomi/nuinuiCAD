@@ -6,6 +6,7 @@ import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
 import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
+import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import type { VscodeExtensionToModulePreviewMessage } from "./modulePreviewProtocol";
 import type {
@@ -17,6 +18,7 @@ import type {
   VscodeReferencePickToExtensionMessage
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
+import type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 
 export type {
   VscodeCanvasObservationElementSource,
@@ -26,6 +28,7 @@ export type {
   VscodeCanvasObservationSnapshot,
   VscodeCanvasObservationToExtensionMessage
 } from "./canvasObservationProtocol";
+export type { VscodeCanvasBackgroundPublication } from "./vscodeCanvasThemeProtocol";
 export type {
   VscodeExtensionToModulePreviewMessage,
   VscodeModulePreviewTarget,
@@ -63,6 +66,7 @@ export type {
   VscodeMultiDocumentSourceLocation,
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
+export type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 
 export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview", "explorerMock"] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
@@ -121,6 +125,7 @@ export type VscodeToExtensionMessage =
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsToExtensionMessage
   | VscodeCanvasObservationToExtensionMessage
+  | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | VscodeCanvasNavigationResult
@@ -197,6 +202,7 @@ export type ExtensionToVscodeMessage =
       includeHiddenGeometry?: boolean;
       includeDisabledGeometry?: boolean;
     }
+  | { type: "canvasCreationCommand"; commandId: VscodeCanvasCreationCommandId }
   | {
       type: "bakeSourceRequest";
       requestId: number;

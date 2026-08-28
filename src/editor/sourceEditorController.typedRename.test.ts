@@ -5,6 +5,7 @@ import { renameTypedBindingWithPropagation } from "../commands/renameTypedBindin
 import type { BindingId } from "../scalars/bindingCatalog";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { SourceEditorController } from "./sourceEditorController";
 
 type ControllerInternals = {
@@ -229,6 +230,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
       [source, "point A = coordinate(x: 0, y: 0)"].join("\n"),
       "test"
     );
+    publishTestCanvasSelectionEligibility();
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -252,6 +254,7 @@ describe("SourceEditorController.currentCursorTypedRenameTargetBindingId / F2 di
 
   it("F2 dispatch with no typed context at all (e.g. a Canvas-focused F2) leaves CAD element rename completely unaffected", () => {
     useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    publishTestCanvasSelectionEligibility();
     const elementId = useCadDocumentStore.getState().elements[0]!.id;
     useCadUiStore.getState().setSelectedElementId(elementId);
 

@@ -106,6 +106,26 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(collisionSource, collision)).toEqual(["x"]);
   });
 
+  it("points an optional path[] list-consumer error to the parameter declaration", () => {
+    const source = [
+      "nui 4",
+      "module M(paths?: path[]) {",
+      "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}"
+    ].join("\n");
+    const diagnostics = compileWithIds(source).diagnostics;
+    const matches = diagnostics.filter((diagnostic) => diagnostic.code === "module-optional-value-required");
+
+    expect(matches).toHaveLength(1);
+    const diagnostic = matches[0]!;
+    expect(spanText(source, diagnostic)).toBe("paths");
+    expect(diagnostic.code).toBe("module-optional-value-required");
+    expect(diagnostic.message).toBe("optional module parameter「paths」は hasValue(@paths) で存在を確認してから参照してください。");
+    expect(diagnostic.severity).toBe("error");
+    expect(relatedTexts(source, diagnostic)).toEqual(["paths"]);
+    expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["Related parameter declaration"]);
+  });
+
   it("points a forward callee to the later module definition", () => {
     const source = [
       "nui 4",

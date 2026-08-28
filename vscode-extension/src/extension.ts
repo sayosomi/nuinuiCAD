@@ -62,6 +62,10 @@ import {
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
+import {
+  registerVscodeCanvasQuickCreateFeature,
+  type VscodeCanvasCreationEndpoint
+} from "./canvasQuickCreateFeature";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
 import type {
   ExtensionToVscodeMessage,
@@ -93,6 +97,10 @@ import {
 } from "./revealInCanvasPresentation";
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
 import type { VscodeObservationHostDocument } from "./vscodeObservationState";
+import {
+  createCanvasThemeWarningFeature,
+  type CanvasThemeWarning
+} from "./canvasThemeWarningFeature";
 import {
   registerOutputPreviewFeature,
   type OutputPreviewSession
@@ -212,6 +220,21 @@ const toVscodeDiagnostic = (
       )
     );
   }
+  return result;
+};
+
+const toVscodeCanvasThemeWarningDiagnostic = (
+  document: vscode.TextDocument,
+  rawSource: string,
+  warning: CanvasThemeWarning
+): vscode.Diagnostic => {
+  const result = new vscode.Diagnostic(
+    vscodeRangeForNormalized(document, rawSource, warning.range),
+    warning.message,
+    vscode.DiagnosticSeverity.Warning
+  );
+  result.code = warning.code;
+  result.source = warning.source;
   return result;
 };
 
@@ -591,7 +614,26 @@ export const activate = (context: vscode.ExtensionContext): void => {
       ...session.getDiagnostics(),
       ...projectedRuntimeDiagnostics
     ].map((diagnostic) => toVscodeDiagnostic(document, diagnostic));
-    compilerDiagnosticCollection.set(document.uri, diagnostics);
+    const canvasSession = sessions.get(key, "canvas");
+    const source = {
+      normalizedSource: normalizedSourceFor(sourceText),
+      sourceRevision: session.getSourceRevision()
+    };
+    const canvasThemeWarnings = canvasSession
+      ? canvasThemeWarningFeature.warningsFor({
+          sessionToken: canvasSession,
+          documentUri: key,
+          documentVersion: document.version,
+          source,
+          semantic: session.fixedColorSemanticSnapshot(source)
+        })
+      : [];
+    compilerDiagnosticCollection.set(document.uri, [
+      ...diagnostics,
+      ...canvasThemeWarnings.map((warning) =>
+        toVscodeCanvasThemeWarningDiagnostic(document, sourceText, warning)
+      )
+    ]);
   };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
@@ -617,6 +659,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     ) return;
     publishCurrentDiagnostics(document, session);
   };
+
+  const canvasThemeWarningFeature = createCanvasThemeWarningFeature({
+    onDiagnosticsChanged: (documentUri) => {
+      const document = vscode.workspace.textDocuments.find((candidate) => documentKey(candidate) === documentUri);
+      const session = languageAnalysisSessions.get(documentUri);
+      if (document && session) publishCurrentDiagnostics(document, session);
+    }
+  });
 
   const languageAnalysisSessionFor = (document: vscode.TextDocument): NuiLanguageAnalysisSession => {
     const key = documentKey(document);
@@ -765,6 +815,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
     compilerDiagnosticCollection,
     observationFeature,
+    canvasThemeWarningFeature,
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
@@ -937,11 +988,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
-    const visualSessions = [
-      ...sessions.valuesForSurface("canvas"),
-      ...sessions.valuesForSurface("outputPreview")
-    ];
-    for (const session of visualSessions) {
+    const canvasSessions = sessions.valuesForSurface("canvas");
+    for (const session of canvasSessions) {
+      canvasThemeWarningFeature.invalidateCanvasSession({
+        sessionToken: session,
+        sessionDocumentUri: session.documentUri
+      });
+      void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
+    }
+    for (const session of sessions.valuesForSurface("outputPreview")) {
       void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
     }
   });
@@ -1106,6 +1161,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session.pendingCanvasFocus = null;
     clearCanvasHistoryHandoff(session);
     sessions.delete(session.documentUri, "canvas");
+    canvasThemeWarningFeature.removeCanvasSession({
+      sessionToken: session,
+      sessionDocumentUri: session.documentUri
+    });
     observationFeature.removeCanvasSession(session.documentUri);
     disposeSessionListeners(session);
     updatePanelTitles();
@@ -1239,6 +1298,18 @@ export const activate = (context: vscode.ExtensionContext): void => {
         acceptRuntimeDiagnosticsPublication(session, message);
         return;
       }
+      if (message.type === "canvasBackgroundPublication") {
+        canvasThemeWarningFeature.acceptCanvasBackgroundPublication({
+          ...message,
+          sessionToken: session,
+          sessionDocumentUri: session.documentUri,
+          sessionIsCurrent: sessions.get(session.documentUri, "canvas") === session &&
+            isOpenDocument(session.document) &&
+            session.authoritativeDocumentVersion === message.documentVersion,
+          currentDocumentVersion: session.document.version
+        });
+        return;
+      }
       if (message.type === "canvasObservationPublication") {
         observationFeature.acceptCanvasPublication({
           sessionDocumentUri: session.documentUri,
@@ -1367,6 +1438,37 @@ export const activate = (context: vscode.ExtensionContext): void => {
   });
   const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
     languageAnalysisSessionFor
+  });
+  const canvasQuickCreateFeature = registerVscodeCanvasQuickCreateFeature({
+    activeCanvasEndpoint: (): VscodeCanvasCreationEndpoint | null => {
+      const session = canvasSessionForCommand();
+      if (
+        !session ||
+        !session.webviewReady ||
+        session.authoritativeDocumentVersion !== session.document.version ||
+        !isOpenDocument(session.document) ||
+        sessions.get(session.documentUri, "canvas") !== session
+      ) return null;
+      const documentVersion = session.document.version;
+      const isCurrent = (): boolean =>
+        canvasSessionForCommand() === session &&
+        sessions.get(session.documentUri, "canvas") === session &&
+        isOpenDocument(session.document) &&
+        session.webviewReady &&
+        session.authoritativeDocumentVersion === documentVersion &&
+        session.document.version === documentVersion;
+      return {
+        sessionToken: session,
+        isCurrent,
+        postCreationCommand: (commandId) => {
+          if (!isCurrent()) return;
+          void session.panel.webview.postMessage({
+            type: "canvasCreationCommand",
+            commandId
+          } satisfies ExtensionToVscodeMessage);
+        }
+      };
+    }
   });
 
   const executeCanvasCommand = (commandId: VscodeCanvasCommandId): void => {
@@ -1606,6 +1708,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     revealInCanvasCommand,
     referencePickFeature,
     sourceValueStepFeature,
+    canvasQuickCreateFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,

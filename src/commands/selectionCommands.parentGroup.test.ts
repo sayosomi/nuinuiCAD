@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement } from "../types/geometry";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 import { selectElement, selectParentGroup } from "./selectionCommands";
 
 const group = (id: string, parentGroupId?: string) => ({
@@ -33,6 +34,7 @@ describe("selectParentGroup", () => {
       ]
     });
     useCadUiStore.setState(initialCadUiState());
+    publishTestCanvasSelectionEligibility(useCadDocumentStore.getState().elements);
   });
 
   it("selects one parent identity at a time without expanding descendants", () => {
@@ -40,26 +42,27 @@ describe("selectParentGroup", () => {
     selectParentGroup();
 
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "inner",
-      selectedElementIds: ["inner"],
-      selectionAnchorElementId: "inner"
+      selectedElementId: "child",
+      selectedElementIds: ["child"],
+      selectionAnchorElementId: "child"
     });
 
     selectParentGroup();
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "outer",
-      selectedElementIds: ["outer"],
-      selectionAnchorElementId: "outer"
+      selectedElementId: "child",
+      selectedElementIds: ["child"],
+      selectionAnchorElementId: "child"
     });
   });
 
-  it("does nothing when the selected identity has no parent", () => {
+  it("does not admit a structural parent identity", () => {
     selectElement("outer");
     selectParentGroup();
 
     expect(useCadUiStore.getState()).toMatchObject({
-      selectedElementId: "outer",
-      selectedElementIds: ["outer"]
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
     });
   });
 });

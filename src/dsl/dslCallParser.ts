@@ -38,6 +38,8 @@ export type DslCallParseResult = {
 
 export type ParseDslCallOptions = { opensBlock?: boolean };
 
+export const CONSTRUCTION_CATEGORY_MISMATCH_CODE = "construction-category-mismatch";
+
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*/;
 const containerCategories = new Set(["group", "if", "for"]);
 const whitespace = /\s/;
@@ -232,7 +234,11 @@ const validateArgs = (
       diagnostics,
       message,
       constructionSpan ?? categorySpan,
-      constructionSpan ? "unknown-construction" : undefined
+      constructionSpan
+        ? categories.length > 0
+          ? CONSTRUCTION_CATEGORY_MISMATCH_CODE
+          : "unknown-construction"
+        : undefined
     );
     return null;
   }

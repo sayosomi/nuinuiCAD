@@ -47,6 +47,7 @@ const removeListener = <T,>(listeners: T[], listener: T) => {
 
 vi.mock("vscode", () => ({
   ViewColumn: { Beside: 2 },
+  TextDocumentChangeReason: { Undo: 1, Redo: 2 },
   Disposable: {
     from: (...items: Array<{ dispose: () => void }>) => disposableFor(() => {
       for (const item of items) item.dispose();
@@ -120,6 +121,29 @@ const createEditor = (): TestEditor => {
   };
 };
 
+const createMutableEditor = () => {
+  let currentSource = source;
+  const document: TestDocument = {
+    version: 7,
+    fileName: "/tmp/pick.nui",
+    uri: { scheme: "file", toString: () => "file:///tmp/pick.nui" },
+    getText: () => currentSource,
+    offsetAt: (position) => position.offset
+  };
+  const editor: TestEditor = {
+    document,
+    selection: { active: { offset: source.indexOf("@A", source.indexOf("offset")) + 1 } },
+    viewColumn: 1
+  };
+  return {
+    editor,
+    setDocument: (nextSource: string, nextVersion: number) => {
+      currentSource = nextSource;
+      document.version = nextVersion;
+    }
+  };
+};
+
 const createPanel = () => {
   const webviewListeners: Array<(message: unknown) => void> = [];
   const disposeListeners: Array<() => void> = [];
@@ -146,7 +170,9 @@ const createBridge = () => ({
   handleResult: vi.fn(async () => "started"),
   cancel: vi.fn(),
   dispose: vi.fn(),
-  activeRequest: vi.fn()
+  activeRequest: vi.fn(),
+  isApplying: vi.fn(() => false),
+  appliedHandoff: vi.fn(() => null)
 });
 
 const flush = async () => {
@@ -336,6 +362,105 @@ describe("registerVscodeReferencePickFeature", () => {
     }
 
     expect(bridge.cancel).toHaveBeenCalledTimes(1);
+    expect(webviewListeners).toHaveLength(0);
+
+    feature.dispose();
+  });
+
+  it("restores a fresh Pick on the matching native Undo and closes it on Redo", async () => {
+    const { editor, setDocument } = createMutableEditor();
+    mocks.activeTextEditor = editor;
+    mocks.showTextDocument.mockResolvedValue(editor);
+    const languageSession = createLanguageAnalysisSession(source);
+    const { panel, webviewListeners } = createPanel();
+    const bridge = createBridge();
+    const restoredBridge = createBridge();
+    bridge.handleResult
+      .mockResolvedValueOnce("started")
+      .mockResolvedValueOnce("applied");
+    const targetProof = {
+      sourceAnchor: {
+        statementIndex: 3,
+        statementRange: { from: 0, to: source.length, startLine: 0, endLine: 6 }
+      },
+      expectedGeometryInterface: "line",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: source.indexOf("@A", source.indexOf("offset")), to: source.indexOf("@A", source.indexOf("offset")) + 2 },
+      oldText: "@A"
+    } as const;
+    const postSource = source.replace("from: @A", "from: @C");
+    bridge.appliedHandoff.mockReturnValue({
+      documentUri: editor.document.uri.toString(),
+      documentVersion: 8,
+      preConfirmSource: source,
+      postConfirmSource: postSource,
+      normalizedSourceOffset: editor.selection.active.offset,
+      targetProof,
+      references: [{ base: "C" }]
+    });
+    mocks.bridgeFactory
+      .mockReturnValueOnce(bridge)
+      .mockReturnValueOnce(restoredBridge);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: async () => ({
+        document: editor.document,
+        panel,
+        isAuthoritativeReady: () => true
+      }) as never
+    });
+
+    const command = mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID);
+    if (!command) throw new Error("reference pick command was not registered");
+    await command();
+    const initialListener = webviewListeners[0];
+    if (!initialListener) throw new Error("initial webview listener was not installed");
+    initialListener({ type: "referencePickResult", status: "started" });
+    await flush();
+
+    bridge.isApplying.mockReturnValue(true);
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({ document: editor.document, contentChanges: [{}] });
+    }
+    expect(bridge.cancel).not.toHaveBeenCalled();
+    bridge.isApplying.mockReturnValue(false);
+
+    setDocument(postSource, 8);
+    initialListener({ type: "referencePickResult", status: "confirmed" });
+    await flush();
+    expect(bridge.appliedHandoff).toHaveBeenCalledTimes(1);
+    expect(webviewListeners).toHaveLength(0);
+
+    setDocument(source, 9);
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({
+        document: editor.document,
+        contentChanges: [{}],
+        reason: 1
+      });
+    }
+    await flush();
+
+    expect(restoredBridge.start).toHaveBeenCalledTimes(1);
+    expect(mocks.bridgeFactory.mock.calls[1]?.[0]).toMatchObject({
+      requestId: 2,
+      normalizedSourceOffset: editor.selection.active.offset,
+      initialDraftReferences: [{ base: "C" }],
+      expectedTargetProof: targetProof
+    });
+    expect(webviewListeners).toHaveLength(1);
+
+    setDocument(postSource, 10);
+    for (const listener of [...mocks.documentChangeListeners]) {
+      listener({
+        document: editor.document,
+        contentChanges: [{}],
+        reason: 2
+      });
+    }
+
+    expect(restoredBridge.cancel).toHaveBeenCalledTimes(1);
     expect(webviewListeners).toHaveLength(0);
 
     feature.dispose();

@@ -40,7 +40,7 @@ describe("container creation from the Source Editor", () => {
       expect(inserted.type).toBe(type);
       const insertedHeader = type === "group" ? "group" : type === "conditionalGroup" ? "if" : "for";
       expect(next.sourceText.indexOf("const BANGS_WIDTH")).toBeLessThan(next.sourceText.indexOf(insertedHeader));
-      expect(useCadUiStore.getState().selectedElementId).toBe(inserted.id);
+      expect(useCadUiStore.getState().selectedElementId).toBeNull();
     }
   );
 
@@ -94,5 +94,39 @@ describe("container creation from the Source Editor", () => {
     expect(inserted.parentGroupId).toBe(conditional.id);
     expect(inserted.conditionalBranch).toBe("else");
     expect(next.sourceText.indexOf("  group ")).toBeLessThan(next.sourceText.indexOf("  // insert here"));
+  });
+
+  it("rejects an unsafe Source cursor without using the evaluation-limit fallback", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n"), "test");
+    const before = useCadDocumentStore.getState();
+    const documentSnapshot = {
+      elements: before.elements,
+      sourceText: before.sourceText,
+      sourceRevision: before.sourceRevision,
+      evaluationLimitIndex: before.evaluationLimitIndex,
+      past: before.past,
+      future: before.future
+    };
+
+    expect(addContainer("group", {
+      currentSourceCursor: () => ({
+        sourceRevision: before.sourceRevision - 1,
+        line: 2,
+        lineCount: 2,
+        elementId: null
+      })
+    })).toEqual({ status: "rejected", reason: "invalid-change" });
+
+    const after = useCadDocumentStore.getState();
+    expect(after.elements).toBe(documentSnapshot.elements);
+    expect(after.sourceText).toBe(documentSnapshot.sourceText);
+    expect(after.sourceRevision).toBe(documentSnapshot.sourceRevision);
+    expect(after.evaluationLimitIndex).toBe(documentSnapshot.evaluationLimitIndex);
+    expect(after.past).toBe(documentSnapshot.past);
+    expect(after.future).toBe(documentSnapshot.future);
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("安全な挿入境界");
   });
 });

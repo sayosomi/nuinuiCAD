@@ -17,6 +17,7 @@ import { commitSourceCreationInsertion } from "./sourceCreationCommit";
 import {
   resolveSourceCreationInsertion,
   sourceCreationInsertionIsCurrent,
+  sourceCreationInsertionUnsafeError,
   type SourceCreationInsertion
 } from "./sourceCreationInsertion";
 
@@ -176,12 +177,17 @@ const metadataErrorMessage = (error: unknown) =>
 
 export const addImage = async (context?: CommandContext) => {
   const document = useCadDocumentStore.getState();
-  const sourceInsertion = resolveSourceCreationInsertion({
+  const sourceResolution = resolveSourceCreationInsertion({
     cursor: context?.currentSourceCursor?.() ?? null,
     sourceRevision: document.sourceRevision,
     elements: document.elements,
     statementMap: document.doc.statementMap
   });
+  if (sourceResolution.kind === "unsafe") {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
+  const sourceInsertion = sourceResolution.kind === "safe" ? sourceResolution.insertion : null;
   try {
     const file = await pickBrowserImageFile();
     if (!file) return;

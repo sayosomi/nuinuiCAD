@@ -4,6 +4,7 @@ import {
   isCanonicalReferencePickReference,
   referencePickTargetProofFor,
   sameReferencePickTargetProof,
+  type VscodeReferencePickTargetProof,
   type VscodeReferencePickCancelRequest,
   type VscodeReferencePickResult,
   type VscodeReferencePickStartRequest
@@ -25,12 +26,24 @@ export type VscodeReferencePickSourceBridgeResult =
   | "rejected"
   | "ignored";
 
+export type VscodeReferencePickAppliedHandoff = {
+  documentUri: string;
+  documentVersion: number;
+  preConfirmSource: string;
+  postConfirmSource: string;
+  normalizedSourceOffset: number;
+  targetProof: VscodeReferencePickTargetProof;
+  references: readonly CanonicalGeometrySourceReference[];
+};
+
 export type VscodeReferencePickSourceBridge = {
   start: () => VscodeReferencePickStartRequest | null;
   handleResult: (result: VscodeReferencePickResult) => Promise<VscodeReferencePickSourceBridgeResult>;
   cancel: () => void;
   dispose: () => void;
   activeRequest: () => VscodeReferencePickStartRequest | null;
+  isApplying: () => boolean;
+  appliedHandoff: () => VscodeReferencePickAppliedHandoff | null;
 };
 
 type BridgePhase = "waiting" | "active" | "applying" | "finished";
@@ -52,12 +65,16 @@ export const createVscodeReferencePickSourceBridge = ({
   languageAnalysisSession,
   requestId,
   normalizedSourceOffset,
+  initialDraftReferences,
+  expectedTargetProof,
   postMessage
 }: {
   editor: vscode.TextEditor;
   languageAnalysisSession: NuiLanguageAnalysisSession;
   requestId: number;
   normalizedSourceOffset: number;
+  initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
+  expectedTargetProof?: VscodeReferencePickTargetProof;
   postMessage: (message: VscodeReferencePickStartRequest | VscodeReferencePickCancelRequest) => unknown;
 }): VscodeReferencePickSourceBridge => {
   const document = editor.document;
@@ -65,6 +82,7 @@ export const createVscodeReferencePickSourceBridge = ({
   let state: BridgeState | null = null;
   let changeDisposable: vscode.Disposable | null = null;
   let closeDisposable: vscode.Disposable | null = null;
+  let appliedHandoff: VscodeReferencePickAppliedHandoff | null = null;
 
   const disposeListeners = (): void => {
     changeDisposable?.dispose();
@@ -119,7 +137,7 @@ export const createVscodeReferencePickSourceBridge = ({
     const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic });
     if (!target) return null;
     const targetProof = referencePickTargetProofFor(source.normalizedSource, target);
-    if (!targetProof) return null;
+    if (!targetProof || (expectedTargetProof && !sameReferencePickTargetProof(targetProof, expectedTargetProof))) return null;
 
     const request: VscodeReferencePickStartRequest = {
       type: "referencePickStartRequest",
@@ -127,7 +145,8 @@ export const createVscodeReferencePickSourceBridge = ({
       documentUri,
       documentVersion: document.version,
       normalizedSourceOffset,
-      targetProof
+      targetProof,
+      ...(initialDraftReferences !== undefined ? { initialDraftReferences: [...initialDraftReferences] } : {})
     };
     state = { request, phase: "waiting", allowedCandidateReferences: null };
     registerFreshnessListeners();
@@ -205,6 +224,7 @@ export const createVscodeReferencePickSourceBridge = ({
     }
 
     current.phase = "applying";
+    const preConfirmSource = rawSource;
     const editRange = vscodeRangeForNormalized(document, rawSource, plan.range);
     let applied: boolean;
     try {
@@ -219,6 +239,16 @@ export const createVscodeReferencePickSourceBridge = ({
       finish();
       return "rejected";
     }
+
+    appliedHandoff = {
+      documentUri,
+      documentVersion: document.version,
+      preConfirmSource,
+      postConfirmSource: document.getText(),
+      normalizedSourceOffset: current.request.normalizedSourceOffset,
+      targetProof: current.request.targetProof,
+      references: [...result.references]
+    };
 
     const rawRangeStart = rawOffsetFromNormalized(rawSource, plan.range.from);
     const caret = document.positionAt(rawRangeStart + plan.replacement.length);
@@ -242,6 +272,8 @@ export const createVscodeReferencePickSourceBridge = ({
     handleResult,
     cancel,
     dispose: finish,
-    activeRequest: () => state && state.phase !== "finished" ? state.request : null
+    activeRequest: () => state && state.phase !== "finished" ? state.request : null,
+    isApplying: () => state?.phase === "applying",
+    appliedHandoff: () => appliedHandoff
   };
 };

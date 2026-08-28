@@ -22,6 +22,7 @@ import { commandLineCommandDefinitions } from "./commandLineCommandDefinitions";
 import type { CreationRecipe } from "./creationRecipes";
 import { legacyCreationCommandRecipeMap } from "./legacyCreationRecipes";
 import { creationCommandDefinitions } from "./creationCommandDefinitions";
+import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 describe("command-line session commands", () => {
   let unregister = () => {};
@@ -74,7 +75,7 @@ describe("command-line session commands", () => {
       x: 12,
       y: { kind: "expression", expression: "waist / 2" }
     });
-    expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[0].id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(focusSourceEditorAtElementEnd).toHaveBeenCalledWith(document.elements[0].id);
   });
@@ -497,6 +498,7 @@ describe("command-line session commands", () => {
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
     const pointB = useCadDocumentStore.getState().elements[1];
 
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointB.id })).toBe(true);
@@ -526,7 +528,7 @@ describe("command-line session commands", () => {
     const document = useCadDocumentStore.getState();
     expect(document.elements.map((element) => element.name)).toEqual(["A", "", "B"]);
     expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
-    expect(useCadUiStore.getState().selectedElementId).toBe(document.elements[1]!.id);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
   });
 
   it("keeps Source Editor element cursors after that statement instead of appending", () => {
@@ -572,6 +574,42 @@ describe("command-line session commands", () => {
     expect(document.elements.map((element) => element.name)).toEqual(["G", "A", "", "B"]);
     expect(document.elements[2]?.parentGroupId).toBe(document.elements[0]?.id);
     expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
+  });
+
+  it("rejects a stale Source cursor before starting or falling back to document end", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n"), "test");
+    const before = useCadDocumentStore.getState();
+    const documentSnapshot = {
+      elements: before.elements,
+      sourceText: before.sourceText,
+      sourceRevision: before.sourceRevision,
+      evaluationLimitIndex: before.evaluationLimitIndex,
+      past: before.past,
+      future: before.future
+    };
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({
+        sourceRevision: before.sourceRevision - 1,
+        line: 2,
+        lineCount: 2,
+        elementId: null
+      })
+    })).toBe(false);
+
+    const after = useCadDocumentStore.getState();
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(after.elements).toBe(documentSnapshot.elements);
+    expect(after.sourceText).toBe(documentSnapshot.sourceText);
+    expect(after.sourceRevision).toBe(documentSnapshot.sourceRevision);
+    expect(after.evaluationLimitIndex).toBe(documentSnapshot.evaluationLimitIndex);
+    expect(after.past).toBe(documentSnapshot.past);
+    expect(after.future).toBe(documentSnapshot.future);
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("安全な挿入境界");
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("ステートメント間");
   });
 
   it("cancels immediately when an external revision makes the session stale", () => {

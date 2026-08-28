@@ -17,8 +17,10 @@ import {
 } from "../document/typedRenameSplice";
 import {
   analyzeModuleSemanticRename,
+  analyzeRecordSemanticRename,
   moduleSemanticStableFingerprint,
-  type ModuleRenameAnalysisRejected
+  type ModuleRenameAnalysisRejected,
+  type RecordRenameAnalysisRejected
 } from "../document/moduleSemanticRenameAnalysis";
 import {
   analyzeRename,
@@ -56,6 +58,7 @@ export type DslRenameRejection =
   | { reason: "reference-resolution-change"; family: "typed"; referencedName: string }
   | { reason: "reference-resolution-change"; family: "element"; line?: number }
   | { reason: "reference-resolution-change"; family: "module" }
+  | { reason: "reference-resolution-change"; family: "record" }
   | { reason: "unavailable" };
 
 export type DslRenameEditPlanResult =
@@ -142,8 +145,12 @@ const candidateAt = (compiled: CompiledDslDocument, position: number): { candida
   const shortest = candidates[0]!.to - candidates[0]!.from;
   const shortestCandidates = candidates.filter((candidate) => candidate.to - candidate.from === shortest);
   const keys = new Set(shortestCandidates.map((candidate) => identityKey(candidate.identity)));
-  if (keys.size !== 1) return null;
-  const candidate = shortestCandidates[0]!;
+  const candidate = keys.size === 1
+    ? shortestCandidates[0]!
+    : shortestCandidates.find((entry) => entry.identity.kind === "recordValue" &&
+        shortestCandidates.every((other) => other.identity.kind === "recordValue" ||
+          (other.identity.kind === "module" && other.identity.target.kind === "moduleParameter"))) ?? null;
+  if (!candidate) return null;
   const oldName = candidate.identity.kind === "modifier"
     ? candidate.identity.name
     : compiled.spans.sourceMap.source.slice(candidate.from, candidate.to);
@@ -220,6 +227,33 @@ const moduleRenameRejection = (
     }
     case "capture":
       return { reason: "reference-resolution-change", family: "module" };
+    case "target-not-found":
+    case "stale":
+    case "span-mismatch":
+    case "overlap":
+      return unavailableRenameRejection();
+  }
+};
+
+const recordRenameRejection = (
+  analysis: RecordRenameAnalysisRejected,
+  compiled: CompiledDslDocument
+): DslRenameRejection => {
+  switch (analysis.reason) {
+    case "invalid-name":
+      return { reason: "invalid-name", message: analysis.detail ?? "名前をDSL識別子として安全に表現できません。" };
+    case "same-scope-collision": {
+      const conflictingLine = analysis.conflictingRange
+        ? lineNumberAtOffset(compiled.spans.sourceMap.source, analysis.conflictingRange.from)
+        : undefined;
+      return {
+        reason: "same-scope-collision",
+        conflictingName: analysis.detail,
+        ...(conflictingLine === undefined ? {} : { conflictingLine })
+      };
+    }
+    case "capture":
+      return { reason: "reference-resolution-change", family: "record" };
     case "target-not-found":
     case "stale":
     case "span-mismatch":
@@ -375,14 +409,17 @@ const projectElementSemanticRenameEdits = (
   elementId: ElementId,
   newName: string
 ): { ok: true; edits: readonly DslRenameEdit[] } | { ok: false; rejection: DslRenameRejection } => {
-  const target = compiled.document?.elements.find((element) => element.id === elementId);
   const beforeStatementMap = compiled.statementMap;
-  if (!target || !beforeStatementMap || !compiled.sourceLexicalNamespace) {
+  if (!beforeStatementMap || !compiled.sourceLexicalNamespace) {
     return { ok: false, rejection: unavailableRenameRejection() };
   }
 
+  const validation = validateElementRenameRequest({ compiled, targetElementId: elementId, newName });
+  if (!validation.ok) return { ok: false, rejection: elementRenameRejection(validation.rejection) };
+  const { target, newName: validatedName } = validation;
+
   const targetIdentifier = formatDslName(target.name);
-  const replacementIdentifier = formatDslName(newName);
+  const replacementIdentifier = formatDslName(validatedName);
   if (targetIdentifier === replacementIdentifier) return { ok: true, edits: [] };
 
   const replacements = new Map<string, DslRenameEdit>();
@@ -420,12 +457,26 @@ const projectElementSemanticRenameEdits = (
     !after.document ||
     !after.statementMap ||
     !after.sourceLexicalNamespace ||
-    !after.document.elements.some((element) => element.id === elementId && element.name === newName) ||
+    !after.document.elements.some((element) => element.id === elementId && element.name === validatedName) ||
     !mapsMatch(beforeStatementMap.elementIdByStatementIndex, after.statementMap.elementIdByStatementIndex) ||
     (beforeStatementMap.statementIdByStatementIndex !== undefined &&
       (!after.statementMap.statementIdByStatementIndex ||
         !mapsMatch(beforeStatementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
   ) return { ok: false, rejection: unavailableRenameRejection() };
+
+  const referenceStability = validateRenameReferenceStability({ before: compiled, after });
+  if (referenceStability.verdict !== "ok") {
+    return {
+      ok: false,
+      rejection: referenceStability.reason === "resolution-change"
+        ? {
+            reason: "reference-resolution-change",
+            family: "element",
+            ...(referenceStability.detail.changes[0] ? { line: referenceStability.detail.changes[0].line } : {})
+          }
+        : unavailableRenameRejection()
+    };
+  }
 
   return { ok: true, edits: orderedReplacements };
 };
@@ -568,6 +619,12 @@ export const planDslRenameEditsResult = (
     const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
     if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
     edits = projection.edits.map((edit) => ({ ...edit }));
+  } else if (identity.kind === "recordType" || identity.kind === "recordValue" || identity.kind === "recordField") {
+    const analysis = analyzeRecordSemanticRename(exact.source.normalizedSource, exact.compiled, identity, newName);
+    if (analysis.verdict !== "ok") return { status: "rejected", rejection: recordRenameRejection(analysis, exact.compiled) };
+    const projection = projectTypedRenameEdits(exact.source.normalizedSource, exact.compiled, analysis.entries);
+    if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+    edits = projection.edits.map((edit) => ({ ...edit }));
   } else if (identity.kind === "source") {
     const projected = projectSourceRenameEdits(
       exact.source.normalizedSource,
@@ -598,28 +655,35 @@ export const planDslRenameEditsResult = (
       edits = projected.edits;
     } else {
       const analysis = analyzeRename({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, newName });
-      if (analysis.verdict !== "ok") return { status: "rejected", rejection: elementRenameRejection(analysis) };
-      const projection = projectElementRenameEdits({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, analysis });
       const semanticProjection = projectElementSemanticRenameEdits(
         exact.source.normalizedSource,
         exact.compiled,
         identity.elementId,
-        analysis.newName
+        newName.trim()
       );
-      const projectionsDiffer = projection.ok && semanticProjection.ok && (
-        semanticProjection.edits.length !== projection.edits.length ||
-        semanticProjection.edits.some((edit, index) => {
-          const ordinary = projection.edits[index];
-          return !ordinary || edit.from !== ordinary.from || edit.to !== ordinary.to || edit.newText !== ordinary.newText;
-        })
-      );
-      if (!semanticProjection.ok) {
-        if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
-        edits = projection.edits.map((edit) => ({ ...edit }));
-      } else if (!projection.ok || projectionsDiffer) {
+      if (analysis.verdict !== "ok") {
+        if (analysis.reason !== "analysis-incomplete") {
+          return { status: "rejected", rejection: elementRenameRejection(analysis) };
+        }
+        if (!semanticProjection.ok) return { status: "rejected", rejection: semanticProjection.rejection };
         edits = semanticProjection.edits;
       } else {
-        edits = projection.edits.map((edit) => ({ ...edit }));
+        const projection = projectElementRenameEdits({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, analysis });
+        const projectionsDiffer = projection.ok && semanticProjection.ok && (
+          semanticProjection.edits.length !== projection.edits.length ||
+          semanticProjection.edits.some((edit, index) => {
+            const ordinary = projection.edits[index];
+            return !ordinary || edit.from !== ordinary.from || edit.to !== ordinary.to || edit.newText !== ordinary.newText;
+          })
+        );
+        if (!semanticProjection.ok) {
+          if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+          edits = projection.edits.map((edit) => ({ ...edit }));
+        } else if (!projection.ok || projectionsDiffer) {
+          edits = semanticProjection.edits;
+        } else {
+          edits = projection.edits.map((edit) => ({ ...edit }));
+        }
       }
     }
   }

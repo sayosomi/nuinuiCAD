@@ -7,6 +7,7 @@ import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostic
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
+import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";
 
 const mocks = vi.hoisted(() => ({
   evaluateOutputPlan: vi.fn()
@@ -192,10 +193,131 @@ const pageFill = () => screen.getByLabelText("Output preview").querySelector('[d
 describe("Output Preview application", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     useCadDocumentStore.setState(initialCadDocumentState());
     vi.mocked(api.postMessage).mockReset();
     mocks.evaluateOutputPlan.mockReset();
     vi.restoreAllMocks();
+  });
+
+  it("shows the default viewport status before pointer entry and tracks Y-up pointer coordinates", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    renderFixture("nui 4");
+
+    const status = screen.getByRole("status", { name: "Output Preview status: ZOOM: 100%, X: —, Y: —" });
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+
+    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+
+    fireEvent.pointerMove(viewport, { clientX: 270, clientY: 130 });
+    expect(status).toHaveTextContent("ZOOM100%X-130.0Y170.0");
+
+    fireEvent.pointerLeave(viewport);
+    expect(status).toHaveTextContent("ZOOM100%X—Y—");
+  });
+
+  it("updates the stored pointer anchor for wheel zoom and recomputes status after reset", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    renderFixture("nui 4");
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    const status = screen.getByRole("status", { name: /Output Preview status:/ });
+
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    expect(status).toHaveTextContent("ZOOM110%X-150.0Y150.0");
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewResetView" } }));
+    });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+  });
+
+  it("recomputes a stationary pointer after viewport pan and viewport-size changes", () => {
+    let currentRect = {
+      ...viewportRect,
+      left: 100,
+      top: 50,
+      right: 900,
+      bottom: 650
+    } as DOMRect;
+    let resize: (() => void) | null = null;
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) {
+        resize = () => callback([], this as unknown as ResizeObserver);
+      }
+
+      observe(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => currentRect);
+    renderFixture("nui 4");
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    const status = screen.getByRole("status", { name: /Output Preview status:/ });
+
+    fireEvent.pointerMove(viewport, { clientX: 350, clientY: 250 });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
+
+    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 350, clientY: 250 });
+    fireEvent.pointerMove(viewport, { button: 1, buttons: 4, pointerId: 1, clientX: 370, clientY: 230 });
+    fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 370, clientY: 230 });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
+
+    currentRect = {
+      ...viewportRect,
+      left: 150,
+      top: 100,
+      right: 1150,
+      bottom: 900,
+      width: 1000,
+      height: 800
+    } as DOMRect;
+    act(() => resize?.());
+    expect(status).toHaveTextContent("ZOOM100%X-300.0Y250.0");
+  });
+
+  it("keeps Reset available without a plan while Fit remains plan-dependent", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const iconResolver = vi.spyOn(vscodeCanvasRibbonIcons, "resolveVscodeLucideIcon");
+    renderFixture("nui 4");
+
+    const reset = screen.getByRole("button", { name: "Reset Output Preview View" });
+    const fit = screen.getByRole("button", { name: "Fit Output Preview" });
+    expect(iconResolver).toHaveBeenCalledWith("rotate-ccw");
+    expect(iconResolver).toHaveBeenCalledWith("maximize");
+    expect(reset).not.toBeDisabled();
+    expect(fit).toBeDisabled();
+
+    fireEvent.click(reset);
+    expect(api.postMessage).toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+  });
+
+  it("resets the viewport without changing the selected output or triggering Fit", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+
+    const svgKey = outputKeyFor("svg", "B");
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: svgKey } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Export SVG" })).toBeInTheDocument());
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    expect(screen.getByRole("combobox")).toHaveValue(svgKey);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset Output Preview View" }));
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewResetView" } }));
+    });
+
+    expect(screen.getByRole("combobox")).toHaveValue(svgKey);
+    expect(screen.getByRole("button", { name: "Fit Output Preview" })).not.toBeDisabled();
+    expect(screen.getByRole("status", { name: /Output Preview status:/ })).toHaveTextContent("ZOOM100%");
+    expect(Number(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="output-fill"]')?.getAttribute("width"))).toBe(20);
   });
 
   it("opens with an explicit empty state when there are no current outputs", () => {
@@ -203,7 +325,7 @@ describe("Output Preview application", () => {
 
     render(<OutputPreviewApp api={api} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("No print or SVG outputs");
+    expect(screen.getByText("No print or SVG outputs")).toBeInTheDocument();
     expect(api.postMessage).toHaveBeenCalledWith({ type: "webviewReady" });
   });
 

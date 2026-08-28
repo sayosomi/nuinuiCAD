@@ -37,6 +37,12 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "nuinuiCAD.create",
+        "label": "Create"
+      }
+    ],
     "keybindings": [
       {
         "command": "nuinuiCAD.stepSourceValueForward.keybinding",
@@ -91,7 +97,7 @@
         },
         {
           "command": "nuinuiCAD.editCanvasRibbon",
-          "when": "true"
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
           "command": "nuinuiCAD.goToSourceDefinition",
@@ -128,6 +134,10 @@
         {
           "command": "nuinuiCAD.fitDrawing",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.resetOutputPreviewView",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
         {
           "command": "nuinuiCAD.fitOutputPreview",
@@ -204,6 +214,270 @@
         {
           "command": "nuinuiCAD.modulePreview.togglePoints",
           "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.createGeometry",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.create.addFreePoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addText",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addOffsetPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addPolarOffsetPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addDivisionPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addLineDivisionPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addIntersectionPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addLineTangentOffsetPoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addBezierBulgePoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addBezierExtremePoint",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addAngleLengthLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addCommonTangentLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addArcLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addThreePointArcLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addCornerRadiusArcLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addEdge",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addExtendTrim",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addBezierCurve",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addOffsetLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addCopyLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addSymmetricCopyLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addMove",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addSymmetricMove",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.create.addSplitLine",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.configureQuickCreate",
+          "when": "false"
+        }
+      ],
+      "nuinuiCAD.create": [
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addFreePoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot1 == 'addText'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addOffsetPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addPolarOffsetPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addDivisionPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addLineDivisionPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addIntersectionPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addLineTangentOffsetPoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addBezierBulgePoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot1 == 'addBezierExtremePoint'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addAngleLengthLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addCommonTangentLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addArcLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addThreePointArcLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addCornerRadiusArcLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot1 == 'addEdge'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot1 == 'addExtendTrim'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot1 == 'addBezierCurve'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addOffsetLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addCopyLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addSymmetricCopyLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot1 == 'addMove'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot1 == 'addSymmetricMove'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot1 == 'addSplitLine'", "group": "quickCreate@1" },
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addFreePoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot2 == 'addText'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addOffsetPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addPolarOffsetPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addDivisionPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addLineDivisionPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addIntersectionPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addLineTangentOffsetPoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addBezierBulgePoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot2 == 'addBezierExtremePoint'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addAngleLengthLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addCommonTangentLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addArcLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addThreePointArcLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addCornerRadiusArcLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot2 == 'addEdge'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot2 == 'addExtendTrim'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot2 == 'addBezierCurve'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addOffsetLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addCopyLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addSymmetricCopyLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot2 == 'addMove'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot2 == 'addSymmetricMove'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot2 == 'addSplitLine'", "group": "quickCreate@2" },
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addFreePoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot3 == 'addText'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addOffsetPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addPolarOffsetPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addDivisionPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addLineDivisionPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addIntersectionPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addLineTangentOffsetPoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addBezierBulgePoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot3 == 'addBezierExtremePoint'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addAngleLengthLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addCommonTangentLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addArcLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addThreePointArcLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addCornerRadiusArcLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot3 == 'addEdge'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot3 == 'addExtendTrim'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot3 == 'addBezierCurve'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addOffsetLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addCopyLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addSymmetricCopyLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot3 == 'addMove'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot3 == 'addSymmetricMove'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot3 == 'addSplitLine'", "group": "quickCreate@3" },
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addFreePoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot4 == 'addText'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addOffsetPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addPolarOffsetPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addDivisionPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addLineDivisionPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addIntersectionPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addLineTangentOffsetPoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addBezierBulgePoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot4 == 'addBezierExtremePoint'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addAngleLengthLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addCommonTangentLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addArcLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addThreePointArcLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addCornerRadiusArcLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot4 == 'addEdge'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot4 == 'addExtendTrim'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot4 == 'addBezierCurve'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addOffsetLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addCopyLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addSymmetricCopyLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot4 == 'addMove'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot4 == 'addSymmetricMove'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot4 == 'addSplitLine'", "group": "quickCreate@4" },
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addFreePoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot5 == 'addText'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addOffsetPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addPolarOffsetPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addDivisionPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addLineDivisionPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addIntersectionPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addLineTangentOffsetPoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addBezierBulgePoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot5 == 'addBezierExtremePoint'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addAngleLengthLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addCommonTangentLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addArcLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addThreePointArcLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addCornerRadiusArcLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot5 == 'addEdge'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot5 == 'addExtendTrim'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot5 == 'addBezierCurve'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addOffsetLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addCopyLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addSymmetricCopyLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot5 == 'addMove'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot5 == 'addSymmetricMove'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot5 == 'addSplitLine'", "group": "quickCreate@5" },
+        { "command": "nuinuiCAD.create.addFreePoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addFreePoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addText", "when": "nuinuiCAD.quickCreateSlot6 == 'addText'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addOffsetPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addOffsetPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addPolarOffsetPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addPolarOffsetPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addDivisionPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addDivisionPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addLineDivisionPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addLineDivisionPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addIntersectionPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addIntersectionPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addLineTangentOffsetPoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addLineTangentOffsetPoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addBezierBulgePoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addBezierBulgePoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addBezierExtremePoint", "when": "nuinuiCAD.quickCreateSlot6 == 'addBezierExtremePoint'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addAngleLengthLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addAngleLengthLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addCommonTangentLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addCommonTangentLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addArcLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addArcLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addThreePointArcLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addThreePointArcLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addCornerRadiusArcLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addCornerRadiusArcLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addEdge", "when": "nuinuiCAD.quickCreateSlot6 == 'addEdge'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addExtendTrim", "when": "nuinuiCAD.quickCreateSlot6 == 'addExtendTrim'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addBezierCurve", "when": "nuinuiCAD.quickCreateSlot6 == 'addBezierCurve'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addOffsetLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addOffsetLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addCopyLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addCopyLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addSymmetricCopyLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addSymmetricCopyLine'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addMove", "when": "nuinuiCAD.quickCreateSlot6 == 'addMove'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addSymmetricMove", "when": "nuinuiCAD.quickCreateSlot6 == 'addSymmetricMove'", "group": "quickCreate@6" },
+        { "command": "nuinuiCAD.create.addSplitLine", "when": "nuinuiCAD.quickCreateSlot6 == 'addSplitLine'", "group": "quickCreate@6" },
+        {
+          "command": "nuinuiCAD.configureQuickCreate",
+          "group": "configuration@100"
         }
       ],
       "view/title": [
@@ -219,6 +493,16 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "nuinuiCAD.createGeometry",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_create@0"
+        },
+        {
+          "submenu": "nuinuiCAD.create",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_create@1"
+        },
         {
           "command": "nuinuiCAD.fitDrawing",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'"
@@ -250,6 +534,10 @@
         {
           "command": "nuinuiCAD.selectParentGroup",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.resetOutputPreviewView",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
         },
         {
           "command": "nuinuiCAD.fitOutputPreview",
@@ -299,15 +587,38 @@
       "editor/context": [
         {
           "command": "nuinuiCAD.revealInCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
+          "group": "navigation@1"
         },
         {
           "command": "nuinuiCAD.openModulePreview",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
+          "group": "navigation@2"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueForward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "nuinuiCAD.stepSourceValueBackward",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "nuinuiCAD.bakeCurrentShape",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
+          "group": "1_modification@4"
+        },
+        {
+          "command": "nuinuiCAD.bakeBaseShape",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
+          "group": "1_modification@5"
         }
       ]
     },
@@ -396,6 +707,10 @@
         "title": "nuinuiCAD: Fit Drawing"
       },
       {
+        "command": "nuinuiCAD.resetOutputPreviewView",
+        "title": "nuinuiCAD: Reset Output Preview View"
+      },
+      {
         "command": "nuinuiCAD.fitOutputPreview",
         "title": "nuinuiCAD: Fit Output Preview"
       },
@@ -460,6 +775,114 @@
       {
         "command": "nuinuiCAD.modulePreview.togglePoints",
         "title": "nuinuiCAD: Toggle Module Preview Points"
+      },
+      {
+        "command": "nuinuiCAD.createGeometry",
+        "title": "nuinuiCAD: Create Geometry…"
+      },
+      {
+        "command": "nuinuiCAD.create.addFreePoint",
+        "title": "nuinuiCAD: Create Free Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addText",
+        "title": "nuinuiCAD: Create Text"
+      },
+      {
+        "command": "nuinuiCAD.create.addOffsetPoint",
+        "title": "nuinuiCAD: Create Offset Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addPolarOffsetPoint",
+        "title": "nuinuiCAD: Create Polar Offset Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addDivisionPoint",
+        "title": "nuinuiCAD: Create Division Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addLineDivisionPoint",
+        "title": "nuinuiCAD: Create Line Division Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addIntersectionPoint",
+        "title": "nuinuiCAD: Create Intersection Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addLineTangentOffsetPoint",
+        "title": "nuinuiCAD: Create Line Tangent Offset Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addBezierBulgePoint",
+        "title": "nuinuiCAD: Create Bezier Bulge Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addBezierExtremePoint",
+        "title": "nuinuiCAD: Create Bezier Extreme Point"
+      },
+      {
+        "command": "nuinuiCAD.create.addLine",
+        "title": "nuinuiCAD: Create Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addAngleLengthLine",
+        "title": "nuinuiCAD: Create Angle Length Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addCommonTangentLine",
+        "title": "nuinuiCAD: Create Common Tangent Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addArcLine",
+        "title": "nuinuiCAD: Create Arc Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addThreePointArcLine",
+        "title": "nuinuiCAD: Create Three-Point Arc Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addCornerRadiusArcLine",
+        "title": "nuinuiCAD: Create Corner Radius Arc Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addEdge",
+        "title": "nuinuiCAD: Create Edge"
+      },
+      {
+        "command": "nuinuiCAD.create.addExtendTrim",
+        "title": "nuinuiCAD: Create Extend/Trim"
+      },
+      {
+        "command": "nuinuiCAD.create.addBezierCurve",
+        "title": "nuinuiCAD: Create Bezier Curve"
+      },
+      {
+        "command": "nuinuiCAD.create.addOffsetLine",
+        "title": "nuinuiCAD: Create Offset Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addCopyLine",
+        "title": "nuinuiCAD: Create Copy Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addSymmetricCopyLine",
+        "title": "nuinuiCAD: Create Symmetric Copy Line"
+      },
+      {
+        "command": "nuinuiCAD.create.addMove",
+        "title": "nuinuiCAD: Create Move"
+      },
+      {
+        "command": "nuinuiCAD.create.addSymmetricMove",
+        "title": "nuinuiCAD: Create Symmetric Move"
+      },
+      {
+        "command": "nuinuiCAD.create.addSplitLine",
+        "title": "nuinuiCAD: Create Split Line"
+      },
+      {
+        "command": "nuinuiCAD.configureQuickCreate",
+        "title": "nuinuiCAD: Configure Quick Create…"
       }
     ],
     "configuration": {
@@ -548,6 +971,42 @@
                   }
                 }
               }
+            ]
+          }
+        },
+        "nuinuiCAD.canvasQuickCreate.commands": {
+          "type": "array",
+          "scope": "application",
+          "description": "Creation commands shown in the Canvas Create submenu, in order.",
+          "default": [],
+          "items": {
+            "type": "string",
+            "enum": [
+              "addFreePoint",
+              "addText",
+              "addOffsetPoint",
+              "addPolarOffsetPoint",
+              "addDivisionPoint",
+              "addLineDivisionPoint",
+              "addIntersectionPoint",
+              "addLineTangentOffsetPoint",
+              "addBezierBulgePoint",
+              "addBezierExtremePoint",
+              "addLine",
+              "addAngleLengthLine",
+              "addCommonTangentLine",
+              "addArcLine",
+              "addThreePointArcLine",
+              "addCornerRadiusArcLine",
+              "addEdge",
+              "addExtendTrim",
+              "addBezierCurve",
+              "addOffsetLine",
+              "addCopyLine",
+              "addSymmetricCopyLine",
+              "addMove",
+              "addSymmetricMove",
+              "addSplitLine"
             ]
           }
         }
