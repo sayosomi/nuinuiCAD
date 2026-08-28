@@ -213,6 +213,7 @@ describe("registerModulePreviewFeature", () => {
 
     const feature = registerModulePreviewFeature({
       languageAnalysisSessionFor: sessionFor as never,
+      canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html>preview</html>",
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
@@ -273,6 +274,7 @@ describe("registerModulePreviewFeature", () => {
     };
     const feature = registerModulePreviewFeature({
       languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
@@ -327,6 +329,7 @@ describe("registerModulePreviewFeature", () => {
     };
     const feature = registerModulePreviewFeature({
       languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
       webviewHtml: () => "<html />",
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,

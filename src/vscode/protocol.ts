@@ -28,7 +28,7 @@ export type {
   VscodeCanvasObservationSnapshot,
   VscodeCanvasObservationToExtensionMessage
 } from "./canvasObservationProtocol";
-export type { VscodeCanvasBackgroundPublication } from "./vscodeCanvasThemeProtocol";
+export type { VscodeCanvasThemePublication } from "./vscodeCanvasThemeProtocol";
 export type {
   VscodeExtensionToModulePreviewMessage,
   VscodeModulePreviewTarget,
@@ -193,7 +193,7 @@ export type ExtensionToVscodeMessage =
       status: "completed" | "resynced" | "failed";
       documentVersion: number;
     }
-  | { type: "canvasThemeChanged" }
+  | { type: "canvasThemeChanged"; generation: number }
   | { type: "canvasRibbonConfiguration"; ribbons: VscodeCanvasRibbon[] }
   | {
       type: "canvasCommand";

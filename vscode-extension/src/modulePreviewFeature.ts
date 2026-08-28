@@ -46,6 +46,7 @@ export type ModulePreviewFeature = vscode.Disposable & {
 
 export type RegisterModulePreviewFeatureOptions = {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+  canvasThemeGeneration: () => number;
   webviewHtml: (panel: vscode.WebviewPanel) => string;
   canvasRibbons: () => VscodeCanvasRibbon[];
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
@@ -97,6 +98,7 @@ const exactTargetAtEditor = (
 
 export const registerModulePreviewFeature = ({
   languageAnalysisSessionFor,
+  canvasThemeGeneration,
   webviewHtml,
   canvasRibbons,
   updateCanvasRibbonPosition,
@@ -313,7 +315,10 @@ export const registerModulePreviewFeature = ({
   }));
   disposables.push(vscode.window.onDidChangeActiveColorTheme(() => {
     for (const session of sessions.values()) {
-      void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
+      void session.panel.webview.postMessage({
+        type: "canvasThemeChanged",
+        generation: canvasThemeGeneration()
+      } satisfies ExtensionToVscodeMessage);
     }
   }));
   const configurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {

@@ -4,6 +4,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
+import { resolveVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { VSCodeApp } from "./VSCodeApp";
 
 const evaluationState = vi.hoisted(() => ({
@@ -49,9 +50,9 @@ const source = [
 
 const publicationsFor = (api: { postMessage: ReturnType<typeof vi.fn> }) => api.postMessage.mock.calls
   .map(([message]) => message)
-  .filter((message) => message?.type === "canvasBackgroundPublication");
+  .filter((message) => message?.type === "canvasThemePublication");
 
-describe("VSCodeApp Canvas background publication", () => {
+describe("VSCodeApp Canvas theme publication", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
@@ -83,14 +84,20 @@ describe("VSCodeApp Canvas background publication", () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasThemeChanged", generation: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
         data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
       }));
     });
 
     expect(publicationsFor(api)).toEqual([{
-      type: "canvasBackgroundPublication",
+      type: "canvasThemePublication",
       documentVersion: 7,
-      background: "#ffffff"
+      generation: 7,
+      theme: resolveVSCodeCanvasTheme({
+        getPropertyValue: (property: string) => cssValues[property] ?? ""
+      })
     }]);
   });
 
@@ -106,6 +113,9 @@ describe("VSCodeApp Canvas background publication", () => {
     render(<VSCodeApp api={api} />);
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasThemeChanged", generation: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
         data: { type: "replaceTextDocument", sourceText: source, documentVersion: 3 }
       }));
     });
@@ -113,18 +123,19 @@ describe("VSCodeApp Canvas background publication", () => {
     api.postMessage.mockClear();
     cssValues["--vscode-editor-background"] = "#000000";
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", { data: { type: "canvasThemeChanged" } }));
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "canvasThemeChanged", generation: 2 } }));
     });
     expect(publicationsFor(api)).toEqual([{
-      type: "canvasBackgroundPublication",
+      type: "canvasThemePublication",
       documentVersion: 3,
-      background: "#000000"
+      generation: 2,
+      theme: expect.objectContaining({ background: "#000000" })
     }]);
 
     api.postMessage.mockClear();
     cssValues["--vscode-editor-background"] = "var(--missing)";
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", { data: { type: "canvasThemeChanged" } }));
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "canvasThemeChanged", generation: 3 } }));
     });
     expect(publicationsFor(api)).toEqual([]);
   });

@@ -1,8 +1,11 @@
-/** JSON-safe proof of the current Canvas background observed by the Canvas Webview. */
-export type VscodeCanvasBackgroundPublication = {
-  type: "canvasBackgroundPublication";
+import type { CanvasTheme } from "../components/canvasTheme";
+
+/** JSON-safe proof of the resolved Canvas theme observed by the Canvas Webview. */
+export type VscodeCanvasThemePublication = {
+  type: "canvasThemePublication";
   documentVersion: number;
-  background: string;
+  generation: number;
+  theme: CanvasTheme;
 };
 
-export type VscodeCanvasThemeToExtensionMessage = VscodeCanvasBackgroundPublication;
+export type VscodeCanvasThemeToExtensionMessage = VscodeCanvasThemePublication;

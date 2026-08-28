@@ -15,11 +15,8 @@ import { dispatchCommand } from "../commands/commands";
 import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
-import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import {
-  readVSCodeCanvasBackground,
-  readVSCodeCanvasTheme
-} from "./vscodeCanvasTheme";
+import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
+import { parseCssColor, readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
@@ -70,6 +67,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
+  const canvasThemeRef = useRef<CanvasTheme>(LEGACY_CANVAS_THEME);
+  const canvasThemeGenerationRef = useRef<number | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const lastAuthoritativeHostSourceSnapshotRef = useRef<AuthoritativeHostSourceSnapshot | null>(null);
   const latestCanvasNavigationRequestRef = useRef<number | null>(null);
@@ -240,16 +239,36 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, currentAuthoritativeDocument]);
 
-  const publishCanvasBackground = useCallback((documentVersion: number) => {
-    if (!currentAuthoritativeDocument(documentVersion)) return;
-    const background = readVSCodeCanvasBackground();
-    if (!background) return;
+  const publishCanvasTheme = useCallback((
+    documentVersion: number,
+    theme: CanvasTheme,
+    generation: number
+  ) => {
+    if (!currentAuthoritativeDocument(documentVersion) || !parseCssColor(theme.background)) return;
     api.postMessage({
-      type: "canvasBackgroundPublication",
+      type: "canvasThemePublication",
       documentVersion,
-      background
+      generation,
+      theme
     });
   }, [api, currentAuthoritativeDocument]);
+
+  const publishCurrentCanvasTheme = useCallback((documentVersion: number) => {
+    const generation = canvasThemeGenerationRef.current;
+    if (generation === null) return;
+    publishCanvasTheme(documentVersion, canvasThemeRef.current, generation);
+  }, [publishCanvasTheme]);
+
+  const refreshCanvasTheme = useCallback((generation: number | null) => {
+    const resolvedTheme = readVSCodeCanvasTheme();
+    canvasThemeRef.current = resolvedTheme;
+    canvasThemeGenerationRef.current = generation;
+    setCanvasTheme(resolvedTheme);
+    const documentVersion = latestHostDocumentVersionRef.current;
+    if (generation !== null && documentVersion !== null) {
+      publishCanvasTheme(documentVersion, resolvedTheme, generation);
+    }
+  }, [publishCanvasTheme]);
 
   const publishCanonicalRuntimeDiagnostics = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
@@ -312,12 +331,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   ]);
 
   useEffect(() => {
-    const refreshCanvasTheme = () => {
-      setCanvasTheme(readVSCodeCanvasTheme());
-      const documentVersion = latestHostDocumentVersionRef.current;
-      if (documentVersion !== null) publishCanvasBackground(documentVersion);
-    };
-    refreshCanvasTheme();
+    refreshCanvasTheme(canvasThemeGenerationRef.current);
     const runCanvasBake = async (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
     ) => {
@@ -507,7 +521,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
       if (message.type === "canvasThemeChanged") {
-        refreshCanvasTheme();
+        if (Number.isInteger(message.generation)) refreshCanvasTheme(message.generation);
       } else if (message.type === "canvasRibbonConfiguration") {
         setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
       } else if (message.type === "canvasCommand") {
@@ -749,7 +763,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           dirtySinceSave: false
         });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
-        publishCanvasBackground(message.documentVersion);
+        publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "commitText") {
@@ -770,7 +784,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
-        publishCanvasBackground(message.documentVersion);
+        publishCurrentCanvasTheme(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "benchmarkConfig") {
@@ -784,7 +798,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasBackground, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig
     ? {

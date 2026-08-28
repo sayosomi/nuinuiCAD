@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import {
-  canvasBackgroundFrom,
   compositeCssColorOver,
   contrastRatio,
   parseCssColor,
@@ -65,18 +64,6 @@ const hueDistanceFor = (firstValue: string, secondValue: string, backgroundValue
 };
 
 describe("resolveVSCodeCanvasTheme", () => {
-  it("proves only parseable raw Canvas background values without a fallback", () => {
-    expect(canvasBackgroundFrom(stylesFor({
-      "--vscode-editor-background": " rgb(30, 30, 30) "
-    }))).toBe("rgb(30, 30, 30)");
-    expect(canvasBackgroundFrom(stylesFor({
-      "--vscode-editor-background": ""
-    }))).toBeNull();
-    expect(canvasBackgroundFrom(stylesFor({
-      "--vscode-editor-background": "var(--unknown-color)"
-    }))).toBeNull();
-  });
-
   it("maps active VS Code CSS variables to the shared CanvasTheme DTO", () => {
     const theme = resolveVSCodeCanvasTheme(stylesFor({
       "--vscode-editor-foreground": "#111111",

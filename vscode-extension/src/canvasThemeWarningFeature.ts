@@ -1,10 +1,11 @@
 import { queryDslFixedColors, type DslFixedColorSemanticSnapshot } from "../../src/dsl/dslFixedColorQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { CanvasTheme } from "../../src/components/canvasTheme";
 import {
   contrastRatio,
   parseCssColor
 } from "../../src/vscode/vscodeCanvasTheme";
-import type { VscodeCanvasBackgroundPublication } from "../../src/vscode/vscodeCanvasThemeProtocol";
+import type { VscodeCanvasThemePublication } from "../../src/vscode/vscodeCanvasThemeProtocol";
 
 export const LOW_CONTRAST_FIXED_COLOR_RATIO = 3;
 
@@ -48,20 +49,22 @@ export const fixedColorContrastWarningsFor = ({
   });
 };
 
-type CanvasBackgroundObservation = {
+type CanvasThemeObservation = {
   sessionToken: CanvasSessionToken;
   documentUri: string;
   documentVersion: number;
-  background: string;
+  generation: number;
+  theme: CanvasTheme;
 };
 
 export type CanvasThemeWarningFeature = {
-  acceptCanvasBackgroundPublication: (input: {
+  acceptCanvasThemePublication: (input: {
     sessionToken: CanvasSessionToken;
     sessionDocumentUri: string;
     sessionIsCurrent: boolean;
     currentDocumentVersion: number;
-  } & Omit<VscodeCanvasBackgroundPublication, "type">) => boolean;
+  } & Omit<VscodeCanvasThemePublication, "type">) => boolean;
+  invalidateCanvasThemeGeneration: (generation: number) => void;
   invalidateCanvasSession: (input: {
     sessionToken: CanvasSessionToken;
     sessionDocumentUri: string;
@@ -70,6 +73,7 @@ export type CanvasThemeWarningFeature = {
     sessionToken: CanvasSessionToken;
     sessionDocumentUri: string;
   }) => void;
+  currentCanvasTheme: () => CanvasTheme | null;
   warningsFor: (input: {
     sessionToken: CanvasSessionToken;
     documentUri: string;
@@ -82,9 +86,43 @@ export type CanvasThemeWarningFeature = {
 
 export const createCanvasThemeWarningFeature = (options: {
   onDiagnosticsChanged: (documentUri: string) => void;
+  currentThemeGeneration: () => number;
+  onPreviewThemeChanged: () => void;
 }): CanvasThemeWarningFeature => {
-  const observations = new Map<string, CanvasBackgroundObservation>();
+  const observations = new Map<string, CanvasThemeObservation>();
   let disposed = false;
+
+  const themeKeys: readonly (keyof CanvasTheme)[] = [
+    "foreground",
+    "muted",
+    "accent",
+    "info",
+    "warning",
+    "error",
+    "background",
+    "minorGrid",
+    "majorGrid",
+    "axis",
+    "bezierHandleLine",
+    "bezierHandlePoint",
+    "selection",
+    "pickCandidate"
+  ];
+
+  const isCanvasTheme = (value: unknown): value is CanvasTheme => {
+    if (!value || typeof value !== "object") return false;
+    const theme = value as Partial<Record<keyof CanvasTheme, unknown>>;
+    return themeKeys.every((key) => typeof theme[key] === "string") &&
+      parseCssColor(theme.background as string) !== null;
+  };
+
+  const currentObservation = (): CanvasThemeObservation | undefined => {
+    const generation = options.currentThemeGeneration();
+    return [...observations.values()].find((observation) => observation.generation === generation);
+  };
+
+  const sameTheme = (left: CanvasTheme | null, right: CanvasTheme | null): boolean =>
+    JSON.stringify(left) === JSON.stringify(right);
 
   const notifyDiagnosticsChanged = (documentUri: string): void => {
     if (!disposed) options.onDiagnosticsChanged(documentUri);
@@ -96,19 +134,25 @@ export const createCanvasThemeWarningFeature = (options: {
   }): void => {
     const observation = observations.get(input.sessionDocumentUri);
     if (!observation || observation.sessionToken !== input.sessionToken) return;
+    const previousTheme = currentObservation()?.theme ?? null;
     observations.delete(input.sessionDocumentUri);
     notifyDiagnosticsChanged(input.sessionDocumentUri);
+    if (!sameTheme(previousTheme, currentObservation()?.theme ?? null)) {
+      options.onPreviewThemeChanged();
+    }
   };
 
   return {
-    acceptCanvasBackgroundPublication: (input) => {
+    acceptCanvasThemePublication: (input) => {
       if (
         disposed ||
         !input.sessionIsCurrent ||
         !Number.isInteger(input.currentDocumentVersion) ||
         !Number.isInteger(input.documentVersion) ||
+        !Number.isInteger(input.generation) ||
         input.documentVersion !== input.currentDocumentVersion ||
-        !parseCssColor(input.background)
+        input.generation !== options.currentThemeGeneration() ||
+        !isCanvasTheme(input.theme)
       ) return false;
 
       const current = observations.get(input.sessionDocumentUri);
@@ -117,32 +161,48 @@ export const createCanvasThemeWarningFeature = (options: {
       if (
         current &&
         current.documentVersion === input.documentVersion &&
-        current.background === input.background
+        current.generation === input.generation &&
+        sameTheme(current.theme, input.theme)
       ) return true;
 
+      const previousTheme = currentObservation()?.theme ?? null;
       observations.set(input.sessionDocumentUri, {
         sessionToken: input.sessionToken,
         documentUri: input.sessionDocumentUri,
         documentVersion: input.documentVersion,
-        background: input.background
+        generation: input.generation,
+        theme: input.theme
       });
       notifyDiagnosticsChanged(input.sessionDocumentUri);
+      if (!sameTheme(previousTheme, currentObservation()?.theme ?? null)) {
+        options.onPreviewThemeChanged();
+      }
       return true;
+    },
+    invalidateCanvasThemeGeneration: (generation) => {
+      if (disposed || !Number.isInteger(generation)) return;
+      const hadPreviewTheme = currentObservation() !== undefined || observations.size > 0;
+      const documentUris = [...observations.keys()];
+      observations.clear();
+      for (const documentUri of documentUris) notifyDiagnosticsChanged(documentUri);
+      if (hadPreviewTheme) options.onPreviewThemeChanged();
     },
     invalidateCanvasSession: removeObservation,
     removeCanvasSession: removeObservation,
+    currentCanvasTheme: () => currentObservation()?.theme ?? null,
     warningsFor: (input) => {
       const observation = observations.get(input.documentUri);
       if (
         !observation ||
         observation.sessionToken !== input.sessionToken ||
         observation.documentUri !== input.documentUri ||
-        observation.documentVersion !== input.documentVersion
+        observation.documentVersion !== input.documentVersion ||
+        observation.generation !== options.currentThemeGeneration()
       ) return [];
       return fixedColorContrastWarningsFor({
         source: input.source,
         semantic: input.semantic,
-        background: observation.background
+        background: observation.theme.background
       });
     },
     dispose: () => {
