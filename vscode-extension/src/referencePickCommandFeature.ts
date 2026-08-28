@@ -375,12 +375,12 @@ export const registerVscodeReferencePickFeature = ({
       const handoff = historyHandoff;
       const sameActiveDocument = current && sameDocument(event.document, current.editor.document);
       const sameHandoffDocument = handoff && sameDocument(event.document, handoff.editor.document);
-      const sourceText = event.document.getText();
 
       if (sameActiveDocument && typeof current.bridge?.isApplying === "function" && current.bridge.isApplying()) {
         // The bridge owns exactly this one edit. Its freshness listener is
         // likewise suppressed while the native editor transaction is in flight.
       } else if (sameHandoffDocument && handoff) {
+        const sourceText = event.document.getText();
         const isOwnConfirmChange = event.document.version === handoff.documentVersion &&
           sourceText === handoff.postConfirmSource;
         const isMatchingUndo = handoff.state === "confirmed" &&
