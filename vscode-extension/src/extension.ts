@@ -101,6 +101,7 @@ import {
   createCanvasThemeWarningFeature,
   type CanvasThemeWarning
 } from "./canvasThemeWarningFeature";
+import { registerNuiSourceActivityDecorationFeature } from "./sourceActivityDecorationFeature";
 import {
   registerOutputPreviewFeature,
   type OutputPreviewSession
@@ -698,6 +699,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     rustProcessOwner,
     sessionFor: languageAnalysisSessionFor
   });
+  const sourceActivityDecorationFeature = registerNuiSourceActivityDecorationFeature({
+    rustProcessOwner,
+    sessionFor: languageAnalysisSessionFor
+  });
 
   const observationHostDocuments = (): VscodeObservationHostDocument[] => {
     const activeSourceEditor = activeNuiTextEditorForCommand();
@@ -821,6 +826,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticCloseListener,
     disposeCompilerDiagnosticSessions,
     hoverFeature,
+    sourceActivityDecorationFeature,
     completionProvider,
     colorProvider,
     signatureHelpProvider,
