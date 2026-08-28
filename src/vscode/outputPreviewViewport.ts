@@ -34,6 +34,19 @@ export const outputPreviewWorldToScreen = (
   y: size.height / 2 + viewport.panY - point.y * viewport.zoom
 });
 
+export const outputPreviewScreenToWorld = (
+  point: { x: number; y: number },
+  size: OutputPreviewViewportSize,
+  viewport: OutputPreviewViewport
+) => ({
+  x: (point.x - size.width / 2 - viewport.panX) / viewport.zoom,
+  y: (size.height / 2 + viewport.panY - point.y) / viewport.zoom
+});
+
+export const resetOutputPreviewViewport = (): OutputPreviewViewport => ({
+  ...DEFAULT_OUTPUT_PREVIEW_VIEWPORT
+});
+
 export const zoomOutputPreviewViewportAt = (
   viewport: OutputPreviewViewport,
   zoomFactor: number,

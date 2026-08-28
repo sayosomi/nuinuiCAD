@@ -18,6 +18,7 @@ describe("Output Preview Extension Host feature ownership", () => {
     expect(source).toContain('message.type === "webviewAuthoritativeDocumentReady"');
     expect(source).toContain('message.type === "rustEvaluationRequest"');
     expect(source).toContain('vscode.commands.registerCommand("nuinuiCAD.openOutputPreview"');
+    expect(source).toContain('vscode.commands.registerCommand("nuinuiCAD.resetOutputPreviewView"');
     expect(source).toContain('vscode.commands.registerCommand("nuinuiCAD.fitOutputPreview"');
     expect(source).toContain('vscode.commands.registerCommand("nuinuiCAD.outputPreviewUndo"');
   });

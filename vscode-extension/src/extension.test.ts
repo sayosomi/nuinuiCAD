@@ -1227,6 +1227,24 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
+  it("routes Reset before authoritative document readiness while Fit remains document-current gated", async () => {
+    setup();
+    const panel = openOutputPreviewPanelFor();
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    panel.webview.postMessage.mockClear();
+
+    await messageHandlerFor(panel)({ type: "outputPreviewResetView" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.resetOutputPreviewView")?.();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith({ type: "outputPreviewFit" });
+  });
+
   it("routes Clear Output Preview Focus through the active Preview session", async () => {
     setup();
     const panel = openOutputPreviewPanelFor();
