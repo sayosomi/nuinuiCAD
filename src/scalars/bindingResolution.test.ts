@@ -48,4 +48,35 @@ describe("nui 4 binding resolution", () => {
     expect(resolveBindingReferenceForTests(catalog, "i", { scopeId: "for:stable-1", statementIndex: 2 }))
       .toMatchObject({ kind: "resolved", binding: { kind: "iteration", name: "i" } });
   });
+
+  it("accepts rooted source lookup but rejects a stale lookup during virtual rename", () => {
+    const catalog = catalogFor(["nui 4", "const width: number = 50", "const later: number = 1"].join("\n"));
+    const rootBinding = catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "width" && binding.statementIndex === 1
+    );
+    expect(rootBinding).toBeDefined();
+    if (!rootBinding) return;
+
+    const sourceNamespaceBindingResolver = (name: string) =>
+      name === "::width" ? { kind: "resolved" as const, bindingId: rootBinding.id } : null;
+    const rootedCatalog = { ...catalog, sourceNamespaceBindingResolver };
+    const site = { scopeId: "root", statementIndex: 2 };
+    expect(resolveBindingReferenceForTests(rootedCatalog, "::width", site))
+      .toMatchObject({ kind: "resolved", binding: { id: rootBinding.id, name: "width", kind: "typed" } });
+
+    const renamedBinding = { ...rootBinding, name: "renamed" };
+    const virtualBindings = rootedCatalog.bindings.map((binding) =>
+      binding.id === rootBinding.id ? renamedBinding : binding
+    );
+    const virtualBindingsById = new Map(rootedCatalog.bindingsById);
+    virtualBindingsById.set(rootBinding.id, renamedBinding);
+    const virtualCatalog = {
+      ...rootedCatalog,
+      bindings: virtualBindings,
+      bindingsById: virtualBindingsById
+    };
+    const staleResolution = resolveBindingReferenceForTests(virtualCatalog, "::width", site);
+    expect(staleResolution.kind).not.toBe("resolved");
+    expect(staleResolution).not.toMatchObject({ kind: "resolved", binding: { id: rootBinding.id, name: "renamed" } });
+  });
 });
