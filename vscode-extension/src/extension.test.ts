@@ -693,6 +693,16 @@ const publishCanvasObservation = (
   snapshot
 });
 
+const publishCanvasBackground = (
+  panel: TestPanel,
+  documentVersion: number,
+  background: string
+): Promise<void> => messageHandlerFor(panel)({
+  type: "canvasBackgroundPublication",
+  documentVersion,
+  background
+});
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -3074,6 +3084,166 @@ describe("VS Code compiler diagnostics lifecycle", () => {
 
     expect(collection.set).toHaveBeenCalledTimes(2);
     expect(collection.set).toHaveBeenLastCalledWith(reopened.uri, expect.any(Array));
+  });
+});
+
+describe("VS Code Canvas theme warning lifecycle", () => {
+  const sourceFor = (color: string): string => [
+    "nui 4",
+    "modifier Guide {",
+    `  color: ${color},`,
+    "}"
+  ].join("\n");
+
+  const warningCodesFor = (collection: TestDiagnosticCollection): Array<string | number | undefined> => {
+    const diagnostics = collection.set.mock.calls.at(-1)?.[1] as Array<{ code?: string | number }> | undefined;
+    return diagnostics?.map((diagnostic) => diagnostic.code) ?? [];
+  };
+
+  const synchronizeCanvasBackground = async (
+    panel: TestPanel,
+    documentVersion: number,
+    background: string
+  ): Promise<void> => {
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion });
+    await publishCanvasBackground(panel, documentVersion, background);
+  };
+
+  it("publishes an authoritative initial background into the existing Source diagnostics", async () => {
+    const source = sourceFor("#999999");
+    const document = documentFor("/tmp/contrast-initial.nui", "file:///tmp/contrast-initial.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const collection = mocks.diagnosticCollections[0]!;
+
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await synchronizeCanvasBackground(panel, document.version, "#ffffff");
+
+    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+    const warning = (collection.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      message: string;
+      range: { start: MockPosition; end: MockPosition };
+      severity: number;
+      source?: string;
+    }>).find((diagnostic) => diagnostic.code === "modifier-fixed-color-low-contrast");
+    expect(warning).toMatchObject({
+      severity: 1,
+      source: "nuinuiCAD",
+      message: "Fixed modifier color #999999 has low contrast against the current Canvas background.",
+      range: {
+        start: { line: 2, character: "  color: ".length },
+        end: { line: 2, character: "  color: #999999".length }
+      }
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasWarning" }));
+  });
+
+  it("preserves the exact fixed-color token range for CRLF Source documents", async () => {
+    const source = sourceFor("#999999").replace(/\n/g, "\r\n");
+    const document = documentFor("/tmp/contrast-crlf.nui", "file:///tmp/contrast-crlf.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await synchronizeCanvasBackground(panel, document.version, "#ffffff");
+
+    const diagnostics = mocks.diagnosticCollections[0]!.set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      range: { start: MockPosition; end: MockPosition };
+    }>;
+    expect(diagnostics.find((diagnostic) => diagnostic.code === "modifier-fixed-color-low-contrast")?.range).toEqual({
+      start: { line: 2, character: "  color: ".length },
+      end: { line: 2, character: "  color: #999999".length }
+    });
+  });
+
+  it("reevaluates low-to-high and high-to-low only after fresh publication for the new document version", async () => {
+    const document = documentFor(
+      "/tmp/contrast-edit.nui",
+      "file:///tmp/contrast-edit.nui",
+      sourceFor("#999999")
+    );
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await synchronizeCanvasBackground(panel, 1, "#ffffff");
+    const collection = mocks.diagnosticCollections[0]!;
+    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+
+    document.version = 2;
+    document.setSourceText(sourceFor("#0000ff"));
+    emitDocumentChange(document);
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    await synchronizeCanvasBackground(panel, 2, "#ffffff");
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+
+    document.version = 3;
+    document.setSourceText(sourceFor("#999999"));
+    emitDocumentChange(document);
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    await synchronizeCanvasBackground(panel, 3, "#ffffff");
+    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+  });
+
+  it("rejects stale and wrong-session background publications", async () => {
+    const document = documentFor("/tmp/contrast-stale.nui", "file:///tmp/contrast-stale.nui", sourceFor("#999999"));
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const firstPanel = openPanelFor(editor);
+    const firstHandler = messageHandlerFor(firstPanel);
+    await firstHandler({ type: "webviewReady" });
+    await synchronizeCanvasBackground(firstPanel, 1, "#ffffff");
+    const collection = mocks.diagnosticCollections[0]!;
+    const callsAfterFresh = collection.set.mock.calls.length;
+
+    await publishCanvasBackground(firstPanel, 0, "#000000");
+    expect(collection.set.mock.calls).toHaveLength(callsAfterFresh);
+
+    firstPanel.dispose();
+    const secondPanel = openPanelFor(editor);
+    const secondHandler = messageHandlerFor(secondPanel);
+    await secondHandler({ type: "webviewReady" });
+    await secondHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await firstHandler({
+      type: "canvasBackgroundPublication",
+      documentVersion: 1,
+      background: "#ffffff"
+    });
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+  });
+
+  it("invalidates on theme change before refresh and clears on Canvas close", async () => {
+    const document = documentFor("/tmp/contrast-theme.nui", "file:///tmp/contrast-theme.nui", sourceFor("#999999"));
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await synchronizeCanvasBackground(panel, 1, "#ffffff");
+    const collection = mocks.diagnosticCollections[0]!;
+    expect(warningCodesFor(collection)).toContain("modifier-fixed-color-low-contrast");
+
+    mocks.activeColorThemeListeners[0]!();
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasThemeChanged" });
+
+    await publishCanvasBackground(panel, 1, "#000000");
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+
+    panel.dispose();
+    expect(warningCodesFor(collection)).not.toContain("modifier-fixed-color-low-contrast");
+  });
+
+  it("does not guess a warning before Canvas is opened", () => {
+    const document = documentFor("/tmp/contrast-no-canvas.nui", "file:///tmp/contrast-no-canvas.nui", sourceFor("#999999"));
+    setup(false, null, [document]);
+
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(warningCodesFor(mocks.diagnosticCollections[0]!)).not.toContain("modifier-fixed-color-low-contrast");
   });
 });
 

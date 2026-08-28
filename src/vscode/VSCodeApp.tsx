@@ -16,7 +16,10 @@ import { VSCodeBenchmarkCaptureRunner } from "./VSCodeBenchmarkCaptureRunner";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { isStaleHostDocumentVersion } from "./hostDocumentVersion";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
-import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
+import {
+  readVSCodeCanvasBackground,
+  readVSCodeCanvasTheme
+} from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
@@ -236,6 +239,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, currentAuthoritativeDocument]);
 
+  const publishCanvasBackground = useCallback((documentVersion: number) => {
+    if (!currentAuthoritativeDocument(documentVersion)) return;
+    const background = readVSCodeCanvasBackground();
+    if (!background) return;
+    api.postMessage({
+      type: "canvasBackgroundPublication",
+      documentVersion,
+      background
+    });
+  }, [api, currentAuthoritativeDocument]);
+
   const publishCanonicalRuntimeDiagnostics = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
     if (
@@ -297,7 +311,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   ]);
 
   useEffect(() => {
-    const refreshCanvasTheme = () => setCanvasTheme(readVSCodeCanvasTheme());
+    const refreshCanvasTheme = () => {
+      setCanvasTheme(readVSCodeCanvasTheme());
+      const documentVersion = latestHostDocumentVersionRef.current;
+      if (documentVersion !== null) publishCanvasBackground(documentVersion);
+    };
     refreshCanvasTheme();
     const runCanvasBake = async (
       message: Extract<ExtensionToVscodeMessage, { type: "canvasCommand" }>
@@ -715,6 +733,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           dirtySinceSave: false
         });
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanvasBackground(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "commitText") {
@@ -735,6 +754,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+        publishCanvasBackground(message.documentVersion);
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
       } else if (message.type === "benchmarkConfig") {
@@ -748,7 +768,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       rustTransport.dispose();
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasBackground, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, pumpCanvasHistory, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig
     ? {
