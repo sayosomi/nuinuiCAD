@@ -576,6 +576,42 @@ describe("command-line session commands", () => {
     expect(document.sourceText.indexOf("x: 1")).toBeLessThan(document.sourceText.indexOf("// insert here"));
   });
 
+  it("rejects a stale Source cursor before starting or falling back to document end", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n"), "test");
+    const before = useCadDocumentStore.getState();
+    const documentSnapshot = {
+      elements: before.elements,
+      sourceText: before.sourceText,
+      sourceRevision: before.sourceRevision,
+      evaluationLimitIndex: before.evaluationLimitIndex,
+      past: before.past,
+      future: before.future
+    };
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({
+        sourceRevision: before.sourceRevision - 1,
+        line: 2,
+        lineCount: 2,
+        elementId: null
+      })
+    })).toBe(false);
+
+    const after = useCadDocumentStore.getState();
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(after.elements).toBe(documentSnapshot.elements);
+    expect(after.sourceText).toBe(documentSnapshot.sourceText);
+    expect(after.sourceRevision).toBe(documentSnapshot.sourceRevision);
+    expect(after.evaluationLimitIndex).toBe(documentSnapshot.evaluationLimitIndex);
+    expect(after.past).toBe(documentSnapshot.past);
+    expect(after.future).toBe(documentSnapshot.future);
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("安全な挿入境界");
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("ステートメント間");
+  });
+
   it("cancels immediately when an external revision makes the session stale", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("12");

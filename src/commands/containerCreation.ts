@@ -12,7 +12,10 @@ import type { CommandContext } from "./commandTypes";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import { focusCanvasAfterCreation } from "./postCreationFocus";
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
-import { resolveSourceCreationInsertion } from "./sourceCreationInsertion";
+import {
+  resolveSourceCreationInsertion,
+  sourceCreationInsertionUnsafeError
+} from "./sourceCreationInsertion";
 
 type ContainerType = Extract<CadElementType, "group" | "conditionalGroup" | "forGroup">;
 
@@ -21,12 +24,17 @@ const sourceCommitError = "現在のDSLテキストにはこの操作を適用�
 /** Creates an empty container at the current Source Editor insertion point when available. */
 export const addContainer = (type: ContainerType, context?: CommandContext) => {
   const document = useCadDocumentStore.getState();
-  const sourceInsertion = resolveSourceCreationInsertion({
+  const sourceResolution = resolveSourceCreationInsertion({
     cursor: context?.currentSourceCursor?.() ?? null,
     sourceRevision: document.sourceRevision,
     elements: document.elements,
     statementMap: document.doc.statementMap
   });
+  if (sourceResolution.kind === "unsafe") {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return { status: "rejected" as const, reason: "invalid-change" as const };
+  }
+  const sourceInsertion = sourceResolution.kind === "safe" ? sourceResolution.insertion : null;
   const placement = sourceInsertion
     ? creationPlacementForTarget(document.elements, sourceInsertion.insertionTarget, document.evaluationLimitIndex)
     : creationPlacementForEvaluationLimit(document.elements, document.evaluationLimitIndex);
