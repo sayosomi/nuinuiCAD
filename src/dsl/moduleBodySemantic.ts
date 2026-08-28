@@ -27,8 +27,24 @@ const isSourceOnlyTypedDeclaration = (
 ) => Boolean(statement.recordTypeReference || geometryArrayTypeOfTypedDeclaration(statement));
 
 type GeometryArrayWholeReference =
-  | { kind: "parameter"; definitionStatementId: string; parameterIndex: number; parameterName: string; optional: boolean }
+  | {
+      kind: "parameter";
+      definitionStatementId: string;
+      definitionStatementIndex: number;
+      parameterIndex: number;
+      parameterName: string;
+      parameterNameSpan: DslSpan | null;
+      optional: boolean;
+    }
   | { kind: "value" };
+
+type ModuleBodyLocalDiagnostic = ModuleScalarLocalDiagnostic & {
+  relatedSources?: readonly {
+    statementIndex: number;
+    span: DslSpan;
+    message: string;
+  }[];
+};
 
 const geometryArrayWholeReference = (
   input: Parameters<typeof core.analyzeModuleBody>[0],
@@ -43,15 +59,17 @@ const geometryArrayWholeReference = (
   if (path.segments.length === 1 && !path.absolute) {
     const ownerIndex = moduleOwnerIndexOf(input.statements, statementIndex);
     const owner = ownerIndex === null ? null : input.statements[ownerIndex];
-    if (owner?.kind === "moduleDefinition") {
+    if (ownerIndex !== null && owner?.kind === "moduleDefinition") {
       const parameterIndex = owner.parameters.findIndex((candidate) => candidate.name === path.segments[0]);
       const parameter = parameterIndex >= 0 ? owner.parameters[parameterIndex] : undefined;
       if (parameter && geometryArrayTypeOfModuleParameter(parameter)) {
         return {
           kind: "parameter",
           definitionStatementId: input.definition.statementId,
+          definitionStatementIndex: ownerIndex,
           parameterIndex,
           parameterName: parameter.name,
+          parameterNameSpan: parameter.nameSpan,
           optional: parameter.optional
         };
       }
@@ -149,7 +167,7 @@ export const analyzeModuleBody = (
   });
 
   const arrayListSites: ArrayListSite[] = [];
-  const arrayDiagnostics: { statementIndex: number; diagnostic: ModuleScalarLocalDiagnostic }[] = [];
+  const arrayDiagnostics: { statementIndex: number; diagnostic: ModuleBodyLocalDiagnostic }[] = [];
   const bodyStatements = result.bodyStatements.map((body) => {
     const geometryReferences = body.geometryReferences.filter((site) => {
       if (site.reference.role !== "lineReferenceList") return true;
@@ -172,7 +190,14 @@ export const analyzeModuleBody = (
           diagnostic: {
             code: "module-optional-value-required",
             span: site.reference.nameSpan ?? site.reference.span,
-            message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`
+            message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`,
+            relatedSources: arrayReference.parameterNameSpan
+              ? [{
+                  statementIndex: arrayReference.definitionStatementIndex,
+                  span: arrayReference.parameterNameSpan,
+                  message: "Related parameter declaration"
+                }]
+              : []
           }
         });
       }
