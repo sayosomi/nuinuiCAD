@@ -1228,17 +1228,7 @@ const initializerRewritesFor = (
         const expectedOwner = remappedOwnerTokenForIdentity(compiled, original.identity, mappingsByTarget);
         const actualOwner = ownerTokenForIdentity(nextCompiled, candidate.identity);
         const originalReferenceSource = source.slice(original.sourceFrom, original.sourceTo);
-        const originalReference = parseDslSourceReference(originalReferenceSource);
-        const candidateReference = parseDslSourceReference(
-          nextCompiled.spans.sourceMap.source.slice(candidate.sourceFrom, candidate.sourceTo)
-        );
-        const originalDeclaration = sourceDeclarationForIdentity(compiled, original.identity);
-        const sameNameCaptureRisk = originalReference.kind === "valid" &&
-          candidateReference.kind === "valid" &&
-          !candidateReference.reference.path.absolute &&
-          originalReference.reference.path.segments.length === 1 &&
-          originalDeclaration?.name === parameter.parameterName;
-        if (expectedOwner === actualOwner && !sameNameCaptureRisk) continue;
+        if (expectedOwner === actualOwner) continue;
         const canonical = canonicalSourceReferenceFor(
           source,
           compiled,

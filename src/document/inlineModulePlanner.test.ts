@@ -374,7 +374,7 @@ describe("planInlineModule Checkpoint 1", () => {
     )).toBe(true);
   });
 
-  it("treats explicit and SAY-12 shorthand bindings equivalently and canonicalizes same-name capture", () => {
+  it("treats explicit and SAY-12 shorthand bindings equivalently and preserves safe same-name references", () => {
     const source = [
       "nui 4",
       "const width: number = 50",
@@ -399,7 +399,7 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     const nextSource = applyLineSplices(source, result.splices);
-    expect(nextSource.match(/const width: number = @::width/g)).toHaveLength(2);
+    expect(nextSource.match(/const width: number = @width/g)).toHaveLength(2);
     const next = compileCurrent(nextSource, "inline-next");
     const rootWidth = createDslSemanticOccurrenceIndex(next).occurrences.find((occurrence) =>
       occurrence.kind === "declaration" && nextSource.slice(occurrence.from, occurrence.to) === "width" &&
@@ -427,6 +427,79 @@ describe("planInlineModule Checkpoint 1", () => {
       }
     }
     expect(result.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
+  });
+
+  it("canonicalizes only a moved cross-parameter reference captured by an earlier generated const", () => {
+    const source = [
+      "nui 4",
+      "const a: number = 50",
+      "module Pair(a: number, b: number) {",
+      "  point P = coordinate(x: @a, y: @b)",
+      "}",
+      "instance Copy = Pair(a: 1, b: @a)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const a: number = 1");
+    expect(nextSource).toContain("const b: number = @::a");
+    expect(nextSource.match(/@::a/g)).toHaveLength(1);
+    expect(nextSource).toContain("point P = coordinate(x: @a, y: @b)");
+
+    const next = compileCurrent(nextSource, "inline-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    const generated = next.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const generatedA = generated.find((statement) => statement.name === "a");
+    const generatedB = generated.find((statement) => statement.name === "b");
+    const copiedPoint = next.statements.find((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const rootA = next.statements.find((statement, statementIndex) =>
+      statementIndex < groupIndex && statement.kind === "typedDeclaration" && statement.name === "a" && statement.enclosing === null
+    );
+    expect(generatedA).toBeDefined();
+    expect(generatedB).toBeDefined();
+    expect(copiedPoint).toBeDefined();
+    expect(rootA).toBeDefined();
+    if (!generatedA || !generatedB || !copiedPoint || !rootA) return;
+
+    const typedDeclarationIdentity = (statement: typeof generatedA) => {
+      const occurrence = nextIndex.occurrences.find((candidate) =>
+        candidate.kind === "declaration" && candidate.identity.kind === "typed" &&
+        candidate.from >= statement.documentRange.from && candidate.to <= statement.documentRange.to
+      );
+      return occurrence ? dslSemanticIdentityKey(occurrence.identity) : null;
+    };
+    const generatedAIdentity = typedDeclarationIdentity(generatedA);
+    const generatedBIdentity = typedDeclarationIdentity(generatedB);
+    const rootAIdentity = nextIndex.occurrences.find((candidate) =>
+      candidate.kind === "declaration" && candidate.identity.kind === "typed" &&
+      candidate.from >= rootA.documentRange.from && candidate.to <= rootA.documentRange.to
+    );
+    expect(generatedAIdentity).not.toBeNull();
+    expect(generatedBIdentity).not.toBeNull();
+    expect(rootAIdentity).toBeDefined();
+    if (!generatedAIdentity || !generatedBIdentity || !rootAIdentity) return;
+
+    const referencesIn = (statement: typeof copiedPoint) => nextIndex.occurrences.filter((candidate) =>
+      candidate.kind === "reference" &&
+      candidate.from >= statement.documentRange.from && candidate.to <= statement.documentRange.to
+    );
+    const bInitializerReferences = nextIndex.occurrences.filter((candidate) =>
+      candidate.kind === "reference" &&
+      candidate.from >= generatedB.documentRange.from && candidate.to <= generatedB.documentRange.to
+    );
+    const bodyReferences = referencesIn(copiedPoint);
+    expect(bInitializerReferences.some((candidate) =>
+      dslSemanticIdentityKey(candidate.identity) === dslSemanticIdentityKey(rootAIdentity.identity)
+    )).toBe(true);
+    expect(bodyReferences.some((candidate) => dslSemanticIdentityKey(candidate.identity) === generatedAIdentity)).toBe(true);
+    expect(bodyReferences.some((candidate) => dslSemanticIdentityKey(candidate.identity) === generatedBIdentity)).toBe(true);
   });
 
   it("does not rewrite a caller expression whose owner remains valid after moving", () => {
