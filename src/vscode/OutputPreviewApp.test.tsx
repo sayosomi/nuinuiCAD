@@ -234,7 +234,13 @@ describe("Output Preview application", () => {
   });
 
   it("recomputes a stationary pointer after viewport pan and viewport-size changes", () => {
-    let currentRect = viewportRect;
+    let currentRect = {
+      ...viewportRect,
+      left: 100,
+      top: 50,
+      right: 900,
+      bottom: 650
+    } as DOMRect;
     let resize: (() => void) | null = null;
     class ResizeObserverMock {
       constructor(callback: ResizeObserverCallback) {
@@ -251,17 +257,25 @@ describe("Output Preview application", () => {
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
 
-    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+    fireEvent.pointerMove(viewport, { clientX: 350, clientY: 250 });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
 
-    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 250, clientY: 150 });
-    fireEvent.pointerMove(viewport, { button: 1, buttons: 4, pointerId: 1, clientX: 270, clientY: 130 });
-    fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 270, clientY: 130 });
-    expect(status).toHaveTextContent("ZOOM100%X-150.0Y150.0");
+    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 350, clientY: 250 });
+    fireEvent.pointerMove(viewport, { button: 1, buttons: 4, pointerId: 1, clientX: 370, clientY: 230 });
+    fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 370, clientY: 230 });
+    expect(status).toHaveTextContent("ZOOM100%X-150.0Y100.0");
 
-    currentRect = { ...viewportRect, width: 1000, height: 800, right: 1000, bottom: 800 } as DOMRect;
+    currentRect = {
+      ...viewportRect,
+      left: 150,
+      top: 100,
+      right: 1150,
+      bottom: 900,
+      width: 1000,
+      height: 800
+    } as DOMRect;
     act(() => resize?.());
-    expect(status).toHaveTextContent("ZOOM100%X-250.0Y250.0");
+    expect(status).toHaveTextContent("ZOOM100%X-300.0Y250.0");
   });
 
   it("keeps Reset available without a plan while Fit remains plan-dependent", () => {

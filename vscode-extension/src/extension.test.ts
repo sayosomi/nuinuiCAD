@@ -1227,12 +1227,10 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
-  it("routes toolbar and public Reset Output Preview View through the same ready session without export state", async () => {
+  it("routes Reset before authoritative document readiness while Fit remains document-current gated", async () => {
     setup();
     const panel = openOutputPreviewPanelFor();
-    const document = mocks.activeTextEditor!.document;
     await messageHandlerFor(panel)({ type: "webviewReady" });
-    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
     panel.webview.postMessage.mockClear();
 
     await messageHandlerFor(panel)({ type: "outputPreviewResetView" });
@@ -1241,6 +1239,10 @@ describe("VS Code production document lifecycle", () => {
     panel.webview.postMessage.mockClear();
     commandHandlerFor("nuinuiCAD.resetOutputPreviewView")?.();
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "outputPreviewResetView" });
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.fitOutputPreview")?.();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith({ type: "outputPreviewFit" });
   });
 
   it("routes Clear Output Preview Focus through the active Preview session", async () => {

@@ -141,9 +141,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   };
 
   const postViewportAction = (session: OutputPreviewSession, action: OutputPreviewViewportAction): void => {
-    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-      void session.panel.webview.postMessage({ type: action } satisfies ExtensionToVscodeMessage);
-    }
+    if (!session.webviewReady) return;
+    if (action === "outputPreviewFit" && session.authoritativeDocumentVersion !== session.document.version) return;
+    void session.panel.webview.postMessage({ type: action } satisfies ExtensionToVscodeMessage);
   };
 
   const exportRequestIsCurrent = (
