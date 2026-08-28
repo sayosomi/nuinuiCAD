@@ -781,7 +781,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               id: "output-preview-reset",
               type: "command",
               commandId: "outputPreviewResetView",
-              icon: "scan",
+              icon: "rotate-ccw",
               label: "Reset Output Preview View",
               description: "",
               showLabel: false,

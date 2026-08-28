@@ -7,6 +7,7 @@ import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostic
 import type { DslDiagnostic } from "../dsl/dslTypes";
 import type { VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
+import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";
 
 const mocks = vi.hoisted(() => ({
   evaluateOutputPlan: vi.fn()
@@ -280,10 +281,13 @@ describe("Output Preview application", () => {
 
   it("keeps Reset available without a plan while Fit remains plan-dependent", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    const iconResolver = vi.spyOn(vscodeCanvasRibbonIcons, "resolveVscodeLucideIcon");
     renderFixture("nui 4");
 
     const reset = screen.getByRole("button", { name: "Reset Output Preview View" });
     const fit = screen.getByRole("button", { name: "Fit Output Preview" });
+    expect(iconResolver).toHaveBeenCalledWith("rotate-ccw");
+    expect(iconResolver).toHaveBeenCalledWith("maximize");
     expect(reset).not.toBeDisabled();
     expect(fit).toBeDisabled();
 
