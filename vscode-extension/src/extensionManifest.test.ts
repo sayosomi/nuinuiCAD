@@ -69,6 +69,7 @@ const commandIds = [
   "nuinuiCAD.selectParentGroup",
   "nuinuiCAD.resetCanvasView",
   "nuinuiCAD.fitDrawing",
+  "nuinuiCAD.resetOutputPreviewView",
   "nuinuiCAD.fitOutputPreview",
   "nuinuiCAD.clearOutputPreviewFocus",
   "nuinuiCAD.exportCurrentOutput",
@@ -144,6 +145,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Select Parent Group",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
+      "nuinuiCAD: Reset Output Preview View",
       "nuinuiCAD: Fit Output Preview",
       "nuinuiCAD: Clear Output Preview Focus",
       "nuinuiCAD: Export Current Output",
@@ -161,6 +163,24 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Geometry Names",
       "nuinuiCAD: Toggle Module Preview Points"
     ]);
+  });
+
+  it("keeps Reset Output Preview View surface-only with no shortcut or target enablement", async () => {
+    const manifest = await readManifest();
+    const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.resetOutputPreviewView");
+    expect(command).toEqual({
+      command: "nuinuiCAD.resetOutputPreviewView",
+      title: "nuinuiCAD: Reset Output Preview View"
+    });
+    expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
+      command: "nuinuiCAD.resetOutputPreviewView",
+      when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+    });
+    expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
+      command: "nuinuiCAD.resetOutputPreviewView",
+      when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
+    });
+    expect(manifest.contributes?.keybindings?.some(({ command: id }) => id === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
   });
 
   it("scopes open commands without making Module Preview Palette visibility caret-dependent", async () => {
@@ -181,6 +201,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.selectParentGroup", when: canvasPaletteWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasPaletteWhen },
       { command: "nuinuiCAD.fitDrawing", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.resetOutputPreviewView", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
       { command: "nuinuiCAD.fitOutputPreview", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
       { command: "nuinuiCAD.clearOutputPreviewFocus", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
       { command: "nuinuiCAD.exportCurrentOutput", when: "activeWebviewPanelId == 'nuinuiCAD.outputPreview'" },
@@ -225,6 +246,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasOrModulePreviewRibbonWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: `${canvasBlankWhen} && nuinuiCAD.canvasHasSelection` },
       { command: "nuinuiCAD.selectParentGroup", when: canvasElementWhen },
+      { command: "nuinuiCAD.resetOutputPreviewView", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'" },
       { command: "nuinuiCAD.fitOutputPreview", when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'" },
       { command: "nuinuiCAD.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
@@ -250,6 +272,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(editorContextCommands).not.toContain("nuinuiCAD.openCanvas");
     expect(editorContextCommands).not.toContain("nuinuiCAD.openOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
+    expect(editorContextCommands).not.toContain("nuinuiCAD.resetOutputPreviewView");
     expect(editorContextCommands).not.toContain("nuinuiCAD.clearOutputPreviewFocus");
     const modulePreviewContextCommands = (manifest.contributes?.menus?.["webview/context"] ?? [])
       .filter(({ when }) => when.includes("nuinuiCAD.modulePreview"))
@@ -320,7 +343,9 @@ describe("VS Code extension manifest keybindings", () => {
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.toggleCanvasPointNames" || command === "nuinuiCAD.toggleCanvasGeometryNames")).toBe(false);
     expect(keybindings.some(({ command }) =>
-      command === "nuinuiCAD.openOutputPreview" || command === "nuinuiCAD.fitOutputPreview")).toBe(false);
+      command === "nuinuiCAD.openOutputPreview" ||
+      command === "nuinuiCAD.fitOutputPreview" ||
+      command === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
     expect(keybindings.some(({ command }) => command.includes("modulePreview"))).toBe(false);
     for (const command of ["nuinuiCAD.stepSourceValueForward.keybinding", "nuinuiCAD.stepSourceValueBackward.keybinding"]) {

@@ -31,7 +31,9 @@ import {
   DEFAULT_OUTPUT_PREVIEW_VIEWPORT,
   fitOutputPreviewViewport,
   outputPreviewFitBoundsFor,
+  outputPreviewScreenToWorld,
   outputPreviewWorldToScreen,
+  resetOutputPreviewViewport,
   type OutputPreviewViewport,
   type OutputPreviewViewportSize,
   zoomOutputPreviewViewportAt
@@ -45,6 +47,7 @@ import {
 import { vscodeWebviewContextDataFor, type ExtensionToVscodeMessage, type VscodeWebviewApi } from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
+import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 
 type OutputPreviewEvaluationState = {
@@ -62,6 +65,8 @@ type OutputPreviewPlaceDragPreviewState = {
 };
 
 type PanState = { pointerId: number; lastX: number; lastY: number };
+type OutputPreviewClientPoint = { clientX: number; clientY: number };
+type OutputPreviewViewportClientOrigin = { left: number; top: number };
 
 const diagnosticMessageFor = (state: ReturnType<typeof useCadDocumentStore.getState>): string =>
   state.diagnostics[0]?.message ?? state.bindingIssueDiagnostics[0]?.message ?? "The current source cannot produce a valid output plan.";
@@ -207,6 +212,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OutputPreviewViewport>(DEFAULT_OUTPUT_PREVIEW_VIEWPORT);
   const [viewportSize, setViewportSize] = useState<OutputPreviewViewportSize>({ width: 0, height: 0 });
+  const [viewportClientOrigin, setViewportClientOrigin] = useState<OutputPreviewViewportClientOrigin>({ left: 0, top: 0 });
+  const [pointerClientPosition, setPointerClientPosition] = useState<OutputPreviewClientPoint | null>(null);
   const [evaluationState, setEvaluationState] = useState<OutputPreviewEvaluationState>({
     outputKey: null,
     sourceRevision: null,
@@ -233,11 +240,34 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const requestCurrentExportRef = useRef<() => boolean>(() => false);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
 
+  const pointerWorldPoint = useMemo(
+    () => pointerClientPosition
+      ? outputPreviewScreenToWorld({
+          x: pointerClientPosition.clientX - viewportClientOrigin.left,
+          y: pointerClientPosition.clientY - viewportClientOrigin.top
+        }, viewportSize, viewport)
+      : null,
+    [pointerClientPosition, viewport, viewportClientOrigin, viewportSize]
+  );
+
   const measureViewport = useCallback(() => {
     const element = viewportRef.current;
     if (!element) return;
     const rect = element.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) setViewportSize({ width: rect.width, height: rect.height });
+    if (
+      !Number.isFinite(rect.left) ||
+      !Number.isFinite(rect.top) ||
+      !Number.isFinite(rect.width) ||
+      !Number.isFinite(rect.height) ||
+      rect.width < 0 ||
+      rect.height < 0
+    ) return;
+    setViewportClientOrigin((current) => current.left === rect.left && current.top === rect.top
+      ? current
+      : { left: rect.left, top: rect.top });
+    setViewportSize((current) => current.width === rect.width && current.height === rect.height
+      ? current
+      : { width: rect.width, height: rect.height });
   }, []);
 
   const fitPlan = useCallback((plan: OutputPlan | null): boolean => {
@@ -432,6 +462,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         fitPlanRef.current(latestPlanRef.current);
         return;
       }
+      if (message.type === "outputPreviewResetView") {
+        setViewport(resetOutputPreviewViewport());
+        return;
+      }
       if (message.type === "outputPreviewClearFocus") {
         setClearPlaceInteractionKey((current) => current + 1);
         return;
@@ -478,6 +512,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
+    setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     setViewport((current) => zoomOutputPreviewViewportAt(
       current,
       Math.pow(1.1, -event.deltaY / 100),
@@ -493,11 +528,13 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 1) return;
     event.preventDefault();
+    setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     event.currentTarget.setPointerCapture?.(event.pointerId);
     panRef.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId || (event.buttons & 4) === 0) return;
     setViewport((current) => ({
@@ -509,6 +546,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   };
 
   const stopPan = (event: React.PointerEvent<HTMLDivElement>) => {
+    setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
   };
 
@@ -728,6 +766,34 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           />
         ) : null}
         <CommandRibbonView
+          className="output-preview-reset-ribbon"
+          showHandle={false}
+          viewportAwareTooltips
+          tooltipBoundaryRef={workspaceRef}
+          ribbon={{
+            id: "output-preview-reset-ribbon",
+            label: "Output Preview",
+            x: null,
+            y: 0,
+            orientation: "horizontal",
+            iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+            items: [{
+              id: "output-preview-reset",
+              type: "command",
+              commandId: "outputPreviewResetView",
+              icon: "scan",
+              label: "Reset Output Preview View",
+              description: "",
+              showLabel: false,
+              available: true
+            }]
+          }}
+          iconResolver={resolveVscodeLucideIcon}
+          onCommand={(item) => {
+            if (item.commandId === "outputPreviewResetView") api.postMessage({ type: "outputPreviewResetView" });
+          }}
+        />
+        <CommandRibbonView
           className="output-preview-fit-ribbon"
           showHandle={false}
           viewportAwareTooltips
@@ -758,6 +824,28 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             if (item.commandId === "outputPreviewFit") api.postMessage({ type: "outputPreviewFit" });
           }}
         />
+        <CommandRibbonView
+          className="output-preview-viewport-status-ribbon"
+          showHandle={false}
+          viewportAwareTooltips
+          tooltipBoundaryRef={workspaceRef}
+          ribbon={{
+            id: "output-preview-viewport-status-ribbon",
+            label: "Output Preview",
+            x: null,
+            y: 0,
+            orientation: "horizontal",
+            iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
+            items: [vscodeViewportStatusPresentationFor(
+              "output-preview-viewport-status",
+              viewport,
+              pointerWorldPoint,
+              "Output Preview status",
+              "Current Output Preview zoom and pointer position."
+            )]
+          }}
+          iconResolver={resolveVscodeLucideIcon}
+        />
         {evaluationState.evaluating ? <span className="output-preview-status">Evaluating…</span> : null}
       </header>
       <div
@@ -770,6 +858,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         onPointerMove={handlePointerMove}
         onPointerUp={stopPan}
         onPointerCancel={stopPan}
+        onPointerLeave={() => setPointerClientPosition(null)}
         onAuxClick={(event) => event.preventDefault()}
       >
         {previewError ? (

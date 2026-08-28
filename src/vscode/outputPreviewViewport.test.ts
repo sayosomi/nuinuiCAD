@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { OutputPlan } from "../output/outputCore";
 import {
+  DEFAULT_OUTPUT_PREVIEW_VIEWPORT,
   clampOutputPreviewZoom,
   fitOutputPreviewViewport,
   outputPreviewFitBoundsFor,
+  outputPreviewScreenToWorld,
+  outputPreviewWorldToScreen,
+  resetOutputPreviewViewport,
   zoomOutputPreviewViewportAt
 } from "./outputPreviewViewport";
 
@@ -21,6 +25,23 @@ const printPlan = {
 } as unknown as OutputPlan;
 
 describe("Output Preview viewport", () => {
+  it("keeps the default viewport stable and inverts its Y-up transform", () => {
+    expect(DEFAULT_OUTPUT_PREVIEW_VIEWPORT).toEqual({ panX: 0, panY: 0, zoom: 1 });
+    expect(resetOutputPreviewViewport()).toEqual(DEFAULT_OUTPUT_PREVIEW_VIEWPORT);
+
+    const size = { width: 800, height: 600 };
+    const viewport = { panX: 35, panY: -18, zoom: 2.5 };
+    const worldPoint = { x: 12.4, y: -27.8 };
+    const screenPoint = outputPreviewWorldToScreen(worldPoint, size, viewport);
+
+    expect(outputPreviewScreenToWorld(screenPoint, size, viewport)).toEqual({
+      x: expect.closeTo(worldPoint.x),
+      y: expect.closeTo(worldPoint.y)
+    });
+    expect(outputPreviewWorldToScreen({ x: 0, y: 10 }, size, { panX: 0, panY: 0, zoom: 1 }).y).toBe(290);
+    expect(outputPreviewScreenToWorld({ x: 400, y: 290 }, size, { panX: 0, panY: 0, zoom: 1 })).toEqual({ x: 0, y: 10 });
+  });
+
   it("fits the physical page union and centers it in the viewport", () => {
     const bounds = outputPreviewFitBoundsFor(printPlan)!;
     const viewport = fitOutputPreviewViewport(bounds, { width: 1000, height: 800 });
