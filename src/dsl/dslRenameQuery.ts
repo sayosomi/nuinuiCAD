@@ -638,28 +638,34 @@ export const planDslRenameEditsResult = (
       edits = projected.edits;
     } else {
       const analysis = analyzeRename({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, newName });
-      if (analysis.verdict !== "ok") return { status: "rejected", rejection: elementRenameRejection(analysis) };
-      const projection = projectElementRenameEdits({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, analysis });
       const semanticProjection = projectElementSemanticRenameEdits(
         exact.source.normalizedSource,
         exact.compiled,
         identity.elementId,
-        analysis.newName
+        newName.trim()
       );
-      const projectionsDiffer = projection.ok && semanticProjection.ok && (
-        semanticProjection.edits.length !== projection.edits.length ||
-        semanticProjection.edits.some((edit, index) => {
-          const ordinary = projection.edits[index];
-          return !ordinary || edit.from !== ordinary.from || edit.to !== ordinary.to || edit.newText !== ordinary.newText;
-        })
-      );
-      if (!semanticProjection.ok) {
-        if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
-        edits = projection.edits.map((edit) => ({ ...edit }));
-      } else if (!projection.ok || projectionsDiffer) {
+      if (analysis.verdict !== "ok") {
+        if (analysis.reason !== "analysis-incomplete" || !semanticProjection.ok) {
+          return { status: "rejected", rejection: elementRenameRejection(analysis) };
+        }
         edits = semanticProjection.edits;
       } else {
-        edits = projection.edits.map((edit) => ({ ...edit }));
+        const projection = projectElementRenameEdits({ sourceText: exact.source.normalizedSource, compiled: exact.compiled, targetElementId: identity.elementId, analysis });
+        const projectionsDiffer = projection.ok && semanticProjection.ok && (
+          semanticProjection.edits.length !== projection.edits.length ||
+          semanticProjection.edits.some((edit, index) => {
+            const ordinary = projection.edits[index];
+            return !ordinary || edit.from !== ordinary.from || edit.to !== ordinary.to || edit.newText !== ordinary.newText;
+          })
+        );
+        if (!semanticProjection.ok) {
+          if (!projection.ok) return { status: "rejected", rejection: unavailableRenameRejection() };
+          edits = projection.edits.map((edit) => ({ ...edit }));
+        } else if (!projection.ok || projectionsDiffer) {
+          edits = semanticProjection.edits;
+        } else {
+          edits = projection.edits.map((edit) => ({ ...edit }));
+        }
       }
     }
   }

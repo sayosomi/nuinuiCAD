@@ -190,6 +190,28 @@ describe("host-neutral DSL rename query", () => {
     expect(elementPlan?.edits.map((edit) => edit.expectedText)).toEqual(["A", "A"]);
   });
 
+  it("renames the element path of a qualified choice geometry property", () => {
+    const source = [
+      "nui 4",
+      "group Outer {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "}",
+      "const direction: choice(counterclockwise, clockwise) = @Outer::A.direction"
+    ].join("\n");
+    const referenceStart = at(source, "@Outer::A.direction");
+    const elementStart = referenceStart + "@Outer::".length;
+    const target = queryDslRenameTarget(snapshot(source), elementStart);
+    const plan = planDslRenameEdits(snapshot(source), elementStart, "RenamedArc");
+
+    expect(target?.oldName).toBe("A");
+    expect(target?.range).toEqual({ from: elementStart, to: elementStart + 1 });
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["A", "A"]);
+    expect(plan?.edits.every((edit) => source.slice(edit.from, edit.to) !== "direction")).toBe(true);
+    expect(applyEdits(source, plan!.edits)).toContain("@Outer::RenamedArc.direction");
+    expect(queryDslRenameTarget(snapshot(source), referenceStart + "@Outer::A.".length + 1)).toBeNull();
+  });
+
   it("starts element rename from derived endpoint geometry properties", () => {
     const source = [
       "nui 4",
