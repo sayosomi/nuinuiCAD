@@ -14,13 +14,6 @@ export const nuiSourceActivityDecorationSelector: vscode.DocumentSelector = {
   scheme: "file"
 };
 
-export const NUI_SOURCE_ACTIVITY_HIDDEN_BACKGROUND =
-  "nuinuiCAD.sourceActivity.hiddenBackground";
-export const NUI_SOURCE_ACTIVITY_HIDDEN_BORDER =
-  "nuinuiCAD.sourceActivity.hiddenBorder";
-export const NUI_SOURCE_ACTIVITY_DISABLED_BACKGROUND =
-  "nuinuiCAD.sourceActivity.disabledBackground";
-
 export type SourceActivityLineRange = {
   elementId: string;
   startLine: number;
@@ -169,14 +162,11 @@ const createDecorationTypes = (): {
   return {
     hidden: create.call(vscode.window, {
       isWholeLine: true,
-      backgroundColor: new vscode.ThemeColor(NUI_SOURCE_ACTIVITY_HIDDEN_BACKGROUND),
-      borderColor: new vscode.ThemeColor(NUI_SOURCE_ACTIVITY_HIDDEN_BORDER),
-      borderStyle: "dotted",
-      borderWidth: "0 0 0 1px"
+      opacity: "0.72"
     }),
     disabled: create.call(vscode.window, {
       isWholeLine: true,
-      backgroundColor: new vscode.ThemeColor(NUI_SOURCE_ACTIVITY_DISABLED_BACKGROUND)
+      opacity: "0.48"
     })
   };
 };
