@@ -91,7 +91,7 @@
         },
         {
           "command": "nuinuiCAD.editCanvasRibbon",
-          "when": "true"
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
           "command": "nuinuiCAD.goToSourceDefinition",

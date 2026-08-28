@@ -168,7 +168,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openCanvas", when: sourceOrOutputPreviewPaletteWhen },
       { command: "nuinuiCAD.openOutputPreview", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.openModulePreview", when: sourcePaletteWhen },
-      { command: "nuinuiCAD.editCanvasRibbon", when: "true" },
+      { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
