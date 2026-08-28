@@ -35,6 +35,7 @@ vi.mock("vscode", () => {
 }, { virtual: true });
 
 import * as vscode from "vscode";
+import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { createNuiColorProvider } from "./colorProvider";
 
@@ -98,6 +99,76 @@ describe("VS Code fixed-color provider", () => {
       },
       color: { red: 1, green: 128 / 255, blue: 0, alpha: 1 }
     });
+  });
+
+  it("keeps fixed colors without a current Canvas theme and appends all current theme roles when available", () => {
+    const source = [
+      "nui 4",
+      "modifier Fixed {",
+      "  color: #0a10ff",
+      "}",
+      "modifier Foreground {",
+      "  color: foreground",
+      "}",
+      "modifier Muted {",
+      "  color: muted",
+      "}",
+      "modifier Accent {",
+      "  color: accent",
+      "}",
+      "modifier Info {",
+      "  color: info",
+      "}",
+      "modifier Warning {",
+      "  color: warning",
+      "}",
+      "modifier Error {",
+      "  color: error",
+      "}"
+    ].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const withoutTheme = createNuiColorProvider(() => session, () => null);
+    expect(withoutTheme.provideDocumentColors(document)).toHaveLength(1);
+
+    const theme = {
+      ...LEGACY_CANVAS_THEME,
+      foreground: "#010203",
+      muted: "#111213",
+      accent: "rgb(12 34 56 / 50%)",
+      info: "#202122",
+      warning: "#303132",
+      error: "#404142"
+    };
+    const withTheme = createNuiColorProvider(() => session, () => theme);
+    const colors = withTheme.provideDocumentColors(document) as vscode.ColorInformation[];
+
+    expect(colors).toHaveLength(7);
+    expect(colors.slice(1).map((entry) => entry.color)).toEqual([
+      { red: 1 / 255, green: 2 / 255, blue: 3 / 255, alpha: 1 },
+      { red: 17 / 255, green: 18 / 255, blue: 19 / 255, alpha: 1 },
+      { red: 12 / 255, green: 34 / 255, blue: 56 / 255, alpha: 0.5 },
+      { red: 32 / 255, green: 33 / 255, blue: 34 / 255, alpha: 1 },
+      { red: 48 / 255, green: 49 / 255, blue: 50 / 255, alpha: 1 },
+      { red: 64 / 255, green: 65 / 255, blue: 66 / 255, alpha: 1 }
+    ]);
+  });
+
+  it("does not offer a source rewrite for a theme-role token", () => {
+    const source = ["nui 4", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiColorProvider(() => session, () => ({
+      ...LEGACY_CANVAS_THEME,
+      accent: "#123456"
+    }));
+    const start = source.indexOf("accent");
+    const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "accent".length));
+
+    expect(provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), {
+      document,
+      range
+    } as vscode.ColorPresentationContext)).toEqual([]);
   });
 
   it("offers one canonical token-only edit after revalidating the exact current range", () => {

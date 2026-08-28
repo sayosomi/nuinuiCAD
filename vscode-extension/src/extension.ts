@@ -305,6 +305,13 @@ const postAuthoritativeDocument = (panel: vscode.WebviewPanel, document: vscode.
   } satisfies ExtensionToVscodeMessage);
 };
 
+const postCanvasThemeGeneration = (panel: vscode.WebviewPanel, generation: number): void => {
+  void panel.webview.postMessage({
+    type: "canvasThemeChanged",
+    generation
+  } satisfies ExtensionToVscodeMessage);
+};
+
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
@@ -413,7 +420,12 @@ const disposeSessionListeners = (session: WebviewSession): void => {
   for (const disposable of session.disposables.splice(0)) disposable.dispose();
 };
 
+let activeCanvasThemeGeneration = 0;
+
+export const currentCanvasThemeGeneration = (): number => activeCanvasThemeGeneration;
+
 export const activate = (context: vscode.ExtensionContext): void => {
+  activeCanvasThemeGeneration = 0;
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
   const languageAnalysisSessions = new Map<string, NuiLanguageAnalysisSession>();
   const compilerDiagnosticCollection = vscode.languages.createDiagnosticCollection("nuinuiCAD");
@@ -430,6 +442,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
+  let refreshNativeColorProvider: () => void = () => undefined;
 
   const bakeOutputChannelFor = (): vscode.OutputChannel => {
     if (bakeOutputChannel) return bakeOutputChannel;
@@ -662,6 +675,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const canvasThemeWarningFeature = createCanvasThemeWarningFeature({
+    currentThemeGeneration: currentCanvasThemeGeneration,
+    onPreviewThemeChanged: () => refreshNativeColorProvider(),
     onDiagnosticsChanged: (documentUri) => {
       const document = vscode.workspace.textDocuments.find((candidate) => documentKey(candidate) === documentUri);
       const session = languageAnalysisSessions.get(documentUri);
@@ -779,10 +794,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
     createNuiCompletionProvider(languageAnalysisSessionFor),
     ...nuiCompletionTriggerCharacters
   );
-  const colorProvider = vscode.languages.registerColorProvider(
-    nuiColorSelector,
-    createNuiColorProvider(languageAnalysisSessionFor)
-  );
   const signatureHelpProvider = vscode.languages.registerSignatureHelpProvider(
     nuiSignatureHelpSelector,
     createNuiSignatureHelpProvider(languageAnalysisSessionFor),
@@ -813,6 +824,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
     nuiDocumentSymbolSelector,
     createNuiDocumentSymbolProvider(languageAnalysisSessionFor)
   );
+  let colorProviderRegistration: vscode.Disposable | null = null;
+  const refreshColorProvider = (): void => {
+    colorProviderRegistration?.dispose();
+    colorProviderRegistration = vscode.languages.registerColorProvider(
+      nuiColorSelector,
+      createNuiColorProvider(languageAnalysisSessionFor, canvasThemeWarningFeature.currentCanvasTheme)
+    );
+  };
+  refreshNativeColorProvider = refreshColorProvider;
+  const colorProviderLifecycle: vscode.Disposable = {
+    dispose: () => {
+      colorProviderRegistration?.dispose();
+      colorProviderRegistration = null;
+    }
+  };
+  refreshColorProvider();
   const elementsTreeFeature = registerNuiElementsTreeFeature({
     activeNuiDocument: () => activeNuiEditor()?.document,
     languageAnalysisSessionFor
@@ -828,7 +855,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     hoverFeature,
     sourceActivityDecorationFeature,
     completionProvider,
-    colorProvider,
+    colorProviderLifecycle,
     signatureHelpProvider,
     definitionProvider,
     renameProvider,
@@ -844,6 +871,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     session.pendingCanvasFocus = null;
     if (sessions.get(session.documentUri, "canvas") !== session || !isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
+    canvasThemeWarningFeature.invalidateCanvasSession({
+      sessionToken: session,
+      sessionDocumentUri: session.documentUri
+    });
     postAuthoritativeDocument(session.panel, session.document);
   };
 
@@ -994,16 +1025,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
   };
 
   const activeColorThemeListener = vscode.window.onDidChangeActiveColorTheme(() => {
+    activeCanvasThemeGeneration += 1;
+    canvasThemeWarningFeature.invalidateCanvasThemeGeneration(activeCanvasThemeGeneration);
     const canvasSessions = sessions.valuesForSurface("canvas");
     for (const session of canvasSessions) {
-      canvasThemeWarningFeature.invalidateCanvasSession({
-        sessionToken: session,
-        sessionDocumentUri: session.documentUri
-      });
-      void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
+      postCanvasThemeGeneration(session.panel, activeCanvasThemeGeneration);
     }
     for (const session of sessions.valuesForSurface("outputPreview")) {
-      void session.panel.webview.postMessage({ type: "canvasThemeChanged" } satisfies ExtensionToVscodeMessage);
+      postCanvasThemeGeneration(session.panel, activeCanvasThemeGeneration);
     }
   });
   context.subscriptions.push(activeColorThemeListener);
@@ -1250,6 +1279,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
           if (event.contentChanges.length === 0) return;
 
           session.authoritativeDocumentVersion = null;
+          canvasThemeWarningFeature.invalidateCanvasSession({
+            sessionToken: session,
+            sessionDocumentUri: session.documentUri
+          });
           session.pendingCanvasNavigation = null;
           session.pendingBake = null;
           session.pendingCanvasFocus = null;
@@ -1295,6 +1328,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
+        postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
@@ -1304,8 +1338,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
         acceptRuntimeDiagnosticsPublication(session, message);
         return;
       }
-      if (message.type === "canvasBackgroundPublication") {
-        canvasThemeWarningFeature.acceptCanvasBackgroundPublication({
+      if (message.type === "canvasThemePublication") {
+        canvasThemeWarningFeature.acceptCanvasThemePublication({
           ...message,
           sessionToken: session,
           sessionDocumentUri: session.documentUri,

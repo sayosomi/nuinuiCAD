@@ -454,12 +454,6 @@ const colorFrom = (
   return value || fallback;
 };
 
-/** Returns only the parseable raw Canvas background observed in the Webview. */
-export const canvasBackgroundFrom = (styles: CssVariableSource): string | null => {
-  const value = styles.getPropertyValue("--vscode-editor-background").trim();
-  return parseCssColor(value) ? value : null;
-};
-
 /** Resolves the active VS Code webview theme without exposing host details downstream. */
 export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme => {
   const foreground = colorFrom(styles, "--vscode-editor-foreground", LEGACY_CANVAS_THEME.foreground);
@@ -503,6 +497,3 @@ export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme
 
 export const readVSCodeCanvasTheme = (): CanvasTheme =>
   resolveVSCodeCanvasTheme(window.getComputedStyle(document.documentElement));
-
-export const readVSCodeCanvasBackground = (): string | null =>
-  canvasBackgroundFrom(window.getComputedStyle(document.documentElement));

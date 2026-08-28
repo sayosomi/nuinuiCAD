@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
 import { queryDslFixedColors } from "../../src/dsl/dslFixedColorQuery";
+import { queryDslThemeRoleColors } from "../../src/dsl/dslThemeRoleColorQuery";
+import type { CanvasTheme } from "../../src/components/canvasTheme";
+import { parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
@@ -14,6 +17,7 @@ export const nuiColorSelector: vscode.DocumentSelector = {
 };
 
 export type NuiColorSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiCanvasThemeFor = () => CanvasTheme | null;
 
 type ExactDocumentColors = {
   rawSource: string;
@@ -49,16 +53,30 @@ const exactDocumentColorsFor = (
 };
 
 export const createNuiColorProvider = (
-  sessionFor: NuiColorSessionFor
+  sessionFor: NuiColorSessionFor,
+  canvasThemeFor: NuiCanvasThemeFor = () => null
 ): vscode.DocumentColorProvider => ({
   provideDocumentColors: (document) => {
     const exact = exactDocumentColorsFor(document, sessionFor);
     if (!exact) return [];
-    const semantic = exact.session.fixedColorSemanticSnapshot(exact.source);
-    return queryDslFixedColors({ source: exact.source, semantic }).map(({ color, range }) => new vscode.ColorInformation(
+    const fixedSemantic = exact.session.fixedColorSemanticSnapshot(exact.source);
+    const fixedColors = queryDslFixedColors({ source: exact.source, semantic: fixedSemantic }).map(({ color, range }) => new vscode.ColorInformation(
       vscodeRangeForNormalized(document, exact.rawSource, range),
       new vscode.Color(color.red, color.green, color.blue, color.alpha)
     ));
+    const canvasTheme = canvasThemeFor();
+    if (!canvasTheme) return fixedColors;
+    const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
+    const themeRoleColors = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).flatMap(({ role, range }) => {
+      const color = parseCssColor(canvasTheme[role]);
+      return color
+        ? [new vscode.ColorInformation(
+            vscodeRangeForNormalized(document, exact.rawSource, range),
+            new vscode.Color(color.red / 255, color.green / 255, color.blue / 255, color.alpha)
+          )]
+        : [];
+    });
+    return [...fixedColors, ...themeRoleColors];
   },
   provideColorPresentations: (color, context) => {
     const document = context.document;
