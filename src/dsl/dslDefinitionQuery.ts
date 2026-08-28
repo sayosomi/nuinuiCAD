@@ -10,7 +10,7 @@ import {
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "./dslSemanticOccurrenceIndex";
-import type { ModuleSourceTarget } from "./moduleSemanticTypes";
+import type { ModuleRecordSourceTarget, ModuleSourceTarget } from "./moduleSemanticTypes";
 import type { SourceRevision, SourceSnapshot } from "./logicalStatementSourceMap";
 
 export type DslDefinitionRange = { from: number; to: number };
@@ -86,7 +86,7 @@ const shorthandLabelIdentityKey = (
 
 const shorthandValueIdentity = (
   compiled: CompiledDslDocument,
-  target: ModuleSourceTarget | null
+  target: ModuleSourceTarget | ModuleRecordSourceTarget | null
 ): DslSemanticIdentity | null => {
   if (!target) return null;
   if (target.kind === "parameter" || target.kind === "parameterProperty") {
@@ -109,6 +109,22 @@ const shorthandValueIdentity = (
   }
   if (target.kind === "iteration") {
     return semanticIdentityForModuleTarget(compiled, { kind: "moduleIteration", statementId: target.statementId });
+  }
+  if (target.kind === "recordValue") return { kind: "recordValue", statementId: target.statementId };
+  if (target.kind === "recordParameter") {
+    return {
+      kind: "module",
+      target: {
+        kind: "moduleParameter",
+        slot: {
+          definitionStatementId: target.definitionStatementId,
+          parameterIndex: target.parameterIndex
+        }
+      }
+    };
+  }
+  if (target.kind === "deferredModuleRecordExport") {
+    return semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.exportedStatementId });
   }
   return null;
 };
@@ -133,7 +149,7 @@ const directShorthandValueOccurrenceAt = (
       ) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.argumentIndex === argumentIndex);
       if (!binding?.value || !argument.labelSpan) continue;
-      let target: ModuleSourceTarget | null = null;
+      let target: ModuleSourceTarget | ModuleRecordSourceTarget | null = null;
       if (binding.value.kind === "scalar") {
         target = binding.value.expression.references.find((reference) =>
           reference.nameSpan.start === argument.labelSpan!.start && reference.nameSpan.end === argument.labelSpan!.end
@@ -142,6 +158,11 @@ const directShorthandValueOccurrenceAt = (
         const nameSpan = binding.value.reference.nameSpan;
         if (nameSpan?.start === argument.labelSpan.start && nameSpan.end === argument.labelSpan.end) {
           target = binding.value.reference.target;
+        }
+      } else if (binding.value.kind === "record") {
+        const reference = binding.value.reference;
+        if (reference.target && reference.span.start + 1 === argument.labelSpan.start && reference.span.end === argument.labelSpan.end) {
+          target = reference.target;
         }
       }
       const identity = shorthandValueIdentity(compiled, target);

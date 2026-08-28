@@ -261,6 +261,40 @@ describe("queryDslDefinition", () => {
     expect(parameter && sourceSlice(source, parameter.declarationRange)).toBe("width");
   });
 
+  it("resolves nominal record types, values, fields, Module parameters, and qualified exports", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      'const input: Pair = Pair(x: 1, label: "root")',
+      "const alias: Pair = @input",
+      "module Inner(input: Pair) {",
+      "  const copy: Pair = @input",
+      "  const member: number = @input.x",
+      "  export const output: Pair = @copy",
+      "}",
+      "instance Use = Inner(input: @input)",
+      "const exported: number = @Use::output.x"
+    ].join("\n");
+    const query = (needle: string, offset = needle.length) => exactQuery(source, needle, 7, offset);
+
+    const type = query("Pair(x: 1", "Pair".length);
+    expect(type && sourceSlice(source, type.declarationRange)).toBe("Pair");
+
+    const field = query("Pair(x: 1", "Pair(x".length);
+    expect(field && sourceSlice(source, field.declarationRange)).toBe("x");
+
+    const value = query("const alias: Pair = @input", "const alias: Pair = @input".length);
+    expect(value && sourceSlice(source, value.declarationRange)).toBe("input");
+
+    const parameter = query("const copy: Pair = @input", "const copy: Pair = @input".length);
+    expect(parameter && sourceSlice(source, parameter.declarationRange)).toBe("input");
+    expect(parameter?.declarationRange.from).toBe(source.indexOf("input: Pair", source.indexOf("module Inner")));
+
+    const qualifiedField = query("const exported: number = @Use::output.x");
+    expect(qualifiedField && sourceSlice(source, qualifiedField.declarationRange)).toBe("x");
+    expect(qualifiedField?.declarationRange.from).toBe(source.indexOf("x: number"));
+  });
+
   it("resolves Module body source references by StatementIdentity", () => {
     const source = [
       "nui 4",

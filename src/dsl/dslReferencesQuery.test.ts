@@ -159,6 +159,41 @@ describe("queryDslReferences", () => {
     expect(instance!.referenceRanges).toEqual([]);
   });
 
+  it("keeps nominal record fields separate while including Module and qualified usages", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "record Other(x: number)",
+      "const input: Pair = Pair(x: 1)",
+      "const other: Other = Other(x: 2)",
+      "module Inner(input: Pair) {",
+      "  const copy: Pair = @input",
+      "  const member: number = @input.x",
+      "  export const output: Pair = @copy",
+      "}",
+      "instance Use = Inner(input: @input)",
+      "const exported: number = @Use::output.x"
+    ].join("\n");
+    const pairField = queryAt(source, "x");
+    const moduleParameter = queryAt(source, "input", 1);
+
+    expect(pairField).not.toBeNull();
+    expect(slices(source, pairField!.declarationRange)).toEqual(["x"]);
+    expect(pairField!.referenceRanges).toEqual(expect.arrayContaining([
+      { from: source.indexOf("Pair(x: 1") + "Pair(".length, to: source.indexOf("Pair(x: 1") + "Pair(x".length },
+      { from: source.indexOf("@input.x") + "@input.".length, to: source.indexOf("@input.x") + "".length + "@input.".length + 1 },
+      { from: source.indexOf("@Use::output.x") + "@Use::output.".length, to: source.indexOf("@Use::output.x") + "@Use::output.".length + 1 }
+    ]));
+    expect(pairField!.referenceRanges).not.toContain({
+      from: source.indexOf("Other(x: 2") + "Other(".length,
+      to: source.indexOf("Other(x: 2") + "Other(x".length
+    });
+
+    expect(moduleParameter).not.toBeNull();
+    expect(slices(source, moduleParameter!.declarationRange)).toEqual(["input"]);
+    expect(slices(source, moduleParameter!.referenceRanges)).toEqual(expect.arrayContaining(["input", "input"]));
+  });
+
   it("keeps qualified export path segments as separate identities", () => {
     const source = [
       "nui 4",

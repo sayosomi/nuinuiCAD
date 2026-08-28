@@ -28,6 +28,8 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import {
   moduleCompletionCandidates,
+  moduleRecordFieldCompletions,
+  moduleQualifiedRecordFieldCompletions,
   isInsideModuleSemanticStatement,
   type ModuleCompletionCandidate,
   type ModuleCompletionParameterMetadata
@@ -69,8 +71,10 @@ export type DslCompletionCandidateKind =
   | "keyword"
   | "type"
   | "construction"
+  | "recordConstructor"
   | "argumentName"
   | "binding"
+  | "record"
   | "geometry"
   | "module"
   | "property"
@@ -220,6 +224,7 @@ const recoveredModuleStatementAt = (
   const currentDefinitionParameters = liveDefinition.parameters.map((parameter, parameterIndex) => ({
     name: parameter.name,
     type: parameter.type,
+    recordTypeIdentity: recovery.lastGoodCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(definitionStatementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null,
     optional: parameter.optional,
     definitionStatementId: liveCallee.declaration.statementId,
     parameterIndex
@@ -256,6 +261,9 @@ const currentModuleDefinitionParametersAt = (
   return definition.parameters.map((parameter, parameterIndex) => ({
     name: parameter.name,
     type: parameter.type,
+    recordTypeIdentity: definition.kind === "moduleDefinition"
+      ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(lookup.declaration.statementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null
+      : null,
     optional: parameter.optional,
     definitionStatementId: lookup.declaration.statementId,
     parameterIndex
@@ -458,6 +466,102 @@ const sourceGeometryPropertyCandidates = (
     }));
 };
 
+const sourceRecordPropertyCandidates = (
+  compiled: CompiledDslDocument | undefined,
+  statementIndex: number,
+  elementToken: string
+) => {
+  const namespace = compiled?.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records || statementIndex < 0) return [];
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, elementToken.replace(/^@/, ""));
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "recordValue") return [];
+  const value = records.valuesByStatementId.get(lookup.declaration.statementId);
+  const definition = value?.typeIdentity ? records.definitionsByStatementId.get(value.typeIdentity) : null;
+  return definition?.fields.map((field) => ({
+    kind: "property" as const,
+    label: field.name,
+    identity: `${definition.statementId}:${field.fieldIndex}`
+  })) ?? [];
+};
+
+const sourceRecordTypeCandidates = (
+  compiled: CompiledDslDocument | undefined,
+  statementIndex: number
+): DslCompletionCandidate[] => {
+  const namespace = compiled?.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records || statementIndex < 0) return [];
+  return namespace.allDeclarations
+    .filter((declaration) => declaration.kind === "recordDefinition" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => {
+      const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
+      return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
+    })
+    .filter((declaration) => records.definitionsByStatementId.has(declaration.statementId))
+    .map((declaration) => ({ kind: "type" as const, label: declaration.name, identity: declaration.statementId }));
+};
+
+const sourceRecordTypeIdentity = (
+  compiled: CompiledDslDocument | undefined,
+  statementIndex: number,
+  typeName: string | undefined
+) => {
+  const namespace = compiled?.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records || statementIndex < 0 || !typeName) return null;
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, typeName);
+  return lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition" && records.definitionsByStatementId.has(lookup.declaration.statementId)
+    ? lookup.declaration.statementId
+    : null;
+};
+
+const sourceRecordValueCandidates = (
+  compiled: CompiledDslDocument | undefined,
+  statementIndex: number,
+  recordTypeIdentity: string
+): DslCompletionCandidate[] => {
+  const namespace = compiled?.sourceLexicalNamespace;
+  const records = namespace?.recordSemanticAnalysis;
+  if (!namespace || !records || statementIndex < 0) return [];
+  return namespace.allDeclarations
+    .filter((declaration) => declaration.kind === "recordValue" && declaration.statementIndex < statementIndex)
+    .filter((declaration) => {
+      const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, declaration.name);
+      const value = records.valuesByStatementId.get(declaration.statementId);
+      return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId && value?.typeIdentity === recordTypeIdentity;
+    })
+    .map((declaration) => ({ kind: "record" as const, label: declaration.name, identity: declaration.statementId }));
+};
+
+const sourceRecordInitializerCandidates = (
+  context: Extract<Exclude<DslCompletionContext, null>, { kind: "recordInitializer" }>,
+  compiled: CompiledDslDocument | undefined,
+  statementIndex: number,
+  input: LogicalInput
+): DslCompletionCandidate[] => {
+  if (!compiled || !compiled.sourceLexicalNamespace || statementIndex < 0) return [];
+  const namespace = compiled.sourceLexicalNamespace;
+  const records = namespace.recordSemanticAnalysis;
+  if (!records) return [];
+  const typeLookup = resolveSourceLexicalDeclaration(namespace, statementIndex, context.recordTypeName);
+  if (typeLookup.kind !== "resolved" || typeLookup.declaration.kind !== "recordDefinition") return [];
+  const definition = records.definitionsByStatementId.get(typeLookup.declaration.statementId);
+  if (!definition) return [];
+  if (context.fieldLabel) {
+    return definition.fields
+      .filter((field) => !context.providedFieldNames.includes(field.name))
+      .map((field) => ({ kind: "argumentName" as const, label: field.name, identity: `${definition.statementId}:${field.fieldIndex}` }));
+  }
+  const values = sourceRecordValueCandidates(compiled, statementIndex, definition.statementId);
+  const prefix = input.lineText.slice(context.from, input.localPosition);
+  const constructorName = prefix.trim();
+  const constructor = constructorName.length === 0 || constructorName === definition.name
+    ? [{ kind: "recordConstructor" as const, label: definition.name, detail: "record constructor", identity: definition.statementId }]
+    : [];
+  return [...values, ...constructor];
+};
+
 const scalarCandidatesAt = (
   context: Exclude<DslCompletionContext, null>,
   input: LogicalInput,
@@ -590,25 +694,35 @@ const moduleCandidatesAt = (
     semanticCompiled: CompiledDslDocument,
     semanticStatementIndex?: number,
     currentDefinitionParameters?: readonly ModuleCompletionParameterMetadata[]
-  ) => moduleCompletionCandidates({
-    compiled: semanticCompiled,
-    cursorPosition: position,
-    kind: moduleKind,
-    sourceText: sourceTextForLogicalInput(input),
-    logicalCursorPosition: input.localPosition,
-    liveStatementText: input.lineText,
-    ...(semanticStatementIndex !== undefined ? { statementIndex: semanticStatementIndex } : {}),
-    ...(context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember"
-      ? { argumentIndex: context.argumentIndex }
-      : {}),
-    ...(context.kind === "moduleArgumentValue" ? { argumentValueSpan: { start: context.from, end: context.to } } : {}),
-    ...(input.authoring ? { usedArgumentNames: input.authoring.usedArgumentNames } : {}),
-    ...(currentDefinitionParameters ? { currentDefinitionParameters } : {}),
-    ...(context.kind === "moduleQualifiedMember" ? {
-      qualifiedInstanceName: context.qualifiedInstanceName,
-      ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {})
-    } : {})
-  }).map(moduleCandidate);
+  ) => {
+    const expectedRecordTypeIdentity = context.kind === "moduleQualifiedMember"
+      ? sourceRecordTypeIdentity(
+        semanticCompiled,
+        semanticStatementIndex ?? statementIndex,
+        context.expectedRecordTypeName
+      )
+      : null;
+    return moduleCompletionCandidates({
+      compiled: semanticCompiled,
+      cursorPosition: position,
+      kind: moduleKind,
+      sourceText: sourceTextForLogicalInput(input),
+      logicalCursorPosition: input.localPosition,
+      liveStatementText: input.lineText,
+      ...(semanticStatementIndex !== undefined ? { statementIndex: semanticStatementIndex } : {}),
+      ...(context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember"
+        ? { argumentIndex: context.argumentIndex }
+        : {}),
+      ...(context.kind === "moduleArgumentValue" ? { argumentValueSpan: { start: context.from, end: context.to } } : {}),
+      ...(input.authoring ? { usedArgumentNames: input.authoring.usedArgumentNames } : {}),
+      ...(currentDefinitionParameters ? { currentDefinitionParameters } : {}),
+      ...(context.kind === "moduleQualifiedMember" ? {
+        qualifiedInstanceName: context.qualifiedInstanceName,
+        ...(context.expectedScalarType ? { expectedScalarType: context.expectedScalarType } : {}),
+        ...(expectedRecordTypeIdentity ? { expectedRecordTypeIdentity } : {})
+      } : {})
+    }).map(moduleCandidate);
+  };
 
   const sourceOnlyGeometryArrayContext = context.kind === "geometryArrayValue" || (
     context.kind === "moduleQualifiedMember" &&
@@ -759,17 +873,59 @@ const queryCandidates = (
     const names = context.bindingKind === "const"
       ? dslTypedDeclarationTypeNames
       : dslTypedDeclarationTypeNames.filter((label) => !label.endsWith("[]"));
-    return names.map((label) => ({ kind: "type" as const, label, identity: label }));
+    return [
+      ...names.map((label) => ({ kind: "type" as const, label, identity: label })),
+      ...sourceRecordTypeCandidates(compiled, statementIndex)
+    ];
   }
-  if (context.kind === "moduleParameterType") return dslModuleParameterTypeNames.map((label) => ({ kind: "type" as const, label, identity: label }));
+  if (context.kind === "moduleParameterType") {
+    return [
+      ...dslModuleParameterTypeNames.map((label) => ({ kind: "type" as const, label, identity: label })),
+      ...sourceRecordTypeCandidates(compiled, statementIndex)
+    ];
+  }
+  if (context.kind === "recordInitializer") {
+    const sourceCandidates = sourceRecordInitializerCandidates(context, compiled, statementIndex, input);
+    if (!compiled || !exact || statementIndex < 0 || !isInsideModuleSemanticStatement(compiled, position)) return sourceCandidates;
+    const lookup = compiled.sourceLexicalNamespace
+      ? resolveSourceLexicalDeclaration(compiled.sourceLexicalNamespace, statementIndex, context.recordTypeName)
+      : null;
+    const typeIdentity = lookup?.kind === "resolved" && lookup.declaration.kind === "recordDefinition"
+      ? lookup.declaration.statementId
+      : null;
+    if (!typeIdentity) return sourceCandidates;
+    const moduleCandidates = moduleCompletionCandidates({
+      compiled,
+      cursorPosition: position,
+      kind: "reference",
+      sourceText: sourceTextForLogicalInput(input),
+      logicalCursorPosition: input.localPosition,
+      liveStatementText: input.lineText,
+      statementIndex,
+      expectedRecordTypeIdentity: typeIdentity,
+      argumentValueSpan: { start: context.initializerFrom, end: context.to }
+    }).map(moduleCandidate);
+    return moduleCandidates.length > 0 ? moduleCandidates : sourceCandidates;
+  }
   if (context.kind === "numericTypeOption") return context.options.map((label) => ({ kind: "argumentName" as const, label, identity: label }));
   if (context.kind === "moduleCallee" || context.kind === "moduleArgumentLabel" || context.kind === "moduleArgumentValue" || context.kind === "moduleQualifiedMember" || context.kind === "moduleReference" || context.kind === "geometryArrayValue") {
     return moduleCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex, recovery);
   }
   if (context.kind === "elementParameter") {
-    return compiled && exact
-      ? sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType)
-      : [];
+    if (!compiled || !exact) return [];
+    const recordCandidates = sourceRecordPropertyCandidates(compiled, statementIndex, context.elementToken);
+    if (recordCandidates.length > 0) return recordCandidates;
+    const qualifiedRecordCandidates = moduleQualifiedRecordFieldCompletions(compiled, statementIndex, context.elementToken, undefined, statementIndex);
+    if (qualifiedRecordCandidates.length > 0) return qualifiedRecordCandidates.map(moduleCandidate);
+    if (isInsideModuleSemanticStatement(compiled, position)) {
+      const moduleRecordCandidates = moduleRecordFieldCompletions(compiled, statementIndex, context.elementToken, {
+        sourceOrderIndex: statementIndex,
+        liveStatementText: input.lineText,
+        logicalCursorPosition: input.localPosition
+      });
+      if (moduleRecordCandidates.length > 0) return moduleRecordCandidates.map(moduleCandidate);
+    }
+    return sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType);
   }
   if (context.kind === "typedInitializer" || context.kind === "conditionExpression" || context.kind === "propertyScalarValue" || context.kind === "templateHole") {
     return scalarCandidatesAt(context, input, position, semantic, compiled, exact, statementIndex);
