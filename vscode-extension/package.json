@@ -782,128 +782,103 @@
       },
       {
         "command": "nuinuiCAD.create.addFreePoint",
-        "title": "nuinuiCAD: Create Free Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Free Point"
       },
       {
         "command": "nuinuiCAD.create.addText",
-        "title": "nuinuiCAD: Create Text",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Text"
       },
       {
         "command": "nuinuiCAD.create.addOffsetPoint",
-        "title": "nuinuiCAD: Create Offset Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Offset Point"
       },
       {
         "command": "nuinuiCAD.create.addPolarOffsetPoint",
-        "title": "nuinuiCAD: Create Polar Offset Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Polar Offset Point"
       },
       {
         "command": "nuinuiCAD.create.addDivisionPoint",
-        "title": "nuinuiCAD: Create Division Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Division Point"
       },
       {
         "command": "nuinuiCAD.create.addLineDivisionPoint",
-        "title": "nuinuiCAD: Create Line Division Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Line Division Point"
       },
       {
         "command": "nuinuiCAD.create.addIntersectionPoint",
-        "title": "nuinuiCAD: Create Intersection Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Intersection Point"
       },
       {
         "command": "nuinuiCAD.create.addLineTangentOffsetPoint",
-        "title": "nuinuiCAD: Create Line Tangent Offset Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Line Tangent Offset Point"
       },
       {
         "command": "nuinuiCAD.create.addBezierBulgePoint",
-        "title": "nuinuiCAD: Create Bezier Bulge Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Bezier Bulge Point"
       },
       {
         "command": "nuinuiCAD.create.addBezierExtremePoint",
-        "title": "nuinuiCAD: Create Bezier Extreme Point",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Bezier Extreme Point"
       },
       {
         "command": "nuinuiCAD.create.addLine",
-        "title": "nuinuiCAD: Create Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Line"
       },
       {
         "command": "nuinuiCAD.create.addAngleLengthLine",
-        "title": "nuinuiCAD: Create Angle Length Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Angle Length Line"
       },
       {
         "command": "nuinuiCAD.create.addCommonTangentLine",
-        "title": "nuinuiCAD: Create Common Tangent Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Common Tangent Line"
       },
       {
         "command": "nuinuiCAD.create.addArcLine",
-        "title": "nuinuiCAD: Create Arc Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Arc Line"
       },
       {
         "command": "nuinuiCAD.create.addThreePointArcLine",
-        "title": "nuinuiCAD: Create Three-Point Arc Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Three-Point Arc Line"
       },
       {
         "command": "nuinuiCAD.create.addCornerRadiusArcLine",
-        "title": "nuinuiCAD: Create Corner Radius Arc Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Corner Radius Arc Line"
       },
       {
         "command": "nuinuiCAD.create.addEdge",
-        "title": "nuinuiCAD: Create Edge",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Edge"
       },
       {
         "command": "nuinuiCAD.create.addExtendTrim",
-        "title": "nuinuiCAD: Create Extend/Trim",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Extend/Trim"
       },
       {
         "command": "nuinuiCAD.create.addBezierCurve",
-        "title": "nuinuiCAD: Create Bezier Curve",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Bezier Curve"
       },
       {
         "command": "nuinuiCAD.create.addOffsetLine",
-        "title": "nuinuiCAD: Create Offset Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Offset Line"
       },
       {
         "command": "nuinuiCAD.create.addCopyLine",
-        "title": "nuinuiCAD: Create Copy Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Copy Line"
       },
       {
         "command": "nuinuiCAD.create.addSymmetricCopyLine",
-        "title": "nuinuiCAD: Create Symmetric Copy Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Symmetric Copy Line"
       },
       {
         "command": "nuinuiCAD.create.addMove",
-        "title": "nuinuiCAD: Create Move",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Move"
       },
       {
         "command": "nuinuiCAD.create.addSymmetricMove",
-        "title": "nuinuiCAD: Create Symmetric Move",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Symmetric Move"
       },
       {
         "command": "nuinuiCAD.create.addSplitLine",
-        "title": "nuinuiCAD: Create Split Line",
-        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        "title": "nuinuiCAD: Create Split Line"
       },
       {
         "command": "nuinuiCAD.configureQuickCreate",

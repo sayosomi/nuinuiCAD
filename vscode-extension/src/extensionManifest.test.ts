@@ -413,8 +413,7 @@ describe("VS Code extension manifest command contributions", () => {
     for (const entry of vscodeCanvasCreationCommands) {
       expect(commands.find(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId))).toMatchObject({
         command: vscodeCanvasCreationCommandIdFor(entry.commandId),
-        title: entry.title,
-        enablement: canvasPaletteWhen
+        title: entry.title
       });
       expect(commandPalette).toContainEqual({
         command: vscodeCanvasCreationCommandIdFor(entry.commandId),
