@@ -58,6 +58,11 @@ const FILTER_LABELS: Record<FilterKey, string> = {
   "category:construction": "Category · Construction"
 };
 
+const FILTER_KEYS_BY_TAB: Record<ExplorerMockTab, readonly FilterKey[]> = {
+  elements: ["type:bezier", "type:path", "activity:hidden", "activity:disabled", "diagnostics", "category:presentation", "category:construction"],
+  modifiers: ["category:presentation", "category:construction"]
+};
+
 const activityLabel: Record<ExplorerMockActivity, string> = {
   visible: "Visible",
   hidden: "Hidden",
@@ -109,6 +114,11 @@ const branchIsVisible = (geometry: ExplorerMockGeometry, revealAlternate: boolea
   geometry.branch !== "inactive" || revealAlternate;
 
 const unionStrings = (values: string[]): string[] => [...new Set(values)];
+const BEZIER_ANCHOR_ROWS = [
+  ["A", "(42.0, 286.5)", "—", "—", "18.0 mm"],
+  ["B", "(86.0, 282.0)", "24.0 mm", "5.5°", "20.0 mm"],
+  ["C", "(128.0, 278.0)", "24.0 mm", "—", "—"]
+] as const;
 
 const PropertyRows = ({ values }: { values: Array<[string, string]> }) => (
   <div className="explorer-mock-property-list">
@@ -177,9 +187,9 @@ const GeometryDetail = ({
             <h4>Bezier anchors</h4>
             <div className="explorer-mock-anchor-table" role="table" aria-label="Bezier anchors">
               <div className="explorer-mock-anchor-row explorer-mock-anchor-header" role="row">
-                {['Anchor', 'Position', 'In / Angle', 'Out'].map((label) => <span role="columnheader" key={label}>{label}</span>)}
+                {["Anchor", "Position", "← In", "Angle", "Out →"].map((label) => <span role="columnheader" key={label}>{label}</span>)}
               </div>
-              {[['A', '(42.0, 286.5)', '— / 0°', '(18.0, -3.0)'], ['B', '(128.0, 278.0)', '(-24.0, 5.5°)', '—']].map((row) => (
+              {BEZIER_ANCHOR_ROWS.map((row) => (
                 <div className="explorer-mock-anchor-row" role="row" key={row[0]}>
                   {row.map((cell) => <code role="cell" key={cell}>{cell}</code>)}
                 </div>
@@ -359,7 +369,7 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [detailHeightByTab, setDetailHeightByTab] = useState<Record<ExplorerMockTab, number>>({ elements: 260, modifiers: 260 });
   const [scrollTopByTab, setScrollTopByTab] = useState<Record<ExplorerMockTab, number>>({ elements: 0, modifiers: 0 });
   const [search, setSearch] = useState("");
-  const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
+  const [activeFiltersByTab, setActiveFiltersByTab] = useState<Record<ExplorerMockTab, FilterKey[]>>({ elements: [], modifiers: [] });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [flatResults, setFlatResults] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -368,6 +378,8 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
   const listScrollRefs = useRef<Record<ExplorerMockTab, HTMLDivElement | null>>({ elements: null, modifiers: null });
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
 
+  const activeFilters = activeFiltersByTab[activeTab];
+  const availableFilters = FILTER_KEYS_BY_TAB[activeTab];
   const resultMode = search.trim().length > 0 || activeFilters.length > 0;
   const actualGeometryMatches = useMemo(
     () => explorerMockGeometry.filter((geometry) => isActualGeometryMatch(geometry, search, activeFilters) && branchIsVisible(geometry, alternateBranchRevealed)),
@@ -451,7 +463,15 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!event.shiftKey) setRangeAnchorByTab((anchors) => ({ ...anchors, [activeTab]: id }));
   };
 
-  const toggleFilter = (filter: FilterKey) => setActiveFilters((filters) => filters.includes(filter) ? filters.filter((candidate) => candidate !== filter) : [...filters, filter]);
+  const toggleFilter = (filter: FilterKey) => {
+    if (!availableFilters.includes(filter)) return;
+    setActiveFiltersByTab((filtersByTab) => ({
+      ...filtersByTab,
+      [activeTab]: filtersByTab[activeTab].includes(filter)
+        ? filtersByTab[activeTab].filter((candidate) => candidate !== filter)
+        : [...filtersByTab[activeTab], filter]
+    }));
+  };
   const selectAllMatches = () => setSelectedByTab((tabs) => ({ ...tabs, [activeTab]: (activeTab === "elements" ? actualGeometryMatches : actualModifierMatches).map((row) => row.id) }));
 
   const navigateToModifier = (id: string) => {
@@ -537,7 +557,7 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
     </header>
     <ScopedTabStrip activeTab={activeTab} tabs={EXPLORER_TABS} onChange={setActiveTab} className="explorer-mock-top-tabs" ariaLabel="Explorer data" testId="top-tab-strip" />
     <section className="explorer-mock-list-region" aria-label={activeTab === "elements" ? "Elements hierarchy" : "Modifiers list"}>
-      <div className="explorer-mock-search-row"><div className="explorer-mock-search-field"><Search size={14} aria-hidden="true" /><input aria-label="Search Explorer Mock" placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /><button type="button" className="explorer-mock-clear-search" aria-label="Clear search" hidden={!search} onClick={() => setSearch("")}><X size={13} /></button></div><div className="explorer-mock-filter-wrap"><button type="button" className={activeFilters.length > 0 ? "has-filters" : ""} aria-expanded={isFilterOpen} onClick={() => setIsFilterOpen((open) => !open)}><SlidersHorizontal size={14} /> Filter</button>{isFilterOpen ? <div className="explorer-mock-filter-popover" role="dialog" aria-label="Structured filters"><strong>Filter</strong>{(Object.keys(FILTER_LABELS) as FilterKey[]).map((filter) => <label key={filter}><input type="checkbox" checked={activeFilters.includes(filter)} onChange={() => toggleFilter(filter)} />{FILTER_LABELS[filter]}</label>)}<button type="button" className="explorer-mock-filter-done" onClick={() => setIsFilterOpen(false)}>Done</button></div> : null}</div></div>
+      <div className="explorer-mock-search-row"><div className="explorer-mock-search-field"><Search size={14} aria-hidden="true" /><input aria-label="Search Explorer Mock" placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /><button type="button" className="explorer-mock-clear-search" aria-label="Clear search" hidden={!search} onClick={() => setSearch("")}><X size={13} /></button></div><div className="explorer-mock-filter-wrap"><button type="button" className={activeFilters.length > 0 ? "has-filters" : ""} aria-expanded={isFilterOpen} onClick={() => setIsFilterOpen((open) => !open)}><SlidersHorizontal size={14} /> Filter</button>{isFilterOpen ? <div className="explorer-mock-filter-popover" role="dialog" aria-label="Structured filters"><strong>Filter</strong>{availableFilters.map((filter) => <label key={filter}><input type="checkbox" checked={activeFilters.includes(filter)} onChange={() => toggleFilter(filter)} />{FILTER_LABELS[filter]}</label>)}<button type="button" className="explorer-mock-filter-done" onClick={() => setIsFilterOpen(false)}>Done</button></div> : null}</div></div>
       {activeFilters.length > 0 ? <div className="explorer-mock-filter-chips" aria-label="Active filters">{activeFilters.map((filter) => <button type="button" className="explorer-mock-filter-chip" key={filter} onClick={() => toggleFilter(filter)}>{FILTER_LABELS[filter]} <X size={11} /></button>)}</div> : null}
       {resultMode ? <div className="explorer-mock-result-header"><span>{activeTab === "elements" ? actualGeometryMatches.length : actualModifierMatches.length} results</span><button type="button" onClick={selectAllMatches}>Select All</button>{activeTab === "elements" ? <div className="explorer-mock-result-mode"><button type="button" className={!flatResults ? "is-active" : ""} aria-pressed={!flatResults} onClick={() => setFlatResults(false)}>Hierarchy</button><button type="button" className={flatResults ? "is-active" : ""} aria-pressed={flatResults} onClick={() => setFlatResults(true)}>Flat</button></div> : null}</div> : null}
       <div className="explorer-mock-scroll" ref={(element) => { listScrollRefs.current[activeTab] = element; }} onScroll={(event) => setScrollTopByTab((scroll) => ({ ...scroll, [activeTab]: event.currentTarget.scrollTop }))} onContextMenu={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" }); } }}>
