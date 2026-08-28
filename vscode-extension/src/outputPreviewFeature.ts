@@ -89,6 +89,8 @@ export type OutputPreviewFeature = vscode.Disposable & {
  * document, and Rust-process adapters.
  */
 export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): OutputPreviewFeature => {
+  type OutputPreviewViewportAction = "outputPreviewFit" | "outputPreviewResetView";
+
   const activeSession = (): OutputPreviewSession | null =>
     host.registry.values().find((candidate) => candidate.panel.active) ?? null;
 
@@ -136,6 +138,12 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       requestId,
       status
     } satisfies ExtensionToVscodeMessage);
+  };
+
+  const postViewportAction = (session: OutputPreviewSession, action: OutputPreviewViewportAction): void => {
+    if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
+      void session.panel.webview.postMessage({ type: action } satisfies ExtensionToVscodeMessage);
+    }
   };
 
   const exportRequestIsCurrent = (
@@ -288,10 +296,8 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         deliverPendingOpen(session);
         return;
       }
-      if (message.type === "outputPreviewFit") {
-        if (session.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-          void panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
-        }
+      if (message.type === "outputPreviewFit" || message.type === "outputPreviewResetView") {
+        postViewportAction(session, message.type);
         return;
       }
       if (message.type === "outputPreviewExportAvailability") {
@@ -344,9 +350,12 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
   const executeFit = (): void => {
     const session = activeSession();
-    if (session?.webviewReady && session.authoritativeDocumentVersion === session.document.version) {
-      void session.panel.webview.postMessage({ type: "outputPreviewFit" } satisfies ExtensionToVscodeMessage);
-    }
+    if (session) postViewportAction(session, "outputPreviewFit");
+  };
+
+  const executeResetView = (): void => {
+    const session = activeSession();
+    if (session) postViewportAction(session, "outputPreviewResetView");
   };
 
   const executeClearFocus = (): void => {
@@ -406,6 +415,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
   const commandDisposables = [
     vscode.commands.registerCommand("nuinuiCAD.openOutputPreview", executeOpen),
+    vscode.commands.registerCommand("nuinuiCAD.resetOutputPreviewView", executeResetView),
     vscode.commands.registerCommand("nuinuiCAD.fitOutputPreview", executeFit),
     vscode.commands.registerCommand("nuinuiCAD.clearOutputPreviewFocus", executeClearFocus),
     vscode.commands.registerCommand("nuinuiCAD.exportCurrentOutput", executeExportCurrent),

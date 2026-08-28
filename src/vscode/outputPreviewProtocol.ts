@@ -50,6 +50,7 @@ export type VscodeOutputPreviewExportResult = {
 
 export type VscodeOutputPreviewToExtensionMessage =
   | { type: "outputPreviewFit" }
+  | { type: "outputPreviewResetView" }
   | VscodeOutputPreviewExportAvailability
   | VscodeOutputPreviewExportRequest
   | {
@@ -62,6 +63,7 @@ export type VscodeOutputPreviewToExtensionMessage =
 export type VscodeExtensionToOutputPreviewMessage =
   | { type: "outputPreviewOpen"; documentVersion: number; normalizedSourceOffset: number | null }
   | { type: "outputPreviewFit" }
+  | { type: "outputPreviewResetView" }
   | { type: "outputPreviewClearFocus" }
   | { type: "outputPreviewExport" }
   | VscodeOutputPreviewExportResult;

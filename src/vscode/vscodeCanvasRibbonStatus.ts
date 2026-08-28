@@ -1,24 +1,25 @@
 import type { CommandRibbonPresentationValueItem } from "../components/CommandRibbonView";
 import type { CanvasViewport } from "../state/cadUiStore";
+import {
+  formatVscodeViewportCoordinate,
+  formatVscodeViewportZoom,
+  VSCODE_VIEWPORT_STATUS_ESTIMATED_WIDTH,
+  vscodeViewportStatusFields,
+  type VscodeViewportWorldPoint
+} from "./vscodeViewportStatus";
 
-export type VscodeCanvasWorldPoint = { x: number; y: number };
+export type VscodeCanvasWorldPoint = VscodeViewportWorldPoint;
 
-// Approximate rendered pixels for the fixed 5ch/8ch/8ch status grid, its gaps, and padding.
-export const VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH = 188;
+export const VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH = VSCODE_VIEWPORT_STATUS_ESTIMATED_WIDTH;
 
-export const formatVscodeCanvasZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`;
+export const formatVscodeCanvasZoom = formatVscodeViewportZoom;
 
-export const formatVscodeCanvasCoordinate = (coordinate: number | null): string =>
-  coordinate === null ? "—" : coordinate.toFixed(1);
+export const formatVscodeCanvasCoordinate = formatVscodeViewportCoordinate;
 
 export const vscodeCanvasStatusFields = (
   canvasViewport: CanvasViewport,
   pointerWorldPoint: VscodeCanvasWorldPoint | null
-) => [
-  { label: "ZOOM", value: formatVscodeCanvasZoom(canvasViewport.zoom) },
-  { label: "X", value: formatVscodeCanvasCoordinate(pointerWorldPoint?.x ?? null) },
-  { label: "Y", value: formatVscodeCanvasCoordinate(pointerWorldPoint?.y ?? null) }
-];
+) => vscodeViewportStatusFields(canvasViewport, pointerWorldPoint);
 
 export const vscodeCanvasStatusPresentationFor = (
   id: string,
@@ -30,5 +31,5 @@ export const vscodeCanvasStatusPresentationFor = (
   label: "Canvas status",
   description: "Current Canvas zoom and pointer position.",
   estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
-  fields: vscodeCanvasStatusFields(canvasViewport, pointerWorldPoint)
+  fields: vscodeViewportStatusFields(canvasViewport, pointerWorldPoint)
 });

@@ -130,6 +130,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.resetOutputPreviewView",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
+        },
+        {
           "command": "nuinuiCAD.fitOutputPreview",
           "when": "activeWebviewPanelId == 'nuinuiCAD.outputPreview'"
         },
@@ -250,6 +254,10 @@
         {
           "command": "nuinuiCAD.selectParentGroup",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
+        },
+        {
+          "command": "nuinuiCAD.resetOutputPreviewView",
+          "when": "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
         },
         {
           "command": "nuinuiCAD.fitOutputPreview",
@@ -417,6 +425,10 @@
       {
         "command": "nuinuiCAD.fitDrawing",
         "title": "nuinuiCAD: Fit Drawing"
+      },
+      {
+        "command": "nuinuiCAD.resetOutputPreviewView",
+        "title": "nuinuiCAD: Reset Output Preview View"
       },
       {
         "command": "nuinuiCAD.fitOutputPreview",
