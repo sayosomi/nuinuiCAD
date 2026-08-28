@@ -52,7 +52,10 @@ import {
 import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPromotion";
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
 import { commitSourceCreationDraftInsertion } from "./sourceCreationDraftCommit";
-import { sourceInsertionForCreation } from "./sourceCreationInsertion";
+import {
+  resolveSourceCreationInsertion,
+  sourceCreationInsertionUnsafeError
+} from "./sourceCreationInsertion";
 import {
   commandLineDuplicateNameMessage,
   validateCommandLineElementName
@@ -112,20 +115,36 @@ export const startCommandLineCreationForRecipe = (
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
     return false;
   }
+  const sourceCursor = context?.currentSourceCursor?.() ?? null;
+  const sourceDocument = useCadDocumentStore.getState();
+  const sourceResolution = resolveSourceCreationInsertion({
+    cursor: sourceCursor,
+    sourceRevision: sourceDocument.sourceRevision,
+    elements: sourceDocument.elements,
+    statementMap: sourceDocument.doc.statementMap
+  });
+  if (sourceResolution.kind === "unsafe") {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
+  // A dirty editor buffer has no current StatementMap. Do not flush it after a
+  // Source target has been observed: doing so would mutate the document before
+  // the command can report that its insertion boundary is unsafe.
+  if (sourceCursor && sourceEditSession.hasPendingText()) {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
   if (sourceEditSession.flush("command") === "blocked-composition") {
     useCadUiStore.getState().setCommandErrorMessage(compositionError);
     return false;
   }
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
-  const sourceCursor = context?.currentSourceCursor?.() ?? null;
-  const sourceInsertion = sourceCursor?.sourceRevision === document.sourceRevision && document.doc.statementMap
-    ? sourceInsertionForCreation({
-        cursor: sourceCursor,
-        elements: document.elements,
-        statementMap: document.doc.statementMap
-      })
-    : null;
+  const sourceInsertion = sourceResolution.kind === "safe" ? sourceResolution.insertion : null;
+  if (sourceInsertion && sourceInsertion.sourceRevision !== document.sourceRevision) {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
   const insertionAnchor = insertionAnchorForCommandLineCreation(sourceCursor?.elementId ?? cursorElementId);
   const insertionTarget = sourceInsertion?.insertionTarget ?? resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
   if (insertionTarget === null) return false;

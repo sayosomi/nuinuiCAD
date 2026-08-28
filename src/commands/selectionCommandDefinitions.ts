@@ -77,7 +77,7 @@ const insertReverseAfterSelectedPath = () => {
     useCadUiStore.getState().setCommandErrorMessage("nui 4 の線を1件選択してから実行してください。");
     return false;
   }
-  const sourceInsertion = resolveSourceCreationInsertion({
+  const sourceResolution = resolveSourceCreationInsertion({
     cursor: {
       sourceRevision: document.sourceRevision,
       line: 0,
@@ -88,10 +88,11 @@ const insertReverseAfterSelectedPath = () => {
     elements: document.elements,
     statementMap: document.doc.statementMap
   });
-  if (!sourceInsertion) {
+  if (sourceResolution.kind !== "safe") {
     useCadUiStore.getState().setCommandErrorMessage("反転の挿入位置を特定できませんでした。");
     return false;
   }
+  const sourceInsertion = sourceResolution.insertion;
   const placement = creationPlacementForTarget(document.elements, sourceInsertion.insertionTarget, document.evaluationLimitIndex);
   const reversal = applyCreationPlacement(
     setParameterValue(
