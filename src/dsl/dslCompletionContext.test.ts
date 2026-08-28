@@ -211,6 +211,15 @@ describe("dslCompletionContextAt", () => {
         providedFieldNames: ["x"]
       });
     });
+
+    it("keeps a qualified record value in the generic Module member context with its expected type name", () => {
+      const line = "const copy: Pair = @Use::";
+      expect(dslCompletionContextAt(line, line.length)).toMatchObject({
+        kind: "moduleQualifiedMember",
+        qualifiedInstanceName: "Use",
+        expectedRecordTypeName: "Pair"
+      });
+    });
   });
 
   describe("reference-kind coordinate literal x/y sub-spans", () => {

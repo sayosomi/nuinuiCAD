@@ -643,6 +643,67 @@ describe("queryDslCompletion", () => {
     expect(labels(exportedField)).toEqual(["x", "label"]);
   });
 
+  it("applies the existing Module optional-presence proof to record fields", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      'const root: Pair = Pair(x: 1, label: "root")',
+      "module Inner(required: Pair, optional?: Pair) {",
+      "  if (hasValue(@optional)) {",
+      "    const guarded: number = @optional.x",
+      "  }",
+      "  const requiredField: number = @required.x",
+      "  export const output: Pair = @required",
+      "}",
+      "const rootField: number = @root.x",
+      "instance Use = Inner(required: @root)",
+      "const qualifiedField: number = @Use::output.x"
+    ].join("\n");
+
+    const unguardedSource = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      "module Inner(optional?: Pair) {",
+      "  const unguarded: number = @optional.x",
+      "}",
+      "instance Use = Inner()"
+    ].join("\n");
+    const unguarded = exactQuery(unguardedSource, "const unguarded: number = @optional.x", "const unguarded: number = @optional.".length);
+    expect(unguarded?.category).toBe("elementParameter");
+    expect(labels(unguarded)).toEqual([]);
+
+    const guarded = exactQuery(source, "const guarded: number = @optional.x", "const guarded: number = @optional.".length);
+    expect(labels(guarded)).toEqual(["x", "label"]);
+
+    const required = exactQuery(source, "const requiredField: number = @required.x", "const requiredField: number = @required.".length);
+    expect(labels(required)).toEqual(["x", "label"]);
+
+    const root = exactQuery(source, "const rootField: number = @root.x", "const rootField: number = @root.".length);
+    expect(labels(root)).toEqual(["x", "label"]);
+
+    const qualified = exactQuery(source, "@Use::output.x");
+    expect(labels(qualified)).toEqual(["x", "label"]);
+  });
+
+  it("completes only compatible whole-record Module exports in a record declaration", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number, label: string)",
+      "record Other(x: number, label: string)",
+      "module Inner(input: Pair) {",
+      "  export const output: Pair = @input",
+      '  export const wrong: Other = Other(x: 2, label: "other")',
+      "}",
+      'instance Use = Inner(input: Pair(x: 5, label: "inline"))',
+      "const copy: Pair = @Use::output"
+    ].join("\n");
+
+    const qualifiedRecord = exactQuery(source, "const copy: Pair = @Use::output", "const copy: Pair = @Use::".length);
+    expect(qualifiedRecord?.category).toBe("moduleQualifiedMember");
+    expect(labels(qualifiedRecord)).toEqual(["output"]);
+    expect(qualifiedRecord?.candidates[0]?.kind).toBe("record");
+  });
+
   it("offers same-name record shorthand only for exact nominal matches", () => {
     const compatible = [
       "nui 4",

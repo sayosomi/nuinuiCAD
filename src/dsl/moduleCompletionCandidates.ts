@@ -71,6 +71,11 @@ export type ModuleCompletionRequest = {
   sourceOrderIndex?: number;
 };
 
+type ModuleCompletionPresenceRequest = Pick<
+  ModuleCompletionRequest,
+  "scopeId" | "sourceOrderIndex" | "liveStatementText" | "logicalCursorPosition"
+>;
+
 /** Source-semantic Module completion data. This intentionally has no
  * CodeMirror/VS Code insertion action; adapters decide how a semantic
  * candidate is presented and applied in their host. */
@@ -191,13 +196,20 @@ export const moduleRecordFieldCompletions = (
   compiled: CompiledDslDocument,
   statementIndex: number,
   baseName: string,
-  scopeId?: ScopeId,
-  sourceOrderIndex?: number
+  request?: ModuleCompletionPresenceRequest
 ): ModuleCompletionCandidate[] => {
-  const resolved = visibleLookup(compiled, statementIndex, baseName.replace(/^@/, ""), scopeId, sourceOrderIndex);
+  const resolved = visibleLookup(
+    compiled,
+    statementIndex,
+    baseName.replace(/^@/, ""),
+    request?.scopeId,
+    request?.sourceOrderIndex
+  );
   if (!resolved) return [];
   const typeIdentity = resolved.lookup.kind === "parameter"
-    ? resolved.lookup.parameter.value.recordTypeIdentity
+    ? optionalParameterIsAvailable(compiled, statementIndex, resolved.lookup.parameter.value, request)
+      ? resolved.lookup.parameter.value.recordTypeIdentity
+      : null
     : resolved.lookup.kind === "resolved" && resolved.lookup.declaration.kind === "recordValue"
       ? compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(resolved.lookup.declaration.statementId)?.typeIdentity ?? null
       : null;
@@ -321,7 +333,7 @@ const bodyNames = (compiled: CompiledDslDocument, statementIndex: number, scopeI
   ])];
 };
 
-const insideHasValueArgument = (request?: ModuleCompletionRequest): boolean => {
+const insideHasValueArgument = (request?: ModuleCompletionPresenceRequest): boolean => {
   const source = request?.liveStatementText;
   const cursor = request?.logicalCursorPosition;
   if (!source || cursor === undefined) return false;
@@ -334,7 +346,7 @@ const optionalParameterIsAvailable = (
   compiled: CompiledDslDocument,
   statementIndex: number,
   parameter: { optional: boolean; definitionStatementId: string; parameterIndex: number },
-  request?: ModuleCompletionRequest
+  request?: ModuleCompletionPresenceRequest
 ) => {
   if (!parameter.optional) return true;
   if (insideHasValueArgument(request)) return true;
@@ -1076,6 +1088,12 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
     return arrayContext.mode === "member"
       ? qualifiedGeometryArrayMemberCompletions(compiled, definition, arrayContext.expectedType)
       : qualifiedGeometryArrayReferenceCompletions(compiled, definition, arrayContext.expectedType);
+  }
+  if (request.expectedRecordTypeIdentity) {
+    return definition.exports
+      .filter((entry): entry is Extract<typeof entry, { kind: "record" }> => entry.kind === "record")
+      .filter((entry) => entry.typeIdentity === request.expectedRecordTypeIdentity)
+      .map((entry) => ({ kind: "record" as const, label: entry.name, identity: entry.exportedStatementId }));
   }
   if (request.argumentIndex !== undefined) {
     const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
