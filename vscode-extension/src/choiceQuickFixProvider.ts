@@ -1,4 +1,9 @@
 import * as vscode from "vscode";
+import { CONSTRUCTION_CATEGORY_MISMATCH_CODE } from "../../src/dsl/dslCallParser";
+import {
+  queryDslConstructionCategoryQuickFixes,
+  type DslConstructionCategoryQuickFixPlan
+} from "../../src/dsl/dslConstructionCategoryQuickFixQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { MISSING_DECLARED_TYPE_CODE } from "../../src/dsl/dslDeclarationParser";
 import type {
@@ -18,6 +23,7 @@ import {
   createNuiTypoQuickFixProvider,
   NUI_TYPO_QUICK_FIX_APPLY_COMMAND
 } from "./typoQuickFixProvider";
+import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 
 export const nuiChoiceQuickFixSelector: vscode.DocumentSelector = {
   language: "nui",
@@ -40,9 +46,16 @@ type MissingDeclaredTypeDiagnosticFingerprint = {
   range: CompilerDiagnosticRange;
 };
 
+type ConstructionCategoryMismatchDiagnosticFingerprint = {
+  source: "nuinuiCAD";
+  code: typeof CONSTRUCTION_CATEGORY_MISMATCH_CODE;
+  range: CompilerDiagnosticRange;
+};
+
 type NativeDiagnosticFingerprint =
   | ChoiceDiagnosticFingerprint
-  | MissingDeclaredTypeDiagnosticFingerprint;
+  | MissingDeclaredTypeDiagnosticFingerprint
+  | ConstructionCategoryMismatchDiagnosticFingerprint;
 
 type ChoiceQuickFixPayload = {
   uri: string;
@@ -53,9 +66,16 @@ type ChoiceQuickFixPayload = {
   descriptor: TypedVariableQuickFixDescriptor;
 };
 
-export type NuiChoiceQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+type ConstructionCategoryQuickFixPayload = {
+  uri: string;
+  documentVersion: number;
+  rawSource: string;
+  sourceRevision: number;
+  targetDiagnostic: ConstructionCategoryMismatchDiagnosticFingerprint;
+  targetCategory: string;
+};
 
-const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+export type NuiChoiceQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 
 const isSupportedDocument = (document: vscode.TextDocument): boolean =>
   document.uri.scheme === "file" && document.fileName.endsWith(".nui");
@@ -79,6 +99,22 @@ const missingDeclaredTypeFingerprintFor = (
     range: diagnostic.range
   };
 };
+
+const constructionCategoryMismatchFingerprintFor = (
+  diagnostic: CompilerDiagnostic
+): ConstructionCategoryMismatchDiagnosticFingerprint | undefined => {
+  if (diagnostic.source !== "nuinuiCAD" || diagnostic.code !== CONSTRUCTION_CATEGORY_MISMATCH_CODE) return undefined;
+  return {
+    source: diagnostic.source,
+    code: CONSTRUCTION_CATEGORY_MISMATCH_CODE,
+    range: diagnostic.range
+  };
+};
+
+const nativeFingerprintFor = (diagnostic: CompilerDiagnostic): NativeDiagnosticFingerprint | undefined =>
+  fingerprintFor(diagnostic) ??
+  missingDeclaredTypeFingerprintFor(diagnostic) ??
+  constructionCategoryMismatchFingerprintFor(diagnostic);
 
 const samePosition = (
   left: { line: number; character: number },
@@ -138,6 +174,20 @@ const payloadFor = (
   }
 });
 
+const constructionCategoryPayloadFor = (
+  document: vscode.TextDocument,
+  source: SourceSnapshot,
+  diagnostic: ConstructionCategoryMismatchDiagnosticFingerprint,
+  targetCategory: string
+): ConstructionCategoryQuickFixPayload => ({
+  uri: document.uri.toString(),
+  documentVersion: document.version,
+  rawSource: document.getText(),
+  sourceRevision: source.sourceRevision,
+  targetDiagnostic: diagnostic,
+  targetCategory
+});
+
 const createNuiChoiceOnlyQuickFixProvider = (
   sessionFor: NuiChoiceQuickFixSessionFor
 ): vscode.CodeActionProvider => ({
@@ -171,12 +221,34 @@ const createNuiChoiceOnlyQuickFixProvider = (
 
     semantic.currentCompiled.diagnostics.forEach((diagnostic, index) => {
       const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
-      const fingerprint = projected && (
-        fingerprintFor(projected) ?? missingDeclaredTypeFingerprintFor(projected)
-      );
+      const fingerprint = projected && nativeFingerprintFor(projected);
       if (!fingerprint) return;
       const target = contextDiagnosticFor(fingerprint, context.diagnostics);
       if (!target) return;
+
+      if (fingerprint.code === CONSTRUCTION_CATEGORY_MISMATCH_CODE) {
+        const plans = queryDslConstructionCategoryQuickFixes({
+          source,
+          diagnostic,
+          semantic: {
+            sourceRevision: semantic.sourceRevision,
+            sourceText: semantic.sourceText,
+            compiled: semantic.currentCompiled
+          }
+        });
+        for (const plan of plans) {
+          const title = `Change category to '${plan.targetCategory}'`;
+          const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+          action.diagnostics = [target];
+          action.command = {
+            command: NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
+            title,
+            arguments: [constructionCategoryPayloadFor(document, source, fingerprint, plan.targetCategory)]
+          };
+          actions.push(action);
+        }
+        return;
+      }
 
       const descriptors = nativeDescriptorsFor(fingerprint.code, descriptorsByDiagnostic[index] ?? []);
       for (const descriptor of descriptors) {
@@ -251,7 +323,17 @@ const isMissingDeclaredTypeDiagnosticFingerprint = (
     isRange(diagnostic.range);
 };
 
-const isPayload = (value: unknown): value is ChoiceQuickFixPayload => {
+const isConstructionCategoryMismatchDiagnosticFingerprint = (
+  value: unknown
+): value is ConstructionCategoryMismatchDiagnosticFingerprint => {
+  if (!value || typeof value !== "object") return false;
+  const diagnostic = value as Partial<ConstructionCategoryMismatchDiagnosticFingerprint>;
+  return diagnostic.source === "nuinuiCAD" &&
+    diagnostic.code === CONSTRUCTION_CATEGORY_MISMATCH_CODE &&
+    isRange(diagnostic.range);
+};
+
+const isChoiceQuickFixPayload = (value: unknown): value is ChoiceQuickFixPayload => {
   if (!value || typeof value !== "object") return false;
   const payload = value as Partial<ChoiceQuickFixPayload>;
   return typeof payload.uri === "string" &&
@@ -261,6 +343,20 @@ const isPayload = (value: unknown): value is ChoiceQuickFixPayload => {
     (isChoiceDiagnosticFingerprint(payload.targetDiagnostic) ||
       isMissingDeclaredTypeDiagnosticFingerprint(payload.targetDiagnostic)) &&
     isDescriptor(payload.descriptor);
+};
+
+const isConstructionCategoryQuickFixPayload = (
+  value: unknown
+): value is ConstructionCategoryQuickFixPayload => {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Partial<ConstructionCategoryQuickFixPayload>;
+  return typeof payload.uri === "string" &&
+    isInteger(payload.documentVersion) &&
+    typeof payload.rawSource === "string" &&
+    isInteger(payload.sourceRevision) &&
+    isConstructionCategoryMismatchDiagnosticFingerprint(payload.targetDiagnostic) &&
+    typeof payload.targetCategory === "string" &&
+    payload.targetCategory.length > 0;
 };
 
 const currentOpenDocumentFor = (uri: string): vscode.TextDocument | undefined =>
@@ -279,17 +375,6 @@ const descriptorMatches = (
   expected.action.insert === actual.action.insert &&
   expected.action.expectedOldText === actual.action.expectedOldText &&
   expected.action.selection === actual.action.selection;
-
-const rawOffsetFromNormalized = (rawSource: string, normalizedOffset: number): number => {
-  let rawOffset = 0;
-  let normalizedPosition = 0;
-  while (rawOffset < rawSource.length && normalizedPosition < normalizedOffset) {
-    if (rawSource[rawOffset] === "\r" && rawSource[rawOffset + 1] === "\n") rawOffset += 1;
-    rawOffset += 1;
-    normalizedPosition += 1;
-  }
-  return rawOffset;
-};
 
 const descriptorForPayload = (
   payload: ChoiceQuickFixPayload,
@@ -322,10 +407,88 @@ const descriptorForPayload = (
   return undefined;
 };
 
+const categoryPlanForPayload = (
+  payload: ConstructionCategoryQuickFixPayload,
+  sourceText: string,
+  session: NuiLanguageAnalysisSession
+): DslConstructionCategoryQuickFixPlan | undefined => {
+  const source: SourceSnapshot = {
+    normalizedSource: normalizedSourceFor(sourceText),
+    sourceRevision: payload.sourceRevision
+  };
+  const semantic = session.choiceQuickFixSemanticSnapshot(source);
+  if (!semantic) return undefined;
+
+  for (const diagnostic of semantic.currentCompiled.diagnostics) {
+    const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
+    if (!projected || !sameDiagnostic(payload.targetDiagnostic, {
+      source: projected.source,
+      code: projected.code,
+      range: projected.range
+    })) continue;
+    const plans = queryDslConstructionCategoryQuickFixes({
+      source,
+      diagnostic,
+      semantic: {
+        sourceRevision: semantic.sourceRevision,
+        sourceText: semantic.sourceText,
+        compiled: semantic.currentCompiled
+      }
+    });
+    return plans.find((plan) => plan.targetCategory === payload.targetCategory);
+  }
+  return undefined;
+};
+
+const createNuiConstructionCategoryQuickFixApplyHandler = (
+  sessionFor: NuiChoiceQuickFixSessionFor
+): (payload: unknown) => Promise<void> => async (rawPayload) => {
+  if (!isConstructionCategoryQuickFixPayload(rawPayload)) return;
+  const payload = rawPayload;
+  const document = currentOpenDocumentFor(payload.uri);
+  if (!document || !isSupportedDocument(document)) return;
+  if (
+    currentOpenDocumentFor(payload.uri) !== document ||
+    document.version !== payload.documentVersion ||
+    document.getText() !== payload.rawSource
+  ) return;
+
+  const session = sessionFor(document);
+  const currentRawSource = document.getText();
+  if (session.getSource() !== currentRawSource) session.replaceSource(currentRawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(currentRawSource),
+    sourceRevision: payload.sourceRevision
+  } satisfies SourceSnapshot;
+  const plan = categoryPlanForPayload(payload, currentRawSource, session);
+  if (!plan || plan.targetCategory !== payload.targetCategory) return;
+
+  const { edit } = plan;
+  if (
+    edit.newText !== payload.targetCategory ||
+    !isInteger(edit.from) ||
+    !isInteger(edit.to) ||
+    edit.from < 0 ||
+    edit.to <= edit.from ||
+    edit.to > source.normalizedSource.length ||
+    source.normalizedSource.slice(edit.from, edit.to) !== edit.expectedText
+  ) return;
+
+  if (document.version !== payload.documentVersion || document.getText() !== payload.rawSource) return;
+
+  const workspaceEdit = new vscode.WorkspaceEdit();
+  workspaceEdit.replace(
+    document.uri,
+    vscodeRangeForNormalized(document, payload.rawSource, { from: edit.from, to: edit.to }),
+    payload.targetCategory
+  );
+  await vscode.workspace.applyEdit(workspaceEdit);
+};
+
 const createNuiChoiceOnlyQuickFixApplyHandler = (
   sessionFor: NuiChoiceQuickFixSessionFor
 ): (payload: unknown) => Promise<void> => async (rawPayload) => {
-  if (!isPayload(rawPayload)) return;
+  if (!isChoiceQuickFixPayload(rawPayload)) return;
   const payload = rawPayload;
   const document = currentOpenDocumentFor(payload.uri);
   if (!document || !isSupportedDocument(document)) return;
@@ -358,10 +521,7 @@ const createNuiChoiceOnlyQuickFixApplyHandler = (
   const workspaceEdit = new vscode.WorkspaceEdit();
   workspaceEdit.replace(
     document.uri,
-    new vscode.Range(
-      document.positionAt(rawOffsetFromNormalized(payload.rawSource, from)),
-      document.positionAt(rawOffsetFromNormalized(payload.rawSource, to))
-    ),
+    vscodeRangeForNormalized(document, payload.rawSource, { from, to }),
     descriptor.action.insert
   );
   await vscode.workspace.applyEdit(workspaceEdit);
@@ -402,9 +562,14 @@ export const createNuiChoiceQuickFixApplyHandler = (
   sessionFor: NuiChoiceQuickFixSessionFor
 ): (payload: unknown) => Promise<void> => {
   const choiceApply = createNuiChoiceOnlyQuickFixApplyHandler(sessionFor);
+  const categoryApply = createNuiConstructionCategoryQuickFixApplyHandler(sessionFor);
   const typoApply = createNuiTypoQuickFixApplyHandler(sessionFor);
   return async (payload) => {
-    if (isPayload(payload)) {
+    if (isConstructionCategoryQuickFixPayload(payload)) {
+      await categoryApply(payload);
+      return;
+    }
+    if (isChoiceQuickFixPayload(payload)) {
       await choiceApply(payload);
       return;
     }
