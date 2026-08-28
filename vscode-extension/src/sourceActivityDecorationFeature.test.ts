@@ -43,9 +43,6 @@ vi.mock("vscode", () => {
   class Range {
     constructor(public readonly start: Position, public readonly end: Position) {}
   }
-  class ThemeColor {
-    constructor(public readonly id: string) {}
-  }
   const listener = <T>(listeners: T[], value: T) => {
     listeners.push(value);
     return { dispose: () => {
@@ -56,7 +53,6 @@ vi.mock("vscode", () => {
   return {
     Position,
     Range,
-    ThemeColor,
     window: {
       get visibleTextEditors() {
         return mocks.visibleTextEditors;
@@ -81,11 +77,7 @@ vi.mock("vscode", () => {
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
 
-import * as vscode from "vscode";
 import {
-  NUI_SOURCE_ACTIVITY_DISABLED_BACKGROUND,
-  NUI_SOURCE_ACTIVITY_HIDDEN_BACKGROUND,
-  NUI_SOURCE_ACTIVITY_HIDDEN_BORDER,
   registerNuiSourceActivityDecorationFeature,
   sourceActivityDecorationProjectionFor
 } from "./sourceActivityDecorationFeature";
@@ -223,7 +215,7 @@ describe("VS Code native Source activity decorations", () => {
     ]);
   });
 
-  it("creates separate whole-line, themable Hidden and Disabled presentations", () => {
+  it("creates separate whole-line, fade-only Hidden and Disabled presentations", () => {
     const runtime = runtimeFor(new Map());
     const feature = registerNuiSourceActivityDecorationFeature({
       rustProcessOwner: { get: vi.fn() } as never,
@@ -232,25 +224,31 @@ describe("VS Code native Source activity decorations", () => {
     });
 
     expect(mocks.decorationTypes).toHaveLength(2);
+    expect(mocks.decorationTypes[0]).not.toBe(mocks.decorationTypes[1]);
     const hidden = mocks.decorationTypes[0]!.options as Record<string, unknown>;
     const disabled = mocks.decorationTypes[1]!.options as Record<string, unknown>;
-    expect(hidden).toMatchObject({
+    expect(hidden).toEqual({
       isWholeLine: true,
-      borderStyle: "dotted",
-      borderWidth: "0 0 0 1px"
+      opacity: "0.72"
     });
-    expect(hidden.backgroundColor).toBeInstanceOf(vscode.ThemeColor);
-    expect((hidden.backgroundColor as vscode.ThemeColor).id).toBe(NUI_SOURCE_ACTIVITY_HIDDEN_BACKGROUND);
-    expect((hidden.borderColor as vscode.ThemeColor).id).toBe(NUI_SOURCE_ACTIVITY_HIDDEN_BORDER);
     expect(disabled).toEqual({
       isWholeLine: true,
-      backgroundColor: expect.any(vscode.ThemeColor)
+      opacity: "0.48"
     });
-    expect((disabled.backgroundColor as vscode.ThemeColor).id).toBe(NUI_SOURCE_ACTIVITY_DISABLED_BACKGROUND);
-    expect(hidden).not.toHaveProperty("opacity");
-    expect(disabled).not.toHaveProperty("opacity");
-    expect(hidden).not.toHaveProperty("textDecoration");
-    expect(disabled).not.toHaveProperty("textDecoration");
+    for (const decoration of [hidden, disabled]) {
+      for (const property of [
+        "backgroundColor",
+        "border",
+        "borderColor",
+        "borderStyle",
+        "borderWidth",
+        "outline",
+        "color",
+        "textDecoration"
+      ]) {
+        expect(decoration).not.toHaveProperty(property);
+      }
+    }
 
     feature.dispose();
     expect(mocks.decorationTypes[0]!.dispose).toHaveBeenCalledTimes(1);
@@ -345,22 +343,11 @@ describe("VS Code native Source activity decorations", () => {
     feature.dispose();
   });
 
-  it("declares extension-owned Light, Dark, and High Contrast color defaults", async () => {
+  it("does not declare obsolete Source activity color contributions", async () => {
     const manifest = JSON.parse(await readFile(resolve(process.cwd(), "vscode-extension/package.json"), "utf8")) as {
-      contributes?: { colors?: Array<{ id: string; defaults?: Record<string, string> }> };
+      contributes?: { colors?: unknown };
     };
-    const colors = manifest.contributes?.colors ?? [];
-    expect(colors.map((color) => color.id)).toEqual([
-      NUI_SOURCE_ACTIVITY_HIDDEN_BACKGROUND,
-      NUI_SOURCE_ACTIVITY_HIDDEN_BORDER,
-      NUI_SOURCE_ACTIVITY_DISABLED_BACKGROUND
-    ]);
-    for (const color of colors) {
-      expect(color.defaults).toEqual(expect.objectContaining({
-        light: expect.any(String),
-        dark: expect.any(String),
-        highContrast: expect.any(String)
-      }));
-    }
+    expect(manifest.contributes?.colors).toBeUndefined();
+    expect(manifest.contributes).not.toHaveProperty("colors");
   });
 });

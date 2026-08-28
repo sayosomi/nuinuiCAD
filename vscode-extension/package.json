@@ -10,35 +10,6 @@
   },
   "main": "./dist/extension.js",
   "contributes": {
-    "colors": [
-      {
-        "id": "nuinuiCAD.sourceActivity.hiddenBackground",
-        "description": "Background tint for Source statements whose geometry is hidden.",
-        "defaults": {
-          "light": "#e6e8ed80",
-          "dark": "#3b425280",
-          "highContrast": "#4b526380"
-        }
-      },
-      {
-        "id": "nuinuiCAD.sourceActivity.hiddenBorder",
-        "description": "Left-edge cue for Source statements whose geometry is hidden.",
-        "defaults": {
-          "light": "#6b7280",
-          "dark": "#aab2c0",
-          "highContrast": "#ffffff"
-        }
-      },
-      {
-        "id": "nuinuiCAD.sourceActivity.disabledBackground",
-        "description": "Muted background for Source statements whose geometry is disabled or inactive.",
-        "defaults": {
-          "light": "#d1d5dbb8",
-          "dark": "#4b5563b8",
-          "highContrast": "#5b6472b8"
-        }
-      }
-    ],
     "configurationDefaults": {
       "[nui]": {
         "editor.wordBasedSuggestions": "off"
