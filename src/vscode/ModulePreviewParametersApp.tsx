@@ -46,9 +46,25 @@ const ParameterRow = ({
   const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
   const [draft, setDraft] = useState(parameter.value);
   const authoritativeRef = useRef({ identity: rowIdentity, value: parameter.value });
+  const pendingDraftRef = useRef<string | null>(null);
+  const defaultActionPendingRef = useRef(false);
   useEffect(() => {
     const previous = authoritativeRef.current;
-    if (previous.identity !== rowIdentity || previous.value !== parameter.value) {
+    if (previous.identity !== rowIdentity) {
+      pendingDraftRef.current = null;
+      defaultActionPendingRef.current = false;
+      setDraft(parameter.value);
+    } else if (pendingDraftRef.current === null) {
+      defaultActionPendingRef.current = false;
+      setDraft(parameter.value);
+    } else if (parameter.value === pendingDraftRef.current) {
+      if (!defaultActionPendingRef.current) {
+        pendingDraftRef.current = null;
+        setDraft(parameter.value);
+      }
+    } else if (defaultActionPendingRef.current) {
+      pendingDraftRef.current = null;
+      defaultActionPendingRef.current = false;
       setDraft(parameter.value);
     }
     authoritativeRef.current = {
@@ -80,6 +96,7 @@ const ParameterRow = ({
           value={draft}
           onChange={(event) => {
             const expression = event.currentTarget.value;
+            pendingDraftRef.current = expression;
             setDraft(expression);
             onValueChange(parameter, expression);
           }}
@@ -98,7 +115,10 @@ const ParameterRow = ({
               type="button"
               className="module-preview-parameter-default-button"
               aria-label={`Use default for ${parameter.name}`}
-              onClick={() => onUseDefault(parameter)}
+              onClick={() => {
+                defaultActionPendingRef.current = true;
+                onUseDefault(parameter);
+              }}
             >
               Use default
             </button>

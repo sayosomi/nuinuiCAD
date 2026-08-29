@@ -157,8 +157,16 @@ describe("ModulePreviewParametersApp", () => {
       sessionRevision: snapshot.sessionRevision,
       expression: "@scale * 5"
     }));
+    fireEvent.change(input, { target: { value: "@scale * 6" } });
+    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      type: "modulePreviewParameterSetValue",
+      sessionRevision: snapshot.sessionRevision,
+      expression: "@scale * 6"
+    }));
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("@scale * 6");
 
-    const nextSnapshot: VscodeModulePreviewParameterSnapshot = {
+    const intermediateSnapshot: VscodeModulePreviewParameterSnapshot = {
       ...snapshot,
       sessionRevision: snapshot.sessionRevision + 1,
       parameters: {
@@ -168,26 +176,34 @@ describe("ModulePreviewParametersApp", () => {
         )
       }
     };
-    act(() => window.dispatchEvent(new MessageEvent("message", { data: nextSnapshot })));
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: intermediateSnapshot })));
 
     const sameInput = screen.getByLabelText("Value for width");
     expect(sameInput).toBe(input);
     expect(sameInput).toHaveFocus();
-    expect(sameInput).toHaveValue("@scale * 5");
+    expect(sameInput).toHaveValue("@scale * 6");
 
-    fireEvent.change(sameInput, { target: { value: "@scale * 6" } });
-    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      type: "modulePreviewParameterSetValue",
-      sessionRevision: nextSnapshot.sessionRevision,
-      expression: "@scale * 6"
-    }));
+    const finalSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...intermediateSnapshot,
+      sessionRevision: intermediateSnapshot.sessionRevision + 1,
+      parameters: {
+        ...intermediateSnapshot.parameters,
+        parameters: intermediateSnapshot.parameters.parameters.map((parameter) =>
+          parameter.name === "width" ? { ...parameter, value: "@scale * 6" } : parameter
+        )
+      }
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: finalSnapshot })));
+    expect(screen.getByLabelText("Value for width")).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("@scale * 6");
 
     const defaultSnapshot: VscodeModulePreviewParameterSnapshot = {
-      ...nextSnapshot,
-      sessionRevision: nextSnapshot.sessionRevision + 1,
+      ...finalSnapshot,
+      sessionRevision: finalSnapshot.sessionRevision + 1,
       parameters: {
-        ...nextSnapshot.parameters,
-        parameters: nextSnapshot.parameters.parameters.map((parameter) =>
+        ...finalSnapshot.parameters,
+        parameters: finalSnapshot.parameters.parameters.map((parameter) =>
           parameter.name === "label" ? { ...parameter, value: '"front"' } : parameter
         )
       }

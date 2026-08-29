@@ -387,7 +387,9 @@ export const registerModulePreviewFeature = ({
       message.documentUri !== session.documentUri ||
       message.documentVersion !== session.document.version ||
       message.sourceRevision !== snapshot.sourceRevision ||
-      message.sessionRevision !== snapshot.sessionRevision ||
+      !Number.isInteger(message.sessionRevision) ||
+      message.sessionRevision < 1 ||
+      message.sessionRevision > snapshot.sessionRevision ||
       message.targetDefinitionStatementId !== snapshot.target.definitionStatementId ||
       session.authoritativeDocumentVersion !== session.document.version
     ) return false;

@@ -147,4 +147,61 @@ describe("ModulePreviewApp parameter relay", () => {
       sessionRevision: 4
     }));
   });
+
+  it("applies consecutive same-revision value actions in order", () => {
+    mocks.queryModulePreviewTarget.mockReturnValue(target);
+    mocks.session.activate.mockReturnValue(snapshot);
+    mocks.session.getState.mockReturnValue(snapshot);
+    mocks.session.setValue.mockImplementation((_definitionStatementId, _parameterIndex, expression) => ({
+      ...snapshot,
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) =>
+          parameter.parameterIndex === 0 ? { ...parameter, value: expression } : parameter
+        )
+      }
+    }));
+    const api = { postMessage: mocks.postMessage };
+    render(<ModulePreviewApp api={api} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
+      }));
+    });
+    mocks.postMessage.mockClear();
+
+    const valueAction = (expression: string) => ({
+      type: "modulePreviewSetValue" as const,
+      sessionId: "module-preview-session:1",
+      documentUri: "file:///pattern.nui",
+      documentVersion: 1,
+      sourceRevision: 1,
+      sessionRevision: 2,
+      targetDefinitionStatementId: target.definitionStatementId,
+      definitionStatementId: target.definitionStatementId,
+      parameterIndex: 0,
+      expression
+    });
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: valueAction("4") }));
+      window.dispatchEvent(new MessageEvent("message", { data: valueAction("5") }));
+    });
+
+    expect(mocks.session.setValue).toHaveBeenNthCalledWith(1, target.definitionStatementId, 0, "4");
+    expect(mocks.session.setValue).toHaveBeenNthCalledWith(2, target.definitionStatementId, 0, "5");
+    expect(mocks.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterSnapshot",
+      sessionRevision: 4,
+      parameters: expect.objectContaining({
+        parameters: expect.arrayContaining([expect.objectContaining({ value: "5" })])
+      })
+    }));
+  });
 });

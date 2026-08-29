@@ -301,7 +301,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           documentVersionRef.current !== message.documentVersion ||
           state.sourceRevision !== message.sourceRevision ||
           state.target.definitionStatementId !== message.targetDefinitionStatementId ||
-          message.sessionRevision !== parameterSessionRevisionRef.current ||
+          !Number.isInteger(message.sessionRevision) ||
+          message.sessionRevision < 1 ||
+          message.sessionRevision > parameterSessionRevisionRef.current ||
           !row
         ) return;
         if (message.type === "modulePreviewSetValue") {

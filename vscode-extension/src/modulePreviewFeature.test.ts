@@ -550,7 +550,7 @@ describe("registerModulePreviewFeature", () => {
     parameterView.postMessage.mockClear();
     panel.webview.postMessage.mockClear();
 
-    await parameterView.receive({
+    const firstAction = {
       type: "modulePreviewParameterSetValue",
       sessionId: snapshot.sessionId,
       documentUri: snapshot.documentUri,
@@ -561,14 +561,40 @@ describe("registerModulePreviewFeature", () => {
       definitionStatementId: target.statementId,
       parameterIndex: 0,
       expression: "3"
-    });
-    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewSetValue",
-      sessionId: snapshot.sessionId,
-      targetDefinitionStatementId: target.statementId,
-      parameterIndex: 0,
-      expression: "3"
-    }));
+    };
+    const secondAction = { ...firstAction, expression: "4" };
+    await parameterView.receive(firstAction);
+    await parameterView.receive(secondAction);
+    expect(panel.webview.postMessage.mock.calls.map(([message]) => {
+      const action = message as { type?: string; sessionId?: string; expression?: string };
+      return { type: action.type, sessionId: action.sessionId, expression: action.expression };
+    })).toEqual([
+      { type: "modulePreviewSetValue", sessionId: snapshot.sessionId, expression: "3" },
+      { type: "modulePreviewSetValue", sessionId: snapshot.sessionId, expression: "4" }
+    ]);
+
+    const firstResult = {
+      ...snapshot,
+      sessionRevision: 2,
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) =>
+          parameter.parameterIndex === 0 ? { ...parameter, value: "3" } : parameter
+        )
+      }
+    };
+    const secondResult = {
+      ...firstResult,
+      sessionRevision: 3,
+      parameters: {
+        ...firstResult.parameters,
+        parameters: firstResult.parameters.parameters.map((parameter) =>
+          parameter.parameterIndex === 0 ? { ...parameter, value: "4" } : parameter
+        )
+      }
+    };
+    await panel.receive(firstResult);
+    await panel.receive(secondResult);
 
     parameterView.postMessage.mockClear();
     mocks.activeTextEditor.selection.active = positionAt(source, source.indexOf("module Outer"));
