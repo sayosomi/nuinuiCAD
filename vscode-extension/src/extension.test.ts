@@ -2221,10 +2221,10 @@ describe("VS Code production document lifecycle", () => {
     });
 
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
-    // Diagnostics, Explorer, Reference Pick, Source Value Step, and the
-    // Canvas pointer-creation feature each observe document changes without
-    // mutating the benchmark Source document.
-    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(5);
+    // Diagnostics, Explorer, Reference Pick, Geometry Reference Retarget,
+    // Source Value Step, and the Canvas pointer-creation feature each observe
+    // document changes without mutating the benchmark Source document.
+    expect(mocks.onDidChangeTextDocument).toHaveBeenCalledTimes(6);
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
   });
 
