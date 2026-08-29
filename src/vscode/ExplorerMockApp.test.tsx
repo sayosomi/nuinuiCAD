@@ -69,7 +69,7 @@ describe("ExplorerMockApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
     const typeFilter = screen.getByRole("combobox", { name: "Type" });
     expect(typeFilter).toHaveValue("all");
-    expect(within(typeFilter).queryByRole("option", { name: "Operation", exact: true })).not.toBeInTheDocument();
+    expect(within(typeFilter).queryByRole("option", { name: /^Operation$/ })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("all");
     expect(screen.getByRole("combobox", { name: "Diagnostics" })).toHaveValue("all");
     expect(screen.getByRole("combobox", { name: "Group/Module" })).toHaveValue("all");
