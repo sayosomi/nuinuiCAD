@@ -3,6 +3,8 @@ import * as dslDocument from "../dsl/dslDocument";
 import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
+import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
+import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { applyLineSplices } from "./textPatch";
 import {
   planInlineModule,
@@ -56,6 +58,22 @@ const plan = (
     policy: { ...DEFAULT_POLICY, ...policy }
   });
   return { compiled, result };
+};
+
+const geometryTargetIds = (expression: TypedScalarExpression): string[] => {
+  switch (expression.kind) {
+    case "group":
+    case "unary":
+      return geometryTargetIds(expression.kind === "group" ? expression.expression : expression.operand);
+    case "binary":
+      return [...geometryTargetIds(expression.left), ...geometryTargetIds(expression.right)];
+    case "call":
+      return expression.args.flatMap((argument) => argument.kind === "geometryReference"
+        ? argument.target ? [argument.target.statementId] : []
+        : geometryTargetIds(argument.expression));
+    default:
+      return [];
+  }
 };
 
 describe("planInlineModule Checkpoint 1", () => {
@@ -992,22 +1010,68 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(nextSource).not.toContain("const width: number = @::base");
   });
 
-  it.each([
-    [
-      "geometry parameter",
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "module Box(anchor: point) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box(anchor: @A)"].join("\n")
-    ],
-    [
-      "record parameter",
-      ["nui 4", "record Pair(x: number)", "module Box(settings: Pair) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box(settings: Pair(x: 1))"].join("\n")
-    ]
-  ])("keeps %s outside this scalar lowering slice", (_label, source) => {
+  it("supports a singular point parameter without a geometry alias const", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "module Box(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}",
+      "instance Copy = Box(anchor: @A)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.targets).toMatchObject([{ status: "inlined" }]);
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("point P = offset(from: @A, dx: 1, dy: 0)");
+    expect(next).not.toContain("const anchor");
+    const compiledNext = compileCurrent(next, "inline-point-next");
+    const point = compiledNext.statements.find((statement) => statement.kind === "element" && statement.name === "P");
+    expect(point).toBeDefined();
+    if (!point) return;
+    const pointIndex = compiledNext.statements.indexOf(point);
+    const resolved = resolveSourceLexicalPath(compiledNext.sourceLexicalNamespace!, pointIndex, {
+      absolute: false,
+      segments: ["A"]
+    });
+    expect(resolved.kind).toBe("resolved");
+    if (resolved.kind !== "resolved") return;
+    expect(resolved.declaration.statementId).toBe("inline-point-next:1");
+  });
+
+  it("keeps record parameters outside this singular geometry lowering slice", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Box(settings: Pair) {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Copy = Box(settings: Pair(x: 1))"
+    ].join("\n");
     const { result } = plan(source, ["Copy"]);
     expect(result).toMatchObject({
       status: "planned",
       splices: [],
       targets: [{ status: "skipped", code: "parameter-lowering-required" }]
     });
+  });
+
+  it("substitutes repeated direct uses of one singular geometry parameter independently", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "module Box(anchor: point) {",
+      "  line L = segment(start: @anchor, end: @anchor)",
+      "}",
+      "instance Copy = Box(anchor: @A)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("line L = segment(start: @A, end: @A)");
+    expect(compileCurrent(next, "inline-repeated-geometry-next").diagnostics).toEqual([]);
   });
 
   it("skips body structures whose binder/capture proof is deferred", () => {
@@ -1128,5 +1192,227 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(result.targets).toMatchObject([
       { status: "skipped", code: "unresolved-callee" }
     ]);
+  });
+
+  it("substitutes geometry builtin operands with exact caller targets", () => {
+    const source = [
+      "nui 4",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "point P = coordinate(x: 3, y: 4)",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "module Measures(origin: point, p: point, baseline: line) {",
+      "  const radius: number = distance(@origin, @p)",
+      "  const direction: number = angle(@origin, @p)",
+      "  const height: number = lineDistance(@p, @baseline)",
+      "}",
+      "instance Use = Measures(origin: @Origin, p: @P, baseline: @Baseline)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const next = compileCurrent(nextSource, "inline-builtins-next");
+    const targetsFor = (name: string) => {
+      const binding = next.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      const statement = binding
+        ? next.scalarProgram?.statements.find((candidate) => candidate.bindingId === binding.id)
+        : undefined;
+      return statement ? geometryTargetIds(statement.declaration.initializer) : [];
+    };
+    expect(targetsFor("radius")).toEqual(["inline-builtins-next:1", "inline-builtins-next:2"]);
+    expect(targetsFor("direction")).toEqual(["inline-builtins-next:1", "inline-builtins-next:2"]);
+    expect(targetsFor("height")).toEqual(["inline-builtins-next:2", "inline-builtins-next:3"]);
+    expect(nextSource).toContain("distance(@Origin, @P)");
+    expect(nextSource).toContain("angle(@Origin, @P)");
+    expect(nextSource).toContain("lineDistance(@P, @Baseline)");
+  });
+
+  it("substitutes a line geometry property without evaluating it", () => {
+    const source = [
+      "nui 4",
+      "line Baseline = segment(start: (0, 0), end: (10, 0))",
+      "module Measure(lineA: line) {",
+      "  const length: number = @lineA.length",
+      "}",
+      "instance Use = Measure(lineA: @Baseline)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const length: number = @Baseline.length");
+    const next = compileCurrent(nextSource, "inline-property-next");
+    const binding = next.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "length");
+    const declaration = binding
+      ? next.scalarProgram?.statements.find((candidate) => candidate.bindingId === binding.id)?.declaration.initializer
+      : undefined;
+    expect(declaration?.kind).toBe("geometryProperty");
+    if (declaration?.kind !== "geometryProperty") return;
+    expect(declaration.elementId).toBe("inline-property-next:1");
+  });
+
+  it("canonicalizes only a substituted geometry reference captured by a copied local", () => {
+    const source = [
+      "nui 4",
+      "point Input = coordinate(x: 1, y: 2)",
+      "module M(anchor: point) {",
+      "  point Input = coordinate(x: 9, y: 9)",
+      "  point Copy = offset(from: @anchor, dx: 1, dy: 0)",
+      "}",
+      "instance Use = M(anchor: @Input)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).toContain("point Copy = offset(from: @::Input, dx: 1, dy: 0)");
+    expect(generated).not.toContain("point Copy = offset(from: @Input, dx: 1, dy: 0)");
+    expect(compileCurrent(nextSource, "inline-capture-next").diagnostics).toEqual([]);
+  });
+
+  it("specializes supplied optional geometry presence and substitutes its body use", () => {
+    const source = [
+      "nui 4",
+      "point Input = coordinate(x: 1, y: 2)",
+      "module Optional(anchor?: point) {",
+      "  if (hasValue(@anchor)) {",
+      "    point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  }",
+      "}",
+      "instance Use = Optional(anchor: @Input)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).toContain("point P = offset(from: @Input, dx: 1, dy: 0)");
+    expect(generated).not.toContain("hasValue(@anchor)");
+    expect(generated).not.toContain("const anchor");
+  });
+
+  it("removes omitted optional geometry only through guarded-source provenance", () => {
+    const source = [
+      "nui 4",
+      "point Input = coordinate(x: 1, y: 2)",
+      "module Optional(anchor?: point) {",
+      "  if (hasValue(@anchor)) {",
+      "    point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "  }",
+      "}",
+      "instance Omitted = Optional()"
+    ].join("\n");
+    const off = plan(source, ["Omitted"]).result;
+    expect(off.status).toBe("planned");
+    if (off.status !== "planned") return;
+    const offSource = applyLineSplices(source, off.splices);
+    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
+    expect(offGenerated).not.toContain("@anchor");
+    expect(offGenerated).not.toContain("point P");
+
+    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
+    expect(on.status).toBe("planned");
+    if (on.status !== "planned") return;
+    const onSource = applyLineSplices(source, on.splices);
+    const onGenerated = onSource.slice(onSource.indexOf("group Omitted {"));
+    expect(onGenerated).toContain("// if (hasValue(@anchor)) {");
+    expect(onGenerated).toContain("//   point P = offset(from: @anchor, dx: 1, dy: 0)");
+    expect(compileCurrent(onSource, "inline-optional-geometry-comments-next").diagnostics).toEqual([]);
+  });
+
+  it("preserves a coordinate geometry argument in a supported direct geometry role", () => {
+    const source = [
+      "nui 4",
+      "module M(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}",
+      "instance Use = M(anchor: (0, 0))"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("point P = offset(from: (0, 0), dx: 1, dy: 0)");
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).not.toContain("@anchor");
+    expect(nextSource).not.toContain("const anchor");
+    expect(compileCurrent(nextSource, "inline-coordinate-next").diagnostics).toEqual([]);
+  });
+
+  it("fails closed when a coordinate argument would need an unsynthesized property source", () => {
+    const source = [
+      "nui 4",
+      "module M(anchor: point) {",
+      "  const x: number = @anchor.x",
+      "}",
+      "instance Use = M(anchor: (0, 0))"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite" });
+    expect("splices" in result).toBe(false);
+  });
+
+  it("keeps public path parameters path-typed while using the broad line runtime source", () => {
+    const source = [
+      "nui 4",
+      "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
+      "module M(path: path) {",
+      "  point P = onLine(from: @path.end, ratio: 0.5)",
+      "}",
+      "instance Use = M(path: @A)"
+    ].join("\n");
+    const { compiled, result } = plan(source, ["Use"]);
+    const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "M");
+    expect(definition?.parameters[0]?.type?.kind).toBe("path");
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("point P = onLine(from: @A.end, ratio: 0.5)");
+    expect(nextSource).not.toContain("const path");
+    expect(compileCurrent(nextSource, "inline-path-next").diagnostics).toEqual([]);
+  });
+
+  it("lowers mixed scalar and singular geometry parameters independently", () => {
+    const source = [
+      "nui 4",
+      "point Input = coordinate(x: 1, y: 2)",
+      "module Mixed(width: number, anchor: point) {",
+      "  point P = offset(from: @anchor, dx: @width, dy: 0)",
+      "}",
+      "instance Use = Mixed(width: 3, anchor: @Input)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const width: number = 3");
+    expect(nextSource).toContain("point P = offset(from: @Input, dx: @width, dy: 0)");
+    expect(nextSource).not.toContain("const anchor");
+    expect(compileCurrent(nextSource, "inline-mixed-next").diagnostics).toEqual([]);
+  });
+
+  it("keeps two instances of one Module geometry-local to their own caller targets", () => {
+    const source = [
+      "nui 4",
+      "point FirstInput = coordinate(x: 1, y: 0)",
+      "point SecondInput = coordinate(x: 2, y: 0)",
+      "module M(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}",
+      "instance First = M(anchor: @FirstInput)",
+      "instance Second = M(anchor: @SecondInput)"
+    ].join("\n");
+    const { result } = plan(source, ["First", "Second"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const first = nextSource.slice(nextSource.indexOf("group First {"), nextSource.indexOf("group Second {"));
+    const second = nextSource.slice(nextSource.indexOf("group Second {"));
+    expect(first).toContain("from: @FirstInput");
+    expect(first).not.toContain("from: @SecondInput");
+    expect(second).toContain("from: @SecondInput");
+    expect(second).not.toContain("from: @FirstInput");
+    expect(compileCurrent(nextSource, "inline-multi-next").diagnostics).toEqual([]);
   });
 });
