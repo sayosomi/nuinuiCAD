@@ -9,7 +9,10 @@ import {
 } from "../dsl/dslSemanticOccurrenceIndex";
 import { parseElementActivityLiteral } from "../dsl/dslActivity";
 import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
-import { geometryArrayTypeOfTypedDeclaration } from "../dsl/geometryArraySourceAnnotations";
+import {
+  geometryArrayTypeOfModuleParameter,
+  geometryArrayTypeOfTypedDeclaration
+} from "../dsl/geometryArraySourceAnnotations";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   formatDslReferencePath,
@@ -20,11 +23,14 @@ import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type {
   ModuleDefinitionSemantic,
+  ModuleGeometryPropertySourceTarget,
+  ModuleGeometryReferenceSemantic,
   ModuleInstanceSemantic,
   ModuleScalarExpressionSemantic,
   ResolvedModuleParameterBinding
 } from "../dsl/moduleSemanticTypes";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
+import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import { reconcileStatements } from "./statementReconciler";
@@ -137,9 +143,47 @@ type ScalarParameterLowering = {
 };
 
 type ScalarParameterPreparation =
-  | { kind: "supported"; parameters: readonly ScalarParameterLowering[] }
+  | {
+      kind: "supported";
+      scalarParameters: readonly ScalarParameterLowering[];
+      geometryParameters: readonly GeometryParameterSubstitution[];
+    }
   | { kind: "unsupported"; reason: string }
   | { kind: "unsafe"; code: "unsafe-source-span" | "unsafe-rewrite"; message: string };
+
+type GeometryParameterOwner =
+  | { kind: "source"; statementId: StatementIdentity }
+  | { kind: "coordinate" };
+
+type GeometryParameterSubstitution = {
+  parameterIndex: number;
+  parameterName: string;
+  parameter: DslModuleParameter;
+  interfaceType: "point" | "line" | "path";
+  state: "requiredSupplied" | "optionalSupplied" | "optionalOmitted";
+  argumentSource: string | null;
+  argumentRange: ExactSourceRange | null;
+  argumentReference: ModuleGeometryReferenceSemantic | null;
+  expectedOwner: GeometryParameterOwner | null;
+};
+
+type GeometrySubstitutionProvenance = {
+  originalStatementId: StatementIdentity;
+  parameterDefinitionStatementId: StatementIdentity;
+  parameterIndex: number;
+  bodySourceRange: ExactSourceRange;
+  callerArgumentRange: ExactSourceRange;
+  callerArgumentSource: string;
+  emittedSource: string;
+  callerReference: ModuleGeometryReferenceSemantic;
+  expectedOwner: GeometryParameterOwner;
+  siteKind: "direct" | "property" | "builtin";
+};
+
+type GeometrySubstitutionReference = Omit<ModuleGeometryReferenceSemantic, "target"> & {
+  target: ModuleGeometryReferenceSemantic["target"] |
+    Extract<ModuleGeometryPropertySourceTarget, { kind: "parameterProperty" }>;
+};
 
 type InlineEntry = {
   target: InlineModuleTargetIdentity;
@@ -151,6 +195,7 @@ type InlineEntry = {
   statementInfo: NonNullable<CompiledDslDocument["statementMap"]>["statements"][number];
   body: BodyRange;
   scalarParameters: readonly ScalarParameterLowering[];
+  geometryParameters: readonly GeometryParameterSubstitution[];
   bodyTransformation: BodyTransformation;
 };
 
@@ -187,6 +232,12 @@ type InitializerRewrite = {
   replacement: AbsoluteReplacement;
 };
 
+type GeometryArgumentRewrite = {
+  targetStatementId: StatementIdentity;
+  parameterIndex: number;
+  replacement: AbsoluteReplacement;
+};
+
 type BodyStatementProvenance = {
   originalStatementId: StatementIdentity;
   outputLineIndex: number;
@@ -198,6 +249,7 @@ type BodyStatementProvenance = {
 type BodyTransformation = {
   bodyLines: readonly string[];
   provenance: readonly BodyStatementProvenance[];
+  geometrySubstitutions: readonly GeometrySubstitutionProvenance[];
 };
 
 const reject = (
@@ -294,6 +346,11 @@ type ExpressionSpecializationResult =
     }
   | { kind: "unsafe"; message: string };
 
+type InlineGeometryExpressionReplacement = {
+  text: string;
+  range: ExactSourceRange;
+};
+
 const semanticSpanKey = (span: { start: number; end: number }): string => `${span.start}:${span.end}`;
 
 const physicalRangeForLogicalSpan = (
@@ -336,7 +393,8 @@ const specializeInlineScalarExpression = (
   compiled: CompiledDslDocument,
   statement: DslStatement,
   semantic: ModuleScalarExpressionSemantic,
-  presenceByParameter: ReadonlyMap<string, boolean>
+  presenceByParameter: ReadonlyMap<string, boolean>,
+  geometryReplacements: ReadonlyMap<string, InlineGeometryExpressionReplacement> = new Map()
 ): ExpressionSpecializationResult => {
   const metadataBySpan = new Map<string, { definitionStatementId: StatementIdentity; parameterIndex: number }>();
   for (const metadata of semantic.hasValueParameters) {
@@ -406,6 +464,11 @@ const specializeInlineScalarExpression = (
         eliminatedSourceRanges: [range]
       };
     }
+    const geometryReplacement = geometryReplacements.get(semanticSpanKey(node.span));
+    if (geometryReplacement && (
+      geometryReplacement.range.from !== range.from ||
+      geometryReplacement.range.to !== range.to
+    )) return null;
     if (node.kind === "booleanLiteral") {
       return {
         text: original,
@@ -551,7 +614,13 @@ const specializeInlineScalarExpression = (
         eliminatedSourceRanges: eliminatedSourceRangesForChildren(argumentsResult)
       };
     }
-    return { text: original, range, changed: false, known: null, eliminatedSourceRanges: [] };
+    return {
+      text: geometryReplacement?.text ?? original,
+      range,
+      changed: geometryReplacement !== undefined,
+      known: null,
+      eliminatedSourceRanges: []
+    };
   };
 
   const result = specialize(semantic.ast);
@@ -584,7 +653,7 @@ const prepareScalarParameterLowering = (
     };
   }
   if (entry.definition.parameters.length === 0 && entry.instance.parameterBindings.length === 0) {
-    return { kind: "supported", parameters: [] };
+    return { kind: "supported", scalarParameters: [], geometryParameters: [] };
   }
   if (
     definitionStatement.parameters.length !== entry.definition.parameters.length ||
@@ -609,12 +678,13 @@ const prepareScalarParameterLowering = (
     bindingsByParameterIndex.set(binding.parameterIndex, binding);
   }
 
-  const parameters: ScalarParameterLowering[] = [];
+  const scalarParameters: ScalarParameterLowering[] = [];
+  const geometryParameters: GeometryParameterSubstitution[] = [];
   for (const resolvedParameter of entry.definition.parameters) {
     const parameterIndex = resolvedParameter.parameterIndex;
     const parameter = definitionStatement.parameters[parameterIndex];
     const binding = bindingsByParameterIndex.get(parameterIndex);
-    if (!parameter || !binding || parameterIndex !== parameters.length) {
+    if (!parameter || !binding || parameterIndex !== scalarParameters.length + geometryParameters.length) {
       return {
         kind: "unsafe",
         code: "unsafe-rewrite",
@@ -623,14 +693,15 @@ const prepareScalarParameterLowering = (
     }
     const parameterType = parameter.type;
     const optional = parameter.optional || resolvedParameter.optional;
-    if (
-      parameter.recordTypeReference ||
-      !isSupportedScalarParameterType(parameterType) ||
-      binding.parameterType?.kind !== parameterType?.kind
-    ) {
+    const geometryArrayType = geometryArrayTypeOfModuleParameter(parameter);
+    const geometryInterfaceType = parameterType?.kind === "point" || parameterType?.kind === "line" || parameterType?.kind === "path"
+      ? parameterType.kind
+      : null;
+    const scalarParameter = !parameter.recordTypeReference && !geometryArrayType && isSupportedScalarParameterType(parameterType);
+    if ((!scalarParameter && geometryInterfaceType === null) || binding.parameterType?.kind !== parameterType?.kind) {
       return {
         kind: "unsupported",
-        reason: "optional scalar 以外の Module parameter はこの Checkpoint では lowering しません。"
+        reason: "record / geometry-array / unsupported Module parameter はこの Checkpoint では lowering しません。"
       };
     }
     if (optional && binding.state !== "optionalSupplied" && binding.state !== "optionalOmitted") {
@@ -656,6 +727,104 @@ const prepareScalarParameterLowering = (
         code: "unsafe-source-span",
         message: "Module parameter の exact-current name/type source span を解決できません。"
       };
+    }
+
+    if (geometryArrayType) {
+      return {
+        kind: "unsupported",
+        reason: "record / geometry-array / unsupported Module parameter はこの Checkpoint では lowering しません。"
+      };
+    }
+    if (geometryInterfaceType !== null) {
+      if (binding.state === "requiredOmitted" || binding.state === "defaultedOmitted") {
+        return {
+          kind: "unsupported",
+          reason: "required omitted / defaulted geometry parameter はこの Checkpoint では lowering しません。"
+        };
+      }
+      if (!optional && binding.state !== "requiredSupplied") {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `required geometry Module parameter「${resolvedParameter.name}」の compiler binding state が一致しません。`
+        };
+      }
+      if (binding.state === "optionalOmitted") {
+        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || binding.value !== null) {
+          return {
+            kind: "unsafe",
+            code: "unsafe-rewrite",
+            message: `optional omitted geometry Module parameter「${resolvedParameter.name}」の compiler binding が一致しません。`
+          };
+        }
+        geometryParameters.push({
+          parameterIndex,
+          parameterName: resolvedParameter.name,
+          parameter,
+          interfaceType: geometryInterfaceType,
+          state: "optionalOmitted",
+          argumentSource: null,
+          argumentRange: null,
+          argumentReference: null,
+          expectedOwner: null
+        });
+        continue;
+      }
+      if (binding.argumentIndex === null || binding.argumentIndex < 0) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の compiler argumentIndex がありません。`
+        };
+      }
+      const argument = entry.statement.arguments[binding.argumentIndex];
+      const argumentRange = argument
+        ? singlePhysicalRange(argument.valuePhysicalSpan, sourceRevision)
+        : null;
+      const argumentReference = binding.value?.kind === "geometry" ? binding.value.reference : null;
+      if (
+        !argument ||
+        !binding.argumentSpan ||
+        binding.argumentSpan.start !== argument.valueSpan.start ||
+        binding.argumentSpan.end !== argument.valueSpan.end ||
+        binding.value?.kind !== "geometry" ||
+        !argumentReference ||
+        argumentReference.span.start !== argument.valueSpan.start ||
+        argumentReference.span.end !== argument.valueSpan.end ||
+        argumentReference.source !== source.slice(argumentRange?.from ?? 0, argumentRange?.to ?? 0) ||
+        (argumentReference.resolution !== "resolved" && argumentReference.resolution !== "deferred") ||
+        (argumentReference.coordinate === null && argumentReference.target === null) ||
+        (argumentReference.coordinate !== null && argumentReference.target !== null) ||
+        argumentReference.expectedGeometryKind !== (geometryInterfaceType === "point" ? "point" : "line") ||
+        !argumentRange ||
+        argumentRange.from >= argumentRange.to
+      ) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の compiler geometry argument binding を証明できません。`
+        };
+      }
+      const expectedOwner = geometryOwnerForReference(compiled, argumentReference);
+      if (!expectedOwner) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の caller geometry owner を証明できません。`
+        };
+      }
+      geometryParameters.push({
+        parameterIndex,
+        parameterName: resolvedParameter.name,
+        parameter,
+        interfaceType: geometryInterfaceType,
+        state: binding.state === "optionalSupplied" ? "optionalSupplied" : "requiredSupplied",
+        argumentSource: source.slice(argumentRange.from, argumentRange.to),
+        argumentRange,
+        argumentReference,
+        expectedOwner
+      });
+      continue;
     }
 
     let initializerRange: { from: number; to: number } | null = null;
@@ -712,7 +881,7 @@ const prepareScalarParameterLowering = (
         message: `Module parameter「${resolvedParameter.name}」の exact-current value/default source span を解決できません。`
       };
     }
-    parameters.push({
+    scalarParameters.push({
       parameterIndex,
       parameterName: resolvedParameter.name,
       parameter,
@@ -724,7 +893,7 @@ const prepareScalarParameterLowering = (
       eliminatedSourceRanges: []
     });
   }
-  return { kind: "supported", parameters };
+  return { kind: "supported", scalarParameters, geometryParameters };
 };
 
 const specializeDefaultInitializersFor = (
@@ -986,6 +1155,90 @@ const bodyStatementSemanticFor = (
   statementId: StatementIdentity
 ) => definition.bodyStatements.find((body) => body.statementId === statementId) ?? null;
 
+const geometryParameterForSlot = (
+  entry: InlineEntry,
+  definitionStatementId: StatementIdentity,
+  parameterIndex: number
+): GeometryParameterSubstitution | null => {
+  if (definitionStatementId !== entry.definition.statementId) return null;
+  return entry.geometryParameters.find((parameter) => parameter.parameterIndex === parameterIndex) ?? null;
+};
+
+type GeometrySubstitutionResult =
+  | { kind: "none" }
+  | { kind: "ok"; replacement: AbsoluteReplacement; provenance: GeometrySubstitutionProvenance }
+  | { kind: "unsafe"; message: string };
+
+const geometrySubstitutionFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  entry: InlineEntry,
+  bodyEntry: StatementEntry,
+  reference: GeometrySubstitutionReference,
+  siteKind: GeometrySubstitutionProvenance["siteKind"],
+  property: string | null = null
+): GeometrySubstitutionResult => {
+  const target = reference.target;
+  const slotTarget = target && (target.kind === "parameter" || target.kind === "parameterProperty") ? target : null;
+  if (!slotTarget) return { kind: "none" };
+  const parameter = geometryParameterForSlot(entry, slotTarget.definitionStatementId, slotTarget.parameterIndex);
+  if (!parameter) {
+    if (slotTarget.definitionStatementId === entry.definition.statementId) {
+      return { kind: "unsafe", message: "Module body geometry parameter の target slot を解決できません。" };
+    }
+    return { kind: "none" };
+  }
+  if (parameter.state === "optionalOmitted") return { kind: "none" };
+  if (
+    parameter.argumentSource === null ||
+    parameter.argumentRange === null ||
+    parameter.argumentReference === null ||
+    parameter.expectedOwner === null
+  ) return { kind: "unsafe", message: "supplied geometry parameter の caller source provenance がありません。" };
+
+  const bodyRange = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, reference.span);
+  if (!bodyRange || bodyRange.from >= bodyRange.to) {
+    return { kind: "unsafe", message: "Module body geometry reference の exact physical source span を解決できません。" };
+  }
+  let propertySuffix = property === null ? "" : `.${property}`;
+  if (siteKind === "direct") {
+    const parsed = parseDslSourceReference(source.slice(bodyRange.from, bodyRange.to));
+    if (parsed.kind !== "valid") {
+      return { kind: "unsafe", message: "Module body geometry reference の source form を検証できません。" };
+    }
+    propertySuffix = parsed.reference.property ? `.${parsed.reference.property}` : "";
+  }
+  if (propertySuffix && parameter.argumentReference.coordinate !== null) {
+    return {
+      kind: "unsafe",
+      message: "coordinate geometry argument を source-reference-only geometry property として移動できません。"
+    };
+  }
+  if (siteKind === "builtin" && parameter.argumentReference.coordinate !== null) {
+    return {
+      kind: "unsafe",
+      message: "coordinate geometry argument を scalar geometry builtin operand として移動できません。"
+    };
+  }
+  const emittedSource = `${parameter.argumentSource}${propertySuffix}`;
+  return {
+    kind: "ok",
+    replacement: { from: bodyRange.from, to: bodyRange.to, text: emittedSource },
+    provenance: {
+      originalStatementId: bodyEntry.statementId,
+      parameterDefinitionStatementId: entry.definition.statementId,
+      parameterIndex: slotTarget.parameterIndex,
+      bodySourceRange: bodyRange,
+      callerArgumentRange: parameter.argumentRange,
+      callerArgumentSource: parameter.argumentSource,
+      emittedSource,
+      callerReference: parameter.argumentReference,
+      expectedOwner: parameter.expectedOwner,
+      siteKind
+    }
+  };
+};
+
 const buildBodyTransformation = (
   source: string,
   starts: readonly number[],
@@ -1018,6 +1271,7 @@ const buildBodyTransformation = (
       .map((candidate) => candidate.statementId)
   );
   const eliminatedSourceRangesByStatement = new Map<StatementIdentity, ExactSourceRange[]>();
+  const geometrySubstitutions: GeometrySubstitutionProvenance[] = [];
   const rememberEliminatedSourceRanges = (
     statementId: StatementIdentity,
     ranges: readonly ExactSourceRange[]
@@ -1034,14 +1288,74 @@ const buildBodyTransformation = (
   ): {
     kind: "ok";
     replacements: readonly AbsoluteReplacement[];
+    geometrySubstitutions: readonly GeometrySubstitutionProvenance[];
   } | { kind: "unsafe"; message: string } => {
     const semantic = bodyStatementSemanticFor(entry.definition, bodyEntry.statementId);
     if (!semantic) return { kind: "unsafe", message: "Module body statement の semantic owner がありません。" };
     const replacements: AbsoluteReplacement[] = [];
     const eliminatedSourceRanges: ExactSourceRange[] = [];
+    const substitutions: GeometrySubstitutionProvenance[] = [];
+    const geometryReplacements = new Map<string, InlineGeometryExpressionReplacement>();
+    const addGeometryReplacement = (
+      result: GeometrySubstitutionResult,
+      semanticSpan: { start: number; end: number }
+    ): { kind: "ok" } | { kind: "unsafe"; message: string } => {
+      if (result.kind === "none") return { kind: "ok" };
+      if (result.kind === "unsafe") return result;
+      const key = semanticSpanKey(semanticSpan);
+      const existing = geometryReplacements.get(key);
+      if (existing && (
+        existing.range.from !== result.replacement.from ||
+        existing.range.to !== result.replacement.to ||
+        existing.text !== result.replacement.text
+      )) {
+        return { kind: "unsafe", message: "Module body geometry semantic sites が重複または競合しています。" };
+      }
+      if (existing) return { kind: "unsafe", message: "Module body geometry semantic site が重複しています。" };
+      if ([...geometryReplacements.values()].some((candidate) =>
+        candidate.range.from < result.replacement.to && result.replacement.from < candidate.range.to
+      )) {
+        return { kind: "unsafe", message: "Module body geometry semantic sites の physical span が重複しています。" };
+      }
+      geometryReplacements.set(key, { range: { from: result.replacement.from, to: result.replacement.to }, text: result.replacement.text });
+      substitutions.push(result.provenance);
+      return { kind: "ok" };
+    };
+
+    for (const site of semantic.geometryReferences) {
+      const target = site.reference.target;
+      if (target?.kind !== "parameter" || target.definitionStatementId !== entry.definition.statementId) continue;
+      const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, site.reference, "direct");
+      const added = addGeometryReplacement(result, site.reference.span);
+      if (added.kind === "unsafe") return added;
+      if (result.kind === "ok") replacements.push(result.replacement);
+    }
     for (const site of semantic.scalarExpressions) {
       if (!includeCondition && site.parameterKey === "condition") continue;
-      if (site.expression.hasValueParameters.length === 0) continue;
+      for (const reference of site.expression.geometryProperties) {
+        if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
+        const geometryReference: GeometrySubstitutionReference = {
+          source: `@${reference.geometryName}.${reference.property}`,
+          span: reference.span,
+          nameSpan: reference.elementNameSpan,
+          expectedGeometryKind: reference.target.geometryKind,
+          role: reference.target.geometryKind === "point" ? "pointReference" : "lineReference",
+          target: reference.target,
+          coordinate: null,
+          resolution: reference.resolution === "resolved" ? "resolved" : "invalid"
+        };
+        const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, geometryReference, "property", reference.property);
+        const added = addGeometryReplacement(result, reference.span);
+        if (added.kind === "unsafe") return added;
+      }
+      for (const builtin of site.expression.geometryBuiltinArguments) {
+        const target = builtin.reference.target;
+        if (target?.kind !== "parameter" || target.definitionStatementId !== entry.definition.statementId) continue;
+        const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, builtin.reference, "builtin");
+        const added = addGeometryReplacement(result, builtin.reference.span);
+        if (added.kind === "unsafe") return added;
+      }
+      if (site.expression.hasValueParameters.length === 0 && geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.span);
       if (!range) return { kind: "unsafe", message: "Module body scalar expression の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1049,14 +1363,38 @@ const buildBodyTransformation = (
         compiled,
         bodyEntry.statement,
         site.expression,
-        presenceByParameter
+        presenceByParameter,
+        geometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
       eliminatedSourceRanges.push(...specialized.eliminatedSourceRanges);
       if (specialized.changed) replacements.push({ from: range.from, to: range.to, text: specialized.text });
     }
     for (const site of semantic.textTemplateHoles) {
-      if (site.expression.hasValueParameters.length === 0) continue;
+      for (const reference of site.expression.geometryProperties) {
+        if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
+        const geometryReference: GeometrySubstitutionReference = {
+          source: `@${reference.geometryName}.${reference.property}`,
+          span: reference.span,
+          nameSpan: reference.elementNameSpan,
+          expectedGeometryKind: reference.target.geometryKind,
+          role: reference.target.geometryKind === "point" ? "pointReference" : "lineReference",
+          target: reference.target,
+          coordinate: null,
+          resolution: reference.resolution === "resolved" ? "resolved" : "invalid"
+        };
+        const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, geometryReference, "property", reference.property);
+        const added = addGeometryReplacement(result, reference.span);
+        if (added.kind === "unsafe") return added;
+      }
+      for (const builtin of site.expression.geometryBuiltinArguments) {
+        const target = builtin.reference.target;
+        if (target?.kind !== "parameter" || target.definitionStatementId !== entry.definition.statementId) continue;
+        const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, builtin.reference, "builtin");
+        const added = addGeometryReplacement(result, builtin.reference.span);
+        if (added.kind === "unsafe") return added;
+      }
+      if (site.expression.hasValueParameters.length === 0 && geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.contentSpan);
       if (!range) return { kind: "unsafe", message: "Module text-template hole の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1064,14 +1402,19 @@ const buildBodyTransformation = (
         compiled,
         bodyEntry.statement,
         site.expression,
-        presenceByParameter
+        presenceByParameter,
+        geometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
       eliminatedSourceRanges.push(...specialized.eliminatedSourceRanges);
       if (specialized.changed) replacements.push({ from: range.from, to: range.to, text: specialized.text });
     }
     rememberEliminatedSourceRanges(bodyEntry.statementId, eliminatedSourceRanges);
-    return { kind: "ok", replacements };
+    const retainedSubstitutions = substitutions.filter((substitution) => !eliminatedSourceRanges.some((range) =>
+      substitution.bodySourceRange.from >= range.from && substitution.bodySourceRange.to <= range.to
+    ));
+    geometrySubstitutions.push(...retainedSubstitutions);
+    return { kind: "ok", replacements, geometrySubstitutions: retainedSubstitutions };
   };
 
   type ConditionalOutput = {
@@ -1094,18 +1437,69 @@ const buildBodyTransformation = (
     if (!conditionRange) return { kind: "unsafe", message: "conditional condition の exact physical source span を解決できません。" };
     let conditionText = source.slice(conditionRange.from, conditionRange.to);
     let conditionKnown: InlinePresenceValue | null = null;
-    if (conditionSite.expression.hasValueParameters.length > 0) {
+    const conditionGeometryReplacements = new Map<string, InlineGeometryExpressionReplacement>();
+    const conditionSubstitutions: GeometrySubstitutionProvenance[] = [];
+    const addConditionGeometryReplacement = (
+      result: GeometrySubstitutionResult,
+      semanticSpan: { start: number; end: number }
+    ): { kind: "ok" } | { kind: "unsafe"; message: string } => {
+      if (result.kind === "none") return { kind: "ok" };
+      if (result.kind === "unsafe") return result;
+      const key = semanticSpanKey(semanticSpan);
+      if (conditionGeometryReplacements.has(key)) {
+        return { kind: "unsafe", message: "conditional condition の geometry semantic site が重複しています。" };
+      }
+      if ([...conditionGeometryReplacements.values()].some((candidate) =>
+        candidate.range.from < result.replacement.to && result.replacement.from < candidate.range.to
+      )) {
+        return { kind: "unsafe", message: "conditional condition の geometry semantic sites の physical span が重複しています。" };
+      }
+      conditionGeometryReplacements.set(key, {
+        range: { from: result.replacement.from, to: result.replacement.to },
+        text: result.replacement.text
+      });
+      conditionSubstitutions.push(result.provenance);
+      return { kind: "ok" };
+    };
+    for (const reference of conditionSite.expression.geometryProperties) {
+      if (reference.target?.kind !== "parameterProperty" || reference.target.definitionStatementId !== entry.definition.statementId) continue;
+      const geometryReference: GeometrySubstitutionReference = {
+        source: `@${reference.geometryName}.${reference.property}`,
+        span: reference.span,
+        nameSpan: reference.elementNameSpan,
+        expectedGeometryKind: reference.target.geometryKind,
+        role: reference.target.geometryKind === "point" ? "pointReference" : "lineReference",
+        target: reference.target,
+        coordinate: null,
+        resolution: reference.resolution === "resolved" ? "resolved" : "invalid"
+      };
+      const result = geometrySubstitutionFor(source, compiled, entry, conditional, geometryReference, "property", reference.property);
+      const added = addConditionGeometryReplacement(result, reference.span);
+      if (added.kind === "unsafe") return added;
+    }
+    for (const builtin of conditionSite.expression.geometryBuiltinArguments) {
+      const target = builtin.reference.target;
+      if (target?.kind !== "parameter" || target.definitionStatementId !== entry.definition.statementId) continue;
+      const result = geometrySubstitutionFor(source, compiled, entry, conditional, builtin.reference, "builtin");
+      const added = addConditionGeometryReplacement(result, builtin.reference.span);
+      if (added.kind === "unsafe") return added;
+    }
+    if (conditionSite.expression.hasValueParameters.length > 0 || conditionGeometryReplacements.size > 0) {
       const specialized = specializeInlineScalarExpression(
         source,
         compiled,
         conditional.statement,
         conditionSite.expression,
-        presenceByParameter
+        presenceByParameter,
+        conditionGeometryReplacements
       );
       if (specialized.kind === "unsafe") return specialized;
       conditionText = specialized.text;
       conditionKnown = specialized.known?.presenceDerived ? specialized.known : null;
       rememberEliminatedSourceRanges(conditional.statementId, specialized.eliminatedSourceRanges);
+      geometrySubstitutions.push(...conditionSubstitutions.filter((substitution) => !specialized.eliminatedSourceRanges.some((range) =>
+        substitution.bodySourceRange.from >= range.from && substitution.bodySourceRange.to <= range.to
+      )));
     }
     const conditionReplacement = conditionText === source.slice(conditionRange.from, conditionRange.to)
       ? []
@@ -1290,7 +1684,17 @@ const buildBodyTransformation = (
   if (!appendOrdinaryRange(cursorLine, bodyEndLine)) {
     return { kind: "unsafe", message: "body ordinary source rewrite の exact range を構成できません。" };
   }
-  return { kind: "ok", transformation: { bodyLines: outputLines, provenance } };
+  const emittedStatementIds = new Set(provenance.map((item) => item.originalStatementId));
+  return {
+    kind: "ok",
+    transformation: {
+      bodyLines: outputLines,
+      provenance,
+      geometrySubstitutions: geometrySubstitutions.filter((substitution) =>
+        emittedStatementIds.has(substitution.originalStatementId)
+      )
+    }
+  };
 };
 
 const exportedTokenReplacements = (
@@ -1353,6 +1757,25 @@ const instanceActivity = (
 
 const semanticAnalysisFor = (compiled: CompiledDslDocument) =>
   compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+
+const geometryOwnerForReference = (
+  compiled: CompiledDslDocument,
+  reference: ModuleGeometryReferenceSemantic
+): GeometryParameterOwner | null => {
+  if (reference.coordinate !== null && reference.target === null) return { kind: "coordinate" };
+  const target = reference.target;
+  if (!target) return null;
+  if (target.kind === "sourceGeometry") return { kind: "source", statementId: target.statementId };
+  if (target.kind !== "deferredModuleExport") return null;
+  const analysis = semanticAnalysisFor(compiled);
+  const instance = analysis?.instancesByStatementId.get(target.instanceStatementId);
+  const exported = instance?.callee
+    ? analysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)?.exports.find((candidate) =>
+        candidate.name === target.exportName
+      )
+    : undefined;
+  return exported ? { kind: "source", statementId: exported.exportedStatementId } : null;
+};
 
 const skip = (
   target: InlineModuleTargetIdentity,
@@ -1776,6 +2199,332 @@ const copyOwnerMappingFor = (
     : null;
 };
 
+const geometryTargetForReference = (
+  reference: ModuleGeometryReferenceSemantic,
+  expectedGeometryType: "point" | "line"
+): ScalarExpressionResolvedGeometryTarget | null => {
+  const target = reference.target;
+  if (target?.kind === "sourceGeometry") {
+    return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  if (target?.kind === "deferredModuleExport") {
+    return {
+      statementId: target.instanceStatementId,
+      statementIndex: target.instanceStatementIndex,
+      geometryType: expectedGeometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  }
+  return null;
+};
+
+const sameGeometryTarget = (
+  left: ScalarExpressionResolvedGeometryTarget | null,
+  right: ScalarExpressionResolvedGeometryTarget | null
+): boolean => Boolean(
+  left && right &&
+  left.statementId === right.statementId &&
+  left.geometryType === right.geometryType &&
+  left.pointKey === right.pointKey
+);
+
+const geometryTargetsInTypedExpression = (
+  expression: TypedScalarExpression
+): ScalarExpressionResolvedGeometryTarget[] => {
+  switch (expression.kind) {
+    case "group":
+    case "unary":
+      return geometryTargetsInTypedExpression(expression.kind === "group" ? expression.expression : expression.operand);
+    case "binary":
+      return [
+        ...geometryTargetsInTypedExpression(expression.left),
+        ...geometryTargetsInTypedExpression(expression.right)
+      ];
+    case "call": {
+      const targets: ScalarExpressionResolvedGeometryTarget[] = [];
+      for (const argument of expression.args) {
+        if (argument.kind === "geometryReference") {
+          if (argument.target) targets.push(argument.target);
+        } else {
+          targets.push(...geometryTargetsInTypedExpression(argument.expression));
+        }
+      }
+      return targets;
+    }
+    default:
+      return [];
+  }
+};
+
+const typedExpressionsForStatement = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): TypedScalarExpression[] => {
+  const expressions: TypedScalarExpression[] = [];
+  const seen = new Set<TypedScalarExpression>();
+  const add = (expression: TypedScalarExpression | undefined): void => {
+    if (!expression || seen.has(expression)) return;
+    seen.add(expression);
+    expressions.push(expression);
+  };
+  for (const declaration of compiled.scalarProgram?.statements ?? []) {
+    if (compiled.bindingAnalysis?.catalog.bindingsById.get(declaration.bindingId)?.statementIndex === statementIndex) {
+      add(declaration.declaration.initializer);
+    }
+  }
+  const statementIndexFromKey = (key: string): number | null => {
+    const separator = key.indexOf(":");
+    const parsed = Number(separator < 0 ? key : key.slice(0, separator));
+    return Number.isInteger(parsed) ? parsed : null;
+  };
+  for (const [key, value] of compiled.propertyBindings ?? []) {
+    if (statementIndexFromKey(key) === statementIndex && value.kind === "expression") add(value.expression);
+  }
+  for (const [key, value] of compiled.numericBindings ?? []) {
+    if (statementIndexFromKey(key) === statementIndex) add(value.typedExpression);
+  }
+  for (const [key, expression] of compiled.conditionalGroupConditions ?? []) {
+    if (statementIndexFromKey(key) === statementIndex) add(expression);
+  }
+  for (const [key, template] of compiled.textTemplates ?? []) {
+    if (statementIndexFromKey(key) !== statementIndex) continue;
+    for (const segment of template.segments) {
+      if (segment.kind === "hole" && segment.holeKind !== "numeric") add(segment.expression);
+    }
+  }
+  add(compiled.setStatements?.get(statementIndex)?.expression);
+  return expressions;
+};
+
+type GeometryRewriteResult =
+  | { kind: "ok"; rewrites: readonly GeometryArgumentRewrite[] }
+  | { kind: "invalid"; message: string; target?: InlineModuleTargetIdentity };
+
+const geometryCallerReferenceFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  parameter: GeometryParameterSubstitution
+): ReferenceOccurrence | null => {
+  if (
+    !parameter.argumentRange ||
+    !parameter.argumentSource ||
+    !parameter.argumentReference ||
+    parameter.expectedOwner?.kind !== "source"
+  ) return null;
+  const expectedOwner = `statement:${parameter.expectedOwner.statementId}`;
+  const candidates = finalReferenceOccurrencesForRange(source, index, parameter.argumentRange).filter((candidate) =>
+    candidate.sourceFrom === parameter.argumentRange!.from &&
+    candidate.sourceTo === parameter.argumentRange!.to &&
+    source.slice(candidate.sourceFrom, candidate.sourceTo) === parameter.argumentSource &&
+    ownerTokenForIdentity(compiled, candidate.identity) === expectedOwner
+  );
+  return candidates.length === 1 ? candidates[0]! : null;
+};
+
+const geometryRewriteForCapture = (
+  source: string,
+  compiled: CompiledDslDocument,
+  beforeIndex: DslSemanticOccurrenceIndex,
+  entry: InlineEntry,
+  substitution: GeometrySubstitutionProvenance
+): GeometryArgumentRewrite | null => {
+  if (substitution.expectedOwner.kind !== "source") return null;
+  const parameter = entry.geometryParameters.find((candidate) =>
+    candidate.parameterIndex === substitution.parameterIndex
+  );
+  if (!parameter) return null;
+  const caller = geometryCallerReferenceFor(source, compiled, beforeIndex, parameter);
+  if (!caller) return null;
+  const originalSource = source.slice(caller.sourceFrom, caller.sourceTo);
+  const canonical = canonicalSourceReferenceFor(
+    source,
+    compiled,
+    caller.identity,
+    caller,
+    entry.statementIndex
+  );
+  if (!canonical || canonical === originalSource) return null;
+  return {
+    targetStatementId: entry.target.statementId,
+    parameterIndex: substitution.parameterIndex,
+    replacement: { from: parameter.argumentRange!.from, to: parameter.argumentRange!.to, text: canonical }
+  };
+};
+
+const lexicalGeometryOwnerForSource = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  sourceReference: string
+): StatementIdentity | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const parsed = parseDslSourceReference(sourceReference);
+  if (!namespace || parsed.kind !== "valid") return null;
+  const resolved = resolveSourceLexicalPath(namespace, statementIndex, parsed.reference.path);
+  return resolved.kind === "resolved" ? resolved.declaration.statementId : null;
+};
+
+const remappedGeometryTarget = (
+  target: ScalarExpressionResolvedGeometryTarget,
+  nextCompiled: CompiledDslDocument,
+  mapping: OwnerMapping
+): ScalarExpressionResolvedGeometryTarget => {
+  const statementId = mapping.bodyStatementIds.get(target.statementId) ?? target.statementId;
+  const statementIndex = statementIndexForId(nextCompiled, statementId) ?? target.statementIndex;
+  return { ...target, statementId, statementIndex };
+};
+
+const geometryRewritesFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  nextCompiled: CompiledDslDocument,
+  entries: readonly InlineEntry[],
+  mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
+): GeometryRewriteResult => {
+  const beforeIndex = createDslSemanticOccurrenceIndex(compiled);
+  const afterIndex = createDslSemanticOccurrenceIndex(nextCompiled);
+  const rewrites: GeometryArgumentRewrite[] = [];
+  const addRewrite = (
+    entry: InlineEntry,
+    substitution: GeometrySubstitutionProvenance
+  ): boolean => {
+    const rewrite = geometryRewriteForCapture(source, compiled, beforeIndex, entry, substitution);
+    if (!rewrite) return false;
+    const existing = rewrites.find((candidate) =>
+      candidate.targetStatementId === rewrite.targetStatementId &&
+      candidate.parameterIndex === rewrite.parameterIndex &&
+      candidate.replacement.from === rewrite.replacement.from &&
+      candidate.replacement.to === rewrite.replacement.to
+    );
+    if (existing) return existing.replacement.text === rewrite.replacement.text;
+    rewrites.push(rewrite);
+    return true;
+  };
+
+  for (const entry of entries) {
+    const mapping = mappingsByTarget.get(entry.target.statementId);
+    if (!mapping) return { kind: "invalid", message: "生成した Module group の geometry mapping がありません。", target: entry.target };
+    for (const substitution of entry.bodyTransformation.geometrySubstitutions) {
+      const oldBodyIndex = statementIndexForId(compiled, substitution.originalStatementId);
+      const nextBodyId = mapping.bodyStatementIds.get(substitution.originalStatementId);
+      const nextBodyIndex = nextBodyId ? statementIndexForId(nextCompiled, nextBodyId) : null;
+      if (oldBodyIndex === null || nextBodyIndex === null || nextBodyId === undefined) {
+        return { kind: "invalid", message: "geometry substitution の body owner mapping がありません。", target: entry.target };
+      }
+      const nextStatement = nextCompiled.statements[nextBodyIndex];
+      if (!nextStatement) return { kind: "invalid", message: "geometry substitution の generated body statement がありません。", target: entry.target };
+
+      if (substitution.siteKind === "builtin") continue;
+      const generatedReferences = finalReferenceOccurrencesForRange(
+        nextCompiled.spans.sourceMap.source,
+        afterIndex,
+        nextStatement.documentRange
+      ).filter((reference) =>
+        nextCompiled.spans.sourceMap.source.slice(reference.sourceFrom, reference.sourceTo) === substitution.emittedSource
+      );
+      if (substitution.expectedOwner.kind === "coordinate") {
+        if (generatedReferences.length !== 0 || nextStatement.kind !== "element" || !nextCompiled.sourceElementsByStatementIndex?.has(nextBodyIndex)) {
+          return { kind: "invalid", message: "coordinate geometry substitution の generated geometry role を証明できません。", target: entry.target };
+        }
+        continue;
+      }
+      const expectedOwner = `statement:${substitution.expectedOwner.statementId}`;
+      const peerSubstitutions = entry.bodyTransformation.geometrySubstitutions
+        .filter((candidate) =>
+          candidate.originalStatementId === substitution.originalStatementId &&
+          candidate.siteKind !== "builtin" &&
+          candidate.emittedSource === substitution.emittedSource
+        )
+        .sort((left, right) => left.bodySourceRange.from - right.bodySourceRange.from);
+      const peerIndex = peerSubstitutions.indexOf(substitution);
+      if (
+        generatedReferences.length === peerSubstitutions.length &&
+        peerIndex >= 0 &&
+        ownerTokenForIdentity(nextCompiled, generatedReferences[peerIndex]!.identity) === expectedOwner
+      ) continue;
+      const generatedText = nextCompiled.spans.sourceMap.source.slice(nextStatement.documentRange.from, nextStatement.documentRange.to);
+      let generatedTextCount = 0;
+      let generatedTextCursor = 0;
+      while (true) {
+        const found = generatedText.indexOf(substitution.emittedSource, generatedTextCursor);
+        if (found < 0) break;
+        generatedTextCount += 1;
+        generatedTextCursor = found + substitution.emittedSource.length;
+      }
+      const lexicalOwner = generatedReferences.length === 0 && generatedTextCount === peerSubstitutions.length
+        ? lexicalGeometryOwnerForSource(nextCompiled, nextBodyIndex, substitution.emittedSource)
+        : null;
+      if (lexicalOwner === substitution.expectedOwner.statementId) continue;
+      if (generatedReferences.length > 1 || !addRewrite(entry, substitution)) {
+        return { kind: "invalid", message: "generated geometry reference の semantic owner を canonicalize できません。", target: entry.target };
+      }
+    }
+
+    const expectedBuiltins: { target: ScalarExpressionResolvedGeometryTarget; substitution: GeometrySubstitutionProvenance | null }[] = [];
+    const actualBuiltins: ScalarExpressionResolvedGeometryTarget[] = [];
+    const oldBodies = entry.definition.bodyStatements
+      .map((body) => ({ body, index: statementIndexForId(compiled, body.statementId) }))
+      .filter((candidate): candidate is { body: ModuleDefinitionSemantic["bodyStatements"][number]; index: number } => candidate.index !== null);
+    for (const { body, index } of oldBodies) {
+      if (!mapping.bodyStatementIds.has(body.statementId)) continue;
+      const oldStatement = compiled.statements[index];
+      if (!oldStatement) return { kind: "invalid", message: "Module body statement がありません。", target: entry.target };
+      const nextBodyId = mapping.bodyStatementIds.get(body.statementId);
+      const nextBodyIndex = nextBodyId ? statementIndexForId(nextCompiled, nextBodyId) : null;
+      if (nextBodyIndex === null || nextBodyId === undefined) return { kind: "invalid", message: "generated Module body statement がありません。", target: entry.target };
+      actualBuiltins.push(...typedExpressionsForStatement(nextCompiled, nextBodyIndex).flatMap(geometryTargetsInTypedExpression));
+      const eliminated = entry.bodyTransformation.provenance.find((provenance) => provenance.originalStatementId === body.statementId)?.eliminatedSourceRanges ?? [];
+      const sites = [
+        ...body.scalarExpressions.map((site) => ({ span: site.span, expression: site.expression })),
+        ...body.textTemplateHoles.map((site) => ({ span: site.span, expression: site.expression }))
+      ].sort((left, right) => left.span.start - right.span.start);
+      for (const site of sites) {
+        for (const builtin of site.expression.geometryBuiltinArguments) {
+          const referenceRange = physicalRangeForLogicalSpan(compiled, oldStatement, builtin.reference.span);
+          if (!referenceRange) return { kind: "invalid", message: "geometry builtin の exact physical source span を解決できません。", target: entry.target };
+          if (eliminated.some((range) => referenceRange.from >= range.from && referenceRange.to <= range.to)) continue;
+          const target = builtin.reference.target;
+          if (target?.kind === "parameter" && target.definitionStatementId === entry.definition.statementId) {
+            const substitution = entry.bodyTransformation.geometrySubstitutions.find((candidate) =>
+              candidate.originalStatementId === body.statementId &&
+              candidate.parameterIndex === target.parameterIndex &&
+              candidate.siteKind === "builtin" &&
+              candidate.bodySourceRange.from === referenceRange.from &&
+              candidate.bodySourceRange.to === referenceRange.to
+            );
+            if (!substitution) return { kind: "invalid", message: "geometry builtin parameter substitution の provenance がありません。", target: entry.target };
+            const callerTarget = geometryTargetForReference(substitution.callerReference, builtin.expectedGeometryType);
+            if (!callerTarget) return { kind: "invalid", message: "geometry builtin caller target を解決できません。", target: entry.target };
+            expectedBuiltins.push({ target: callerTarget, substitution });
+            continue;
+          }
+          if (!target || target.kind === "parameter") {
+            return { kind: "invalid", message: "geometry builtin target の semantic owner を解決できません。", target: entry.target };
+          }
+          const originalTarget = geometryTargetForReference(builtin.reference, builtin.expectedGeometryType);
+          if (!originalTarget) return { kind: "invalid", message: "geometry builtin target の semantic geometry を解決できません。", target: entry.target };
+          expectedBuiltins.push({ target: remappedGeometryTarget(originalTarget, nextCompiled, mapping), substitution: null });
+        }
+      }
+    }
+    if (actualBuiltins.length !== expectedBuiltins.length) {
+      return { kind: "invalid", message: "geometry builtin operand 数を証明できません。", target: entry.target };
+    }
+    for (const [index, expected] of expectedBuiltins.entries()) {
+      if (sameGeometryTarget(expected.target, actualBuiltins[index]!)) continue;
+      if (!expected.substitution || expected.substitution.expectedOwner.kind !== "source" || !addRewrite(entry, expected.substitution)) {
+        return { kind: "invalid", message: "geometry builtin operand の semantic owner を証明できません。", target: entry.target };
+      }
+    }
+  }
+  return { kind: "ok", rewrites };
+};
+
 const verifyCopiedBodyOwners = (
   source: string,
   compiled: CompiledDslDocument,
@@ -1798,25 +2547,28 @@ const verifyCopiedBodyOwners = (
     const eliminatedSourceRanges = entry.bodyTransformation.provenance.find((provenance) =>
       provenance.originalStatementId === oldBodyId
     )?.eliminatedSourceRanges ?? [];
-    const oldStatementOccurrences = beforeIndex.occurrences.filter((occurrence) => {
+    const geometrySubstitutions = entry.bodyTransformation.geometrySubstitutions.filter((substitution) =>
+      substitution.originalStatementId === oldBodyId
+    );
+    const oldOccurrenceIsRetained = (occurrence: DslSemanticOccurrence): boolean => {
       const statement = compiled.statements[oldBodyIndex];
-      return Boolean(statement && occurrence.from >= statement.documentRange.from && occurrence.to <= statement.documentRange.to);
-    });
+      if (!statement || occurrence.from < statement.documentRange.from || occurrence.to > statement.documentRange.to) return false;
+      const occurrenceRange = occurrence.kind === "reference"
+        ? sourceReferenceRangeForOccurrence(source, beforeIndex.occurrences, occurrence, statement.documentRange)
+        : { from: occurrence.from, to: occurrence.to };
+      if (!occurrenceRange) return false;
+      if (eliminatedSourceRanges.some((range) => occurrenceRange.from >= range.from && occurrenceRange.to <= range.to)) return false;
+      return !geometrySubstitutions.some((substitution) =>
+        occurrenceRange.from >= substitution.bodySourceRange.from && occurrenceRange.to <= substitution.bodySourceRange.to
+      );
+    };
+    const oldStatementOccurrences = beforeIndex.occurrences.filter(oldOccurrenceIsRetained);
     const expected = occurrenceSlotsForStatement(
       source,
       compiled,
       beforeIndex,
       oldBodyIndex,
-      (occurrence) => {
-        const occurrenceStatement = compiled.statements[oldBodyIndex];
-        if (!occurrenceStatement || eliminatedSourceRanges.length === 0) return true;
-        const occurrenceRange = occurrence.kind === "reference"
-          ? sourceReferenceRangeForOccurrence(source, beforeIndex.occurrences, occurrence, occurrenceStatement.documentRange)
-          : { from: occurrence.from, to: occurrence.to };
-        return occurrenceRange === null || !eliminatedSourceRanges.some((range) =>
-          occurrenceRange.from >= range.from && occurrenceRange.to <= range.to
-        );
-      }
+      oldOccurrenceIsRetained
     ).map((slot) => ({
       ...slot,
       owners: (() => {
@@ -1841,7 +2593,33 @@ const verifyCopiedBodyOwners = (
         return [copied ? `statement:${copied}` : ownerTokenForIdentity(compiled, candidate.identity)];
       })().sort()
     }));
-    const actual = occurrenceSlotsForStatement(nextCompiled.spans.sourceMap.source, nextCompiled, afterIndex, nextBodyIndex);
+    const generatedGeometryRanges = new Set<string>();
+    for (const substitution of geometrySubstitutions) {
+      const generated = finalReferenceOccurrencesForRange(
+        nextCompiled.spans.sourceMap.source,
+        afterIndex,
+        nextCompiled.statements[nextBodyIndex]!.documentRange
+      ).filter((occurrence) =>
+        nextCompiled.spans.sourceMap.source.slice(occurrence.sourceFrom, occurrence.sourceTo) === substitution.emittedSource
+      );
+      for (const occurrence of generated) generatedGeometryRanges.add(`${occurrence.sourceFrom}:${occurrence.sourceTo}`);
+    }
+    const actual = occurrenceSlotsForStatement(
+      nextCompiled.spans.sourceMap.source,
+      nextCompiled,
+      afterIndex,
+      nextBodyIndex,
+      (occurrence) => {
+        if (occurrence.kind !== "reference") return true;
+        const range = sourceReferenceRangeForOccurrence(
+          nextCompiled.spans.sourceMap.source,
+          afterIndex.occurrences,
+          occurrence,
+          nextCompiled.statements[nextBodyIndex]!.documentRange
+        );
+        return range === null || !generatedGeometryRanges.has(`${range.from}:${range.to}`);
+      }
+    );
     if (!compareSlots(expected, actual)) return false;
   }
 
@@ -2087,6 +2865,64 @@ const entriesWithInitializerRewrites = (
     : rewrittenEntries.filter((entry): entry is InlineEntry => entry !== null);
 };
 
+const entriesWithGeometryRewrites = (
+  source: string,
+  starts: readonly number[],
+  compiled: CompiledDslDocument,
+  entries: readonly InlineEntry[],
+  rewrites: readonly GeometryArgumentRewrite[],
+  emitOmittedBranchComments: boolean
+): readonly InlineEntry[] | null => {
+  const rewrittenEntries: (InlineEntry | null)[] = entries.map((entry) => {
+    let changed = false;
+    const geometryParameters = entry.geometryParameters.map((parameter) => {
+      const replacements = rewrites
+        .filter((rewrite) =>
+          rewrite.targetStatementId === entry.target.statementId &&
+          rewrite.parameterIndex === parameter.parameterIndex
+        )
+        .map((rewrite) => rewrite.replacement);
+      if (replacements.length === 0) return parameter;
+      if (parameter.argumentRange === null || parameter.argumentSource === null) return null;
+      const argumentSource = applyAbsoluteReplacements(
+        source,
+        parameter.argumentRange.from,
+        parameter.argumentRange.to,
+        replacements
+      );
+      if (argumentSource === null) return null;
+      changed = true;
+      return { ...parameter, argumentSource };
+    });
+    if (geometryParameters.some((parameter) => parameter === null)) return null;
+    const nextGeometryParameters = geometryParameters as readonly GeometryParameterSubstitution[];
+    if (!changed) return entry;
+    const presenceByParameter = new Map<string, boolean>();
+    for (const parameter of [...entry.scalarParameters, ...nextGeometryParameters]) {
+      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
+        presenceByParameter.set(
+          parameterSlotKey(entry.definition.statementId, parameter.parameterIndex),
+          parameter.state === "optionalSupplied"
+        );
+      }
+    }
+    const bodyTransformation = buildBodyTransformation(
+      source,
+      starts,
+      compiled,
+      { ...entry, geometryParameters: nextGeometryParameters },
+      presenceByParameter,
+      emitOmittedBranchComments
+    );
+    return bodyTransformation.kind === "unsafe"
+      ? null
+      : { ...entry, geometryParameters: nextGeometryParameters, bodyTransformation: bodyTransformation.transformation };
+  });
+  return rewrittenEntries.some((entry) => entry === null)
+    ? null
+    : rewrittenEntries.filter((entry): entry is InlineEntry => entry !== null);
+};
+
 const buildInlineSplices = (
   source: string,
   starts: readonly number[],
@@ -2103,7 +2939,7 @@ const buildInlineSplices = (
   return splices;
 };
 
-/** Plan a safe, host-neutral Module inline mutation with scalar parameter lowering. */
+/** Plan a safe, host-neutral Module inline mutation with scalar and singular geometry parameter lowering. */
 export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlanResult => {
   const { source: snapshot, compiled, policy } = input;
   const source = snapshot.normalizedSource;
@@ -2285,7 +3121,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     ) {
       return reject("unsafe-source-span", "Inline target の exact-current authored statement span を解決できません。", target);
     }
-    const inlineEntryBase: Omit<InlineEntry, "scalarParameters" | "bodyTransformation"> = {
+    const inlineEntryBase: Omit<InlineEntry, "scalarParameters" | "geometryParameters" | "bodyTransformation"> = {
       target,
       statementIndex,
       statement,
@@ -2296,7 +3132,15 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       body,
     };
     const presenceByParameter = new Map<string, boolean>();
-    for (const parameter of scalarParameterPreparation.parameters) {
+    for (const parameter of scalarParameterPreparation.scalarParameters) {
+      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
+        presenceByParameter.set(
+          parameterSlotKey(definition.statementId, parameter.parameterIndex),
+          parameter.state === "optionalSupplied"
+        );
+      }
+    }
+    for (const parameter of scalarParameterPreparation.geometryParameters) {
       if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
         presenceByParameter.set(
           parameterSlotKey(definition.statementId, parameter.parameterIndex),
@@ -2307,7 +3151,12 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     const defaultParameters = specializeDefaultInitializersFor(
       source,
       compiled,
-      { ...inlineEntryBase, scalarParameters: scalarParameterPreparation.parameters, bodyTransformation: { bodyLines: [], provenance: [] } },
+      {
+        ...inlineEntryBase,
+        scalarParameters: scalarParameterPreparation.scalarParameters,
+        geometryParameters: scalarParameterPreparation.geometryParameters,
+        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [] }
+      },
       presenceByParameter
     );
     if (defaultParameters.kind === "unsafe") return reject("unsafe-rewrite", defaultParameters.message, target);
@@ -2315,7 +3164,12 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       source,
       starts,
       compiled,
-      { ...inlineEntryBase, scalarParameters: defaultParameters.parameters, bodyTransformation: { bodyLines: [], provenance: [] } },
+      {
+        ...inlineEntryBase,
+        scalarParameters: defaultParameters.parameters,
+        geometryParameters: scalarParameterPreparation.geometryParameters,
+        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [] }
+      },
       presenceByParameter,
       policy.emitOmittedBranchComments
     );
@@ -2323,6 +3177,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     const inlineEntry: InlineEntry = {
       ...inlineEntryBase,
       scalarParameters: defaultParameters.parameters,
+      geometryParameters: scalarParameterPreparation.geometryParameters,
       bodyTransformation: bodyTransformation.transformation
     };
     const replacement = replacementFor(source, starts, compiled, inlineEntry, body);
@@ -2386,11 +3241,29 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
   let activeEntries: readonly InlineEntry[] = inlined;
   let mappings = ownerMappingsFor(compiled, nextCompiled, activeEntries);
   if (!mappings) return reject("unsafe-rewrite", "生成した group / scalar parameter const の semantic owner を解決できません。");
-  let rewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
-  if (rewriteResult.kind === "invalid") return reject("unsafe-rewrite", rewriteResult.message, rewriteResult.target);
-  if (rewriteResult.rewrites.length > 0) {
-    const rewrittenEntries = entriesWithInitializerRewrites(source, activeEntries, rewriteResult.rewrites);
-    if (!rewrittenEntries) return reject("unsafe-rewrite", "moved initializer の atomic source rewrite を構成できません。");
+  let initializerRewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+  if (initializerRewriteResult.kind === "invalid") return reject("unsafe-rewrite", initializerRewriteResult.message, initializerRewriteResult.target);
+  let geometryRewriteResult = geometryRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+  if (geometryRewriteResult.kind === "invalid") return reject("unsafe-rewrite", geometryRewriteResult.message, geometryRewriteResult.target);
+  if (initializerRewriteResult.rewrites.length > 0 || geometryRewriteResult.rewrites.length > 0) {
+    let rewrittenEntries = activeEntries;
+    if (initializerRewriteResult.rewrites.length > 0) {
+      const entries = entriesWithInitializerRewrites(source, rewrittenEntries, initializerRewriteResult.rewrites);
+      if (!entries) return reject("unsafe-rewrite", "moved initializer の atomic source rewrite を構成できません。");
+      rewrittenEntries = entries;
+    }
+    if (geometryRewriteResult.rewrites.length > 0) {
+      const entries = entriesWithGeometryRewrites(
+        source,
+        starts,
+        compiled,
+        rewrittenEntries,
+        geometryRewriteResult.rewrites,
+        policy.emitOmittedBranchComments
+      );
+      if (!entries) return reject("unsafe-rewrite", "caller geometry の atomic source rewrite を構成できません。");
+      rewrittenEntries = entries;
+    }
     activeEntries = rewrittenEntries;
     const rebuiltSplices = buildInlineSplices(source, starts, compiled, activeEntries);
     if ("status" in rebuiltSplices) return rebuiltSplices;
@@ -2404,10 +3277,15 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     if (!nextCompiled) return reject("unsafe-rewrite", "canonicalized Inline source を再コンパイルできません。");
     mappings = ownerMappingsFor(compiled, nextCompiled, activeEntries);
     if (!mappings) return reject("unsafe-rewrite", "canonicalized group / scalar parameter const の semantic owner を解決できません。");
-    rewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
-    if (rewriteResult.kind === "invalid") return reject("unsafe-rewrite", rewriteResult.message, rewriteResult.target);
-    if (rewriteResult.rewrites.length > 0) {
+    initializerRewriteResult = initializerRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+    if (initializerRewriteResult.kind === "invalid") return reject("unsafe-rewrite", initializerRewriteResult.message, initializerRewriteResult.target);
+    geometryRewriteResult = geometryRewritesFor(source, compiled, nextCompiled, activeEntries, mappings);
+    if (geometryRewriteResult.kind === "invalid") return reject("unsafe-rewrite", geometryRewriteResult.message, geometryRewriteResult.target);
+    if (initializerRewriteResult.rewrites.length > 0) {
       return reject("unsafe-rewrite", "moved initializer の semantic owner を一度の canonical rewrite で証明できません。");
+    }
+    if (geometryRewriteResult.rewrites.length > 0) {
+      return reject("unsafe-rewrite", "caller geometry の semantic owner を一度の canonical rewrite で証明できません。");
     }
   }
 
