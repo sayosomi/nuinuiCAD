@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
   showQuickPick: vi.fn(),
   openConfiguration: [] as unknown[],
   configuration: [] as unknown[],
+  getConfiguration: vi.fn(() => {
+    const settingAtCall = mocks.setting;
+    return { get: () => settingAtCall };
+  }),
   configurationListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   setting: undefined as unknown
 }));
@@ -22,9 +26,7 @@ vi.mock("vscode", () => ({
   },
   window: { showQuickPick: mocks.showQuickPick },
   workspace: {
-    getConfiguration: () => ({
-      get: () => mocks.setting
-    }),
+    getConfiguration: mocks.getConfiguration,
     onDidChangeConfiguration: (listener: (event: { affectsConfiguration: (section: string) => boolean }) => void) => {
       mocks.configurationListeners.push(listener);
       return disposable();
@@ -60,6 +62,7 @@ beforeEach(() => {
   mocks.executeCommand.mockReset();
   mocks.executeCommand.mockResolvedValue(undefined);
   mocks.showQuickPick.mockReset();
+  mocks.getConfiguration.mockClear();
   mocks.configurationListeners.length = 0;
   mocks.setting = undefined;
 });
@@ -69,6 +72,7 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
     mocks.setting = ["addLine", "unknown", "addLine", "addFreePoint"];
     const feature = registerVscodeCanvasQuickCreateFeature({ activeCanvasEndpoint: () => null });
     await flush();
+    expect(mocks.getConfiguration).toHaveBeenCalledTimes(1);
 
     expect(mocks.executeCommand.mock.calls.filter(([command]) => command === "setContext")).toEqual([
       ["setContext", VSCODE_CANVAS_QUICK_CREATE_SLOT_CONTEXT_KEYS[0], "addLine"],
@@ -80,6 +84,7 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
     const listener = mocks.configurationListeners[0];
     listener?.({ affectsConfiguration: (section) => section === VSCODE_CANVAS_QUICK_CREATE_SETTING });
     await flush();
+    expect(mocks.getConfiguration).toHaveBeenCalledTimes(2);
     expect(mocks.executeCommand).toHaveBeenLastCalledWith(
       "setContext",
       VSCODE_CANVAS_QUICK_CREATE_SLOT_CONTEXT_KEYS[5],

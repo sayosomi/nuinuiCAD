@@ -32,10 +32,10 @@ export const registerVscodeCanvasQuickCreateFeature = ({
 }: {
   activeCanvasEndpoint: () => VscodeCanvasCreationEndpoint | null;
 }): vscode.Disposable => {
-  const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
   let contextUpdate: Promise<void> = Promise.resolve();
 
   const refreshSlotContexts = (): void => {
+    const configuration = vscode.workspace.getConfiguration("nuinuiCAD");
     const commands = normalizeVscodeCanvasQuickCreateCommands(
       configuration.get<unknown>("canvasQuickCreate.commands")
     );
