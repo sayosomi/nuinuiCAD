@@ -670,6 +670,7 @@ const canvasObservationSnapshotFor = (
 ): VscodeCanvasObservationSnapshot => ({
   documentVersion,
   selectedElementIds: ["point-a"],
+  canvasCanSelectInstance: false,
   selectionSubject: { kind: "elements" },
   compiledDocumentRevision: 8,
   previewActive: false,
@@ -1507,6 +1508,7 @@ describe("VS Code production document lifecycle", () => {
     for (const command of [
       "nuinuiCAD.clearCanvasSelection",
       "nuinuiCAD.selectParentGroup",
+      "nuinuiCAD.selectInstance",
       "nuinuiCAD.resetCanvasView",
       "nuinuiCAD.fitDrawing",
       "nuinuiCAD.toggleCanvasPointNames",
@@ -1519,6 +1521,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "clearCanvasSelection" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "selectParentGroup" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "selectInstance" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "resetCanvasView" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "fitDrawing" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "toggleCanvasPointNames" });

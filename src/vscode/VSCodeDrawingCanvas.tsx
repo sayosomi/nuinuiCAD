@@ -4,7 +4,8 @@ import { dispatchCommand } from "../commands/commands";
 import {
   canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
-  previewCanvasSelection
+  previewCanvasSelection,
+  resolveOwningModuleInstanceId
 } from "../commands/selectionCommands";
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import {
@@ -283,10 +284,18 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       publishCanvasContextMenu: ({ kind, pointer }) => {
         const viewport = canvasFocusRef.current;
         if (!viewport) return;
+        const currentDocument = useCadDocumentStore.getState();
+        const currentSelection = useCadUiStore.getState();
+        const canSelectInstance = kind === "element" && resolveOwningModuleInstanceId({
+          selectedElementId: currentSelection.selectedElementId,
+          elements: currentDocument.elements,
+          moduleMaterialization: currentDocument.doc.moduleMaterialization
+        }) !== null;
         viewport.dataset.vscodeContext = vscodeCanvasContextDataFor(
           kind,
-          useCadUiStore.getState().selectedElementIds.length > 0,
-          pointer
+          currentSelection.selectedElementIds.length > 0,
+          pointer,
+          canSelectInstance
         );
       },
       flushSourceEditorOnCanvasPointerDown: () => "clean",

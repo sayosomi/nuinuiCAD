@@ -2,6 +2,8 @@ import { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
+import { compileDslDocument } from "../dsl/dslDocument";
+import { parseDsl } from "../dsl/dslParser";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
@@ -62,6 +64,14 @@ const makeEvaluationState = (
   ...overrides
 });
 
+const compileMaterializedModuleDocument = (source: string) => {
+  const parsed = parseDsl(source);
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
+  });
+};
+
 const renderCanvas = (
   evaluation: ReturnType<typeof emptyEvaluationResult>,
   evaluationState: EvaluationEngineState | undefined,
@@ -104,6 +114,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toEqual({
       webviewSection: kind,
       "nuinuiCAD.canvasHasSelection": hasSelection,
+      "nuinuiCAD.canvasCanSelectInstance": false,
       preventDefaultContextMenuItems: true
     });
   });
@@ -125,6 +136,62 @@ describe("VSCodeDrawingCanvas adapter", () => {
     useCadUiStore.setState({ selectedElementIds: [] });
     adapter.publishCanvasContextMenu?.({ kind: "blank" });
     expect(context()).toMatchObject({ webviewSection: "blank", "nuinuiCAD.canvasHasSelection": false });
+  });
+
+  it("publishes Select Instance only for the current primary materialized Module body", () => {
+    const previousDocument = useCadDocumentStore.getState();
+    const previousUi = useCadUiStore.getState();
+    try {
+      const compiled = compileMaterializedModuleDocument([
+        "nui 4",
+        "module M() {",
+        "  point P = coordinate(x: 1, y: 2)",
+        "}",
+        "instance First = M()",
+        "point Outside = coordinate(x: 3, y: 4)"
+      ].join("\n"));
+      expect(compiled.document).not.toBeNull();
+      const owner = compiled.document!.elements.find((element) => element.name === "First")!;
+      const body = compiled.document!.elements.find((element) =>
+        element.name === "P" && element.parentGroupId === owner.id
+      )!;
+      const ordinary = compiled.document!.elements.find((element) => element.name === "Outside")!;
+      useCadDocumentStore.setState({
+        elements: compiled.document!.elements,
+        doc: {
+          ...previousDocument.doc,
+          moduleMaterialization: compiled.moduleMaterialization
+        }
+      });
+      useCadUiStore.setState({
+        selectedElementId: body.id,
+        selectedElementIds: [body.id, ordinary.id]
+      });
+      const { adapter } = renderCanvas(emptyEvaluationResult(compiled.document!.elements), undefined);
+      const viewport = screen.getByTestId("drawing-canvas");
+
+      adapter.publishCanvasContextMenu?.({ kind: "element" });
+      expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toMatchObject({
+        webviewSection: "element",
+        "nuinuiCAD.canvasCanSelectInstance": true
+      });
+
+      useCadUiStore.setState({ selectedElementId: ordinary.id });
+      adapter.publishCanvasContextMenu?.({ kind: "element" });
+      expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toMatchObject({
+        webviewSection: "element",
+        "nuinuiCAD.canvasCanSelectInstance": false
+      });
+
+      adapter.publishCanvasContextMenu?.({ kind: "blank" });
+      expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toMatchObject({
+        webviewSection: "blank",
+        "nuinuiCAD.canvasCanSelectInstance": false
+      });
+    } finally {
+      useCadDocumentStore.setState(previousDocument);
+      useCadUiStore.setState(previousUi);
+    }
   });
 
   it("projects only the exact blank-context pointer into VS Code context data", () => {

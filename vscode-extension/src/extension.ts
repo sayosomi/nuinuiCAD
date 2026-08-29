@@ -1789,6 +1789,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     ["nuinuiCAD.canvasRedo", "redo"],
     ["nuinuiCAD.clearCanvasSelection", "clearCanvasSelection"],
     ["nuinuiCAD.selectParentGroup", "selectParentGroup"],
+    ["nuinuiCAD.selectInstance", "selectInstance"],
     ["nuinuiCAD.resetCanvasView", "resetCanvasView"],
     ["nuinuiCAD.fitDrawing", "fitDrawing"],
     ["nuinuiCAD.toggleCanvasPointNames", "toggleCanvasPointNames"],

@@ -269,7 +269,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       type: "canvasObservationPublication",
       snapshot: canvasObservationSnapshot({
         documentVersion,
+        selectedElementId: uiState.selectedElementId,
         selectedElementIds: uiState.selectedElementIds,
+        elements: current.state.elements,
+        moduleMaterialization: current.state.doc.moduleMaterialization,
         selectionSubject: uiState.selectionSubject,
         compiledDocumentRevision: current.state.compiledDocumentRevision,
         previewActive: current.state.previewElements !== null,

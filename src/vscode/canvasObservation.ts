@@ -1,10 +1,12 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import { resolveOwningModuleInstanceId } from "../commands/selectionCommands";
 import { effectiveCompiledDocument, effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadSelectionSubject } from "../state/cadUiStore";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, ElementId } from "../types/geometry";
 import type {
   VscodeCanvasObservationElementSource,
   VscodeCanvasObservationIssueSummary,
@@ -111,7 +113,10 @@ const issueSummary = (
 export const canvasObservationSnapshot = (input: {
   documentVersion: number;
   selectedElementIds: readonly string[];
+  selectedElementId?: ElementId | null;
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
+  elements?: readonly CadElement[];
+  moduleMaterialization?: ModuleMaterialization;
   selectionSubject: CadSelectionSubject;
   compiledDocumentRevision: number;
   previewActive: boolean;
@@ -127,10 +132,16 @@ export const canvasObservationSnapshot = (input: {
   );
   const errors = (input.evaluationState.evaluation.errors ?? []).map(issueSummary);
   const warnings = (input.evaluationState.evaluation.warnings ?? []).map(issueSummary);
+  const canvasCanSelectInstance = resolveOwningModuleInstanceId({
+    selectedElementId: input.selectedElementId,
+    elements: input.elements ?? [],
+    moduleMaterialization: input.moduleMaterialization
+  }) !== null;
 
   return {
     documentVersion: input.documentVersion,
     selectedElementIds: selection.selectedElementIds,
+    canvasCanSelectInstance,
     selectedElementSources: selection.selectedElementSources,
     selectionSubject: selection.selectionSubject,
     compiledDocumentRevision: input.compiledDocumentRevision,
