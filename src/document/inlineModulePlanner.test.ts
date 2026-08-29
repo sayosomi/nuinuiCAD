@@ -1416,3 +1416,250 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(compileCurrent(nextSource, "inline-multi-next").diagnostics).toEqual([]);
   });
 });
+
+describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
+  it("lowers a required point[] literal to one exact typed local const", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "module Outline(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Use = Outline(points: [@A, @B])"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const points: point[] = [@A, @B]");
+    expect(next.match(/const points: point\[\]/g)).toHaveLength(1);
+    expect(next).toContain("line P = polyline(points: @points, closed: false)");
+    expect(next).not.toContain("polyline(points: [@A, @B]");
+    expect(compileCurrent(next, "inline-array-point-next").diagnostics).toEqual([]);
+  });
+
+  it("preserves a required line[] source-array reference and its authored type", () => {
+    const source = [
+      "nui 4",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "const sourceLines: line[] = [@A]",
+      "module Outline(lines: line[]) {",
+      "  line P = offset(sources: @lines, distance: 1, side: left, closed: false)",
+      "}",
+      "instance Use = Outline(lines: @sourceLines)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const lines: line[] = @sourceLines");
+    expect(next).toContain("offset(sources: @lines, distance: 1");
+    expect(next).not.toContain("const lines: line[] = [@A]");
+    expect(compileCurrent(next, "inline-array-line-next").diagnostics).toEqual([]);
+  });
+
+  it("preserves line[] to path[] covariance through the existing array semantics", () => {
+    const source = [
+      "nui 4",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "const lines: line[] = [@A]",
+      "module Outline(paths: path[]) {",
+      "  line P = offset(sources: @paths, distance: 1, side: left, closed: false)",
+      "}",
+      "instance Use = Outline(paths: @lines)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const paths: path[] = @lines");
+    expect(compileCurrent(next, "inline-array-path-next").diagnostics).toEqual([]);
+  });
+
+  it("specializes supplied optional geometry-array presence and emits one local const", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "module Optional(points?: point[]) {",
+      "  if (hasValue(@points)) {",
+      "    line P = polyline(points: @points, closed: false)",
+      "  }",
+      "}",
+      "instance Use = Optional(points: [@A])"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    const generated = next.slice(next.indexOf("group Use {"));
+    expect(generated).toContain("const points: point[] = [@A]");
+    expect(generated.match(/const points: point\[\]/g)).toHaveLength(1);
+    expect(generated).toContain("line P = polyline(points: @points, closed: false)");
+    expect(generated).not.toContain("hasValue(@points)");
+    expect(compileCurrent(next, "inline-array-optional-present-next").diagnostics).toEqual([]);
+  });
+
+  it("omits an optional geometry-array const and prunes its unreachable body reference", () => {
+    const source = [
+      "nui 4",
+      "module Optional(points?: point[]) {",
+      "  if (hasValue(@points)) {",
+      "    line P = polyline(points: @points, closed: false)",
+      "  }",
+      "}",
+      "instance Omitted = Optional()"
+    ].join("\n");
+    const off = plan(source, ["Omitted"]).result;
+    expect(off.status).toBe("planned");
+    if (off.status !== "planned") return;
+    const offSource = applyLineSplices(source, off.splices);
+    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
+    expect(offGenerated).not.toContain("const points: point[]");
+    expect(offGenerated).not.toContain("line P = polyline");
+    expect(offGenerated).not.toContain("@points");
+
+    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
+    expect(on.status).toBe("planned");
+    if (on.status !== "planned") return;
+    const onSource = applyLineSplices(source, on.splices);
+    const onGenerated = onSource.slice(onSource.indexOf("group Omitted {"));
+    expect(onGenerated).not.toContain("const points: point[]");
+    expect(onGenerated).toContain("// if (hasValue(@points)) {");
+    expect(onGenerated).toContain("//   line P = polyline(points: @points, closed: false)");
+    expect(compileCurrent(onSource, "inline-array-optional-omitted-next").diagnostics).toEqual([]);
+  });
+
+  it("canonicalizes only a capture-changing source-array reference", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 1, y: 2)",
+      "const points: point[] = [@A]",
+      "module M(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Use = M(points: @points)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const points: point[] = @::points");
+    expect(next).not.toContain("const points: point[] = @points");
+    expect(compileCurrent(next, "inline-array-capture-next").diagnostics).toEqual([]);
+  });
+
+  it("fails closed when candidate geometry-array ownership cannot be proven", () => {
+    const source = [
+      "nui 4",
+      "point Input = coordinate(x: 1, y: 2)",
+      "module M(points: point[]) {",
+      "  point Input = coordinate(x: 9, y: 9)",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Use = M(points: [@Input])"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const originalCompile = dslDocument.compileDslDocument;
+    const compileSpy = vi.spyOn(dslDocument, "compileDslDocument").mockImplementationOnce((...args) => ({
+      ...originalCompile(...args),
+      diagnostics: [{ severity: "error", line: 1, column: 1, message: "forced array candidate ownership failure" }]
+    }));
+    try {
+      const result = planInlineModule({
+        source: { normalizedSource: source, sourceRevision: REVISION },
+        compiled,
+        targets: [targetFor(compiled, "Use")],
+        policy: DEFAULT_POLICY
+      });
+      expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite" });
+      expect("splices" in result).toBe(false);
+    } finally {
+      compileSpy.mockRestore();
+    }
+  });
+
+  it("lowers mixed scalar, singular geometry, and geometry-array parameters in callee order", () => {
+    const source = [
+      "nui 4",
+      "point Anchor = coordinate(x: 1, y: 2)",
+      "point A = coordinate(x: 3, y: 4)",
+      "module Mixed(width: number, anchor: point, points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "  point Q = offset(from: @anchor, dx: @width, dy: 0)",
+      "}",
+      "instance Use = Mixed(width: 3, anchor: @Anchor, points: [@A])"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next.indexOf("const width: number = 3")).toBeLessThan(next.indexOf("const points: point[] = [@A]"));
+    expect(next).toContain("const points: point[] = [@A]");
+    expect(next).toContain("polyline(points: @points, closed: false)");
+    expect(next).toContain("offset(from: @Anchor, dx: @width, dy: 0)");
+    expect(next).not.toContain("const anchor");
+    expect(compileCurrent(next, "inline-array-mixed-next").diagnostics).toEqual([]);
+  });
+
+  it("keeps geometry-array locals and caller sources target-local for multiple instances", () => {
+    const source = [
+      "nui 4",
+      "point FirstPoint = coordinate(x: 1, y: 0)",
+      "point SecondPoint = coordinate(x: 2, y: 0)",
+      "module M(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance First = M(points: [@FirstPoint])",
+      "instance Second = M(points: [@SecondPoint])"
+    ].join("\n");
+    const { result } = plan(source, ["First", "Second"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    const first = next.slice(next.indexOf("group First {"), next.indexOf("group Second {"));
+    const second = next.slice(next.indexOf("group Second {"));
+    expect(first).toContain("const points: point[] = [@FirstPoint]");
+    expect(first).not.toContain("SecondPoint");
+    expect(second).toContain("const points: point[] = [@SecondPoint]");
+    expect(second).not.toContain("FirstPoint");
+    expect(compileCurrent(next, "inline-array-multi-next").diagnostics).toEqual([]);
+  });
+
+  it("proves generated array locals and copied body references through semantic owners", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "module M(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Use = M(points: [@A])"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const next = compileCurrent(nextSource, "inline-array-proof-next");
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const generated = next.statements.find((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "points" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    const bodyIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(generated).toBeDefined();
+    expect(bodyIndex).toBeGreaterThanOrEqual(0);
+    if (!generated || bodyIndex < 0) return;
+    const arrayValue = next.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementIndex.get(next.statements.indexOf(generated));
+    expect(arrayValue?.type.elementType).toBe("point");
+    const resolved = resolveSourceLexicalPath(next.sourceLexicalNamespace!, bodyIndex, {
+      absolute: false,
+      segments: ["points"]
+    });
+    expect(resolved.kind).toBe("resolved");
+    if (resolved.kind !== "resolved") return;
+    expect(resolved.declaration.statementId).toBe(next.statementMap?.statementIdByStatementIndex?.get(next.statements.indexOf(generated)));
+  });
+});
