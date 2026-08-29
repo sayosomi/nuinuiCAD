@@ -7,6 +7,7 @@ import {
 } from "./vscodeObservationState";
 
 export const VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY = "nuinuiCAD.canvasHasSelection";
+export const VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY = "nuinuiCAD.canvasCanSelectInstance";
 
 export type VscodeObservationCanvasPublication = {
   sessionDocumentUri: string;
@@ -43,6 +44,19 @@ const activeCanvasHasSelection = (
     (activeDocument.canvas?.selectedElementIds.length ?? 0) > 0;
 };
 
+const activeCanvasCanSelectInstance = (
+  state: VscodeObservationState,
+  refreshHostProjection: boolean
+): boolean => {
+  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
+  if (!snapshot.activeDocumentUri) return false;
+  const activeDocument = snapshot.documents.find(
+    (document) => document.documentUri === snapshot.activeDocumentUri
+  );
+  return activeDocument?.activeSurface === "canvas" &&
+    activeDocument.canvas?.canvasCanSelectInstance === true;
+};
+
 /**
  * Owns attached-observation Extension Host lifecycle/publication wiring while
  * leaving exact-current state semantics in VscodeObservationState.
@@ -62,14 +76,22 @@ export const registerVscodeObservationFeature = (
   let contextUpdate: Promise<void> = Promise.resolve();
 
   const projectCanvasSelectionContext = (refreshHostProjection = true): void => {
-    const enabled = !disposed && activeCanvasHasSelection(state, refreshHostProjection);
+    const hasSelection = !disposed && activeCanvasHasSelection(state, refreshHostProjection);
+    const canSelectInstance = !disposed && activeCanvasCanSelectInstance(state, refreshHostProjection);
     contextUpdate = contextUpdate
       .catch(() => undefined)
-      .then(() => vscode.commands.executeCommand(
-        "setContext",
-        VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY,
-        enabled
-      ))
+      .then(() => Promise.all([
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY,
+          hasSelection
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY,
+          canSelectInstance
+        )
+      ]))
       .then(() => undefined);
   };
 

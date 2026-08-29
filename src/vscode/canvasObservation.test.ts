@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { CadElement } from "../types/geometry";
 import type { VscodeCanvasObservationElementSource } from "./canvasObservationProtocol";
 import {
   canvasObservationSnapshot,
@@ -27,17 +29,31 @@ const evaluationState = (
   ...overrides
 });
 
+const compileMaterializedModuleDocument = (source: string) => {
+  const parsed = parseDsl(source);
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `live:${index}`] as const))
+  });
+};
+
 const snapshot = (input: {
   state?: EvaluationEngineState;
   selectionSubject?: { kind: "elements" } | { kind: "binding"; bindingId: string };
+  selectedElementId?: string | null;
   selectedElementIds?: readonly string[];
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
+  elements?: readonly CadElement[];
+  moduleMaterialization?: ModuleMaterialization;
   previewActive?: boolean;
   compiledDocumentRevision?: number;
 } = {}) => canvasObservationSnapshot({
   documentVersion: 7,
+  selectedElementId: input.selectedElementId,
   selectedElementIds: input.selectedElementIds ?? ["point-a", "line-b"],
   selectedElementSources: input.selectedElementSources ?? [],
+  elements: input.elements,
+  moduleMaterialization: input.moduleMaterialization,
   selectionSubject: input.selectionSubject ?? { kind: "elements" },
   compiledDocumentRevision: input.compiledDocumentRevision ?? 12,
   previewActive: input.previewActive ?? false,
@@ -45,6 +61,69 @@ const snapshot = (input: {
 });
 
 describe("canvasObservationSnapshot", () => {
+  it("publishes Select Instance availability from the primary materialized Module body selection", () => {
+    const source = [
+      "nui 4",
+      "module Inner() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "module Outer() {",
+      "  instance Nested = Inner()",
+      "}",
+      "instance Root = Outer()",
+      "point Outside = coordinate(x: 3, y: 4)"
+    ].join("\n");
+    const compiled = compileMaterializedModuleDocument(source);
+    expect(compiled.document).not.toBeNull();
+    const nested = compiled.document!.elements.find((element) => element.name === "Nested");
+    const body = compiled.document!.elements.find((element) =>
+      element.name === "P" && element.parentGroupId === nested?.id
+    );
+    expect(nested).toBeDefined();
+    expect(body).toBeDefined();
+
+    const result = snapshot({
+      selectedElementId: body!.id,
+      selectedElementIds: [body!.id, nested!.id],
+      elements: compiled.document!.elements,
+      moduleMaterialization: compiled.moduleMaterialization
+    });
+
+    expect(result.canvasCanSelectInstance).toBe(true);
+  });
+
+  it("follows the primary selection and fails closed for ordinary, instance, and stale materialization", () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "instance First = M()",
+      "point Outside = coordinate(x: 3, y: 4)"
+    ].join("\n");
+    const compiled = compileMaterializedModuleDocument(source);
+    expect(compiled.document).not.toBeNull();
+    const instance = compiled.document!.elements.find((element) => element.name === "First")!;
+    const body = compiled.document!.elements.find((element) =>
+      element.name === "P" && element.parentGroupId === instance.id
+    )!;
+    const ordinary = compiled.document!.elements.find((element) => element.name === "Outside")!;
+    const common = {
+      selectedElementIds: [body.id, ordinary.id],
+      elements: compiled.document!.elements,
+      moduleMaterialization: compiled.moduleMaterialization
+    };
+
+    expect(snapshot({ ...common, selectedElementId: body.id }).canvasCanSelectInstance).toBe(true);
+    expect(snapshot({ ...common, selectedElementId: ordinary.id }).canvasCanSelectInstance).toBe(false);
+    expect(snapshot({ ...common, selectedElementId: instance.id }).canvasCanSelectInstance).toBe(false);
+    expect(snapshot({
+      ...common,
+      selectedElementId: body.id,
+      moduleMaterialization: undefined
+    }).canvasCanSelectInstance).toBe(false);
+  });
+
   it("publishes current canonical selection and compact evaluation metadata", () => {
     const result = snapshot({
       state: evaluationState({

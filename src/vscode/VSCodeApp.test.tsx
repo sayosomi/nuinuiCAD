@@ -124,6 +124,22 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }));
   });
 
+  it("dispatches Select Instance Canvas messages through the shared command registry", async () => {
+    const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "selectInstance" }
+      }));
+    });
+
+    expect(dispatchCommand).toHaveBeenCalledWith("selectInstance", expect.objectContaining({
+      recordSelectionHistory: true
+    }));
+  });
+
   it("starts the existing command-line creation session for a valid Canvas creation message", async () => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);

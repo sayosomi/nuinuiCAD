@@ -39,6 +39,7 @@ vi.mock("vscode", () => ({
 
 import {
   registerVscodeObservationFeature,
+  VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY,
   VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY
 } from "./vscodeObservationFeature";
 
@@ -61,10 +62,12 @@ const hostDocument = (
 
 const runtimeSnapshot = (
   documentVersion = 3,
-  selectedElementIds: readonly string[] = ["point-a"]
+  selectedElementIds: readonly string[] = ["point-a"],
+  canvasCanSelectInstance = false
 ): VscodeCanvasObservationSnapshot => ({
   documentVersion,
   selectedElementIds,
+  canvasCanSelectInstance,
   selectionSubject: { kind: "elements" },
   compiledDocumentRevision: 8,
   previewActive: false,
@@ -100,9 +103,9 @@ const flushContextUpdates = async (): Promise<void> => {
   for (let index = 0; index < 10; index += 1) await Promise.resolve();
 };
 
-const contextValue = (): boolean | undefined => {
+const contextValue = (key: string): boolean | undefined => {
   const calls = mocks.executeCommand.mock.calls.filter(
-    (call) => call[0] === "setContext" && call[1] === VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY
+    (call) => call[0] === "setContext" && call[1] === key
   );
   return calls.at(-1)?.[2] as boolean | undefined;
 };
@@ -123,29 +126,34 @@ describe("registerVscodeObservationFeature", () => {
     const feature = registerVscodeObservationFeature({ hostDocuments }, state);
 
     await flushContextUpdates();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();
     expect(hostDocuments).toHaveBeenCalled();
     expect(state.snapshot().documents[0]?.canvas?.selectedElementIds).toEqual(["point-a"]);
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     document = hostDocument({ activeSurface: "source" });
     for (const listener of [...mocks.activeEditorListeners]) listener();
     await flushContextUpdates();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     document = hostDocument({ activeSurface: "canvas" });
     for (const listener of [...mocks.tabListeners]) listener();
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.dispose();
     await flushContextUpdates();
     expect(feature.acceptCanvasPublication(publication())).toBe(false);
     expect(state.snapshot().documents).toEqual([]);
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
   });
 
   it("reprojects when the active Canvas changes without a new selection publication", async () => {
@@ -166,7 +174,8 @@ describe("registerVscodeObservationFeature", () => {
       sessionDocumentUri: secondDocumentUri
     }))).toBe(true);
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     documents = [
       hostDocument({ activeSurface: "none" }),
@@ -178,7 +187,8 @@ describe("registerVscodeObservationFeature", () => {
     ];
     for (const listener of [...mocks.tabListeners]) listener();
     await flushContextUpdates();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     documents = [
       hostDocument(),
@@ -190,7 +200,23 @@ describe("registerVscodeObservationFeature", () => {
     ];
     for (const listener of [...mocks.tabGroupListeners]) listener();
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+
+    feature.dispose();
+  });
+
+  it("projects accepted Select Instance availability and clears it for an ineligible snapshot", async () => {
+    const state = new VscodeObservationState();
+    const feature = registerVscodeObservationFeature({ hostDocuments: () => [hostDocument()] }, state);
+
+    expect(feature.acceptCanvasPublication(publication(runtimeSnapshot(3, ["body"], true)))).toBe(true);
+    await flushContextUpdates();
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(true);
+
+    expect(feature.acceptCanvasPublication(publication(runtimeSnapshot(3, ["instance"], false)))).toBe(true);
+    await flushContextUpdates();
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.dispose();
   });
@@ -201,21 +227,25 @@ describe("registerVscodeObservationFeature", () => {
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.invalidateDocumentRuntime(documentUri);
     await flushContextUpdates();
     expect(state.snapshot().documents[0]?.canvas).toBeNull();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.removeCanvasSession(documentUri);
     await flushContextUpdates();
     expect(state.snapshot().documents[0]?.canvas).toBeNull();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.dispose();
   });
@@ -227,19 +257,22 @@ describe("registerVscodeObservationFeature", () => {
 
     expect(feature.acceptCanvasPublication(publication())).toBe(true);
     await flushContextUpdates();
-    expect(contextValue()).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     documents = [hostDocument({ documentVersion: 4 })];
     expect(feature.acceptCanvasPublication(publication())).toBe(false);
     await flushContextUpdates();
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     documents = [];
     feature.removeDocument(documentUri);
     await flushContextUpdates();
     expect(state.snapshot().documents).toEqual([]);
     expect(feature.acceptCanvasPublication(publication())).toBe(false);
-    expect(contextValue()).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
 
     feature.dispose();
   });

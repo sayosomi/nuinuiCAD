@@ -39,6 +39,7 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.stepSourceValueBackward", `${sourceWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`],
   ["nuinuiCAD.clearCanvasSelection", canvasSelectionEnablement],
   ["nuinuiCAD.selectParentGroup", canvasSelectionEnablement],
+  ["nuinuiCAD.selectInstance", `${canvasWhen} && nuinuiCAD.canvasCanSelectInstance`],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
   ["nuinuiCAD.bakeBaseShape", bakeEnablement],
   ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
@@ -53,6 +54,7 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.stepSourceValueBackward", sourceWhen],
   ["nuinuiCAD.clearCanvasSelection", canvasWhen],
   ["nuinuiCAD.selectParentGroup", canvasWhen],
+  ["nuinuiCAD.selectInstance", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
   ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen],
   ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
