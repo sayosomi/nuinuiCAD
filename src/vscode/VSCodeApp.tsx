@@ -41,10 +41,22 @@ import { canvasNavigationContainerTarget } from "./canvasNavigationContainerTarg
 import { isVscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 import { effectiveDrawElementIds, effectiveEvaluationElementIds } from "../model/elementActivity";
 import { effectiveVisibleElementIdsForProfile, visibilityProfileById } from "../model/visibilityProfiles";
+import { creationPlacementForTarget, applyCreationPlacement } from "../model/elementCreationPlacement";
+import { emitCreationRecipe, creationRecipeForType } from "../commands/creationRecipes";
+import { commitSourceCreationInsertion } from "../commands/sourceCreationCommit";
+import {
+  resolveSourceCreationInsertion,
+  sourceCreationInsertionUnsafeError,
+  type SourceCreationCursor
+} from "../commands/sourceCreationInsertion";
+import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
+import type { SelectionSnapshot } from "../state/cadDocumentStore";
+import type { StatementMap } from "../dsl/dslDocument";
 import type {
   ExtensionToVscodeMessage,
   VscodeBenchmarkConfig,
-  VscodeWebviewApi
+  VscodeWebviewApi,
+  VscodeCanvasPointer
 } from "./protocol";
 
 type CanvasHistoryDirection = "undo" | "redo";
@@ -55,6 +67,31 @@ type AuthoritativeHostSourceSnapshot = {
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
+const staleSourceAnchorError = "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。";
+const canvasPointerError = "Canvas上にポインターを置いてから実行してください。";
+
+const sourceElementIdForLine = (
+  line: number,
+  elements: readonly { id: string }[],
+  statementMap: StatementMap
+): string | null => {
+  const currentElementIds = new Set(elements.map((element) => element.id));
+  const candidates = [...statementMap.byElementId.entries()].filter(([elementId, info]) =>
+    currentElementIds.has(elementId) && info.line <= line && line <= info.endLine
+  );
+  if (candidates.length === 0) return null;
+  const deepestIndent = Math.max(...candidates.map(([, info]) => info.indentDepth));
+  const deepest = candidates.filter(([, info]) => info.indentDepth === deepestIndent);
+  return deepest.length === 1 ? deepest[0][0] : null;
+};
+
+type PendingCanvasFreePointCommit = {
+  requestId: number;
+  expectedDocumentVersion: number;
+  previousSourceText: string;
+  previousSelection: SelectionSnapshot;
+  nextSourcePosition: { line: number; character: number };
+};
 
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const elements = useCadDocumentStore(effectiveElements);
@@ -76,6 +113,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     Extract<ExtensionToVscodeMessage, { type: "canvasNavigationRequest" }> | null
   >(null);
   const pendingCanvasFocusRequestRef = useRef<number | null>(null);
+  const pendingCanvasFreePointCommitRef = useRef<PendingCanvasFreePointCommit | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
@@ -175,7 +213,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
 
-  const postCanvasCommit = useCallback(() => {
+  const postCanvasCommit = useCallback((operationId?: number) => {
     if (benchmarkConfig) return;
     const expectedDocumentVersion = latestHostDocumentVersionRef.current;
     if (expectedDocumentVersion === null) return;
@@ -186,6 +224,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceText: useCadDocumentStore.getState().sourceText,
       expectedDocumentVersion,
       mutationKind,
+      ...(operationId === undefined ? {} : { operationId }),
       ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
     });
   }, [api, benchmarkConfig]);
@@ -517,10 +556,181 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
     };
 
+    const runCanvasFreePointAtPointer = (
+      message: Extract<ExtensionToVscodeMessage, { type: "canvasFreePointAtPointer" }>
+    ): void => {
+      const reject = (): void => {
+        api.postMessage({
+          type: "canvasFreePointAtPointerResult",
+          requestId: message.requestId,
+          status: "rejected",
+          documentVersion: latestHostDocumentVersionRef.current ?? message.documentVersion
+        });
+      };
+      if (pendingCanvasFreePointCommitRef.current !== null) {
+        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+        reject();
+        return;
+      }
+      if (!Number.isFinite(message.pointer.x) || !Number.isFinite(message.pointer.y)) {
+        useCadUiStore.getState().setCommandErrorMessage(canvasPointerError);
+        reject();
+        return;
+      }
+      if (
+        !Number.isInteger(message.sourcePosition.line) ||
+        message.sourcePosition.line < 0 ||
+        !Number.isInteger(message.sourcePosition.character) ||
+        message.sourcePosition.character < 0 ||
+        !Number.isFinite(message.documentVersion) ||
+        !Number.isInteger(message.documentVersion)
+      ) {
+        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+        reject();
+        return;
+      }
+
+      const current = currentAuthoritativeDocument(message.documentVersion);
+      if (!current) {
+        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+        reject();
+        return;
+      }
+
+      const sourcePositionLine = message.sourcePosition.line + 1;
+      const sourceTextLines = current.source.normalizedSource.split("\n");
+      const sourceCursor: SourceCreationCursor = {
+        sourceRevision: current.source.sourceRevision,
+        line: sourcePositionLine,
+        lineCount: sourceTextLines.length,
+        elementId: sourceElementIdForLine(
+          sourcePositionLine,
+          current.state.elements,
+          current.state.doc.statementMap
+        )
+      };
+      const sourceResolution = resolveSourceCreationInsertion({
+        cursor: sourceCursor,
+        sourceRevision: current.source.sourceRevision,
+        elements: current.state.elements,
+        statementMap: current.state.doc.statementMap
+      });
+      if (sourceResolution.kind !== "safe") {
+        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+        reject();
+        return;
+      }
+
+      const placement = creationPlacementForTarget(
+        current.state.elements,
+        sourceResolution.insertion.insertionTarget,
+        current.state.evaluationLimitIndex
+      );
+      const recipe = creationRecipeForType("freePoint");
+      if (!recipe) {
+        useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+        reject();
+        return;
+      }
+      const name = makeUniqueElementName({
+        elements: current.state.elements,
+        requestedName: fallbackElementName(recipe.type),
+        fallbackBaseName: fallbackElementName(recipe.type),
+        parentGroupId: placement.parentGroupId
+      });
+      const element = applyCreationPlacement(
+        emitCreationRecipe(recipe, {
+          x: message.pointer.x,
+          y: message.pointer.y,
+          name
+        }, {
+          elements: current.state.elements,
+          referenceElements: placement.referenceElements
+        }),
+        placement
+      );
+      if (!currentAuthoritativeDocument(message.documentVersion)) {
+        useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+        reject();
+        return;
+      }
+
+      const uiState = useCadUiStore.getState();
+      const previousSelection: SelectionSnapshot = {
+        selectedElementId: uiState.selectedElementId,
+        selectedElementIds: [...uiState.selectedElementIds],
+        selectionAnchorElementId: uiState.selectionAnchorElementId
+      };
+      const sourceCommit = commitSourceCreationInsertion({
+        elements: current.state.elements,
+        insertionIndex: placement.insertionIndex,
+        insertedElements: [element],
+        sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
+      });
+      if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) {
+        useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+        reject();
+        return;
+      }
+
+      useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
+        selectedElementId: sourceCommit.selectedElementId,
+        selectedElementIds: sourceCommit.insertedElementIds,
+        selectionAnchorElementId: sourceCommit.selectedElementId
+      });
+      const committedSourceLines = normalizedSourceFor(useCadDocumentStore.getState().sourceText).split("\n");
+      const insertedSourceLine = committedSourceLines[sourceResolution.insertion.sourceInsertionLine - 1] ?? "";
+      pendingCanvasFreePointCommitRef.current = {
+        requestId: message.requestId,
+        expectedDocumentVersion: message.documentVersion,
+        previousSourceText: useCadDocumentStore.getState().sourceText,
+        previousSelection,
+        nextSourcePosition: {
+          line: sourceResolution.insertion.sourceInsertionLine - 1,
+          character: insertedSourceLine.length
+        }
+      };
+      postCanvasCommit(message.requestId);
+    };
+
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
       const message = event.data;
       if (rustTransport.handleMessage(message)) return;
-      if (message.type === "canvasThemeChanged") {
+      if (message.type === "canvasFreePointAtPointer") {
+        runCanvasFreePointAtPointer(message);
+        return;
+      } else if (message.type === "canvasCommitResult") {
+        const pending = pendingCanvasFreePointCommitRef.current;
+        if (!pending || pending.requestId !== message.operationId) return;
+        pendingCanvasFreePointCommitRef.current = null;
+        if (
+          message.status !== "accepted" ||
+          !Number.isInteger(message.documentVersion) ||
+          message.documentVersion < pending.expectedDocumentVersion
+        ) {
+          useCadDocumentStore.getState().replaceTextDocument(pending.previousSourceText, {
+            currentFilePath: null,
+            dirtySinceSave: false
+          });
+          useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, pending.previousSelection);
+          useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+          api.postMessage({
+            type: "canvasFreePointAtPointerResult",
+            requestId: pending.requestId,
+            status: "rejected",
+            documentVersion: message.documentVersion
+          });
+          return;
+        }
+        api.postMessage({
+          type: "canvasFreePointAtPointerResult",
+          requestId: pending.requestId,
+          status: "applied",
+          documentVersion: message.documentVersion,
+          nextSourcePosition: pending.nextSourcePosition
+        });
+        return;
+      } else if (message.type === "canvasThemeChanged") {
         if (Number.isInteger(message.generation)) refreshCanvasTheme(message.generation);
       } else if (message.type === "canvasRibbonConfiguration") {
         setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
@@ -817,6 +1027,15 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         canvasTheme={canvasTheme}
         canvasRibbonRibbons={canvasRibbonRibbons}
         measureCanvasTextWidth={measureCanvasTextWidth}
+        postCanvasPointerPosition={(pointer: VscodeCanvasPointer) => {
+          const documentVersion = latestHostDocumentVersionRef.current;
+          if (documentVersion === null || !currentAuthoritativeDocument(documentVersion)) return;
+          api.postMessage({
+            type: "canvasPointerPublication",
+            documentVersion,
+            pointer
+          });
+        }}
         onCanvasRibbonPositionCommit={(ribbonId, position) => {
           api.postMessage({
             type: "canvasRibbonPositionCommit",

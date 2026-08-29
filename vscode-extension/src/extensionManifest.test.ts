@@ -96,6 +96,7 @@ const commandIds = [
   "nuinuiCAD.modulePreview.toggleGeometryNames",
   "nuinuiCAD.modulePreview.togglePoints",
   "nuinuiCAD.createGeometry",
+  "nuinuiCAD.createFreePointAtPointer",
   "nuinuiCAD.create.addFreePoint",
   "nuinuiCAD.create.addText",
   "nuinuiCAD.create.addOffsetPoint",
@@ -199,6 +200,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Module Preview Geometry Names",
       "nuinuiCAD: Toggle Module Preview Points",
       "nuinuiCAD: Create Geometry…",
+      "nuinuiCAD: Create Free Point at Pointer",
       "nuinuiCAD: Create Free Point",
       "nuinuiCAD: Create Text",
       "nuinuiCAD: Create Offset Point",
@@ -285,6 +287,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.toggleGeometryNames", when: "false" },
       { command: "nuinuiCAD.modulePreview.togglePoints", when: "false" },
       { command: "nuinuiCAD.createGeometry", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.createFreePointAtPointer", when: canvasPaletteWhen },
       { command: "nuinuiCAD.create.addFreePoint", when: "false" },
       { command: "nuinuiCAD.create.addText", when: "false" },
       { command: "nuinuiCAD.create.addOffsetPoint", when: "false" },
@@ -328,6 +331,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
+      { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
       { command: "nuinuiCAD.createGeometry", when: canvasBlankWhen, group: "1_create@0" },
       { submenu: "nuinuiCAD.create", when: canvasBlankWhen, group: "1_create@1" },
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },

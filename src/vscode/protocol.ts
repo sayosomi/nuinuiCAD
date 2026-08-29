@@ -75,9 +75,22 @@ export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";
 
 export type VscodeCanvasContextMenuKind = "blank" | "element" | "ribbon";
 
+export type VscodeCanvasPointer = { x: number; y: number };
+
+export const vscodeCanvasPointerContextKeys = {
+  x: "nuinuiCAD.canvasPointerWorldX",
+  y: "nuinuiCAD.canvasPointerWorldY"
+} as const;
+
+export const isVscodeCanvasPointer = (value: unknown): value is VscodeCanvasPointer => {
+  if (typeof value !== "object" || value === null) return false;
+  const pointer = value as Partial<VscodeCanvasPointer>;
+  return Number.isFinite(pointer.x) && Number.isFinite(pointer.y);
+};
+
 export const vscodeWebviewContextDataFor = (
   section: string,
-  values: Readonly<Record<string, string | boolean>> = {}
+  values: Readonly<Record<string, string | number | boolean>> = {}
 ): string => JSON.stringify({
   webviewSection: section,
   ...values,
@@ -86,9 +99,16 @@ export const vscodeWebviewContextDataFor = (
 
 export const vscodeCanvasContextDataFor = (
   kind: VscodeCanvasContextMenuKind,
-  hasSelection: boolean
+  hasSelection: boolean,
+  pointer?: VscodeCanvasPointer
 ): string => vscodeWebviewContextDataFor(kind, {
-  "nuinuiCAD.canvasHasSelection": hasSelection
+  "nuinuiCAD.canvasHasSelection": hasSelection,
+  ...(kind === "blank" && pointer && isVscodeCanvasPointer(pointer)
+    ? {
+        [vscodeCanvasPointerContextKeys.x]: pointer.x,
+        [vscodeCanvasPointerContextKeys.y]: pointer.y
+      }
+    : {})
 });
 
 export const vscodeCanvasRibbonContextData = vscodeCanvasContextDataFor("ribbon", false);
@@ -134,11 +154,24 @@ export type VscodeToExtensionMessage =
   | ({ type: "bakeOperationResult"; surface: "canvas"; mode: "current" | "base" } & VscodeBakeOperationResult)
   | VscodeRustEvaluationRequest
   | {
+      type: "canvasPointerPublication";
+      documentVersion: number;
+      pointer: VscodeCanvasPointer;
+    }
+  | {
+      type: "canvasFreePointAtPointerResult";
+      requestId: number;
+      status: "applied" | "rejected";
+      documentVersion: number;
+      nextSourcePosition?: { line: number; character: number };
+    }
+  | {
       type: "canvasCommit";
       sourceText: string;
       expectedDocumentVersion: number;
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
+      operationId?: number;
     }
   | {
       type: "canvasHistoryRequest";
@@ -195,6 +228,19 @@ export type ExtensionToVscodeMessage =
     }
   | { type: "canvasThemeChanged"; generation: number }
   | { type: "canvasRibbonConfiguration"; ribbons: VscodeCanvasRibbon[] }
+  | {
+      type: "canvasFreePointAtPointer";
+      requestId: number;
+      documentVersion: number;
+      pointer: VscodeCanvasPointer;
+      sourcePosition: { line: number; character: number };
+    }
+  | {
+      type: "canvasCommitResult";
+      operationId: number;
+      status: "accepted" | "rejected";
+      documentVersion: number;
+    }
   | {
       type: "canvasCommand";
       commandId: VscodeCanvasCommandId;

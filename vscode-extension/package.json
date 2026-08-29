@@ -220,6 +220,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.createFreePointAtPointer",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.create.addFreePoint",
           "when": "false"
         },
@@ -493,6 +497,11 @@
         }
       ],
       "webview/context": [
+        {
+          "command": "nuinuiCAD.createFreePointAtPointer",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
+          "group": "1_create@0"
+        },
         {
           "command": "nuinuiCAD.createGeometry",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
@@ -779,6 +788,11 @@
       {
         "command": "nuinuiCAD.createGeometry",
         "title": "nuinuiCAD: Create Geometry…"
+      },
+      {
+        "command": "nuinuiCAD.createFreePointAtPointer",
+        "title": "nuinuiCAD: Create Free Point at Pointer",
+        "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       },
       {
         "command": "nuinuiCAD.create.addFreePoint",

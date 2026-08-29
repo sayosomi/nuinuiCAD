@@ -67,7 +67,8 @@ const renderCanvas = (
   evaluationState: EvaluationEngineState | undefined,
   postCanonicalSourceText = vi.fn(),
   canvasRibbonRibbons: VscodeCanvasRibbon[] = [],
-  onEditCanvasRibbon = vi.fn()
+  onEditCanvasRibbon = vi.fn(),
+  postCanvasPointerPosition = vi.fn()
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -75,6 +76,7 @@ const renderCanvas = (
       evaluationState={evaluationState}
       canvasFocusRef={createRef()}
       postCanonicalSourceText={postCanonicalSourceText}
+      postCanvasPointerPosition={postCanvasPointerPosition}
       currentReferencePickAuthorityFor={() => null}
       canvasRibbonRibbons={canvasRibbonRibbons}
       onEditCanvasRibbon={onEditCanvasRibbon}
@@ -123,6 +125,31 @@ describe("VSCodeDrawingCanvas adapter", () => {
     useCadUiStore.setState({ selectedElementIds: [] });
     adapter.publishCanvasContextMenu?.({ kind: "blank" });
     expect(context()).toMatchObject({ webviewSection: "blank", "nuinuiCAD.canvasHasSelection": false });
+  });
+
+  it("projects only the exact blank-context pointer into VS Code context data", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+    const viewport = screen.getByTestId("drawing-canvas");
+
+    adapter.publishCanvasContextMenu?.({ kind: "blank", pointer: { x: 12.5, y: -8 } });
+    expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).toMatchObject({
+      webviewSection: "blank",
+      "nuinuiCAD.canvasPointerWorldX": 12.5,
+      "nuinuiCAD.canvasPointerWorldY": -8
+    });
+
+    adapter.publishCanvasContextMenu?.({ kind: "element", pointer: { x: 1, y: 2 } });
+    expect(JSON.parse(viewport.getAttribute("data-vscode-context")!)).not.toHaveProperty("nuinuiCAD.canvasPointerWorldX");
+  });
+
+  it("forwards the latest finite world pointer through the Canvas host boundary", () => {
+    const postCanvasPointerPosition = vi.fn();
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), postCanvasPointerPosition);
+
+    adapter.publishCanvasPointerPosition?.({ x: 25, y: -4 });
+    expect(postCanvasPointerPosition).toHaveBeenCalledWith({ x: 25, y: -4 });
   });
 
   it("renders the closed Ribbon surface from shared Canvas state and routes only allowed commands", () => {
