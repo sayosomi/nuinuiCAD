@@ -352,12 +352,13 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
           message.selectionEnd > input.value.length
         ) return;
         input.setSelectionRange(message.selectionStart, message.selectionEnd);
+        publishValueFocus(parameter, input, false);
       }
     };
     window.addEventListener("message", onMessage);
     api.postMessage({ type: "modulePreviewParametersViewReady" });
     return () => window.removeEventListener("message", onMessage);
-  }, [api, parameterForRowIdentity]);
+  }, [api, parameterForRowIdentity, publishValueFocus]);
 
   useEffect(() => {
     const focused = valueFocusRef.current;

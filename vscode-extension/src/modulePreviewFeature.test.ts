@@ -647,7 +647,7 @@ describe("registerModulePreviewFeature", () => {
       value: "3",
       selectionStart: 0,
       selectionEnd: 1,
-      focusGeneration: 4
+      focusGeneration: 5
     }));
     panel.webview.postMessage.mockClear();
     await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID)!();

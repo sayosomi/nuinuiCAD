@@ -271,6 +271,7 @@ describe("ModulePreviewParametersApp", () => {
     if (!refreshedFocus?.focusGeneration) throw new Error("expected refreshed Value focus generation");
 
     input.setSelectionRange(0, 0);
+    vi.mocked(api.postMessage).mockClear();
     act(() => window.dispatchEvent(new MessageEvent("message", {
       data: {
         type: "modulePreviewRestoreParameterValueSelection",
@@ -290,6 +291,30 @@ describe("ModulePreviewParametersApp", () => {
     })));
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(1);
+    expect(api.postMessage).toHaveBeenCalledTimes(1);
+    const acknowledgedFocus = vi.mocked(api.postMessage).mock.calls[0]?.[0] as {
+      type?: string;
+      sessionRevision?: number;
+      value?: string;
+      selectionStart?: number;
+      selectionEnd?: number;
+      focusGeneration?: number;
+    } | undefined;
+    expect(acknowledgedFocus).toMatchObject({
+      type: "modulePreviewParameterValueFocus",
+      sessionId: updatedSnapshot.sessionId,
+      documentUri: updatedSnapshot.documentUri,
+      documentVersion: updatedSnapshot.documentVersion,
+      sourceRevision: updatedSnapshot.sourceRevision,
+      sessionRevision: updatedSnapshot.sessionRevision,
+      targetDefinitionStatementId: updatedSnapshot.target.definitionStatementId,
+      definitionStatementId: "module:inner",
+      parameterIndex: 0,
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1
+    });
+    expect(acknowledgedFocus?.focusGeneration).toBeGreaterThan(refreshedFocus.focusGeneration);
   });
 
   it("does not leave repeated Default state that can discard a newer rapid draft", () => {
