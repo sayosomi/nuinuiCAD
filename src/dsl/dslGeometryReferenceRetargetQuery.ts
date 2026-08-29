@@ -544,6 +544,61 @@ const parseOccurrence = (
   };
 };
 
+const editsAreSafe = (edits: readonly DslGeometryReferenceRetargetEdit[]) => {
+  const ordered = [...edits].sort((left, right) => left.from - right.from || left.to - right.to);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index]!.from < ordered[index - 1]!.to) return false;
+  }
+  return new Set(ordered.map((edit) => `${edit.from}:${edit.to}`)).size === ordered.length;
+};
+
+const applyEdits = (source: string, edits: readonly DslGeometryReferenceRetargetEdit[]) =>
+  [...edits]
+    .sort((left, right) => right.from - left.from || right.to - left.to)
+    .reduce((current, edit) => `${current.slice(0, edit.from)}${edit.newText}${current.slice(edit.to)}`, source);
+
+type CandidateEditProjection =
+  | {
+      ok: true;
+      edits: readonly DslGeometryReferenceRetargetEdit[];
+      proposedSource: string;
+    }
+  | {
+      ok: false;
+      reason: "incomplete-references" | "stale-source" | "unreachable-candidate";
+    };
+
+/** Build the exact source projection shared by candidate applicability and
+ * the final plan. It only consumes ranges and paths already proven by the
+ * semantic/lexical owners above. */
+const candidateEditProjection = (
+  source: SourceSnapshot,
+  target: Pick<DslGeometryReferenceRetargetTarget, "occurrences">,
+  candidate: DslGeometryReferenceRetargetCandidate
+): CandidateEditProjection => {
+  if (candidate.referencePaths.length !== target.occurrences.length) {
+    return { ok: false, reason: "unreachable-candidate" };
+  }
+  const edits = target.occurrences.map((occurrence, index) => ({
+    from: occurrence.pathRange.from,
+    to: occurrence.pathRange.to,
+    expectedText: source.normalizedSource.slice(occurrence.pathRange.from, occurrence.pathRange.to),
+    newText: candidate.referencePaths[index]!
+  }));
+  if (edits.some((edit) =>
+    edit.from < 0 ||
+    edit.to <= edit.from ||
+    edit.to > source.normalizedSource.length ||
+    !edit.expectedText
+  )) {
+    return { ok: false, reason: "incomplete-references" };
+  }
+  if (edits.some((edit) => source.normalizedSource.slice(edit.from, edit.to) !== edit.expectedText)) {
+    return { ok: false, reason: "stale-source" };
+  }
+  return { ok: true, edits, proposedSource: applyEdits(source.normalizedSource, edits) };
+};
+
 const targetFor = (
   exact: ExactSnapshot,
   sourceOffset: number
@@ -583,26 +638,7 @@ const targetFor = (
   const parsedOccurrences = referenceOccurrences.map((occurrence) => parseOccurrence(exact.source, exact.compiled, occurrence));
   if (parsedOccurrences.some((occurrence): occurrence is null => occurrence === null)) return null;
   const occurrences = parsedOccurrences as ParsedOccurrence[];
-  const applicableCandidates: DslGeometryReferenceRetargetCandidate[] = [];
-  for (const candidate of candidates) {
-    if (candidate.identityKey === identityKey) continue;
-    const resolutions = occurrences.map((occurrence) =>
-      candidateSupportsOccurrence(candidate, occurrence)
-        ? resolveCandidatePath(exact.compiled, occurrence, candidate)
-        : null
-    );
-    if (resolutions.every((resolution): resolution is CandidateResolution => resolution !== null)) {
-      applicableCandidates.push({
-        identity: candidate.identity,
-        identityKey: candidate.identityKey,
-        name: candidate.name,
-        interfaceType: candidate.interfaceType,
-        referencePaths: resolutions.map((resolution) => resolution.path)
-      });
-    }
-  }
-
-  return {
+  const target = {
     sourceRevision: exact.source.sourceRevision,
     identity: selected.identity,
     identityKey,
@@ -616,6 +652,34 @@ const targetFor = (
       role,
       property
     })),
+    candidates: [] as DslGeometryReferenceRetargetCandidate[]
+  } satisfies Omit<DslGeometryReferenceRetargetTarget, "candidates"> & {
+    candidates: DslGeometryReferenceRetargetCandidate[];
+  };
+  const applicableCandidates: DslGeometryReferenceRetargetCandidate[] = [];
+  for (const candidate of candidates) {
+    if (candidate.identityKey === identityKey) continue;
+    const resolutions = occurrences.map((occurrence) =>
+      candidateSupportsOccurrence(candidate, occurrence)
+        ? resolveCandidatePath(exact.compiled, occurrence, candidate)
+        : null
+    );
+    if (resolutions.every((resolution): resolution is CandidateResolution => resolution !== null)) {
+      const publicCandidate = {
+        identity: candidate.identity,
+        identityKey: candidate.identityKey,
+        name: candidate.name,
+        interfaceType: candidate.interfaceType,
+        referencePaths: resolutions.map((resolution) => resolution.path)
+      } satisfies DslGeometryReferenceRetargetCandidate;
+      const projection = candidateEditProjection(exact.source, target, publicCandidate);
+      if (!projection.ok || !proposedSourceIsVerified(exact, target, publicCandidate, projection.edits, projection.proposedSource)) continue;
+      applicableCandidates.push(publicCandidate);
+    }
+  }
+
+  return {
+    ...target,
     candidates: applicableCandidates
   };
 };
@@ -633,19 +697,6 @@ export const queryDslGeometryReferenceRetargetTarget = (
   }
 };
 
-const editsAreSafe = (edits: readonly DslGeometryReferenceRetargetEdit[]) => {
-  const ordered = [...edits].sort((left, right) => left.from - right.from || left.to - right.to);
-  for (let index = 1; index < ordered.length; index += 1) {
-    if (ordered[index]!.from < ordered[index - 1]!.to) return false;
-  }
-  return new Set(ordered.map((edit) => `${edit.from}:${edit.to}`)).size === ordered.length;
-};
-
-const applyEdits = (source: string, edits: readonly DslGeometryReferenceRetargetEdit[]) =>
-  [...edits]
-    .sort((left, right) => right.from - left.from || right.to - left.to)
-    .reduce((current, edit) => `${current.slice(0, edit.from)}${edit.newText}${current.slice(edit.to)}`, source);
-
 const mapsMatch = <Value>(before: ReadonlyMap<number, Value>, after: ReadonlyMap<number, Value>) =>
   before.size === after.size && [...before].every(([index, value]) => after.get(index) === value);
 
@@ -660,6 +711,15 @@ const mappedRangeAfterEdits = (
   return edit
     ? { from: range.from + delta, to: range.from + delta + edit.newText.length }
     : null;
+};
+
+const compilerGeometryIdentityIsUsable = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity
+) => {
+  if (identity.kind !== "element") return true;
+  const element = compiled.document?.elements.find((candidate) => candidate.id === identity.elementId);
+  return element !== undefined && element.activity !== "disabled";
 };
 
 const proposedSourceIsVerified = (
@@ -697,6 +757,7 @@ const proposedSourceIsVerified = (
       (!after.statementMap.statementIdByStatementIndex ||
         !mapsMatch(statementMap.statementIdByStatementIndex, after.statementMap.statementIdByStatementIndex)))
   ) return false;
+  if (!compilerGeometryIdentityIsUsable(after, replacement.identity)) return false;
 
   let beforeIndex: DslSemanticOccurrenceIndex;
   let afterIndex: DslSemanticOccurrenceIndex;
@@ -774,21 +835,9 @@ export const planDslGeometryReferenceRetargetEditsResult = (
   const replacementKey = dslSemanticIdentityKey(replacementIdentity);
   const candidate = target.candidates.find((entry) => entry.identityKey === replacementKey);
   if (!candidate) return rejection("candidate-not-found");
-  if (candidate.referencePaths.length !== target.occurrences.length) return rejection("unreachable-candidate");
-
-  const edits = target.occurrences.map((occurrence, index) => ({
-    from: occurrence.pathRange.from,
-    to: occurrence.pathRange.to,
-    expectedText: exact.snapshot.source.normalizedSource.slice(occurrence.pathRange.from, occurrence.pathRange.to),
-    newText: candidate.referencePaths[index]!
-  }));
-  if (edits.some((edit) => edit.from < 0 || edit.to <= edit.from || edit.to > exact.snapshot.source.normalizedSource.length || !edit.expectedText)) {
-    return rejection("incomplete-references");
-  }
-  if (edits.some((edit) => exact.snapshot.source.normalizedSource.slice(edit.from, edit.to) !== edit.expectedText)) {
-    return rejection("stale-source");
-  }
-  const proposedSource = applyEdits(exact.snapshot.source.normalizedSource, edits);
+  const projection = candidateEditProjection(exact.snapshot.source, target, candidate);
+  if (!projection.ok) return rejection(projection.reason);
+  const { edits, proposedSource } = projection;
   if (!proposedSourceIsVerified(exact.snapshot, target, candidate, edits, proposedSource)) {
     return rejection("proposed-source-verification-failed");
   }
