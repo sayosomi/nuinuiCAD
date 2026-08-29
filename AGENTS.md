@@ -129,8 +129,8 @@ For now, document order can continue to serve as both evaluation order and
 display order unless a change explicitly introduces separate visual layering.
 
 The Rust evaluation core is the production source of truth for CAD document
-evaluation. Production hosts that evaluate documents must reuse the same Rust
-evaluator through their host-specific adapter or transport. Keep the TypeScript
+evaluation. Production evaluation must reuse the same Rust evaluator through
+the established host-neutral request/transport boundary. Keep the TypeScript
 evaluator as the reference/parity/test path and compatibility fallback, not a
 second production semantics owner.
 
@@ -141,8 +141,8 @@ tests. Do not make a user-facing element type or dependency form production
 ready until its Rust behavior, geometry output, errors, warnings, and
 per-activity-state evaluation/draw behavior are covered by focused fixtures.
 
-Keep the Tauri command boundary stable. The public Rust command for document
-evaluation should remain `evaluate_document(input)` unless a deliberate
+Keep the host-neutral Rust evaluation boundary stable. The ordinary Rust API for
+document evaluation should remain `evaluate_document(input)` unless a deliberate
 architecture change is requested. Host transport payloads must use JSON-friendly
 arrays and objects, not JavaScript `Map` or `Set`; convert to `Map` / `Set` only
 on the TypeScript side when needed.
@@ -213,32 +213,26 @@ come from command and shortcut metadata in the application.
 ## Architecture and code organization
 
 Use Vite, React, TypeScript, SVG/Canvas rendering, and Zustand where shared state
-is useful. Use Tauri v2 for the Tauri desktop host and VS Code extension APIs for
-the VS Code host.
+is useful. The VS Code extension is the only shipped production product host and
+uses VS Code extension APIs at the host boundary.
 
-The VS Code extension is an actively maintained production host alongside the
-existing Tauri desktop host. Web/browser deployment of the app is discontinued
-and must not be treated as a shipped target when making product or architecture
-decisions. The Vite/browser environment is kept only as a local dev and test
-harness (fast iteration, unit tests, the TypeScript reference evaluator) and
-must not gate or block host-specific production behavior.
+Web/browser deployment of the app is discontinued and must not be treated as a
+shipped target when making product or architecture decisions. The Vite/browser
+environment is kept only as a local dev and test harness (fast iteration, unit
+tests, the TypeScript reference evaluator) and must not gate or block
+VS Code-specific production behavior.
 
-Tauri and VS Code must reuse the same production document, compiler, evaluation,
-and Canvas semantics through narrow host adapters. Host authority and lifecycle
-may differ where the platform requires it, but do not create a second parser,
-resolver, evaluator, renderer, or document semantics merely for one host.
+The VS Code host must reuse the shared production document, compiler, evaluation,
+and Canvas semantics through narrow host adapters. Host-neutral tooling such as
+Headless MCP must reuse the same semantic owners rather than creating a second
+parser, resolver, evaluator, renderer, or document semantics.
 
-Production hosts should use Rust evaluation through the established evaluation
-boundary by default. Tauri and VS Code may use different host transports while
-reusing the same Rust evaluator. Development may run shadow/parity evaluation
-to keep Rust output checked against the TypeScript reference; the TypeScript
-evaluator remains the reference/parity/test path and compatibility fallback,
-not a product target in its own right.
-
-The Tauri macOS app is for local use only and is not distributed to other users.
-Do not add or require Apple notarization for normal builds; notarization
-warnings from `npm run desktop:build` are expected when Apple credentials are
-not configured.
+Production VS Code evaluation should use Rust through the established evaluation
+boundary by default. Development and host-neutral tooling may use their explicit
+transports while reusing the same Rust evaluator. Development may run
+shadow/parity evaluation to keep Rust output checked against the TypeScript
+reference; the TypeScript evaluator remains the reference/parity/test path and
+compatibility fallback, not a product target in its own right.
 
 The product has not started production use yet. When improving the document
 model or saved file format, prefer the cleanest durable shape over backward
@@ -273,7 +267,7 @@ Prefer Rust for deterministic, CPU-heavy, or platform-adjacent work:
 
 Keep React components and Zustand stores independent from host-specific APIs.
 Frontend code should call small adapters such as the evaluation engine rather
-than importing Tauri or VS Code APIs directly throughout the UI.
+than importing host APIs directly throughout the UI.
 
 Keep geometry computation out of React rendering components. Prefer small pure
 functions for geometry, dependency, validation, ordering, and parameter access
@@ -391,9 +385,9 @@ iteration must pass, and retry-until-green is not acceptable verification.
 For documentation, comments, or policy-only changes that do not change source
 code, configuration, generated artifacts, or runtime behavior, `git diff --check`
 and diff review are sufficient. Do not routinely run `npm run build`, `npm run
-lint`, `npm test`, `npm run test:parity`, `cargo check`, `cargo test`, `cargo
-clippy`, or `npm run desktop:build` for such changes; run them only when the task
-explicitly requires them.
+lint`, `npm test`, `npm run test:parity`, `cargo check`, `cargo test`, or
+`cargo clippy` for such changes; run them only when the task explicitly requires
+them.
 
 For TypeScript, TSX, JavaScript, or executable DSL implementation changes, first
 run focused tests that directly cover the changed behavior. When production
@@ -415,11 +409,6 @@ tests covering the changed code. Run `cargo test` and
 `cargo clippy --all-targets -- -D warnings` for broad Rust changes, shared
 evaluation/runtime infrastructure changes, a final regression gate, or when the
 task explicitly requires them.
-
-Run `npm run desktop:build` when Tauri packaging, app configuration, native
-command registration or boundaries, release-build behavior, or an explicit task
-gate requires it. It is not a routine gate for documentation, pure logic, or
-unrelated frontend changes.
 
 If a check cannot be run or fails for unrelated existing reasons, report that
 clearly.
