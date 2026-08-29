@@ -12,6 +12,7 @@ import {
 } from "../../src/dsl/dslConstructions";
 import { compileDslDocument } from "../../src/dsl/dslDocument";
 import { dslStatementKeywords } from "../../src/dsl/dslStatementKeywords";
+import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import { createCadElement } from "../../src/model/elementFactory";
 import { getParameterDefinitions, type ParameterDefinition } from "../../src/parameters/parameterDefinitions";
 import {
@@ -54,6 +55,7 @@ export type ParameterFact = {
 export type ArgumentFact = {
   arg: string;
   parameterKey: string | null;
+  parameter: ParameterFact | null;
   required: boolean;
   positional: boolean;
   special: string | null;
@@ -65,7 +67,6 @@ export type ConstructionFact = {
   construction: string;
   elementType: CadElementType;
   arguments: readonly ArgumentFact[];
-  parameters: readonly ParameterFact[];
 };
 
 export type StatementFact = {
@@ -139,9 +140,32 @@ const parameterFactFor = (definition: ParameterDefinition): ParameterFact => ({
   stepLevels: definition.stepLevels ?? [],
 });
 
-const argumentFactFor = (argument: DslConstructionSpec["args"][number]): ArgumentFact => ({
+const effectiveArgsFor = (spec: DslConstructionSpec): readonly DslConstructionSpec["args"][number][] => {
+  const seen = new Set<string>();
+  return [...spec.args, ...commonArgSpecs].filter((argument) => {
+    if (seen.has(argument.arg)) return false;
+    seen.add(argument.arg);
+    return true;
+  });
+};
+
+const parameterForArgument = (
+  argument: DslConstructionSpec["args"][number],
+  definitions: readonly ParameterDefinition[],
+): ParameterFact | null => {
+  const parameterKey = argument.special ? null : argument.parameterKey ?? argument.arg;
+  if (!parameterKey) return null;
+  const matches = definitions.filter((definition) => definition.key === parameterKey);
+  return matches.length === 1 ? parameterFactFor(matches[0]!) : null;
+};
+
+const argumentFactFor = (
+  argument: DslConstructionSpec["args"][number],
+  definitions: readonly ParameterDefinition[],
+): ArgumentFact => ({
   arg: argument.arg,
   parameterKey: argument.parameterKey ?? (argument.special ? null : argument.arg),
+  parameter: parameterForArgument(argument, definitions),
   required: argument.required === true,
   positional: argument.positional === true,
   special: argument.special ?? null,
@@ -153,16 +177,14 @@ const constructionIdFor = (spec: DslConstructionSpec): string =>
     : `dsl-ref:construction:${spec.category}`;
 
 const constructionFacts = (): readonly ConstructionFact[] => allConstructionCategories.flatMap((category) =>
-  constructionCandidatesFor(category).map((spec) => {
-    const parameters = getParameterDefinitions(sampleElementFor(spec.elementType)).map(parameterFactFor);
-    const argumentsForSpec = [...spec.args, ...commonArgSpecs].map(argumentFactFor);
+  constructionCandidatesFor(category).filter((spec) => spec.construction.length > 0).map((spec) => {
+    const definitions = getParameterDefinitions(sampleElementFor(spec.elementType));
     return {
       id: constructionIdFor(spec),
       category: spec.category,
       construction: spec.construction,
       elementType: spec.elementType,
-      arguments: argumentsForSpec,
-      parameters,
+      arguments: effectiveArgsFor(spec).map((argument) => argumentFactFor(argument, definitions)),
     } satisfies ConstructionFact;
   }),
 );
@@ -236,24 +258,13 @@ export const renderConstructionRegion = (facts: DslReferenceFacts): string => {
       "",
       `**Syntax**: \`${constructionSyntax(fact)}\``,
       "",
-      "**Parameters**:",
-      "",
-      "| Name | Kind and constraints |",
-      "| --- | --- |",
-    );
-    for (const parameter of fact.parameters) {
-      lines.push(`| \`${markdownCell(parameter.key)}\` | ${markdownCell(parameterSummary(parameter))} |`);
-    }
-    if (fact.parameters.length === 0) lines.push("| *(none)* | — |");
-    lines.push(
-      "",
       "**Arguments**:",
       "",
-      "| Spelling | Parameter key | Required | Positional | Special |",
+      "| Spelling | Kind and constraints | Required | Positional | Special |",
       "| --- | --- | --- | --- | --- |",
     );
     for (const argument of fact.arguments) {
-      lines.push(`| \`${markdownCell(argument.arg)}\` | ${argument.parameterKey ? `\`${markdownCell(argument.parameterKey)}\`` : "—"} | ${argument.required ? "yes" : "no"} | ${argument.positional ? "yes" : "no"} | ${argument.special ?? "—"} |`);
+      lines.push(`| \`${markdownCell(argument.arg)}\` | ${argument.parameter ? markdownCell(parameterSummary(argument.parameter)) : "—"} | ${argument.required ? "yes" : "no"} | ${argument.positional ? "yes" : "no"} | ${argument.special ?? "—"} |`);
     }
     lines.push("");
   }
@@ -390,6 +401,16 @@ const compileReferenceExample = (source: string): ReturnType<typeof compileDslDo
   return compileDslDocument(source, { assignedStatementIds });
 };
 
+export const validateExpectedDiagnosticSet = (
+  diagnostics: readonly Pick<DslDiagnostic, "severity" | "code" | "message">[],
+  expectedCode: string,
+) => ({
+  hasExpectedDiagnostic: diagnostics.some((diagnostic) => diagnostic.code === expectedCode),
+  unexpectedErrors: diagnostics.filter(
+    (diagnostic) => diagnostic.severity === "error" && diagnostic.code !== expectedCode,
+  ),
+});
+
 export const validateDslExamples = (examples: readonly DslExample[]): DslReferenceIssue[] => {
   const issues: DslReferenceIssue[] = [];
   for (const example of examples) {
@@ -413,12 +434,12 @@ export const validateDslExamples = (examples: readonly DslExample[]): DslReferen
       continue;
     }
     const expectedCode = example.classification.code;
-    if (!errors.some((diagnostic) => diagnostic.code === expectedCode)) {
+    const expectedDiagnostic = validateExpectedDiagnosticSet(compiled.diagnostics, expectedCode);
+    if (!expectedDiagnostic.hasExpectedDiagnostic) {
       issues.push({ document: example.document, line: example.line, message: `expected diagnostic ${expectedCode} was not produced by the production document compile facade.` });
     }
-    const unexpected = errors.filter((diagnostic) => diagnostic.code !== expectedCode);
-    if (unexpected.length > 0) {
-      issues.push({ document: example.document, line: example.line, message: `expected-diagnostic example has unexpected errors: ${unexpected.map((diagnostic) => diagnostic.code ?? diagnostic.message).join(", ")}` });
+    if (expectedDiagnostic.unexpectedErrors.length > 0) {
+      issues.push({ document: example.document, line: example.line, message: `expected-diagnostic example has unexpected errors: ${expectedDiagnostic.unexpectedErrors.map((diagnostic) => diagnostic.code ?? diagnostic.message).join(", ")}` });
     }
   }
   return issues;
