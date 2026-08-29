@@ -36,6 +36,7 @@ type ExtensionManifest = {
         scope?: string;
         type?: string;
         default?: unknown;
+        maxItems?: number;
         items?: unknown;
       }>;
     };
@@ -406,6 +407,8 @@ describe("VS Code extension manifest command contributions", () => {
     const keybindings = manifest.contributes?.keybindings ?? [];
     const submenu = manifest.contributes?.menus?.["nuinuiCAD.create"] ?? [];
     const creationCommandIds = vscodeCanvasCreationCommands.map(({ commandId }) => commandId);
+    const quickCreateSetting = manifest.contributes?.configuration?.properties?.[VSCODE_CANVAS_QUICK_CREATE_SETTING];
+    const quickCreateEnum = (quickCreateSetting?.items as { enum?: unknown[] } | undefined)?.enum;
 
     expect(manifest.contributes?.submenus).toContainEqual({ id: "nuinuiCAD.create", label: "Create" });
     expect(commands.find(({ command }) => command === "nuinuiCAD.createGeometry")).toEqual({
@@ -450,11 +453,13 @@ describe("VS Code extension manifest command contributions", () => {
         command === "nuinuiCAD.createGeometry" || child === "nuinuiCAD.create"
       );
     expect(createSurfaceEntries.every(({ when }) => when === canvasBlankWhen)).toBe(true);
-    expect(manifest.contributes?.configuration?.properties?.[VSCODE_CANVAS_QUICK_CREATE_SETTING]).toMatchObject({
+    expect(quickCreateSetting).toMatchObject({
       type: "array",
       scope: "application",
-      default: []
+      default: [],
+      maxItems: 6
     });
+    expect(quickCreateEnum).toEqual([...creationCommandIds].sort());
   });
 });
 
