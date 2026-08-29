@@ -14,10 +14,10 @@ import type {
   CommandRibbonPresentationCommandItem
 } from "./CommandRibbonView";
 
-export const resolveTauriCommandRibbonIcon = (iconName: string) =>
+export const resolveCommandRibbonIcon = (iconName: string) =>
   commandRibbonIconComponents[iconName as CommandRibbonIconId] ?? Circle;
 
-export const tauriCommandRibbonPresentation = (
+export const buildCommandRibbonPresentation = (
   ribbon: CommandRibbon,
   disabledCommandIds: ReadonlySet<CommandId> = new Set(),
   docked = false

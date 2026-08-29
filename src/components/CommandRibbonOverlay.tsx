@@ -7,7 +7,7 @@ import { useCadUiStore } from "../state/cadUiStore";
 import type { ViewportSize } from "./canvasViewport";
 import type { RibbonPosition } from "./commandRibbonFloatingGeometry";
 import { CommandRibbonFloatingOverlay } from "./CommandRibbonFloatingOverlay";
-import { tauriCommandRibbonPresentation, resolveTauriCommandRibbonIcon } from "./tauriCommandRibbonAdapter";
+import { buildCommandRibbonPresentation, resolveCommandRibbonIcon } from "./commandRibbonPresentation";
 
 type CommandRibbonOverlayProps = {
   commandContext: CommandContext;
@@ -37,7 +37,7 @@ export const CommandRibbonOverlay = ({
   const ribbons = useMemo(
     () => settings?.ribbons
       .filter((ribbon) => ribbon.dock === "canvas")
-      .map((ribbon) => tauriCommandRibbonPresentation(ribbon)) ?? [],
+      .map((ribbon) => buildCommandRibbonPresentation(ribbon)) ?? [],
     [settings]
   );
 
@@ -59,7 +59,7 @@ export const CommandRibbonOverlay = ({
       ribbons={ribbons}
       viewportSize={viewportSize}
       dockRef={leftPanelDockRef}
-      iconResolver={resolveTauriCommandRibbonIcon}
+      iconResolver={resolveCommandRibbonIcon}
       onPositionChange={(ribbonId, position) => {
         const nextSettings = settingsWithPosition(ribbonId, position);
         settingsRef.current = nextSettings;
