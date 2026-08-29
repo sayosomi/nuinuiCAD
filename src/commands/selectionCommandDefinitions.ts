@@ -35,6 +35,7 @@ import {
   selectAllElements,
   selectElement,
   selectElementByOffset,
+  selectInstance,
   selectParentGroup,
   setEvaluationLimitIndex,
   cycleElementActivity,
@@ -235,6 +236,11 @@ export const selectionCommandDefinitions = {
       if (!context?.elementId) return;
       selectElement(context.elementId, context.selectionMode, context.recordSelectionHistory);
     }
+  },
+  selectInstance: {
+    id: "selectInstance",
+    label: "Select Instance",
+    run: (context?) => selectInstance(context?.recordSelectionHistory)
   },
   clearCanvasSelection: {
     id: "clearCanvasSelection",
