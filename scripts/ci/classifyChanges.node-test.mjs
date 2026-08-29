@@ -103,9 +103,16 @@ const cases = [
     expected: flags({ node: true, full_node: true, vscode: true })
   },
   {
-    name: "Tauri Rust host",
+    name: "deleted Tauri path uses the fail-safe full check set",
     paths: ["src-tauri/src/window.rs"],
-    expected: flags({ rust: true })
+    expected: flags({
+      node: true,
+      full_node: true,
+      vscode: true,
+      rust: true,
+      parity: true,
+      unknown: true
+    })
   },
   {
     name: "Rust evaluator implementation",

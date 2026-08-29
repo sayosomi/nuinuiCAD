@@ -34,7 +34,7 @@ const evaluate = (
 
 const productionRustBinary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(
   process.cwd(),
-  "src-tauri/target/debug/evaluation_stdio"
+  "rust-evaluator/target/debug/evaluation_stdio"
 );
 
 const evaluateWithProductionRust = (compiled: ReturnType<typeof compile>) => {

@@ -47,7 +47,7 @@ const baseSource = [
 
 const rustBinary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(
   process.cwd(),
-  "src-tauri/target/debug/evaluation_stdio"
+  "rust-evaluator/target/debug/evaluation_stdio"
 );
 
 const productionApi = () => {
