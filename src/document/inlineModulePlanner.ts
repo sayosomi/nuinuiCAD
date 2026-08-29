@@ -16,7 +16,10 @@ import {
   geometryArrayTypeOfModuleParameter,
   geometryArrayTypeOfTypedDeclaration
 } from "../dsl/geometryArraySourceAnnotations";
-import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
+import {
+  isGeometryArrayTypeAssignable,
+  type GeometryArrayType
+} from "../dsl/geometryArrayTypes";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   formatDslReferencePath,
@@ -2540,7 +2543,8 @@ const geometryRewriteForCapture = (
 const moduleSourceIdentityForReference = (
   compiled: CompiledDslDocument,
   statementIndex: number,
-  sourceReference: string
+  sourceReference: string,
+  expectedArrayType: GeometryArrayType | null = null
 ): DslSemanticIdentity | null => {
   const namespace = compiled.sourceLexicalNamespace;
   const parsed = parseDslSourceReference(sourceReference);
@@ -2548,6 +2552,10 @@ const moduleSourceIdentityForReference = (
   const path = parsed.reference.path;
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, path);
   if (lookup.kind === "resolved") {
+    if (expectedArrayType) {
+      const value = namespace.geometryArraySemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId);
+      if (!value || !isGeometryArrayTypeAssignable(value.type, expectedArrayType)) return null;
+    }
     return semanticIdentityForModuleTarget(compiled, {
       kind: "moduleSource",
       statementId: lookup.declaration.statementId
@@ -2560,6 +2568,22 @@ const moduleSourceIdentityForReference = (
   ) return null;
   const analysis = semanticAnalysisFor(compiled);
   const instance = analysis?.instancesByStatementId.get(lookup.declaration.statementId);
+  const arrayAnalysis = namespace.geometryArraySemanticAnalysis;
+  const exportedArray = instance?.callee && arrayAnalysis
+    ? arrayAnalysis.values.find((candidate) =>
+        candidate.ownerModuleDefinitionStatementIndex === instance.callee?.definitionStatementIndex &&
+        candidate.exported &&
+        candidate.name === path.segments[1] &&
+        (!expectedArrayType || isGeometryArrayTypeAssignable(candidate.type, expectedArrayType))
+      )
+    : undefined;
+  if (exportedArray) {
+    return semanticIdentityForModuleTarget(compiled, {
+      kind: "moduleSource",
+      statementId: exportedArray.statementId
+    });
+  }
+  if (expectedArrayType) return null;
   const exported = instance?.callee
     ? analysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)?.exports.find((candidate) =>
         candidate.name === path.segments[1]
@@ -2576,16 +2600,20 @@ const moduleSourceIdentityForReference = (
 const geometryArrayInitializerOccurrencesFor = (
   source: string,
   compiled: CompiledDslDocument,
-  entry: InlineEntry,
-  parameter: GeometryArrayParameterLowering
+  statementIndex: number,
+  range: ExactSourceRange,
+  arrayType: GeometryArrayType
 ): ReferenceOccurrence[] | null => {
-  if (parameter.originalExpressionRange === null || parameter.initializerSource === null) return null;
-  const range = parameter.originalExpressionRange;
   const parsed = parseGeometryArrayExpression(source.slice(range.from, range.to));
   if (!parsed.expression || parsed.diagnostics.length > 0) return null;
   const references: ReferenceOccurrence[] = [];
-  const addReference = (text: string, relativeFrom: number, relativeTo: number): boolean => {
-    const identity = moduleSourceIdentityForReference(compiled, entry.statementIndex, text);
+  const addReference = (
+    text: string,
+    relativeFrom: number,
+    relativeTo: number,
+    expectedArrayType: GeometryArrayType | null = null
+  ): boolean => {
+    const identity = moduleSourceIdentityForReference(compiled, statementIndex, text, expectedArrayType);
     if (!identity) return false;
     references.push({
       from: range.from + relativeFrom,
@@ -2601,7 +2629,8 @@ const geometryArrayInitializerOccurrencesFor = (
     return addReference(
       parsed.expression.text,
       parsed.expression.span.start,
-      parsed.expression.span.end
+      parsed.expression.span.end,
+      arrayType
     ) ? references : null;
   }
   for (const member of parsed.expression.members) {
@@ -2627,7 +2656,13 @@ const geometryArrayCaptureRewritesFor = (
     const localNames = new Set(localParameterLoweringsFor(entry).map(({ parameter }) => parameter.parameterName));
     for (const parameter of entry.geometryArrayParameters) {
       if (parameter.initializerSource === null || parameter.originalExpressionRange === null) continue;
-      const occurrences = geometryArrayInitializerOccurrencesFor(source, compiled, entry, parameter);
+      const occurrences = geometryArrayInitializerOccurrencesFor(
+        source,
+        compiled,
+        entry.statementIndex,
+        parameter.originalExpressionRange,
+        parameter.arrayType
+      );
       if (occurrences === null) {
         return {
           kind: "invalid",
@@ -3129,7 +3164,22 @@ const initializerRewritesFor = (
       if (!generated) return { kind: "invalid", message: `生成した ${kind} parameter const の semantic mapping がありません。`, target: entry.target };
       if (!before) return { kind: "invalid", message: `moved ${kind} initializer の source owner を証明できません。`, target: entry.target };
       const nextSource = nextCompiled.spans.sourceMap.source;
-      const after = finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
+      const after = kind === "geometry-array"
+        ? geometryArrayInitializerOccurrencesFor(
+            nextSource,
+            nextCompiled,
+            generated.statementIndex,
+            generated.initializerRange,
+            (parameter as GeometryArrayParameterLowering).arrayType
+          )
+        : finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
+      if (!after) {
+        return {
+          kind: "invalid",
+          message: `Module parameter「${parameter.parameterName}」の moved initializer source owner を証明できません。`,
+          target: entry.target
+        };
+      }
       const retainedBefore = before.filter((original) => !(parameter.eliminatedSourceRanges ?? []).some((range) =>
         original.sourceFrom >= range.from &&
         original.sourceTo <= range.to
@@ -3198,7 +3248,13 @@ const initializerRewritesFor = (
     for (const parameter of entry.geometryArrayParameters) {
       const before = parameter.initializerSource === null || parameter.originalExpressionRange === null
         ? []
-        : geometryArrayInitializerOccurrencesFor(source, compiled, entry, parameter);
+        : geometryArrayInitializerOccurrencesFor(
+            source,
+            compiled,
+            entry.statementIndex,
+            parameter.originalExpressionRange,
+            parameter.arrayType
+          );
       const result = proveInitializer(parameter, before, "geometry-array");
       if (result) return result;
     }

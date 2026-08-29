@@ -1477,6 +1477,64 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
     expect(compileCurrent(next, "inline-array-path-next").diagnostics).toEqual([]);
   });
 
+  it("preserves a whole geometry-array export through an earlier Module instance", () => {
+    const source = [
+      "nui 4",
+      "module Producer() {",
+      "  line Edge = segment(start: (0, 0), end: (10, 0))",
+      "  export const exportedPaths: path[] = [@Edge]",
+      "}",
+      "module Consumer(paths: path[]) {",
+      "}",
+      "instance producer = Producer()",
+      "instance Use = Consumer(paths: @producer::exportedPaths)"
+    ].join("\n");
+    const { compiled, result } = plan(source, ["Use"]);
+    const exported = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values.find((value) =>
+      value.name === "exportedPaths" && value.exported
+    );
+    expect(exported?.type.elementType).toBe("path");
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const paths: path[] = @producer::exportedPaths");
+    expect(nextSource.match(/const paths: path\[\] = @producer::exportedPaths/g)).toHaveLength(1);
+    const next = compileCurrent(nextSource, "inline-array-export-next");
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const generated = next.statements.find((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "paths" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(generated).toBeDefined();
+    if (!generated) return;
+    const arrayValue = next.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementIndex.get(
+      next.statements.indexOf(generated)
+    );
+    expect(arrayValue?.type.elementType).toBe("path");
+    expect(arrayValue?.value?.kind).toBe("alias");
+    if (!arrayValue?.value || arrayValue.value.kind !== "alias") return;
+    const producerIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleInstance" && statement.name === "producer"
+    );
+    const producerId = next.statementMap?.statementIdByStatementIndex?.get(producerIndex);
+    expect(producerId).toBeDefined();
+    expect(arrayValue.value.targetValueId).toBe(JSON.stringify(["module-array-export", producerId, "exportedPaths"]));
+    const producer = producerId
+      ? next.moduleSemanticAnalysis?.instancesByStatementId.get(producerId)
+      : undefined;
+    const resolvedExport = producer?.callee
+      ? next.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values.find((value) =>
+          value.ownerModuleDefinitionStatementIndex === producer.callee?.definitionStatementIndex &&
+          value.exported &&
+          value.name === "exportedPaths"
+        )
+      : undefined;
+    expect(resolvedExport?.statementId).toBeDefined();
+    expect(resolvedExport?.type.elementType).toBe("path");
+  });
+
   it("specializes supplied optional geometry-array presence and emits one local const", () => {
     const source = [
       "nui 4",
