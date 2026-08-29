@@ -404,7 +404,8 @@ describe("DrawingCanvas rendering", () => {
 
   it("classifies context-menu hits through the existing hit-test without selecting or suppressing the native menu", () => {
     const publishCanvasContextMenu = vi.fn();
-    const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu });
+    const publishCanvasPointerPosition = vi.fn();
+    const { viewport } = renderWithHostAdapter({ publishCanvasContextMenu, publishCanvasPointerPosition });
     const selectionBefore = [...useCadUiStore.getState().selectedElementIds];
 
     const blankContextMenu = new MouseEvent("contextmenu", {
@@ -423,8 +424,12 @@ describe("DrawingCanvas rendering", () => {
     const elementPreventDefault = vi.spyOn(elementContextMenu, "preventDefault");
     viewport.dispatchEvent(elementContextMenu);
 
-    expect(publishCanvasContextMenu).toHaveBeenNthCalledWith(1, { kind: "blank" });
+    expect(publishCanvasContextMenu).toHaveBeenNthCalledWith(1, {
+      kind: "blank",
+      pointer: { x: -240, y: 190 }
+    });
     expect(publishCanvasContextMenu).toHaveBeenNthCalledWith(2, { kind: "element" });
+    expect(publishCanvasPointerPosition).toHaveBeenNthCalledWith(1, { x: -240, y: 190 });
     expect(useCadUiStore.getState().selectedElementIds).toEqual(selectionBefore);
     expect(blankPreventDefault).not.toHaveBeenCalled();
     expect(elementPreventDefault).not.toHaveBeenCalled();

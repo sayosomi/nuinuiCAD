@@ -40,7 +40,8 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.clearCanvasSelection", canvasSelectionEnablement],
   ["nuinuiCAD.selectParentGroup", canvasSelectionEnablement],
   ["nuinuiCAD.bakeCurrentShape", bakeEnablement],
-  ["nuinuiCAD.bakeBaseShape", bakeEnablement]
+  ["nuinuiCAD.bakeBaseShape", bakeEnablement],
+  ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
 ]);
 
 const expectedPaletteScope = new Map<string, string>([
@@ -53,7 +54,8 @@ const expectedPaletteScope = new Map<string, string>([
   ["nuinuiCAD.clearCanvasSelection", canvasWhen],
   ["nuinuiCAD.selectParentGroup", canvasWhen],
   ["nuinuiCAD.bakeCurrentShape", sourceOrCanvasWhen],
-  ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen]
+  ["nuinuiCAD.bakeBaseShape", sourceOrCanvasWhen],
+  ["nuinuiCAD.createFreePointAtPointer", canvasWhen]
 ]);
 
 const readManifest = async (): Promise<ExtensionManifest> =>

@@ -37,7 +37,7 @@ import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
-import { vscodeCanvasContextDataFor } from "./protocol";
+import { vscodeCanvasContextDataFor, type VscodeCanvasPointer } from "./protocol";
 import {
   useVSCodeReferencePickSession,
   type VscodeReferencePickAuthorityFor
@@ -49,6 +49,7 @@ type VSCodeDrawingCanvasProps = {
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (sourceText: string) => void;
+  postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
   canvasRibbonRibbons?: VscodeCanvasRibbon[];
   onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
@@ -66,6 +67,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     evaluationState,
     canvasFocusRef,
     postCanonicalSourceText,
+    postCanvasPointerPosition,
     canvasTheme = LEGACY_CANVAS_THEME,
     canvasRibbonRibbons = [],
     onCanvasRibbonPositionCommit,
@@ -277,12 +279,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeLinePickTarget,
       commandLineSession,
       canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0),
-      publishCanvasContextMenu: ({ kind }) => {
+      publishCanvasPointerPosition: postCanvasPointerPosition,
+      publishCanvasContextMenu: ({ kind, pointer }) => {
         const viewport = canvasFocusRef.current;
         if (!viewport) return;
         viewport.dataset.vscodeContext = vscodeCanvasContextDataFor(
           kind,
-          useCadUiStore.getState().selectedElementIds.length > 0
+          useCadUiStore.getState().selectedElementIds.length > 0,
+          pointer
         );
       },
       flushSourceEditorOnCanvasPointerDown: () => "clean",
@@ -387,7 +391,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       setReferencePickHover,
       selectReferencePick,
       confirmReferencePick,
-      cancelReferencePick
+      cancelReferencePick,
+      postCanvasPointerPosition
     ]);
 
     useImperativeHandle(ref, () => ({

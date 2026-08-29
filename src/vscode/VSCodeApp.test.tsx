@@ -139,6 +139,91 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
+  it("rolls back a rejected Canvas free-point commit to the exact Source and selection snapshot", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0, id: a)",
+      "point B = coordinate(x: 20, y: 0, id: b)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    const beforeElements = useCadDocumentStore.getState().elements;
+    const beforeElementIds = beforeElements.map((element) => element.id);
+    const beforeSelection = {
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: [...useCadUiStore.getState().selectedElementIds],
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 42,
+          documentVersion: 7,
+          pointer: { x: 12.5, y: -8 },
+          sourcePosition: { line: 1, character: 0 }
+        }
+      }));
+    });
+
+    const locallyInsertedState = useCadDocumentStore.getState();
+    const locallyInsertedIds = locallyInsertedState.elements
+      .map((element) => element.id)
+      .filter((id) => !beforeElementIds.includes(id));
+    const locallyInsertedName = locallyInsertedState.elements.find((element) => locallyInsertedIds.includes(element.id))?.name;
+    expect(locallyInsertedState.sourceText).not.toBe(source);
+    expect(locallyInsertedState.elements).toHaveLength(beforeElements.length + 1);
+    expect(locallyInsertedIds).toHaveLength(1);
+    expect(locallyInsertedName).toBeTypeOf("string");
+    expect(locallyInsertedState.elements.find((element) => element.id === locallyInsertedIds[0])?.type).toBe("freePoint");
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommit",
+      operationId: 42,
+      expectedDocumentVersion: 7,
+      sourceText: locallyInsertedState.sourceText
+    }));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCommitResult",
+          operationId: 42,
+          status: "rejected",
+          documentVersion: 7
+        }
+      }));
+    });
+
+    const rolledBackState = useCadDocumentStore.getState();
+    expect(rolledBackState.sourceText).toBe(source);
+    expect(rolledBackState.elements.some((element) => element.name === locallyInsertedName)).toBe(false);
+    expect({
+      selectedElementId: useCadUiStore.getState().selectedElementId,
+      selectedElementIds: useCadUiStore.getState().selectedElementIds,
+      selectionAnchorElementId: useCadUiStore.getState().selectionAnchorElementId
+    }).toEqual(beforeSelection);
+
+    const freePointResults = api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasFreePointAtPointerResult");
+    expect(freePointResults).toEqual([{
+      type: "canvasFreePointAtPointerResult",
+      requestId: 42,
+      status: "rejected",
+      documentVersion: 7
+    }]);
+    expect(freePointResults.some((message) => message.status === "applied")).toBe(false);
+    expect(freePointResults[0]).not.toHaveProperty("nextSourcePosition");
+  });
+
   it("queues Canvas history until the authoritative result and restores focus after completion", async () => {
     const oldSource = sourceForSelectionChronology(0);
     const newSource = sourceForSelectionChronology(40);

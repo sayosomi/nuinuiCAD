@@ -66,6 +66,13 @@ import {
   registerVscodeCanvasQuickCreateFeature,
   type VscodeCanvasCreationEndpoint
 } from "./canvasQuickCreateFeature";
+import {
+  registerVscodeCanvasFreePointAtPointerFeature,
+  type VscodeCanvasFreePointAtPointerEndpoint,
+  type VscodeCanvasFreePointAtPointerFeature
+} from "./canvasFreePointAtPointerFeature";
+import { isVscodeCanvasPointer } from "../../src/vscode/protocol";
+import type { VscodeCanvasPointer } from "../../src/vscode/protocol";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
 import type {
   ExtensionToVscodeMessage,
@@ -142,6 +149,7 @@ type DocumentSession = VscodeWebviewSessionBase & {
   } | null;
   pendingCanvasFocus: { requestId: number } | null;
   pendingSourceDefinitionRequest: { requestId: number } | null;
+  lastCanvasPointer: VscodeCanvasPointer | null;
 };
 
 type WebviewSession = DocumentSession | OutputPreviewSession;
@@ -443,6 +451,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let nextNavigationRequestId = 1;
   let nextBakeRequestId = 1;
   let refreshNativeColorProvider: () => void = () => undefined;
+  let canvasFreePointAtPointerFeature: VscodeCanvasFreePointAtPointerFeature | null = null;
 
   const bakeOutputChannelFor = (): vscode.OutputChannel => {
     if (bakeOutputChannel) return bakeOutputChannel;
@@ -1044,6 +1053,20 @@ export const activate = (context: vscode.ExtensionContext): void => {
   });
   if (canvasRibbonConfigurationListener) context.subscriptions.push(canvasRibbonConfigurationListener);
 
+  const postCanvasCommitResult = (
+    session: DocumentSession,
+    message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>,
+    status: "accepted" | "rejected"
+  ): void => {
+    if (message.operationId === undefined) return;
+    void session.panel.webview.postMessage({
+      type: "canvasCommitResult",
+      operationId: message.operationId,
+      status,
+      documentVersion: session.document.version
+    } satisfies ExtensionToVscodeMessage);
+  };
+
   const applyCanvasCommit = async (
     session: DocumentSession,
     message: Extract<VscodeToExtensionMessage, { type: "canvasCommit" }>
@@ -1052,12 +1075,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     if (!matchingDocumentAvailable || session.document.version !== message.expectedDocumentVersion) {
       resync(session);
+      postCanvasCommitResult(session, message, "rejected");
       return;
     }
 
     const editor = visibleEditorFor(session.document);
     if (!editor) {
       resync(session);
+      postCanvasCommitResult(session, message, "rejected");
       return;
     }
 
@@ -1066,19 +1091,25 @@ export const activate = (context: vscode.ExtensionContext): void => {
     if (message.mutationKind === "model-patch") {
       if (!message.splices) {
         resync(session);
+        postCanvasCommitResult(session, message, "rejected");
         return;
       }
       try {
         const patchedText = applyLineSplices(sourceText, message.splices);
         if (patchedText !== message.sourceText) {
           resync(session);
+          postCanvasCommitResult(session, message, "rejected");
           return;
         }
         lineEdits.push(...message.splices.map((splice) => textEditForLineSplice(session.document, sourceText, splice)));
       } catch {
         resync(session);
+        postCanvasCommitResult(session, message, "rejected");
         return;
       }
+    }
+    if (message.operationId !== undefined) {
+      canvasFreePointAtPointerFeature?.markCanvasEdit(message.operationId);
     }
     let editResult: Thenable<boolean>;
     try {
@@ -1091,6 +1122,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }, { undoStopBefore: true, undoStopAfter: true });
     } catch {
       resync(session);
+      postCanvasCommitResult(session, message, "rejected");
       return;
     }
 
@@ -1098,9 +1130,13 @@ export const activate = (context: vscode.ExtensionContext): void => {
       const editCompleted = await editResult;
       if (!editCompleted) {
         resync(session);
+        postCanvasCommitResult(session, message, "rejected");
+        return;
       }
+      postCanvasCommitResult(session, message, "accepted");
     } catch {
       resync(session);
+      postCanvasCommitResult(session, message, "rejected");
     }
   };
 
@@ -1266,7 +1302,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       pendingBake: null,
       inFlightCanvasNavigation: null,
       pendingCanvasFocus: null,
-      pendingSourceDefinitionRequest: null
+      pendingSourceDefinitionRequest: null,
+      lastCanvasPointer: null
     };
     sessions.set(session);
     if (panel.active) rememberBakeCanvas(session);
@@ -1332,6 +1369,22 @@ export const activate = (context: vscode.ExtensionContext): void => {
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
+        return;
+      }
+      if (message.type === "canvasPointerPublication") {
+        if (
+          !isVscodeCanvasPointer(message.pointer) ||
+          !session.webviewReady ||
+          sessions.get(session.documentUri, "canvas") !== session ||
+          !isOpenDocument(session.document) ||
+          session.authoritativeDocumentVersion !== message.documentVersion ||
+          session.document.version !== message.documentVersion
+        ) return;
+        session.lastCanvasPointer = message.pointer;
+        return;
+      }
+      if (message.type === "canvasFreePointAtPointerResult") {
+        canvasFreePointAtPointerFeature?.handleResult(session, session.document, message);
         return;
       }
       if (message.type === "runtimeDiagnosticsPublication") {
@@ -1505,6 +1558,39 @@ export const activate = (context: vscode.ExtensionContext): void => {
           void session.panel.webview.postMessage({
             type: "canvasCreationCommand",
             commandId
+          } satisfies ExtensionToVscodeMessage);
+        }
+      };
+    }
+  });
+  canvasFreePointAtPointerFeature = registerVscodeCanvasFreePointAtPointerFeature({
+    activeCanvasEndpoint: (): VscodeCanvasFreePointAtPointerEndpoint | null => {
+      const session = canvasSessionForCommand();
+      if (
+        !session ||
+        !session.webviewReady ||
+        session.authoritativeDocumentVersion !== session.document.version ||
+        !isOpenDocument(session.document) ||
+        sessions.get(session.documentUri, "canvas") !== session
+      ) return null;
+      const documentVersion = session.document.version;
+      const isCurrent = (): boolean =>
+        canvasSessionForCommand() === session &&
+        sessions.get(session.documentUri, "canvas") === session &&
+        isOpenDocument(session.document) &&
+        session.webviewReady &&
+        session.authoritativeDocumentVersion === documentVersion &&
+        session.document.version === documentVersion;
+      return {
+        sessionToken: session,
+        document: session.document,
+        isCurrent,
+        lastCanvasPointer: () => session.lastCanvasPointer,
+        postFreePointAtPointer: (request) => {
+          if (!isCurrent()) return;
+          void session.panel.webview.postMessage({
+            type: "canvasFreePointAtPointer",
+            ...request
           } satisfies ExtensionToVscodeMessage);
         }
       };
@@ -1749,6 +1835,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     referencePickFeature,
     sourceValueStepFeature,
     canvasQuickCreateFeature,
+    canvasFreePointAtPointerFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,
