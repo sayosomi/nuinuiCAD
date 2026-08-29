@@ -648,6 +648,8 @@ Primary:
 - `src/components/TauriDrawingCanvas.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/ModulePreviewApp.tsx`
+- `src/vscode/ModulePreviewParametersApp.tsx`
+- `src/vscode/modulePreviewParameterProjection.ts`
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
@@ -797,15 +799,18 @@ lifecycle ownership in `modulePreviewFeature.ts`: it keeps one panel per documen
 URI and stores the stable target Module definition identity so a repeated open can
 reveal and retarget the same panel without rebinding an existing panel to another
 document. The semantic Webview surface kinds are `canvas`, `outputPreview`, and
-`modulePreview`; the three surfaces are independent and may coexist for the same
-document. Closing the source `TextDocument` disposes the associated Module Preview
-panel as well as the registry-owned document surfaces.
+`modulePreview`; the `modulePreviewParameters` Webview View is a projection surface
+in the Explorer container, not a second Module Preview session. The three rendering
+surfaces are independent and may coexist for the same document. Closing the source
+`TextDocument` disposes the associated Module Preview panel as well as the
+registry-owned document surfaces.
 
 The production host still ships one `webview.js` bundle. Extension Host HTML
 bootstrap places the surface kind in explicit static metadata, and
 `webviewSurfaceRouter.tsx` validates that value before routing `canvas` to
-`VSCodeApp`, `outputPreview` to `OutputPreviewApp`, and `modulePreview` to
-`ModulePreviewApp`. Malformed or unknown values fail closed.
+`VSCodeApp`, `outputPreview` to `OutputPreviewApp`, `modulePreview` to
+`ModulePreviewApp`, and `modulePreviewParameters` to
+`ModulePreviewParametersApp`. Malformed or unknown values fail closed.
 
 Module Preview command eligibility and execution are exact-current. Command
 Palette visibility is Source-scoped for file-scheme `.nui` documents, while the
@@ -817,6 +822,14 @@ when the identity disappears or the current semantic proof is stale, it sends an
 unavailable target instead of falling back to a name or ancestor. Target delivery
 waits until the Webview has acknowledged the exact authoritative TextDocument
 version.
+
+The same Module Preview lifecycle establishes the active binding for the production
+`nuinuiCAD.modulePreviewParameters` Webview View. It assigns each panel target
+generation a host-owned session identity, retains the latest JSON-safe parameter
+projection, and relays value/default actions only after validating the session,
+document/source freshness, target definition identity, and exact row identity.
+The parameter View is hydrated from that retained projection when it resolves; it
+does not create a Module Preview session or mutate canonical Source.
 
 Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
 `AutomationDocument` for the authoritative source mirror,
@@ -1030,6 +1043,14 @@ owns only that Webview View's host lifecycle and shared-bundle HTML bootstrap.
 React-local interaction state. The surface reuses the shared Webview bundle and
 `webviewSurfaceRouter.tsx`; it has no production document, evaluation, runtime,
 navigation, or mutation semantics.
+
+The production `nuinuiCAD.modulePreviewParameters` Webview View is contributed to
+the same container and registered by
+`vscode-extension/src/modulePreviewParametersFeature.ts`. Its host binding and
+retained projection remain owned by `vscode-extension/src/modulePreviewFeature.ts`;
+`src/vscode/ModulePreviewParametersApp.tsx` renders only the live Module Preview
+parameter projection and sends proof-carrying actions back through the Extension
+Host. It is independent of the Explorer Mock surface and the native Elements View.
 
 ## Core architecture invariants
 
