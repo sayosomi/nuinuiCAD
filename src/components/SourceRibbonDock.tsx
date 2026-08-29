@@ -11,7 +11,7 @@ import {
   CommandRibbonView,
   type CommandRibbonPresentation
 } from "./CommandRibbonView";
-import { resolveTauriCommandRibbonIcon, tauriCommandRibbonPresentation } from "./tauriCommandRibbonAdapter";
+import { resolveCommandRibbonIcon, buildCommandRibbonPresentation } from "./commandRibbonPresentation";
 
 type SourceRibbonDockProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -148,8 +148,8 @@ export const SourceRibbonDock = ({
       {dockedRibbons.map((ribbon) => (
         <CommandRibbonView
           key={ribbon.id}
-          ribbon={tauriCommandRibbonPresentation(ribbon, disabledCommandIds, true)}
-          iconResolver={resolveTauriCommandRibbonIcon}
+          ribbon={buildCommandRibbonPresentation(ribbon, disabledCommandIds, true)}
+          iconResolver={resolveCommandRibbonIcon}
           dragging={draggingRibbonId === ribbon.id}
           onCommand={(item) => {
             dispatchCommand(item.commandId as CommandId, commandContext);

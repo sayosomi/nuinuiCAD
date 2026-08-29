@@ -28,7 +28,7 @@ export const createVscodeTempDirectory = (platform: NodeJS.Platform = process.pl
 
 export type CaptureVscodeOptions = {
   fixtureId: string;
-  baselinePath: string;
+  baselinePath?: string;
   outputPath: string;
   manifestPath?: string;
   repositoryPath?: string;
@@ -47,7 +47,7 @@ export type VscodeBenchmarkCaptureConfig = {
     appVersion: string;
     machine: BenchmarkMachine;
   };
-  expectedRenderSurface: BenchmarkRenderSurface;
+  expectedRenderSurface?: BenchmarkRenderSurface;
 };
 
 export type VscodeLaunchHandle = {
@@ -160,9 +160,12 @@ export const parseCaptureVscodeArgs = (argv: readonly string[]): CaptureVscodeOp
     else throw new Error(`Unknown capture option: ${argument}`);
   }
   if (!fixtureId) throw new Error("Missing required --fixture <fixture-id>");
-  if (!baselinePath) throw new Error("Missing required --baseline <tauri-result.json>");
   if (!outputPath) throw new Error("Missing required --output <path>");
-  return { fixtureId, baselinePath, outputPath };
+  return {
+    fixtureId,
+    outputPath,
+    ...(baselinePath ? { baselinePath } : {})
+  };
 };
 
 const manifestEntryFor = (manifest: BenchmarkFixtureManifest, fixtureId: string): BenchmarkFixtureManifestEntry => {
@@ -182,17 +185,17 @@ const renderSurfaceIsCoherent = (surface: BenchmarkRenderSurface): boolean =>
   surface.backingWidthPx === Math.round(surface.cssWidthPx * surface.devicePixelRatio) &&
   surface.backingHeightPx === Math.round(surface.cssHeightPx * surface.devicePixelRatio);
 
-export const assertVscodeBaseline = (baseline: BenchmarkResult, fixtureId: string, fixtureHash: string, machine: BenchmarkMachine): void => {
-  if (baseline.target !== "tauri") throw new Error(`VS Code benchmark baseline must target "tauri", received "${baseline.target}"`);
-  if (baseline.fixture.id !== fixtureId || baseline.fixture.hash !== fixtureHash) {
-    throw new Error(`VS Code benchmark baseline fixture mismatch: expected ${fixtureId}/${fixtureHash}, received ${baseline.fixture.id}/${baseline.fixture.hash}`);
+export const assertVscodeBaseline = (baseline: BenchmarkResult, machine: BenchmarkMachine): BenchmarkRenderSurface => {
+  if (baseline.target !== "tauri" && baseline.target !== "vscode") {
+    throw new Error(`VS Code benchmark reference must target "tauri" or "vscode", received "${baseline.target}"`);
   }
   if (!sameMachine(baseline.environment.machine, machine)) {
-    throw new Error(`VS Code benchmark machine mismatch: baseline=${JSON.stringify(baseline.environment.machine)}, actual=${JSON.stringify(machine)}`);
+    throw new Error(`VS Code benchmark reference machine mismatch: baseline=${JSON.stringify(baseline.environment.machine)}, actual=${JSON.stringify(machine)}`);
   }
   if (!renderSurfaceIsCoherent(baseline.environment.renderSurface)) {
-    throw new Error(`VS Code benchmark baseline render surface is incoherent: ${JSON.stringify(baseline.environment.renderSurface)}`);
+    throw new Error(`VS Code benchmark reference render surface is incoherent: ${JSON.stringify(baseline.environment.renderSurface)}`);
   }
+  return baseline.environment.renderSurface;
 };
 
 export const assertVscodeResultIdentity = (
@@ -213,7 +216,6 @@ export const captureVscode = async (
   const manifestPath = options.manifestPath ?? defaultManifestPath;
   const repositoryPath = options.repositoryPath ?? repositoryRoot;
   const extensionPath = options.extensionPath ?? resolve(repositoryPath, "vscode-extension");
-  const baseline = dependencies.readResult(options.baselinePath);
   const manifest = JSON.parse(dependencies.readFile(manifestPath)) as unknown;
   assertBenchmarkFixtureManifest(manifest);
   const fixture = manifestEntryFor(manifest, options.fixtureId);
@@ -222,7 +224,9 @@ export const captureVscode = async (
   const actualHash = dependencies.hashSource(fixtureSource);
   if (actualHash !== fixture.hash) throw new Error(`Fixture hash mismatch for ${fixture.id}: expected ${fixture.hash}, received ${actualHash}`);
   const machine = dependencies.getMachine();
-  assertVscodeBaseline(baseline, fixture.id, fixture.hash, machine);
+  const expectedRenderSurface = options.baselinePath
+    ? assertVscodeBaseline(dependencies.readResult(options.baselinePath), machine)
+    : undefined;
   const gitCommit = dependencies.getGitCommit(repositoryPath);
   if (!/^[0-9a-f]{40}$/i.test(gitCommit)) throw new Error(`gitCommit must be a full 40-character SHA: ${gitCommit}`);
   const tempDirectory = dependencies.createTempDirectory();
@@ -238,7 +242,7 @@ export const captureVscode = async (
     fixture,
     resultPath,
     build: { gitCommit, appVersion: extensionVersion, machine },
-    expectedRenderSurface: baseline.environment.renderSurface
+    ...(expectedRenderSurface ? { expectedRenderSurface } : {})
   };
   dependencies.writeFile(fixturePath, fixtureSource);
   const rustBinaryPath = resolve(repositoryPath, "rust-evaluator", "target", "debug", process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio");

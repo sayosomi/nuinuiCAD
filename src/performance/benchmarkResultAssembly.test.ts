@@ -33,6 +33,7 @@ describe("benchmark result assembly", () => {
   it("assembles a schema-valid result with exactly 21 measured samples", () => {
     const result = assembleBenchmarkResult(input());
     expect(isBenchmarkResult(result)).toBe(true);
+    expect(result.target).toBe("vscode");
     expect(result.protocol).toEqual(BENCHMARK_PROTOCOL);
     expect(result.scenarios["source-edit-v1"]?.metrics.compileMs.samples).toHaveLength(BENCHMARK_PROTOCOL.trials);
     expect(result.scenarios["source-edit-v1"]?.metrics.compileMs.p50).toBe(11);
@@ -45,6 +46,12 @@ describe("benchmark result assembly", () => {
     expect(result.target).toBe("vscode");
     expect(result.protocol).toEqual(BENCHMARK_PROTOCOL);
     expect(Object.keys(result.scenarios)).toEqual([...BENCHMARK_SCENARIO_IDS]);
+  });
+
+  it("preserves the explicit historical Tauri target", () => {
+    const result = assembleBenchmarkResult(input({ target: "tauri" }));
+    expect(isBenchmarkResult(result)).toBe(true);
+    expect(result.target).toBe("tauri");
   });
 
   it("fails closed for wrong counts, missing metrics, and invalid samples", () => {

@@ -223,7 +223,7 @@ describe("CommandRibbonView", () => {
     expect(namesTooltip).toHaveStyle({ position: "fixed", left: "60px", top: "124px" });
   });
 
-  it("keeps the Tauri vertical Ribbon on its existing top-handle layout", () => {
+  it("keeps the default vertical Ribbon on its existing top-handle layout", () => {
     const view = render(
       <CommandRibbonView ribbon={ribbonFor("vertical")} iconResolver={() => Circle} />
     );
