@@ -67,7 +67,9 @@ describe("ExplorerMockApp", () => {
     render(<ExplorerMockApp api={api} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("all");
+    const typeFilter = screen.getByRole("combobox", { name: "Type" });
+    expect(typeFilter).toHaveValue("all");
+    expect(within(typeFilter).queryByRole("option", { name: "Operation", exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("all");
     expect(screen.getByRole("combobox", { name: "Diagnostics" })).toHaveValue("all");
     expect(screen.getByRole("combobox", { name: "Group/Module" })).toHaveValue("all");
@@ -101,6 +103,8 @@ describe("ExplorerMockApp", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: "Group/Module" }), { target: { value: "all" } });
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.change(screen.getByLabelText("Search Explorer Mock"), { target: { value: "Pattern::Front panel::Neck point" } });
+    expect(screen.getByTestId("geometry-row-front-neck")).toHaveAttribute("data-match", "true");
     fireEvent.change(screen.getByLabelText("Search Explorer Mock"), { target: { value: "Front panel" } });
     expect(screen.getByTestId("geometry-row-front-neck")).toHaveAttribute("data-match", "true");
   });

@@ -73,7 +73,8 @@ const createEmptyFilter = (): StructuredFilter => ({
   category: "all"
 });
 
-const geometryTypeChoices = [...new Set(explorerMockGeometry.map((geometry) => geometry.kind))];
+const isElementsResultGeometry = (geometry: ExplorerMockGeometry): boolean => geometry.kind !== "operation";
+const geometryTypeChoices = [...new Set(explorerMockGeometry.filter(isElementsResultGeometry).map((geometry) => geometry.kind))];
 const groupModuleChoices = explorerMockGeometry.filter((geometry) => geometry.kind === "group" || geometry.kind === "module");
 const modifierCategoryChoices = [...new Set(explorerMockModifiers.map((modifier) => modifier.category))];
 
@@ -116,7 +117,7 @@ const displayNameFor = (id: string): string =>
   explorerMockGeometryById.get(id)?.name ?? explorerMockModifierById.get(id)?.name ?? id;
 
 const geometryHierarchyPath = (geometry: ExplorerMockGeometry): string =>
-  [...explorerMockAncestorsOf(geometry.id), geometry.id].map(displayNameFor).join(" / ");
+  [...explorerMockAncestorsOf(geometry.id), geometry.id].map(displayNameFor).join("::");
 
 const matchesStructuredFilter = (geometry: ExplorerMockGeometry, filter: StructuredFilter): boolean => {
   if (filter.type !== "all" && geometry.kind !== filter.type) return false;
@@ -128,7 +129,7 @@ const matchesStructuredFilter = (geometry: ExplorerMockGeometry, filter: Structu
 };
 
 const isActualGeometryMatch = (geometry: ExplorerMockGeometry, search: string, filter: StructuredFilter): boolean => {
-  if (geometry.kind === "operation") return false;
+  if (!isElementsResultGeometry(geometry)) return false;
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const searchMatch = !normalizedSearch || [
     geometry.name,
