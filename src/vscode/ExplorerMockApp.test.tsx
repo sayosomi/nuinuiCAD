@@ -21,6 +21,7 @@ describe("ExplorerMockApp", () => {
   it("starts collapsed, shows tab counts, and reveals an alternate conditional branch locally", () => {
     render(<ExplorerMockApp api={api} />);
 
+    expect(screen.getByTestId("static-fixture-cue")).toHaveTextContent("Static fixture · Bodice.nui");
     expect(screen.getByRole("tab", { name: /Elements/ })).toHaveTextContent("Elements");
     expect(screen.getByRole("tab", { name: /Modifiers 5/ })).toBeInTheDocument();
     expect(screen.getByTestId("geometry-row-source-bodice")).toBeInTheDocument();
@@ -56,10 +57,81 @@ describe("ExplorerMockApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hierarchy" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    fireEvent.click(screen.getByLabelText("Diagnostics"));
+    fireEvent.change(screen.getByLabelText("Diagnostics"), { target: { value: "present" } });
     expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Search Explorer Mock"), { target: { value: "No such geometry" } });
     expect(screen.getByText("Selection Detail")).toBeInTheDocument();
+  });
+
+  it("uses All as unrestricted and combines active Elements axes with AND semantics", () => {
+    render(<ExplorerMockApp api={api} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("all");
+    expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("all");
+    expect(screen.getByRole("combobox", { name: "Diagnostics" })).toHaveValue("all");
+    expect(screen.getByRole("combobox", { name: "Group/Module" })).toHaveValue("all");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), { target: { value: "bezier" } });
+    expect(screen.getByText("2 results")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Type · Bezier/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Diagnostics" }), { target: { value: "present" } });
+    expect(screen.getByText("1 results")).toBeInTheDocument();
+    expect(screen.getByTestId("geometry-row-front-armhole")).toHaveAttribute("data-match", "true");
+    expect(screen.queryByTestId("geometry-row-front-neck-curve")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Type · Bezier/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("all");
+    fireEvent.change(screen.getByRole("combobox", { name: "Diagnostics" }), { target: { value: "all" } });
+    expect(screen.queryByRole("button", { name: /Type · Bezier/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Diagnostics · Present/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/results$/)).not.toBeInTheDocument();
+  });
+
+  it("filters Group/Module containers through fixture ancestry and searches derived paths", () => {
+    render(<ExplorerMockApp api={api} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Group/Module" }), { target: { value: "module-front" } });
+    expect(screen.getByText("8 results")).toBeInTheDocument();
+    expect(screen.getByTestId("geometry-row-front-neck")).toHaveAttribute("data-match", "true");
+    expect(screen.queryByTestId("geometry-row-module-back")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Group/Module" }), { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.change(screen.getByLabelText("Search Explorer Mock"), { target: { value: "Front panel" } });
+    expect(screen.getByTestId("geometry-row-front-neck")).toHaveAttribute("data-match", "true");
+  });
+
+  it("dismisses the Filter popover from outside interaction or Escape while keeping inside changes open", () => {
+    render(<ExplorerMockApp api={api} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    expect(screen.getByRole("dialog", { name: "Structured filters" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), { target: { value: "bezier" } });
+    expect(screen.getByRole("dialog", { name: "Structured filters" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("static-fixture-cue"));
+    expect(screen.queryByRole("dialog", { name: "Structured filters" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Structured filters" })).not.toBeInTheDocument();
+  });
+
+  it("clears the current tab selection from Selection Detail and exposes geometry type separately", () => {
+    render(<ExplorerMockApp api={api} />);
+    expandFrontPanel();
+
+    const row = screen.getByTestId("geometry-row-front-neck");
+    expect(within(row).getByText("Neck point")).toBeInTheDocument();
+    expect(within(row).getByTestId("geometry-type-front-neck")).toHaveTextContent("Point");
+    fireEvent.click(row);
+    expect(screen.getByRole("region", { name: "Selection Detail" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("region", { name: "Selection Detail" })).not.toBeInTheDocument();
   });
 
   it("supports plain, toggle, and range selection plus independent tab selection and detail height", () => {
@@ -181,16 +253,16 @@ describe("ExplorerMockApp", () => {
     render(<ExplorerMockApp api={api} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    fireEvent.click(screen.getByLabelText("Diagnostics"));
+    fireEvent.change(screen.getByLabelText("Diagnostics"), { target: { value: "present" } });
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("tab", { name: /Modifiers/ }));
     expect(screen.getByTestId("modifier-row-modifier-base")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(screen.queryByLabelText("Type · Bezier")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Activity · Hidden")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Diagnostics")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Category · Presentation"));
+    expect(screen.queryByRole("combobox", { name: "Type" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Activity" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Diagnostics" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "presentation" } });
     expect(screen.getByText("2 results")).toBeInTheDocument();
     expect(screen.getByTestId("modifier-row-modifier-contrast")).toBeInTheDocument();
     expect(screen.getByTestId("modifier-row-modifier-draft-cleanup")).toBeInTheDocument();
@@ -200,13 +272,13 @@ describe("ExplorerMockApp", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Elements/ }));
     expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(screen.getByLabelText("Diagnostics")).toBeChecked();
+    expect(screen.getByLabelText("Diagnostics")).toHaveValue("present");
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
     fireEvent.click(screen.getByRole("tab", { name: /Modifiers/ }));
     expect(screen.getByRole("button", { name: /Category · Presentation/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(screen.getByLabelText("Category · Presentation")).toBeChecked();
+    expect(screen.getByLabelText("Category")).toHaveValue("presentation");
   });
 
   it("keeps local context menus and reference activation inside the mock", () => {

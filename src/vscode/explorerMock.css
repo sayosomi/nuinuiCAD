@@ -18,6 +18,7 @@
   height: 100vh;
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
   overflow: hidden;
   color: var(--explorer-foreground);
   background: var(--explorer-background);
@@ -89,6 +90,13 @@
 .explorer-mock h1 {
   font-size: 14px;
   font-weight: 600;
+}
+
+.explorer-mock-fixture-cue {
+  display: block;
+  margin-top: 3px;
+  color: var(--explorer-muted);
+  font-size: 10px;
 }
 
 .explorer-mock h3 {
@@ -232,6 +240,7 @@
   outline: 0;
   background: transparent;
   color: var(--explorer-foreground);
+  font-size: 12px;
 }
 
 .explorer-mock-search-field input::placeholder {
@@ -255,12 +264,17 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  width: 210px;
+  width: min(250px, calc(100cqw - 16px));
+  max-width: calc(100cqw - 16px);
+  min-width: 0;
+  max-height: calc(100vh - 100px);
   padding: 9px;
   border: 1px solid var(--explorer-border);
   border-radius: 3px;
   background: var(--vscode-menu-background, var(--explorer-background));
   box-shadow: 0 5px 16px color-mix(in srgb, var(--vscode-widget-shadow, var(--explorer-foreground)) 25%, transparent);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .explorer-mock-filter-popover label {
@@ -270,8 +284,36 @@
   color: var(--vscode-menu-foreground, var(--explorer-foreground));
 }
 
-.explorer-mock-filter-popover input {
-  accent-color: var(--explorer-focus);
+.explorer-mock-filter-axes {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.explorer-mock-filter-axis {
+  display: grid !important;
+  grid-template-columns: minmax(72px, 0.55fr) minmax(0, 1fr);
+  gap: 8px !important;
+  min-width: 0;
+}
+
+.explorer-mock-filter-axis > span {
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-mock-filter-axis select {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 1px solid var(--explorer-input-border);
+  border-radius: 2px;
+  background: var(--vscode-dropdown-background, var(--explorer-input));
+  color: var(--vscode-dropdown-foreground, var(--explorer-foreground));
 }
 
 .explorer-mock-filter-done {
@@ -314,6 +356,7 @@
 
 .explorer-mock-result-header > span {
   margin-right: auto;
+  font-size: 11px;
 }
 
 .explorer-mock-result-header button {
@@ -367,7 +410,7 @@
 }
 
 .explorer-mock-row:not(.explorer-mock-modifier-row) {
-  grid-template-columns: 17px 16px 15px minmax(45px, 1fr) minmax(40px, 78px) 17px 14px 25px 25px 18px;
+  grid-template-columns: 17px 16px 15px minmax(45px, 1fr) minmax(35px, 62px) minmax(35px, 78px) 17px 14px 25px 25px 18px;
   gap: 3px;
 }
 
@@ -436,12 +479,29 @@
 }
 
 .explorer-mock-name,
+.explorer-mock-type-badge,
 .explorer-mock-module-cue,
 .explorer-mock-modifier-summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.explorer-mock-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.explorer-mock-type-badge {
+  padding: 1px 4px;
+  border: 1px solid color-mix(in srgb, var(--explorer-border) 90%, transparent);
+  border-radius: 8px;
+  color: var(--explorer-muted);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 14px;
+  text-align: center;
 }
 
 .explorer-mock-module-cue {
@@ -569,6 +629,32 @@
   color: var(--explorer-muted);
   font-size: 10px;
   font-weight: 600;
+}
+
+.explorer-mock-detail-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.explorer-mock-clear-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 20px;
+  padding: 2px 5px;
+  border: 1px solid var(--explorer-border);
+  border-radius: 2px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--explorer-foreground));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.explorer-mock-clear-selection:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--explorer-hover));
 }
 
 .explorer-mock-detail-tabs {
@@ -992,7 +1078,7 @@
 
 @media (max-width: 340px) {
   .explorer-mock-row:not(.explorer-mock-modifier-row) {
-    grid-template-columns: 15px 14px 13px minmax(35px, 1fr) 0 15px 12px 21px 20px 15px;
+    grid-template-columns: 15px 14px 13px minmax(40px, 1fr) minmax(32px, 42px) 0 15px 12px 21px 20px 15px;
     gap: 2px;
     padding-inline: 4px;
   }
