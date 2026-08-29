@@ -77,6 +77,9 @@ const isDocumentationPath = (path) =>
   POLICY_FILES.has(path) ||
   [...POLICY_FILES].some((file) => path.endsWith(`/${file}`));
 
+const isDslReferencePath = (path) =>
+  path === "docs/dsl.md" || path.startsWith("docs/dsl/");
+
 const isParityTestPath = (path) =>
   path.startsWith("test/fixtures/evaluation/");
 
@@ -123,6 +126,12 @@ const classifyPath = (path) => {
     const flags = emptyFlags();
     flags.node = true;
     flags.full_node = true;
+    return flags;
+  }
+
+  if (isDslReferencePath(path)) {
+    const flags = emptyFlags();
+    flags.node = true;
     return flags;
   }
 

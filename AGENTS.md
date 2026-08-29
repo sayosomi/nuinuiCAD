@@ -50,6 +50,11 @@ durable product, engineering, and workflow policy. When a task-specific
 specification or plan exists, respect that Task contract. Do not duplicate a
 large architecture map in this file.
 
+User-facing DSL syntax, semantics, constructions, builtins, parameters,
+properties, modules, records, or output-language changes must keep the
+implemented DSL Reference consistent in the same Task and pass the DSL
+reference check.
+
 Keep the authority roles distinct: source code is authoritative for **what the
 current implementation actually does**; a normative specification is
 authoritative for **what the product or language is intended to do**. A mismatch
