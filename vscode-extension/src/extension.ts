@@ -62,6 +62,7 @@ import {
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
+import { registerVscodeGeometryReferenceRetargetFeature } from "./geometryReferenceRetargetCommandFeature";
 import {
   registerVscodeCanvasQuickCreateFeature,
   type VscodeCanvasCreationEndpoint
@@ -1529,6 +1530,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
       };
     }
   });
+  const geometryReferenceRetargetFeature = registerVscodeGeometryReferenceRetargetFeature({
+    languageAnalysisSessionFor
+  });
   const sourceValueStepFeature = registerVscodeSourceValueStepFeature({
     languageAnalysisSessionFor
   });
@@ -1834,6 +1838,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     referencePickFeature,
+    geometryReferenceRetargetFeature,
     sourceValueStepFeature,
     canvasQuickCreateFeature,
     canvasFreePointAtPointerFeature,

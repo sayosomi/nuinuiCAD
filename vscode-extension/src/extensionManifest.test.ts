@@ -70,6 +70,7 @@ const commandIds = [
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.pickReferenceFromCanvas",
+  "nuinuiCAD.replaceGeometryReferences",
   "nuinuiCAD.stepSourceValueForward",
   "nuinuiCAD.stepSourceValueBackward",
   "nuinuiCAD.canvasUndo",
@@ -129,6 +130,7 @@ const commandIds = [
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
 const modulePreviewValueStepKeybindingWhen = "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus";
 const sourceValueStepContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`;
@@ -176,6 +178,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Pick Reference from Canvas",
+      "nuinuiCAD: Replace Geometry References",
       "nuinuiCAD: Step Source Value Forward",
       "nuinuiCAD: Step Source Value Backward",
       "nuinuiCAD: Undo Canvas Transition",
@@ -272,6 +275,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.replaceGeometryReferences", when: sourcePaletteWhen },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourcePaletteWhen },
       { command: "nuinuiCAD.stepSourceValueBackward", when: sourcePaletteWhen },
       { command: "nuinuiCAD.clearCanvasSelection", when: canvasPaletteWhen },
@@ -341,7 +345,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
       { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "1_modification@3" },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "1_modification@4" },
-      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" }
+      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" },
+      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "1_modification@6" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
@@ -377,7 +382,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.stepSourceValueForward",
       "nuinuiCAD.stepSourceValueBackward",
       "nuinuiCAD.bakeCurrentShape",
-      "nuinuiCAD.bakeBaseShape"
+      "nuinuiCAD.bakeBaseShape",
+      "nuinuiCAD.replaceGeometryReferences"
     ]);
     expect(editorContextCommands).not.toContain("nuinuiCAD.openCanvas");
     expect(editorContextCommands).not.toContain("nuinuiCAD.openOutputPreview");
@@ -531,6 +537,7 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.fitOutputPreview" ||
       command === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
+    expect(keybindings.some(({ command }) => command === "nuinuiCAD.replaceGeometryReferences")).toBe(false);
     expect(keybindings.filter(({ command }) => command.includes("modulePreview"))).toEqual([
       {
         command: "nuinuiCAD.modulePreviewValueStepForward.keybinding",

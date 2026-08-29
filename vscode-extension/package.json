@@ -129,6 +129,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.replaceGeometryReferences",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.stepSourceValueForward",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
@@ -653,6 +657,11 @@
           "command": "nuinuiCAD.bakeBaseShape",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
           "group": "1_modification@5"
+        },
+        {
+          "command": "nuinuiCAD.replaceGeometryReferences",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget",
+          "group": "1_modification@6"
         }
       ]
     },
@@ -695,6 +704,11 @@
         "command": "nuinuiCAD.pickReferenceFromCanvas",
         "title": "nuinuiCAD: Pick Reference from Canvas",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.replaceGeometryReferences",
+        "title": "nuinuiCAD: Replace Geometry References",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget"
       },
       {
         "command": "nuinuiCAD.stepSourceValueForward",
