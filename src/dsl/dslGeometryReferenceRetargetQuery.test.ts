@@ -231,7 +231,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     expect(scopeTarget!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
   });
 
-  it("excludes a disabled geometry candidate after compiler semantic verification", () => {
+  it("excludes a disabled geometry candidate from current compiler availability", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -244,6 +244,34 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     expect(target).not.toBeNull();
     expect(target!.candidates.map((candidate) => candidate.name)).toContain("C");
     expect(target!.candidates.map((candidate) => candidate.name)).not.toContain("B");
+  });
+
+  it("does not compile while enumerating candidates but verifies the final plan", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "point C = coordinate(x: 20, y: 0)",
+      "point D = coordinate(x: 30, y: 0)",
+      "point Use = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = snapshotFor(source, REVISION, compiled);
+    const compileSpy = vi.spyOn(dslDocument, "compileDslDocument");
+    try {
+      const target = queryDslGeometryReferenceRetargetTarget(snapshot, source.indexOf("@A") + 1);
+      expect(target).not.toBeNull();
+      expect(target!.candidates.map((candidate) => candidate.name)).toEqual(["B", "C", "D"]);
+      expect(compileSpy).not.toHaveBeenCalled();
+
+      const candidate = candidateNamed(target!, "B");
+      const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("@A") + 1, candidate.identity);
+      expect(result.status).toBe("ok");
+      expect(compileSpy).toHaveBeenCalledTimes(1);
+      expect(compileSpy.mock.calls[0]?.[0]).toBe(source.replace("@A", "@B"));
+    } finally {
+      compileSpy.mockRestore();
+    }
   });
 
   it("retargets all references of a Module parameter in its body", () => {
@@ -285,10 +313,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     const target = targetAt(source, "@A");
     const candidate = candidateNamed(target!, "B");
     const snapshot = snapshotFor(source);
-    const verifiedProposedSource = compileWithIds(source.replace("@A", "@B"));
-    const compileSpy = vi.spyOn(dslDocument, "compileDslDocument")
-      .mockImplementationOnce(() => verifiedProposedSource)
-      .mockImplementationOnce(() => compiled);
+    const compileSpy = vi.spyOn(dslDocument, "compileDslDocument").mockImplementationOnce(() => compiled);
     try {
       const result = planDslGeometryReferenceRetargetEditsResult(snapshot, source.indexOf("@A") + 1, candidate.identity);
       expect(result).toEqual({ status: "rejected", rejection: { reason: "proposed-source-verification-failed" } });

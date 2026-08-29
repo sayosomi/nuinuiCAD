@@ -599,6 +599,15 @@ const candidateEditProjection = (
   return { ok: true, edits, proposedSource: applyEdits(source.normalizedSource, edits) };
 };
 
+const compilerGeometryIdentityIsUsable = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity
+) => {
+  if (identity.kind !== "element") return true;
+  const element = compiled.document?.elements.find((candidate) => candidate.id === identity.elementId);
+  return element !== undefined && element.activity !== "disabled";
+};
+
 const targetFor = (
   exact: ExactSnapshot,
   sourceOffset: number
@@ -659,6 +668,7 @@ const targetFor = (
   const applicableCandidates: DslGeometryReferenceRetargetCandidate[] = [];
   for (const candidate of candidates) {
     if (candidate.identityKey === identityKey) continue;
+    if (!compilerGeometryIdentityIsUsable(exact.compiled, candidate.identity)) continue;
     const resolutions = occurrences.map((occurrence) =>
       candidateSupportsOccurrence(candidate, occurrence)
         ? resolveCandidatePath(exact.compiled, occurrence, candidate)
@@ -672,8 +682,6 @@ const targetFor = (
         interfaceType: candidate.interfaceType,
         referencePaths: resolutions.map((resolution) => resolution.path)
       } satisfies DslGeometryReferenceRetargetCandidate;
-      const projection = candidateEditProjection(exact.source, target, publicCandidate);
-      if (!projection.ok || !proposedSourceIsVerified(exact, target, publicCandidate, projection.edits, projection.proposedSource)) continue;
       applicableCandidates.push(publicCandidate);
     }
   }
@@ -711,15 +719,6 @@ const mappedRangeAfterEdits = (
   return edit
     ? { from: range.from + delta, to: range.from + delta + edit.newText.length }
     : null;
-};
-
-const compilerGeometryIdentityIsUsable = (
-  compiled: CompiledDslDocument,
-  identity: DslSemanticIdentity
-) => {
-  if (identity.kind !== "element") return true;
-  const element = compiled.document?.elements.find((candidate) => candidate.id === identity.elementId);
-  return element !== undefined && element.activity !== "disabled";
 };
 
 const proposedSourceIsVerified = (
