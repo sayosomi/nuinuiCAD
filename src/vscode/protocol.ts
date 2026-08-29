@@ -125,9 +125,11 @@ export const vscodeWebviewContextDataFor = (
 export const vscodeCanvasContextDataFor = (
   kind: VscodeCanvasContextMenuKind,
   hasSelection: boolean,
-  pointer?: VscodeCanvasPointer
+  pointer?: VscodeCanvasPointer,
+  canSelectInstance = false
 ): string => vscodeWebviewContextDataFor(kind, {
   "nuinuiCAD.canvasHasSelection": hasSelection,
+  "nuinuiCAD.canvasCanSelectInstance": canSelectInstance,
   ...(kind === "blank" && pointer && isVscodeCanvasPointer(pointer)
     ? {
         [vscodeCanvasPointerContextKeys.x]: pointer.x,
@@ -215,6 +217,7 @@ export type VscodeCanvasCommandId =
   | "redo"
   | "clearCanvasSelection"
   | "selectParentGroup"
+  | "selectInstance"
   | "resetCanvasView"
   | "fitDrawing"
   | "toggleCanvasPointNames"

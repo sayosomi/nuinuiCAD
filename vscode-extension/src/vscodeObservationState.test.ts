@@ -9,6 +9,7 @@ import {
 const runtimeSnapshot = (documentVersion = 3): VscodeCanvasObservationSnapshot => ({
   documentVersion,
   selectedElementIds: ["point-a"],
+  canvasCanSelectInstance: false,
   selectionSubject: { kind: "elements" },
   compiledDocumentRevision: 8,
   previewActive: false,

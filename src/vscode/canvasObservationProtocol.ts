@@ -24,6 +24,7 @@ export type VscodeCanvasObservationIssueSummary = {
 export type VscodeCanvasObservationSnapshot = {
   documentVersion: number;
   selectedElementIds: readonly string[];
+  canvasCanSelectInstance: boolean;
   /** Source ownership used by agent-facing adapters to project runtime IDs into stable snapshot IDs. */
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
   selectionSubject: VscodeCanvasObservationSelectionSubject;
