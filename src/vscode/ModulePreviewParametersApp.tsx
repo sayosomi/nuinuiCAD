@@ -47,24 +47,15 @@ const ParameterRow = ({
   const [draft, setDraft] = useState(parameter.value);
   const authoritativeRef = useRef({ identity: rowIdentity, value: parameter.value });
   const pendingDraftRef = useRef<string | null>(null);
-  const defaultActionPendingRef = useRef(false);
   useEffect(() => {
     const previous = authoritativeRef.current;
     if (previous.identity !== rowIdentity) {
       pendingDraftRef.current = null;
-      defaultActionPendingRef.current = false;
       setDraft(parameter.value);
     } else if (pendingDraftRef.current === null) {
-      defaultActionPendingRef.current = false;
       setDraft(parameter.value);
     } else if (parameter.value === pendingDraftRef.current) {
-      if (!defaultActionPendingRef.current) {
-        pendingDraftRef.current = null;
-        setDraft(parameter.value);
-      }
-    } else if (defaultActionPendingRef.current) {
       pendingDraftRef.current = null;
-      defaultActionPendingRef.current = false;
       setDraft(parameter.value);
     }
     authoritativeRef.current = {
@@ -116,7 +107,7 @@ const ParameterRow = ({
               className="module-preview-parameter-default-button"
               aria-label={`Use default for ${parameter.name}`}
               onClick={() => {
-                defaultActionPendingRef.current = true;
+                pendingDraftRef.current = null;
                 onUseDefault(parameter);
               }}
             >

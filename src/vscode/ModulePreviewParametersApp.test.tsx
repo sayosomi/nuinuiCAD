@@ -76,6 +76,21 @@ const snapshot: VscodeModulePreviewParameterSnapshot = {
   previewStatus: "lastGood"
 };
 
+const snapshotWithValues = (
+  sessionRevision: number,
+  values: Readonly<Record<string, string>>
+): VscodeModulePreviewParameterSnapshot => ({
+  ...snapshot,
+  sessionRevision,
+  parameters: {
+    ...snapshot.parameters,
+    parameters: snapshot.parameters.parameters.map((parameter) => ({
+      ...parameter,
+      value: values[parameter.name] ?? parameter.value
+    }))
+  }
+});
+
 afterEach(() => {
   cleanup();
   vi.mocked(api.postMessage).mockReset();
@@ -210,5 +225,79 @@ describe("ModulePreviewParametersApp", () => {
     };
     act(() => window.dispatchEvent(new MessageEvent("message", { data: defaultSnapshot })));
     expect(screen.getByLabelText("Value for label")).toHaveValue('"front"');
+  });
+
+  it("does not leave repeated Default state that can discard a newer rapid draft", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    const defaultValueSnapshot = snapshotWithValues(10, { label: '"front"' });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: defaultValueSnapshot })));
+
+    const input = screen.getByLabelText("Value for label");
+    fireEvent.click(screen.getByRole("button", { name: "Use default for label" }));
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(11, { label: '"front"' })
+    })));
+    input.focus();
+    fireEvent.change(input, { target: { value: '"back"' } });
+    fireEvent.change(input, { target: { value: '"back!"' } });
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(12, { label: '"back"' })
+    })));
+    expect(screen.getByLabelText("Value for label")).toBe(input);
+    expect(input).toHaveValue('"back!"');
+    expect(input).toHaveFocus();
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(13, { label: '"back!"' })
+    })));
+    expect(input).toHaveValue('"back!"');
+    expect(input).toHaveFocus();
+  });
+
+  it("follows value snapshots before a Default result when Default supersedes the draft", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    const initialSnapshot = snapshotWithValues(20, { label: "" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
+
+    const input = screen.getByLabelText("Value for label");
+    fireEvent.change(input, { target: { value: '"typed-a"' } });
+    fireEvent.change(input, { target: { value: '"typed-b"' } });
+    fireEvent.click(screen.getByRole("button", { name: "Use default for label" }));
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(21, { label: '"typed-a"' })
+    })));
+    expect(input).toHaveValue('"typed-a"');
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(22, { label: '"typed-b"' })
+    })));
+    expect(input).toHaveValue('"typed-b"');
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(23, { label: '"front"' })
+    })));
+    expect(input).toHaveValue('"front"');
+  });
+
+  it("keeps a new value draft after Default until its authoritative snapshot arrives", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    const initialSnapshot = snapshotWithValues(30, { label: "" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
+
+    const input = screen.getByLabelText("Value for label");
+    fireEvent.click(screen.getByRole("button", { name: "Use default for label" }));
+    input.focus();
+    fireEvent.change(input, { target: { value: '"new-value"' } });
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(31, { label: '"front"' })
+    })));
+    expect(input).toHaveValue('"new-value"');
+    expect(input).toHaveFocus();
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: snapshotWithValues(32, { label: '"new-value"' })
+    })));
+    expect(input).toHaveValue('"new-value"');
+    expect(input).toHaveFocus();
   });
 });
