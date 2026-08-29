@@ -603,6 +603,32 @@ test("does not notify a PR created after the push-time oracle", async () => {
   assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 0);
 });
 
+test("accepts production-shape numeric pushed_at and uses it for PR time filtering", async () => {
+  const createdAtPush = makePullRequest({ number: 114, createdAt: "2025-01-02T00:00:00.000Z" });
+  const createdBeforePush = makePullRequest({ number: 115, createdAt: "2025-01-01T00:00:00Z" });
+  const createdAfterPush = makePullRequest({ number: 116, createdAt: "2025-01-02T00:00:01Z" });
+  const numericPushEvent = {
+    ...mainPushEvent,
+    repository: { pushed_at: 1735776000 }
+  };
+  const { fetchImpl, posts } = fetchForMainPush({
+    pages: [[createdAtPush, createdBeforePush, createdAfterPush]],
+    compares: {
+      [compareKey(mainPushEvent.before, createdAtPush.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, createdAtPush.head.sha)]: 1,
+      [compareKey(mainPushEvent.before, createdBeforePush.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, createdBeforePush.head.sha)]: 1
+    }
+  });
+
+  await notifyMainPush({ event: numericPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 2);
+  assert.match(posts[0].content, /PR #114/u);
+  assert.match(posts[1].content, /PR #115/u);
+  assert.doesNotMatch(posts.map(({ content }) => content).join("\n"), /PR #116/u);
+});
+
 test("follows pull request pagination and processes a qualifying PR beyond page one", async () => {
   const pullRequest = makePullRequest({ number: 109 });
   const { fetchImpl, posts, requests } = fetchForMainPush({
@@ -659,7 +685,7 @@ test("fails safely on malformed push SHAs without making API requests", async ()
 });
 
 test("fails closed when the push-time oracle is malformed or unavailable", async () => {
-  for (const pushedAt of [undefined, null, "not-a-time", "2025-02-30T00:00:00Z", {}, 1735776000]) {
+  for (const pushedAt of [undefined, null, "not-a-time", "2025-02-30T00:00:00Z", {}, NaN, Infinity, -1, 1.5, 8640000000001, Number.MAX_SAFE_INTEGER]) {
     const event = { ...mainPushEvent, repository: { pushed_at: pushedAt } };
     const requests = [];
     await assert.rejects(

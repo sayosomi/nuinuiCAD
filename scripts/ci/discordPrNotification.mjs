@@ -52,8 +52,24 @@ const apiUrl = (repository, path) =>
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/iu;
 const GITHUB_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/u;
+const MAX_DATE_MILLISECONDS = 8_640_000_000_000_000;
+const MAX_UNIX_SECONDS = MAX_DATE_MILLISECONDS / 1000;
 
 const parseGitHubTime = (value) => {
+  if (typeof value === "number") {
+    if (
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      Object.is(value, -0) ||
+      value > MAX_UNIX_SECONDS
+    ) {
+      return null;
+    }
+    const timestamp = value * 1000;
+    if (!Number.isSafeInteger(timestamp) || timestamp > MAX_DATE_MILLISECONDS) return null;
+    const date = new Date(timestamp);
+    return Number.isFinite(date.getTime()) ? timestamp : null;
+  }
   if (typeof value !== "string" || !value.trim()) return null;
   const match = value.match(GITHUB_TIME_PATTERN);
   if (!match) return null;
