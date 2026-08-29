@@ -31,6 +31,7 @@ export type CommandId =
   | "undo"
   | "redo"
   | "selectElement"
+  | "selectInstance"
   | "clearCanvasSelection"
   | "selectAllElements"
   | "selectNextElement"

@@ -3,6 +3,7 @@ import {
   selectionRangeIds,
   toggleSelectionIds
 } from "../model/documentSelection";
+import { materializedRuntimeElementId, type ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import {
   elementTypeSupportsHiddenActivity,
@@ -201,6 +202,55 @@ export const replaceCanvasSelection = (
   );
   clearTransientSelectionUi();
   return true;
+};
+
+export type SelectInstanceResolutionInput = {
+  selectedElementId: ElementId | null | undefined;
+  elements: readonly CadElement[];
+  moduleMaterialization?: ModuleMaterialization;
+};
+
+/** Resolves the concrete Module instance that owns the selected materialized body element. */
+export const resolveOwningModuleInstanceId = ({
+  selectedElementId,
+  elements,
+  moduleMaterialization
+}: SelectInstanceResolutionInput): ElementId | null => {
+  if (!selectedElementId || !moduleMaterialization) return null;
+
+  const elementById = new Map(elements.map((element) => [element.id, element]));
+  const selectedElement = elementById.get(selectedElementId);
+  if (!selectedElement || selectedElement.type === "moduleInstance") return null;
+
+  const origin = moduleMaterialization.originByRuntimeElementId.get(selectedElementId);
+  if (!origin || origin.kind !== "moduleBody") return null;
+
+  const instancePath = origin.instancePath;
+  if (
+    !Array.isArray(instancePath) ||
+    instancePath.length === 0 ||
+    instancePath.some((identity) => typeof identity !== "string" || identity.length === 0)
+  ) return null;
+
+  const ownerId = materializedRuntimeElementId("moduleInstance", instancePath);
+  return elementById.get(ownerId)?.type === "moduleInstance" ? ownerId : null;
+};
+
+/** Selects the concrete Module instance owning the current primary Canvas selection. */
+export const selectInstance = (recordHistory = false) => {
+  const { elements, doc } = useCadDocumentStore.getState();
+  const { selectedElementId } = useCadUiStore.getState();
+  const ownerId = resolveOwningModuleInstanceId({
+    selectedElementId,
+    elements,
+    moduleMaterialization: doc.moduleMaterialization
+  });
+  if (!ownerId) return false;
+
+  // Module instances are frame identities rather than normal drawable Canvas
+  // candidates. The shared replacement path still owns selection/history and
+  // is given the proven owner as its narrow eligibility boundary.
+  return replaceCanvasSelection([ownerId], ownerId, recordHistory, "requested", new Set([ownerId]));
 };
 
 export const clearCanvasSelection = (recordHistory = false) => {
