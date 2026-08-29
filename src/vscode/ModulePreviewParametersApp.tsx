@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ExtensionToVscodeMessage,
   VscodeModulePreviewParameter,
@@ -43,6 +43,19 @@ const ParameterRow = ({
   onValueChange: (parameter: VscodeModulePreviewParameter, expression: string) => void;
   onUseDefault: (parameter: VscodeModulePreviewParameter) => void;
 }) => {
+  const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
+  const [draft, setDraft] = useState(parameter.value);
+  const authoritativeRef = useRef({ identity: rowIdentity, value: parameter.value });
+  useEffect(() => {
+    const previous = authoritativeRef.current;
+    if (previous.identity !== rowIdentity || previous.value !== parameter.value) {
+      setDraft(parameter.value);
+    }
+    authoritativeRef.current = {
+      identity: rowIdentity,
+      value: parameter.value
+    };
+  }, [parameter.value, rowIdentity]);
   const diagnosticId = parameter.diagnostic
     ? `module-preview-parameter-diagnostic-${parameter.definitionStatementId}-${parameter.parameterIndex}`
     : undefined;
@@ -60,13 +73,16 @@ const ParameterRow = ({
       </th>
       <td>
         <input
-          key={`${snapshot.sessionId}:${snapshot.sessionRevision}:${parameter.definitionStatementId}:${parameter.parameterIndex}`}
           className="module-preview-parameter-input"
           aria-label={`Value for ${parameter.name}`}
           aria-invalid={parameter.diagnostic ? "true" : "false"}
           aria-describedby={diagnosticId}
-          defaultValue={parameter.value}
-          onChange={(event) => onValueChange(parameter, event.currentTarget.value)}
+          value={draft}
+          onChange={(event) => {
+            const expression = event.currentTarget.value;
+            setDraft(expression);
+            onValueChange(parameter, expression);
+          }}
         />
         {parameter.diagnostic ? (
           <div id={diagnosticId} className="module-preview-parameter-diagnostic" role="alert">

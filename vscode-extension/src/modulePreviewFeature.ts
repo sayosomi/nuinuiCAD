@@ -44,8 +44,13 @@ type ModulePreviewSession = {
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
   pendingTarget: ModulePreviewPendingTarget | null;
+  retainedParameterMessage: VscodeModulePreviewParameterSnapshot | VscodeModulePreviewParametersUnavailable | null;
   disposables: vscode.Disposable[];
 };
+
+type ModulePreviewParameterMessage =
+  | VscodeModulePreviewParameterSnapshot
+  | VscodeModulePreviewParametersUnavailable;
 
 export type ModulePreviewFeature = vscode.Disposable & {
   postCanvasCommandIfActive: (commandId: VscodeCanvasCommandId) => boolean;
@@ -199,7 +204,6 @@ export const registerModulePreviewFeature = ({
   let parameterWebview: vscode.Webview | null = null;
   let parameterWebviewDisposable: vscode.Disposable | null = null;
   let boundParameterSession: ModulePreviewSession | null = null;
-  let latestParameterMessage: VscodeModulePreviewParameterSnapshot | VscodeModulePreviewParametersUnavailable | null = null;
 
   const nextSessionId = (): string => {
     const sessionId = `module-preview-session:${nextSessionGeneration}`;
@@ -208,10 +212,17 @@ export const registerModulePreviewFeature = ({
   };
 
   const postParameterMessage = (
-    message: VscodeModulePreviewParameterSnapshot | VscodeModulePreviewParametersUnavailable
+    message: ModulePreviewParameterMessage
   ): void => {
-    latestParameterMessage = message;
     if (parameterWebview) void parameterWebview.postMessage(message);
+  };
+
+  const retainParameterMessage = (
+    session: ModulePreviewSession,
+    message: ModulePreviewParameterMessage
+  ): void => {
+    session.retainedParameterMessage = message;
+    if (boundParameterSession === session) postParameterMessage(message);
   };
 
   const sourceContextFor = (session: ModulePreviewSession) => {
@@ -249,8 +260,8 @@ export const registerModulePreviewFeature = ({
     documentUri: session.documentUri,
     documentVersion: session.document.version,
     sourceRevision: currentTargetFor(session).sourceRevision,
-    sessionRevision: latestParameterMessage?.sessionId === session.sessionId
-      ? latestParameterMessage.sessionRevision
+    sessionRevision: session.retainedParameterMessage?.sessionId === session.sessionId
+      ? session.retainedParameterMessage.sessionRevision
       : 0,
     targetDefinitionStatementId: session.targetDefinitionStatementId,
     reason
@@ -260,8 +271,7 @@ export const registerModulePreviewFeature = ({
     session: ModulePreviewSession,
     reason: Exclude<VscodeModulePreviewParametersUnavailable["reason"], "no-session">
   ): void => {
-    if (boundParameterSession !== session) return;
-    postParameterMessage(parameterUnavailableFor(session, reason));
+    retainParameterMessage(session, parameterUnavailableFor(session, reason));
   };
 
   const clearParameterBinding = (): void => {
@@ -280,7 +290,18 @@ export const registerModulePreviewFeature = ({
 
   const bindParameterSession = (session: ModulePreviewSession): void => {
     boundParameterSession = session;
-    postParameterMessage(parameterUnavailableFor(session, "not-ready"));
+    const retained = session.retainedParameterMessage;
+    if (retained && isCurrentParameterMessage(session, retained)) {
+      postParameterMessage(retained);
+      return;
+    }
+    const current = currentTargetFor(session);
+    const reason = !current.target
+      ? "target-unavailable"
+      : session.authoritativeDocumentVersion !== session.document.version
+        ? "source-stale"
+        : "not-ready";
+    publishParameterUnavailable(session, reason);
   };
 
   const postSessionIdentity = (session: ModulePreviewSession): void => {
@@ -303,47 +324,55 @@ export const registerModulePreviewFeature = ({
     parameter.parameterIndex === parameterIndex
   );
 
-  const currentParameterSnapshot = (): VscodeModulePreviewParameterSnapshot | null =>
-    latestParameterMessage?.type === "modulePreviewParameterSnapshot"
-      ? latestParameterMessage
+  const currentParameterSnapshot = (session: ModulePreviewSession): VscodeModulePreviewParameterSnapshot | null =>
+    session.retainedParameterMessage?.type === "modulePreviewParameterSnapshot"
+      ? session.retainedParameterMessage
       : null;
 
-  const acceptsParameterSnapshot = (message: VscodeModulePreviewParameterSnapshot): boolean => {
-    const session = boundParameterSession;
-    if (!session || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return false;
+  const isCurrentParameterMessage = (
+    session: ModulePreviewSession,
+    message: ModulePreviewParameterMessage
+  ): boolean => {
     if (
       message.sessionId !== session.sessionId ||
       message.documentUri !== session.documentUri ||
-      message.documentVersion !== session.document.version ||
-      !Number.isInteger(message.sessionRevision)
+      message.documentVersion !== session.document.version
     ) return false;
     const current = currentTargetFor(session);
-    if (
-      !current.target ||
-      current.sourceRevision !== message.sourceRevision ||
-      message.target.definitionStatementId !== session.targetDefinitionStatementId ||
-      message.target.definitionStatementId !== current.target.definitionStatementId ||
-      message.target.definitionStatementIndex !== current.target.definitionStatementIndex ||
-      message.target.name !== current.target.name
-    ) return false;
-    const latest = latestParameterMessage;
-    if (latest && latest.sessionId === message.sessionId && message.sessionRevision <= latest.sessionRevision) return false;
+    if (message.type === "modulePreviewParametersUnavailable") {
+      return message.sourceRevision === current.sourceRevision &&
+        (message.targetDefinitionStatementId === null ||
+          message.targetDefinitionStatementId === session.targetDefinitionStatementId);
+    }
+    return Boolean(
+      current.target &&
+      message.sourceRevision === current.sourceRevision &&
+      message.target.definitionStatementId === session.targetDefinitionStatementId &&
+      message.target.definitionStatementId === current.target.definitionStatementId &&
+      message.target.definitionStatementIndex === current.target.definitionStatementIndex &&
+      message.target.name === current.target.name
+    );
+  };
+
+  const acceptsParameterSnapshot = (
+    session: ModulePreviewSession,
+    message: VscodeModulePreviewParameterSnapshot
+  ): boolean => {
+    if (!session || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return false;
+    if (!Number.isInteger(message.sessionRevision) || !isCurrentParameterMessage(session, message)) return false;
+    const latest = session.retainedParameterMessage;
+    if (latest && message.sessionRevision <= latest.sessionRevision) return false;
     return true;
   };
 
-  const acceptsParameterUnavailable = (message: VscodeModulePreviewParametersUnavailable): boolean => {
-    const session = boundParameterSession;
-    if (!session || message.sessionId !== session.sessionId || message.documentUri !== session.documentUri) return false;
-    if (message.documentVersion !== session.document.version) return false;
-    const current = currentTargetFor(session);
-    if (message.sourceRevision !== current.sourceRevision) return false;
-    if (
-      message.targetDefinitionStatementId !== null &&
-      message.targetDefinitionStatementId !== session.targetDefinitionStatementId
-    ) return false;
-    const latest = latestParameterMessage;
-    if (latest && latest.sessionId === message.sessionId && message.sessionRevision <= latest.sessionRevision) return false;
-    postParameterMessage(message);
+  const acceptsParameterUnavailable = (
+    session: ModulePreviewSession,
+    message: VscodeModulePreviewParametersUnavailable
+  ): boolean => {
+    if (!session || !isCurrentParameterMessage(session, message)) return false;
+    const latest = session.retainedParameterMessage;
+    if (latest && message.sessionRevision <= latest.sessionRevision) return false;
+    retainParameterMessage(session, message);
     return true;
   };
 
@@ -351,7 +380,7 @@ export const registerModulePreviewFeature = ({
     message: VscodeModulePreviewParameterSetValueRequest | VscodeModulePreviewParameterUseDefaultRequest
   ): boolean => {
     const session = boundParameterSession;
-    const snapshot = currentParameterSnapshot();
+    const snapshot = session ? currentParameterSnapshot(session) : null;
     if (!session || !snapshot) return false;
     if (
       message.sessionId !== session.sessionId ||
@@ -474,6 +503,7 @@ export const registerModulePreviewFeature = ({
   const disposeSession = (session: ModulePreviewSession): void => {
     if (sessions.get(session.documentUri) !== session) return;
     if (boundParameterSession === session) clearParameterBinding();
+    session.retainedParameterMessage = null;
     sessions.delete(session.documentUri);
     for (const disposable of session.disposables.splice(0)) disposable.dispose();
   };
@@ -488,6 +518,7 @@ export const registerModulePreviewFeature = ({
     if (existing) {
       existing.sessionId = nextSessionId();
       existing.targetDefinitionStatementId = target.target.definitionStatementId;
+      existing.retainedParameterMessage = null;
       existing.pendingTarget = {
         kind: "target",
         documentVersion: document.version,
@@ -520,6 +551,7 @@ export const registerModulePreviewFeature = ({
         documentVersion: document.version,
         normalizedSourceOffset: target.normalizedSourceOffset
       },
+      retainedParameterMessage: null,
       disposables: []
     };
     sessions.set(key, session);
@@ -556,11 +588,11 @@ export const registerModulePreviewFeature = ({
         return;
       }
       if (message.type === "modulePreviewParameterSnapshot" && isModulePreviewParameterSnapshot(message)) {
-        if (acceptsParameterSnapshot(message)) postParameterMessage(message);
+        if (acceptsParameterSnapshot(session, message)) retainParameterMessage(session, message);
         return;
       }
       if (message.type === "modulePreviewParametersUnavailable" && isModulePreviewParametersUnavailable(message)) {
-        acceptsParameterUnavailable(message);
+        acceptsParameterUnavailable(session, message);
         return;
       }
       if (message.type === "canvasRibbonPositionCommit") {
@@ -588,6 +620,10 @@ export const registerModulePreviewFeature = ({
           } satisfies ExtensionToVscodeMessage);
         }
       }
+    }));
+    session.disposables.push(panel.onDidChangeViewState(({ webviewPanel }) => {
+      if (webviewPanel !== panel || (!webviewPanel.active && !webviewPanel.visible)) return;
+      bindParameterSession(session);
     }));
     session.disposables.push(panel.onDidDispose(() => disposeSession(session)));
     return session;
@@ -656,10 +692,28 @@ export const registerModulePreviewFeature = ({
     attachParameterView: (webview) => {
       parameterWebviewDisposable?.dispose();
       parameterWebview = webview;
-      if (latestParameterMessage) void webview.postMessage(latestParameterMessage);
+      if (boundParameterSession) {
+        const retained = boundParameterSession.retainedParameterMessage;
+        if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {
+          void webview.postMessage(retained);
+        } else {
+          bindParameterSession(boundParameterSession);
+        }
+      } else {
+        clearParameterBinding();
+      }
       const messageDisposable = webview.onDidReceiveMessage((message: unknown) => {
         if (isModulePreviewParameterViewReady(message)) {
-          if (latestParameterMessage) void webview.postMessage(latestParameterMessage);
+          if (boundParameterSession) {
+            const retained = boundParameterSession.retainedParameterMessage;
+            if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {
+              void webview.postMessage(retained);
+            } else {
+              bindParameterSession(boundParameterSession);
+            }
+          } else {
+            clearParameterBinding();
+          }
           return;
         }
         if (isModulePreviewParameterSetValueRequest(message) || isModulePreviewParameterUseDefaultRequest(message)) {

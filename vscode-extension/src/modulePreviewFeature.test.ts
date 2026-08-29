@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import type {
+  VscodeModulePreviewParameterSetValueRequest,
+  VscodeModulePreviewParameterSnapshot
+} from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as null | {
@@ -36,6 +40,7 @@ type TestDocumentChangeEvent = {
 type TestPanel = {
   title: string;
   active: boolean;
+  visible: boolean;
   webview: {
     html: string;
     postMessage: ReturnType<typeof vi.fn>;
@@ -43,6 +48,7 @@ type TestPanel = {
   };
   reveal: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
+  onDidChangeViewState: ReturnType<typeof vi.fn>;
   onDidDispose: ReturnType<typeof vi.fn>;
 };
 
@@ -115,12 +121,15 @@ const positionAt = (source: string, offset: number): { line: number; character: 
   return { line: before.length - 1, character: before.at(-1)?.length ?? 0 };
 };
 
-const createDocument = (initialSource: string): TestDocument => {
+const createDocument = (
+  initialSource: string,
+  uri = "file:///workspace/pattern.nui"
+): TestDocument => {
   let source = initialSource;
   const document: TestDocument = {
-    fileName: "/workspace/pattern.nui",
+    fileName: uri.replace("file://", ""),
     version: 1,
-    uri: { scheme: "file", toString: () => "file:///workspace/pattern.nui" },
+    uri: { scheme: "file", toString: () => uri },
     getText: () => source,
     offsetAt: (position) => offsetAt(source, position),
     setSource: (nextSource) => {
@@ -134,12 +143,15 @@ const createDocument = (initialSource: string): TestDocument => {
 const createPanel = (): TestPanel & {
   receive: (message: unknown) => Promise<void>;
   fireDispose: () => void;
+  fireViewState: (state?: { active?: boolean; visible?: boolean }) => void;
 } => {
   let receiveHandler: ((message: unknown) => unknown) | null = null;
   let disposeHandler: (() => void) | null = null;
+  let viewStateHandler: ((event: { webviewPanel: TestPanel }) => void) | null = null;
   const panel = {
     title: "",
     active: true,
+    visible: true,
     webview: {
       html: "",
       postMessage: vi.fn(async () => true),
@@ -150,6 +162,10 @@ const createPanel = (): TestPanel & {
     },
     reveal: vi.fn(),
     dispose: vi.fn(),
+    onDidChangeViewState: vi.fn((handler: (event: { webviewPanel: TestPanel }) => void) => {
+      viewStateHandler = handler;
+      return { dispose: () => undefined };
+    }),
     onDidDispose: vi.fn((handler: () => void) => {
       disposeHandler = handler;
       return { dispose: () => undefined };
@@ -157,10 +173,16 @@ const createPanel = (): TestPanel & {
     receive: async (message: unknown) => {
       await receiveHandler?.(message);
     },
-    fireDispose: () => disposeHandler?.()
+    fireDispose: () => disposeHandler?.(),
+    fireViewState: (state = {}) => {
+      panel.active = state.active ?? panel.active;
+      panel.visible = state.visible ?? panel.visible;
+      viewStateHandler?.({ webviewPanel: panel });
+    }
   } satisfies TestPanel & {
     receive: (message: unknown) => Promise<void>;
     fireDispose: () => void;
+    fireViewState: (state?: { active?: boolean; visible?: boolean }) => void;
   };
   return panel;
 };
@@ -184,6 +206,67 @@ const flushContext = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+const parameterSnapshotFor = ({
+  sessionId,
+  document,
+  target,
+  sourceRevision,
+  value = "1"
+}: {
+  sessionId: string;
+  document: TestDocument;
+  target: { statementId: string; statementIndex: number; name: string };
+  sourceRevision: number;
+  value?: string;
+}): VscodeModulePreviewParameterSnapshot => ({
+  type: "modulePreviewParameterSnapshot",
+  sessionId,
+  documentUri: document.uri.toString(),
+  documentVersion: document.version,
+  sourceRevision,
+  sessionRevision: 1,
+  target: {
+    definitionStatementId: target.statementId,
+    definitionStatementIndex: target.statementIndex,
+    name: target.name
+  },
+  ancestorContexts: [],
+  parameters: {
+    kind: "target",
+    definitionStatementId: target.statementId,
+    name: target.name,
+    parameters: [{
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      name: "width",
+      type: { kind: "number" },
+      optional: false,
+      required: true,
+      defaultSourceText: null,
+      value,
+      diagnostic: null
+    }]
+  },
+  inputDiagnostics: [],
+  previewStatus: "current"
+});
+
+const parameterSetValueFor = (
+  snapshot: VscodeModulePreviewParameterSnapshot,
+  expression: string
+): VscodeModulePreviewParameterSetValueRequest => ({
+  type: "modulePreviewParameterSetValue",
+  sessionId: snapshot.sessionId,
+  documentUri: snapshot.documentUri,
+  documentVersion: snapshot.documentVersion,
+  sourceRevision: snapshot.sourceRevision,
+  sessionRevision: snapshot.sessionRevision,
+  targetDefinitionStatementId: snapshot.target.definitionStatementId,
+  definitionStatementId: snapshot.target.definitionStatementId,
+  parameterIndex: 0,
+  expression
+});
 
 afterEach(() => {
   mocks.activeTextEditor = null;
@@ -543,6 +626,155 @@ describe("registerModulePreviewFeature", () => {
       sessionId: null,
       reason: "no-session"
     }));
+    feature.dispose();
+  });
+
+  it("switches to existing live panels and restores only their retained exact projection", async () => {
+    const source = [
+      "nui 4",
+      "module Pocket(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const documentA = createDocument(source, "file:///workspace/a.nui");
+    const documentB = createDocument(source, "file:///workspace/b.nui");
+    const panelA = createPanel();
+    const panelB = createPanel();
+    const panels = [panelA, panelB];
+    mocks.createWebviewPanel.mockImplementation((viewType: string, title: string) => {
+      expect(viewType).toBe(NUI_MODULE_PREVIEW_VIEW_TYPE);
+      expect(title).toBe("Module Preview");
+      const panel = panels.shift();
+      if (!panel) throw new Error("unexpected third Module Preview panel");
+      panel.title = title;
+      return panel;
+    });
+    const analyses = new Map<string, ReturnType<typeof createLanguageAnalysisSession>>();
+    const sessionFor = (document: TestDocument) => {
+      const key = document.uri.toString();
+      const existing = analyses.get(key);
+      if (existing) return existing;
+      const created = createLanguageAnalysisSession(document.getText());
+      analyses.set(key, created);
+      return created;
+    };
+    mocks.activeTextEditor = {
+      document: documentA,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: sessionFor as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
+    if (!open) throw new Error("expected open Module Preview command");
+
+    open();
+    await panelA.receive({ type: "webviewReady" });
+    await panelA.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionA = panelA.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    const targetA = analyses.get(documentA.uri.toString())?.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analyses.get(documentA.uri.toString())?.getSourceRevision() ?? 0
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionA?.sessionId || !targetA) throw new Error("expected exact session A");
+    const snapshotA = parameterSnapshotFor({
+      sessionId: sessionA.sessionId,
+      document: documentA,
+      target: targetA,
+      sourceRevision: analyses.get(documentA.uri.toString())?.getSourceRevision() ?? 0,
+      value: "2"
+    });
+    await panelA.receive(snapshotA);
+
+    mocks.activeTextEditor = {
+      document: documentB,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    open();
+    await panelB.receive({ type: "webviewReady" });
+    await panelB.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionB = panelB.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    const targetB = analyses.get(documentB.uri.toString())?.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analyses.get(documentB.uri.toString())?.getSourceRevision() ?? 0
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionB?.sessionId || !targetB) throw new Error("expected exact session B");
+    const snapshotB = parameterSnapshotFor({
+      sessionId: sessionB.sessionId,
+      document: documentB,
+      target: targetB,
+      sourceRevision: analyses.get(documentB.uri.toString())?.getSourceRevision() ?? 0,
+      value: "4"
+    });
+    await panelB.receive(snapshotB);
+
+    parameterView.postMessage.mockClear();
+    panelA.fireViewState({ active: true, visible: true });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotA);
+
+    parameterView.postMessage.mockClear();
+    panelB.fireViewState({ active: true, visible: true });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotB);
+
+    parameterView.postMessage.mockClear();
+    mocks.activeTextEditor = null;
+    for (const listener of mocks.activeEditorListeners) listener();
+    expect(parameterView.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      reason: "no-session"
+    }));
+    panelB.webview.postMessage.mockClear();
+    await parameterView.receive(parameterSetValueFor(snapshotB, "5"));
+    expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sessionId: snapshotB.sessionId,
+      expression: "5"
+    }));
+
+    documentA.setSource(source.replace("y: 0", "y: 1"));
+    for (const listener of mocks.documentChangeListeners) {
+      listener({ document: documentA, contentChanges: [{}] });
+    }
+    parameterView.postMessage.mockClear();
+    panelA.fireViewState({ active: true, visible: true });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      sessionId: snapshotA.sessionId,
+      documentVersion: 2,
+      reason: "source-stale"
+    }));
+    expect(parameterView.postMessage).not.toHaveBeenCalledWith(snapshotA);
+
+    panelB.webview.postMessage.mockClear();
+    await parameterView.receive(parameterSetValueFor(snapshotB, "stale B action"));
+    expect(panelB.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+
+    parameterView.postMessage.mockClear();
+    panelB.fireViewState({ active: true, visible: true });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshotB);
+
+    panelB.fireDispose();
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      sessionId: null,
+      reason: "no-session"
+    }));
+    panelA.fireDispose();
     feature.dispose();
   });
 });

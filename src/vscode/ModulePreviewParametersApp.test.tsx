@@ -143,4 +143,56 @@ describe("ModulePreviewParametersApp", () => {
       parameterIndex: 1
     });
   });
+
+  it("keeps the value input focused across authoritative revisions and syncs defaults", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    vi.mocked(api.postMessage).mockClear();
+
+    const input = screen.getByLabelText("Value for width");
+    input.focus();
+    fireEvent.change(input, { target: { value: "@scale * 5" } });
+    expect(api.postMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "modulePreviewParameterSetValue",
+      sessionRevision: snapshot.sessionRevision,
+      expression: "@scale * 5"
+    }));
+
+    const nextSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...snapshot,
+      sessionRevision: snapshot.sessionRevision + 1,
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) =>
+          parameter.name === "width" ? { ...parameter, value: "@scale * 5" } : parameter
+        )
+      }
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: nextSnapshot })));
+
+    const sameInput = screen.getByLabelText("Value for width");
+    expect(sameInput).toBe(input);
+    expect(sameInput).toHaveFocus();
+    expect(sameInput).toHaveValue("@scale * 5");
+
+    fireEvent.change(sameInput, { target: { value: "@scale * 6" } });
+    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      type: "modulePreviewParameterSetValue",
+      sessionRevision: nextSnapshot.sessionRevision,
+      expression: "@scale * 6"
+    }));
+
+    const defaultSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...nextSnapshot,
+      sessionRevision: nextSnapshot.sessionRevision + 1,
+      parameters: {
+        ...nextSnapshot.parameters,
+        parameters: nextSnapshot.parameters.parameters.map((parameter) =>
+          parameter.name === "label" ? { ...parameter, value: '"front"' } : parameter
+        )
+      }
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: defaultSnapshot })));
+    expect(screen.getByLabelText("Value for label")).toHaveValue('"front"');
+  });
 });
