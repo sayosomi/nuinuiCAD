@@ -452,6 +452,47 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(nextSource).toContain("const present: boolean = false");
   });
 
+  it("proves references eliminated by a false guarded body expression", () => {
+    const source = [
+      "nui 4",
+      "module M(value?: number) {",
+      "  const positive: boolean = hasValue(@value) and @value > 0",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).toContain("const positive: boolean = false");
+    expect(generated).not.toContain("hasValue(@value)");
+    expect(generated).not.toContain("@value");
+    expect(compileCurrent(nextSource, "inline-guarded-body-next").diagnostics).toEqual([]);
+  });
+
+  it("proves references eliminated by a false guarded default initializer", () => {
+    const source = [
+      "nui 4",
+      "module M(value?: number, enabled: number, positive: boolean = hasValue(@value) and @enabled > 0) {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Use = M(enabled: 1)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).not.toContain("const value: number");
+    expect(generated).toContain("const positive: boolean = false");
+    expect(generated).not.toContain("hasValue(@value)");
+    expect(generated).not.toContain("@value");
+    expect(compileCurrent(nextSource, "inline-guarded-default-next").diagnostics).toEqual([]);
+  });
+
   it("supports optional number, string, boolean, and choice parameters", () => {
     const source = [
       "nui 4",
@@ -605,6 +646,34 @@ describe("planInlineModule Checkpoint 1", () => {
       occurrence.from >= group.documentRange.from && occurrence.to <= group.documentRange.to &&
       occurrence.identity.kind === "module" && occurrence.identity.target.kind === "moduleParameter"
     )).toBe(false);
+  });
+
+  it("comments the complete omitted else branch, including its closing brace", () => {
+    const source = [
+      "nui 4",
+      "module Conditional(value?: number) {",
+      "  if (hasValue(@value)) {",
+      "    point Kept = coordinate(x: 0, y: 0)",
+      "  } else {",
+      "    point Removed = coordinate(x: 1, y: 0)",
+      "  }",
+      "}",
+      "instance Use = Conditional(value: 1)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"], { emitOmittedBranchComments: true });
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Use {"));
+    expect(generated).toContain("point Kept = coordinate(x: 0, y: 0)");
+    expect(generated).toContain("// Inline omitted: condition resolved to true");
+    expect(generated).toContain("// } else {");
+    expect(generated).toContain("//   point Removed = coordinate(x: 1, y: 0)");
+    expect(generated).toContain("// }");
+    expect(generated).not.toContain("\n  point Removed =");
+    expect(generated.trimEnd().endsWith("}")).toBe(true);
+    expect(compileCurrent(nextSource, "inline-true-else-comments-next").diagnostics).toEqual([]);
   });
 
   it("specializes hasValue inside a text-template scalar hole", () => {
