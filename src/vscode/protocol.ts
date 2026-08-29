@@ -8,7 +8,12 @@ import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
-import type { VscodeExtensionToModulePreviewMessage } from "./modulePreviewProtocol";
+import type {
+  VscodeExtensionToModulePreviewMessage,
+  VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParametersUnavailable,
+  VscodeModulePreviewParameterViewMessage
+} from "./modulePreviewProtocol";
 import type {
   VscodeExtensionToOutputPreviewMessage,
   VscodeOutputPreviewToExtensionMessage
@@ -31,6 +36,17 @@ export type {
 export type { VscodeCanvasThemePublication } from "./vscodeCanvasThemeProtocol";
 export type {
   VscodeExtensionToModulePreviewMessage,
+  VscodeModulePreviewParameter,
+  VscodeModulePreviewParameterDiagnostic,
+  VscodeModulePreviewParameterGroup,
+  VscodeModulePreviewParameterSetValue,
+  VscodeModulePreviewParameterSetValueRequest,
+  VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParameterUseDefault,
+  VscodeModulePreviewParameterUseDefaultRequest,
+  VscodeModulePreviewParametersUnavailable,
+  VscodeModulePreviewParameterViewMessage,
+  VscodeModulePreviewSession,
   VscodeModulePreviewTarget,
   VscodeModulePreviewTargetUnavailable
 } from "./modulePreviewProtocol";
@@ -68,7 +84,13 @@ export type {
 } from "./multiDocumentGraphTransport";
 export type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
 
-export const vscodeWebviewSurfaceKinds = ["canvas", "outputPreview", "modulePreview", "explorerMock"] as const;
+export const vscodeWebviewSurfaceKinds = [
+  "canvas",
+  "outputPreview",
+  "modulePreview",
+  "modulePreviewParameters",
+  "explorerMock"
+] as const;
 export type VscodeWebviewSurfaceKind = (typeof vscodeWebviewSurfaceKinds)[number];
 
 export const vscodeWebviewSurfaceDataAttribute = "data-nuinui-surface";
@@ -147,6 +169,9 @@ export type VscodeToExtensionMessage =
   | VscodeCanvasObservationToExtensionMessage
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
+  | VscodeModulePreviewParameterViewMessage
+  | VscodeModulePreviewParameterSnapshot
+  | VscodeModulePreviewParametersUnavailable
   | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
   | VscodeCanvasNavigationResult
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }

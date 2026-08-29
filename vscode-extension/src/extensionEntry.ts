@@ -25,6 +25,7 @@ import { createVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
 import { registerExplorerMockFeature } from "./explorerMockFeature";
+import { registerModulePreviewParametersFeature } from "./modulePreviewParametersFeature";
 
 const observationSnapshot = (includeSourceText: boolean): unknown => {
   const snapshot = vscodeObservationState.snapshot();
@@ -142,6 +143,7 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     feature,
+    registerModulePreviewParametersFeature(context, feature),
     ...registerModulePreviewCommands(feature),
     closeListener,
     disposeAnalysisSessions
