@@ -19,7 +19,7 @@ export type CanvasTheme = {
   pickCandidate: string;
 };
 
-/** The established non-VS-Code Canvas appearance used by Tauri and tests. */
+/** The established non-VS-Code Canvas appearance used by the development/test harness. */
 export const LEGACY_CANVAS_THEME: CanvasTheme = {
   foreground: "#31322f",
   muted: "#53564f",

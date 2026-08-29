@@ -1,7 +1,6 @@
 //! Small shared helpers for the hand-rolled, fail-closed `serde_json::Value`
 //! decoders in `scalar_payload.rs`/`expression_payload.rs`. A derive-based
-//! `#[serde(tag = "...")]` decode (the existing precedent in
-//! `src-tauri/src/print_pdf.rs`) can't produce our own stable issue codes
+//! `#[serde(tag = "...")]` decode can't produce our own stable issue codes
 //! per failure category, and can't interleave a depth/size guard mid-walk -
 //! so this module mirrors `src/scalars/scalarJson.ts`'s own hand-rolled
 //! approach instead, one level up (adding the AST tree on top of

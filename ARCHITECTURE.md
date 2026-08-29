@@ -13,7 +13,7 @@
 ```text
 .nui sourceText
         ↓
-CadDocumentStore application adapter or AutomationDocument
+VS Code TextDocument (production) / AutomationDocument (Headless MCP + harness)
         ↓
 compileCanonicalText
         ↓
@@ -29,18 +29,17 @@ last-good compiled document
         ↓
 shared production evaluation context builder
         ↓
-AppLayout / parity consumers
+VS Code Webview / Headless MCP / parity consumers
         ↓
 useEvaluationEngine / rustEvaluationRunner / Rust input
         ↓
-Tauri production: command adapter → host-neutral Rust evaluate_document
-TS: reference / parity / test
+VS Code Extension Host persistent Node stdio
+→ rust-evaluator evaluation_stdio → evaluate_document
+TS: reference / parity / test (Vite/browser development harness)
         ↓
 EvaluationResult
         ↓
-AppLayout
-        ↓
-TauriDrawingCanvas
+VS Code Webview surface
         ↓
 CanvasHostAdapter
         ↓
@@ -50,23 +49,14 @@ canvasRenderer + CanvasOverlay
 ```
 
 Bake uses the same host-neutral target resolver and conversion planner. When
-disabled geometry is explicitly included, Tauri Canvas and the VS Code Canvas /
-Source routes run one on-demand Rust evaluation with only the resolved disabled
-Bake target IDs allowed; the result is accepted only if the captured document
-revision is still current. The normal document evaluation remains disabled-aware
-and is never replaced by this sandbox.
+disabled geometry is explicitly included, the VS Code Canvas / Source routes
+run one on-demand Rust evaluation with only the resolved disabled Bake target
+IDs allowed; the result is accepted only if the captured document revision is
+still current. The normal document evaluation remains disabled-aware and is
+never replaced by this sandbox.
 
-Tauri production evaluation follows:
-
-```text
-AppLayout
-→ Tauri transport
-→ src-tauri thin command adapter
-→ rust-evaluator::evaluate_document
-```
-
-The VS Code host path follows a separate bridge while reusing the same Webview
-document/evaluation/Canvas path:
+Production VS Code evaluation follows the persistent Extension Host boundary
+while reusing the same Webview document/evaluation/Canvas path:
 
 ```text
 VS Code TextDocument / Extension Host
@@ -138,19 +128,21 @@ lifecycle である。
 
 ## Subsystem index
 
-### App entry / orchestration
+### Production host and Webview entry / orchestration
 
 Primary:
 
-- `src/main.tsx`
-- `src/components/AppLayout.tsx`
+- `vscode-extension/src/extensionEntry.ts`
+- `vscode-extension/src/extension.ts`
+- `src/vscode/main.tsx`
+- `src/vscode/webviewSurfaceRouter.tsx`
 
 `src/geometry/productionEvaluationContext.ts` の shared builder が last-good
-compiled document を `EvaluateElementsOptions` にlowerする。`AppLayout` は
-effective runtime elements と evaluation limit を選択してこのbuilderを呼び、
-`useEvaluationEngine`へ渡す。Runtime elementsはbuilderの所有外なので、Canvas
-drag previewではelementsだけをephemeralに差し替えられ、Source Editor preview
-では対応するcompiled metadataも差し替えられる。
+compiled document を `EvaluateElementsOptions` にlowerする。Production Webview
+surfaces select effective runtime elements and evaluation limits before calling
+the builder and passing the result to `useEvaluationEngine`. Runtime elementsはbuilderの所有外
+なので、Canvas drag previewではelementsだけをephemeralに差し替えられ、Source
+Editor previewでは対応するcompiled metadataも差し替えられる。
 
 ### Canonical document state
 
@@ -175,7 +167,7 @@ consumer が共有する。
 
 - `CadDocumentStore`: application document adapter、Source Editor notification、
   preview、history、file lifecycle を owner とする。
-- `AutomationDocument`: React / Zustand / Tauri に依存しない host-independent
+- `AutomationDocument`: React / Zustand / host APIs に依存しない host-independent
   facade。current source と current-source diagnostics、last-good compiled
   document、source lifecycle revision、compiled-document lifecycle revision を
 保持する。
@@ -259,7 +251,7 @@ results, rejects a non-current Canvas runtime snapshot as `stale`, keeps the
 protocol result JSON-friendly, and declares Source selection indexing as zero-based
 UTF-16 line/character coordinates. Full `sourceText` is stripped from the default
 MCP response and retained only for `includeSourceText: true`; no command, mutation,
-shell, keyboard, pointer, screenshot, HTTP, OAuth, or Tauri-attach surface is
+shell, keyboard, pointer, screenshot, HTTP, OAuth, or host-attach surface is
 introduced.
 
 ### Compilation / source mutation
@@ -378,7 +370,7 @@ snapshots for an open document, rejects conflicting/stale source proof, and
 deduplicates repeated importer candidates. Rename additionally requires each
 document semantic owner to prove the complete non-overlapping edit set against
 exact expected source text; any rejected document rejects the whole plan. Import
-alias rename remains importer-local. Concrete VS Code/Tauri filesystem discovery,
+alias rename remains importer-local. Concrete VS Code filesystem discovery,
 watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
 outside this subsystem.
 
@@ -505,17 +497,17 @@ activity behavior.
 
 `rustEvaluationEligibility.ts` はRust supported element/reference types、compiled
 reference validation、binding mutation、conditional / forGroup ownerのRust eligibility
-をownerとする。`rustEvaluationRunner.ts` はReact、Tauri、Node、benchmarkから独立した
+をownerとする。`rustEvaluationRunner.ts` はUI host、Node、benchmarkから独立した
 Rust request preparation / transport contractであり、既存の
 `buildRustEvaluationInput` と `evaluationPayloadToResult` を再利用する。
-`evaluationEngine.ts` はTauri transport adapterとreference / parity integrationを
+`evaluationEngine.ts` はshared Rust orchestrationとreference / parity integrationを
 担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
-ownerである。将来のheadless hostはこのtransport実装だけを差し替えられる。
+ownerである。VS CodeとHeadless MCPはそれぞれの薄いhost transportからこの共通
+boundaryを利用する。
 
-`src/commands/bakeSettingsStorage.ts` and `src-tauri/src/bake_settings.rs` own
-the three Canvas Bake settings as a separate JSON persistence boundary. Hosts
-resolve plain Bake options before invoking the shared command; the shared core
-does not read VS Code or Tauri settings APIs.
+`vscode-extension/src/extension.ts` owns the three Canvas Bake settings as the
+VS Code configuration boundary. Hosts resolve plain Bake options before invoking
+the shared command; the shared core does not read host settings APIs.
 
 `EvaluationResult.effectiveDrawingModifierStrokes` is the resolved, element-id keyed
 stroke presentation data crossing the evaluation boundary. The TS reference and
@@ -543,11 +535,10 @@ allow-list is only supplied by the Bake host path for its sandbox snapshot.
 `src/commands/bakeGeometry.ts` owns host-neutral target resolution, exact primitive
 conversion, generated declaration naming, source insertion planning, and skipped
 target comments. `bakeCurrentShape` and `bakeBaseShape` dispatch through the shared
-command registry. Tauri commits the resulting `LineSplice[]` through the canonical
-document store; the VS Code Webview sends the same splices to the Extension Host,
-which applies one native TextDocument edit. Source ownership and normalized source
-position queries remain the existing SAY-41 boundary; Bake does not create a
-second runtime-to-source map.
+command registry. The VS Code Webview sends the resulting `LineSplice[]` to the
+Extension Host, which applies one native TextDocument edit. Source ownership and
+normalized source position queries remain the existing SAY-41 boundary; Bake does
+not create a second runtime-to-source map.
 
 ### Output planning / print encoding
 
@@ -616,7 +607,7 @@ Primary:
 
 `rust-evaluator/` is the host-neutral production Rust evaluator owner. Its
 `Cargo.toml` contains evaluator-only dependencies (`kurbo`, `serde`, `serde_json`)
-and does not depend on Tauri, WebKit, or desktop host APIs. The ordinary Rust
+and does not depend on WebKit or desktop host APIs. The ordinary Rust
 API is:
 
 - `nuinuicad_rust_evaluator::evaluate_document(input)`
@@ -625,12 +616,11 @@ Rust evaluator は `.nui` source text を parse したり source name resolution
 やり直す owner ではない。TypeScript compile / lowering 側で構築された resolved
 runtime payload を decode / validate / evaluate する。
 
-Tauri productionは `evaluationEngine.ts` の `evaluate_document` transport adapter
-から `src-tauri/src/lib.rs` のthin `#[tauri::command]` adapterを通り、
-`nuinuicad_rust_evaluator::evaluate_document`を呼び出す。`src-tauri` はevaluator
-implementationやevaluator testsを所有しない。VS CodeとHeadless MCPのNode hostsは
-shared `RustEvaluationProcess`から `rust-evaluator` が所有する `evaluation_stdio`
-NDJSON protocolへ接続し、同じRust evaluatorを利用する。既定binary discoveryは
+Production VS Code evaluationは Webview request から Extension Host の persistent
+`RustEvaluationProcess` / Node stdio boundaryを通り、`rust-evaluator` が所有する
+`evaluation_stdio` NDJSON protocolへ接続して、同じ
+`nuinuicad_rust_evaluator::evaluate_document`を呼び出す。Headless MCPも独立した
+Node ownerから同じ client/protocol と Rust evaluatorを利用する。既定binary discoveryは
 `rust-evaluator/target/debug/evaluation_stdio`で、
 `NUINUICAD_RUST_EVALUATION_BINARY` overrideは維持する。
 
@@ -644,8 +634,6 @@ assertする。
 
 Primary:
 
-- `src/components/AppLayout.tsx`
-- `src/components/TauriDrawingCanvas.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/ModulePreviewApp.tsx`
 - `src/vscode/ModulePreviewParametersApp.tsx`
@@ -658,13 +646,12 @@ Primary:
 - `src/components/useCanvasOverlayData.ts`
 - `src/components/DrawingCanvasHitTest.ts`
 
-Current rendering architecture は AppLayout → TauriDrawingCanvas →
-CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。TauriDrawingCanvas
-が現在のstore、command、Source Editor、画像URL、CommandRibbonOverlayをadapterへ
-接続し、DrawingCanvasはhost-neutralなinteraction/rendering ownerとして
-canvasとoverlayを描画する。VSCodeDrawingCanvasは同じstore、command、CanvasHostAdapter、
-DrawingCanvasを使い、Webviewからのcanonical source commitだけをExtension Hostへ
-中継する。ModulePreviewAppも同じDrawingCanvas / CanvasHostAdapterを使うが、preview
+Current rendering architecture は VS Code Webview surface →
+CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。
+`VSCodeDrawingCanvas`が現在のstore、command、Source Editor、画像URL、
+CommandRibbonOverlayをadapterへ接続し、DrawingCanvasはhost-neutralな
+interaction/rendering ownerとしてcanvasとoverlayを描画する。ModulePreviewAppも
+同じDrawingCanvas / CanvasHostAdapterを使うが、preview
 rootのtarget runtime elementsだけを描画し、source-writing adapter operationsを
 no-opにしてread-only surfaceとして構成する。VS Code側に別のrendererやdrag
 transformは持たない。
@@ -674,9 +661,10 @@ Current invariants:
 - DrawingCanvasのinteraction logicはhost-neutral boundary越しに既存command/document ownerを使う。
 - `DrawingCanvas` passes resolved modifier strokes directly to the shared
   `canvasRenderer`; the renderer is the presentation boundary for semantic theme
-  roles and does not receive modifier definitions or names. Tauri supplies
-  `LEGACY_CANVAS_THEME`; VS Code resolves the active Webview CSS variables and
-  passes the host-neutral `CanvasTheme` through the same adapter.
+  roles and does not receive modifier definitions or names. The shared
+  development/test harness uses `LEGACY_CANVAS_THEME`; VS Code resolves the
+  active Webview CSS variables and passes the host-neutral `CanvasTheme` through
+  the same adapter.
 - The VS Code Extension Host listens for active color-theme changes and sends a
   theme invalidation to each open Canvas session. The Webview re-reads computed
   theme variables and redraws the shared Canvas2D/SVG presentation without
@@ -689,10 +677,8 @@ Command Ribbon presentation is host-neutral. `CommandRibbonView` owns only the
 accessible visual surface, command/value item rendering, icon injection, and
 pointer/wheel isolation. `CommandRibbonFloatingOverlay` owns measured
 floating-position drag and viewport clamping, including label-aware rendered
-dimensions; pointer moves remain presentation-local and a host decides what a
-pointerup commit means. `TauriDrawingCanvas` adapts the existing persisted
-`buttons` settings, Tauri icon catalog, dock behavior, and command execution
-through that boundary. `VSCodeDrawingCanvas` adapts the separate
+dimensions; pointer moves remain presentation-local and the host decides what a
+pointerup commit means. `VSCodeDrawingCanvas` adapts the separate
 `nuinuiCAD.canvasRibbon.ribbons` model, the closed Ribbon command catalog, and
 dynamic Lucide icon resolution through the same boundary.
 
@@ -742,14 +728,14 @@ Primary:
 - `scripts/performance/`
 - `performance/fixtures/`
 
-Tauri / future host で共有する benchmark protocol、result schema、statistics、
-comparison logic、固定 `.nui` workload の owner。
+VS Code and compatible historical-result comparisonで共有する benchmark protocol、
+result schema、statistics、comparison logic、固定 `.nui` workload の owner。
 
 `src/performance/` は benchmark protocol、result schema、statistics、passive
 instrumentation、host-neutral benchmark execution、browser capture scenario、
-Tauri / VS Code capture orchestration、result assembly を owner とする。
-`scripts/performance/` は Tauri / VS Code capture CLI と result IO / comparison を
-担当する。Benchmark state は application store や Rust state に追加せず、通常 run
+VS Code capture orchestration、result assembly を owner とする。
+`scripts/performance/` は VS Code capture CLI と result IO / comparison を担当する。
+Benchmark state は application store や Rust state に追加せず、通常 run
 ではほぼ no-op になる独立 subsystem である。
 
 ### VS Code production document lifecycle
@@ -929,8 +915,8 @@ document or surface identity.
 A panel does not own or kill the process. Unexpected process death rejects pending
 work, clears the dead process, and allows the next evaluation request to respawn
 it. Headless MCP owns a separate lazy owner instance but uses the same
-client/protocol implementation. The process binary is produced by `rust-evaluator`,
-not the Tauri crate. The existing bounded latest-wins Rust transport, stale
+client/protocol implementation. The process binary is produced by `rust-evaluator`.
+The existing bounded latest-wins Rust transport, stale
 evaluation discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and
 production compiler/evaluator remain reused from the performance PoC path.
 
@@ -1060,7 +1046,8 @@ Host. It is independent of the Explorer Mock surface and the native Elements Vie
   `evaluationRequestRevision` は同じ revision として扱わない。
 - Stable statement / element / binding identity を維持する。
 - Model mutation は canonical source-text patch boundary を通す。
-- Tauri production evaluation は host-neutral `rust-evaluator` crate を使う。
+- Production VS Code and Headless MCP evaluation は host-neutral `rust-evaluator`
+  crate を使う。
 - TypeScript evaluator は reference / parity / test。
 - Rust は resolved runtime payload を受け取り、source parsing / source-name
   resolution を再実装しない。

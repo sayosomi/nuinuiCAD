@@ -42,8 +42,8 @@ import { IDENTIFIER_PATTERN } from "./literalScanner";
  * input (the fixed 6-tier precedence ladder && same-tier chaining loops do
  * not, so wide flat expressions are unaffected). Kept comfortably below
  * typical JS stack limits: each nested level costs roughly one call through
- * the full tier ladder (~8-9 frames), && this parser may run inside a
- * Tauri-bundled webview whose default stack can be shallower than Node's.
+ * the full tier ladder (~8-9 frames), && this parser may run inside an embedded
+ * Webview whose default stack can be shallower than Node's.
  */
 export const MAX_SCALAR_EXPRESSION_DEPTH = 128;
 

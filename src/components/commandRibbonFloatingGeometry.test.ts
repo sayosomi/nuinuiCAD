@@ -43,7 +43,7 @@ describe("Command Ribbon estimated geometry", () => {
     });
   });
 
-  it("preserves the Tauri vertical top-handle estimate", () => {
+  it("preserves the legacy vertical top-handle estimate", () => {
     expect(estimatedRibbonSize(ribbonFor("vertical", [commandItem("one"), commandItem("two")]))).toEqual({
       width: 32,
       height: 84
