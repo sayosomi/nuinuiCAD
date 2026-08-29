@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ExtensionToVscodeMessage,
   VscodeModulePreviewParameter,
   VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParameterValueFocus,
   VscodeModulePreviewParametersUnavailable,
   VscodeWebviewApi
 } from "./protocol";
@@ -36,15 +37,25 @@ const ParameterRow = ({
   snapshot,
   parameter,
   onValueChange,
-  onUseDefault
+  onUseDefault,
+  onValueInputFocus,
+  onValueInputSelection,
+  onValueInputBlur,
+  onValueInputRefresh
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   parameter: VscodeModulePreviewParameter;
   onValueChange: (parameter: VscodeModulePreviewParameter, expression: string) => void;
   onUseDefault: (parameter: VscodeModulePreviewParameter) => void;
+  onValueInputFocus: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
 }) => {
   const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
   const [draft, setDraft] = useState(parameter.value);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const lastRowIdentityRef = useRef(rowIdentity);
   const authoritativeRef = useRef({ identity: rowIdentity, value: parameter.value });
   const pendingDraftRef = useRef<string | null>(null);
   useEffect(() => {
@@ -63,6 +74,14 @@ const ParameterRow = ({
       value: parameter.value
     };
   }, [parameter.value, rowIdentity]);
+  useEffect(() => {
+    if (lastRowIdentityRef.current !== rowIdentity) {
+      lastRowIdentityRef.current = rowIdentity;
+      return;
+    }
+    const input = inputRef.current;
+    if (input && document.activeElement === input) onValueInputRefresh(parameter, input);
+  }, [onValueInputRefresh, parameter, parameter.value, rowIdentity]);
   const diagnosticId = parameter.diagnostic
     ? `module-preview-parameter-diagnostic-${parameter.definitionStatementId}-${parameter.parameterIndex}`
     : undefined;
@@ -80,16 +99,22 @@ const ParameterRow = ({
       </th>
       <td>
         <input
+          ref={inputRef}
+          data-module-preview-parameter-identity={rowIdentity}
           className="module-preview-parameter-input"
           aria-label={`Value for ${parameter.name}`}
           aria-invalid={parameter.diagnostic ? "true" : "false"}
           aria-describedby={diagnosticId}
           value={draft}
+          onFocus={(event) => onValueInputFocus(parameter, event.currentTarget)}
+          onSelect={(event) => onValueInputSelection(parameter, event.currentTarget)}
+          onBlur={(event) => onValueInputBlur(parameter, event.currentTarget)}
           onChange={(event) => {
             const expression = event.currentTarget.value;
             pendingDraftRef.current = expression;
             setDraft(expression);
             onValueChange(parameter, expression);
+            onValueInputRefresh(parameter, event.currentTarget);
           }}
         />
         {parameter.diagnostic ? (
@@ -124,12 +149,20 @@ const ParameterGroup = ({
   snapshot,
   group,
   onValueChange,
-  onUseDefault
+  onUseDefault,
+  onValueInputFocus,
+  onValueInputSelection,
+  onValueInputBlur,
+  onValueInputRefresh
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   group: VscodeModulePreviewParameterSnapshot["parameters"];
   onValueChange: (parameter: VscodeModulePreviewParameter, expression: string) => void;
   onUseDefault: (parameter: VscodeModulePreviewParameter) => void;
+  onValueInputFocus: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
 }) => (
   <section
     className="module-preview-parameter-group"
@@ -149,6 +182,10 @@ const ParameterGroup = ({
             parameter={parameter}
             onValueChange={onValueChange}
             onUseDefault={onUseDefault}
+            onValueInputFocus={onValueInputFocus}
+            onValueInputSelection={onValueInputSelection}
+            onValueInputBlur={onValueInputBlur}
+            onValueInputRefresh={onValueInputRefresh}
           />
         ))}
       </tbody>
@@ -159,6 +196,97 @@ const ParameterGroup = ({
 export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [snapshot, setSnapshot] = useState<VscodeModulePreviewParameterSnapshot | null>(null);
   const [unavailable, setUnavailable] = useState<VscodeModulePreviewParametersUnavailable | null>(null);
+  const snapshotRef = useRef<VscodeModulePreviewParameterSnapshot | null>(null);
+  const unavailableRef = useRef<VscodeModulePreviewParametersUnavailable | null>(null);
+  const nextFocusGenerationRef = useRef(1);
+  const valueFocusRef = useRef<{
+    rowIdentity: string;
+    message: VscodeModulePreviewParameterValueFocus;
+  } | null>(null);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+    unavailableRef.current = unavailable;
+  }, [snapshot, unavailable]);
+
+  const rowIdentityFor = useCallback((
+    currentSnapshot: VscodeModulePreviewParameterSnapshot,
+    parameter: VscodeModulePreviewParameter
+  ): string => `${currentSnapshot.sessionId}:${currentSnapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`, []);
+
+  const parameterForRowIdentity = useCallback((
+    currentSnapshot: VscodeModulePreviewParameterSnapshot,
+    rowIdentity: string
+  ): VscodeModulePreviewParameter | null => [
+    ...currentSnapshot.ancestorContexts.flatMap((group) => group.parameters),
+    ...currentSnapshot.parameters.parameters
+  ].find((parameter) => rowIdentityFor(currentSnapshot, parameter) === rowIdentity) ?? null, [rowIdentityFor]);
+
+  const clearValueFocus = useCallback((rowIdentity?: string): void => {
+    const focused = valueFocusRef.current;
+    if (!focused || (rowIdentity !== undefined && focused.rowIdentity !== rowIdentity)) return;
+    valueFocusRef.current = null;
+    api.postMessage({
+      type: "modulePreviewParameterValueBlur",
+      sessionId: focused.message.sessionId,
+      documentUri: focused.message.documentUri,
+      documentVersion: focused.message.documentVersion,
+      sourceRevision: focused.message.sourceRevision,
+      sessionRevision: focused.message.sessionRevision,
+      targetDefinitionStatementId: focused.message.targetDefinitionStatementId,
+      definitionStatementId: focused.message.definitionStatementId,
+      parameterIndex: focused.message.parameterIndex,
+      focusGeneration: focused.message.focusGeneration
+    });
+  }, [api]);
+
+  const publishValueFocus = useCallback((
+    parameter: VscodeModulePreviewParameter,
+    input: HTMLInputElement,
+    startNewGeneration: boolean
+  ): void => {
+    if (!snapshot || unavailable) return;
+    const rowIdentity = rowIdentityFor(snapshot, parameter);
+    const previous = valueFocusRef.current;
+    if (previous && (previous.rowIdentity !== rowIdentity || startNewGeneration)) clearValueFocus();
+    const focusGeneration = nextFocusGenerationRef.current;
+    nextFocusGenerationRef.current += 1;
+    const selectionStart = input.selectionStart ?? input.value.length;
+    const selectionEnd = input.selectionEnd ?? selectionStart;
+    const message: VscodeModulePreviewParameterValueFocus = {
+      type: "modulePreviewParameterValueFocus",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex,
+      value: input.value,
+      selectionStart,
+      selectionEnd,
+      focusGeneration
+    };
+    valueFocusRef.current = { rowIdentity, message };
+    api.postMessage(message);
+  }, [api, clearValueFocus, rowIdentityFor, snapshot, unavailable]);
+
+  const onValueInputFocus = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
+    publishValueFocus(parameter, input, true);
+  }, [publishValueFocus]);
+
+  const onValueInputSelection = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
+    if (document.activeElement === input) publishValueFocus(parameter, input, false);
+  }, [publishValueFocus]);
+
+  const onValueInputBlur = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
+    void parameter;
+    clearValueFocus(input.dataset.modulePreviewParameterIdentity);
+  }, [clearValueFocus]);
+
+  const onValueInputRefresh = useCallback((parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => {
+    if (document.activeElement === input) publishValueFocus(parameter, input, false);
+  }, [publishValueFocus]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
@@ -179,12 +307,59 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
       if (message.type === "modulePreviewParametersUnavailable") {
         setUnavailable(message);
         setSnapshot(null);
+        return;
+      }
+      if (message.type === "modulePreviewRestoreParameterValueSelection") {
+        const current = valueFocusRef.current;
+        const currentSnapshot = snapshotRef.current;
+        const parameter = currentSnapshot && current ? parameterForRowIdentity(currentSnapshot, current.rowIdentity) : null;
+        const input = document.activeElement;
+        if (
+          !currentSnapshot ||
+          unavailableRef.current ||
+          !current ||
+          !parameter ||
+          !(input instanceof HTMLInputElement) ||
+          input.dataset.modulePreviewParameterIdentity !== current.rowIdentity ||
+          current.message.focusGeneration !== message.focusGeneration ||
+          message.sessionId !== currentSnapshot.sessionId ||
+          message.documentUri !== currentSnapshot.documentUri ||
+          message.documentVersion !== currentSnapshot.documentVersion ||
+          message.sourceRevision !== currentSnapshot.sourceRevision ||
+          message.sessionRevision !== currentSnapshot.sessionRevision ||
+          message.targetDefinitionStatementId !== currentSnapshot.target.definitionStatementId ||
+          message.definitionStatementId !== parameter.definitionStatementId ||
+          message.parameterIndex !== parameter.parameterIndex ||
+          input.value !== message.value ||
+          !Number.isInteger(message.selectionStart) ||
+          !Number.isInteger(message.selectionEnd) ||
+          message.selectionStart < 0 ||
+          message.selectionEnd < message.selectionStart ||
+          message.selectionEnd > input.value.length
+        ) return;
+        input.setSelectionRange(message.selectionStart, message.selectionEnd);
       }
     };
     window.addEventListener("message", onMessage);
     api.postMessage({ type: "modulePreviewParametersViewReady" });
     return () => window.removeEventListener("message", onMessage);
-  }, [api]);
+  }, [api, parameterForRowIdentity]);
+
+  useEffect(() => {
+    const focused = valueFocusRef.current;
+    if (!focused) return;
+    if (!snapshot || unavailable || !parameterForRowIdentity(snapshot, focused.rowIdentity)) {
+      clearValueFocus();
+      return;
+    }
+    const input = [...document.querySelectorAll<HTMLInputElement>(".module-preview-parameter-input")]
+      .find((candidate) => candidate.dataset.modulePreviewParameterIdentity === focused.rowIdentity);
+    if (!input || document.activeElement !== input) {
+      clearValueFocus();
+    }
+  }, [clearValueFocus, parameterForRowIdentity, snapshot, unavailable]);
+
+  useEffect(() => () => clearValueFocus(), [clearValueFocus]);
 
   const onValueChange = (parameter: VscodeModulePreviewParameter, expression: string): void => {
     if (!snapshot) return;
@@ -240,6 +415,10 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
                 group={group}
                 onValueChange={onValueChange}
                 onUseDefault={onUseDefault}
+                onValueInputFocus={onValueInputFocus}
+                onValueInputSelection={onValueInputSelection}
+                onValueInputBlur={onValueInputBlur}
+                onValueInputRefresh={onValueInputRefresh}
               />
             ))}
             <ParameterGroup
@@ -247,6 +426,10 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
               group={snapshot.parameters}
               onValueChange={onValueChange}
               onUseDefault={onUseDefault}
+              onValueInputFocus={onValueInputFocus}
+              onValueInputSelection={onValueInputSelection}
+              onValueInputBlur={onValueInputBlur}
+              onValueInputRefresh={onValueInputRefresh}
             />
           </div>
         </>
