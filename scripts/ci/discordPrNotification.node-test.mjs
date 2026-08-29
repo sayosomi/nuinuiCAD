@@ -3,9 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { deflateRawSync } from "node:zlib";
 import {
+  buildMainPushContent,
   buildCiFailureContent,
   fetchFailureDetails,
-  notifyCiFailure
+  notifyCiFailure,
+  notifyMainPush,
+  notifyMergedPullRequest
 } from "./discordPrNotification.mjs";
 import {
   MAX_ARTIFACT_BYTES,
@@ -115,6 +118,69 @@ const fetchForNodeChanged = ({ archive = junit('<testsuites><testcase name="fail
     throw new Error(`unexpected ${url}`);
   };
   return { fetchImpl, requests };
+};
+
+const mainPushEvent = {
+  ref: "refs/heads/main",
+  before: "a".repeat(40),
+  after: "b".repeat(40),
+  repository: { pushed_at: "2025-01-02T00:00:00Z" }
+};
+
+const mainPushEnvironment = {
+  GITHUB_REPOSITORY: "sayosomi/nuinuiCAD",
+  GITHUB_TOKEN: "token",
+  DISCORD_WEBHOOK_URL: "https://discord.example/webhook"
+};
+
+const headShaForNumber = (number) => number.toString(16).padStart(2, "0").repeat(20);
+
+const makePullRequest = ({ number, headSha = headShaForNumber(number), title = `PR ${number}`, createdAt = "2025-01-01T00:00:00Z", draft = false, state = "open", baseRef = "main" }) => ({
+  number,
+  title,
+  html_url: `https://github.com/sayosomi/nuinuiCAD/pull/${number}`,
+  created_at: createdAt,
+  draft,
+  state,
+  base: { ref: baseRef },
+  head: { sha: headSha }
+});
+
+const compareKey = (mainSha, headSha) => `${mainSha}...${headSha}`;
+
+const fetchForMainPush = ({ pages = [[]], compares = {}, listStatus = 200, compareStatus = 200 } = {}) => {
+  const requests = [];
+  const posts = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url === mainPushEnvironment.DISCORD_WEBHOOK_URL) {
+      posts.push(JSON.parse(options.body));
+      return response(null, { status: 204 });
+    }
+
+    const parsedUrl = new URL(url);
+    if (parsedUrl.pathname.endsWith("/pulls")) {
+      if (listStatus !== 200) return response(null, { status: listStatus });
+      const page = Number(parsedUrl.searchParams.get("page"));
+      const payload = pages[page - 1] ?? [];
+      const headers = {};
+      if (page < pages.length) {
+        parsedUrl.searchParams.set("page", String(page + 1));
+        headers.link = `<${parsedUrl}>; rel="next"`;
+      }
+      return response(JSON.stringify(payload), { headers });
+    }
+
+    const match = parsedUrl.pathname.match(/\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/iu);
+    if (match) {
+      if (compareStatus !== 200) return response(null, { status: compareStatus });
+      const key = compareKey(match[1], match[2]);
+      if (!Object.hasOwn(compares, key)) throw new Error(`unexpected compare ${key}`);
+      return response(JSON.stringify({ behind_by: compares[key] }));
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  return { fetchImpl, posts, requests };
 };
 
 test("uses exact job and step mapping for structured reports", () => {
@@ -446,4 +512,235 @@ test("the notification helper has no raw Actions-log or console-regex interface"
   assert.doesNotMatch(source, /extractCurrentRunnerTestName/);
   assert.doesNotMatch(source, /not ok|\.\.\. FAILED|FAIL\\s|×/);
   assert.doesNotMatch(structuredSource, /writeFile|writeFileSync|unzip|extractTo/);
+});
+
+test("notifies exactly once when a PR becomes behind after the main push", async () => {
+  const pullRequest = makePullRequest({ number: 101 });
+  const { fetchImpl, posts, requests } = fetchForMainPush({
+    pages: [[pullRequest]],
+    compares: {
+      [compareKey(mainPushEvent.before, pullRequest.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, pullRequest.head.sha)]: 1
+    }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 1);
+  assert.match(posts[0].content, /PR #101 out of date/u);
+  assert.match(posts[0].content, /latest main integration required/u);
+  assert.match(posts[0].content, /main SHA: a{40} → b{40}/u);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 2);
+});
+
+test("does not notify a PR that was already behind before the main push", async () => {
+  const pullRequest = makePullRequest({ number: 102 });
+  const { fetchImpl, posts, requests } = fetchForMainPush({
+    pages: [[pullRequest]],
+    compares: { [compareKey(mainPushEvent.before, pullRequest.head.sha)]: 1 }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 1);
+});
+
+test("does not notify a PR that is still current after the main push", async () => {
+  const pullRequest = makePullRequest({ number: 103 });
+  const { fetchImpl, posts } = fetchForMainPush({
+    pages: [[pullRequest]],
+    compares: {
+      [compareKey(mainPushEvent.before, pullRequest.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, pullRequest.head.sha)]: 0
+    }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 0);
+});
+
+test("does not compare or notify draft PRs", async () => {
+  const pullRequest = makePullRequest({ number: 104, draft: true });
+  const { fetchImpl, posts, requests } = fetchForMainPush({ pages: [[pullRequest]] });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 0);
+});
+
+test("notifies only qualifying transitions among multiple PRs", async () => {
+  const qualifying = makePullRequest({ number: 105 });
+  const alreadyBehind = makePullRequest({ number: 106 });
+  const stillCurrent = makePullRequest({ number: 107 });
+  const { fetchImpl, posts } = fetchForMainPush({
+    pages: [[qualifying, alreadyBehind, stillCurrent]],
+    compares: {
+      [compareKey(mainPushEvent.before, qualifying.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, qualifying.head.sha)]: 2,
+      [compareKey(mainPushEvent.before, alreadyBehind.head.sha)]: 1,
+      [compareKey(mainPushEvent.before, stillCurrent.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, stillCurrent.head.sha)]: 0
+    }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 1);
+  assert.match(posts[0].content, /PR #105/u);
+  assert.doesNotMatch(posts[0].content, /PR #106|PR #107/u);
+});
+
+test("does not notify a PR created after the push-time oracle", async () => {
+  const pullRequest = makePullRequest({ number: 108, createdAt: "2025-01-02T00:00:01Z" });
+  const { fetchImpl, posts, requests } = fetchForMainPush({ pages: [[pullRequest]] });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 0);
+});
+
+test("accepts production-shape numeric pushed_at and uses it for PR time filtering", async () => {
+  const createdAtPush = makePullRequest({ number: 114, createdAt: "2025-01-02T00:00:00.000Z" });
+  const createdBeforePush = makePullRequest({ number: 115, createdAt: "2025-01-01T00:00:00Z" });
+  const createdAfterPush = makePullRequest({ number: 116, createdAt: "2025-01-02T00:00:01Z" });
+  const numericPushEvent = {
+    ...mainPushEvent,
+    repository: { pushed_at: 1735776000 }
+  };
+  const { fetchImpl, posts } = fetchForMainPush({
+    pages: [[createdAtPush, createdBeforePush, createdAfterPush]],
+    compares: {
+      [compareKey(mainPushEvent.before, createdAtPush.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, createdAtPush.head.sha)]: 1,
+      [compareKey(mainPushEvent.before, createdBeforePush.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, createdBeforePush.head.sha)]: 1
+    }
+  });
+
+  await notifyMainPush({ event: numericPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 2);
+  assert.match(posts[0].content, /PR #114/u);
+  assert.match(posts[1].content, /PR #115/u);
+  assert.doesNotMatch(posts.map(({ content }) => content).join("\n"), /PR #116/u);
+});
+
+test("follows pull request pagination and processes a qualifying PR beyond page one", async () => {
+  const pullRequest = makePullRequest({ number: 109 });
+  const { fetchImpl, posts, requests } = fetchForMainPush({
+    pages: [
+      [makePullRequest({ number: 110, draft: true })],
+      [pullRequest]
+    ],
+    compares: {
+      [compareKey(mainPushEvent.before, pullRequest.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, pullRequest.head.sha)]: 1
+    }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 1);
+  assert.match(posts[0].content, /PR #109/u);
+  assert.ok(requests.some(({ url }) => url.includes("/pulls?") && url.includes("page=2")));
+});
+
+test("sanitizes untrusted display text and keeps Discord mentions disabled", async () => {
+  const pullRequest = makePullRequest({ number: 111, title: "@everyone\n<title>\u0000" });
+  const { fetchImpl, posts } = fetchForMainPush({
+    pages: [[pullRequest]],
+    compares: {
+      [compareKey(mainPushEvent.before, pullRequest.head.sha)]: 0,
+      [compareKey(mainPushEvent.after, pullRequest.head.sha)]: 1
+    }
+  });
+
+  await notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl });
+
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].allowed_mentions.parse.length, 0);
+  assert.doesNotMatch(posts[0].content.split("\n")[1], /[\u0000-\u001f\u007f-\u009f]/u);
+  assert.match(posts[0].content, /@everyone <title>/u);
+  assert.equal(buildMainPushContent({ repository: "repo", pullRequest, before: mainPushEvent.before, after: mainPushEvent.after }).length <= 2000, true);
+});
+
+test("fails safely on malformed push SHAs without making API requests", async () => {
+  const requests = [];
+  await assert.rejects(
+    notifyMainPush({
+      event: { ...mainPushEvent, before: "not-a-sha" },
+      environment: mainPushEnvironment,
+      fetchImpl: async (url) => {
+        requests.push(url);
+        throw new Error("unexpected request");
+      }
+    }),
+    /valid before and after SHAs/u
+  );
+  assert.equal(requests.length, 0);
+});
+
+test("fails closed when the push-time oracle is malformed or unavailable", async () => {
+  for (const pushedAt of [undefined, null, "not-a-time", "2025-02-30T00:00:00Z", {}, NaN, Infinity, -1, 1.5, 8640000000001, Number.MAX_SAFE_INTEGER]) {
+    const event = { ...mainPushEvent, repository: { pushed_at: pushedAt } };
+    const requests = [];
+    await assert.rejects(
+      notifyMainPush({
+        event,
+        environment: mainPushEnvironment,
+        fetchImpl: async (url) => {
+          requests.push(url);
+          throw new Error("unexpected request");
+        }
+      }),
+      /valid repository pushed_at time/u
+    );
+    assert.equal(requests.length, 0);
+  }
+});
+
+test("fails when the pull request list API fails", async () => {
+  const { fetchImpl, posts } = fetchForMainPush({ listStatus: 500 });
+
+  await assert.rejects(
+    notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl }),
+    /GitHub API returned 500/u
+  );
+  assert.equal(posts.length, 0);
+});
+
+test("fails when a compare API call fails", async () => {
+  const pullRequest = makePullRequest({ number: 112 });
+  const { fetchImpl, posts } = fetchForMainPush({ pages: [[pullRequest]], compareStatus: 500 });
+
+  await assert.rejects(
+    notifyMainPush({ event: mainPushEvent, environment: mainPushEnvironment, fetchImpl }),
+    /GitHub API returned 500/u
+  );
+  assert.equal(posts.length, 0);
+});
+
+test("keeps merged pull request notification behavior covered", async () => {
+  const posts = [];
+  await notifyMergedPullRequest({
+    environment: {
+      DISCORD_WEBHOOK_URL: mainPushEnvironment.DISCORD_WEBHOOK_URL,
+      REPOSITORY_NAME: "sayosomi/nuinuiCAD",
+      PR_NUMBER: 113,
+      PR_TITLE: "Merged notification",
+      PR_URL: "https://github.com/sayosomi/nuinuiCAD/pull/113"
+    },
+    fetchImpl: async (url, options) => {
+      assert.equal(url, mainPushEnvironment.DISCORD_WEBHOOK_URL);
+      posts.push(JSON.parse(options.body));
+      return response(null, { status: 204 });
+    }
+  });
+
+  assert.match(posts[0].content, /PR #113 merged/u);
+  assert.deepEqual(posts[0].allowed_mentions, { parse: [] });
 });

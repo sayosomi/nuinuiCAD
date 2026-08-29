@@ -14,6 +14,7 @@ const DISPLAY_CAPS = Object.freeze({
   prNumber: 32,
   title: 400,
   headSha: 64,
+  mainSha: 64,
   runAttempt: 32,
   runUrl: 350,
   job: 160,
@@ -48,6 +49,67 @@ const asText = (value, maxLength) => {
 
 const apiUrl = (repository, path) =>
   `https://api.github.com/repos/${repository}${path}`;
+
+const SHA_PATTERN = /^[0-9a-f]{40}$/iu;
+const GITHUB_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/u;
+const MAX_DATE_MILLISECONDS = 8_640_000_000_000_000;
+const MAX_UNIX_SECONDS = MAX_DATE_MILLISECONDS / 1000;
+
+const parseGitHubTime = (value) => {
+  if (typeof value === "number") {
+    if (
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      Object.is(value, -0) ||
+      value > MAX_UNIX_SECONDS
+    ) {
+      return null;
+    }
+    const timestamp = value * 1000;
+    if (!Number.isSafeInteger(timestamp) || timestamp > MAX_DATE_MILLISECONDS) return null;
+    const date = new Date(timestamp);
+    return Number.isFinite(date.getTime()) ? timestamp : null;
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const match = value.match(GITHUB_TIME_PATTERN);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second, timezone] = match;
+  const numericYear = Number(year);
+  const numericMonth = Number(month);
+  const numericDay = Number(day);
+  const numericHour = Number(hour);
+  const numericMinute = Number(minute);
+  const numericSecond = Number(second);
+  const timezoneHours = timezone === "Z" ? 0 : Number(timezone.slice(1, 3));
+  const timezoneMinutes = timezone === "Z" ? 0 : Number(timezone.slice(4, 6));
+  if (
+    numericMonth < 1 ||
+    numericMonth > 12 ||
+    numericDay < 1 ||
+    numericDay > new Date(Date.UTC(numericYear, numericMonth, 0)).getUTCDate() ||
+    numericHour > 23 ||
+    numericMinute > 59 ||
+    numericSecond > 59 ||
+    timezoneHours > 23 ||
+    timezoneMinutes > 59
+  ) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const mainPushFromEvent = (event) => {
+  if (event?.ref !== "refs/heads/main") {
+    throw new Error("Expected a push event for refs/heads/main");
+  }
+  if (!SHA_PATTERN.test(event?.before ?? "") || !SHA_PATTERN.test(event?.after ?? "")) {
+    throw new Error("Push event does not contain valid before and after SHAs");
+  }
+  const pushedAt = parseGitHubTime(event?.repository?.pushed_at);
+  if (pushedAt === null) throw new Error("Push event does not contain a valid repository pushed_at time");
+  return { before: event.before, after: event.after, pushedAt };
+};
 
 const request = async (url, token, fetchImpl) => {
   const response = await fetchImpl(url, {
@@ -205,6 +267,116 @@ export const postDiscord = async ({ webhookUrl, content, fetchImpl = fetch }) =>
   if (!response.ok) throw new Error(`Discord webhook returned HTTP status ${response.status}`);
 };
 
+const nextLinkFromHeader = (header) => {
+  if (!header) return null;
+  const nextPart = header.split(",").map((part) => part.trim()).find((part) => /(?:^|;)\s*rel="next"/u.test(part));
+  if (!nextPart) return null;
+  const match = nextPart.match(/^<([^>]+)>/u);
+  if (!match) throw new Error("GitHub pulls API returned a malformed pagination link");
+  return match[1];
+};
+
+const listOpenMainPullRequests = async ({ repository, token, fetchImpl }) => {
+  const pullRequests = [];
+  const visitedUrls = new Set();
+  let page = 1;
+  let url = apiUrl(repository, `/pulls?state=open&base=main&per_page=100&page=${page}`);
+
+  while (url) {
+    if (visitedUrls.has(url)) throw new Error("GitHub pulls API pagination repeated a page");
+    visitedUrls.add(url);
+    const response = await request(url, token, fetchImpl);
+    const payload = await response.json();
+    if (!Array.isArray(payload) || payload.length > 100) throw new Error("GitHub pulls API returned an invalid page");
+    pullRequests.push(...payload);
+
+    const nextUrl = nextLinkFromHeader(response.headers?.get?.("link"));
+    if (nextUrl) {
+      url = nextUrl;
+      continue;
+    }
+    if (payload.length < 100) break;
+    page += 1;
+    url = apiUrl(repository, `/pulls?state=open&base=main&per_page=100&page=${page}`);
+  }
+
+  return pullRequests;
+};
+
+const compareMainToPullRequest = async ({ repository, mainSha, headSha, token, fetchImpl }) => {
+  const response = await request(apiUrl(repository, `/compare/${mainSha}...${headSha}`), token, fetchImpl);
+  const payload = await response.json();
+  if (!Number.isSafeInteger(payload?.behind_by) || payload.behind_by < 0) {
+    throw new Error("GitHub compare API returned an invalid behind_by value");
+  }
+  return payload.behind_by;
+};
+
+const eligiblePullRequest = (pullRequest, pushedAt) => {
+  if (
+    !pullRequest ||
+    pullRequest.state !== "open" ||
+    pullRequest.draft !== false ||
+    pullRequest.base?.ref !== "main" ||
+    !Number.isSafeInteger(pullRequest.number) ||
+    pullRequest.number <= 0 ||
+    !SHA_PATTERN.test(pullRequest.head?.sha ?? "")
+  ) {
+    return null;
+  }
+  const createdAt = parseGitHubTime(pullRequest.created_at);
+  if (createdAt === null || createdAt > pushedAt) return null;
+  return pullRequest;
+};
+
+export const buildMainPushContent = ({ repository, pullRequest, before, after }) => {
+  const lines = [
+    `⚠️ [${asText(repository, DISPLAY_CAPS.repository)}] PR #${asText(pullRequest?.number, DISPLAY_CAPS.prNumber)} out of date — latest main integration required`,
+    asText(pullRequest?.title, DISPLAY_CAPS.title),
+    `PR URL: ${asText(pullRequest?.html_url, DISPLAY_CAPS.runUrl)}`,
+    `main SHA: ${asText(before, DISPLAY_CAPS.mainSha)} → ${asText(after, DISPLAY_CAPS.mainSha)}`
+  ];
+  return truncate(lines.join("\n"), MAX_DISCORD_MESSAGE_LENGTH);
+};
+
+export const notifyMainPush = async ({ event, environment = process.env, fetchImpl = fetch }) => {
+  const { before, after, pushedAt } = mainPushFromEvent(event);
+  const repository = environment.GITHUB_REPOSITORY;
+  const token = environment.GITHUB_TOKEN;
+  if (typeof repository !== "string" || !repository.trim()) throw new Error("GITHUB_REPOSITORY is required");
+  if (typeof token !== "string" || !token) throw new Error("GITHUB_TOKEN is required");
+
+  const pullRequests = await listOpenMainPullRequests({ repository, token, fetchImpl });
+  const notifiedPullRequests = new Set();
+  for (const pullRequest of pullRequests) {
+    const eligible = eligiblePullRequest(pullRequest, pushedAt);
+    if (!eligible || notifiedPullRequests.has(eligible.number)) continue;
+    const beforeBehindBy = await compareMainToPullRequest({
+      repository,
+      mainSha: before,
+      headSha: eligible.head.sha,
+      token,
+      fetchImpl
+    });
+    if (beforeBehindBy !== 0) continue;
+    const afterBehindBy = await compareMainToPullRequest({
+      repository,
+      mainSha: after,
+      headSha: eligible.head.sha,
+      token,
+      fetchImpl
+    });
+    if (afterBehindBy <= 0) continue;
+
+    await postDiscord({
+      webhookUrl: environment.DISCORD_WEBHOOK_URL,
+      content: buildMainPushContent({ repository, pullRequest: eligible, before, after }),
+      fetchImpl
+    });
+    notifiedPullRequests.add(eligible.number);
+  }
+};
+
 export const notifyCiFailure = async ({ event, environment = process.env, fetchImpl = fetch }) => {
   const { run, pullRequest } = ciFailureFromEvent(event);
   if (!pullRequest) return;
@@ -245,7 +417,12 @@ const main = async () => {
     const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
     return notifyCiFailure({ event });
   }
-  throw new Error("Usage: discordPrNotification.mjs <merge|ci-failure>");
+  if (mode === "main-push") {
+    if (!process.env.GITHUB_EVENT_PATH) throw new Error("GITHUB_EVENT_PATH is required");
+    const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
+    return notifyMainPush({ event });
+  }
+  throw new Error("Usage: discordPrNotification.mjs <merge|ci-failure|main-push>");
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
