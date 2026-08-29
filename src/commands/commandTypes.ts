@@ -160,11 +160,11 @@ export type CommandId =
   | "confirmCommandLineSession";
 
 export type CommandContext = {
-  /** VS Code Canvas opts into local element-selection history; Tauri leaves this unset. */
+  /** Host Canvas may opt into local element-selection history when it owns that state. */
   recordSelectionHistory?: boolean;
   /** Finalizes ephemeral Canvas interaction state before a command changes ownership. */
   finalizeCanvasInteraction?: () => void;
-  /** Host-aware Canvas Undo/Redo coordinator. The direct store path remains the Tauri fallback. */
+  /** Host-aware Canvas Undo/Redo coordinator; the direct store path remains the local fallback. */
   canvasHistory?: (direction: "undo" | "redo") => void;
   focusCanvas?: () => void;
   focusSourceEditor?: () => void;
@@ -209,7 +209,7 @@ export type CommandContext = {
   bakeDisabledEvaluation?: EvaluationResult;
   bakeDisabledEvaluationTargetIds?: readonly ElementId[];
   bakeDisabledEvaluationIsCurrent?: boolean;
-  /** Tauri-only on-demand Bake sandbox provider. */
+  /** Optional on-demand Bake sandbox provider when a current precomputed sandbox evaluation is unavailable. */
   prepareBakeSandbox?: (targetIds: readonly ElementId[]) => Promise<BakeSandboxEvaluation | null>;
   selectionMode?: "replace" | "toggle" | "range";
   /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */

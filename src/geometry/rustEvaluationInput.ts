@@ -31,7 +31,7 @@ export type EvaluateDocumentInput = {
   };
 };
 
-/** The sole JSON-shaped projection sent to Rust, shared by Tauri && parity. */
+/** The sole JSON-shaped projection sent to Rust, shared by host transports and parity. */
 export const buildRustEvaluationInput = (
   elements: CadElement[],
   options: EvaluateElementsOptions = {},

@@ -1,4 +1,4 @@
-// Regression coverage for a real Tauri report: Rust-first evaluation
+// Regression coverage for a historical Tauri-host report: Rust-first evaluation
 // (useEvaluationEngine.ts) is asynchronous, so ElementName.property
 // completion candidates (computedGeometry/effectiveEnabledElementIds-gated)
 // can go blank exactly when @ typed-binding completion (compile-time

@@ -525,7 +525,7 @@ describe("createDslCompletionSource", () => {
     });
 
     it("shows a real, visible completion tooltip from natural (non-explicit) typing through a live EditorView, && keeps narrowing it", async () => {
-      // Regression coverage for a real Tauri report: typing `.` after an
+      // Regression coverage for a historical Tauri-host report: typing `.` after an
       // element name must surface ElementName.property candidates through
       // the actual dslAutocompleteExtension/EditorView wiring - not just
       // through a direct createDslCompletionSource({ explicit: true }) call,
@@ -1827,7 +1827,7 @@ describe("typed value completion (Task 39)", () => {
     });
 
     it("Task 51 manual-E2E rerun: natural '{' then '@' through a live EditorView with no closing quote/paren still opens the popup with only string/number candidates", async () => {
-      // Regression for the actual Tauri repro (51-manual-e2e-checklist.md
+      // Regression for the historical Tauri repro (51-manual-e2e-checklist.md
       // Scenario 4 step 4): every other template-hole test above keeps the
       // *outer string quote* closed (`"${@"`) so only the hole itself is
       // in-progress. Here neither the string nor the call `(...)` is ever

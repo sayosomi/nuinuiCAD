@@ -1,5 +1,5 @@
-// End-to-end coverage for Task 27: compileDslDocument -> the same entry
-// builders AppLayout.tsx uses -> the same evaluateElements/
+// End-to-end coverage for Task 27: compileDslDocument -> the same shared
+// evaluation builders -> the same evaluateElements/
 // canUseRustEvaluationForElements functions useEvaluationEngine.ts calls for
 // production evaluation routing. Proves escaped braces, typed string holes,
 // && the bare `@binding` text.text property all evaluate via the AST path
@@ -12,9 +12,9 @@ import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 
-/** Mirrors AppLayout.tsx's evaluationOptions memo exactly - the same entry
- * builders, the same conditional spreads - so this test exercises the real
- * production wiring shape, not a hand-rolled substitute. */
+/** Mirrors the production evaluation-options wiring exactly - the same entry
+ * builders and conditional spreads - so this test exercises the real shared
+ * evaluation shape, not a hand-rolled substitute. */
 const productionEvaluationOptions = (compiled: ReturnType<typeof compileDslDocument>): EvaluateElementsOptions => {
   const elementIdByStatementIndex = compiled.statementMap?.elementIdByStatementIndex ?? new Map();
   const textTemplateEntriesByElementId = compiled.textTemplates

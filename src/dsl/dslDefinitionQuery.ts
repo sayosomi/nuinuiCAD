@@ -194,7 +194,7 @@ const shorthandValueOccurrenceAt = (
   return identities.size === 1 ? valueMatches[0] ?? null : null;
 };
 
-/** Query a resolved DSL reference without importing VS Code, CodeMirror, or Tauri. */
+/** Query a resolved DSL reference without importing host APIs or CodeMirror. */
 export const queryDslDefinition = ({ source, position, semantic }: DslDefinitionQueryInput): DslDefinitionQueryResult | null => {
   if (source.normalizedSource.includes("\r") || position < 0 || position > source.normalizedSource.length) return null;
   if (!semanticIsExact(source, semantic) || !semantic?.compiled) return null;
