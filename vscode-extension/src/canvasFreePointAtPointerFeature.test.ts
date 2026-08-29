@@ -123,6 +123,128 @@ describe("Canvas free point at pointer feature", () => {
     feature.dispose();
   });
 
+  it("restores the pre-command anchor on Undo so the next creation can proceed", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    document.version = 2;
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+
+    document.version = 3;
+    mocks.documentChangeListeners[0]?.({
+      document,
+      contentChanges: [{}],
+      reason: 1
+    });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      documentVersion: 3,
+      sourcePosition: { documentVersion: 3, line: 3, character: 4 }
+    }));
+    feature.dispose();
+  });
+
+  it("restores the post-insertion anchor on Redo", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    document.version = 2;
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+    document.version = 3;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 1 });
+    document.version = 4;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 2 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      documentVersion: 4,
+      sourcePosition: { documentVersion: 4, line: 3, character: 19 }
+    }));
+    feature.dispose();
+  });
+
+  it("fails closed after unrelated Source drift instead of treating it as command history", async () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+    const activeTextEditor = (await import("vscode")).window as unknown as { activeTextEditor: TestEditor | null };
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    const requestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    document.version = 2;
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+
+    editor.selection.active = { line: 6, character: 2 };
+    activeTextEditor.activeTextEditor = editor;
+    document.version = 3;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
+    await Promise.resolve();
+    document.version = 4;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}], reason: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    feature.dispose();
+  });
+
   it("does not fall back from an invalid or non-blank context to the latest pointer", () => {
     const document = documentFor();
     const editor = editorFor(document);

@@ -43,6 +43,18 @@ type PendingRequest = {
   canvasEditMarked: boolean;
 };
 
+type CommandOwnedAnchorPosition = Pick<VscodeSourceAuthoringPosition, "line" | "character">;
+
+type CommandOwnedAnchorHistoryEntry = {
+  preCommand: CommandOwnedAnchorPosition;
+  postInsertion: CommandOwnedAnchorPosition;
+};
+
+type CommandOwnedAnchorHistory = {
+  past: CommandOwnedAnchorHistoryEntry[];
+  future: CommandOwnedAnchorHistoryEntry[];
+};
+
 type SourceSelectionChangeEvent = {
   textEditor: vscode.TextEditor;
   kind?: number;
@@ -113,8 +125,21 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   activeCanvasEndpoint: () => VscodeCanvasFreePointAtPointerEndpoint | null;
 }): VscodeCanvasFreePointAtPointerFeature => {
   const sourceAnchors = new Map<string, VscodeSourceAuthoringPosition>();
+  const commandOwnedAnchorHistories = new Map<string, CommandOwnedAnchorHistory>();
   const pendingRequests = new Map<number, PendingRequest>();
   let nextRequestId = 1;
+
+  const commandOwnedAnchorHistoryFor = (documentUri: string): CommandOwnedAnchorHistory => {
+    const existing = commandOwnedAnchorHistories.get(documentUri);
+    if (existing) return existing;
+    const created = { past: [], future: [] };
+    commandOwnedAnchorHistories.set(documentUri, created);
+    return created;
+  };
+
+  const clearCommandOwnedAnchorHistory = (documentUri: string): void => {
+    commandOwnedAnchorHistories.delete(documentUri);
+  };
 
   const execute = (context?: unknown): void => {
     const endpoint = activeCanvasEndpoint();
@@ -159,16 +184,54 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 
   const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event: SourceDocumentChangeEvent) => {
     if (event.contentChanges.length === 0 || !isSupportedSourceDocument(event.document)) return;
-    if (event.reason === vscode.TextDocumentChangeReason?.Undo || event.reason === vscode.TextDocumentChangeReason?.Redo) return;
+    const documentUri = sourceDocumentKey(event.document);
+    const currentAnchor = sourceAnchors.get(documentUri);
+    const history = commandOwnedAnchorHistories.get(documentUri);
+    if (event.reason === vscode.TextDocumentChangeReason?.Undo || event.reason === vscode.TextDocumentChangeReason?.Redo) {
+      const direction = event.reason === vscode.TextDocumentChangeReason?.Undo ? "undo" : "redo";
+      const entry = direction === "undo" ? history?.past.at(-1) : history?.future[0];
+      const expectedCurrentPosition = direction === "undo" ? entry?.postInsertion : entry?.preCommand;
+      if (
+        !history ||
+        !entry ||
+        !currentAnchor ||
+        !expectedCurrentPosition ||
+        currentAnchor.documentVersion !== event.document.version - 1 ||
+        currentAnchor.line !== expectedCurrentPosition.line ||
+        currentAnchor.character !== expectedCurrentPosition.character
+      ) {
+        clearCommandOwnedAnchorHistory(documentUri);
+        return;
+      }
+      if (direction === "undo") {
+        history.past = history.past.slice(0, -1);
+        history.future = [entry, ...history.future];
+        sourceAnchors.set(documentUri, {
+          documentVersion: event.document.version,
+          line: entry.preCommand.line,
+          character: entry.preCommand.character
+        });
+      } else {
+        history.future = history.future.slice(1);
+        history.past = [...history.past, entry];
+        sourceAnchors.set(documentUri, {
+          documentVersion: event.document.version,
+          line: entry.postInsertion.line,
+          character: entry.postInsertion.character
+        });
+      }
+      return;
+    }
     const canvasEdit = [...pendingRequests.values()].find((pending) =>
       pending.canvasEditMarked &&
-      pending.documentUri === sourceDocumentKey(event.document) &&
+      pending.documentUri === documentUri &&
       event.document.version === pending.sourcePosition.documentVersion + 1
     );
     if (canvasEdit) {
       canvasEdit.canvasEditMarked = false;
       return;
     }
+    clearCommandOwnedAnchorHistory(documentUri);
     queueMicrotask(() => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || !sameDocument(editor.document, event.document) || editor.document.version !== event.document.version) return;
@@ -179,6 +242,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 
   const closeListener = vscode.workspace.onDidCloseTextDocument((document: vscode.TextDocument) => {
     sourceAnchors.delete(sourceDocumentKey(document));
+    clearCommandOwnedAnchorHistory(sourceDocumentKey(document));
     for (const [requestId, pending] of pendingRequests) {
       if (pending.documentUri === sourceDocumentKey(document)) pendingRequests.delete(requestId);
     }
@@ -207,6 +271,18 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
         currentAnchor.line !== pending.sourcePosition.line ||
         currentAnchor.character !== pending.sourcePosition.character
       ) return;
+      const history = commandOwnedAnchorHistoryFor(pending.documentUri);
+      history.past = [...history.past, {
+        preCommand: {
+          line: pending.sourcePosition.line,
+          character: pending.sourcePosition.character
+        },
+        postInsertion: {
+          line: message.nextSourcePosition.line,
+          character: message.nextSourcePosition.character
+        }
+      }];
+      history.future = [];
       sourceAnchors.set(pending.documentUri, {
         documentVersion: message.documentVersion,
         line: message.nextSourcePosition.line,
