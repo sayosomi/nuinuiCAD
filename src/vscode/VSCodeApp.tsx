@@ -298,8 +298,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       } else if (pending.status === "pending" && (
         pending.authoritativeDocumentGeneration === null
           ? latestHostDocumentVersionRef.current !== pending.expectedDocumentVersion
-          : latestHostDocumentVersionRef.current !== pending.acceptedDocumentVersion ||
-            hostDocumentGenerationRef.current !== pending.authoritativeDocumentGeneration
+          : pending.acceptedDocumentVersion !== null && (
+              latestHostDocumentVersionRef.current !== pending.acceptedDocumentVersion ||
+              hostDocumentGenerationRef.current !== pending.authoritativeDocumentGeneration
+            )
       )) {
         pendingCanvasFreePointSelectionRef.current = null;
       } else if (

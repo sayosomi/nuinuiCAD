@@ -282,6 +282,22 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadDocumentStore.getState().sourceText).toContain("point = coordinate(");
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
 
+    const createdSource = useCadDocumentStore.getState().sourceText;
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "commitText",
+          sourceText: createdSource,
+          documentVersion: 8,
+          reason: "edit"
+        }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasFreePointAtPointerResult")).toHaveLength(0);
+
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
