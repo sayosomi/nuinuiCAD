@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject, type WheelEvent } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -43,24 +43,51 @@ import {
 import "./explorerMock.css";
 
 type DetailTab = "geometry" | "dependencies" | "presentation";
-type FilterKey = "type:bezier" | "type:path" | "activity:hidden" | "activity:disabled" | "diagnostics" | "category:presentation" | "category:construction";
+type FilterAxis = "type" | "activity" | "diagnostics" | "groupModule" | "category";
+type DiagnosticFilterValue = "all" | "present" | "absent";
+type StructuredFilter = {
+  type: ExplorerMockGeometryKind | "all";
+  activity: ExplorerMockActivity | "all";
+  diagnostics: DiagnosticFilterValue;
+  groupModule: string | "all";
+  category: ExplorerMockModifier["category"] | "all";
+};
+type FilterChip = { axis: FilterAxis; value: string };
 type ContextMenuState = { x: number; y: number; kind: "background" | "row" | "reference" | "operation"; id?: string };
 const DETAIL_TABS: ReadonlyArray<readonly [DetailTab, string]> = [["geometry", "Geometry"], ["dependencies", "Dependencies"], ["presentation", "Presentation"]];
 const EXPLORER_TABS: ReadonlyArray<readonly [ExplorerMockTab, ReactNode]> = [["elements", <>Elements <span>{explorerMockGeometry.length}</span></>], ["modifiers", <>Modifiers <span>{explorerMockModifiers.length}</span></>]];
 
-const FILTER_LABELS: Record<FilterKey, string> = {
-  "type:bezier": "Type · Bezier",
-  "type:path": "Type · Path",
-  "activity:hidden": "Activity · Hidden",
-  "activity:disabled": "Activity · Disabled",
+const FILTER_AXIS_LABELS: Record<FilterAxis, string> = {
+  type: "Type",
+  activity: "Activity",
   diagnostics: "Diagnostics",
-  "category:presentation": "Category · Presentation",
-  "category:construction": "Category · Construction"
+  groupModule: "Group/Module",
+  category: "Category"
 };
 
-const FILTER_KEYS_BY_TAB: Record<ExplorerMockTab, readonly FilterKey[]> = {
-  elements: ["type:bezier", "type:path", "activity:hidden", "activity:disabled", "diagnostics", "category:presentation", "category:construction"],
-  modifiers: ["category:presentation", "category:construction"]
+const createEmptyFilter = (): StructuredFilter => ({
+  type: "all",
+  activity: "all",
+  diagnostics: "all",
+  groupModule: "all",
+  category: "all"
+});
+
+const isElementsResultGeometry = (geometry: ExplorerMockGeometry): boolean => geometry.kind !== "operation";
+const geometryTypeChoices = [...new Set(explorerMockGeometry.filter(isElementsResultGeometry).map((geometry) => geometry.kind))];
+const groupModuleChoices = explorerMockGeometry.filter((geometry) => geometry.kind === "group" || geometry.kind === "module");
+const modifierCategoryChoices = [...new Set(explorerMockModifiers.map((modifier) => modifier.category))];
+
+const filterChipsFor = (tab: ExplorerMockTab, filter: StructuredFilter): FilterChip[] => {
+  const values: FilterChip[] = tab === "elements"
+    ? [
+        { axis: "type", value: filter.type },
+        { axis: "activity", value: filter.activity },
+        { axis: "diagnostics", value: filter.diagnostics },
+        { axis: "groupModule", value: filter.groupModule }
+      ]
+    : [{ axis: "category", value: filter.category }];
+  return values.filter(({ value }) => value !== "all");
 };
 
 const activityLabel: Record<ExplorerMockActivity, string> = {
@@ -89,26 +116,45 @@ const iconForActivity = (activity: ExplorerMockActivity) => {
 const displayNameFor = (id: string): string =>
   explorerMockGeometryById.get(id)?.name ?? explorerMockModifierById.get(id)?.name ?? id;
 
-const matchesFilter = (geometry: ExplorerMockGeometry, filter: FilterKey): boolean => {
-  if (filter === "diagnostics") return Boolean(geometry.diagnostic);
-  if (filter.startsWith("type:")) return geometry.kind === filter.slice(5);
-  if (filter.startsWith("activity:")) return geometry.activity === filter.slice(9);
-  if (filter.startsWith("category:")) return geometry.category === filter.slice(9);
-  return false;
+const geometryHierarchyPath = (geometry: ExplorerMockGeometry): string =>
+  [...explorerMockAncestorsOf(geometry.id), geometry.id].map(displayNameFor).join("::");
+
+const matchesStructuredFilter = (geometry: ExplorerMockGeometry, filter: StructuredFilter): boolean => {
+  if (filter.type !== "all" && geometry.kind !== filter.type) return false;
+  if (filter.activity !== "all" && geometry.activity !== filter.activity) return false;
+  if (filter.diagnostics === "present" && !geometry.diagnostic) return false;
+  if (filter.diagnostics === "absent" && geometry.diagnostic) return false;
+  if (filter.groupModule !== "all" && geometry.id !== filter.groupModule && !explorerMockAncestorsOf(geometry.id).includes(filter.groupModule)) return false;
+  return true;
 };
 
-const isActualGeometryMatch = (geometry: ExplorerMockGeometry, search: string, filters: FilterKey[]): boolean => {
-  if (geometry.kind === "operation") return false;
+const isActualGeometryMatch = (geometry: ExplorerMockGeometry, search: string, filter: StructuredFilter): boolean => {
+  if (!isElementsResultGeometry(geometry)) return false;
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const searchMatch = !normalizedSearch || [
     geometry.name,
+    geometryHierarchyPath(geometry),
     geometry.kind,
     geometry.category,
     geometry.moduleOrigin ?? "",
     geometry.diagnostic?.message ?? ""
   ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
-  return searchMatch && filters.every((filter) => matchesFilter(geometry, filter));
+  return searchMatch && matchesStructuredFilter(geometry, filter);
 };
+
+const filterOptionLabel = (axis: FilterAxis, value: string): string => {
+  if (value === "all") return "All";
+  if (axis === "type") return explorerMockTypeLabel(value as ExplorerMockGeometryKind);
+  if (axis === "activity") return activityLabel[value as ExplorerMockActivity];
+  if (axis === "diagnostics") return value === "present" ? "Present" : "Absent";
+  if (axis === "groupModule") {
+    const geometry = explorerMockGeometryById.get(value);
+    return geometry ? `${geometry.name} · ${explorerMockTypeLabel(geometry.kind)}` : value;
+  }
+  return value.charAt(0).toLocaleUpperCase() + value.slice(1);
+};
+
+const filterChipLabel = ({ axis, value }: FilterChip): string => `${FILTER_AXIS_LABELS[axis]} · ${filterOptionLabel(axis, value)}`;
 
 const branchIsVisible = (geometry: ExplorerMockGeometry, revealAlternate: boolean): boolean =>
   geometry.branch !== "inactive" || revealAlternate;
@@ -130,6 +176,49 @@ const PropertyRows = ({ values }: { values: Array<[string, string]> }) => (
     ))}
   </div>
 );
+
+const FilterPopover = ({
+  tab,
+  filter,
+  popoverRef,
+  onChange,
+  onDone
+}: {
+  tab: ExplorerMockTab;
+  filter: StructuredFilter;
+  popoverRef: RefObject<HTMLDivElement | null>;
+  onChange: (axis: FilterAxis, value: string) => void;
+  onDone: () => void;
+}) => {
+  const axes: readonly FilterAxis[] = tab === "elements"
+    ? ["type", "activity", "diagnostics", "groupModule"]
+    : ["category"];
+  const optionsFor = (axis: FilterAxis): Array<{ value: string; label: string }> => {
+    if (axis === "type") return geometryTypeChoices.map((value) => ({ value, label: filterOptionLabel(axis, value) }));
+    if (axis === "activity") return (["visible", "hidden", "disabled"] as const).map((value) => ({ value, label: filterOptionLabel(axis, value) }));
+    if (axis === "diagnostics") return (["present", "absent"] as const).map((value) => ({ value, label: filterOptionLabel(axis, value) }));
+    if (axis === "groupModule") return groupModuleChoices.map((geometry) => ({ value: geometry.id, label: filterOptionLabel(axis, geometry.id) }));
+    return modifierCategoryChoices.map((value) => ({ value, label: filterOptionLabel(axis, value) }));
+  };
+
+  return (
+    <div ref={popoverRef} className="explorer-mock-filter-popover" role="dialog" aria-label="Structured filters" onPointerDown={(event) => event.stopPropagation()}>
+      <strong>Filter</strong>
+      <div className="explorer-mock-filter-axes">
+        {axes.map((axis) => (
+          <label className="explorer-mock-filter-axis" key={axis}>
+            <span>{FILTER_AXIS_LABELS[axis]}</span>
+            <select aria-label={FILTER_AXIS_LABELS[axis]} value={filter[axis]} onChange={(event) => onChange(axis, event.currentTarget.value)}>
+              <option value="all">All</option>
+              {optionsFor(axis).map(({ value, label }) => <option value={value} key={value}>{label}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
+      <button type="button" className="explorer-mock-filter-done" onClick={onDone}>Done</button>
+    </div>
+  );
+};
 
 const EffectivenessGroup = ({
   label,
@@ -369,30 +458,32 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [detailHeightByTab, setDetailHeightByTab] = useState<Record<ExplorerMockTab, number>>({ elements: 260, modifiers: 260 });
   const [scrollTopByTab, setScrollTopByTab] = useState<Record<ExplorerMockTab, number>>({ elements: 0, modifiers: 0 });
   const [search, setSearch] = useState("");
-  const [activeFiltersByTab, setActiveFiltersByTab] = useState<Record<ExplorerMockTab, FilterKey[]>>({ elements: [], modifiers: [] });
+  const [filtersByTab, setFiltersByTab] = useState<Record<ExplorerMockTab, StructuredFilter>>({ elements: createEmptyFilter(), modifiers: createEmptyFilter() });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [flatResults, setFlatResults] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const listScrollRefs = useRef<Record<ExplorerMockTab, HTMLDivElement | null>>({ elements: null, modifiers: null });
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const filterPopoverRef = useRef<HTMLDivElement | null>(null);
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null);
 
-  const activeFilters = activeFiltersByTab[activeTab];
-  const availableFilters = FILTER_KEYS_BY_TAB[activeTab];
-  const resultMode = search.trim().length > 0 || activeFilters.length > 0;
+  const activeFilter = filtersByTab[activeTab];
+  const activeFilterChips = filterChipsFor(activeTab, activeFilter);
+  const resultMode = search.trim().length > 0 || activeFilterChips.length > 0;
   const actualGeometryMatches = useMemo(
-    () => explorerMockGeometry.filter((geometry) => isActualGeometryMatch(geometry, search, activeFilters) && branchIsVisible(geometry, alternateBranchRevealed)),
-    [activeFilters, alternateBranchRevealed, search]
+    () => explorerMockGeometry.filter((geometry) => isActualGeometryMatch(geometry, search, activeFilter) && branchIsVisible(geometry, alternateBranchRevealed)),
+    [activeFilter, alternateBranchRevealed, search]
   );
   const actualModifierMatches = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase();
     return explorerMockModifiers.filter((modifier) => {
       const searchMatch = !normalizedSearch || [modifier.name, modifier.effectSummary, modifier.category].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
-      const filterMatch = activeFilters.every((filter) => filter.startsWith("category:") && modifier.category === filter.slice(9));
+      const filterMatch = activeFilter.category === "all" || modifier.category === activeFilter.category;
       return searchMatch && filterMatch;
     });
-  }, [activeFilters, search]);
+  }, [activeFilter, search]);
   const actualMatchIds = useMemo(() => new Set(actualGeometryMatches.map((geometry) => geometry.id)), [actualGeometryMatches]);
   const selectedIds = selectedByTab[activeTab];
   const selectedGeometry = selectedIds.map((id) => explorerMockGeometryById.get(id)).filter((geometry): geometry is ExplorerMockGeometry => Boolean(geometry));
@@ -436,6 +527,28 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [activeTab, isResizing]);
 
   useEffect(() => {
+    if (!isFilterOpen) return undefined;
+    const isInsideFilter = (target: EventTarget | null): boolean => {
+      if (!(target instanceof globalThis.Node)) return false;
+      return Boolean(filterPopoverRef.current?.contains(target) || filterButtonRef.current?.contains(target));
+    };
+    const dismissOnOutside = (event: Event) => {
+      if (!isInsideFilter(event.target)) setIsFilterOpen(false);
+    };
+    const dismissOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setIsFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", dismissOnOutside);
+    document.addEventListener("click", dismissOnOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOnOutside);
+      document.removeEventListener("click", dismissOnOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [isFilterOpen]);
+
+  useEffect(() => {
     if (!feedback) return undefined;
     const timer = window.setTimeout(() => setFeedback(null), 2400);
     return () => window.clearTimeout(timer);
@@ -463,14 +576,21 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!event.shiftKey) setRangeAnchorByTab((anchors) => ({ ...anchors, [activeTab]: id }));
   };
 
-  const toggleFilter = (filter: FilterKey) => {
-    if (!availableFilters.includes(filter)) return;
-    setActiveFiltersByTab((filtersByTab) => ({
-      ...filtersByTab,
-      [activeTab]: filtersByTab[activeTab].includes(filter)
-        ? filtersByTab[activeTab].filter((candidate) => candidate !== filter)
-        : [...filtersByTab[activeTab], filter]
-    }));
+  const updateFilter = (axis: FilterAxis, value: string) => {
+    setFiltersByTab((filters) => {
+      const next = { ...filters[activeTab] };
+      if (axis === "type") next.type = value as StructuredFilter["type"];
+      if (axis === "activity") next.activity = value as StructuredFilter["activity"];
+      if (axis === "diagnostics") next.diagnostics = value as DiagnosticFilterValue;
+      if (axis === "groupModule") next.groupModule = value;
+      if (axis === "category") next.category = value as StructuredFilter["category"];
+      return { ...filters, [activeTab]: next };
+    });
+  };
+  const resetFilter = (axis: FilterAxis) => updateFilter(axis, "all");
+  const clearSelection = () => {
+    setSelectedByTab((tabs) => ({ ...tabs, [activeTab]: [] }));
+    setRangeAnchorByTab((anchors) => ({ ...anchors, [activeTab]: null }));
   };
   const selectAllMatches = () => setSelectedByTab((tabs) => ({ ...tabs, [activeTab]: (activeTab === "elements" ? actualGeometryMatches : actualModifierMatches).map((row) => row.id) }));
 
@@ -509,12 +629,13 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
       data-match={actualMatchIds.has(geometry.id) ? "true" : "false"}
       onClick={(event) => selectRow(geometry.id, event)}
       onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, kind: geometry.kind === "operation" ? "operation" : "row", id: geometry.id }); }}
-      title={`${geometry.name} · ${explorerMockTypeLabel(geometry.kind)}`}
+      title={`${geometryHierarchyPath(geometry)} · ${explorerMockTypeLabel(geometry.kind)}`}
     >
       <span className="explorer-mock-rail-cell" aria-hidden="true">{hasChildren ? <span className="explorer-mock-disclosure" onClick={(event) => { event.stopPropagation(); setExpanded((current) => { const next = new Set(current); if (next.has(geometry.id)) next.delete(geometry.id); else next.add(geometry.id); return next; }); }} role="presentation">{isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span> : null}</span>
       <GeometryIcon className="explorer-mock-geometry-icon" size={14} aria-hidden="true" />
       <span className={`explorer-mock-diagnostic-slot ${geometry.diagnostic ? `diagnostic-${geometry.diagnostic.severity}` : ""}`} title={geometry.diagnostic?.message}>{geometry.diagnostic ? <AlertTriangle size={12} aria-label={geometry.diagnostic.severity} /> : null}</span>
       <span className="explorer-mock-name">{geometry.name}</span>
+      <span className="explorer-mock-type-badge" data-testid={`geometry-type-${geometry.id}`}>{explorerMockTypeLabel(geometry.kind)}</span>
       <span className="explorer-mock-module-cue">{geometry.moduleOrigin ? `Module · ${geometry.moduleOrigin}` : ""}</span>
       <span className="explorer-mock-activity-slot">{ActivityIcon ? <ActivityIcon size={13} aria-label={activityLabel[geometry.activity]} /> : null}</span>
       <span className="explorer-mock-color-swatch" style={{ backgroundColor: geometry.color }} aria-label={`Color ${geometry.color}`} />
@@ -552,20 +673,20 @@ export const ExplorerMockApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   return <main className="explorer-mock" onPointerDown={() => { if (contextMenu) setContextMenu(null); }} onContextMenu={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" }); } }}>
     <header className="explorer-mock-header">
-      <div className="explorer-mock-title-row"><div><span className="explorer-mock-eyebrow">nuinuiCAD Explorer</span><h1>Explorer Mock</h1></div><button type="button" className="explorer-mock-more-button" aria-label="Explorer Mock actions" onClick={() => setFeedback("Explorer actions are local to this mock.")}><MoreHorizontal size={16} /></button></div>
+      <div className="explorer-mock-title-row"><div><span className="explorer-mock-eyebrow">nuinuiCAD Explorer</span><h1>Explorer Mock</h1><span className="explorer-mock-fixture-cue" data-testid="static-fixture-cue">Static fixture · Bodice.nui</span></div><button type="button" className="explorer-mock-more-button" aria-label="Explorer Mock actions" onClick={() => setFeedback("Explorer actions are local to this mock.")}><MoreHorizontal size={16} /></button></div>
       <div className="explorer-mock-header-actions"><button type="button" onClick={() => setFeedback("Go to Source is represented locally in this mock.")}><FileCode size={13} /> Go to Source</button><button type="button" onClick={() => setFeedback("Reveal in Canvas is represented locally in this mock.")}><Square size={13} /> Reveal in Canvas</button></div>
     </header>
     <ScopedTabStrip activeTab={activeTab} tabs={EXPLORER_TABS} onChange={setActiveTab} className="explorer-mock-top-tabs" ariaLabel="Explorer data" testId="top-tab-strip" />
     <section className="explorer-mock-list-region" aria-label={activeTab === "elements" ? "Elements hierarchy" : "Modifiers list"}>
-      <div className="explorer-mock-search-row"><div className="explorer-mock-search-field"><Search size={14} aria-hidden="true" /><input aria-label="Search Explorer Mock" placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /><button type="button" className="explorer-mock-clear-search" aria-label="Clear search" hidden={!search} onClick={() => setSearch("")}><X size={13} /></button></div><div className="explorer-mock-filter-wrap"><button type="button" className={activeFilters.length > 0 ? "has-filters" : ""} aria-expanded={isFilterOpen} onClick={() => setIsFilterOpen((open) => !open)}><SlidersHorizontal size={14} /> Filter</button>{isFilterOpen ? <div className="explorer-mock-filter-popover" role="dialog" aria-label="Structured filters"><strong>Filter</strong>{availableFilters.map((filter) => <label key={filter}><input type="checkbox" checked={activeFilters.includes(filter)} onChange={() => toggleFilter(filter)} />{FILTER_LABELS[filter]}</label>)}<button type="button" className="explorer-mock-filter-done" onClick={() => setIsFilterOpen(false)}>Done</button></div> : null}</div></div>
-      {activeFilters.length > 0 ? <div className="explorer-mock-filter-chips" aria-label="Active filters">{activeFilters.map((filter) => <button type="button" className="explorer-mock-filter-chip" key={filter} onClick={() => toggleFilter(filter)}>{FILTER_LABELS[filter]} <X size={11} /></button>)}</div> : null}
+      <div className="explorer-mock-search-row"><div className="explorer-mock-search-field"><Search size={14} aria-hidden="true" /><input aria-label="Search Explorer Mock" placeholder="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} /><button type="button" className="explorer-mock-clear-search" aria-label="Clear search" hidden={!search} onClick={() => setSearch("")}><X size={13} /></button></div><div className="explorer-mock-filter-wrap"><button ref={filterButtonRef} type="button" className={activeFilterChips.length > 0 ? "has-filters" : ""} aria-expanded={isFilterOpen} onClick={() => setIsFilterOpen((open) => !open)}><SlidersHorizontal size={14} /> Filter</button>{isFilterOpen ? <FilterPopover tab={activeTab} filter={activeFilter} popoverRef={filterPopoverRef} onChange={updateFilter} onDone={() => setIsFilterOpen(false)} /> : null}</div></div>
+      {activeFilterChips.length > 0 ? <div className="explorer-mock-filter-chips" aria-label="Active filters">{activeFilterChips.map((filter) => <button type="button" className="explorer-mock-filter-chip" key={filter.axis} onClick={() => resetFilter(filter.axis)}>{filterChipLabel(filter)} <X size={11} /></button>)}</div> : null}
       {resultMode ? <div className="explorer-mock-result-header"><span>{activeTab === "elements" ? actualGeometryMatches.length : actualModifierMatches.length} results</span><button type="button" onClick={selectAllMatches}>Select All</button>{activeTab === "elements" ? <div className="explorer-mock-result-mode"><button type="button" className={!flatResults ? "is-active" : ""} aria-pressed={!flatResults} onClick={() => setFlatResults(false)}>Hierarchy</button><button type="button" className={flatResults ? "is-active" : ""} aria-pressed={flatResults} onClick={() => setFlatResults(true)}>Flat</button></div> : null}</div> : null}
       <div className="explorer-mock-scroll" ref={(element) => { listScrollRefs.current[activeTab] = element; }} onScroll={(event) => setScrollTopByTab((scroll) => ({ ...scroll, [activeTab]: event.currentTarget.scrollTop }))} onContextMenu={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" }); } }}>
         {activeTab === "elements" ? visibleGeometryRows.map((geometry) => renderGeometryRow(geometry, resultMode && !actualMatchIds.has(geometry.id))) : visibleModifiers.map(renderModifierRow)}
         {((activeTab === "elements" && visibleGeometryRows.length === 0) || (activeTab === "modifiers" && visibleModifiers.length === 0)) ? <div className="explorer-mock-empty"><Search size={16} />No matching {activeTab === "elements" ? "geometry" : "Modifier"}.</div> : null}
       </div>
     </section>
-    {detailVisible ? <section className="explorer-mock-detail-region" style={{ height: `${detailHeightByTab[activeTab]}px` }} aria-label="Selection Detail"><div className="explorer-mock-resize-divider" role="separator" aria-orientation="horizontal" aria-label="Resize Selection Detail" tabIndex={0} onPointerDown={beginResize}><span /></div><div className="explorer-mock-detail-header"><span>Selection Detail</span><span>{selectedIds.length} selected</span></div>{activeTab === "elements" && selectedGeometry.length === 1 ? <><DetailTabs activeTab={detailTab} onChange={(tab) => setDetailTabByTab((tabs) => ({ ...tabs, elements: tab }))} /><GeometryDetail geometry={selectedGeometry[0]} activeTab={detailTab} setActiveTab={(tab) => setDetailTabByTab((tabs) => ({ ...tabs, elements: tab }))} navigateToModifier={navigateToModifier} navigateToGeometry={navigateToGeometry} onOpenLocalFeedback={setFeedback} onReferenceContextMenu={openReferenceContextMenu} onOperationContextMenu={openOperationContextMenu} /></> : activeTab === "elements" ? <GeometrySelectionSummary selected={selectedGeometry} /> : <ModifierDetail selected={selectedModifiers} navigateToGeometry={navigateToGeometry} onReferenceContextMenu={openReferenceContextMenu} />}</section> : null}
+    {detailVisible ? <section className="explorer-mock-detail-region" style={{ height: `${detailHeightByTab[activeTab]}px` }} aria-label="Selection Detail"><div className="explorer-mock-resize-divider" role="separator" aria-orientation="horizontal" aria-label="Resize Selection Detail" tabIndex={0} onPointerDown={beginResize}><span /></div><div className="explorer-mock-detail-header"><span>Selection Detail</span><div className="explorer-mock-detail-actions"><span>{selectedIds.length} selected</span><button type="button" className="explorer-mock-clear-selection" aria-label="Clear selection" title="Clear selection" onClick={clearSelection}><X size={12} /> Clear</button></div></div>{activeTab === "elements" && selectedGeometry.length === 1 ? <><DetailTabs activeTab={detailTab} onChange={(tab) => setDetailTabByTab((tabs) => ({ ...tabs, elements: tab }))} /><GeometryDetail geometry={selectedGeometry[0]} activeTab={detailTab} setActiveTab={(tab) => setDetailTabByTab((tabs) => ({ ...tabs, elements: tab }))} navigateToModifier={navigateToModifier} navigateToGeometry={navigateToGeometry} onOpenLocalFeedback={setFeedback} onReferenceContextMenu={openReferenceContextMenu} onOperationContextMenu={openOperationContextMenu} /></> : activeTab === "elements" ? <GeometrySelectionSummary selected={selectedGeometry} /> : <ModifierDetail selected={selectedModifiers} navigateToGeometry={navigateToGeometry} onReferenceContextMenu={openReferenceContextMenu} />}</section> : null}
     {feedback ? <div className="explorer-mock-feedback" role="status">{feedback}</div> : null}
     {contextMenu ? <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} onFeedback={setFeedback} /> : null}
   </main>;
