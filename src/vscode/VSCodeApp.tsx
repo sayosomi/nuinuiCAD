@@ -1011,7 +1011,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
   }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryCompleteCanvasFocus]);
 
-  const surfaceStyle = benchmarkConfig
+  const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
         width: `${benchmarkConfig.expectedRenderSurface.cssWidthPx}px`,
         height: `${benchmarkConfig.expectedRenderSurface.cssHeightPx}px`

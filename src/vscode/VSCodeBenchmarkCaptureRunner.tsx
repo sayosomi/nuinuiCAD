@@ -95,7 +95,7 @@ export const VSCodeBenchmarkCaptureRunner = ({
       const viewport = canvasFocusRef.current;
       if (!viewport) throw new Error("VS Code benchmark canvas viewport is unavailable");
       const surface = currentRenderSurface(viewport);
-      if (!sameRenderSurface(surface, expectedSurface)) {
+      if (expectedSurface && !sameRenderSurface(surface, expectedSurface)) {
         throw new Error(`VS Code render surface mismatch: expected ${JSON.stringify(expectedSurface)}, received ${JSON.stringify(surface)}`);
       }
       return surface;

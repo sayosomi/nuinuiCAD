@@ -160,15 +160,29 @@ describe("captureVscode", () => {
     }
   });
 
-  it("parses the required CLI contract", () => {
+  it("parses the required CLI contract without a baseline", () => {
+    expect(parseCaptureVscodeArgs([
+      "--fixture", "interactive-medium-v1", "--output", "vscode-result.json"
+    ])).toEqual({ fixtureId: "interactive-medium-v1", outputPath: "vscode-result.json" });
+  });
+
+  it("parses an optional baseline", () => {
     expect(parseCaptureVscodeArgs([
       "--fixture", "interactive-medium-v1", "--baseline", "tauri-result.json", "--output", "vscode-result.json"
     ])).toEqual({ fixtureId: "interactive-medium-v1", baselinePath: "tauri-result.json", outputPath: "vscode-result.json" });
   });
 
-  it("rejects non-Tauri baselines and machine mismatches", () => {
-    expect(() => assertVscodeBaseline(result("vscode"), fixture.id, fixtureHash, machine)).toThrow("target");
-    expect(() => assertVscodeBaseline(result("tauri"), fixture.id, fixtureHash, { ...machine, arch: "x64" })).toThrow("machine");
+  it.each(["tauri", "vscode"] as const)("accepts a %s reference without fixture matching", (target) => {
+    const reference = result(target);
+    reference.fixture = { id: "historical-fixture", hash: `sha256:${"b".repeat(64)}` };
+    expect(assertVscodeBaseline(reference, machine)).toEqual(result(target).environment.renderSurface);
+  });
+
+  it("rejects reference machine mismatches and incoherent render surfaces", () => {
+    expect(() => assertVscodeBaseline(result("tauri"), { ...machine, arch: "x64" })).toThrow("machine");
+    const incoherent = result("vscode");
+    incoherent.environment.renderSurface = { ...incoherent.environment.renderSurface, backingWidthPx: 1 };
+    expect(() => assertVscodeBaseline(incoherent, machine)).toThrow("incoherent");
   });
 
   it("rejects a fixture hash mismatch before launching", async () => {
@@ -189,6 +203,45 @@ describe("captureVscode", () => {
       readFile: (path) => path === "manifest" ? JSON.stringify({ schemaVersion: 1, fixtures: [fixture] }) : fixtureSource
     });
     expect(events).toEqual(["build-extension", "build-rust", "launch", "terminate", "write-result", "cleanup"]);
+  });
+
+  it("captures without reading a prior result and launches without an expected render surface", async () => {
+    const events: string[] = [];
+    const readResult = vi.fn((path: string) => {
+      if (path === "baseline") throw new Error("standalone capture must not read a baseline");
+      return result("vscode");
+    });
+    let launchedConfig: VscodeBenchmarkCaptureConfig | undefined;
+    await captureVscode({ fixtureId: fixture.id, outputPath: "output", manifestPath: "manifest" }, {
+      ...dependenciesFor({ result: true, error: false }, events),
+      readFile: (path) => path === "manifest" ? JSON.stringify({ schemaVersion: 1, fixtures: [fixture] }) : fixtureSource,
+      readResult,
+      launchVscode: (config) => {
+        launchedConfig = config;
+        events.push("launch");
+        return { exit: Promise.resolve(0), terminate: () => events.push("terminate") };
+      }
+    });
+    expect(readResult).not.toHaveBeenCalledWith("baseline");
+    expect(launchedConfig?.expectedRenderSurface).toBeUndefined();
+  });
+
+  it.each(["tauri", "vscode"] as const)("transports a %s reference render surface", async (target) => {
+    const events: string[] = [];
+    const reference = result(target);
+    reference.fixture = { id: "historical-fixture", hash: `sha256:${"b".repeat(64)}` };
+    let launchedConfig: VscodeBenchmarkCaptureConfig | undefined;
+    await captureVscode({ fixtureId: fixture.id, baselinePath: "baseline", outputPath: "output", manifestPath: "manifest" }, {
+      ...dependenciesFor({ result: true, error: false }, events),
+      readFile: (path) => path === "manifest" ? JSON.stringify({ schemaVersion: 1, fixtures: [fixture] }) : fixtureSource,
+      readResult: (path) => path === "baseline" ? reference : result("vscode"),
+      launchVscode: (config) => {
+        launchedConfig = config;
+        events.push("launch");
+        return { exit: Promise.resolve(0), terminate: () => events.push("terminate") };
+      }
+    });
+    expect(launchedConfig?.expectedRenderSurface).toEqual(reference.environment.renderSurface);
   });
 
   it("writes no final result when the extension reports an error", async () => {

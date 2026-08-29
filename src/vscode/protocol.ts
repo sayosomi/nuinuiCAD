@@ -236,7 +236,7 @@ export type VscodeBenchmarkConfig = {
     appVersion: string;
     machine: BenchmarkMachine;
   };
-  expectedRenderSurface: BenchmarkRenderSurface;
+  expectedRenderSurface?: BenchmarkRenderSurface;
   resultPath: string;
 };
 

@@ -38,7 +38,7 @@ const samplesForScenario = (
 ) => samples.filter((sample) => sample.scenarioId === scenarioId);
 
 export const assembleBenchmarkResult = ({
-  target = "tauri",
+  target = "vscode",
   fixture,
   build,
   environment,
