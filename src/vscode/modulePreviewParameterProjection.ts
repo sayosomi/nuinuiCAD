@@ -35,6 +35,7 @@ const groupFor = (
     parameterIndex: parameter.parameterIndex,
     name: parameter.name,
     type: parameterTypeFor(parameter),
+    ...(parameter.numericTypeOptions ? { numericTypeOptions: { ...parameter.numericTypeOptions } } : {}),
     optional: parameter.optional,
     required: parameter.required,
     defaultSourceText: parameter.defaultSourceText,

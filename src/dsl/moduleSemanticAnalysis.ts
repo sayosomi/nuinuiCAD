@@ -323,6 +323,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       parameterIndex,
       name: parameter.name,
       type: parameter.type,
+      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
       recordTypeIdentity: recordTypeIdentityByParameter.get(`${statementId}:${parameterIndex}`) ?? null,
       optional: parameter.optional,
       required: !parameter.optional && parameter.defaultValue === null,

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import type {
   VscodeModulePreviewParameterSetValueRequest,
-  VscodeModulePreviewParameterSnapshot
+  VscodeModulePreviewParameterSnapshot,
+  VscodeModulePreviewParameterValueFocus
 } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -105,6 +106,9 @@ vi.mock("vscode", () => ({
 
 import {
   NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT,
+  NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+  NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID,
+  NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID,
   NUI_MODULE_PREVIEW_VIEW_TYPE,
   registerModulePreviewFeature
 } from "./modulePreviewFeature";
@@ -212,13 +216,15 @@ const parameterSnapshotFor = ({
   document,
   target,
   sourceRevision,
-  value = "1"
+  value = "1",
+  numericTypeOptions
 }: {
   sessionId: string;
   document: TestDocument;
   target: { statementId: string; statementIndex: number; name: string };
   sourceRevision: number;
   value?: string;
+  numericTypeOptions?: { step?: number; min?: number; max?: number };
 }): VscodeModulePreviewParameterSnapshot => ({
   type: "modulePreviewParameterSnapshot",
   sessionId,
@@ -241,6 +247,7 @@ const parameterSnapshotFor = ({
       parameterIndex: 0,
       name: "width",
       type: { kind: "number" },
+      ...(numericTypeOptions ? { numericTypeOptions } : {}),
       optional: false,
       required: true,
       defaultSourceText: null,
@@ -266,6 +273,26 @@ const parameterSetValueFor = (
   definitionStatementId: snapshot.target.definitionStatementId,
   parameterIndex: 0,
   expression
+});
+
+const parameterValueFocusFor = (
+  snapshot: VscodeModulePreviewParameterSnapshot,
+  overrides: Partial<Omit<VscodeModulePreviewParameterValueFocus, "type">> = {}
+): VscodeModulePreviewParameterValueFocus => ({
+  type: "modulePreviewParameterValueFocus",
+  sessionId: snapshot.sessionId,
+  documentUri: snapshot.documentUri,
+  documentVersion: snapshot.documentVersion,
+  sourceRevision: snapshot.sourceRevision,
+  sessionRevision: snapshot.sessionRevision,
+  targetDefinitionStatementId: snapshot.target.definitionStatementId,
+  definitionStatementId: snapshot.parameters.parameters[0]!.definitionStatementId,
+  parameterIndex: 0,
+  value: snapshot.parameters.parameters[0]!.value,
+  selectionStart: 0,
+  selectionEnd: snapshot.parameters.parameters[0]!.value.length,
+  focusGeneration: 1,
+  ...overrides
 });
 
 afterEach(() => {
@@ -454,6 +481,209 @@ describe("registerModulePreviewFeature", () => {
       "setContext",
       NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT,
       false
+    );
+
+    feature.dispose();
+  });
+
+  it("owns exact Preview Value focus, relays typed steps through setValue, restores selection, and consumes unsupported steps", async () => {
+    const source = [
+      "nui 4",
+      "module Pocket(width: number(step: 2, min: 0, max: 10)) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const sessionMessage = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    const target = analysis.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionMessage?.sessionId || !target) throw new Error("expected exact Preview session");
+    const sourceRevision = analysis.getSourceRevision();
+    const snapshot = parameterSnapshotFor({
+      sessionId: sessionMessage.sessionId,
+      document,
+      target,
+      sourceRevision,
+      value: "1",
+      numericTypeOptions: { step: 2, min: 0, max: 10 }
+    });
+    await panel.receive(snapshot);
+    const focus = parameterValueFocusFor(snapshot, { selectionStart: 0, selectionEnd: 1 });
+    await parameterView.receive(focus);
+    for (let index = 0; index < 5; index += 1) await flushContext();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      true
+    );
+
+    mocks.executeCommand.mockClear();
+    await parameterView.receive({
+      type: "modulePreviewParameterValueBlur",
+      sessionId: focus.sessionId,
+      documentUri: focus.documentUri,
+      documentVersion: focus.documentVersion,
+      sourceRevision: focus.sourceRevision,
+      sessionRevision: focus.sessionRevision,
+      targetDefinitionStatementId: focus.targetDefinitionStatementId,
+      definitionStatementId: focus.definitionStatementId,
+      parameterIndex: focus.parameterIndex,
+      focusGeneration: focus.focusGeneration
+    });
+    for (let index = 0; index < 5; index += 1) await flushContext();
+    expect(mocks.executeCommand).toHaveBeenLastCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      false
+    );
+    await parameterView.receive(focus);
+    for (let index = 0; index < 5; index += 1) await flushContext();
+
+    await parameterView.receive(parameterValueFocusFor(snapshot, {
+      value: "0",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 2
+    }));
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+    for (let index = 0; index < 5; index += 1) await flushContext();
+    expect(mocks.executeCommand).toHaveBeenLastCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      true
+    );
+
+    await parameterView.receive(parameterValueFocusFor(snapshot, {
+      value: "1",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 3
+    }));
+
+    const staleFocusVariants: Array<Partial<Omit<VscodeModulePreviewParameterValueFocus, "type">>> = [
+      { sessionId: "stale-session" },
+      { documentUri: "file:///stale.nui" },
+      { documentVersion: 2 },
+      { sourceRevision: sourceRevision + 1 },
+      { sessionRevision: 2 },
+      { targetDefinitionStatementId: "stale-target" },
+      { definitionStatementId: "stale-parameter" },
+      { parameterIndex: 1 },
+      { value: "stale-value", selectionStart: 0, selectionEnd: 1 }
+    ];
+    for (const variant of staleFocusVariants) {
+      await parameterView.receive(parameterValueFocusFor(snapshot, variant));
+    }
+
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sessionId: snapshot.sessionId,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      expression: "3"
+    }));
+    expect(document.getText()).toBe(source);
+
+    const updatedSnapshot = {
+      ...snapshot,
+      sessionRevision: 2,
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) => ({ ...parameter, value: "3" }))
+      }
+    };
+    await panel.receive(updatedSnapshot);
+    expect(parameterView.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewRestoreParameterValueSelection"
+    }));
+
+    await parameterView.receive(parameterValueFocusFor(updatedSnapshot, {
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 4
+    }));
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewRestoreParameterValueSelection",
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 4
+    }));
+
+    await parameterView.receive(parameterValueFocusFor(updatedSnapshot, {
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 5
+    }));
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      expression: "1"
+    }));
+
+    const unsupportedSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...updatedSnapshot,
+      sessionRevision: 3,
+      parameters: {
+        ...updatedSnapshot.parameters,
+        parameters: updatedSnapshot.parameters.parameters.map((parameter) => ({
+          ...parameter,
+          type: { kind: "string" as const },
+          value: "text",
+          numericTypeOptions: undefined
+        }))
+      }
+    };
+    await panel.receive(unsupportedSnapshot);
+    await parameterView.receive(parameterValueFocusFor(unsupportedSnapshot, {
+      value: "text",
+      selectionStart: 0,
+      selectionEnd: 4,
+      focusGeneration: 5
+    }));
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewSetValue" }));
+    for (let index = 0; index < 5; index += 1) await flushContext();
+    expect(mocks.executeCommand).toHaveBeenLastCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      true
     );
 
     feature.dispose();
