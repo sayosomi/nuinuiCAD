@@ -129,6 +129,7 @@ const commandIds = [
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
+const modulePreviewValueStepKeybindingWhen = "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus";
 const sourceValueStepContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`;
 const bakeSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.bakeSourceTarget`;
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
@@ -468,7 +469,7 @@ describe("VS Code extension manifest keybindings", () => {
     const manifest = await readManifest();
     const keybindings = manifest.contributes?.keybindings ?? [];
 
-    expect(keybindings).toHaveLength(6);
+    expect(keybindings).toHaveLength(8);
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.stepSourceValueForward.keybinding",
       key: "ctrl+shift+.",
@@ -480,6 +481,18 @@ describe("VS Code extension manifest keybindings", () => {
       key: "ctrl+shift+,",
       mac: "shift+cmd+,",
       when: sourceValueStepKeybindingWhen
+    });
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.modulePreviewValueStepForward.keybinding",
+      key: "ctrl+shift+.",
+      mac: "shift+cmd+.",
+      when: modulePreviewValueStepKeybindingWhen
+    });
+    expect(keybindings).toContainEqual({
+      command: "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
+      key: "ctrl+shift+,",
+      mac: "shift+cmd+,",
+      when: modulePreviewValueStepKeybindingWhen
     });
     expect(keybindings).toContainEqual({
       command: "nuinuiCAD.canvasUndo",
@@ -514,7 +527,20 @@ describe("VS Code extension manifest keybindings", () => {
       command === "nuinuiCAD.fitOutputPreview" ||
       command === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
     expect(keybindings.some(({ command }) => command === "nuinuiCAD.pickReferenceFromCanvas")).toBe(false);
-    expect(keybindings.some(({ command }) => command.includes("modulePreview"))).toBe(false);
+    expect(keybindings.filter(({ command }) => command.includes("modulePreview"))).toEqual([
+      {
+        command: "nuinuiCAD.modulePreviewValueStepForward.keybinding",
+        key: "ctrl+shift+.",
+        mac: "shift+cmd+.",
+        when: modulePreviewValueStepKeybindingWhen
+      },
+      {
+        command: "nuinuiCAD.modulePreviewValueStepBackward.keybinding",
+        key: "ctrl+shift+,",
+        mac: "shift+cmd+,",
+        when: modulePreviewValueStepKeybindingWhen
+      }
+    ]);
     for (const command of ["nuinuiCAD.stepSourceValueForward.keybinding", "nuinuiCAD.stepSourceValueBackward.keybinding"]) {
       const binding = keybindings.find((candidate) => candidate.command === command);
       expect(binding?.when).not.toContain("sourceValueStepTarget");

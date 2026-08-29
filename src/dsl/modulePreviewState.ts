@@ -15,6 +15,7 @@ import type {
   ModuleDefinitionSemantic,
   ResolvedModuleParameter
 } from "./moduleSemanticTypes";
+import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import type {
   ModulePreviewTarget,
   ModulePreviewTargetSemanticSnapshot,
@@ -33,6 +34,7 @@ export type ModulePreviewParameterState = {
   parameterIndex: number;
   name: string;
   type: ResolvedModuleParameter["type"];
+  numericTypeOptions?: DslNumericTypeOptions;
   optional: boolean;
   required: boolean;
   /** Authored default expression text, for presentation only. */
@@ -318,6 +320,7 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
       parameterIndex: parameter.parameterIndex,
       name: parameter.name,
       type: parameter.type,
+      ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
       optional: parameter.optional,
       required: parameter.required,
       defaultSourceText: parameter.defaultValue,

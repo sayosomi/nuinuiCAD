@@ -6,6 +6,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
+import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import type {
   RecordConstructorFieldSemantic,
   RecordDefinitionSemantic,
@@ -228,6 +229,7 @@ export type ResolvedModuleParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
+  numericTypeOptions?: DslNumericTypeOptions;
   recordTypeIdentity: RecordTypeIdentity | null;
   optional: boolean;
   required: boolean;

@@ -168,15 +168,25 @@ describe("ModulePreviewParametersApp", () => {
     input.focus();
     fireEvent.change(input, { target: { value: "@scale * 5" } });
     expect(api.postMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: snapshot.sessionRevision,
+      value: "@scale * 4"
+    }));
+    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
       type: "modulePreviewParameterSetValue",
       sessionRevision: snapshot.sessionRevision,
       expression: "@scale * 5"
     }));
     fireEvent.change(input, { target: { value: "@scale * 6" } });
-    expect(api.postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(api.postMessage).toHaveBeenNthCalledWith(4, expect.objectContaining({
       type: "modulePreviewParameterSetValue",
       sessionRevision: snapshot.sessionRevision,
       expression: "@scale * 6"
+    }));
+    expect(api.postMessage).toHaveBeenNthCalledWith(5, expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: snapshot.sessionRevision,
+      value: "@scale * 6"
     }));
     expect(input).toHaveFocus();
     expect(input).toHaveValue("@scale * 6");
@@ -225,6 +235,86 @@ describe("ModulePreviewParametersApp", () => {
     };
     act(() => window.dispatchEvent(new MessageEvent("message", { data: defaultSnapshot })));
     expect(screen.getByLabelText("Value for label")).toHaveValue('"front"');
+  });
+
+  it("publishes a refreshed exact proof after the focused input catches up to a snapshot", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    const initialSnapshot = snapshotWithValues(40, { width: "1" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
+
+    const input = screen.getByLabelText("Value for width") as HTMLInputElement;
+    input.focus();
+    vi.mocked(api.postMessage).mockClear();
+
+    const updatedSnapshot = snapshotWithValues(41, { width: "3" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: updatedSnapshot })));
+
+    expect(screen.getByLabelText("Value for width")).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("3");
+    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: updatedSnapshot.sessionRevision,
+      value: "1"
+    }));
+    const refreshedFocus = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message as { type?: string; sessionRevision?: number; value?: string; focusGeneration?: number })
+      .find((message) =>
+        message.type === "modulePreviewParameterValueFocus" &&
+        message.sessionRevision === updatedSnapshot.sessionRevision
+      );
+    expect(refreshedFocus).toMatchObject({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: updatedSnapshot.sessionRevision,
+      value: "3"
+    });
+    if (!refreshedFocus?.focusGeneration) throw new Error("expected refreshed Value focus generation");
+
+    input.setSelectionRange(0, 0);
+    vi.mocked(api.postMessage).mockClear();
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewRestoreParameterValueSelection",
+        sessionId: updatedSnapshot.sessionId,
+        documentUri: updatedSnapshot.documentUri,
+        documentVersion: updatedSnapshot.documentVersion,
+        sourceRevision: updatedSnapshot.sourceRevision,
+        sessionRevision: updatedSnapshot.sessionRevision,
+        targetDefinitionStatementId: updatedSnapshot.target.definitionStatementId,
+        definitionStatementId: "module:inner",
+        parameterIndex: 0,
+        value: "3",
+        selectionStart: 0,
+        selectionEnd: 1,
+        focusGeneration: refreshedFocus.focusGeneration
+      }
+    })));
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(1);
+    expect(api.postMessage).toHaveBeenCalledTimes(1);
+    const acknowledgedFocus = vi.mocked(api.postMessage).mock.calls[0]?.[0] as {
+      type?: string;
+      sessionRevision?: number;
+      value?: string;
+      selectionStart?: number;
+      selectionEnd?: number;
+      focusGeneration?: number;
+    } | undefined;
+    expect(acknowledgedFocus).toMatchObject({
+      type: "modulePreviewParameterValueFocus",
+      sessionId: updatedSnapshot.sessionId,
+      documentUri: updatedSnapshot.documentUri,
+      documentVersion: updatedSnapshot.documentVersion,
+      sourceRevision: updatedSnapshot.sourceRevision,
+      sessionRevision: updatedSnapshot.sessionRevision,
+      targetDefinitionStatementId: updatedSnapshot.target.definitionStatementId,
+      definitionStatementId: "module:inner",
+      parameterIndex: 0,
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1
+    });
+    expect(acknowledgedFocus?.focusGeneration).toBeGreaterThan(refreshedFocus.focusGeneration);
   });
 
   it("does not leave repeated Default state that can discard a newer rapid draft", () => {
@@ -299,5 +389,142 @@ describe("ModulePreviewParametersApp", () => {
     })));
     expect(input).toHaveValue('"new-value"');
     expect(input).toHaveFocus();
+  });
+
+  it("publishes exact Value focus, selection, and local draft freshness", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    vi.mocked(api.postMessage).mockClear();
+
+    const input = screen.getByLabelText("Value for width") as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(2, 7);
+    fireEvent.select(input);
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: "module:inner",
+      parameterIndex: 0,
+      value: "@scale * 4",
+      selectionStart: 2,
+      selectionEnd: 7,
+      focusGeneration: 2
+    }));
+
+    fireEvent.change(input, { target: { value: "@scale * 9" } });
+    expect(api.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      value: "@scale * 9",
+      selectionStart: 10,
+      selectionEnd: 10,
+      focusGeneration: 3
+    }));
+  });
+
+  it("clears exact focus on blur, unavailable state, and row replacement", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    const input = screen.getByLabelText("Value for width");
+    input.focus();
+    vi.mocked(api.postMessage).mockClear();
+    fireEvent.blur(input);
+    expect(api.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterValueBlur",
+      focusGeneration: 1
+    }));
+
+    fireEvent.focus(input);
+    vi.mocked(api.postMessage).mockClear();
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewParametersUnavailable",
+        sessionId: snapshot.sessionId,
+        documentUri: snapshot.documentUri,
+        documentVersion: snapshot.documentVersion,
+        sourceRevision: snapshot.sourceRevision,
+        sessionRevision: snapshot.sessionRevision + 1,
+        targetDefinitionStatementId: snapshot.target.definitionStatementId,
+        reason: "source-stale"
+      }
+    })));
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewParameterValueBlur" }));
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    const replacementInput = screen.getByLabelText("Value for width");
+    replacementInput.focus();
+    vi.mocked(api.postMessage).mockClear();
+    const replacement = {
+      ...snapshot,
+      sessionId: "module-preview-session:replacement",
+      target: { ...snapshot.target, definitionStatementId: "module:replacement" },
+      parameters: {
+        ...snapshot.parameters,
+        definitionStatementId: "module:replacement",
+        parameters: snapshot.parameters.parameters.map((parameter) => ({
+          ...parameter,
+          definitionStatementId: "module:replacement"
+        }))
+      }
+    };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: replacement })));
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewParameterValueBlur" }));
+  });
+
+  it("restores selection only for the matching live focus generation and value", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    const input = screen.getByLabelText("Value for width") as HTMLInputElement;
+    input.focus();
+    const focusMessage = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message as { type?: string; focusGeneration?: number })
+      .find((message) => message.type === "modulePreviewParameterValueFocus");
+    if (!focusMessage?.focusGeneration) throw new Error("expected Value focus generation");
+
+    input.setSelectionRange(0, 0);
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewRestoreParameterValueSelection",
+        sessionId: snapshot.sessionId,
+        documentUri: snapshot.documentUri,
+        documentVersion: snapshot.documentVersion,
+        sourceRevision: snapshot.sourceRevision,
+        sessionRevision: snapshot.sessionRevision,
+        targetDefinitionStatementId: snapshot.target.definitionStatementId,
+        definitionStatementId: "module:inner",
+        parameterIndex: 0,
+        value: input.value,
+        selectionStart: 1,
+        selectionEnd: 4,
+        focusGeneration: focusMessage.focusGeneration
+      }
+    })));
+    expect(input.selectionStart).toBe(1);
+    expect(input.selectionEnd).toBe(4);
+
+    input.setSelectionRange(0, 0);
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewRestoreParameterValueSelection",
+        sessionId: snapshot.sessionId,
+        documentUri: snapshot.documentUri,
+        documentVersion: snapshot.documentVersion,
+        sourceRevision: snapshot.sourceRevision,
+        sessionRevision: snapshot.sessionRevision,
+        targetDefinitionStatementId: snapshot.target.definitionStatementId,
+        definitionStatementId: "module:inner",
+        parameterIndex: 0,
+        value: "stale",
+        selectionStart: 2,
+        selectionEnd: 5,
+        focusGeneration: focusMessage.focusGeneration
+      }
+    })));
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(0);
   });
 });

@@ -1,5 +1,6 @@
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { DslModuleParameterType } from "../dsl/dslTypes";
+import type { DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
 
 export type VscodeModulePreviewTarget = {
   type: "modulePreviewTarget";
@@ -30,6 +31,7 @@ export type VscodeModulePreviewParameter = {
   parameterIndex: number;
   name: string;
   type: DslModuleParameterType | null;
+  numericTypeOptions?: DslNumericTypeOptions;
   optional: boolean;
   required: boolean;
   defaultSourceText: string | null;
@@ -84,6 +86,21 @@ type VscodeModulePreviewParameterActionProof = {
   parameterIndex: number;
 };
 
+export type VscodeModulePreviewParameterValueFocus =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewParameterValueFocus";
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+    focusGeneration: number;
+  };
+
+export type VscodeModulePreviewParameterValueBlur =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewParameterValueBlur";
+    focusGeneration: number;
+  };
+
 export type VscodeModulePreviewParameterSetValueRequest =
   VscodeModulePreviewParameterActionProof & {
     type: "modulePreviewParameterSetValue";
@@ -93,6 +110,15 @@ export type VscodeModulePreviewParameterSetValueRequest =
 export type VscodeModulePreviewParameterUseDefaultRequest =
   VscodeModulePreviewParameterActionProof & {
     type: "modulePreviewParameterUseDefault";
+  };
+
+export type VscodeModulePreviewParameterValueSelectionRestore =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewRestoreParameterValueSelection";
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+    focusGeneration: number;
   };
 
 export type VscodeModulePreviewParameterSetValue =
@@ -109,7 +135,9 @@ export type VscodeModulePreviewParameterUseDefault =
 export type VscodeModulePreviewParameterViewMessage =
   | { type: "modulePreviewParametersViewReady" }
   | VscodeModulePreviewParameterSetValueRequest
-  | VscodeModulePreviewParameterUseDefaultRequest;
+  | VscodeModulePreviewParameterUseDefaultRequest
+  | VscodeModulePreviewParameterValueFocus
+  | VscodeModulePreviewParameterValueBlur;
 
 export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewTarget
@@ -118,4 +146,5 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewParameterSnapshot
   | VscodeModulePreviewParametersUnavailable
   | VscodeModulePreviewParameterSetValue
-  | VscodeModulePreviewParameterUseDefault;
+  | VscodeModulePreviewParameterUseDefault
+  | VscodeModulePreviewParameterValueSelectionRestore;
