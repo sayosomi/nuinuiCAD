@@ -37,6 +37,23 @@ export const legacyCreationCommandRecipeMap = {
   recipeKind: "specialized" | "fallback";
 }>>;
 
+/**
+ * Recipe-generatable types intentionally omitted from the legacy Create
+ * Geometry / Quick Create catalog. Polyline needs a variable-length point-list
+ * flow, while pathReverse acts on a selected existing path and is inserted by
+ * its selection command rather than as a standalone creation action.
+ */
+export const legacyCreationCatalogExclusions = [
+  {
+    type: "polyline",
+    rationale: "Polyline needs a variable-length point-list flow that the recipe-backed catalog does not provide."
+  },
+  {
+    type: "pathReverse",
+    rationale: "Path reversal acts on a selected existing path and is inserted by its selection command."
+  }
+] as const satisfies readonly { type: CadElementType; rationale: string }[];
+
 /** Normal command IDs whose recipes are the command-line creation cutover source. */
 export const legacyCreationCommandIds = Object.keys(
   legacyCreationCommandRecipeMap
