@@ -661,6 +661,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         selectedElementIds: [...uiState.selectedElementIds],
         selectionAnchorElementId: uiState.selectionAnchorElementId
       };
+      const previousSourceText = useCadDocumentStore.getState().sourceText;
       const sourceCommit = commitSourceCreationInsertion({
         elements: current.state.elements,
         insertionIndex: placement.insertionIndex,
@@ -683,7 +684,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       pendingCanvasFreePointCommitRef.current = {
         requestId: message.requestId,
         expectedDocumentVersion: message.documentVersion,
-        previousSourceText: useCadDocumentStore.getState().sourceText,
+        previousSourceText,
         previousSelection,
         nextSourcePosition: {
           line: sourceResolution.insertion.sourceInsertionLine - 1,

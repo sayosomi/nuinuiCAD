@@ -19,6 +19,7 @@ type Keybinding = {
 type Command = {
   command: string;
   title: string;
+  shortTitle?: string;
 };
 
 type CommandPaletteMenu = {
@@ -246,6 +247,13 @@ describe("VS Code extension manifest command contributions", () => {
       when: "webviewId == 'nuinuiCAD.outputPreview' && webviewSection == 'blank'"
     });
     expect(manifest.contributes?.keybindings?.some(({ command: id }) => id === "nuinuiCAD.resetOutputPreviewView")).toBe(false);
+  });
+
+  it("uses the fixed short title for the Canvas free-point context menu", async () => {
+    const manifest = await readManifest();
+    const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
+
+    expect(command?.shortTitle).toBe("Create Free Point at Pointer");
   });
 
   it("scopes open commands without making Module Preview Palette visibility caret-dependent", async () => {

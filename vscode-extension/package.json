@@ -792,6 +792,7 @@
       {
         "command": "nuinuiCAD.createFreePointAtPointer",
         "title": "nuinuiCAD: Create Free Point at Pointer",
+        "shortTitle": "Create Free Point at Pointer",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       },
       {
