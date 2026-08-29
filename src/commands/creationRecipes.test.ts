@@ -23,6 +23,7 @@ import {
 } from "./creationRecipes";
 import {
   creationRecipeForLegacyCommand,
+  legacyCreationCatalogExclusions,
   legacyCreationCommandRecipeMap
 } from "./legacyCreationRecipes";
 
@@ -253,6 +254,45 @@ describe("creationRecipes", () => {
     expect(creationRecipeForLegacyCommand("addGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addConditionalGroup")).toBeNull();
     expect(creationRecipeForLegacyCommand("addForGroup")).toBeNull();
+  });
+
+  it("classifies every current element type exactly once for the creation catalog", () => {
+    const allElementTypes = new Set(Object.keys(elementTypeLabels) as CadElementType[]);
+    const mappedRecipeTypes = new Set(
+      Object.values(legacyCreationCommandRecipeMap).map(({ type }) => type)
+    );
+    const recipeExcludedTypes = new Set<CadElementType>(creationRecipeExcludedTypes);
+    const explicitCatalogExclusionTypes = new Set<CadElementType>(
+      legacyCreationCatalogExclusions.map(({ type }) => type)
+    );
+    const classifications: ReadonlyArray<readonly [string, ReadonlySet<CadElementType>]> = [
+      ["mapped recipe", mappedRecipeTypes],
+      ["recipe-excluded", recipeExcludedTypes],
+      ["explicit catalog exclusion", explicitCatalogExclusionTypes]
+    ];
+
+    for (let leftIndex = 0; leftIndex < classifications.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < classifications.length; rightIndex += 1) {
+        const [leftName, leftTypes] = classifications[leftIndex]!;
+        const [rightName, rightTypes] = classifications[rightIndex]!;
+        expect(
+          [...leftTypes].filter((type) => rightTypes.has(type)),
+          `${leftName} and ${rightName} must not overlap`
+        ).toEqual([]);
+      }
+    }
+
+    const classifiedTypes = new Set(
+      classifications.flatMap(([, types]) => [...types])
+    );
+    expect([...classifiedTypes].sort(), "every labeled CadElementType must be classified").toEqual(
+      [...allElementTypes].sort()
+    );
+
+    for (const { type, rationale } of legacyCreationCatalogExclusions) {
+      expect(rationale.trim(), `${type} catalog exclusion rationale`).not.toBe("");
+      expect(creationRecipeForType(type), `${type} must remain recipe-generatable`).not.toBeNull();
+    }
   });
 
   it("tracks blank recipe steps without inventing a value for them", () => {
