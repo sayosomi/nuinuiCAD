@@ -96,7 +96,7 @@ const isRootNodeInput = (path) =>
   path.startsWith("public/");
 
 const isRustPath = (path) =>
-  path.startsWith("src-tauri/") || path.startsWith("rust-evaluator/");
+  path.startsWith("rust-evaluator/");
 
 const isRustParityPath = (path) =>
   path.startsWith("rust-evaluator/src/evaluation/") ||

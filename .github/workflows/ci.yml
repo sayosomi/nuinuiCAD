@@ -197,17 +197,6 @@ jobs:
         if: ${{ needs.classification.outputs.rust == 'true' }}
         uses: taiki-e/install-action@nextest
 
-      - name: Install Tauri Linux dependencies
-        if: ${{ hashFiles('src-tauri/Cargo.toml') != '' }}
-        timeout-minutes: 10
-        run: |
-          sudo apt-get -o Acquire::Retries=3 update
-          sudo apt-get -o Acquire::Retries=3 install -y \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
       - name: Check evaluator Rust formatting
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo fmt --manifest-path rust-evaluator/Cargo.toml --check
@@ -223,22 +212,6 @@ jobs:
       - name: Clippy evaluator crate
         if: ${{ needs.classification.outputs.rust == 'true' }}
         run: cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings
-
-      - name: Check Tauri Rust formatting
-        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-
-      - name: Check Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
-        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
-
-      - name: Test Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
-
-      - name: Clippy Tauri crate
-        if: ${{ needs.classification.outputs.rust == 'true' && hashFiles('src-tauri/Cargo.toml') != '' }}
-        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Setup Node
         if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
