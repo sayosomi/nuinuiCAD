@@ -1057,9 +1057,10 @@ fn build_wide_call_tree(call_count: usize) -> Value {
 
 /// Spawns a worker thread with an explicit 2 MiB stack - the default size
 /// for a spawned/worker thread, and the realistic conservative case for
-/// where a Tauri command handler might actually run (deliberately not
-/// relying on the generous ~8 MiB default main-thread stack a `cargo test`
-/// process itself typically gets). Used only for the long-chain test below:
+/// where a production Rust worker or host transport handler might actually run
+/// (deliberately not relying on the generous ~8 MiB default main-thread stack a
+/// `cargo test` process itself typically gets). Used only for the long-chain
+/// test below:
 /// both decoding *and* dropping the result happen inside the closure, on
 /// this bounded stack, so it proves both halves of the pipeline are safe.
 fn run_on_bounded_stack<F: FnOnce() + Send + 'static>(work: F) {
@@ -1101,10 +1102,10 @@ fn accepts_a_long_flat_binary_chain_within_the_node_count_budget() {
         // overflows this exact 2 MiB stack on a normal drop at this depth,
         // even though building it does not. A deep Value tree is therefore
         // unsafe to drop by default *regardless of who holds it* - a
-        // pre-existing serde_json characteristic shared by every other
-        // Tauri command in this codebase that already accepts a raw Value
-        // (e.g. EvaluationInput.elements), not something Task 17
-        // introduces or is scoped to fix - validate_typed_expression_payload
+        // pre-existing serde_json characteristic shared by any host boundary
+        // that accepts a raw Value (e.g. EvaluationInput.elements), not
+        // something Task 17 introduces or is scoped to fix -
+        // validate_typed_expression_payload
         // only ever borrows its input, never owns or drops it. Forgetting
         // this test's own constructed payload (leaked, harmless for a
         // short-lived test process) isolates *this task's* actual claim -

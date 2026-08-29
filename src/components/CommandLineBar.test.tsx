@@ -1281,7 +1281,7 @@ describe("CommandLineBar", () => {
   });
 
   it("reports pending (no popup, no TS re-evaluation) while evaluation is not current, then shows candidates once it is - without retyping", async () => {
-    // Regression coverage: Tauri's Rust-first evaluation is asynchronous
+    // Regression coverage: the historical Tauri host's Rust-first evaluation was asynchronous
     // (useEvaluationEngine.ts), so a freshly compiled element like `直線AB`
     // can be present in the document well before the evaluation prop's
     // computedGeometry/effectiveEnabledElementIds catch up with it. This

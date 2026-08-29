@@ -1,5 +1,5 @@
 // Shared pure math for cubic Bezier segments, reused by the split, endpoint-move,
-// && intersection evaluators. Mirrors `src-tauri/src/evaluation/bezier_math.rs`.
+// && intersection evaluators. Mirrors the Rust evaluator's Bezier math.
 
 export type Point = { x: number; y: number };
 

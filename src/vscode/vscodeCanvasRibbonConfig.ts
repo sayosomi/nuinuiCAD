@@ -124,7 +124,7 @@ const normalizeRibbon = (value: unknown): VscodeCanvasRibbon | null => {
 };
 
 /**
- * Normalize the VS Code setting independently from the Tauri settings model.
+ * Normalize the VS Code setting independently from the legacy host settings model.
  * An explicit empty array is intentional and must not trigger a default.
  */
 export const normalizeVscodeCanvasRibbons = (value: unknown): VscodeCanvasRibbon[] => {

@@ -95,9 +95,9 @@ describe("createCadElement", () => {
     });
   });
 
-  // 05: DivisionPlacement union. The desktop IPC payload (evaluationEngine.ts
-  // passes `elements` straight through to Tauri's `invoke`, which JSON-serializes
-  // it) must never carry the legacy flat placementMode/distance/ratio fields, and
+  // 05: DivisionPlacement union. The native evaluation payload (evaluationEngine.ts
+  // passes `elements` through a JSON boundary) must never carry the legacy flat
+  // placementMode/distance/ratio fields, and
   // the union shape must not be larger on the wire than the shape it replaced --
   // matching Task 05's own performance condition (payload size must not increase).
   it("keeps the desktop IPC payload free of legacy fields and no larger than the legacy shape", () => {

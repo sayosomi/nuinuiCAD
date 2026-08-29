@@ -3,9 +3,9 @@
 // && the gutter/Problems runtime diagnostic converter
 // (runtimeScalarDiagnostics.ts) - moved out of the Inspector presentation
 // module so neither surface can drift from the other's wording. Every
-// runtime issueCode a ScalarEvaluation error can carry, both engines
-// (src/scalars/*.ts, src-tauri/src/evaluation/scalars/*.rs) - kept in sync by
-// hand since Rust never sends a code TS doesn't also define. Unknown codes
+// runtime issueCode a ScalarEvaluation error can carry, in both the TypeScript
+// and Rust evaluator implementations - kept in sync by hand since Rust never
+// sends a code TS doesn't also define. Unknown codes
 // still get a message (fail-closed, never blank) rather than being dropped.
 import type { CadElement } from "../types/geometry";
 import type { ScalarEvaluationErrorContext } from "./types";

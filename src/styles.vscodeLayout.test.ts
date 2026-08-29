@@ -61,12 +61,12 @@ describe("shared stylesheet host layout ownership", () => {
     );
     expect(focusableCommand).toMatch(/outline:\s*2px solid var\(--vscode-canvas-ribbon-focus\)/);
 
-    const tauriRibbonStyles = stylesheet.slice(
+    const legacyRibbonStyles = stylesheet.slice(
       stylesheet.indexOf(".command-ribbon-layer"),
       stylesheet.indexOf("/* VS Code owns its webview theme;")
     );
-    expect(tauriRibbonStyles).not.toContain("--vscode-canvas-ribbon-active-foreground");
-    expect(tauriRibbonStyles).not.toContain("--vscode-list-activeSelectionForeground");
+    expect(legacyRibbonStyles).not.toContain("--vscode-canvas-ribbon-active-foreground");
+    expect(legacyRibbonStyles).not.toContain("--vscode-list-activeSelectionForeground");
 
     const sideHandleRibbon = ruleBody(".vscode-canvas-webview .command-ribbon.is-vertical.has-side-handle");
     expect(sideHandleRibbon).toMatch(/flex-direction:\s*row/);
@@ -92,7 +92,7 @@ describe("shared stylesheet host layout ownership", () => {
     expect(valueField).not.toMatch(/min-width:\s*28px/);
   });
 
-  it("lets VS Code tooltips escape Ribbon clipping while Tauri keeps overflow hidden", () => {
+  it("lets VS Code tooltips escape shared Ribbon clipping", () => {
     expect(ruleBody(".command-ribbon")).toMatch(/overflow:\s*hidden/);
     expect(ruleBody(".vscode-canvas-webview .command-ribbon")).toMatch(/overflow:\s*visible/);
 

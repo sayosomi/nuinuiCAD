@@ -4220,8 +4220,8 @@ textarea {
   white-space: nowrap;
 }
 
-/* VS Code owns its webview theme; the desktop/Tauri ribbon keeps the legacy
-   palette above. */
+/* VS Code owns its webview theme; the shared development/test harness keeps
+   the legacy palette above. */
 .vscode-canvas-webview {
   --vscode-canvas-ribbon-foreground: var(--vscode-foreground, #cccccc);
   --vscode-canvas-ribbon-background: var(--vscode-editorWidget-background, #252526);

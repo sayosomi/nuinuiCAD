@@ -1,22 +1,29 @@
 # Benchmark comparison foundation
 
-This directory contains the shared, host-neutral benchmark contract for comparing
-the Tauri application with a future VS Code host. It defines the protocol,
-scenario and metric names, result schema, statistics, comparison behavior, and
-fixed `.nui` workloads. Passive production timing instrumentation, sample
-correlation, raw timing capture, the host-neutral protocol runner, and Tauri
-capture orchestration live in `src/performance/`. The Node launcher and result
-file IO live in `scripts/performance/`.
+This directory contains the shared, host-neutral benchmark contract for the
+production VS Code capture path and compatible benchmark results. It defines
+the protocol, scenario and metric names, result schema, statistics, comparison
+behavior, and fixed `.nui` workloads. Passive production timing instrumentation,
+sample correlation, raw timing capture, the host-neutral protocol runner, and
+VS Code capture orchestration live in `src/performance/`. The Node launcher and
+result file IO live in `scripts/performance/`.
 
-## Tauri baseline capture
+## VS Code capture
 
-Run a local Tauri capture with one of the frozen fixtures:
+Run a local VS Code capture with a fixture from the current manifest:
 
 ```text
-npm run bench:capture:tauri -- \
-  --fixture interactive-medium-v1 \
-  --output /tmp/nuinuicad-tauri-medium.json
+npm run bench:capture:vscode -- \
+  --fixture <fixture-id> \
+  --output <result.json>
 ```
+
+An optional prior result can be supplied with `--baseline <result.json>`. A
+capture does not require a prior result. When supplied, the baseline may target
+either `vscode` or the explicitly historical `tauri` result target; it is only
+a same-machine, coherent-render-surface comparability guard and is not fixture
+authority or mandatory Tauri provenance. Fixture ID and hash authority
+come from the current manifest and capture input.
 
 Available fixture IDs are `interactive-medium-v1` and
 `interactive-large-v1`. Each capture runs 5 warm-ups and 21 measured trials
@@ -24,11 +31,12 @@ for `source-edit-v1`, `point-drag-v1`, and `bezier-handle-drag-v1`. The source
 edit changes `benchOffset` from `6` to `7`; the drag scenarios use one
 production DOM pointermove with their manifest-defined CSS-pixel deltas.
 
-Capture requires the Tauri Rust production evaluation path. Keep the benchmark
-window at a fixed size and device-pixel ratio for the complete run; resize or
-DPR changes fail the capture. The output JSON is hardware- and environment-
-specific, so baseline result files are not automatically committed to the
-repository.
+The VS Code capture builds/uses the VS Code extension and the persistent
+Extension Host / Node stdio path into `rust-evaluator`'s `evaluation_stdio`
+binary. Keep the benchmark window at a fixed size and device-pixel ratio for
+the complete run; within-run render-surface or DPR changes fail the capture.
+The output JSON is hardware- and environment-specific, so baseline result files
+are not automatically committed to the repository.
 
 ## Official protocol
 

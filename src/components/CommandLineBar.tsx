@@ -67,7 +67,7 @@ type CommandLineBarProps = {
    * property candidates must report pending, not a confirmed empty/candidate
    * result, while this is false. Defaults to `true` so existing callers/tests
    * that don't model evaluation freshness keep their prior behavior; the
-   * production AppLayout caller always supplies it explicitly. */
+   * production VS Code Webview caller always supplies it explicitly. */
   evaluationIsCurrent?: boolean;
 };
 

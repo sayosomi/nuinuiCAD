@@ -15,7 +15,7 @@ describe("SourceEditorPane", () => {
     useCadUiStore.setState(initialCadUiState());
   });
 
-  it("mounts outside AppLayout and applies a model patch without resetting the full document", () => {
+  it("mounts as an independent surface and applies a model patch without resetting the full document", () => {
     useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)", "test");
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);

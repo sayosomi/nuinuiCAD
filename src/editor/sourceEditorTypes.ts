@@ -25,7 +25,7 @@ export type SourceEvaluationPublication = {
    * completion must treat a not-current evaluation as pending, never as a
    * confirmed empty/candidate result. Defaults to `true` when omitted, so
    * existing callers/tests that don't model evaluation freshness keep their
-   * prior (always-current) behavior; the production AppLayout publisher
+   * prior (always-current) behavior; the production VS Code Webview publisher
    * always supplies it explicitly. */
   evaluationIsCurrent?: boolean;
 };
