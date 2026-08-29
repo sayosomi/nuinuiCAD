@@ -58,30 +58,44 @@ const ParameterRow = ({
   const lastRowIdentityRef = useRef(rowIdentity);
   const authoritativeRef = useRef({ identity: rowIdentity, value: parameter.value });
   const pendingDraftRef = useRef<string | null>(null);
+  const shouldRefreshAfterSyncRef = useRef(false);
   useEffect(() => {
     const previous = authoritativeRef.current;
     if (previous.identity !== rowIdentity) {
       pendingDraftRef.current = null;
+      shouldRefreshAfterSyncRef.current = false;
       setDraft(parameter.value);
     } else if (pendingDraftRef.current === null) {
+      shouldRefreshAfterSyncRef.current = true;
       setDraft(parameter.value);
     } else if (parameter.value === pendingDraftRef.current) {
       pendingDraftRef.current = null;
+      shouldRefreshAfterSyncRef.current = true;
       setDraft(parameter.value);
+    } else {
+      shouldRefreshAfterSyncRef.current = false;
     }
     authoritativeRef.current = {
       identity: rowIdentity,
       value: parameter.value
     };
-  }, [parameter.value, rowIdentity]);
+  }, [parameter, parameter.value, rowIdentity]);
   useEffect(() => {
     if (lastRowIdentityRef.current !== rowIdentity) {
       lastRowIdentityRef.current = rowIdentity;
       return;
     }
     const input = inputRef.current;
-    if (input && document.activeElement === input) onValueInputRefresh(parameter, input);
-  }, [onValueInputRefresh, parameter, parameter.value, rowIdentity]);
+    if (
+      shouldRefreshAfterSyncRef.current &&
+      input &&
+      document.activeElement === input &&
+      input.value === parameter.value
+    ) {
+      shouldRefreshAfterSyncRef.current = false;
+      onValueInputRefresh(parameter, input);
+    }
+  }, [draft, onValueInputRefresh, parameter, parameter.value, rowIdentity]);
   const diagnosticId = parameter.diagnostic
     ? `module-preview-parameter-diagnostic-${parameter.definitionStatementId}-${parameter.parameterIndex}`
     : undefined;

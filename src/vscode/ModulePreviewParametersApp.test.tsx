@@ -237,6 +237,61 @@ describe("ModulePreviewParametersApp", () => {
     expect(screen.getByLabelText("Value for label")).toHaveValue('"front"');
   });
 
+  it("publishes a refreshed exact proof after the focused input catches up to a snapshot", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    const initialSnapshot = snapshotWithValues(40, { width: "1" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: initialSnapshot })));
+
+    const input = screen.getByLabelText("Value for width") as HTMLInputElement;
+    input.focus();
+    vi.mocked(api.postMessage).mockClear();
+
+    const updatedSnapshot = snapshotWithValues(41, { width: "3" });
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: updatedSnapshot })));
+
+    expect(screen.getByLabelText("Value for width")).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("3");
+    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: updatedSnapshot.sessionRevision,
+      value: "1"
+    }));
+    const refreshedFocus = vi.mocked(api.postMessage).mock.calls
+      .map(([message]) => message as { type?: string; sessionRevision?: number; value?: string; focusGeneration?: number })
+      .find((message) =>
+        message.type === "modulePreviewParameterValueFocus" &&
+        message.sessionRevision === updatedSnapshot.sessionRevision
+      );
+    expect(refreshedFocus).toMatchObject({
+      type: "modulePreviewParameterValueFocus",
+      sessionRevision: updatedSnapshot.sessionRevision,
+      value: "3"
+    });
+    if (!refreshedFocus?.focusGeneration) throw new Error("expected refreshed Value focus generation");
+
+    input.setSelectionRange(0, 0);
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewRestoreParameterValueSelection",
+        sessionId: updatedSnapshot.sessionId,
+        documentUri: updatedSnapshot.documentUri,
+        documentVersion: updatedSnapshot.documentVersion,
+        sourceRevision: updatedSnapshot.sourceRevision,
+        sessionRevision: updatedSnapshot.sessionRevision,
+        targetDefinitionStatementId: updatedSnapshot.target.definitionStatementId,
+        definitionStatementId: "module:inner",
+        parameterIndex: 0,
+        value: "3",
+        selectionStart: 0,
+        selectionEnd: 1,
+        focusGeneration: refreshedFocus.focusGeneration
+      }
+    })));
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(1);
+  });
+
   it("does not leave repeated Default state that can discard a newer rapid draft", () => {
     render(<ModulePreviewParametersApp api={api} />);
     const defaultValueSnapshot = snapshotWithValues(10, { label: '"front"' });

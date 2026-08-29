@@ -566,6 +566,31 @@ describe("registerModulePreviewFeature", () => {
     await parameterView.receive(focus);
     for (let index = 0; index < 5; index += 1) await flushContext();
 
+    await parameterView.receive(parameterValueFocusFor(snapshot, {
+      value: "0",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 2
+    }));
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+    for (let index = 0; index < 5; index += 1) await flushContext();
+    expect(mocks.executeCommand).toHaveBeenLastCalledWith(
+      "setContext",
+      NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
+      true
+    );
+
+    await parameterView.receive(parameterValueFocusFor(snapshot, {
+      value: "1",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 3
+    }));
+
     const staleFocusVariants: Array<Partial<Omit<VscodeModulePreviewParameterValueFocus, "type">>> = [
       { sessionId: "stale-session" },
       { documentUri: "file:///stale.nui" },
@@ -600,19 +625,29 @@ describe("registerModulePreviewFeature", () => {
       }
     };
     await panel.receive(updatedSnapshot);
-    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "modulePreviewRestoreParameterValueSelection",
-      value: "3",
-      selectionStart: 0,
-      selectionEnd: 1,
-      focusGeneration: 1
+    expect(parameterView.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewRestoreParameterValueSelection"
     }));
 
     await parameterView.receive(parameterValueFocusFor(updatedSnapshot, {
       value: "3",
       selectionStart: 0,
       selectionEnd: 1,
-      focusGeneration: 2
+      focusGeneration: 4
+    }));
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewRestoreParameterValueSelection",
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 4
+    }));
+
+    await parameterView.receive(parameterValueFocusFor(updatedSnapshot, {
+      value: "3",
+      selectionStart: 0,
+      selectionEnd: 1,
+      focusGeneration: 4
     }));
     panel.webview.postMessage.mockClear();
     await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_BACKWARD_COMMAND_ID)!();
@@ -639,7 +674,7 @@ describe("registerModulePreviewFeature", () => {
       value: "text",
       selectionStart: 0,
       selectionEnd: 4,
-      focusGeneration: 3
+      focusGeneration: 5
     }));
     panel.webview.postMessage.mockClear();
     await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();

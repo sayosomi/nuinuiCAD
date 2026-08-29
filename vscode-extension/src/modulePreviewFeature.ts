@@ -304,7 +304,6 @@ export const registerModulePreviewFeature = ({
         focusedPreviewValue.documentUri !== message.documentUri ||
         focusedPreviewValue.documentVersion !== message.documentVersion ||
         focusedPreviewValue.sourceRevision !== message.sourceRevision ||
-        focusedPreviewValue.sessionRevision !== message.sessionRevision ||
         focusedPreviewValue.targetDefinitionStatementId !== message.target.definitionStatementId)
     ) setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, false);
     if (boundParameterSession === session) postParameterMessage(message);
@@ -463,6 +462,17 @@ export const registerModulePreviewFeature = ({
     left.parameterIndex === right.parameterIndex &&
     left.focusGeneration === right.focusGeneration;
 
+  const sameFocusedPreviewBinding = (
+    left: VscodeModulePreviewParameterValueFocus,
+    right: Pick<VscodeModulePreviewParameterValueFocus, "sessionId" | "documentUri" | "documentVersion" | "sourceRevision" | "targetDefinitionStatementId" | "definitionStatementId" | "parameterIndex">
+  ): boolean => left.sessionId === right.sessionId &&
+    left.documentUri === right.documentUri &&
+    left.documentVersion === right.documentVersion &&
+    left.sourceRevision === right.sourceRevision &&
+    left.targetDefinitionStatementId === right.targetDefinitionStatementId &&
+    left.definitionStatementId === right.definitionStatementId &&
+    left.parameterIndex === right.parameterIndex;
+
   const sameFocusedPreviewProof = (
     focus: VscodeModulePreviewParameterValueFocus,
     blur: VscodeModulePreviewParameterValueBlur
@@ -487,24 +497,21 @@ export const registerModulePreviewFeature = ({
     if (
       !focus ||
       !row ||
-      !focusedPreviewValueMatches(session, message, focus, true) ||
-      !sameFocusedPreviewIdentity(focus, {
-        ...focus,
-        sessionId: pending.sessionId,
-        documentUri: pending.documentUri,
-        documentVersion: pending.documentVersion,
-        sourceRevision: pending.sourceRevision,
-        targetDefinitionStatementId: pending.targetDefinitionStatementId,
-        definitionStatementId: pending.definitionStatementId,
-        parameterIndex: pending.parameterIndex,
-        focusGeneration: pending.focusGeneration
-      }) ||
+      !sameFocusedPreviewBinding(focus, pending) ||
       (focus.value !== pending.previousValue && focus.value !== pending.expectedValue) ||
       row.value !== pending.expectedValue
     ) {
       pendingSelectionRestoration = null;
       return;
     }
+    if (
+      !focusedPreviewValueMatches(session, message, focus, false) ||
+      focus.focusGeneration <= pending.focusGeneration ||
+      focus.value !== row.value ||
+      focus.selectionStart < 0 ||
+      focus.selectionEnd < focus.selectionStart ||
+      focus.selectionEnd > row.value.length
+    ) return;
     pendingSelectionRestoration = null;
     postParameterMessage({
       type: "modulePreviewRestoreParameterValueSelection",
@@ -519,7 +526,7 @@ export const registerModulePreviewFeature = ({
       value: pending.expectedValue,
       selectionStart: pending.selectionStart,
       selectionEnd: pending.selectionEnd,
-      focusGeneration: pending.focusGeneration
+      focusGeneration: focus.focusGeneration
     });
   };
 
@@ -568,21 +575,12 @@ export const registerModulePreviewFeature = ({
     }
     if (
       pendingSelectionRestoration &&
-      (!sameFocusedPreviewIdentity(message, {
-        ...message,
-        sessionId: pendingSelectionRestoration.sessionId,
-        documentUri: pendingSelectionRestoration.documentUri,
-        documentVersion: pendingSelectionRestoration.documentVersion,
-        sourceRevision: pendingSelectionRestoration.sourceRevision,
-        targetDefinitionStatementId: pendingSelectionRestoration.targetDefinitionStatementId,
-        definitionStatementId: pendingSelectionRestoration.definitionStatementId,
-        parameterIndex: pendingSelectionRestoration.parameterIndex,
-        focusGeneration: pendingSelectionRestoration.focusGeneration
-      }) ||
+      (!sameFocusedPreviewBinding(message, pendingSelectionRestoration) ||
       (message.value !== pendingSelectionRestoration.previousValue && message.value !== pendingSelectionRestoration.expectedValue))
     ) pendingSelectionRestoration = null;
     focusedPreviewValue = message;
     setContext(NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT, true);
+    maybeRestorePendingSelection(session, snapshot);
     return true;
   };
 
@@ -718,13 +716,20 @@ export const registerModulePreviewFeature = ({
     const snapshot = session ? currentParameterSnapshot(session) : null;
     const focus = focusedPreviewValue;
     if (!session || !snapshot || !focus) return true;
-    const match = focusedPreviewValueMatches(session, snapshot, focus, false);
+    const match = focusedPreviewValueMatches(session, snapshot, focus, true);
     if (!match) {
       clearFocusedPreviewValue();
       return true;
     }
+    if (
+      focus.sessionRevision !== snapshot.sessionRevision ||
+      focus.value !== match.row.value ||
+      focus.selectionStart < 0 ||
+      focus.selectionEnd < focus.selectionStart ||
+      focus.selectionEnd > match.row.value.length
+    ) return true;
     const result = resolveModulePreviewValueStep(
-      focus.value,
+      match.row.value,
       match.row.type,
       match.row.numericTypeOptions,
       { start: focus.selectionStart, end: focus.selectionEnd },
