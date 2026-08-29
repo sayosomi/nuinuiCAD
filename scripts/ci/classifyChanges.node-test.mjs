@@ -21,6 +21,21 @@ const cases = [
     expected: flags()
   },
   {
+    name: "implemented DSL landing page documentation",
+    paths: ["docs/dsl.md"],
+    expected: flags({ node: true })
+  },
+  {
+    name: "English DSL reference documentation",
+    paths: ["docs/dsl/en/constructions.md", "docs/dsl/en/builtins.md"],
+    expected: flags({ node: true })
+  },
+  {
+    name: "any file under the DSL reference tree",
+    paths: ["docs/dsl/fixtures/example.nui"],
+    expected: flags({ node: true })
+  },
+  {
     name: "test-backed command ID documentation",
     paths: ["docs/command-id-map.md"],
     expected: flags({ node: true, full_node: true })

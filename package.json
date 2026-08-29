@@ -27,6 +27,8 @@
     "bench:compare": "tsx scripts/performance/compare.ts",
     "bench:capture:vscode": "tsx scripts/performance/captureVscode.ts",
     "build:vscode": "node scripts/vscode/build.mjs",
+    "docs:dsl:generate": "tsx scripts/docs/dslReference.ts --generate",
+    "docs:dsl:check": "tsx scripts/docs/dslReference.ts --check",
     "test:watch": "vitest"
   },
   "dependencies": {
