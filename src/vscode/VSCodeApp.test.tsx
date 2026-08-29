@@ -238,6 +238,124 @@ describe("VSCodeApp Canvas history coordinator", () => {
     }]);
     expect(freePointResults.some((message) => message.status === "applied")).toBe(false);
     expect(freePointResults[0]).not.toHaveProperty("nextSourcePosition");
+    publishAllCurrentElementsAsPresented();
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+  });
+
+  it("materializes an unnamed freePoint and defers selection until Canvas presents it", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 43,
+          documentVersion: 7,
+          pointer: { x: 12.5, y: -8 },
+          sourcePosition: { line: 1, character: 0 }
+        }
+      }));
+    });
+
+    const originalElementIds = new Set([...
+      useCadDocumentStore.getState().elements
+        .filter((element) => element.name === "A" || element.name === "B")
+        .map((element) => element.id)
+    ]);
+    const locallyInserted = useCadDocumentStore.getState().elements.find(
+      (element) => !originalElementIds.has(element.id) && element.type === "freePoint"
+    )!;
+    expect(locallyInserted.name).toBe("");
+    expect(useCadDocumentStore.getState().sourceText).toContain("point = coordinate(");
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCommitResult",
+          operationId: 43,
+          status: "accepted",
+          documentVersion: 8
+        }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+
+    await act(async () => {
+      publishAllCurrentElementsAsPresented();
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(locallyInserted.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([locallyInserted.id]);
+  });
+
+  it("keeps the creation selection contract through host Undo and Redo", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 44,
+          documentVersion: 7,
+          pointer: { x: 12.5, y: -8 },
+          sourcePosition: { line: 1, character: 0 }
+        }
+      }));
+    });
+    const createdSource = useCadDocumentStore.getState().sourceText;
+    const createdPoint = useCadDocumentStore.getState().elements.find((element) => element.name === "")!;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommitResult", operationId: 44, status: "accepted", documentVersion: 8 }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(createdPoint.id);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: source, documentVersion: 9, reason: "undo" }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+    expect(useCadDocumentStore.getState().elements.some((element) => element.id === createdPoint.id)).toBe(false);
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: createdSource, documentVersion: 10, reason: "redo" }
+      }));
+      publishAllCurrentElementsAsPresented();
+    });
+    expect(useCadDocumentStore.getState().sourceText).toBe(createdSource);
+    expect(useCadUiStore.getState().selectedElementId).toBe(createdPoint.id);
   });
 
   it("queues Canvas history until the authoritative result and restores focus after completion", async () => {
