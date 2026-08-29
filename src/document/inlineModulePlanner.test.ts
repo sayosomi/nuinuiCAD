@@ -374,6 +374,306 @@ describe("planInlineModule Checkpoint 1", () => {
     )).toBe(true);
   });
 
+  it("specializes optional presence independently for multiple targets and lowers only supplied values", () => {
+    const source = [
+      "nui 4",
+      "module Presence(value?: number, enabled: boolean = hasValue(@value)) {",
+      "  const present: boolean = hasValue(@value)",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Present = Presence(value: 12)",
+      "instance Absent = Presence()"
+    ].join("\n");
+    const { result } = plan(source, ["Present", "Absent"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("group Present {");
+    expect(nextSource).toContain("const value: number = 12");
+    expect(nextSource).toContain("const enabled: boolean = true");
+    expect(nextSource).toContain("const present: boolean = true");
+    expect(nextSource).toContain("group Absent {");
+    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
+    expect(absent).not.toContain("const value: number");
+    expect(nextSource).toContain("const enabled: boolean = false");
+    expect(nextSource).toContain("const present: boolean = false");
+    expect(nextSource.slice(nextSource.indexOf("group Present {"))).not.toContain("hasValue(@value)");
+  });
+
+  it("uses validated presence metadata instead of a boolean placeholder in the semantic AST", () => {
+    const source = [
+      "nui 4",
+      "module Presence(value?: number) {",
+      "  const present: boolean = hasValue(@value)",
+      "}",
+      "instance Present = Presence(value: 12)",
+      "instance Absent = Presence()"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const definition = analysis.definitions[0]!;
+    const body = definition.bodyStatements[0]!;
+    const site = body.scalarExpressions[0];
+    expect(site).toBeDefined();
+    if (!site) return;
+    const placeholder = { kind: "booleanLiteral" as const, span: site.expression.ast.span, value: false };
+    const updatedBody = {
+      ...body,
+      scalarExpressions: body.scalarExpressions.map((candidate) => candidate === site
+        ? { ...candidate, expression: { ...candidate.expression, ast: placeholder } }
+        : candidate)
+    };
+    const updatedDefinition = {
+      ...definition,
+      bodyStatements: definition.bodyStatements.map((candidate) => candidate === body ? updatedBody : candidate)
+    };
+    const definitionsByStatementId = new Map(analysis.definitionsByStatementId);
+    definitionsByStatementId.set(updatedDefinition.statementId, updatedDefinition);
+    const modifiedCompiled: CompiledDslDocument = {
+      ...compiled,
+      moduleSemanticAnalysis: {
+        ...analysis,
+        definitions: analysis.definitions.map((candidate) => candidate === definition ? updatedDefinition : candidate),
+        definitionsByStatementId
+      }
+    };
+    const result = planInlineModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled: modifiedCompiled,
+      targets: ["Present", "Absent"].map((name) => targetFor(modifiedCompiled, name)),
+      policy: DEFAULT_POLICY
+    });
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const present: boolean = true");
+    expect(nextSource).toContain("const present: boolean = false");
+  });
+
+  it("supports optional number, string, boolean, and choice parameters", () => {
+    const source = [
+      "nui 4",
+      "module Scalars(n?: number, text?: string, flag?: boolean, side?: choice(right, left)) {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Present = Scalars(n: 1, text: \"front\", flag: true, side: left)",
+      "instance Absent = Scalars()"
+    ].join("\n");
+    const { result } = plan(source, ["Present", "Absent"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("const n: number = 1");
+    expect(nextSource).toContain("const text: string = \"front\"");
+    expect(nextSource).toContain("const flag: boolean = true");
+    expect(nextSource).toContain("const side: choice(right, left) = left");
+    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
+    expect(absent).not.toContain("const n:");
+    expect(absent).not.toContain("const text:");
+    expect(absent).not.toContain("const flag:");
+    expect(absent).not.toContain("const side:");
+  });
+
+  it("partially simplifies presence conditions while preserving the dynamic operand owner", () => {
+    const source = [
+      "nui 4",
+      "module Conditional(value?: number, enabled: boolean) {",
+      "  if (hasValue(@value) and @enabled) {",
+      "    point P = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "instance Present = Conditional(value: 2, enabled: true)",
+      "instance Absent = Conditional(enabled: true)"
+    ].join("\n");
+    const { result } = plan(source, ["Present", "Absent"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const present = nextSource.slice(nextSource.indexOf("group Present {"));
+    expect(present).toContain("if (@enabled) {");
+    expect(present).not.toContain("if (hasValue(@value)");
+    const absent = nextSource.slice(nextSource.indexOf("group Absent {"));
+    expect(absent).not.toContain("if (");
+    expect(absent).not.toContain("point P");
+
+    const next = compileCurrent(nextSource, "inline-presence-condition-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const presentGroup = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Present");
+    const enabled = next.statements.find((statement) =>
+      statement.kind === "typedDeclaration" && statement.name === "enabled" && statement.enclosing?.statementIndex === presentGroup
+    );
+    const conditional = next.statements.find((statement) =>
+      statement.kind === "element" && statement.type === "conditionalGroup" && statement.enclosing?.statementIndex === presentGroup
+    );
+    expect(enabled).toBeDefined();
+    expect(conditional).toBeDefined();
+    if (!enabled || !conditional) return;
+    const enabledDeclaration = nextIndex.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && occurrence.from >= enabled.documentRange.from && occurrence.to <= enabled.documentRange.to
+    );
+    const conditionReferences = nextIndex.occurrences.filter((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from >= conditional.documentRange.from && occurrence.to <= conditional.documentRange.to
+    );
+    expect(enabledDeclaration).toBeDefined();
+    expect(conditionReferences.some((occurrence) =>
+      enabledDeclaration && dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(enabledDeclaration.identity)
+    )).toBe(true);
+  });
+
+  it("lifts the branch selected by negated optional presence and remaps supplied references", () => {
+    const source = [
+      "nui 4",
+      "module Conditional(value?: number) {",
+      "  if (not hasValue(@value)) {",
+      "    point Missing = coordinate(x: 0, y: 0)",
+      "  } else {",
+      "    point Present = coordinate(x: @value, y: 0)",
+      "  }",
+      "}",
+      "instance Supplied = Conditional(value: 4)",
+      "instance Omitted = Conditional()"
+    ].join("\n");
+    const { result } = plan(source, ["Supplied", "Omitted"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("group Supplied {\n  const value: number = 4\n  point Present = coordinate(x: @value, y: 0)\n}");
+    expect(nextSource).toContain("group Omitted {\n  point Missing = coordinate(x: 0, y: 0)\n}");
+    expect(nextSource.slice(nextSource.indexOf("group Supplied {"))).not.toContain("if (not hasValue");
+
+    const next = compileCurrent(nextSource, "inline-negated-presence-next");
+    const nextIndex = createDslSemanticOccurrenceIndex(next);
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Supplied");
+    const value = next.statements.find((statement) =>
+      statement.kind === "typedDeclaration" && statement.name === "value" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const point = next.statements.find((statement) =>
+      statement.kind === "element" && statement.name === "Present" && statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(value).toBeDefined();
+    expect(point).toBeDefined();
+    if (!value || !point) return;
+    const valueDeclaration = nextIndex.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" && occurrence.from >= value.documentRange.from && occurrence.to <= value.documentRange.to
+    );
+    const pointReferences = nextIndex.occurrences.filter((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from >= point.documentRange.from && occurrence.to <= point.documentRange.to
+    );
+    expect(valueDeclaration).toBeDefined();
+    expect(pointReferences.some((occurrence) =>
+      valueDeclaration && dslSemanticIdentityKey(occurrence.identity) === dslSemanticIdentityKey(valueDeclaration.identity)
+    )).toBe(true);
+  });
+
+  it("comments omitted branch source only when the policy enables it", () => {
+    const source = [
+      "nui 4",
+      "module Conditional(value?: number) {",
+      "  if (hasValue(@value)) {",
+      "    point P = coordinate(x: @value, y: 0)",
+      "  }",
+      "}",
+      "instance Omitted = Conditional()"
+    ].join("\n");
+    const off = plan(source, ["Omitted"]).result;
+    expect(off.status).toBe("planned");
+    if (off.status !== "planned") return;
+    const offSource = applyLineSplices(source, off.splices);
+    expect(offSource).toContain("group Omitted {\n}");
+    const offGenerated = offSource.slice(offSource.indexOf("group Omitted {"));
+    expect(offGenerated).not.toContain("Inline omitted");
+    expect(offGenerated).not.toContain("hasValue(@value)");
+
+    const on = plan(source, ["Omitted"], { emitOmittedBranchComments: true }).result;
+    expect(on.status).toBe("planned");
+    if (on.status !== "planned") return;
+    const onSource = applyLineSplices(source, on.splices);
+    expect(onSource).toContain("// Inline omitted: condition resolved to false");
+    expect(onSource).toContain("// if (hasValue(@value)) {");
+    expect(onSource).toContain("//   point P = coordinate(x: @value, y: 0)");
+    const next = compileCurrent(onSource, "inline-omitted-comments-next");
+    const group = next.statements.find((statement) => statement.kind === "group" && statement.name === "Omitted");
+    expect(group).toBeDefined();
+    if (!group) return;
+    const index = createDslSemanticOccurrenceIndex(next);
+    expect(index.occurrences.some((occurrence) =>
+      occurrence.from >= group.documentRange.from && occurrence.to <= group.documentRange.to &&
+      occurrence.identity.kind === "module" && occurrence.identity.target.kind === "moduleParameter"
+    )).toBe(false);
+  });
+
+  it("specializes hasValue inside a text-template scalar hole", () => {
+    const source = [
+      "nui 4",
+      "module Label(value?: number) {",
+      "  text Label = label(text: \"present=${hasValue(@value)}\", anchor: none, size: 3)",
+      "}",
+      "instance Supplied = Label(value: 1)",
+      "instance Omitted = Label()"
+    ].join("\n");
+    const { result } = plan(source, ["Supplied", "Omitted"]);
+
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const generated = nextSource.slice(nextSource.indexOf("group Supplied {"));
+    expect(generated).toContain("text Label = label(text: \"present=${true}\"");
+    expect(generated).toContain("text Label = label(text: \"present=${false}\"");
+    expect(generated).not.toContain("hasValue(@value)");
+  });
+
+  it("rejects an omitted optional reference that could otherwise capture an outer same-name binding", () => {
+    const source = [
+      "nui 4",
+      "const value: number = 99",
+      "module Unsafe(value?: number) {",
+      "  point P = coordinate(x: @value, y: 0)",
+      "}",
+      "instance Omitted = Unsafe()"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: REVISION });
+    const ids = new Map(parsed.statements.map((_, index) => [index, `inline-unsafe:${index}`]));
+    const compiled = compileDslDocument(source, {
+      preparsed: parsed,
+      sourceRevision: REVISION,
+      assignedElementIds: ids,
+      assignedStatementIds: ids
+    });
+    const cleanSource = source.replace("coordinate(x: @value, y: 0)", "coordinate(x: 0, y: 0)");
+    const cleanParsed = parseDslSnapshot({ normalizedSource: cleanSource, sourceRevision: REVISION });
+    const cleanCompiled = compileDslDocument(cleanSource, {
+      preparsed: cleanParsed,
+      sourceRevision: REVISION,
+      assignedElementIds: ids,
+      assignedStatementIds: ids
+    });
+    expect(cleanCompiled.statementMap).not.toBeNull();
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const cleanAnalysis = { ...analysis, diagnostics: [] };
+    const omittedIndex = compiled.statements.findIndex((statement) => statement.kind === "moduleInstance" && statement.name === "Omitted");
+    const target = { documentKey: null, statementId: ids.get(omittedIndex)! } satisfies InlineModuleTargetIdentity;
+    const result = planInlineModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled: {
+        ...compiled,
+        diagnostics: [],
+        bindingIssueDiagnostics: [],
+        statementMap: cleanCompiled.statementMap,
+        moduleSemanticAnalysis: cleanAnalysis
+      },
+      targets: [target],
+      policy: DEFAULT_POLICY
+    });
+
+    expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite" });
+    expect("splices" in result).toBe(false);
+  });
+
   it("treats explicit and SAY-12 shorthand bindings equivalently and preserves safe same-name references", () => {
     const source = [
       "nui 4",
@@ -624,10 +924,6 @@ describe("planInlineModule Checkpoint 1", () => {
   });
 
   it.each([
-    [
-      "optional scalar",
-      ["nui 4", "module Box(width?: number) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box()"].join("\n")
-    ],
     [
       "geometry parameter",
       ["nui 4", "point A = coordinate(x: 0, y: 0)", "module Box(anchor: point) {", "  point P = coordinate(x: 0, y: 0)", "}", "instance Copy = Box(anchor: @A)"].join("\n")
