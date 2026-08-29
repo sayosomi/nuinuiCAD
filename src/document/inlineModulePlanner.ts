@@ -3,16 +3,23 @@ import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument
 import {
   createDslSemanticOccurrenceIndex,
   dslSemanticIdentityKey,
+  semanticIdentityForModuleTarget,
   type DslSemanticIdentity,
   type DslSemanticOccurrence,
   type DslSemanticOccurrenceIndex
 } from "../dsl/dslSemanticOccurrenceIndex";
 import { parseElementActivityLiteral } from "../dsl/dslActivity";
+import { commonArgSpecs, constructionFor } from "../dsl/dslConstructions";
 import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
+import { parseGeometryArrayExpression } from "../dsl/geometryArrayExpression";
 import {
   geometryArrayTypeOfModuleParameter,
   geometryArrayTypeOfTypedDeclaration
 } from "../dsl/geometryArraySourceAnnotations";
+import {
+  isGeometryArrayTypeAssignable,
+  type GeometryArrayType
+} from "../dsl/geometryArrayTypes";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   formatDslReferencePath,
@@ -32,6 +39,7 @@ import type {
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
+import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
@@ -142,10 +150,23 @@ type ScalarParameterLowering = {
   eliminatedSourceRanges: readonly ExactSourceRange[];
 };
 
+type GeometryArrayParameterLowering = {
+  parameterIndex: number;
+  parameterName: string;
+  parameter: DslModuleParameter;
+  arrayType: GeometryArrayType;
+  state: "requiredSupplied" | "optionalSupplied" | "optionalOmitted";
+  nameSource: string;
+  typeSource: string;
+  initializerSource: string | null;
+  originalExpressionRange: { from: number; to: number } | null;
+};
+
 type ScalarParameterPreparation =
   | {
       kind: "supported";
       scalarParameters: readonly ScalarParameterLowering[];
+      geometryArrayParameters: readonly GeometryArrayParameterLowering[];
       geometryParameters: readonly GeometryParameterSubstitution[];
     }
   | { kind: "unsupported"; reason: string }
@@ -180,6 +201,12 @@ type GeometrySubstitutionProvenance = {
   siteKind: "direct" | "property" | "builtin";
 };
 
+type GeometryArrayParameterReferenceProvenance = {
+  originalStatementId: StatementIdentity;
+  parameterIndex: number;
+  bodySourceRange: ExactSourceRange;
+};
+
 type GeometrySubstitutionReference = Omit<ModuleGeometryReferenceSemantic, "target"> & {
   target: ModuleGeometryReferenceSemantic["target"] |
     Extract<ModuleGeometryPropertySourceTarget, { kind: "parameterProperty" }>;
@@ -195,6 +222,7 @@ type InlineEntry = {
   statementInfo: NonNullable<CompiledDslDocument["statementMap"]>["statements"][number];
   body: BodyRange;
   scalarParameters: readonly ScalarParameterLowering[];
+  geometryArrayParameters: readonly GeometryArrayParameterLowering[];
   geometryParameters: readonly GeometryParameterSubstitution[];
   bodyTransformation: BodyTransformation;
 };
@@ -203,7 +231,7 @@ type GeneratedScalarParameterMapping = {
   parameterIndex: number;
   statementIndex: number;
   statementId: StatementIdentity;
-  bindingId: string;
+  bindingId: string | null;
   initializerRange: { from: number; to: number };
 };
 
@@ -250,6 +278,7 @@ type BodyTransformation = {
   bodyLines: readonly string[];
   provenance: readonly BodyStatementProvenance[];
   geometrySubstitutions: readonly GeometrySubstitutionProvenance[];
+  geometryArrayReferences: readonly GeometryArrayParameterReferenceProvenance[];
 };
 
 const reject = (
@@ -303,6 +332,15 @@ const isSupportedScalarParameterType = (
   type?.kind === "string" ||
   type?.kind === "boolean" ||
   type?.kind === "choice";
+
+const localParameterLoweringsFor = (entry: Pick<InlineEntry, "scalarParameters" | "geometryArrayParameters">) => [
+  ...entry.scalarParameters
+    .filter((parameter) => parameter.initializerSource !== null)
+    .map((parameter) => ({ kind: "scalar" as const, parameter })),
+  ...entry.geometryArrayParameters
+    .filter((parameter) => parameter.initializerSource !== null)
+    .map((parameter) => ({ kind: "geometryArray" as const, parameter }))
+].sort((left, right) => left.parameter.parameterIndex - right.parameter.parameterIndex);
 
 const directChildEntriesForGroup = (
   compiled: CompiledDslDocument,
@@ -653,7 +691,7 @@ const prepareScalarParameterLowering = (
     };
   }
   if (entry.definition.parameters.length === 0 && entry.instance.parameterBindings.length === 0) {
-    return { kind: "supported", scalarParameters: [], geometryParameters: [] };
+    return { kind: "supported", scalarParameters: [], geometryArrayParameters: [], geometryParameters: [] };
   }
   if (
     definitionStatement.parameters.length !== entry.definition.parameters.length ||
@@ -679,12 +717,13 @@ const prepareScalarParameterLowering = (
   }
 
   const scalarParameters: ScalarParameterLowering[] = [];
+  const geometryArrayParameters: GeometryArrayParameterLowering[] = [];
   const geometryParameters: GeometryParameterSubstitution[] = [];
   for (const resolvedParameter of entry.definition.parameters) {
     const parameterIndex = resolvedParameter.parameterIndex;
     const parameter = definitionStatement.parameters[parameterIndex];
     const binding = bindingsByParameterIndex.get(parameterIndex);
-    if (!parameter || !binding || parameterIndex !== scalarParameters.length + geometryParameters.length) {
+    if (!parameter || !binding || parameterIndex !== scalarParameters.length + geometryArrayParameters.length + geometryParameters.length) {
       return {
         kind: "unsafe",
         code: "unsafe-rewrite",
@@ -698,7 +737,8 @@ const prepareScalarParameterLowering = (
       ? parameterType.kind
       : null;
     const scalarParameter = !parameter.recordTypeReference && !geometryArrayType && isSupportedScalarParameterType(parameterType);
-    if ((!scalarParameter && geometryInterfaceType === null) || binding.parameterType?.kind !== parameterType?.kind) {
+    const geometryArrayParameter = geometryArrayType !== null;
+    if ((!scalarParameter && !geometryArrayParameter && geometryInterfaceType === null) || binding.parameterType?.kind !== parameterType?.kind) {
       return {
         kind: "unsupported",
         reason: "record / geometry-array / unsupported Module parameter はこの Checkpoint では lowering しません。"
@@ -730,10 +770,92 @@ const prepareScalarParameterLowering = (
     }
 
     if (geometryArrayType) {
-      return {
-        kind: "unsupported",
-        reason: "record / geometry-array / unsupported Module parameter はこの Checkpoint では lowering しません。"
-      };
+      const arrayAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+      const semanticParameter = arrayAnalysis?.moduleParametersBySlot.get(`${entry.definition.statementId}:${parameterIndex}`);
+      if (!semanticParameter || semanticParameter.type.elementType !== geometryArrayType.elementType) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の geometry-array semantic owner を証明できません。`
+        };
+      }
+      if (
+        parameter.defaultValue !== null ||
+        resolvedParameter.defaultValue !== null ||
+        binding.usesDefault ||
+        binding.state === "defaultedOmitted" ||
+        binding.state === "requiredOmitted"
+      ) {
+        return {
+          kind: "unsupported",
+          reason: "required omitted / defaulted geometry-array parameter はこの Checkpoint では lowering しません。"
+        };
+      }
+      if (binding.state === "optionalOmitted") {
+        if (binding.argumentIndex !== null || binding.argumentSpan !== null || binding.usesDefault || binding.value !== null) {
+          return {
+            kind: "unsafe",
+            code: "unsafe-rewrite",
+            message: `optional omitted geometry-array Module parameter「${resolvedParameter.name}」の compiler binding が一致しません。`
+          };
+        }
+        geometryArrayParameters.push({
+          parameterIndex,
+          parameterName: resolvedParameter.name,
+          parameter,
+          arrayType: geometryArrayType,
+          state: "optionalOmitted",
+          nameSource: source.slice(nameRange.from, nameRange.to),
+          typeSource: source.slice(typeRange.from, typeRange.to),
+          initializerSource: null,
+          originalExpressionRange: null
+        });
+        continue;
+      }
+      if (binding.state !== "requiredSupplied" && binding.state !== "optionalSupplied") {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `geometry-array Module parameter「${resolvedParameter.name}」の compiler binding state が一致しません。`
+        };
+      }
+      if (binding.argumentIndex === null || binding.argumentIndex < 0) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の compiler argumentIndex がありません。`
+        };
+      }
+      const argument = entry.statement.arguments[binding.argumentIndex];
+      const argumentRange = argument
+        ? singlePhysicalRange(argument.valuePhysicalSpan, sourceRevision)
+        : null;
+      if (
+        !argument ||
+        !binding.argumentSpan ||
+        binding.argumentSpan.start !== argument.valueSpan.start ||
+        binding.argumentSpan.end !== argument.valueSpan.end ||
+        !argumentRange ||
+        argumentRange.from >= argumentRange.to
+      ) {
+        return {
+          kind: "unsafe",
+          code: "unsafe-rewrite",
+          message: `Module parameter「${resolvedParameter.name}」の compiler geometry-array argument binding を証明できません。`
+        };
+      }
+      geometryArrayParameters.push({
+        parameterIndex,
+        parameterName: resolvedParameter.name,
+        parameter,
+        arrayType: geometryArrayType,
+        state: binding.state,
+        nameSource: source.slice(nameRange.from, nameRange.to),
+        typeSource: source.slice(typeRange.from, typeRange.to),
+        initializerSource: source.slice(argumentRange.from, argumentRange.to),
+        originalExpressionRange: argumentRange
+      });
+      continue;
     }
     if (geometryInterfaceType !== null) {
       if (binding.state === "requiredOmitted" || binding.state === "defaultedOmitted") {
@@ -893,7 +1015,7 @@ const prepareScalarParameterLowering = (
       eliminatedSourceRanges: []
     });
   }
-  return { kind: "supported", scalarParameters, geometryParameters };
+  return { kind: "supported", scalarParameters, geometryArrayParameters, geometryParameters };
 };
 
 const specializeDefaultInitializersFor = (
@@ -1164,6 +1286,49 @@ const geometryParameterForSlot = (
   return entry.geometryParameters.find((parameter) => parameter.parameterIndex === parameterIndex) ?? null;
 };
 
+const geometryArrayParameterForSlot = (
+  entry: InlineEntry,
+  parameterIndex: number
+): GeometryArrayParameterLowering | null =>
+  entry.geometryArrayParameters.find((parameter) => parameter.parameterIndex === parameterIndex) ?? null;
+
+const geometryArrayParameterReferencesForStatement = (
+  source: string,
+  compiled: CompiledDslDocument,
+  entry: InlineEntry,
+  bodyEntry: StatementEntry
+): GeometryArrayParameterReferenceProvenance[] => {
+  if (bodyEntry.statement.kind !== "element" || !bodyEntry.statement.type) return [];
+  const spec = constructionFor(bodyEntry.statement.category, bodyEntry.statement.construction);
+  if (!spec) return [];
+  const definitionsByArg = new Map(
+    getParameterDefinitions({ type: bodyEntry.statement.type, intermediatePoints: [] } as never)
+      .map((parameter) => [parameter.key, parameter] as const)
+  );
+  const sites: GeometryArrayParameterReferenceProvenance[] = [];
+  for (const arg of [...spec.args, ...commonArgSpecs]) {
+    const parameter = arg.parameterKey ? definitionsByArg.get(arg.parameterKey) : definitionsByArg.get(arg.arg);
+    const isArrayConsumer = arg.special === "points" || parameter?.kind === "lineReferenceList";
+    if (!isArrayConsumer) continue;
+    const valueSpan = bodyEntry.statement.payloadSpans[arg.arg] ?? (arg.parameterKey ? bodyEntry.statement.payloadSpans[arg.parameterKey] : undefined);
+    if (!valueSpan) continue;
+    const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, valueSpan);
+    if (!range || range.from >= range.to) continue;
+    const parsed = parseDslSourceReference(source.slice(range.from, range.to));
+    if (parsed.kind !== "valid" || parsed.reference.property || parsed.reference.path.absolute || parsed.reference.path.segments.length !== 1) continue;
+    const arrayParameter = entry.geometryArrayParameters.find((candidate) =>
+      candidate.parameterName === parsed.reference.path.segments[0]
+    );
+    if (!arrayParameter) continue;
+    sites.push({
+      originalStatementId: bodyEntry.statementId,
+      parameterIndex: arrayParameter.parameterIndex,
+      bodySourceRange: range
+    });
+  }
+  return sites;
+};
+
 type GeometrySubstitutionResult =
   | { kind: "none" }
   | { kind: "ok"; replacement: AbsoluteReplacement; provenance: GeometrySubstitutionProvenance }
@@ -1272,6 +1437,7 @@ const buildBodyTransformation = (
   );
   const eliminatedSourceRangesByStatement = new Map<StatementIdentity, ExactSourceRange[]>();
   const geometrySubstitutions: GeometrySubstitutionProvenance[] = [];
+  const geometryArrayReferences: GeometryArrayParameterReferenceProvenance[] = [];
   const rememberEliminatedSourceRanges = (
     statementId: StatementIdentity,
     ranges: readonly ExactSourceRange[]
@@ -1292,6 +1458,7 @@ const buildBodyTransformation = (
   } | { kind: "unsafe"; message: string } => {
     const semantic = bodyStatementSemanticFor(entry.definition, bodyEntry.statementId);
     if (!semantic) return { kind: "unsafe", message: "Module body statement の semantic owner がありません。" };
+    geometryArrayReferences.push(...geometryArrayParameterReferencesForStatement(source, compiled, entry, bodyEntry));
     const replacements: AbsoluteReplacement[] = [];
     const eliminatedSourceRanges: ExactSourceRange[] = [];
     const substitutions: GeometrySubstitutionProvenance[] = [];
@@ -1692,6 +1859,9 @@ const buildBodyTransformation = (
       provenance,
       geometrySubstitutions: geometrySubstitutions.filter((substitution) =>
         emittedStatementIds.has(substitution.originalStatementId)
+      ),
+      geometryArrayReferences: geometryArrayReferences.filter((reference) =>
+        emittedStatementIds.has(reference.originalStatementId)
       )
     }
   };
@@ -1988,6 +2158,19 @@ const canonicalSourceReferenceFor = (
 ): string | null => {
   const parsed = parseDslSourceReference(source.slice(reference.sourceFrom, reference.sourceTo));
   if (parsed.kind !== "valid") return null;
+  if (
+    identity.kind === "module" &&
+    identity.target.kind === "moduleSource" &&
+    !parsed.reference.path.absolute &&
+    parsed.reference.path.segments.length > 1
+  ) {
+    const absolutePath = { absolute: true, segments: parsed.reference.path.segments };
+    const absoluteSource = `@${formatDslReferencePath(absolutePath)}`;
+    const absoluteIdentity = moduleSourceIdentityForReference(compiled, referenceStatementIndex, absoluteSource);
+    if (absoluteIdentity && dslSemanticIdentityKey(absoluteIdentity) === dslSemanticIdentityKey(identity)) {
+      return `${absoluteSource}${parsed.reference.property ? `.${parsed.reference.property}` : ""}`;
+    }
+  }
   const declaration = sourceDeclarationForIdentity(compiled, identity);
   if (!declaration) return null;
   const path = canonicalPathForDeclaration(compiled, declaration, referenceStatementIndex);
@@ -2152,7 +2335,7 @@ const copyOwnerMappingFor = (
   const groupInfo = nextCompiled.statementMap?.statements[groupIndex];
   const generatedBodyLine = groupInfo?.openBraceLine ?? groupInfo?.line;
   if (!groupInfo || generatedBodyLine === undefined) return null;
-  const emittedParameterCount = entry.scalarParameters.filter((parameter) => parameter.initializerSource !== null).length;
+  const emittedParameterCount = localParameterLoweringsFor(entry).length;
   const bodyStatementIds = new Map<StatementIdentity, StatementIdentity>();
   for (const provenance of entry.bodyTransformation.provenance) {
     if (bodyStatementIds.has(provenance.originalStatementId)) return null;
@@ -2355,6 +2538,169 @@ const geometryRewriteForCapture = (
     parameterIndex: substitution.parameterIndex,
     replacement: { from: parameter.argumentRange!.from, to: parameter.argumentRange!.to, text: canonical }
   };
+};
+
+const moduleSourceIdentityForReference = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  sourceReference: string,
+  expectedArrayType: GeometryArrayType | null = null
+): DslSemanticIdentity | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const parsed = parseDslSourceReference(sourceReference);
+  if (!namespace || parsed.kind !== "valid") return null;
+  const path = parsed.reference.path;
+  const lookup = resolveSourceLexicalPath(namespace, statementIndex, path);
+  if (lookup.kind === "resolved") {
+    if (expectedArrayType) {
+      const value = namespace.geometryArraySemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId);
+      if (!value || !isGeometryArrayTypeAssignable(value.type, expectedArrayType)) return null;
+    }
+    return semanticIdentityForModuleTarget(compiled, {
+      kind: "moduleSource",
+      statementId: lookup.declaration.statementId
+    });
+  }
+  if (
+    lookup.kind !== "invalidTraversal" ||
+    lookup.declaration.kind !== "moduleInstance" ||
+    path.segments.length !== 2
+  ) return null;
+  const analysis = semanticAnalysisFor(compiled);
+  const instance = analysis?.instancesByStatementId.get(lookup.declaration.statementId);
+  const arrayAnalysis = namespace.geometryArraySemanticAnalysis;
+  const exportedArray = instance?.callee && arrayAnalysis
+    ? arrayAnalysis.values.find((candidate) =>
+        candidate.ownerModuleDefinitionStatementIndex === instance.callee?.definitionStatementIndex &&
+        candidate.exported &&
+        candidate.name === path.segments[1] &&
+        (!expectedArrayType || isGeometryArrayTypeAssignable(candidate.type, expectedArrayType))
+      )
+    : undefined;
+  if (exportedArray) {
+    return semanticIdentityForModuleTarget(compiled, {
+      kind: "moduleSource",
+      statementId: exportedArray.statementId
+    });
+  }
+  if (expectedArrayType) return null;
+  const exported = instance?.callee
+    ? analysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)?.exports.find((candidate) =>
+        candidate.name === path.segments[1]
+      )
+    : undefined;
+  return exported
+    ? semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleSource",
+        statementId: exported.exportedStatementId
+      })
+    : null;
+};
+
+const geometryArrayInitializerOccurrencesFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  range: ExactSourceRange,
+  arrayType: GeometryArrayType
+): ReferenceOccurrence[] | null => {
+  const parsed = parseGeometryArrayExpression(source.slice(range.from, range.to));
+  if (!parsed.expression || parsed.diagnostics.length > 0) return null;
+  const references: ReferenceOccurrence[] = [];
+  const addReference = (
+    text: string,
+    relativeFrom: number,
+    relativeTo: number,
+    expectedArrayType: GeometryArrayType | null = null
+  ): boolean => {
+    const identity = moduleSourceIdentityForReference(compiled, statementIndex, text, expectedArrayType);
+    if (!identity) return false;
+    references.push({
+      from: range.from + relativeFrom,
+      to: range.from + relativeTo,
+      kind: "reference",
+      identity,
+      sourceFrom: range.from + relativeFrom,
+      sourceTo: range.from + relativeTo
+    });
+    return true;
+  };
+  if (parsed.expression.kind === "reference") {
+    return addReference(
+      parsed.expression.text,
+      parsed.expression.span.start,
+      parsed.expression.span.end,
+      arrayType
+    ) ? references : null;
+  }
+  for (const member of parsed.expression.members) {
+    const parsedMember = parseDslSourceReference(member.text);
+    if (parsedMember.kind !== "valid") {
+      // Coordinates have no semantic source owner and therefore need no move
+      // rewrite. The generated geometry-array semantic pass validates them.
+      if (member.text.trimStart().startsWith("(")) continue;
+      return null;
+    }
+    if (!addReference(member.text, member.span.start, member.span.end)) return null;
+  }
+  return references;
+};
+
+const geometryArrayCaptureRewritesFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  entries: readonly InlineEntry[]
+): InitializerRewriteResult => {
+  const rewrites: InitializerRewrite[] = [];
+  for (const entry of entries) {
+    const localNames = new Set(localParameterLoweringsFor(entry).map(({ parameter }) => parameter.parameterName));
+    for (const parameter of entry.geometryArrayParameters) {
+      if (parameter.initializerSource === null || parameter.originalExpressionRange === null) continue;
+      const occurrences = geometryArrayInitializerOccurrencesFor(
+        source,
+        compiled,
+        entry.statementIndex,
+        parameter.originalExpressionRange,
+        parameter.arrayType
+      );
+      if (occurrences === null) {
+        return {
+          kind: "invalid",
+          message: `Module parameter「${parameter.parameterName}」の array initializer source owner を証明できません。`,
+          target: entry.target
+        };
+      }
+      for (const occurrence of occurrences) {
+        const parsed = parseDslSourceReference(source.slice(occurrence.sourceFrom, occurrence.sourceTo));
+        if (
+          parsed.kind !== "valid" ||
+          parsed.reference.path.absolute ||
+          parsed.reference.path.segments.length === 0 ||
+          !localNames.has(parsed.reference.path.segments[0]!)
+        ) continue;
+        const canonical = canonicalSourceReferenceFor(
+          source,
+          compiled,
+          occurrence.identity,
+          occurrence,
+          entry.statementIndex
+        );
+        if (!canonical || canonical === source.slice(occurrence.sourceFrom, occurrence.sourceTo)) {
+          return {
+            kind: "invalid",
+            message: `Module parameter「${parameter.parameterName}」の array initializer reference を安全に canonicalize できません。`,
+            target: entry.target
+          };
+        }
+        rewrites.push({
+          targetStatementId: entry.target.statementId,
+          parameterIndex: parameter.parameterIndex,
+          replacement: { from: occurrence.sourceFrom, to: occurrence.sourceTo, text: canonical }
+        });
+      }
+    }
+  }
+  return { kind: "ok", rewrites };
 };
 
 const lexicalGeometryOwnerForSource = (
@@ -2621,6 +2967,44 @@ const verifyCopiedBodyOwners = (
       }
     );
     if (!compareSlots(expected, actual)) return false;
+
+    const oldArrayReferences = entry.bodyTransformation.geometryArrayReferences.filter((reference) =>
+      reference.originalStatementId === oldBodyId
+    );
+    const nextArrayReferences = geometryArrayParameterReferencesForStatement(
+      nextCompiled.spans.sourceMap.source,
+      nextCompiled,
+      entry,
+      { statementId: nextBodyId, statementIndex: nextBodyIndex, statement: nextCompiled.statements[nextBodyIndex]! }
+    );
+    if (oldArrayReferences.length !== nextArrayReferences.length) return false;
+    for (const [index, oldReference] of oldArrayReferences.entries()) {
+      const nextReference = nextArrayReferences[index];
+      const parameter = geometryArrayParameterForSlot(entry, oldReference.parameterIndex);
+      const generated = mapping.parameterBindings.get(
+        parameterSlotKey(entry.definition.statementId, oldReference.parameterIndex)
+      );
+      if (!nextReference || !parameter || !generated) return false;
+      const parsed = parseDslSourceReference(nextCompiled.spans.sourceMap.source.slice(
+        nextReference.bodySourceRange.from,
+        nextReference.bodySourceRange.to
+      ));
+      if (
+        parsed.kind !== "valid" ||
+        parsed.reference.property ||
+        parsed.reference.path.absolute ||
+        parsed.reference.path.segments.length !== 1 ||
+        parsed.reference.path.segments[0] !== parameter.parameterName
+      ) return false;
+      const lookup = resolveSourceLexicalPath(nextCompiled.sourceLexicalNamespace!, nextBodyIndex, parsed.reference.path);
+      const arrayValue = nextCompiled.sourceLexicalNamespace!.geometryArraySemanticAnalysis?.valuesByStatementId.get(generated.statementId);
+      if (
+        lookup.kind !== "resolved" ||
+        lookup.declaration.statementId !== generated.statementId ||
+        !arrayValue ||
+        arrayValue.type.elementType !== parameter.arrayType.elementType
+      ) return false;
+    }
   }
 
   return nextCompiled.statements[nextGroupIndex]?.kind === "group";
@@ -2641,29 +3025,35 @@ const generatedGroupFor = (
   return candidates.length === 1 ? candidates[0]!.statementIndex : null;
 };
 
-const generatedScalarParameterMappingsFor = (
+const generatedParameterMappingsFor = (
   nextCompiled: CompiledDslDocument,
   groupIndex: number,
   entry: InlineEntry
 ): ReadonlyMap<string, GeneratedScalarParameterMapping> | null => {
   const children = directChildEntriesForGroup(nextCompiled, groupIndex);
-  const emittedParameters = entry.scalarParameters.filter((parameter) => parameter.initializerSource !== null);
+  const emittedParameters = localParameterLoweringsFor(entry);
   const generated = children.slice(0, emittedParameters.length);
   if (generated.length !== emittedParameters.length) return null;
   const mappings = new Map<string, GeneratedScalarParameterMapping>();
-  for (const [index, parameter] of emittedParameters.entries()) {
+  for (const [index, local] of emittedParameters.entries()) {
+    const parameter = local.parameter;
     const child = generated[index];
     if (
       !child ||
       child.statement.kind !== "typedDeclaration" ||
       child.statement.bindingKind !== "const" ||
-      child.statement.name !== parameter.parameterName ||
-      child.statement.declaredType?.kind !== parameter.parameter.type?.kind
+      child.statement.name !== parameter.parameterName
     ) return null;
-    const bindingCandidates = [...(nextCompiled.bindingAnalysis?.catalog.bindings.values() ?? [])]
-      .filter((binding) => binding.kind === "typed" && binding.statementIndex === child.statementIndex);
-    if (bindingCandidates.length !== 1) return null;
-    const binding = bindingCandidates[0]!;
+    const scalarTypeMatches = local.kind === "scalar" && child.statement.declaredType?.kind === local.parameter.parameter.type?.kind;
+    const arrayType = local.kind === "geometryArray" ? geometryArrayTypeOfTypedDeclaration(child.statement) : null;
+    const arrayTypeMatches = local.kind === "geometryArray" && arrayType?.elementType === local.parameter.arrayType.elementType;
+    if ((!scalarTypeMatches && !arrayTypeMatches) || (local.kind === "scalar" && arrayType !== null)) return null;
+    const bindingCandidates = local.kind === "scalar"
+      ? [...(nextCompiled.bindingAnalysis?.catalog.bindings.values() ?? [])]
+        .filter((binding) => binding.kind === "typed" && binding.statementIndex === child.statementIndex)
+      : [];
+    if (local.kind === "scalar" && bindingCandidates.length !== 1) return null;
+    const binding = bindingCandidates[0] ?? null;
     const statementId = child.statementId;
     if (!statementId) return null;
     const initializer = exactPhysicalSpan(
@@ -2677,7 +3067,7 @@ const generatedScalarParameterMappingsFor = (
       parameterIndex: parameter.parameterIndex,
       statementIndex: child.statementIndex,
       statementId,
-      bindingId: binding.id,
+      bindingId: binding?.id ?? null,
       initializerRange
     });
   }
@@ -2701,17 +3091,15 @@ const replacementFor = (
     return reject("unsafe-source-span", "Inline target の exact-current source range を解決できません。", entry.target);
   }
   const activityText = entry.activity === "visible" ? "" : `(state: ${entry.activity})`;
-  const parameterLines = entry.scalarParameters
-    .filter((parameter) => parameter.initializerSource !== null)
-    .map((parameter) =>
-    `${instanceIndent}${DSL_INDENT}const ${parameter.nameSource}: ${parameter.typeSource} = ${parameter.initializerSource}`
+  const localParameterLines = localParameterLoweringsFor(entry).map(({ parameter }) =>
+      `${instanceIndent}${DSL_INDENT}const ${parameter.nameSource}: ${parameter.typeSource} = ${parameter.initializerSource}`
     );
   return {
     startLine: entry.statementInfo.range.startLine,
     endLine: entry.statementInfo.range.endLine,
     replacementLines: [
       `${instanceIndent}group ${formatDslName(entry.statement.name)}${activityText} {${suffix}`,
-      ...parameterLines,
+      ...localParameterLines,
       ...rebaseBodyLines(entry.bodyTransformation.bodyLines, body.definitionIndent, instanceIndent),
       `${instanceIndent}}`
     ]
@@ -2727,7 +3115,7 @@ const ownerMappingsFor = (
   for (const entry of entries) {
     const groupIndex = generatedGroupFor(compiled, nextCompiled, entry);
     if (groupIndex === null) return null;
-    const parameterBindings = generatedScalarParameterMappingsFor(nextCompiled, groupIndex, entry);
+    const parameterBindings = generatedParameterMappingsFor(nextCompiled, groupIndex, entry);
     if (!parameterBindings) return null;
     const mapping = copyOwnerMappingFor(compiled, nextCompiled, groupIndex, entry, parameterBindings);
     if (!mapping) return null;
@@ -2753,25 +3141,46 @@ const initializerRewritesFor = (
   for (const entry of entries) {
     const mapping = mappingsByTarget.get(entry.target.statementId);
     if (!mapping) return { kind: "invalid", message: "生成した Module group の semantic mapping がありません。", target: entry.target };
-    for (const parameter of entry.scalarParameters) {
+    const proveInitializer = (
+      parameter: {
+        parameterIndex: number;
+        parameterName: string;
+        initializerSource: string | null;
+        originalExpressionRange: ExactSourceRange | null;
+        eliminatedSourceRanges?: readonly ExactSourceRange[];
+      },
+      before: ReferenceOccurrence[] | null,
+      kind: "scalar" | "geometry-array"
+    ): InitializerRewriteResult | null => {
       if (parameter.initializerSource === null || parameter.originalExpressionRange === null) {
         if (mapping.parameterBindings.has(parameterSlotKey(entry.definition.statementId, parameter.parameterIndex))) {
           return { kind: "invalid", message: "optional omitted parameter に生成 const mapping があります。", target: entry.target };
         }
-        continue;
+        return null;
       }
       const generated = mapping.parameterBindings.get(
         parameterSlotKey(entry.definition.statementId, parameter.parameterIndex)
       );
-      if (!generated) return { kind: "invalid", message: "生成した scalar parameter const の semantic mapping がありません。", target: entry.target };
-      const before = finalReferenceOccurrencesForRange(
-        source,
-        beforeIndex,
-        parameter.originalExpressionRange
-      );
+      if (!generated) return { kind: "invalid", message: `生成した ${kind} parameter const の semantic mapping がありません。`, target: entry.target };
+      if (!before) return { kind: "invalid", message: `moved ${kind} initializer の source owner を証明できません。`, target: entry.target };
       const nextSource = nextCompiled.spans.sourceMap.source;
-      const after = finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
-      const retainedBefore = before.filter((original) => !parameter.eliminatedSourceRanges.some((range) =>
+      const after = kind === "geometry-array"
+        ? geometryArrayInitializerOccurrencesFor(
+            nextSource,
+            nextCompiled,
+            generated.statementIndex,
+            generated.initializerRange,
+            (parameter as GeometryArrayParameterLowering).arrayType
+          )
+        : finalReferenceOccurrencesForRange(nextSource, afterIndex, generated.initializerRange);
+      if (!after) {
+        return {
+          kind: "invalid",
+          message: `Module parameter「${parameter.parameterName}」の moved initializer source owner を証明できません。`,
+          target: entry.target
+        };
+      }
+      const retainedBefore = before.filter((original) => !(parameter.eliminatedSourceRanges ?? []).some((range) =>
         original.sourceFrom >= range.from &&
         original.sourceTo <= range.to
       ));
@@ -2827,6 +3236,27 @@ const initializerRewritesFor = (
           });
         }
       }
+      return null;
+    };
+    for (const parameter of entry.scalarParameters) {
+      const before = parameter.initializerSource === null || parameter.originalExpressionRange === null
+        ? []
+        : finalReferenceOccurrencesForRange(source, beforeIndex, parameter.originalExpressionRange);
+      const result = proveInitializer(parameter, before, "scalar");
+      if (result) return result;
+    }
+    for (const parameter of entry.geometryArrayParameters) {
+      const before = parameter.initializerSource === null || parameter.originalExpressionRange === null
+        ? []
+        : geometryArrayInitializerOccurrencesFor(
+            source,
+            compiled,
+            entry.statementIndex,
+            parameter.originalExpressionRange,
+            parameter.arrayType
+          );
+      const result = proveInitializer(parameter, before, "geometry-array");
+      if (result) return result;
     }
   }
   return { kind: "ok", rewrites };
@@ -2856,9 +3286,31 @@ const entriesWithInitializerRewrites = (
       if (initializerSource === null) return null;
       return { ...parameter, initializerSource };
     });
-    return scalarParameters.some((parameter) => parameter === null)
+    const geometryArrayParameters = entry.geometryArrayParameters.map((parameter) => {
+      const replacements = rewrites
+        .filter((rewrite) =>
+          rewrite.targetStatementId === entry.target.statementId &&
+          rewrite.parameterIndex === parameter.parameterIndex
+        )
+        .map((rewrite) => rewrite.replacement);
+      if (replacements.length === 0) return parameter;
+      if (parameter.originalExpressionRange === null) return null;
+      const initializerSource = applyAbsoluteReplacements(
+        source,
+        parameter.originalExpressionRange.from,
+        parameter.originalExpressionRange.to,
+        replacements
+      );
+      if (initializerSource === null) return null;
+      return { ...parameter, initializerSource };
+    });
+    return scalarParameters.some((parameter) => parameter === null) || geometryArrayParameters.some((parameter) => parameter === null)
       ? null
-      : { ...entry, scalarParameters: scalarParameters as readonly ScalarParameterLowering[] };
+      : {
+          ...entry,
+          scalarParameters: scalarParameters as readonly ScalarParameterLowering[],
+          geometryArrayParameters: geometryArrayParameters as readonly GeometryArrayParameterLowering[]
+        };
   });
   return rewrittenEntries.some((entry) => entry === null)
     ? null
@@ -2898,7 +3350,7 @@ const entriesWithGeometryRewrites = (
     const nextGeometryParameters = geometryParameters as readonly GeometryParameterSubstitution[];
     if (!changed) return entry;
     const presenceByParameter = new Map<string, boolean>();
-    for (const parameter of [...entry.scalarParameters, ...nextGeometryParameters]) {
+    for (const parameter of [...entry.scalarParameters, ...entry.geometryArrayParameters, ...nextGeometryParameters]) {
       if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
         presenceByParameter.set(
           parameterSlotKey(entry.definition.statementId, parameter.parameterIndex),
@@ -2939,7 +3391,7 @@ const buildInlineSplices = (
   return splices;
 };
 
-/** Plan a safe, host-neutral Module inline mutation with scalar and singular geometry parameter lowering. */
+/** Plan a safe, host-neutral Module inline mutation with scalar, singular geometry, and geometry-array parameter lowering. */
 export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlanResult => {
   const { source: snapshot, compiled, policy } = input;
   const source = snapshot.normalizedSource;
@@ -3121,7 +3573,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     ) {
       return reject("unsafe-source-span", "Inline target の exact-current authored statement span を解決できません。", target);
     }
-    const inlineEntryBase: Omit<InlineEntry, "scalarParameters" | "geometryParameters" | "bodyTransformation"> = {
+    const inlineEntryBase: Omit<InlineEntry, "scalarParameters" | "geometryArrayParameters" | "geometryParameters" | "bodyTransformation"> = {
       target,
       statementIndex,
       statement,
@@ -3133,6 +3585,14 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     };
     const presenceByParameter = new Map<string, boolean>();
     for (const parameter of scalarParameterPreparation.scalarParameters) {
+      if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
+        presenceByParameter.set(
+          parameterSlotKey(definition.statementId, parameter.parameterIndex),
+          parameter.state === "optionalSupplied"
+        );
+      }
+    }
+    for (const parameter of scalarParameterPreparation.geometryArrayParameters) {
       if (parameter.state === "optionalSupplied" || parameter.state === "optionalOmitted") {
         presenceByParameter.set(
           parameterSlotKey(definition.statementId, parameter.parameterIndex),
@@ -3155,7 +3615,8 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
         ...inlineEntryBase,
         scalarParameters: scalarParameterPreparation.scalarParameters,
         geometryParameters: scalarParameterPreparation.geometryParameters,
-        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [] }
+        geometryArrayParameters: scalarParameterPreparation.geometryArrayParameters,
+        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [], geometryArrayReferences: [] }
       },
       presenceByParameter
     );
@@ -3168,7 +3629,8 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
         ...inlineEntryBase,
         scalarParameters: defaultParameters.parameters,
         geometryParameters: scalarParameterPreparation.geometryParameters,
-        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [] }
+        geometryArrayParameters: scalarParameterPreparation.geometryArrayParameters,
+        bodyTransformation: { bodyLines: [], provenance: [], geometrySubstitutions: [], geometryArrayReferences: [] }
       },
       presenceByParameter,
       policy.emitOmittedBranchComments
@@ -3177,6 +3639,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     const inlineEntry: InlineEntry = {
       ...inlineEntryBase,
       scalarParameters: defaultParameters.parameters,
+      geometryArrayParameters: scalarParameterPreparation.geometryArrayParameters,
       geometryParameters: scalarParameterPreparation.geometryParameters,
       bodyTransformation: bodyTransformation.transformation
     };
@@ -3194,6 +3657,23 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
       generatedGroupName: statement.name,
       sourceRange: { startLine: info.range.startLine, endLine: info.range.endLine }
     });
+  }
+
+  const geometryArrayCaptureRewriteResult = geometryArrayCaptureRewritesFor(source, compiled, inlined);
+  if (geometryArrayCaptureRewriteResult.kind === "invalid") {
+    return reject("unsafe-rewrite", geometryArrayCaptureRewriteResult.message, geometryArrayCaptureRewriteResult.target);
+  }
+  if (geometryArrayCaptureRewriteResult.rewrites.length > 0) {
+    const rewrittenEntries = entriesWithInitializerRewrites(
+      source,
+      inlined,
+      geometryArrayCaptureRewriteResult.rewrites
+    );
+    if (!rewrittenEntries) return reject("unsafe-rewrite", "array initializer の atomic source rewrite を構成できません。");
+    inlined.splice(0, inlined.length, ...rewrittenEntries);
+    const rebuiltSplices = buildInlineSplices(source, starts, compiled, inlined);
+    if ("status" in rebuiltSplices) return rebuiltSplices;
+    splices = [...rebuiltSplices];
   }
 
   try {
