@@ -28,6 +28,8 @@ export type { CanvasSelectionMode };
 
 export type CanvasContextMenuKind = "blank" | "element";
 
+export type CanvasWorldPoint = { x: number; y: number };
+
 export type CanvasPointDragAction = {
   elementId: ElementId;
   dx: number;
@@ -83,7 +85,12 @@ export type CanvasHostAdapter = {
   renderFixedCanvasChrome?: boolean;
   /** Optional host projection for the semantic context of the latest right click. */
   canvasContextMenuData?: string;
-  publishCanvasContextMenu?: (context: { kind: CanvasContextMenuKind }) => void;
+  publishCanvasContextMenu?: (context: {
+    kind: CanvasContextMenuKind;
+    pointer?: CanvasWorldPoint;
+  }) => void;
+  /** Publishes the latest finite pointer position in world millimetres. */
+  publishCanvasPointerPosition?: (pointer: CanvasWorldPoint) => void;
   activePointPickTarget: ActivePointPickTarget | null;
   activeNumericReferencePickTarget: ActiveNumericReferencePickTarget | null;
   activeLinePickTarget: ActiveLinePickTarget | null;

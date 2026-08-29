@@ -41,11 +41,12 @@ import {
 } from "./canvasInteractionHitTest";
 import {
   type ViewportSize,
-  constrainedWorldDelta
+  constrainedWorldDelta,
+  screenToWorld
 } from "./canvasViewport";
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
-import type { CanvasHostAdapter, CanvasSelectionMode } from "./canvasHostAdapter";
+import type { CanvasHostAdapter, CanvasSelectionMode, CanvasWorldPoint } from "./canvasHostAdapter";
 import { canvasThemeCssVariables } from "./canvasTheme";
 import type {
   CanvasOverlapCandidateSession,
@@ -1419,12 +1420,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       );
       return;
     }
+    publishWorldPointerForScreen(screenPointForPointerEvent(event));
     if (overlapCandidateSessionRef.current) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const screen = {
-        x: event.clientX - rect.left - event.currentTarget.clientLeft,
-        y: event.clientY - rect.top - event.currentTarget.clientTop
-      };
+      const screen = screenPointForPointerEvent(event);
       const isBlank = event.button === 0 && hitCandidatesAt(screen).length === 0;
       finalizeOverlapSession();
       if (isBlank) {
@@ -1505,18 +1503,35 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     hostAdapter.clearCanvasSelection();
   };
 
-  const handleContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+  const screenPointForPointerEvent = (event: { currentTarget: HTMLDivElement; clientX: number; clientY: number }): ScreenPoint => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const screen = {
+    return {
       x: event.clientX - rect.left - event.currentTarget.clientLeft,
       y: event.clientY - rect.top - event.currentTarget.clientTop
     };
+  };
+
+  const publishWorldPointerForScreen = (screen: ScreenPoint): CanvasWorldPoint | null => {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return null;
+    const world = screenToWorld(screen, viewportSize, canvasViewport);
+    if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) return null;
+    hostAdapter.publishCanvasPointerPosition?.(world);
+    return world;
+  };
+
+  const handleContextMenu = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const screen = screenPointForPointerEvent(event);
+    const pointer = publishWorldPointerForScreen(screen);
+    const kind = hitCandidatesAt(screen).length > 0 ? "element" : "blank";
     hostAdapter.publishCanvasContextMenu?.({
-      kind: hitCandidatesAt(screen).length > 0 ? "element" : "blank"
+      kind,
+      ...(kind === "blank" && pointer ? { pointer } : {})
     });
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const screen = screenPointForPointerEvent(event);
+    publishWorldPointerForScreen(screen);
     const pointerMoveEntry = capturePointerMoveEntry();
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(movePendingCanvasPointer(
@@ -1604,11 +1619,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) {
       if (event.buttons === 0) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        scheduleHoverAt({
-          x: event.clientX - rect.left - event.currentTarget.clientLeft,
-          y: event.clientY - rect.top - event.currentTarget.clientTop
-        });
+        scheduleHoverAt(screen);
       } else {
         clearHoveredElement();
       }
