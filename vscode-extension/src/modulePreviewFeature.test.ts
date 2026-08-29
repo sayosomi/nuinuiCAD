@@ -46,6 +46,12 @@ type TestPanel = {
   onDidDispose: ReturnType<typeof vi.fn>;
 };
 
+type TestParameterWebview = {
+  postMessage: ReturnType<typeof vi.fn>;
+  onDidReceiveMessage: ReturnType<typeof vi.fn>;
+  receive: (message: unknown) => Promise<void>;
+};
+
 vi.mock("vscode", () => ({
   window: {
     get activeTextEditor() {
@@ -157,6 +163,20 @@ const createPanel = (): TestPanel & {
     fireDispose: () => void;
   };
   return panel;
+};
+
+const createParameterWebview = (): TestParameterWebview => {
+  let receiveHandler: ((message: unknown) => unknown) | null = null;
+  return {
+    postMessage: vi.fn(async () => true),
+    onDidReceiveMessage: vi.fn((handler: (message: unknown) => unknown) => {
+      receiveHandler = handler;
+      return { dispose: () => undefined };
+    }),
+    receive: async (message) => {
+      await receiveHandler?.(message);
+    }
+  };
 };
 
 const flushContext = async () => {
@@ -353,6 +373,176 @@ describe("registerModulePreviewFeature", () => {
       false
     );
 
+    feature.dispose();
+  });
+
+  it("retains the exact live session projection, relays actions, and rejects stale source/disposal races", async () => {
+    const source = [
+      "nui 4",
+      "module Outer(scale: number) {",
+      "  module Inner(width: number = @scale * 2) {",
+      "    point P = coordinate(x: @width, y: 0)",
+      "  }",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const sessionMessage = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string; documentUri?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    const semantic = analysis.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    });
+    const target = semantic?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Inner");
+    expect(sessionMessage?.sessionId).toBeTruthy();
+    expect(target).toBeDefined();
+    if (!sessionMessage?.sessionId || !target) throw new Error("expected live session proof");
+
+    const snapshot = {
+      type: "modulePreviewParameterSnapshot" as const,
+      sessionId: sessionMessage.sessionId,
+      documentUri: document.uri.toString(),
+      documentVersion: 1,
+      sourceRevision: analysis.getSourceRevision(),
+      sessionRevision: 1,
+      target: {
+        definitionStatementId: target.statementId,
+        definitionStatementIndex: target.statementIndex,
+        name: target.name
+      },
+      ancestorContexts: [{
+        kind: "ancestor" as const,
+        definitionStatementId: "unused-outer",
+        name: "Outer",
+        parameters: []
+      }],
+      parameters: {
+        kind: "target" as const,
+        definitionStatementId: target.statementId,
+        name: target.name,
+        parameters: [{
+          definitionStatementId: target.statementId,
+          parameterIndex: 0,
+          name: "width",
+          type: { kind: "number" as const },
+          optional: false,
+          required: false,
+          defaultSourceText: "@scale * 2",
+          value: "",
+          diagnostic: null
+        }]
+      },
+      inputDiagnostics: [],
+      previewStatus: "current" as const
+    };
+    await panel.receive(snapshot);
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
+    const lateParameterView = createParameterWebview();
+    feature.attachParameterView(lateParameterView as never);
+    expect(lateParameterView.postMessage).toHaveBeenCalledWith(snapshot);
+    feature.attachParameterView(parameterView as never);
+    parameterView.postMessage.mockClear();
+    panel.webview.postMessage.mockClear();
+
+    await parameterView.receive({
+      type: "modulePreviewParameterSetValue",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: target.statementId,
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      expression: "3"
+    });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sessionId: snapshot.sessionId,
+      targetDefinitionStatementId: target.statementId,
+      parameterIndex: 0,
+      expression: "3"
+    }));
+
+    parameterView.postMessage.mockClear();
+    mocks.activeTextEditor.selection.active = positionAt(source, source.indexOf("module Outer"));
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    const retargetedSession = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .reverse()
+      .find((message) => message.type === "modulePreviewSession");
+    expect(retargetedSession?.sessionId).toBeTruthy();
+    expect(retargetedSession?.sessionId).not.toBe(snapshot.sessionId);
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      reason: "not-ready"
+    }));
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive({
+      type: "modulePreviewParameterSetValue",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: target.statementId,
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      expression: "stale-after-retarget"
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewSetValue" }));
+
+    document.setSource(source.replace("y: 0", "y: 1"));
+    for (const listener of mocks.documentChangeListeners) listener({ document, contentChanges: [{}] });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      reason: "source-stale",
+      documentVersion: 2
+    }));
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive({
+      type: "modulePreviewParameterSetValue",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: target.statementId,
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      expression: "4"
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewSetValue" }));
+
+    panel.fireDispose();
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewParametersUnavailable",
+      sessionId: null,
+      reason: "no-session"
+    }));
     feature.dispose();
   });
 });

@@ -7,14 +7,20 @@ import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
-import { createModulePreviewSession } from "../dsl/modulePreviewState";
+import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
-import type { ExtensionToVscodeMessage, VscodeCanvasCommandId, VscodeWebviewApi } from "./protocol";
+import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";
+import type {
+  ExtensionToVscodeMessage,
+  VscodeCanvasCommandId,
+  VscodeModulePreviewParameterSnapshot,
+  VscodeWebviewApi
+} from "./protocol";
 import { vscodeCanvasContextDataFor } from "./protocol";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
@@ -51,6 +57,9 @@ const diagnosticMessagesFor = (document: AutomationDocument): string[] => {
 export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const automationDocumentRef = useRef<AutomationDocument | null>(null);
   const documentVersionRef = useRef<number | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionDocumentUriRef = useRef<string | null>(null);
+  const parameterSessionRevisionRef = useRef(0);
   const nextPreviewRevisionRef = useRef(1);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -77,6 +86,46 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     []
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+
+  const publishParameterSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot) => {
+    const sessionId = sessionIdRef.current;
+    const documentUri = sessionDocumentUriRef.current;
+    const documentVersion = documentVersionRef.current;
+    if (!sessionId || !documentUri || documentVersion === null) return;
+    const sessionRevision = parameterSessionRevisionRef.current + 1;
+    parameterSessionRevisionRef.current = sessionRevision;
+    const message: VscodeModulePreviewParameterSnapshot = modulePreviewParameterSnapshotFor({
+      snapshot,
+      sessionId,
+      documentUri,
+      documentVersion,
+      sessionRevision
+    });
+    api.postMessage(message);
+  }, [api]);
+
+  const publishParameterUnavailable = useCallback((
+    reason: "not-ready" | "source-stale" | "target-unavailable" | "disposed",
+    targetDefinitionStatementId: string | null = previewSession.getState()?.target.definitionStatementId ?? null
+  ) => {
+    const sessionId = sessionIdRef.current;
+    const documentUri = sessionDocumentUriRef.current;
+    const documentVersion = documentVersionRef.current;
+    if (!sessionId || !documentUri || documentVersion === null) return;
+    const state = automationDocumentRef.current?.getState();
+    const sessionRevision = parameterSessionRevisionRef.current + 1;
+    parameterSessionRevisionRef.current = sessionRevision;
+    api.postMessage({
+      type: "modulePreviewParametersUnavailable",
+      sessionId,
+      documentUri,
+      documentVersion,
+      sourceRevision: state?.currentCompiled.spans.sourceMap.sourceRevision ?? null,
+      sessionRevision,
+      targetDefinitionStatementId,
+      reason
+    });
+  }, [api, previewSession]);
 
   const evaluationElements = preview?.root.compileResult.elements ?? [];
   const evaluationOptions = preview?.evaluationOptions ?? {};
@@ -134,6 +183,33 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setStatusMessages(nextStatusMessages);
   }, []);
 
+  const applySessionSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot): void => {
+    publishParameterSnapshot(snapshot);
+    const root = snapshot.preview.result;
+    const document = automationDocumentRef.current;
+    if (!root || !document) {
+      setStatusMessages([
+        "Module Preview cannot evaluate the exact current target with the current inputs.",
+        ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message)
+      ]);
+      return;
+    }
+    const state = document.getState();
+    const nextStatusMessages = [
+      ...(snapshot.preview.kind === "lastGood"
+        ? ["Module Preview is showing the last valid preview for the current target."]
+        : []),
+      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
+      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+    ];
+    applyValidPreview(root, {
+      moduleMaterialization: root.moduleMaterialization,
+      moduleSemanticAnalysis: root.moduleSemanticAnalysis,
+      sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
+      statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
+    }, nextStatusMessages);
+  }, [applyValidPreview, publishParameterSnapshot]);
+
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
     const document = automationDocumentRef.current;
     if (!document) return;
@@ -150,8 +226,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
     const target = queryModulePreviewTarget({ source, position: normalizedSourceOffset, semantic });
     const snapshot = target ? previewSession.activate({ source, semantic, target }) : null;
+    if (snapshot) publishParameterSnapshot(snapshot);
     const root = snapshot?.preview.result ?? null;
     if (!snapshot || !root) {
+      if (!snapshot) publishParameterUnavailable("target-unavailable");
       const diagnostics = snapshot?.inputDiagnostics.map((diagnostic) => diagnostic.message)
         ?? diagnosticMessagesFor(document);
       setStatusMessages([
@@ -174,7 +252,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, previewSession]);
+  }, [applyValidPreview, previewSession, publishParameterSnapshot, publishParameterUnavailable]);
 
   const executeSharedCanvasCommand = useCallback((commandId: VscodeCanvasCommandId) => {
     if (!nonWritingCanvasCommands.has(commandId)) return;
@@ -197,10 +275,56 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!isExtensionToVscodeMessage(event.data)) return;
       const message: ExtensionToVscodeMessage = event.data;
       if (rustTransport.handleMessage(message)) return;
+      if (message.type === "modulePreviewSession") {
+        if (sessionIdRef.current !== message.sessionId) {
+          parameterSessionRevisionRef.current = 0;
+        }
+        sessionIdRef.current = message.sessionId;
+        sessionDocumentUriRef.current = message.documentUri;
+        return;
+      }
+      if (message.type === "modulePreviewSetValue" || message.type === "modulePreviewUseDefault") {
+        const state = previewSession.getState();
+        const document = automationDocumentRef.current;
+        const row = state && [
+          ...state.ancestorContexts.flatMap((group) => group.parameters),
+          ...state.parameters.parameters
+        ].find((parameter) =>
+          parameter.definitionStatementId === message.definitionStatementId &&
+          parameter.parameterIndex === message.parameterIndex
+        );
+        if (
+          !state ||
+          !document ||
+          sessionIdRef.current !== message.sessionId ||
+          sessionDocumentUriRef.current !== message.documentUri ||
+          documentVersionRef.current !== message.documentVersion ||
+          state.sourceRevision !== message.sourceRevision ||
+          state.target.definitionStatementId !== message.targetDefinitionStatementId ||
+          message.sessionRevision !== parameterSessionRevisionRef.current ||
+          !row
+        ) return;
+        if (message.type === "modulePreviewSetValue") {
+          const next = previewSession.setValue(
+            message.definitionStatementId,
+            message.parameterIndex,
+            message.expression
+          );
+          if (next) applySessionSnapshot(next);
+          return;
+        }
+        const result = previewSession.useDefaultExplicitly(
+          message.definitionStatementId,
+          message.parameterIndex
+        );
+        if (result.state) applySessionSnapshot(result.state);
+        return;
+      }
       if (message.type === "replaceTextDocument") {
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
         documentVersionRef.current = message.documentVersion;
+        publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
           ? ["Module Preview is waiting for the exact current target."]
           : ["No valid Module Preview is available yet."]);
@@ -213,6 +337,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
         documentVersionRef.current = message.documentVersion;
+        publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
           ? ["Module Preview is waiting for the exact current target."]
           : ["No valid Module Preview is available yet."]);
@@ -226,6 +351,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "modulePreviewTargetUnavailable") {
         if (documentVersionRef.current !== message.documentVersion) return;
+        publishParameterUnavailable("target-unavailable", null);
         const document = automationDocumentRef.current;
         setStatusMessages([
           "Module Preview target is not exact-current and was not rebound.",
@@ -249,7 +375,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, compileTargetAt, executeSharedCanvasCommand, rustTransport]);
+  }, [api, applySessionSnapshot, compileTargetAt, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();

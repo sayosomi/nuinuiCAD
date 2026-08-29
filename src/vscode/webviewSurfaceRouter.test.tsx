@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { VSCodeApp } from "./VSCodeApp";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { ModulePreviewApp } from "./ModulePreviewApp";
+import { ModulePreviewParametersApp } from "./ModulePreviewParametersApp";
 import { ExplorerMockApp } from "./ExplorerMockApp";
 import { routeVscodeWebviewSurface } from "./webviewSurfaceRouter";
 import type { VscodeWebviewApi } from "./protocol";
@@ -19,6 +20,10 @@ describe("VS Code Webview surface routing", () => {
 
   it("routes Module Preview through its dedicated surface entry point", () => {
     expect(routeVscodeWebviewSurface("modulePreview", api).type).toBe(ModulePreviewApp);
+  });
+
+  it("routes Module Preview Parameters through the production Explorer View surface", () => {
+    expect(routeVscodeWebviewSurface("modulePreviewParameters", api).type).toBe(ModulePreviewParametersApp);
   });
 
   it("routes the Explorer Mock through the shared Webview bundle", () => {
