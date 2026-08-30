@@ -20,6 +20,7 @@ type Command = {
   command: string;
   title: string;
   shortTitle?: string;
+  enablement?: string;
 };
 
 type CommandPaletteMenu = {
@@ -131,7 +132,7 @@ const commandIds = [
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
-const outputPreviewRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
+const outputPreviewRevealEnablement = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
 const modulePreviewValueStepKeybindingWhen = "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus";
@@ -344,7 +345,7 @@ describe("VS Code extension manifest command contributions", () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen, group: "navigation@1" },
-      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "navigation@2" },
+      { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen, group: "navigation@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@2" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
@@ -396,6 +397,9 @@ describe("VS Code extension manifest command contributions", () => {
     expect(editorContextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.resetOutputPreviewView");
     expect(editorContextCommands).not.toContain("nuinuiCAD.clearOutputPreviewFocus");
+    const revealCommand = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.revealInOutputPreview");
+    expect(revealCommand?.enablement).toBe(outputPreviewRevealEnablement);
+    expect(manifest.contributes?.keybindings?.some(({ command }) => command === "nuinuiCAD.revealInOutputPreview")).toBe(false);
     const modulePreviewContextCommands = (manifest.contributes?.menus?.["webview/context"] ?? [])
       .filter(({ when }) => when.includes("nuinuiCAD.modulePreview"))
       .map(({ command }) => command);

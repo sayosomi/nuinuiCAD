@@ -5,7 +5,7 @@ import type { OutputPlan } from "../output/outputCore";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import type { DslDiagnostic } from "../dsl/dslTypes";
-import type { VscodeWebviewApi } from "./protocol";
+import type { VscodeToExtensionMessage, VscodeWebviewApi } from "./protocol";
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 import * as vscodeCanvasRibbonIcons from "./vscodeCanvasRibbonIcons";
 
@@ -162,6 +162,16 @@ const planFor = (output: TestOutput): OutputPlan => {
   } as OutputPlan;
 };
 
+const planWithRepeatedDrawables = (output: TestOutput): OutputPlan => {
+  const plan = planFor(output);
+  const drawable = plan.drawables[0];
+  if (!drawable) throw new Error("missing test drawable");
+  return {
+    ...plan,
+    drawables: [drawable, { ...drawable }]
+  };
+};
+
 const viewportRect = {
   x: 0,
   y: 0,
@@ -189,6 +199,19 @@ const outputKeyFor = (kind: "print" | "svg", name: string): string => {
 };
 
 const pageFill = () => screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="page-fill"]') as SVGRectElement;
+
+type RevealResultMessage = Extract<VscodeToExtensionMessage, { type: "outputPreviewRevealResult" }>;
+const revealResultMessages = () => vi.mocked(api.postMessage).mock.calls
+  .map(([message]) => message)
+  .filter((message): message is RevealResultMessage =>
+    typeof message === "object" && message !== null && (message as { type?: string }).type === "outputPreviewRevealResult"
+  );
+
+const postWindowMessage = (data: unknown) => {
+  act(() => {
+    window.dispatchEvent(new MessageEvent("message", { data }));
+  });
+};
 
 describe("Output Preview application", () => {
   afterEach(() => {
@@ -806,31 +829,19 @@ describe("Output Preview application", () => {
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic(undefined, { kind: "binding", bindingId: "binding" }))).toBeNull();
   });
 
-  it("resolves a current Source target, installs occurrence highlights, and reports only after installation", async () => {
+  it("keeps a selected containing Output selected and installs its highlight", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     renderFixture();
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 11 }
-      }));
-    });
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 11 });
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
 
     await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
-    const viewport = document.querySelector(".output-preview-viewport");
-    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
-    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
-    const before = pageFill().getAttribute("x");
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "outputPreviewReveal",
-          requestId: 7,
-          documentVersion: 11,
-          normalizedSourceOffset: source.indexOf("print A(") + 2
-        }
-      }));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 7,
+      documentVersion: 11,
+      normalizedSourceOffset: source.indexOf("print A(") + 2
     });
 
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
@@ -840,8 +851,8 @@ describe("Output Preview application", () => {
       status: "resolved",
       outputKey: outputKeyFor("print", "A")
     }));
+    expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
     expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(1);
-    expect(pageFill().getAttribute("x")).toBe(before);
   });
 
   it("keeps a no-containing target distinct from stale and evaluation failures", async () => {
@@ -849,26 +860,17 @@ describe("Output Preview application", () => {
       "layout L {",
       "point Unused = coordinate(x: 40, y: 40)\nlayout L {"
     );
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     renderFixture(sourceWithUnused);
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: sourceWithUnused, documentVersion: 12 }
-      }));
-    });
+    postWindowMessage({ type: "replaceTextDocument", sourceText: sourceWithUnused, documentVersion: 12 });
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
-
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: {
-          type: "outputPreviewReveal",
-          requestId: 8,
-          documentVersion: 12,
-          normalizedSourceOffset: sourceWithUnused.indexOf("point Unused") + 2
-        }
-      }));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 8,
+      documentVersion: 12,
+      normalizedSourceOffset: sourceWithUnused.indexOf("point Unused") + 2
     });
-
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
       type: "outputPreviewRevealResult",
       requestId: 8,
@@ -876,6 +878,204 @@ describe("Output Preview application", () => {
       status: "failed",
       reason: "no-containing-output"
     }));
+  });
+
+  it("keeps the viewport unchanged through cross-output Reveal and delayed ordinary evaluation", async () => {
+    const crossOutputSource = [
+      "nui 4",
+      "group G {",
+      "  line AB = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "layout Empty {",
+      "}",
+      "layout Target {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print A(",
+      "  layout: @Empty,",
+      "  paper: a4,",
+      "  overlap: 5,",
+      ")",
+      "svg B(",
+      "  layout: @Target,",
+      "  margin: 1,",
+      ")"
+    ].join("\n");
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture(crossOutputSource);
+    postWindowMessage({ type: "replaceTextDocument", sourceText: crossOutputSource, documentVersion: 13 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    const beforeStatus = screen.getByRole("status", { name: /Output Preview status:/ }).textContent;
+    const beforeGeometryPath = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d");
+    const initialEvaluationCallCount = mocks.evaluateOutputPlan.mock.calls.length;
+
+    const pending: Array<{
+      output: TestOutput;
+      promise: Promise<OutputPlan>;
+      resolve: (plan: OutputPlan) => void;
+    }> = [];
+    mocks.evaluateOutputPlan.mockImplementation(({ output }: { output: TestOutput }) => {
+      let resolve!: (plan: OutputPlan) => void;
+      const promise = new Promise<OutputPlan>((resolvePromise) => { resolve = resolvePromise; });
+      pending.push({ output, promise, resolve });
+      return promise;
+    });
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 9,
+      documentVersion: 13,
+      normalizedSourceOffset: crossOutputSource.indexOf("layout Target") + 2
+    });
+    await waitFor(() => expect(pending).toHaveLength(2));
+
+    await act(async () => {
+      for (const evaluation of pending) evaluation.resolve(planFor(evaluation.output));
+      await Promise.all(pending.map(({ promise }) => promise));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 9,
+      documentVersion: 13,
+      status: "resolved",
+      outputKey: outputKeyFor("svg", "B")
+    }));
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("svg", "B")));
+    await waitFor(() => expect(pending).toHaveLength(3));
+
+    const ordinaryEvaluation = pending[2];
+    if (!ordinaryEvaluation) throw new Error("missing delayed selected-output evaluation");
+    await act(async () => {
+      ordinaryEvaluation.resolve(planFor(ordinaryEvaluation.output));
+      await ordinaryEvaluation.promise;
+      await Promise.resolve();
+    });
+    expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(initialEvaluationCallCount + pending.length);
+    expect(screen.getByRole("status", { name: /Output Preview status:/ }).textContent).toBe(beforeStatus);
+    expect(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d")).toBe(beforeGeometryPath);
+  });
+
+  it("removes explicit Reveal highlights when Open Output Preview selects another Output", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 14 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 10,
+      documentVersion: 14,
+      normalizedSourceOffset: source.indexOf("print A(") + 2
+    });
+    await waitFor(() => expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(1));
+
+    postWindowMessage({
+      type: "outputPreviewOpen",
+      documentVersion: 14,
+      normalizedSourceOffset: source.indexOf("svg B(") + 2
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("svg", "B")));
     expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
+  });
+
+  it("removes explicit Reveal highlights when Output Preview focus is cleared", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 15 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 11,
+      documentVersion: 15,
+      normalizedSourceOffset: source.indexOf("print A(") + 2
+    });
+    await waitFor(() => expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).not.toBeNull());
+
+    postWindowMessage({ type: "outputPreviewClearFocus" });
+    expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
+  });
+
+  it("ignores a replacement Reveal result and only resolves the current request", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 16 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    const pending: Array<{
+      output: TestOutput;
+      promise: Promise<OutputPlan>;
+      resolve: (plan: OutputPlan) => void;
+    }> = [];
+    mocks.evaluateOutputPlan.mockImplementation(({ output }: { output: TestOutput }) => {
+      let resolve!: (plan: OutputPlan) => void;
+      const promise = new Promise<OutputPlan>((resolvePromise) => { resolve = resolvePromise; });
+      pending.push({ output, promise, resolve });
+      return promise;
+    });
+    const revealOffset = source.indexOf("print A(") + 2;
+    postWindowMessage({ type: "outputPreviewReveal", requestId: 20, documentVersion: 16, normalizedSourceOffset: revealOffset });
+    postWindowMessage({ type: "outputPreviewReveal", requestId: 21, documentVersion: 16, normalizedSourceOffset: revealOffset });
+    await waitFor(() => expect(pending).toHaveLength(4));
+
+    await act(async () => {
+      for (const evaluation of pending.slice(0, 2)) evaluation.resolve(planFor(evaluation.output));
+      await Promise.all(pending.slice(0, 2).map(({ promise }) => promise));
+      await Promise.resolve();
+    });
+    expect(revealResultMessages().some(({ requestId, status }) => requestId === 20 && status === "resolved")).toBe(false);
+    expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
+
+    await act(async () => {
+      for (const evaluation of pending.slice(2)) evaluation.resolve(planFor(evaluation.output));
+      await Promise.all(pending.slice(2).map(({ promise }) => promise));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(revealResultMessages()).toContainEqual(expect.objectContaining({ requestId: 21, status: "resolved" })));
+    expect(revealResultMessages().some(({ requestId, status }) => requestId === 20 && status === "resolved")).toBe(false);
+  });
+
+  it("removes explicit Reveal highlights when the authoritative document changes", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 17 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 22,
+      documentVersion: 17,
+      normalizedSourceOffset: source.indexOf("print A(") + 2
+    });
+    await waitFor(() => expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).not.toBeNull());
+
+    postWindowMessage({
+      type: "replaceTextDocument",
+      sourceText: repairedSource,
+      documentVersion: 18
+    });
+    expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
+  });
+
+  it("renders repeated Reveal drawable occurrences with distinct React identity", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planWithRepeatedDrawables(output));
+    renderFixture();
+    postWindowMessage({ type: "replaceTextDocument", sourceText: source, documentVersion: 19 });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 23,
+      documentVersion: 19,
+      normalizedSourceOffset: source.indexOf("print A(") + 2
+    });
+    await waitFor(() => expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(2));
   });
 });

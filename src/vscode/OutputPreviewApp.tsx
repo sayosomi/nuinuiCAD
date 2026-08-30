@@ -182,13 +182,14 @@ const highlightedDrawableSvg = (
   drawable: OutputDrawable,
   size: OutputPreviewViewportSize,
   viewport: OutputPreviewViewport,
-  layer: "place-highlight" | "reveal-highlight"
+  layer: "place-highlight" | "reveal-highlight",
+  occurrenceIndex: number
 ) => {
   if (drawable.kind === "text") {
     const lines = outputTextLines(drawable.text);
     return (
       <text
-        key={`highlight-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
+        key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
         transform={outputPreviewTextTransformFor(drawable, size, viewport)}
         data-output-preview-layer={layer}
         fill="var(--canvas-selection)"
@@ -216,7 +217,7 @@ const highlightedDrawableSvg = (
   if (!path) return null;
   return (
     <path
-      key={`highlight-${drawable.elementId}-${drawable.kind}-${path}`}
+      key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.kind}-${path}`}
       d={path}
       data-output-preview-layer={layer}
       fill="none"
@@ -670,12 +671,13 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!sourceIsCurrent || placeDragPreview) return;
     const plan = activePlan;
     if (!plan) return;
-    if (preserveViewportForSelectionRef.current === selectedOutputKey) {
-      preserveViewportForSelectionRef.current = null;
-      return;
-    }
     const identity = `${plan.kind}:${plan.outputId}`;
     const fitToken = `${selectionGenerationRef.current}:${identity}`;
+    if (preserveViewportForSelectionRef.current === selectedOutputKey) {
+      preserveViewportForSelectionRef.current = null;
+      fittedSelectionTokenRef.current = fitToken;
+      return;
+    }
     if (fittedSelectionTokenRef.current === fitToken) return;
     if (fitPlan(plan)) fittedSelectionTokenRef.current = fitToken;
   }, [activePlan, fitPlan, placeDragPreview, sourceIsCurrent, selectedOutputKey]);
@@ -692,6 +694,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "outputPreviewOpen") {
         if (latestHostDocumentVersionRef.current !== message.documentVersion) return;
+        clearExplicitReveal();
         applyOpenSelection(message.normalizedSourceOffset);
         return;
       }
@@ -816,7 +819,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     : null;
   const highlightedRevealDrawables = sourceIsCurrent &&
     revealState.status === "resolved" &&
-    revealState.sourceRevision === currentSourceRevision
+    revealState.sourceRevision === currentSourceRevision &&
+    revealState.outputKey === selectedOutputKey
     ? revealState.highlightedDrawables
     : [];
 
@@ -1130,8 +1134,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               {paperRect ? <rect {...paperRect} data-output-preview-layer="output-fill" fill="#ffffff" /> : null}
               {pageRects.map((page, index) => <rect key={`page-fill-${index}`} {...page} data-output-preview-layer="page-fill" fill="#ffffff" />)}
               {plan.drawables.map((drawable) => drawableSvg(drawable, viewportSize, viewport))}
-              {highlightedRevealDrawables.map((drawable) => highlightedDrawableSvg(drawable, viewportSize, viewport, "reveal-highlight"))}
-              {highlightedPlace?.drawables.map((drawable) => highlightedDrawableSvg(drawable, viewportSize, viewport, "place-highlight"))}
+              {highlightedRevealDrawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "reveal-highlight", index))}
+              {highlightedPlace?.drawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "place-highlight", index))}
               {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
               {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} data-output-preview-layer="overlap-guide" stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
             </svg>

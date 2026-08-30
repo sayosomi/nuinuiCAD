@@ -103,7 +103,7 @@ const register = () => {
   };
   const editor: TestEditor = { document };
   mocks.activeEditor = editor;
-  const { panel, messageListeners } = createPanel();
+  const { panel, messageListeners, disposeListeners } = createPanel();
   mocks.createWebviewPanel.mockReturnValue(panel);
   const sessions = new Map<string, OutputPreviewSession>();
   const feature = registerOutputPreviewFeature({
@@ -143,6 +143,8 @@ const register = () => {
     editor,
     panel,
     messageListeners,
+    disposeListeners,
+    sessions,
     feature,
     setSource: (nextSource: string, nextVersion: number) => {
       currentSource = nextSource;
@@ -222,6 +224,7 @@ describe("VS Code Output Preview Reveal lifecycle", () => {
     await commandFor("nuinuiCAD.revealInOutputPreview")();
     await commandFor("nuinuiCAD.revealInOutputPreview")();
 
+    expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
     expect(revealMessagesFor(state.panel).map(({ requestId }) => requestId)).toEqual([1, 2, 3]);
     await sendToHost(state, {
       type: "outputPreviewRevealResult",
@@ -242,6 +245,40 @@ describe("VS Code Output Preview Reveal lifecycle", () => {
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
       "nuinuiCAD: No current Output Preview output contains the Source target."
     );
+    state.feature.dispose();
+  });
+
+  it("invalidates pending and in-flight requests when the session is disposed", async () => {
+    const state = register();
+    await commandFor("nuinuiCAD.revealInOutputPreview")();
+    const session = [...state.sessions.values()][0];
+    if (!session) throw new Error("missing Output Preview session");
+    expect(session.pendingReveal).toEqual({
+      requestId: 1,
+      documentVersion: 4,
+      normalizedSourceOffset: 7
+    });
+
+    await sendToHost(state, { type: "webviewReady" });
+    await sendToHost(state, { type: "webviewAuthoritativeDocumentReady", documentVersion: 4 });
+    expect(session.pendingReveal).toBeNull();
+    expect(session.inFlightRevealRequestId).toBe(1);
+    const lateResultListener = state.messageListeners[0];
+    if (!lateResultListener) throw new Error("missing message listener");
+
+    state.disposeListeners[0]?.();
+    expect(session.pendingReveal).toBeNull();
+    expect(session.inFlightRevealRequestId).toBeNull();
+    expect(session.latestRevealRequestId).toBeNull();
+    await lateResultListener({
+      type: "outputPreviewRevealResult",
+      requestId: 1,
+      documentVersion: 4,
+      status: "resolved",
+      outputKey: "svg:S"
+    });
+    expect(state.panel.reveal).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
     state.feature.dispose();
   });
 

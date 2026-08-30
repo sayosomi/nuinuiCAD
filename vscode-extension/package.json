@@ -634,7 +634,7 @@
         },
         {
           "command": "nuinuiCAD.revealInOutputPreview",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
           "group": "navigation@2"
         },
         {
