@@ -224,6 +224,10 @@ jobs:
         if: ${{ needs.classification.outputs.parity == 'true' || needs.classification.outputs.full_node == 'true' }}
         run: npm ci
 
+      - name: Check English DSL reference for Rust parity changes
+        if: ${{ needs.classification.outputs.rust == 'true' && needs.classification.outputs.parity == 'true' && needs.classification.outputs.node != 'true' }}
+        run: npm run docs:dsl:check
+
       - name: Build Rust evaluation fixture
         if: ${{ needs.classification.outputs.full_node == 'true' }}
         run: cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --example evaluate_fixture
