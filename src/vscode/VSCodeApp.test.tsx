@@ -102,6 +102,51 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
+  it("signals Webview readiness once without recompiling the authoritative document for benchmark configuration", async () => {
+    const source = sourceForSelectionChronology(0);
+    let readyCount = 0;
+    const api = {
+      postMessage: vi.fn((message: { type?: string }) => {
+        if (message.type !== "webviewReady") return;
+        readyCount += 1;
+        if (readyCount > 2) return;
+        queueMicrotask(() => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+          }));
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "benchmarkConfig", config: { runId: `run-${readyCount}` } }
+          }));
+        });
+      })
+    };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const documentAfterInitialSync = useCadDocumentStore.getState();
+    const readinessMessages = api.postMessage.mock.calls.filter(([message]) => message.type === "webviewReady");
+    expect(readinessMessages).toHaveLength(1);
+    expect(readyCount).toBe(1);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "benchmarkConfig", config: { runId: "repeated-1" } }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "benchmarkConfig", config: { runId: "repeated-2" } }
+      }));
+    });
+
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "webviewReady")).toHaveLength(1);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(documentAfterInitialSync.sourceRevision);
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(documentAfterInitialSync.compiledDocumentRevision);
+  });
+
   it("passes the VSCodeApp-owned Reference Pick authority through the Canvas boundary", async () => {
     const source = sourceForSelectionChronology(0);
     const api = { postMessage: vi.fn() };
