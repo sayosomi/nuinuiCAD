@@ -11,7 +11,10 @@ import {
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
   confirmCommandLineSession,
+  activateCommandLineStep,
+  retreatCommandLineStep,
   skipCommandLineStep,
+  skipCommandLineStepsToReview,
   startCommandLineCreation,
   startCommandLineCreationForRecipe,
   startCommandLineStepEdit,
@@ -50,15 +53,9 @@ describe("command-line session commands", () => {
     const started = useCadUiStore.getState().commandLineSession!;
     expect(started.currentStepIndex).toBe(0);
 
+    submitCommandLineInput("");
     submitCommandLineInput("12");
     submitCommandLineInput("waist / 2");
-    const atName = useCadUiStore.getState().commandLineSession!;
-    expect(atName.currentStepIndex).toBe(2);
-    // Still computed (used only as a UI placeholder hint now), but never
-    // adopted by an empty Enter below.
-    expect(atName.nameSuggestion).not.toBe("");
-
-    submitCommandLineInput("");
     const atConfirm = useCadUiStore.getState().commandLineSession!;
     expect(atConfirm.currentStepIndex).toBe(3);
     expect(atConfirm.args).not.toHaveProperty("name");
@@ -83,9 +80,9 @@ describe("command-line session commands", () => {
   it("returns every creation to the end of its generated statement", () => {
     const focusSourceEditorAtElementEnd = vi.fn();
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("12");
     submitCommandLineInput("34");
-    submitCommandLineInput("");
 
     expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd })).toBe(true);
     const element = useCadDocumentStore.getState().elements[0]!;
@@ -100,12 +97,10 @@ describe("command-line session commands", () => {
     const sourceBefore = useCadDocumentStore.getState().sourceText;
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
-    submitCommandLineInput("1");
-    submitCommandLineInput("2");
     expect(submitCommandLineInput("A")).toBe(false);
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 2,
+      currentStepIndex: 0,
       error: expect.stringContaining("既にあります")
     });
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
@@ -124,10 +119,10 @@ describe("command-line session commands", () => {
       recipe: {
         type: "bezierExtremePoint",
         steps: [
+          { kind: "name" },
           { kind: "line", key: "baseLineId" },
           { kind: "number", key: "segmentIndex" },
-          { kind: "number", key: "directionDeg" },
-          { kind: "name" }
+          { kind: "number", key: "directionDeg" }
         ]
       }
     });
@@ -140,9 +135,9 @@ describe("command-line session commands", () => {
       recipe: {
         type: "bezierBulgePoint",
         steps: [
+          { kind: "name" },
           { kind: "line", key: "baseLineId" },
-          { kind: "number", key: "segmentIndex" },
-          { kind: "name" }
+          { kind: "number", key: "segmentIndex" }
         ]
       }
     });
@@ -151,9 +146,9 @@ describe("command-line session commands", () => {
 
   it("makes an unnamed element through explicit skip", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("3 + 4");
     submitCommandLineInput("5");
-    expect(skipCommandLineStep()).toBe(true);
 
     const session = useCadUiStore.getState().commandLineSession!;
     expect(session.currentStepIndex).toBe(session.recipe.steps.length);
@@ -164,11 +159,10 @@ describe("command-line session commands", () => {
 
   it("also makes an unnamed element through empty Enter, with no name token in the resulting statement", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    // Empty Enter on the first, name-first step leaves the name absent.
+    submitCommandLineInput("");
     submitCommandLineInput("3 + 4");
     submitCommandLineInput("5");
-    // Empty Enter on the name step must behave exactly like the explicit
-    // skip button above - it must never adopt session.nameSuggestion.
-    expect(submitCommandLineInput("")).toBe(true);
 
     const session = useCadUiStore.getState().commandLineSession!;
     expect(session.currentStepIndex).toBe(session.recipe.steps.length);
@@ -178,14 +172,70 @@ describe("command-line session commands", () => {
     expect(useCadDocumentStore.getState().sourceText).toMatch(/(^|\n)point = coordinate\(/);
   });
 
+  it("activates arbitrary steps and preserves values while revising or blanking them", () => {
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("Point A");
+    submitCommandLineInput("3");
+    submitCommandLineInput("5");
+
+    const completed = useCadUiStore.getState().commandLineSession!;
+    expect(activateCommandLineStep(1)).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      args: completed.args
+    });
+    expect(submitCommandLineInput("12")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "Point A", x: 12, y: 5 });
+
+    expect(submitCommandLineInput("")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({ name: "Point A", x: 12 });
+  });
+
+  it("keeps Back non-destructive and does not adopt Canvas pick state when blanking a reference", () => {
+    expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
+    const selectedElementId = "canvas-selection" as never;
+    useCadUiStore.setState({
+      selectedElementId,
+      activePickCursor: { elementId: selectedElementId, optionIndex: 0 }
+    });
+    expect(skipCommandLineStep()).toBe(true);
+    const afterBlank = useCadUiStore.getState().commandLineSession!;
+    expect(afterBlank.args).not.toHaveProperty("startPoint");
+    expect(afterBlank.currentStepIndex).toBe(2);
+
+    expect(retreatCommandLineStep()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 1,
+      args: {}
+    });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+  });
+
+  it("skips all unfilled steps to review without committing or materializing values", () => {
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
+    submitCommandLineInput("3");
+    const before = useCadDocumentStore.getState();
+
+    expect(skipCommandLineStepsToReview()).toBe(true);
+    const session = useCadUiStore.getState().commandLineSession!;
+    expect(session.currentStepIndex).toBe(session.recipe.steps.length);
+    expect(session.args).toEqual({ x: 3 });
+    expect(session.args).not.toHaveProperty("y");
+    expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
+    expect(useCadDocumentStore.getState().past).toBe(before.past);
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+  });
+
   it("commits an edited value through the ghost validation path without rewinding later args", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(submitCommandLineInput("変数 A")).toBe(true);
     expect(submitCommandLineInput("3")).toBe(true);
     expect(submitCommandLineInput("5")).toBe(true);
-    expect(submitCommandLineInput("変数 A")).toBe(true);
     const completed = useCadUiStore.getState().commandLineSession!;
 
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(submitCommandLineInput("12")).toBe(true);
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
@@ -198,7 +248,7 @@ describe("command-line session commands", () => {
       }
     });
 
-    expect(startCommandLineStepEdit(2)).toBe(true);
+    expect(startCommandLineStepEdit(0)).toBe(true);
     expect(submitCommandLineInput("変数 B")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completed.currentStepIndex,
@@ -209,34 +259,35 @@ describe("command-line session commands", () => {
 
   it("does not save an empty return-pick state for a completed-session edit", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     expect(submitCommandLineInput("3")).toBe(true);
     expect(submitCommandLineInput("5")).toBe(true);
-    expect(skipCommandLineStep()).toBe(true);
 
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.editingReturnPickState).toBeNull();
   });
 
   it("keeps missing-input and invalid mid-session edit drafts isolated at the original prompt", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     expect(submitCommandLineInput("3")).toBe(true);
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
 
     expect(submitCommandLineInput("(")).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
-      editingStepIndex: 0,
+      currentStepIndex: 2,
+      editingStepIndex: 1,
       editingDraft: { kind: "expression", expression: "(" },
       args: { x: 3 }
     });
 
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(submitCommandLineInput("4")).toBe(true);
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(submitCommandLineInput("(")).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 2,
-      editingStepIndex: 0,
+      currentStepIndex: 3,
+      editingStepIndex: 1,
       editingDraft: { kind: "expression", expression: "(" },
       args: { x: 3, y: 4 }
     });
@@ -252,12 +303,13 @@ describe("command-line session commands", () => {
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
+      currentStepIndex: 2,
       editingStepIndex: null,
       args: { startPoint: referenceAnchor(pointB.id) }
     });
@@ -299,8 +351,9 @@ describe("command-line session commands", () => {
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     useCadDocumentStore.getState().commitText(`${source}\npoint C = coordinate(x: 20, y: 0)`, "test");
 
     expect(cancelStaleCommandLineSession()).toBe(true);
@@ -310,8 +363,9 @@ describe("command-line session commands", () => {
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(startCommandLineCreation("freePoint")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({ recipe: { type: "freePoint" }, args: {} });
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
@@ -321,6 +375,7 @@ describe("command-line session commands", () => {
 
   it("restores an active numeric-reference pick after cancelling a mid-session number edit", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
     expect(submitCommandLineInput("3")).toBe(true);
     expect(startCommandLineNumericReferencePick()).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "y" });
@@ -331,11 +386,11 @@ describe("command-line session commands", () => {
       }
     });
 
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
+      currentStepIndex: 2,
       args: { x: 3 }
     });
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
@@ -346,16 +401,16 @@ describe("command-line session commands", () => {
 
   it("keeps an invalid edit draft and confirmed args when preview validation fails", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("変数 A");
     submitCommandLineInput("3");
     submitCommandLineInput("5");
-    submitCommandLineInput("変数 A");
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
 
     expect(submitCommandLineInput("(")).toBe(false);
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 3,
-      editingStepIndex: 0,
+      editingStepIndex: 1,
       editingDraft: { kind: "expression", expression: "(" },
       args: {
         x: 3,
@@ -368,15 +423,15 @@ describe("command-line session commands", () => {
 
   it("abandons an edit draft without changing the completed session", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("変数 A");
     submitCommandLineInput("3");
     submitCommandLineInput("5");
-    submitCommandLineInput("変数 A");
     const completed = useCadUiStore.getState().commandLineSession!;
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(submitCommandLineInput("12")).toBe(true);
 
     // Start a second edit && discard it; the first confirmed value remains.
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(cancelCommandLineStepEdit()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.args).toEqual({
       x: 12,
@@ -400,9 +455,9 @@ describe("command-line session commands", () => {
     const pastBefore = documentBefore.past.length;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed[0].id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
 
     const document = useCadDocumentStore.getState();
@@ -441,9 +496,9 @@ describe("command-line session commands", () => {
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
 
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("点");
@@ -457,9 +512,9 @@ describe("command-line session commands", () => {
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(skipCommandLineStep()).toBe(true);
     useCadDocumentStore.getState().commitText(`${source}\npoint C = coordinate(x: 20, y: 0)`, "test");
 
     expect(confirmCommandLineSession()).toBe(false);
@@ -474,9 +529,9 @@ describe("command-line session commands", () => {
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(skipCommandLineStep()).toBe(true);
     // initialCadDocumentState() resets state fields only, never store actions,
     // so the stub must be restored here || it leaks into every later test.
     const originalCommitDocumentChange = useCadDocumentStore.getState().commitDocumentChange;
@@ -520,9 +575,9 @@ describe("command-line session commands", () => {
     expect(startCommandLineCreation("freePoint", {
       currentSourceCursor: () => ({ sourceRevision: revision, line: 3, lineCount: 4, elementId: null })
     })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
 
     const document = useCadDocumentStore.getState();
@@ -543,9 +598,9 @@ describe("command-line session commands", () => {
     expect(startCommandLineCreation("freePoint", {
       currentSourceCursor: () => ({ sourceRevision: documentBefore.sourceRevision, line: 2, lineCount: 3, elementId: pointA.id })
     })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
 
     expect(useCadDocumentStore.getState().elements.map((element) => element.name)).toEqual(["A", "", "B"]);
@@ -565,9 +620,9 @@ describe("command-line session commands", () => {
     expect(startCommandLineCreation("freePoint", {
       currentSourceCursor: () => ({ sourceRevision: revision, line: 4, lineCount: 6, elementId: null })
     })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
 
     const document = useCadDocumentStore.getState();
@@ -632,9 +687,9 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements[0];
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
 
     useCadDocumentStore.getState().commitText([
       "nui 4",
@@ -657,9 +712,9 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -686,9 +741,9 @@ describe("command-line session commands", () => {
     const pointA = useCadDocumentStore.getState().elements[0]!;
 
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -705,9 +760,9 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -722,9 +777,9 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -748,9 +803,9 @@ describe("command-line session commands", () => {
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
     const collapsedSession = useCadUiStore.getState().commandLineSession!;
     expect(collapsedSession.insertionTarget).toEqual({ insertionIndex: 2, parentGroupId: group.id });
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(useCadDocumentStore.getState().previewElements?.find(
       (element) => !["G", "A", "B"].includes(element.name)
     )?.parentGroupId).toBe(group.id);
@@ -758,9 +813,9 @@ describe("command-line session commands", () => {
 
     useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -785,9 +840,9 @@ describe("command-line session commands", () => {
 
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => group.id })).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.insertionTarget).toEqual({ insertionIndex: 4 });
+    submitCommandLineInput("");
     submitCommandLineInput("3");
     submitCommandLineInput("4");
-    skipCommandLineStep();
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
@@ -861,13 +916,13 @@ describe("command-line session commands", () => {
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    submitCommandLineInput("");
     // The insertion position is outside the evaluator's reach, so no ghost exists.
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
 
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(submitCommandLineInput("5")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       editingStepIndex: null,
@@ -892,12 +947,12 @@ describe("command-line session commands", () => {
     // insertion really lands inside the disabled group.
     useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    submitCommandLineInput("");
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
 
-    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(startCommandLineStepEdit(2)).toBe(true);
     expect(submitCommandLineInput("7")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       editingStepIndex: null,
@@ -913,15 +968,15 @@ describe("command-line session commands", () => {
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
     expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    submitCommandLineInput("");
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
 
     expect(submitCommandLineInput("(")).toBe(false);
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      editingStepIndex: 0,
+      editingStepIndex: 1,
       editingDraft: { kind: "expression", expression: "(" },
       args: { x: 1, y: 2 }
     });

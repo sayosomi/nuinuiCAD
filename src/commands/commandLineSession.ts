@@ -148,6 +148,32 @@ export const currentStep = (session: CommandLineSession | null): CreationStep | 
 export const isEditingCommandLineStep = (session: CommandLineSession) =>
   session.editingStepIndex !== null;
 
+/** Returns whether a recipe step has an actual supplied argument value. */
+export const hasCommandLineStepValue = (
+  session: CommandLineSession,
+  stepIndex: number
+) => {
+  const step = session.recipe.steps[stepIndex];
+  if (!step) return false;
+  const key = keyForStep(step);
+  return hasOwn(session.args, key) && session.args[key as keyof CreationArgs] !== undefined;
+};
+
+/** Activates any recipe step without changing the supplied argument values. */
+export const activateStep = (
+  session: CommandLineSession,
+  stepIndex: number
+): CommandLineSession => {
+  if (
+    isEditingCommandLineStep(session) ||
+    !Number.isInteger(stepIndex) ||
+    stepIndex < 0 ||
+    stepIndex > session.recipe.steps.length
+  ) return session;
+  if (session.currentStepIndex === stepIndex) return session;
+  return { ...session, currentStepIndex: stepIndex, error: null };
+};
+
 /** An edit that must return to an unfinished creation prompt when abandoned. */
 export const isMidSessionStepEdit = (session: CommandLineSession) =>
   isEditingCommandLineStep(session) && session.currentStepIndex < session.recipe.steps.length;
@@ -242,17 +268,7 @@ export const fillCurrentStep = (
   };
 };
 
-/**
- * Skips the current step, advancing regardless of kind. `name` intentionally
- * preserves no fabricated name argument. A `number` step with a declared
- * default keeps writing that default, exactly as before. Every other step
- * (a defaultless `number`, || any reference-kind step) now advances while
- * leaving its key absent from `args` - a genuinely blank recipe step, not a
- * fabricated value - so a later confirm can offer it as a draft DSL hole
- * instead of blocking. Mid-session editing only ever reopens a step that
- * already has a value (see beginStepEdit's hasOwn guard), so reverting an
- * edit back to blank is deliberately not supported here.
- */
+/** Skips the current step without fabricating or retaining its argument. */
 export const skipCurrentStep = (session: CommandLineSession): CommandLineSession => {
   const step = currentStep(session);
   if (!step) return session;
@@ -262,36 +278,43 @@ export const skipCurrentStep = (session: CommandLineSession): CommandLineSession
     delete args.name;
     return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
   }
-  if (step.kind === "number" && step.default !== undefined) {
-    if (isEditingCommandLineStep(session)) return setEditingDraft(session, makeNumericExpression(step.default));
-    return {
-      ...session,
-      args: { ...session.args, [step.key]: makeNumericExpression(step.default) },
-      currentStepIndex: session.currentStepIndex + 1,
-      error: null
-    };
+  if (isEditingCommandLineStep(session)) {
+    if (step.kind === "number" && step.default !== undefined) {
+      return setEditingDraft(session, makeNumericExpression(step.default));
+    }
+    return session;
   }
-  if (isEditingCommandLineStep(session)) return session;
   const args = { ...session.args };
   delete args[step.key];
   return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
 };
 
-/**
- * Returns to the preceding step && discards that step plus every later
- * confirmed value, preventing stale arguments from leaking into a re-entry.
- */
+/** Returns to the preceding step while preserving every supplied argument. */
 export const retreatStep = (session: CommandLineSession): CommandLineSession => {
   if (isEditingCommandLineStep(session)) return session;
   if (session.currentStepIndex <= 0) return session;
-  const currentStepIndex = session.currentStepIndex - 1;
-  const discardedKeys = new Set(
-    session.recipe.steps.slice(currentStepIndex).map((step) => step.kind === "name" ? "name" : step.key)
-  );
-  const args = Object.fromEntries(
-    Object.entries(session.args).filter(([key]) => !discardedKeys.has(key))
-  ) as CreationArgs;
-  return { ...session, args, currentStepIndex, error: null };
+  return { ...session, currentStepIndex: session.currentStepIndex - 1, error: null };
+};
+
+/** Moves directly to final review, preserving supplied values and blank holes. */
+export const skipUnfilledStepsToReview = (session: CommandLineSession): CommandLineSession => {
+  if (isEditingCommandLineStep(session)) return session;
+  const args = { ...session.args };
+  let removedUndefinedValue = false;
+  for (const step of session.recipe.steps) {
+    const key = keyForStep(step);
+    if (hasOwn(args, key) && args[key as keyof CreationArgs] === undefined) {
+      delete args[key as keyof CreationArgs];
+      removedUndefinedValue = true;
+    }
+  }
+  if (!removedUndefinedValue && session.currentStepIndex === session.recipe.steps.length) return session;
+  return {
+    ...session,
+    args,
+    currentStepIndex: session.recipe.steps.length,
+    error: null
+  };
 };
 
 /**

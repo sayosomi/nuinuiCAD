@@ -103,50 +103,50 @@ const stepFor = (type: CadElementType, key: ParameterKey) => {
 export const creationRecipes: readonly CreationRecipe[] = [
   {
     type: "freePoint",
-    steps: [stepFor("freePoint", "x"), stepFor("freePoint", "y"), nameStep]
+    steps: [nameStep, stepFor("freePoint", "x"), stepFor("freePoint", "y")]
   },
   {
     type: "line",
-    steps: [stepFor("line", "startPoint"), stepFor("line", "endPoint"), nameStep]
+    steps: [nameStep, stepFor("line", "startPoint"), stepFor("line", "endPoint")]
   },
   {
     type: "arcLine",
     steps: [
+      nameStep,
       stepFor("arcLine", "centerPoint"),
       stepFor("arcLine", "radius"),
       stepFor("arcLine", "startAngleDeg"),
-      stepFor("arcLine", "endAngleDeg"),
-      nameStep
+      stepFor("arcLine", "endAngleDeg")
     ]
   },
   {
     type: "bezierCurve",
     steps: [
+      nameStep,
       stepFor("bezierCurve", "startPoint"),
       stepFor("bezierCurve", "startHandleAngleDeg"),
       stepFor("bezierCurve", "startHandleLength"),
       stepFor("bezierCurve", "endPoint"),
       stepFor("bezierCurve", "endHandleAngleDeg"),
-      stepFor("bezierCurve", "endHandleLength"),
-      nameStep
+      stepFor("bezierCurve", "endHandleLength")
     ]
   },
   {
     type: "offsetLine",
-    steps: [stepFor("offsetLine", "baseLineIds"), stepFor("offsetLine", "offset"), nameStep]
+    steps: [nameStep, stepFor("offsetLine", "baseLineIds"), stepFor("offsetLine", "offset")]
   },
   {
     type: "divisionPoint",
     steps: [
+      nameStep,
       stepFor("divisionPoint", "startPoint"),
       stepFor("divisionPoint", "endPoint"),
-      stepFor("divisionPoint", "ratio"),
-      nameStep
+      stepFor("divisionPoint", "ratio")
     ]
   },
   {
     type: "lineDivisionPoint",
-    steps: [stepFor("lineDivisionPoint", "endpoint"), stepFor("lineDivisionPoint", "ratio"), nameStep]
+    steps: [nameStep, stepFor("lineDivisionPoint", "endpoint"), stepFor("lineDivisionPoint", "ratio")]
   },
   {
     type: "angleLengthLine",
@@ -154,30 +154,30 @@ export const creationRecipes: readonly CreationRecipe[] = [
     // The frozen emitter retains the empty-document coordinate default until Phase 4f
     // rejects incomplete preview arguments.
     steps: [
+      nameStep,
       stepFor("angleLengthLine", "startPoint"),
       stepFor("angleLengthLine", "angleDeg"),
-      stepFor("angleLengthLine", "length"),
-      nameStep
+      stepFor("angleLengthLine", "length")
     ]
   },
   {
     type: "copyLine",
     steps: [
+      nameStep,
       stepFor("copyLine", "baseLineIds"),
       stepFor("copyLine", "startPoint"),
       stepFor("copyLine", "endPoint"),
       stepFor("copyLine", "scale"),
-      stepFor("copyLine", "angleDeg"),
-      nameStep
+      stepFor("copyLine", "angleDeg")
     ]
   },
   {
     type: "symmetricCopyLine",
     steps: [
+      nameStep,
       stepFor("symmetricCopyLine", "baseLineIds"),
       stepFor("symmetricCopyLine", "axisPoint1"),
-      stepFor("symmetricCopyLine", "axisPoint2"),
-      nameStep
+      stepFor("symmetricCopyLine", "axisPoint2")
     ]
   },
   {
@@ -206,15 +206,15 @@ export const creationRecipes: readonly CreationRecipe[] = [
  * elementTypesWithoutOwnDrawableGeometry) has no DSL name slot to prompt
  * for - its `name` is always compiled to "" regardless of what a stray
  * nameStep would collect, so the step is omitted rather than offered &&
- * silently discarded.
+ * silently discarded. Named fallback recipes begin with the name step.
  */
 export const fallbackCreationRecipe = (type: CadElementType): CreationRecipe => ({
   type,
   steps: [
+    ...(elementTypesWithoutOwnDrawableGeometry.has(type) ? [] : [nameStep]),
     ...getParameterDefinitions(definitionElement(type))
       .map(creationStepForDefinition)
-      .filter((step): step is Exclude<CreationStep, { kind: "name" }> => step !== null),
-    ...(elementTypesWithoutOwnDrawableGeometry.has(type) ? [] : [nameStep])
+      .filter((step): step is Exclude<CreationStep, { kind: "name" }> => step !== null)
   ]
 });
 
@@ -246,12 +246,16 @@ const unspecifiedReferenceValue = (step: Exclude<CreationStep, { kind: "name" }>
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
-/** Recipe step keys the user advanced past without a value (see skipCurrentStep). */
+/** Recipe step keys with no actual supplied value. */
 export const blankCreationRecipeStepKeys = (
   recipe: CreationRecipe,
   args: CreationArgs
 ): ReadonlySet<ParameterKey> => new Set(
-  recipe.steps.flatMap((step) => step.kind !== "name" && !hasOwn(args, step.key) ? [step.key] : [])
+  recipe.steps.flatMap((step) =>
+    step.kind !== "name" && (!hasOwn(args, step.key) || args[step.key] === undefined)
+      ? [step.key]
+      : []
+  )
 );
 
 export type CreationRecipeDraft = {

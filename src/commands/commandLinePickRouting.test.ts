@@ -64,6 +64,7 @@ describe("command-line pick routing", () => {
     const beforePast = useCadDocumentStore.getState().past.length;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "startPoint",
@@ -77,6 +78,7 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
 
     expect(startCommandLineCreation("lineDivisionPoint")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: derivedAnchor(line.id, "start") });
     expect(useCadUiStore.getState().commandLineSession?.args.endpoint).toEqual({
       lineId: line.id,
@@ -84,10 +86,12 @@ describe("command-line pick routing", () => {
     });
 
     expect(startCommandLineCreation("splitLine")).toBe(true);
+    submitCommandLineInput("");
     applyPickedLine({ pickedLineId: line.id });
     expect(useCadUiStore.getState().commandLineSession?.args.baseLineId).toBe(line.id);
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
+    submitCommandLineInput("");
     applyPickedLine({ pickedLineId: line.id });
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
     finishLinePick();
@@ -95,6 +99,7 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
 
     expect(startCommandLineCreation("angleLengthLine")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     expect(startCommandLineNumericReferencePick()).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
@@ -124,12 +129,14 @@ describe("command-line pick routing", () => {
     const beforeText = useCadDocumentStore.getState().sourceText;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     selectPickCandidateByOffset(1);
     expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
     applySelectedPickCandidate();
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor(byName("A").id));
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
+    submitCommandLineInput("");
     applyPickedLine({ pickedLineId: line.id });
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
     expect(startCommandLineCreation("line")).toBe(true);
@@ -150,12 +157,12 @@ describe("command-line pick routing", () => {
     const line = byName("AB");
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
-    expect(skipCommandLineStep()).toBe(true);
     const completedLine = useCadUiStore.getState().commandLineSession!;
 
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     selectPickCandidateByOffset(1);
     applySelectedPickCandidate();
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
@@ -163,7 +170,7 @@ describe("command-line pick routing", () => {
       editingStepIndex: null,
       args: { endPoint: referenceAnchor(pointB.id) }
     });
-    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(startCommandLineStepEdit(2)).toBe(true);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completedLine.currentStepIndex,
@@ -172,11 +179,11 @@ describe("command-line pick routing", () => {
     });
 
     expect(startCommandLineCreation("lineDivisionPoint")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: derivedAnchor(line.id, "start") });
     expect(submitCommandLineInput("0.5")).toBe(true);
-    expect(skipCommandLineStep()).toBe(true);
     const completedDivision = useCadUiStore.getState().commandLineSession!;
-    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(startCommandLineStepEdit(2)).toBe(true);
     expect(startCommandLineNumericReferencePick()).toBe(true);
     applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
@@ -187,7 +194,7 @@ describe("command-line pick routing", () => {
         ratio: { kind: "expression", expression: `${line.id}.length` }
       }
     });
-    expect(startCommandLineStepEdit(1)).toBe(true);
+    expect(startCommandLineStepEdit(2)).toBe(true);
     expect(skipCommandLineStep()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completedDivision.currentStepIndex,
@@ -196,12 +203,12 @@ describe("command-line pick routing", () => {
     });
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
+    submitCommandLineInput("");
     applyPickedLine({ pickedLineId: line.id });
     finishLinePick();
     expect(submitCommandLineInput("5")).toBe(true);
-    expect(skipCommandLineStep()).toBe(true);
     const completedOffset = useCadUiStore.getState().commandLineSession!;
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.editingDraft).not.toBe(
       completedOffset.args.baseLineIds
     );
@@ -224,6 +231,7 @@ describe("command-line pick routing", () => {
     const undoBefore = useCadDocumentStore.getState().past.length;
 
     expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
     useCadUiStore.getState().setActivePickCursor({ elementId: pointB.id, optionIndex: 0 });
 
@@ -235,8 +243,8 @@ describe("command-line pick routing", () => {
       });
     });
     try {
-      expect(startCommandLineStepEdit(0)).toBe(true);
-      expect(transitions).toEqual([{ editingStepIndex: 0, parameterKey: "startPoint" }]);
+      expect(startCommandLineStepEdit(1)).toBe(true);
+      expect(transitions).toEqual([{ editingStepIndex: 1, parameterKey: "startPoint" }]);
       transitions.length = 0;
 
       expect(cancelCommandLineStepEdit()).toBe(true);
@@ -250,21 +258,21 @@ describe("command-line pick routing", () => {
         { editingStepIndex: null, parameterKey: null }
       ]);
       transitions.length = 0;
-      expect(startCommandLineStepEdit(0)).toBe(true);
+      expect(startCommandLineStepEdit(1)).toBe(true);
       expect(transitions).toEqual([
-        { editingStepIndex: 0, parameterKey: "startPoint" },
-        { editingStepIndex: 0, parameterKey: "startPoint" }
+        { editingStepIndex: 1, parameterKey: "startPoint" },
+        { editingStepIndex: 1, parameterKey: "startPoint" }
       ]);
       transitions.length = 0;
       applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
       expect(transitions).toEqual([
-        { editingStepIndex: 0, parameterKey: "startPoint" },
-        { editingStepIndex: 0, parameterKey: "startPoint" },
+        { editingStepIndex: 1, parameterKey: "startPoint" },
+        { editingStepIndex: 1, parameterKey: "startPoint" },
         { editingStepIndex: null, parameterKey: null },
         { editingStepIndex: null, parameterKey: null }
       ]);
       expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-        currentStepIndex: 2,
+        currentStepIndex: 3,
         args: { startPoint: referenceAnchor(pointA.id), endPoint: referenceAnchor(pointB.id) }
       });
     } finally {
@@ -323,6 +331,7 @@ describe("command-line pick routing", () => {
     useCadUiStore.getState().setGroupFold("loop", { expanded: true });
 
     expect(startCommandLineCreation("line", { currentCursorElementId: () => "inside" })).toBe(true);
+    submitCommandLineInput("");
     expect(useCadUiStore.getState().activePointPickTarget).toEqual({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "startPoint",
@@ -336,7 +345,7 @@ describe("command-line pick routing", () => {
     ]);
     applyPickedPoint({ pickedPointAnchor: referenceAnchor("point-template@loop:1") });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor("point-template"));
-    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(startCommandLineStepEdit(1)).toBe(true);
     expect(activePickCandidates().map((candidate) => candidate.elementId)).toEqual([
       "point-template@loop:0",
       "point-template@loop:1",
@@ -345,7 +354,6 @@ describe("command-line pick routing", () => {
     ]);
     expect(cancelCommandLineStepEdit()).toBe(true);
     applyPickedPoint({ pickedPointAnchor: { mode: "coordinate", x: 20, y: 0 } });
-    expect(skipCommandLineStep()).toBe(true);
     expect(confirmCommandLineSession()).toBe(true);
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === "point-template")?.name).toBe("点");
   });
