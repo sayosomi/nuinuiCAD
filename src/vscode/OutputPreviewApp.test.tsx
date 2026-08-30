@@ -805,4 +805,77 @@ describe("Output Preview application", () => {
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic({ segments: [{ from: 0, to: 1 }], sourceRevision: 3 }, { kind: "sourceSpan", physicalSpan: { segments: [{ from: 1, to: 2 }], sourceRevision: 3 } }))).toEqual({ from: 1, to: 2 });
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic(undefined, { kind: "binding", bindingId: "binding" }))).toBeNull();
   });
+
+  it("resolves a current Source target, installs occurrence highlights, and reports only after installation", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 11 }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    const before = pageFill().getAttribute("x");
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "outputPreviewReveal",
+          requestId: 7,
+          documentVersion: 11,
+          normalizedSourceOffset: source.indexOf("print A(") + 2
+        }
+      }));
+    });
+
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 7,
+      documentVersion: 11,
+      status: "resolved",
+      outputKey: outputKeyFor("print", "A")
+    }));
+    expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(1);
+    expect(pageFill().getAttribute("x")).toBe(before);
+  });
+
+  it("keeps a no-containing target distinct from stale and evaluation failures", async () => {
+    const sourceWithUnused = source.replace(
+      "layout L {",
+      "point Unused = coordinate(x: 40, y: 40)\nlayout L {"
+    );
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture(sourceWithUnused);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: sourceWithUnused, documentVersion: 12 }
+      }));
+    });
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "outputPreviewReveal",
+          requestId: 8,
+          documentVersion: 12,
+          normalizedSourceOffset: sourceWithUnused.indexOf("point Unused") + 2
+        }
+      }));
+    });
+
+    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 8,
+      documentVersion: 12,
+      status: "failed",
+      reason: "no-containing-output"
+    }));
+    expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
+  });
 });

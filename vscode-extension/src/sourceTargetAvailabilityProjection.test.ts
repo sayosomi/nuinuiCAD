@@ -75,7 +75,8 @@ vi.mock("./referencePickSourceBridge", () => ({
 import {
   registerVscodeReferencePickFeature,
   VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY,
-  VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY
+  VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
+  VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY
 } from "./referencePickCommandFeature";
 
 const flushContextUpdates = async () => {
@@ -125,6 +126,7 @@ describe("Source target availability projection", () => {
 
     await flushContextUpdates();
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
 
     mocks.executeCommand.mockClear();
@@ -132,6 +134,7 @@ describe("Source target availability projection", () => {
     for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
     await flushContextUpdates();
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
 
     mocks.executeCommand.mockClear();
@@ -139,6 +142,7 @@ describe("Source target availability projection", () => {
     for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
     await flushContextUpdates();
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
 
     feature.dispose();
@@ -181,6 +185,7 @@ describe("Source target availability projection", () => {
     }
     await flushContextUpdates();
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
 
     mocks.executeCommand.mockClear();

@@ -61,6 +61,9 @@ export type {
   VscodeOutputPreviewExportResult,
   VscodeOutputPreviewPlaceCommit,
   VscodeOutputPreviewPlaceCoordinatePatch,
+  VscodeOutputPreviewRevealFailureReason,
+  VscodeOutputPreviewRevealRequest,
+  VscodeOutputPreviewRevealResult,
   VscodeOutputPreviewToExtensionMessage
 } from "./outputPreviewProtocol";
 export type {

@@ -69,6 +69,7 @@ const commandIds = [
   "nuinuiCAD.openModulePreview",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
+  "nuinuiCAD.revealInOutputPreview",
   "nuinuiCAD.pickReferenceFromCanvas",
   "nuinuiCAD.replaceGeometryReferences",
   "nuinuiCAD.stepSourceValueForward",
@@ -130,6 +131,7 @@ const commandIds = [
 ] as const;
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const outputPreviewRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
 const modulePreviewValueStepKeybindingWhen = "focusedView == 'nuinuiCAD.modulePreviewParameters' && nuinuiCAD.modulePreviewValueInputFocus";
@@ -177,6 +179,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Module Preview",
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
+      "nuinuiCAD: Reveal in Output Preview",
       "nuinuiCAD: Pick Reference from Canvas",
       "nuinuiCAD: Replace Geometry References",
       "nuinuiCAD: Step Source Value Forward",
@@ -274,6 +277,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.replaceGeometryReferences", when: sourcePaletteWhen },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourcePaletteWhen },
@@ -340,6 +344,7 @@ describe("VS Code extension manifest command contributions", () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen, group: "navigation@1" },
+      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "navigation@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@2" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
@@ -377,6 +382,7 @@ describe("VS Code extension manifest command contributions", () => {
     const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command }) => command);
     expect(editorContextCommands).toEqual([
       "nuinuiCAD.revealInCanvas",
+      "nuinuiCAD.revealInOutputPreview",
       "nuinuiCAD.openModulePreview",
       "nuinuiCAD.pickReferenceFromCanvas",
       "nuinuiCAD.stepSourceValueForward",
