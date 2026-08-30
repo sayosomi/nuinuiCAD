@@ -241,12 +241,12 @@ export const VSCodeReferencePickOverlay = ({
     viewport.addEventListener("pointermove", handlePointerMove, true);
     viewport.addEventListener("pointerleave", handlePointerLeave, true);
     viewport.addEventListener("pointerdown", handlePointerDown, true);
-    viewport.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
     return () => {
       viewport.removeEventListener("pointermove", handlePointerMove, true);
       viewport.removeEventListener("pointerleave", handlePointerLeave, true);
       viewport.removeEventListener("pointerdown", handlePointerDown, true);
-      viewport.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [activatePointCandidate, canvasFocusRef, cyclePointCandidate, hitAt, onCancel, onConfirm, onHover, onSelect, pointHitsAt, session.draft, session.request.requestId, session.target.expectedGeometryInterface, setPointCandidateMenu]);
 
@@ -404,7 +404,7 @@ export const VSCodeReferencePickOverlay = ({
               position: "absolute",
               inset: 0,
               boxSizing: "border-box",
-              border: "2px solid var(--canvas-accent)",
+              border: "4px solid var(--canvas-accent)",
               pointerEvents: "none",
               zIndex: 4
             }}
