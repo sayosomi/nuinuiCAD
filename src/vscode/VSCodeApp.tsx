@@ -151,6 +151,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     []
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+  useEffect(() => () => rustTransport.dispose(), [rustTransport]);
   const evaluationOptions = useMemo(
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
     [evaluationDocument, evaluationLimitIndex]
@@ -1175,7 +1176,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
       deferredCanvasNavigationRequestRef.current = null;
-      rustTransport.dispose();
     };
   }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
