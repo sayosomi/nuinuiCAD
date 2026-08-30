@@ -16,6 +16,15 @@ import {
   assertBenchmarkFixtureManifest,
   parseBenchmarkFixtureManifest
 } from "../src/performance/benchmarkFixtureManifest";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/document/canonicalDocument";
+import { evaluateElementsReference } from "../src/geometry/evaluationEngine";
+import { forGroupGeneratedElementId } from "../src/geometry/forGroupExpansion";
+import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
+import { canUseRustEvaluationForElements } from "../src/geometry/rustEvaluationEligibility";
+import { getDirectParentIds } from "../src/model/dependencies";
+import { pointAnchorForElement } from "../src/model/pointAnchors";
+import { resolveElementNamePath } from "../src/model/elementNames";
+import { geometryPropertiesIn, referencesIn } from "../src/scalars/typedDependencyGraph";
 import {
   assertBenchmarkResult,
   validateBenchmarkResult,
@@ -27,6 +36,7 @@ import {
   writeBenchmarkResultFile
 } from "../scripts/performance/benchmarkResultIo";
 import { compileDslDocument } from "../src/dsl/dslDocument";
+import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { parseDslSnapshot } from "../src/dsl/dslParser";
 
 const temporaryDirectories: string[] = [];
@@ -97,6 +107,154 @@ const resultFilePair = (): { directory: string; baselinePath: string; candidateP
     baselinePath: join(directory, "tauri.json"),
     candidatePath: join(directory, "vscode.json")
   };
+};
+
+const compileBenchmarkFixture = (source: string) =>
+  compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+
+const deepChainFixtures = new Set(["dependency-chain-250-v1", "dependency-chain-1000-v1"]);
+
+const chainPointName = (index: number) => `P${String(index).padStart(4, "0")}`;
+
+const assertDeepChainFixture = ({
+  fixture,
+  source,
+  compiled
+}: {
+  fixture: ReturnType<typeof parseBenchmarkFixtureManifest>["fixtures"][number];
+  source: string;
+  compiled: ReturnType<typeof compileBenchmarkFixture>;
+}) => {
+  expect(compiled.status).toBe("valid");
+  if (compiled.status !== "valid") throw new Error("deep benchmark fixture did not compile");
+
+  const elements = compiled.doc.document.elements;
+  const benchmark = elements.find((element) => element.type === "group" && element.name === "Benchmark");
+  const load = elements.find((element) => element.type === "group" && element.name === "Load");
+  const forGroup = elements.find((element) => element.type === "forGroup" && element.parentGroupId === load?.id);
+  const dragPoint = elements.find((element) => element.name === "DragPoint");
+  const dragCurve = elements.find((element) => element.name === "DragCurve");
+  const chain = elements
+    .filter((element) => element.parentGroupId === forGroup?.id && /^P\d{4}$/.test(element.name))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  expect(benchmark).toBeDefined();
+  expect(load).toBeDefined();
+  expect(forGroup).toBeDefined();
+  expect(dragPoint).toBeDefined();
+  expect(dragCurve).toBeDefined();
+  expect(chain).toHaveLength(fixture.workload.generatedGeometryPerIteration);
+  expect(chain.map((element) => element.name)).toEqual(
+    Array.from({ length: fixture.workload.generatedGeometryPerIteration }, (_, index) => chainPointName(index))
+  );
+  expect(source.match(/^\s+point P\d{4} = offset\(from:/gm)).toHaveLength(
+    fixture.workload.generatedGeometryPerIteration
+  );
+  expect(source).toContain("for i in range(from: 0, count: 1, step: 1) {");
+
+  if (!forGroup || !dragPoint || !dragCurve) throw new Error("deep benchmark fixture anchors are missing");
+  const root = chain[0];
+  const terminal = chain.at(-1);
+  if (!root || !terminal) throw new Error("deep benchmark fixture chain is empty");
+  expect(root.type).toBe("offsetPoint");
+  expect(pointAnchorForElement(root)).toEqual({ mode: "reference", pointId: dragPoint.id });
+  expect(getDirectParentIds(root)).toEqual(expect.arrayContaining([dragPoint.id, dragCurve.id]));
+
+  const rootStatementIndex = compiled.doc.statementMap.byElementId.get(root.id)?.statementIndex;
+  const rootDx = rootStatementIndex === undefined
+    ? undefined
+    : compiled.doc.numericBindings?.get(`${rootStatementIndex}:dx`);
+  expect(rootDx).toBeDefined();
+  if (!rootDx) throw new Error("deep benchmark root dx binding is missing");
+  expect(rootDx.typedExpression).toBeDefined();
+  if (!rootDx.typedExpression) throw new Error("deep benchmark root dx typed expression is missing");
+  expect(referencesIn(rootDx.typedExpression)).toEqual([
+    expect.objectContaining({ name: "benchOffset" })
+  ]);
+  expect(geometryPropertiesIn(rootDx.typedExpression)).toEqual([
+    expect.objectContaining({ elementId: dragCurve.id, property: "length" })
+  ]);
+
+  for (const [index, point] of chain.entries()) {
+    expect(point.type).toBe("offsetPoint");
+    expect(pointAnchorForElement(point)).toEqual({
+      mode: "reference",
+      pointId: index === 0 ? dragPoint.id : chain[index - 1]!.id
+    });
+    if (index > 0) expect(getDirectParentIds(point)).toEqual([chain[index - 1]!.id]);
+  }
+
+  const dependentResolution = resolveElementNamePath({
+    path: {
+      absolute: false,
+      parts: fixture.anchors.dependentElementPath.split("::")
+    },
+    elements
+  });
+  expect(dependentResolution.status).toBe("resolved");
+  if (dependentResolution.status !== "resolved") throw new Error("deep benchmark terminal path did not resolve");
+  expect(dependentResolution.element.id).toBe(terminal.id);
+
+  const evaluationOptions = buildEvaluationOptions({
+    compiledDocument: compiled.doc,
+    evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex
+  });
+  expect(canUseRustEvaluationForElements(elements, evaluationOptions)).toBe(true);
+  const evaluation = evaluateElementsReference(elements, evaluationOptions);
+  expect(evaluation.errors).toEqual([]);
+  expect(evaluation.forGroupGeneratedRows).toHaveLength(fixture.workload.generatedGeometryPerIteration);
+  const generatedTerminalId = forGroupGeneratedElementId({
+    forGroupId: forGroup.id,
+    templateElementId: terminal.id,
+    iterationIndex: 0
+  });
+  const terminalGeometry = evaluation.computedGeometry.get(generatedTerminalId);
+  expect(terminalGeometry).toMatchObject({ kind: "point" });
+  if (terminalGeometry?.kind !== "point") throw new Error("deep benchmark terminal geometry is missing");
+
+  const sourceEdited = compileBenchmarkFixture(source.replace(
+    "const benchOffset: number = 6",
+    "const benchOffset: number = 7"
+  ));
+  expect(sourceEdited.status).toBe("valid");
+  if (sourceEdited.status !== "valid") throw new Error("source-edit fixture variant did not compile");
+  const sourceEditedOptions = buildEvaluationOptions({
+    compiledDocument: sourceEdited.doc,
+    evaluationLimitIndex: sourceEdited.doc.document.evaluationLimitIndex
+  });
+  const sourceEditedEvaluation = evaluateElementsReference(sourceEdited.doc.document.elements, sourceEditedOptions);
+  const sourceEditedForGroup = sourceEdited.doc.document.elements.find((element) => element.type === "forGroup");
+  const sourceEditedTerminal = sourceEdited.doc.document.elements.find((element) => element.name === terminal.name);
+  expect(sourceEditedForGroup).toBeDefined();
+  expect(sourceEditedTerminal).toBeDefined();
+  if (!sourceEditedForGroup || !sourceEditedTerminal) throw new Error("source-edit terminal mapping is missing");
+  const sourceEditedGeometry = sourceEditedEvaluation.computedGeometry.get(forGroupGeneratedElementId({
+    forGroupId: sourceEditedForGroup.id,
+    templateElementId: sourceEditedTerminal.id,
+    iterationIndex: 0
+  }));
+  expect(sourceEditedGeometry).toMatchObject({ kind: "point", x: terminalGeometry.x + 1 });
+
+  const pointDraggedElements = structuredClone(elements);
+  const pointDragged = pointDraggedElements.find((element) => element.id === dragPoint.id);
+  expect(pointDragged?.type).toBe("freePoint");
+  if (pointDragged?.type !== "freePoint") throw new Error("point-drag root is missing");
+  pointDragged.x = 12;
+  pointDragged.y = 8;
+  const pointDraggedEvaluation = evaluateElementsReference(pointDraggedElements, evaluationOptions);
+  const pointDraggedGeometry = pointDraggedEvaluation.computedGeometry.get(generatedTerminalId);
+  expect(pointDraggedGeometry).toMatchObject({ kind: "point", y: terminalGeometry.y + 8 });
+
+  const curveDraggedElements = structuredClone(elements);
+  const curveDragged = curveDraggedElements.find((element) => element.id === dragCurve.id);
+  expect(curveDragged?.type).toBe("bezierCurve");
+  if (curveDragged?.type !== "bezierCurve") throw new Error("bezier-drag root is missing");
+  curveDragged.startHandleLength = 80;
+  const curveDraggedEvaluation = evaluateElementsReference(curveDraggedElements, evaluationOptions);
+  const curveDraggedGeometry = curveDraggedEvaluation.computedGeometry.get(generatedTerminalId);
+  expect(curveDraggedGeometry).toMatchObject({ kind: "point" });
+  if (curveDraggedGeometry?.kind !== "point") throw new Error("bezier-drag terminal geometry is missing");
+  expect(curveDraggedGeometry.x).not.toBe(terminalGeometry.x);
 };
 
 describe("benchmark foundation statistics", () => {
@@ -269,6 +427,43 @@ describe("benchmark fixtures", () => {
       }
       const count = source.match(/for i in range\(from: 0, count: (\d+), step: 1\)/)?.[1];
       expect(Number(count)).toBe(fixture.workload.forGroupIterations);
+
+      if (deepChainFixtures.has(fixture.id)) {
+        assertDeepChainFixture({
+          fixture,
+          source,
+          compiled: compileBenchmarkFixture(source)
+        });
+      }
     }
   });
+
+  it.each(["dependency-chain-250-v1", "dependency-chain-1000-v1"])(
+    "rejects truncated, malformed, and non-adjacent %s chains",
+    (fixtureId) => {
+      const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json");
+      const manifest = parseBenchmarkFixtureManifest(JSON.parse(readFileSync(manifestPath, "utf8")) as unknown);
+      const fixture = manifest.fixtures.find((candidate) => candidate.id === fixtureId);
+      if (!fixture) throw new Error(`fixture ${fixtureId} is missing`);
+      const source = readFileSync(resolve(process.cwd(), "performance/fixtures", fixture.file), "utf8");
+      const terminalName = chainPointName(fixture.workload.generatedGeometryPerIteration - 1);
+      const previousName = chainPointName(fixture.workload.generatedGeometryPerIteration - 2);
+      const terminalLine = `    point ${terminalName} = offset(from: @${previousName}, dx: 1, dy: 0, id: ${terminalName})`;
+
+      const truncated = compileBenchmarkFixture(source.replace(`${terminalLine}\n`, ""));
+      expect(() => assertDeepChainFixture({ fixture, source, compiled: truncated })).toThrow();
+
+      const wrongTerminalDependency = compileBenchmarkFixture(source.replace(
+        terminalLine,
+        `    point ${terminalName} = offset(from: @P0000, dx: 1, dy: 0, id: ${terminalName})`
+      ));
+      expect(() => assertDeepChainFixture({ fixture, source, compiled: wrongTerminalDependency })).toThrow();
+
+      const malformed = compileBenchmarkFixture(source.replace(
+        `point P0000 = offset(from: @Benchmark::DragPoint, dx: @benchOffset + (@Benchmark::DragCurve.length * 0.01), dy: 0)`,
+        `point P0000 = offset(from: @Benchmark::DragPoint, dx: @benchOffset + (@Benchmark::DragCurve.length * 0.01), dy: 0`
+      ));
+      expect(malformed.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length).toBeGreaterThan(0);
+    }
+  );
 });
