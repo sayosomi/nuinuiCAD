@@ -1,9 +1,9 @@
 # nuinuiCAD DSL Reference
 
-This is the reference for the implemented `nui 4` language used by nuinuiCAD.
-It describes the source language, its deterministic document evaluation model,
-and the current geometry and output declarations. The `.nui` source text is
-the canonical document representation.
+This is the user-facing reference for the implemented `nui 4` language used by
+nuinuiCAD. It explains the source language, its deterministic evaluation model,
+and the geometry and output declarations that are currently available. The
+`.nui` source text is the canonical document representation.
 
 ## Language-wide rules
 
@@ -15,22 +15,25 @@ the canonical document representation.
   earlier, available declaration; the compiler reports dependency problems
   instead of reordering the document.
 - Every element and container has `visible`, `hidden`, or `disabled` activity.
-  Hidden values still evaluate and can be referenced; disabled values do not
-  evaluate and cannot be referenced.
+  Visible values evaluate and draw, hidden values evaluate and can be
+  referenced but do not draw, and disabled values do not evaluate or become
+  available to later references.
 - References use `@`. Qualified module values use `::`, and geometry properties
   use `.`.
 - Arguments are normally written as `name: value`, separated by commas. A
-  trailing comma is accepted in multiline calls.
+  trailing comma is accepted in multiline calls. The generated catalogs on
+  the construction and builtin pages own exact signatures and parameter
+  metadata; the prose around them explains behavior and restrictions.
 
 ## Reference map
 
-- [Syntax](syntax.md) — comments, statement forms, names, and source order.
+- [Syntax](syntax.md) — document structure, comments, names, and source order.
 - [Types](types.md) — scalar, geometry, array, and record types.
 - [Expressions](expressions.md) — literals, operators, references, and
   interpolation.
 - [Declarations](declarations.md) — `const`, `let`, and `set`.
-- [Constructions](constructions.md) — geometry constructions and their
-  arguments.
+- [Constructions](constructions.md) — geometry constructions, mutations, and
+  their argument behavior.
 - [Control flow](control-flow.md) — groups, conditions, and ranges.
 - [Modules](modules.md) — module definitions, instances, parameters, and
   exports.
@@ -41,7 +44,8 @@ the canonical document representation.
 
 Reference identities in the linked pages are stable language-neutral metadata.
 They are not derived from English headings and can be reused by another
-localized reference tree.
+localized reference tree. Generated tables remain machine-owned; edit the
+surrounding explanations when the user-facing wording needs improvement.
 
 <!-- dsl-example: compile-success -->
 ```nui
