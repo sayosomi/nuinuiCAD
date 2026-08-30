@@ -134,10 +134,14 @@ const explicitSelectionChange = (event: SourceSelectionChangeEvent): boolean => 
   return event.kind === 1 || event.kind === 2;
 };
 
+export const isVscodeCanvasBlankContext = (context: unknown): boolean =>
+  typeof context === "object" && context !== null &&
+  (context as Record<string, unknown>).webviewSection === "blank";
+
 const pointerFromContext = (context: unknown): VscodeCanvasPointer | null => {
   if (typeof context !== "object" || context === null) return null;
   const values = context as Record<string, unknown>;
-  if (values.webviewSection !== "blank") return null;
+  if (!isVscodeCanvasBlankContext(context)) return null;
   const pointer = {
     x: values[vscodeCanvasPointerContextKeys.x],
     y: values[vscodeCanvasPointerContextKeys.y]
@@ -152,7 +156,7 @@ const pointerError = "nuinuiCAD: Canvas上にポインターを置いてから�
 export const registerVscodeCanvasFreePointAtPointerFeature = ({
   activeCanvasEndpoint
 }: {
-  activeCanvasEndpoint: () => VscodeCanvasFreePointAtPointerEndpoint | null;
+  activeCanvasEndpoint: (context?: unknown) => VscodeCanvasFreePointAtPointerEndpoint | null;
 }): VscodeCanvasFreePointAtPointerFeature => {
   const sourceAnchors = new Map<string, VscodeSourceAuthoringPosition>();
   const commandOwnedAnchorHistories = new Map<string, CommandOwnedAnchorHistory>();
@@ -262,7 +266,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   };
 
   const execute = (context?: unknown): void => {
-    const endpoint = activeCanvasEndpoint();
+    const endpoint = activeCanvasEndpoint(context);
     if (!endpoint || !endpoint.isCurrent()) return;
 
     const documentUri = sourceDocumentKey(endpoint.document);
