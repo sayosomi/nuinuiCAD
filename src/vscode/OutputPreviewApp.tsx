@@ -279,6 +279,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const selectedOutputKeyRef = useRef<string | null>(selectedOutputKey);
   const latestPlanRef = useRef<OutputPlan | null>(null);
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
+  const outputPlanEvaluationTailRef = useRef(Promise.resolve());
   const nextExportRequestIdRef = useRef(1);
   const requestCurrentExportRef = useRef<() => boolean>(() => false);
   const revealGenerationRef = useRef(0);
@@ -338,6 +339,21 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     preserveViewportForSelectionRef.current = null;
     setRevealState({ status: "idle" });
   }, []);
+
+  const evaluateOutputPlanSerially = useCallback((request: Parameters<typeof evaluateOutputPlan>[0]) => {
+    const evaluation = outputPlanEvaluationTailRef.current.then(() => evaluateOutputPlan(request));
+    outputPlanEvaluationTailRef.current = evaluation.then(() => undefined, () => undefined);
+    return evaluation;
+  }, []);
+
+  const evaluateOutputPlanWithRust = useCallback((
+    document: LastGoodDslDocument,
+    output: Parameters<typeof evaluateOutputPlan>[0]["output"]
+  ) => evaluateOutputPlanSerially({
+    compiledDocument: document,
+    output,
+    evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
+  }), [evaluateOutputPlanSerially, rustTransport]);
 
   const applyOpenSelection = useCallback((normalizedSourceOffset: number | null) => {
     const state = useCadDocumentStore.getState();
@@ -402,11 +418,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!selectedCandidate) {
       return () => { cancelled = true; };
     }
-    void evaluateOutputPlan({
-      compiledDocument,
-      output: selectedCandidate.output,
-      evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
-    }).then((plan) => {
+    void evaluateOutputPlanWithRust(compiledDocument, selectedCandidate.output).then((plan) => {
       if (!cancelled) setEvaluationState({
         outputKey: selectedCandidate.key,
         sourceRevision: currentSourceRevision,
@@ -424,7 +436,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       });
     });
     return () => { cancelled = true; };
-  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, rustTransport, selectedCandidate, sourceIsCurrent]);
+  }, [bindingIssueDiagnostics, compiledDocument, currentSourceRevision, diagnostics, evaluateOutputPlanWithRust, selectedCandidate, sourceIsCurrent]);
 
   const activePlan = sourceIsCurrent && selectedCandidate && evaluationState.outputKey === selectedCandidate.key
     ? evaluationState.plan
@@ -572,11 +584,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceRevision
     });
 
-    void Promise.all(candidates.map((candidate) => evaluateOutputPlan({
-      compiledDocument: compiled,
-      output: candidate.output,
-      evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
-    }))).then((plans) => {
+    const evaluateCandidates = async (): Promise<OutputPlan[]> => {
+      const plans: OutputPlan[] = [];
+      for (const candidate of candidates) {
+        plans.push(await evaluateOutputPlanWithRust(compiled, candidate.output));
+      }
+      return plans;
+    };
+    void evaluateCandidates().then((plans) => {
       const current = useCadDocumentStore.getState();
       if (
         generation !== revealGenerationRef.current ||
@@ -658,7 +673,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         reason: "evaluation-failed"
       });
     });
-  }, [rustTransport, updateSelectedOutputKey]);
+  }, [evaluateOutputPlanWithRust, updateSelectedOutputKey]);
 
   useLayoutEffect(() => {
     const response = pendingRevealResponseRef.current;
