@@ -94,6 +94,20 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(navigateButton(1)).toHaveClass("is-active");
   });
 
+  it("describes a default-bearing division ratio as blank when empty Enter advances", () => {
+    renderOverlay();
+    start("divisionPoint");
+    fireEvent.click(navigateButton(4));
+
+    expect(useCadUiStore.getState().commandLineSession?.recipe.steps[3]).toMatchObject({
+      kind: "number",
+      key: "ratio",
+      default: "1"
+    });
+    expect(screen.getByText("空Enterで未指定のまま次へ進みます。")).toBeInTheDocument();
+    expect(screen.queryByText("空Enterで 1 を採用します。")).not.toBeInTheDocument();
+  });
+
   it("activates arbitrary steps without changing other supplied values or inventing filled state", () => {
     renderOverlay();
     start("freePoint");
@@ -141,6 +155,37 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("closes a numeric suggestion after Tab and submits it on the next Enter", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "const Height: number = 20",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
+    renderOverlay();
+    start("divisionPoint");
+    fireEvent.click(navigateButton(4));
+    const ratioInput = input();
+
+    fireEvent.change(ratioInput, { target: { value: "@" } });
+    ratioInput.setSelectionRange(1, 1);
+    fireEvent.select(ratioInput);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Height");
+
+    fireEvent.keyDown(ratioInput, { key: "Tab" });
+    expect(ratioInput).toHaveValue("@Height");
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).not.toBeInTheDocument();
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
+
+    fireEvent.keyDown(ratioInput, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(4);
+    expect(useCadUiStore.getState().commandLineSession?.args.ratio).toEqual({
+      kind: "expression",
+      expression: "@Height"
+    });
   });
 
   it("uses an explicit line-list Finish selection action and never modifier+Enter", () => {

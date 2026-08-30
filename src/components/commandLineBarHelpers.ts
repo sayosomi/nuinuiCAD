@@ -14,5 +14,5 @@ export const commandLineStepHelp = (step: CreationStep | null) => {
     return "クリックまたは名前入力で選択します。";
   }
   if (step.kind === "lineList") return "クリックまたは名前入力で選び、選択完了ボタンで確定します。";
-  return step.default === undefined ? "値または式を入力します。" : `空Enterで ${step.default} を採用します。`;
+  return "空Enterで未指定のまま次へ進みます。";
 };

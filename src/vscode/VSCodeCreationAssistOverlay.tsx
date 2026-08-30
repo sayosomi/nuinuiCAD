@@ -305,6 +305,7 @@ export const VSCodeCreationAssistOverlay = ({
     const nextCursor = activeSuggestionMatch.tokenStart + option.expression.length;
     setInputValue(nextValue);
     setNumberSuggestionActiveIndex(0);
+    setDismissedNumberSuggestion({ identity: stepIdentity, inputValue: nextValue });
     setAcceptedNumberSuggestion({ identity: stepIdentity, inputValue: nextValue });
     requestAnimationFrame(() => {
       inputRef.current?.focus();
