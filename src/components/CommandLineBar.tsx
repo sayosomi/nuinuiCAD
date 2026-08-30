@@ -13,6 +13,7 @@ import {
   skipCommandLineStep,
   startCommandLineStepEdit,
   startCommandLineNumericReferencePick,
+  skipCommandLineStepsToReview,
   submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
 import { currentStep, isEditingCommandLineStep } from "../commands/commandLineSession";
@@ -431,6 +432,17 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
           event.nativeEvent.isComposing ||
           isCommandLineInputComposing()
         ) return;
+        if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey) &&
+          !event.shiftKey &&
+          !event.altKey
+        ) {
+          event.preventDefault();
+          clearPendingSuggestionState();
+          skipCommandLineStepsToReview();
+          return;
+        }
         if (step?.kind === "number" && numberSuggestionsOpen) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -472,17 +484,6 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
           return;
         }
         const ownsReferenceKeyboard = ownsReferenceKeyboardEvent(event.target);
-        if (
-          ownsReferenceKeyboard &&
-          step?.kind === "lineList" &&
-          event.key === "Enter" &&
-          (event.metaKey || event.ctrlKey)
-        ) {
-          event.preventDefault();
-          clearPendingSuggestionState();
-          finishLinePick();
-          return;
-        }
         if (ownsReferenceKeyboard && referenceSuggestionsOpen) {
           if (event.key === "ArrowDown") {
             event.preventDefault();

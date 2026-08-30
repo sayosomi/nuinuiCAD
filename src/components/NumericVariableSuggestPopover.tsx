@@ -40,7 +40,8 @@ export const NumericVariableSuggestPopover = ({
   activeIndex,
   onApply,
   onHover,
-  anchorRef
+  anchorRef,
+  className
 }: {
   options: NumericReferenceOption[];
   activeIndex: number;
@@ -48,6 +49,7 @@ export const NumericVariableSuggestPopover = ({
   onHover: (index: number) => void;
   /** When supplied, escape an overflow-clipped command bar through a viewport portal. */
   anchorRef?: RefObject<HTMLElement | null>;
+  className?: string;
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<ViewportPlacement | null>(null);
@@ -80,7 +82,11 @@ export const NumericVariableSuggestPopover = ({
   if (options.length === 0) return null;
   const popover = <div
     ref={listRef}
-    className={`numeric-variable-suggest-popover${placement ? " numeric-variable-suggest-popover--viewport" : ""}`}
+    className={[
+      "numeric-variable-suggest-popover",
+      placement ? "numeric-variable-suggest-popover--viewport" : "",
+      className ?? ""
+    ].filter(Boolean).join(" ")}
     role="listbox"
     aria-label="変数候補"
     style={placement ? { ...placement, overflowY: "auto" } : undefined}
