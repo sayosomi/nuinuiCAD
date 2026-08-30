@@ -956,8 +956,9 @@ const queryCandidates = (
       return (context.parameter.definition.choiceOptions ?? []).map((label) => ({ kind: "literal" as const, label, identity: label }));
     }
     if (context.parameter.definition.kind === "number") {
+      const literals = scalarLiteralCandidates({ kind: "number" }).map((candidate) => ({ kind: "literal" as const, label: candidate.label }));
       const analysisInfo = bindingAnalysisFor(semantic, compiled, exact, statementIndex);
-      if (!analysisInfo) return [];
+      if (!analysisInfo) return literals;
       const accepts = (type: ScalarType | null) => type?.kind === "number";
       const deps = {
         catalog: analysisInfo.analysis.catalog,
@@ -965,7 +966,10 @@ const queryCandidates = (
         ...(analysisInfo.site ? { site: analysisInfo.site } : {}),
         accepts
       };
-      return typedBindingReferenceCandidates(deps).map((candidate) => ({ kind: "binding" as const, label: candidate.name, identity: candidate.bindingId }));
+      return [
+        ...typedBindingReferenceCandidates(deps).map((candidate) => ({ kind: "binding" as const, label: candidate.name, identity: candidate.bindingId })),
+        ...literals
+      ];
     }
     return statementElementReferenceCandidates(context, compiled, statementIndex);
   }

@@ -365,6 +365,11 @@ describe("DSL typed declarations", () => {
     expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("裸の識別子"))).toBe(true);
   });
 
+  it("rejects the builtin pi number constant as a choice option", () => {
+    const result = errors("const c: choice(pi, left) = left");
+    expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("裸の識別子"))).toBe(true);
+  });
+
   it("rejects an empty option in the middle of a choice list", () => {
     const result = errors("const c: choice(a,,b) = a");
     expect(result.some((item) => item.code === "invalid-choice-type" && item.message.includes("空"))).toBe(true);

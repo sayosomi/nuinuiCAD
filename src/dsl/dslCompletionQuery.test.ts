@@ -297,6 +297,7 @@ describe("queryDslCompletion", () => {
   it("returns typed scalar syntax candidates for numeric, boolean, string, and choice expressions", () => {
     const number = queryIncomplete("nui 4\nconst value: number = ");
     expect(labels(number)).toContain("abs");
+    expect(labels(number)).toContain("pi");
     expect(number?.candidates.some((candidate) => candidate.kind === "builtin")).toBe(true);
 
     const boolean = queryIncomplete("nui 4\nconst value: boolean = ");
@@ -308,6 +309,26 @@ describe("queryDslCompletion", () => {
 
     const choice = queryIncomplete("nui 4\nconst value: choice(left, right) = ");
     expect(labels(choice)).toEqual(expect.arrayContaining(["left", "right"]));
+  });
+
+  it("offers pi in a numeric construction field and Module scalar argument", () => {
+    const construction = exactQuery(
+      "nui 4\npoint P = coordinate(x: @, y: 0)",
+      "coordinate(x: @",
+      "coordinate(x: @".length
+    );
+    expect(construction?.category).toBe("parameter");
+    expect(labels(construction)).toContain("pi");
+    expect(construction?.candidates.find((candidate) => candidate.label === "pi")).toMatchObject({ kind: "literal" });
+
+    const module = exactQuery(
+      "nui 4\nmodule M(value: number) {\n}\ninstance Use = M(value: )",
+      "instance Use = M(value: ",
+      "instance Use = M(value: ".length
+    );
+    expect(module?.category).toBe("moduleArgumentValue");
+    expect(labels(module)).toContain("pi");
+    expect(module?.candidates.find((candidate) => candidate.label === "pi")).toMatchObject({ kind: "literal" });
   });
 
   it("returns visible typed bindings and keeps the @ marker outside the replacement range", () => {

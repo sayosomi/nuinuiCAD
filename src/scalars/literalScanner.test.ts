@@ -201,6 +201,18 @@ describe("scanScalarLiteral / boolean and choice literals", () => {
     expect(result.kind).not.toBe("choice");
   });
 
+  it("scans exact lowercase pi as the canonical number literal and keeps its source spelling", () => {
+    const source = "  pi";
+    const result = scanScalarLiteral(source, { start: 2, end: source.length }) as ScalarNumberLiteralToken;
+    expect(result).toMatchObject({ kind: "number", raw: "pi", value: Math.PI });
+    expect(result.span).toEqual({ start: 2, end: 4 });
+  });
+
+  it("does not treat uppercase PI as a builtin constant", () => {
+    const result = scanScalarLiteral("PI", fullSpan("PI"));
+    expect(result).toMatchObject({ kind: "choice", raw: "PI" });
+  });
+
   it("scans a plain bare identifier as a choice candidate", () => {
     const result = scanScalarLiteral("right", fullSpan("right")) as ScalarChoiceLiteralToken;
     expect(result).toMatchObject({ kind: "choice", raw: "right" });

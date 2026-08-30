@@ -10,6 +10,8 @@
 // scanScalarLiteral never throws - malformed user-authored text is the
 // common case, so every failure is a returned `ScalarLiteralScanError`.
 
+import { getBuiltinConstantDefinition } from "./builtinConstants";
+
 export interface ScalarSpan {
   readonly start: number;
   readonly end: number;
@@ -230,6 +232,8 @@ const scanBareWord = (source: string, start: number, boundEnd: number): ScalarLi
   const span = { start, end: start + raw.length };
   if (raw === "true") return { kind: "boolean", span, raw, value: true };
   if (raw === "false") return { kind: "boolean", span, raw, value: false };
+  const constant = getBuiltinConstantDefinition(raw);
+  if (constant) return { kind: "number", span, raw, value: constant.value };
   return { kind: "choice", span, raw };
 };
 

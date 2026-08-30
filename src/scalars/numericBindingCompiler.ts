@@ -179,9 +179,7 @@ const bareReferencesIn = (ast: ScalarExpressionAst | null, outer: DslSpan): Bare
   const visit = (node: ScalarExpressionAst, numericValuePosition: boolean): void => {
     switch (node.kind) {
       case "unresolvedChoiceLiteral":
-        // `pi` is a grammar-owned numeric constant in the legacy evaluator,
-        // not an iteration binding reference even when a loop uses that name.
-        if (numericValuePosition && node.raw !== "pi") {
+        if (numericValuePosition) {
           references.push({ name: node.raw, span: { start: outer.start + node.span.start, end: outer.start + node.span.end } });
         }
         return;

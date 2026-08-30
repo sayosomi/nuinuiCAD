@@ -25,6 +25,13 @@ describe("English DSL reference generator", () => {
     expect(renderConstructionRegion(firstFacts)).toBe(renderConstructionRegion(secondFacts));
     expect(renderStatementRegion(firstFacts)).toBe(renderStatementRegion(secondFacts));
     expect(renderBuiltinRegion(firstFacts)).toBe(renderBuiltinRegion(secondFacts));
+    expect(firstFacts.builtinConstants).toEqual([{
+      id: "dsl-ref:builtin-constant:pi",
+      name: "pi",
+      type: "number",
+      value: Math.PI,
+    }]);
+    expect(renderBuiltinRegion(firstFacts)).toContain("| `pi` | number | 3.141592653589793 | `dsl-ref:builtin-constant:pi` |");
   });
 
   it("applies generated regions without mutating the input documents", () => {

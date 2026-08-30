@@ -45,6 +45,33 @@ describe("construction numeric typed-expression bridge", () => {
     expect(errorCodes(result)).toEqual([]);
   });
 
+  it("keeps bare pi separate from an ordinary user binding named pi", () => {
+    const result = compile([
+      "nui 4",
+      "const pi: number = 2",
+      "point P = coordinate(x: pi, y: @pi)"
+    ].join("\n"));
+    expect(errorCodes(result)).toEqual([]);
+  });
+
+  it("does not turn bare pi into a for-iteration reference while @pi remains ordinary", () => {
+    const result = compile([
+      "nui 4",
+      "point Anchor = coordinate(x: 0, y: 0)",
+      "for pi in range(from: 0, count: 1, step: 1) {",
+      "  point P = offset(from: @Anchor, dx: pi, dy: @pi)",
+      "}"
+    ].join("\n"));
+    expect(errorCodes(result)).toEqual([]);
+  });
+
+  it("keeps @pi undefined when no user binding exists", () => {
+    const result = compile("nui 4\nconst value: number = @pi");
+    expect(result.doc?.bindingAnalysis?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding" })
+    ]));
+  });
+
   it("rejects a bare for iteration binding at its exact identifier span and names the @ spelling", () => {
     const source = [
       "nui 4",

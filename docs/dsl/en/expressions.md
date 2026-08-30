@@ -18,6 +18,10 @@ left-associative, and is a remainder rather than a percentage. Exponentiation
 `^` is right-associative and binds more tightly than unary signs. Thus
 `2 ^ 3 ^ 2` is `512`, `-2 ^ 2` is `-4`, and `-5 % 3` is `-2`.
 
+The canonical lowercase numeric constant `pi` is available wherever a number
+operand is valid. It follows the ordinary number-literal path; `PI` is not an
+alias, `pi()` is not a function call, and `@pi` refers only to a user binding.
+
 Division or remainder by zero, invalid numeric operations, and non-finite
 numeric results are evaluation errors. Examples include `0 ^ -1`, a negative
 input to `sqrt`, and a non-integral real result such as `(-1) ^ 0.5`.

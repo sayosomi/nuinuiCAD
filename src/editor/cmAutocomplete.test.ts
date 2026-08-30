@@ -1186,6 +1186,7 @@ describe("typed value completion (Task 39)", () => {
       const pos = source.indexOf("round") + 2;
       const result = await Promise.resolve(completionSource({ state, pos, explicit: true } as never));
       expect(result?.options).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: "pi", type: "enum" }),
         expect.objectContaining({
           label: "round",
           detail: "round(number) -> number | round(number, number) -> number",
