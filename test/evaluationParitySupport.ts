@@ -64,7 +64,7 @@ export const evaluateWithRustFixture = (
   const output = execFileSync(
     "cargo",
     ["run", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"],
-    { encoding: "utf8", input: JSON.stringify(input) }
+    { encoding: "utf8", input: JSON.stringify(input), maxBuffer: 64 * 1024 * 1024 }
   );
   return JSON.parse(output) as EvaluationPayload;
 };
