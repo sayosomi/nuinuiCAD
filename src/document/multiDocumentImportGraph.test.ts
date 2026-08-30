@@ -10,12 +10,10 @@ import {
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
 } from "./multiDocumentImportGraph";
+import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
 import {
   documentIdFromHost,
-  qualifySemanticIdentity,
-  qualifySourceLocation,
   savedSourceFingerprintFromHost,
-  sourceIdentityOf,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
 } from "./multiDocumentPrimitives";
@@ -36,25 +34,6 @@ const savedSource = (
   documentId: documentIdFromHost(id),
   normalizedSource: source,
   savedSourceFingerprint: savedSourceFingerprintFromHost(fingerprint)
-});
-
-const moduleContributor: MultiDocumentDeclarationContributor<{ docs: string }> = ({
-  source,
-  parsed,
-  statementIdByStatementIndex
-}) => parsed.statements.flatMap((statement, statementIndex) => {
-  if (statement.kind !== "moduleDefinition" || statement.enclosing) return [];
-  return [{
-    identity: qualifySemanticIdentity(source.documentId, statementIdByStatementIndex.get(statementIndex)!),
-    family: "module" as const,
-    name: statement.name,
-    declaration: qualifySourceLocation(sourceIdentityOf(source), {
-      from: statement.documentRange.from,
-      to: statement.documentRange.to
-    }),
-    exported: true,
-    metadata: { docs: `${statement.name} docs` }
-  }];
 });
 
 const loaderFrom = (
@@ -78,7 +57,7 @@ describe("multi-document import graph", () => {
     ].join("\n"));
     const library = savedSource("library", "sha256:library", [
       "nui 4",
-      "module Pocket() {",
+      "export module Pocket() {",
       "}"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
@@ -86,7 +65,7 @@ describe("multi-document import graph", () => {
       loader: loaderFrom(new Map([
         [`${root.documentId}|./library.nui`, library]
       ])),
-      declarationContributors: [moduleContributor]
+      declarationContributors: [moduleDeclarationContributor]
     });
 
     expect(graph.valid).toBe(true);
@@ -109,7 +88,6 @@ describe("multi-document import graph", () => {
         value: {
           name: "Pocket",
           family: "module",
-          metadata: { docs: "Pocket docs" },
           identity: { documentId: library.documentId }
         }
       }
@@ -125,7 +103,7 @@ describe("multi-document import graph", () => {
     const middle = savedSource("middle", "sha256:middle", [
       "nui 4",
       "import \"./leaf.nui\" as leaf",
-      "module MiddleOnly() {",
+      "export module MiddleOnly() {",
       "}"
     ].join("\n"));
     const leaf = savedSource("leaf", "sha256:leaf", [
@@ -139,7 +117,7 @@ describe("multi-document import graph", () => {
         [`${root.documentId}|./middle.nui`, middle],
         [`${middle.documentId}|./leaf.nui`, leaf]
       ])),
-      declarationContributors: [moduleContributor]
+      declarationContributors: [moduleDeclarationContributor]
     });
     const resolver = createGraphExternalNamespaceResolver(graph, root.documentId);
     const namespace = graph.nodes.get(root.documentId)!.artifact.sourceLexicalNamespace;
@@ -165,7 +143,7 @@ describe("multi-document import graph", () => {
     ].join("\n"));
     const leaf = savedSource("leaf", "sha256:leaf", [
       "nui 4",
-      "module Pocket() {",
+      "export module Pocket() {",
       "}"
     ].join("\n"));
     const graph = await buildMultiDocumentImportGraph({
@@ -174,7 +152,7 @@ describe("multi-document import graph", () => {
         [`${root.documentId}|./facade.nui`, facade],
         [`${facade.documentId}|./leaf.nui`, leaf]
       ])),
-      declarationContributors: [moduleContributor]
+      declarationContributors: [moduleDeclarationContributor]
     });
 
     expect(graph.valid).toBe(true);
@@ -182,7 +160,6 @@ describe("multi-document import graph", () => {
     expect(facadeEntry).toMatchObject({
       name: "Pocket",
       identity: { documentId: leaf.documentId },
-      metadata: { docs: "Pocket docs" }
     });
     expect(facadeEntry?.reExportPath).toHaveLength(1);
   });
@@ -240,7 +217,7 @@ describe("multi-document import graph", () => {
     ].join("\n"));
     const valid = savedSource("library", "sha256:v1", [
       "nui 4",
-      "module Pocket() {",
+      "export module Pocket() {",
       "}"
     ].join("\n"));
     const invalid = savedSource("library", "sha256:v2", "nui 3\n");
@@ -248,7 +225,7 @@ describe("multi-document import graph", () => {
     let dependencyContributionCount = 0;
     const countingContributor: MultiDocumentDeclarationContributor<{ docs: string }> = (context) => {
       if (context.source.kind === "dependency-saved") dependencyContributionCount += 1;
-      return moduleContributor(context);
+      return moduleDeclarationContributor(context);
     };
 
     const first = await buildMultiDocumentImportGraph({

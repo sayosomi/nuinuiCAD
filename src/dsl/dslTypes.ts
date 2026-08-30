@@ -249,6 +249,9 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "moduleDefinition";
       parameters: readonly DslModuleParameter[];
+      exported: boolean;
+      exportSpan: DslSpan | null;
+      exportPhysicalSpan?: DslPhysicalSpan | null;
     })
   | (DslStatementBase & {
       kind: "recordDefinition";

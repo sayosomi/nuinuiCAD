@@ -138,11 +138,14 @@ const isDirectModuleExport = (
   declaration: SourceLexicalDeclaration
 ) => {
   const statement = declaration.statement;
-  const isExported = statement.kind === "typedDeclaration"
-    ? statement.exported && statement.declaredType !== null
-    : statement.kind === "element"
-      ? statement.exported && isGeometryDeclarationCategory(statement.category)
-      : false;
+  const isExported = statement.kind === "moduleDefinition"
+    ? statement.exported && statement.enclosing === undefined
+    : statement.kind === "typedDeclaration"
+      ? statement.exported && statement.declaredType !== null
+      : statement.kind === "element"
+        ? statement.exported && isGeometryDeclarationCategory(statement.category)
+        : false;
+  if (statement.kind === "moduleDefinition") return isExported;
   if (!isExported) return false;
   const ownerIndex = statement.enclosing?.statementIndex;
   return ownerIndex !== undefined && statements[ownerIndex]?.kind === "moduleDefinition";

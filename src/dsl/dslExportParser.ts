@@ -6,6 +6,11 @@ import {
   type DslDeclarationParseResult,
   type DslTypedDeclarationStatement
 } from "./dslDeclarationParser";
+import {
+  parseDslModuleStatement,
+  type DslModuleParseResult,
+  type DslModuleParsedStatement
+} from "./dslModuleParser";
 import type { DslSpan } from "./dslTypes";
 
 export type DslExportedGeometryParseResult = {
@@ -17,9 +22,10 @@ export type DslExportDiagnostic = { message: string; span: DslSpan; code?: strin
 
 export type DslExportParseResult = {
   exportSpan: DslSpan;
-  kind: "geometry" | "typedDeclaration" | null;
+  kind: "geometry" | "typedDeclaration" | "module" | null;
   call: DslCallParseResult | null;
   declaration: DslDeclarationParseResult | null;
+  module: DslModuleParseResult | null;
   diagnostics: DslExportDiagnostic[];
 };
 
@@ -84,6 +90,45 @@ const shiftCallStatement = (statement: DslCallStatement, offset: number): DslCal
   payloadSpans: Object.fromEntries(Object.entries(statement.payloadSpans).map(([key, span]) => [key, { start: span.start + offset, end: span.end + offset }]))
 });
 
+const shiftedModuleStatement = (
+  statement: DslModuleParsedStatement,
+  offset: number,
+  exportSpan: DslSpan
+): DslModuleParsedStatement => ({
+  ...statement,
+  keywordSpan: { start: statement.keywordSpan.start + offset, end: statement.keywordSpan.end + offset },
+  nameSpan: shiftedSpan(statement.nameSpan, offset),
+  payloadSpans: Object.fromEntries(
+    Object.entries(statement.payloadSpans).map(([key, span]) => [key, { start: span.start + offset, end: span.end + offset }])
+  ),
+  ...(statement.kind === "moduleDefinition"
+    ? {
+        exported: true,
+        exportSpan,
+        parameters: statement.parameters.map((parameter) => ({
+          ...parameter,
+          nameSpan: shiftedSpan(parameter.nameSpan, offset),
+          optionalSpan: shiftedSpan(parameter.optionalSpan, offset),
+          typeSpan: shiftedSpan(parameter.typeSpan, offset),
+          defaultSpan: shiftedSpan(parameter.defaultSpan, offset),
+          choiceOptionSpans: parameter.choiceOptionSpans.map((span) => ({ start: span.start + offset, end: span.end + offset }))
+        }))
+      }
+    : {})
+});
+
+const shiftedModuleResult = (
+  result: DslModuleParseResult,
+  offset: number,
+  exportSpan: DslSpan
+): DslModuleParseResult => ({
+  statement: result.statement ? shiftedModuleStatement(result.statement, offset, exportSpan) : null,
+  diagnostics: result.diagnostics.map((item) => ({
+    ...item,
+    span: { start: item.span.start + offset, end: item.span.end + offset }
+  }))
+});
+
 export const parseDslExportedGeometryStatement = (
   logicalText: string,
   options: ParseDslCallOptions = {}
@@ -128,6 +173,7 @@ export const parseDslExportStatement = (
         }))
       },
       declaration: null,
+      module: null,
       diagnostics: []
     };
   }
@@ -141,6 +187,21 @@ export const parseDslExportStatement = (
         afterExport.start,
         exportSpan
       ),
+      module: null,
+      diagnostics: []
+    };
+  }
+  if (category === "module") {
+    return {
+      exportSpan,
+      kind: "module",
+      call: null,
+      declaration: null,
+      module: shiftedModuleResult(
+        parseDslModuleStatement(logicalText.slice(afterExport.start), { opensBlock: options.opensBlock }),
+        afterExport.start,
+        exportSpan
+      ),
       diagnostics: []
     };
   }
@@ -149,6 +210,7 @@ export const parseDslExportStatement = (
     kind: null,
     call: null,
     declaration: null,
+    module: null,
     diagnostics: [{ message: "export の後には geometry または typed scalar declaration が必要です。", span: afterExport }]
   };
 };

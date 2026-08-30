@@ -318,6 +318,7 @@ Primary:
 - `src/document/multiDocumentPrimitives.ts`
 - `src/document/multiDocumentImportGraph.ts`
 - `src/document/multiDocumentPublicApi.ts`
+- `src/document/multiDocumentModuleSemantics.ts`
 - `src/document/multiDocumentLanguageQueries.ts`
 - `src/dsl/dslMultiDocumentSyntax.ts`
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
@@ -354,6 +355,14 @@ lexical resolver still owns alias visibility, source order, and collisions. For
 namespace resolver to the imported public catalog. Existing single-document
 callers do not receive external lookup variants and remain fail-closed for import
 members.
+
+`multiDocumentModuleSemantics.ts` supplies the production Module-family
+declaration contributor and coordinates the existing graph, public API, lexical
+resolver, and central Module semantic analyzer. It analyzes dependency artifacts
+in defining-document order, preserves document-qualified Module identities, and
+passes caller expressions through the caller's source namespace while resolving
+defaults, bodies, helpers, exports, and nested calls in their defining document.
+It does not materialize or evaluate Module runtime geometry.
 
 `multiDocumentLanguageQueries.ts` is the host-neutral document-qualified
 Definition / References / Rename layer over that graph and the existing semantic
@@ -463,8 +472,11 @@ Representative owners:
 - `src/scalars/moduleScalarRuntime.ts`
 
 既存 Module semantic resolution / materialization / runtime infrastructure を
-再利用する。Second Module runtime / resolver を作らない。Materialized Module
-children を source representation として flatten しない。
+再利用する。`moduleSemanticAnalysis.ts` が same-file と imported Module の
+共通 semantic owner であり、document-qualified identity と external callee
+resolver はその narrow adapter boundary である。Second Module runtime / resolver
+を作らない。Materialized Module children を source representation として
+flatten しない。
 
 ### TypeScript evaluation
 

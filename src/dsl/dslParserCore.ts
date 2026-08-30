@@ -241,7 +241,13 @@ const moduleStatementToDslStatement = (
 ): DslStatement => {
   const base = baseFrom(parsed, line, endLine);
   if (parsed.kind === "moduleDefinition") {
-    return { ...base, kind: "moduleDefinition", parameters: parsed.parameters };
+    return {
+      ...base,
+      kind: "moduleDefinition",
+      parameters: parsed.parameters,
+      exported: parsed.exported ?? false,
+      exportSpan: parsed.exportSpan ?? null
+    };
   }
   return {
     ...base,
@@ -788,6 +794,9 @@ const parseLine = (
     if (parsed.kind === "typedDeclaration" && parsed.declaration) {
       return fromDeclaration(parsed.declaration, line, endLine, project);
     }
+    if (parsed.kind === "module" && parsed.module) {
+      return fromModule(parsed.module, line, endLine, project);
+    }
     return {
       diagnostics: parsed.diagnostics.map((item) =>
         diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
@@ -889,6 +898,9 @@ const applyBlockStructure = (statements: DslStatement[], diagnostics: DslDiagnos
     }
     if (statement.kind === "fileReExport" && statement.enclosing) {
       diagnostics.push(diagnostic(statement.line, "file re-export は文書のトップレベルにのみ書けます。", "file-reexport-top-level-only"));
+    }
+    if (statement.kind === "moduleDefinition" && statement.exported && statement.enclosing) {
+      diagnostics.push(diagnostic(statement.line, "export module は文書のトップレベルにのみ書けます。", "module-export-top-level-only"));
     }
     const modifierPropertyInBlock = statement.kind === "modifierProperty" &&
       (top?.kind === "modifier" || top?.kind === "modifierProfile");
@@ -1094,6 +1106,7 @@ const decorateStatement = (statement: DslStatement, logical: LogicalStatement, s
     if (statement.kind === "element") statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
     statement.modifierNamePhysicalSpans = (statement.modifierNameSpans ?? []).map((span) => project(span));
   } else if (statement.kind === "moduleDefinition") {
+    statement.exportPhysicalSpan = statement.exportSpan ? project(statement.exportSpan) : null;
     for (const parameter of statement.parameters) {
       parameter.namePhysicalSpan = parameter.nameSpan ? project(parameter.nameSpan) : null;
       parameter.optionalPhysicalSpan = parameter.optionalSpan ? project(parameter.optionalSpan) : null;
