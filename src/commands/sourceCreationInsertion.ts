@@ -20,8 +20,11 @@ export type SourceCreationInsertion = {
   sourceInsertionLine: number;
 };
 
+export type SourceCreationInsertionOrigin = "source-cursor" | "document-end";
+
 export type SourceCreationInsertionUnsafeReason =
   | "stale-source-revision"
+  | "fatal-source-text"
   | "missing-statement-metadata"
   | "missing-element-statement"
   | "ambiguous-source-location"
@@ -277,6 +280,53 @@ export const resolveSourceCreationInsertion = ({
   );
   if (metadataReason) return { kind: "unsafe", reason: metadataReason };
   return sourceInsertionAttemptForCreation({ cursor, elements, statementMap });
+};
+
+/**
+ * Resolves the physical append boundary for a creation that has no Source
+ * Editor cursor. The document-end path still requires an exact, valid source
+ * snapshot: the last-good document must describe the current canonical text
+ * and every statement range must fit that text before an append is allowed.
+ */
+export const resolveDocumentEndSourceCreationInsertion = ({
+  sourceText,
+  documentText,
+  sourceRevision,
+  elements,
+  statementMap
+}: {
+  sourceText: string;
+  documentText: string;
+  sourceRevision: number;
+  elements: CadElement[];
+  statementMap: StatementMap | null;
+}): SourceCreationInsertionResolution => {
+  if (sourceText !== documentText) return { kind: "unsafe", reason: "fatal-source-text" };
+  if (!statementMap) return { kind: "unsafe", reason: "missing-statement-metadata" };
+
+  const sourceLines = sourceText.replace(/\r\n/g, "\n").split("\n");
+  const metadataReason = sourceStatementMapUnsafeReason(
+    elements,
+    statementMap,
+    sourceRevision,
+    sourceLines.length
+  );
+  if (metadataReason) return { kind: "unsafe", reason: metadataReason };
+
+  // A trailing newline already owns the empty terminal physical line. Insert
+  // before that line; otherwise append after the current final line. This
+  // keeps comments, blank lines, and the existing newline bytes untouched.
+  const sourceInsertionLine = sourceText.endsWith("\n")
+    ? sourceLines.length
+    : sourceLines.length + 1;
+  return {
+    kind: "safe",
+    insertion: {
+      sourceRevision,
+      insertionTarget: { insertionIndex: elements.length },
+      sourceInsertionLine
+    }
+  };
 };
 
 export const sourceCreationInsertionIsCurrent = (

@@ -25,6 +25,7 @@ describe("completedCommandLineSteps", () => {
       insertionAnchor: { kind: "documentEnd" },
       insertionTarget: { insertionIndex: 0 },
       sourceInsertionLine: null,
+      sourceInsertionOrigin: null,
       insertionIndex: 0,
       startedAtRevision: 1,
       nameSuggestion: "分点",

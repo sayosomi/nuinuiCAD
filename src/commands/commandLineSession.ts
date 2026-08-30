@@ -13,6 +13,7 @@ import type {
   CreationStep
 } from "./creationRecipes";
 import type { CommandLineInsertionAnchor } from "./commandLineInsertionAnchor";
+import type { SourceCreationInsertionOrigin } from "./sourceCreationInsertion";
 
 /**
  * Uncommitted progress through a declarative creation recipe. This state never
@@ -34,6 +35,8 @@ export type CommandLineSession = {
   insertionTarget: ElementCreationTarget;
   /** Physical source line to preserve when the session started in Source Editor. */
   sourceInsertionLine: number | null;
+  /** Explicit physical-origin distinction; null is reserved for isolated sessions without a source target. */
+  sourceInsertionOrigin: SourceCreationInsertionOrigin | null;
   /** Stable only while startedAtRevision matches the document; used for session UI && previews. */
   insertionIndex: number;
   startedAtRevision: number;
@@ -47,6 +50,7 @@ export type StartCommandLineSessionOptions = {
   insertionIndex: number;
   insertionTarget?: ElementCreationTarget;
   sourceInsertionLine?: number | null;
+  sourceInsertionOrigin?: SourceCreationInsertionOrigin | null;
   revision: number;
   elements: CadElement[];
   /** Existing creation-placement data when the caller has already resolved it. */
@@ -128,6 +132,7 @@ export const startSession = (
     insertionAnchor,
     insertionTarget,
     sourceInsertionLine: options.sourceInsertionLine ?? null,
+    sourceInsertionOrigin: options.sourceInsertionOrigin ?? null,
     insertionIndex: options.insertionIndex,
     startedAtRevision: options.revision,
     nameSuggestion: nameSuggestionFor(recipe, options),

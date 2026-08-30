@@ -24,6 +24,8 @@ import {
 } from "./commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
 import type { CreationRecipe } from "./creationRecipes";
+import { creationRecipeForType } from "./creationRecipes";
+import { startSession } from "./commandLineSession";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
 
 const source = [
@@ -331,8 +333,14 @@ describe("command-line pick routing", () => {
     useCadDocumentStore.setState({ elements, sourceRevision: 10 });
     useCadUiStore.getState().setGroupFold("loop", { expanded: true });
 
-    expect(startCommandLineCreation("line", { currentCursorElementId: () => "inside" })).toBe(true);
-    submitCommandLineInput("");
+    const recipe = creationRecipeForType("line")!;
+    useCadUiStore.getState().startCommandLineSession(startSession(recipe, {
+      insertionIndex: elements.length,
+      insertionTarget: { insertionIndex: elements.length, parentGroupId: "loop" },
+      revision: 10,
+      elements
+    }));
+    expect(submitCommandLineInput("")).toBe(true);
     expect(useCadUiStore.getState().activePointPickTarget).toEqual({
       elementId: COMMAND_LINE_PICK_TARGET_ID,
       parameterKey: "startPoint",
