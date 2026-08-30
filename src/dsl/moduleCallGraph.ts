@@ -1,12 +1,16 @@
 import type { StatementIdentity } from "../document/statementIdentity";
+import type { DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
 import type { ModuleCallEdge, ModuleDefinitionSemantic, ModuleInstanceSemantic } from "./moduleSemanticTypes";
 
 export const moduleCallEdges = (instances: readonly ModuleInstanceSemantic[]): readonly ModuleCallEdge[] =>
   instances.flatMap((instance) => instance.callerModuleDefinitionStatementId && instance.callee
-    ? [{
+      ? [{
         callerModuleDefinitionStatementId: instance.callerModuleDefinitionStatementId,
         calleeModuleDefinitionStatementId: instance.callee.definitionStatementId,
-        instanceStatementId: instance.statementId
+        instanceStatementId: instance.statementId,
+        ...(instance.callerModuleDefinitionIdentity ? { callerIdentity: instance.callerModuleDefinitionIdentity } : {}),
+        ...(instance.callee.definitionIdentity ? { calleeIdentity: instance.callee.definitionIdentity } : {}),
+        ...(instance.identity ? { instanceIdentity: instance.identity } : {})
       }]
     : []);
 
@@ -102,4 +106,57 @@ export const moduleRecursionCycles = (
     );
   }
   return cycles;
+};
+
+export type DocumentQualifiedModuleCallEdge = {
+  caller: DocumentQualifiedSemanticIdentity<string>;
+  callee: DocumentQualifiedSemanticIdentity<string>;
+  instance: DocumentQualifiedSemanticIdentity<string>;
+  callerModuleDefinitionStatementId: string;
+  calleeModuleDefinitionStatementId: string;
+  instanceStatementId: string;
+};
+
+/** Document-qualified counterpart of the existing call-graph recursion
+ * traversal. The same deterministic DFS rules apply across document owners. */
+export const recursiveDocumentQualifiedModuleInstanceIds = (
+  definitions: readonly ModuleDefinitionSemantic[],
+  edges: readonly DocumentQualifiedModuleCallEdge[]
+): ReadonlySet<string> => {
+  const definitionIds = new Set(
+    definitions.flatMap((definition) => definition.identity ? [JSON.stringify([definition.identity.documentId, definition.identity.localIdentity])] : [])
+  );
+  const identityKey = (identity: DocumentQualifiedSemanticIdentity<string>) =>
+    JSON.stringify([identity.documentId, identity.localIdentity]);
+  const edgesByCaller = new Map<string, DocumentQualifiedModuleCallEdge[]>();
+  for (const edge of edges) {
+    if (!definitionIds.has(identityKey(edge.caller))) continue;
+    const key = identityKey(edge.caller);
+    edgesByCaller.set(key, [...(edgesByCaller.get(key) ?? []), edge]);
+  }
+  const recursive = new Set<string>();
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const stack: DocumentQualifiedModuleCallEdge[] = [];
+  const visit = (identity: string) => {
+    if (visiting.has(identity)) {
+      const start = stack.findIndex((edge) => identityKey(edge.caller) === identity);
+      for (const edge of stack.slice(Math.max(0, start))) recursive.add(identityKey(edge.instance));
+      if (stack.length > 0) recursive.add(identityKey(stack.at(-1)!.instance));
+      return;
+    }
+    if (visited.has(identity)) return;
+    visiting.add(identity);
+    for (const edge of edgesByCaller.get(identity) ?? []) {
+      stack.push(edge);
+      visit(identityKey(edge.callee));
+      stack.pop();
+    }
+    visiting.delete(identity);
+    visited.add(identity);
+  };
+  for (const definition of definitions) {
+    if (definition.identity) visit(identityKey(definition.identity));
+  }
+  return recursive;
 };

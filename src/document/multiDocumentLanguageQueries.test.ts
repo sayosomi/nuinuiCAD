@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMultiDocumentImportGraph,
-  type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader,
   type SavedDependencyLoadResult
 } from "./multiDocumentImportGraph";
 import {
   documentIdFromHost,
-  qualifySemanticIdentity,
-  qualifySourceLocation,
   savedSourceFingerprintFromHost,
-  sourceIdentityOf,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
 } from "./multiDocumentPrimitives";
@@ -22,6 +18,7 @@ import {
   type MultiDocumentRenameDocumentProof,
   type MultiDocumentSemanticDocumentView
 } from "./multiDocumentLanguageQueries";
+import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
 
 const rootSource = (id: string, source: string, sourceRevision = 1): RootCurrentSourceSnapshot => ({
   kind: "root-current",
@@ -53,30 +50,9 @@ const loaderFrom = (
   }
 });
 
-/** Test contributor: the fixed local identity models a family owner carrying
- * one stable declaration identity across saved and dirty root snapshots. */
-const moduleContributor: MultiDocumentDeclarationContributor = ({
-  source,
-  parsed
-}) => parsed.statements.flatMap((statement) => {
-  if (statement.kind !== "moduleDefinition" || statement.enclosing) return [];
-  const segments = statement.namePhysicalSpan?.segments;
-  if (!segments || segments.length !== 1) return [];
-  return [{
-    identity: qualifySemanticIdentity(source.documentId, `test-module:${statement.name}`),
-    family: "module" as const,
-    name: statement.name,
-    declaration: qualifySourceLocation(sourceIdentityOf(source), {
-      from: segments[0]!.from,
-      to: segments[0]!.to
-    }),
-    exported: true
-  }];
-});
-
 const libraryText = [
   "nui 4",
-  "module Pocket() {",
+  "export module Pocket() {",
   "}"
 ].join("\n");
 
@@ -94,13 +70,17 @@ const buildFixture = async () => {
     loader: loaderFrom(new Map([
       [`${facadeRoot.documentId}|./library.nui`, librarySaved]
     ])),
-    declarationContributors: [moduleContributor]
+    declarationContributors: [moduleDeclarationContributor]
   });
   const libraryRoot = rootSource("library", libraryText, 7);
+  const savedLibraryNode = facadeGraph.nodes.get(librarySaved.documentId)!;
+  const savedModuleIndex = savedLibraryNode.artifact.parsed.statements.findIndex((statement) => statement.kind === "moduleDefinition");
+  const savedModuleId = savedLibraryNode.artifact.statementIdByStatementIndex.get(savedModuleIndex)!;
   const libraryGraph = await buildMultiDocumentImportGraph({
     root: libraryRoot,
     loader: loaderFrom(new Map()),
-    declarationContributors: [moduleContributor]
+    declarationContributors: [moduleDeclarationContributor],
+    rootStatementIdByStatementIndex: new Map([[savedModuleIndex, savedModuleId]])
   });
   return {
     librarySaved,
@@ -159,7 +139,7 @@ describe("multi-document language queries", () => {
     const dirtyText = [
       "nui 4",
       "",
-      "module Pocket() {",
+      "export module Pocket() {",
       "}"
     ].join("\n");
     const dirtyLibrary = rootSource("library", dirtyText, 12);

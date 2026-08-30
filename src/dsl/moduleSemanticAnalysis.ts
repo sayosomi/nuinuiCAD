@@ -45,6 +45,7 @@ import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
   ModuleDefinitionSemantic,
+  ExternalModuleSemanticTarget,
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
   ModuleGeometryReferenceSite,
@@ -62,6 +63,7 @@ import type {
   ModuleScalarExpressionSemantic,
   ModuleScalarExpressionSite,
   ModuleScalarSourceTarget,
+  ModuleSourceTarget,
   ModuleSemanticAnalysis,
   ModuleSemanticAnalysisInput,
   ResolvedModuleCallee,
@@ -75,6 +77,11 @@ import type {
   RecordTypeIdentity
 } from "./recordSemanticAnalysis";
 import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
+import {
+  qualifySemanticIdentity,
+  qualifySourceLocation,
+  type DocumentQualifiedSourceLocation
+} from "../document/multiDocumentPrimitives";
 
 type DiagnosticRelatedSource = {
   statementIndex: number;
@@ -200,6 +207,18 @@ const sourceDeclarationResolution = (
   name: string
 ): SourceLexicalLookup => resolveSourceLexicalDeclaration(sourceNamespace, statementIndex, name);
 
+const statementLocationFor = (
+  source: DocumentQualifiedSourceLocation["source"] | undefined,
+  statement: DslStatement | undefined
+): DocumentQualifiedSourceLocation | undefined => {
+  if (!source || !statement) return undefined;
+  const physical = statement.namePhysicalSpan?.segments;
+  const range = physical && physical.length > 0
+    ? { from: physical[0]!.from, to: physical.at(-1)!.to }
+    : { from: statement.documentRange.from, to: statement.documentRange.to };
+  return qualifySourceLocation(source, range);
+};
+
 /** Resolve normal CAD namespace paths such as `Front::Seam::Point`.
  * Module export namespaces are handled separately, so this remains entirely
  * source-derived && does not introduce runtime name resolution. */
@@ -316,11 +335,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   for (const { statement, statementIndex } of definitions) {
     const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
+    const definitionIdentity = input.documentId
+      ? qualifySemanticIdentity(input.documentId, statementId)
+      : undefined;
     const declarationScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
     const bodyScopeId = `module:${statementId}`;
     const parameters: ResolvedModuleParameter[] = statement.parameters.map((parameter, parameterIndex) => ({
       definitionStatementId: statementId,
       parameterIndex,
+      ...(definitionIdentity ? { definitionIdentity } : {}),
       name: parameter.name,
       type: parameter.type,
       ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
@@ -434,6 +457,68 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       definition: shared.definition.value,
       parameter: shared.parameter.value
     };
+  };
+
+  type ModuleCalleeResolution = {
+    callee: ResolvedModuleCallee | null;
+    externalTarget: ExternalModuleSemanticTarget | null;
+    lookup: SourceLexicalLookup | { kind: "external"; member: { value: unknown } } | ModuleLexicalLookup;
+  };
+
+  /** Resolve a Module callee through the normal lexical owner first, then the
+   * graph-backed external namespace hook for qualified import aliases. Bare
+   * names intentionally never use the external hook. */
+  const resolveModuleCallee = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    moduleName: string
+  ): ModuleCalleeResolution => {
+    const path = parseDslReferenceToken(moduleName);
+    const lookup = path.segments.length > 1
+      ? resolveSourceLexicalPath(sourceNamespace, statementIndex, path, {
+          externalNamespaceResolver: input.externalNamespaceResolver
+        })
+      : ownerIndex === null
+        ? sourceDeclarationResolution(sourceNamespace, statementIndex, moduleName)
+        : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, moduleName);
+    if (lookup.kind === "external") {
+      const value = lookup.member.value as { family?: unknown };
+      const externalTarget = value.family === "module"
+        ? input.externalModuleResolver?.(lookup.member) ?? null
+        : null;
+      return {
+        externalTarget,
+        callee: externalTarget
+          ? {
+              definitionStatementId: externalTarget.definitionStatementId,
+              definitionStatementIndex: externalTarget.definitionStatementIndex,
+              name: externalTarget.name,
+              definitionIdentity: externalTarget.identity,
+              definitionDocumentId: externalTarget.identity.documentId,
+              definitionLocation: externalTarget.declaration
+            }
+          : null,
+        lookup
+      };
+    }
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "moduleDefinition" && lookup.declaration.statement.kind === "moduleDefinition") {
+      const definitionStatementId = statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex);
+      const definitionIdentity = input.documentId
+        ? qualifySemanticIdentity(input.documentId, definitionStatementId)
+        : undefined;
+      return {
+        externalTarget: null,
+        callee: {
+          definitionStatementId,
+          definitionStatementIndex: lookup.declaration.statementIndex,
+          name: lookup.declaration.name,
+          ...(definitionIdentity ? { definitionIdentity, definitionDocumentId: input.documentId } : {}),
+          ...(input.source ? { definitionLocation: statementLocationFor(input.source, lookup.declaration.statement) } : {})
+        },
+        lookup
+      };
+    }
+    return { callee: null, externalTarget: null, lookup };
   };
 
   const relatedForLookup = (
@@ -1827,21 +1912,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleInstance") continue;
     const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
-    const lookup = ownerIndex === null
-      ? sourceDeclarationResolution(sourceNamespace, statementIndex, statement.moduleName)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
-    const callee = lookup.kind === "resolved" && lookup.declaration.kind === "moduleDefinition" && lookup.declaration.statement.kind === "moduleDefinition"
-      ? { definitionStatementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex), definitionStatementIndex: lookup.declaration.statementIndex, name: lookup.declaration.name }
-      : null;
+    const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
+    const { callee } = resolved;
+    const lookup = resolved.lookup;
     const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
       ? "resolved"
+      : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
+        ? "notModule"
       : lookup.kind === "forward"
         ? "forward"
         : lookup.kind === "ambiguous"
           ? "ambiguous"
-          : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
-            ? "notModule"
-            : "undefined";
+      : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
+        ? "notModule"
+        : "undefined";
     instances.push({
       statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
       statementIndex,
@@ -1859,19 +1943,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
       const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
       const owner = ownerIndex === null ? null : stateByIndex.get(ownerIndex) ?? null;
-      let callee: ResolvedModuleCallee | null = null;
-      let calleeResolution: ModuleInstanceSemantic["calleeResolution"] = "undefined";
-      const lookup = ownerIndex === null
-        ? sourceDeclarationResolution(sourceNamespace, statementIndex, statement.moduleName)
-        : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, statement.moduleName);
-      if (lookup.kind === "parameter" || lookup.kind === "iteration") calleeResolution = "notModule";
-      else if (lookup.kind === "resolved") {
-        if (lookup.declaration.kind === "moduleDefinition" && lookup.declaration.statement.kind === "moduleDefinition") {
-          callee = { definitionStatementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex), definitionStatementIndex: lookup.declaration.statementIndex, name: lookup.declaration.name };
-          calleeResolution = "resolved";
-        } else calleeResolution = "notModule";
-      } else if (lookup.kind === "forward") calleeResolution = "forward";
-      else if (lookup.kind === "ambiguous") calleeResolution = "ambiguous";
+      const resolved = resolveModuleCallee(statementIndex, ownerIndex, statement.moduleName);
+      const { callee, externalTarget, lookup } = resolved;
+      const calleeResolution: ModuleInstanceSemantic["calleeResolution"] = callee
+        ? "resolved"
+        : lookup.kind === "external" && (lookup.member.value as { family?: unknown }).family !== "module"
+          ? "notModule"
+          : lookup.kind === "parameter" || lookup.kind === "iteration" || lookup.kind === "resolved"
+            ? "notModule"
+            : lookup.kind === "forward"
+              ? "forward"
+              : lookup.kind === "ambiguous"
+                ? "ambiguous"
+                : "undefined";
       if (!callee) {
         const span = statement.moduleNameSpan ?? statement.keywordSpan;
         const message = calleeResolution === "forward"
@@ -1881,13 +1965,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             : calleeResolution === "ambiguous"
               ? `module callee「${statement.moduleName}」を一意に解決できません。`
               : `module「${statement.moduleName}」が見つかりません。`;
-        addLocal(statementIndex, issue(moduleCalleeDiagnosticCode(calleeResolution), span, message, { relatedSources: relatedForLookup(lookup) }));
+        addLocal(statementIndex, issue(moduleCalleeDiagnosticCode(calleeResolution), span, message, {
+          relatedSources: lookup.kind === "external" ? [] : relatedForLookup(lookup)
+        }));
       }
 
       const parameterBindings: ResolvedModuleParameterBinding[] = [];
-      const calleeState = callee ? stateByIndex.get(callee.definitionStatementIndex) : undefined;
+      const calleeState = callee && !externalTarget ? stateByIndex.get(callee.definitionStatementIndex) : undefined;
+      const calleeParameters = calleeState?.parameters ?? externalTarget?.parameters ?? [];
       const argumentIndexes = new Map<string, number>();
-      if (calleeState) {
+      if (calleeState || externalTarget) {
         for (const [argumentIndex, argument] of statement.arguments.entries()) {
           if (argument.label === null) continue;
           const previousIndex = argumentIndexes.get(argument.label);
@@ -1897,18 +1984,22 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               relatedSources: relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name")
             }));
           } else argumentIndexes.set(argument.label, argumentIndex);
-          const parameter = calleeState.parameterByName.get(argument.label);
+          const parameter = calleeState?.parameterByName.get(argument.label) ?? calleeParameters
+            .map((candidate, index) => ({ parameter: candidate, index }))
+            .find((candidate) => candidate.parameter.name === argument.label);
           if (!parameter) {
-            addLocal(statementIndex, issue("module-unknown-argument", argument.labelSpan ?? argument.valueSpan, `module「${calleeState.statement.name}」にargument「${argument.label}」はありません。`, {
-              relatedSources: relatedAt(calleeState.statementIndex, calleeState.statement.nameSpan ?? calleeState.statement.keywordSpan, "Called module definition")
+            addLocal(statementIndex, issue("module-unknown-argument", argument.labelSpan ?? argument.valueSpan, `module「${callee?.name ?? statement.moduleName}」にargument「${argument.label}」はありません。`, {
+              relatedSources: calleeState
+                ? relatedAt(calleeState.statementIndex, calleeState.statement.nameSpan ?? calleeState.statement.keywordSpan, "Called module definition")
+                : []
             }));
           }
         }
-        for (const parameter of calleeState.parameters) {
+        for (const parameter of calleeParameters) {
           const argumentIndex = argumentIndexes.get(parameter.name);
           const argument = argumentIndex === undefined ? undefined : statement.arguments[argumentIndex];
-          const parameterRelated = relatedForParameter(calleeState, parameter.parameterIndex);
-          const parameterTypeRelated = relatedForParameter(calleeState, parameter.parameterIndex, true);
+          const parameterRelated = calleeState ? relatedForParameter(calleeState, parameter.parameterIndex) : [];
+          const parameterTypeRelated = calleeState ? relatedForParameter(calleeState, parameter.parameterIndex, true) : [];
           if (!argument) {
             if (parameter.required) addLocal(statementIndex, issue("module-missing-argument", statement.moduleNameSpan ?? statement.keywordSpan, `required argument「${parameter.name}」がありません。`, { relatedSources: parameterRelated }));
             const state = parameter.optional
@@ -2005,7 +2096,23 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           });
         }
       }
-      const semantic: ModuleInstanceSemantic = { statementId, statementIndex, name: statement.name, callerModuleDefinitionStatementId: owner?.statementId ?? null, callee, calleeResolution, parameterBindings };
+      const semantic: ModuleInstanceSemantic = {
+        statementId,
+        statementIndex,
+        name: statement.name,
+        ...(input.documentId ? {
+          documentId: input.documentId,
+          identity: qualifySemanticIdentity(input.documentId, statementId),
+          ...(input.source ? { location: statementLocationFor(input.source, statement) } : {})
+        } : {}),
+        callerModuleDefinitionStatementId: owner?.statementId ?? null,
+        ...(input.documentId ? {
+          callerModuleDefinitionIdentity: owner ? qualifySemanticIdentity(input.documentId, owner.statementId) : null
+        } : {}),
+        callee,
+        calleeResolution,
+        parameterBindings
+      };
       instances.push(semantic);
     }
   };
@@ -2216,6 +2323,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     statementId: definition.statementId,
     statementIndex: definition.statementIndex,
     name: definition.statement.name,
+    ...(input.documentId ? {
+      documentId: input.documentId,
+      identity: qualifySemanticIdentity(input.documentId, definition.statementId),
+      ...(input.source ? { declaration: statementLocationFor(input.source, definition.statement) } : {})
+    } : {}),
     declarationScopeId: definition.declarationScopeId,
     bodyScopeId: definition.bodyScopeId,
     scopeId: definition.declarationScopeId,
@@ -2276,7 +2388,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));
   const instancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
-  return {
+  const result: ModuleSemanticAnalysis = {
+    ...(input.documentId ? { documentId: input.documentId } : {}),
+    ...(input.source ? { source: input.source } : {}),
     definitions: semanticDefinitions,
     instances,
     definitionsByStatementId,
@@ -2287,6 +2401,167 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     rootParentReferencesByStatementId,
     diagnostics
   };
+  if (input.documentId) {
+    return decorateDocumentQualifiedModuleSemantics(result, input.documentId);
+  }
+  return result;
 };
 
 export const analyzeModuleSemantic = analyzeModuleSemantics;
+
+/** Adds document-qualified ownership to the central Module semantic result.
+ * Same-document callers omit `documentId` and retain their established local
+ * identity shape; graph-backed callers use this one decoration path for
+ * parameters, body statements, exports, references, and instances. */
+export const decorateDocumentQualifiedModuleSemantics = (
+  analysis: ModuleSemanticAnalysis,
+  documentId: import("../document/multiDocumentPrimitives").DocumentId
+): ModuleSemanticAnalysis => {
+  const identityFor = (statementId: StatementIdentity) => qualifySemanticIdentity(documentId, statementId);
+  const mapTarget = (target: unknown): unknown => {
+    if (!target || typeof target !== "object") return target;
+    const value = target as Record<string, unknown>;
+    const result = { ...value };
+    if (typeof value.statementId === "string" && value.identity === undefined) {
+      result.identity = identityFor(value.statementId);
+    }
+    if (value.kind === "parameter" && typeof value.definitionStatementId === "string" && value.definitionIdentity === undefined) {
+      result.definitionIdentity = identityFor(value.definitionStatementId);
+    }
+    if (typeof value.instanceStatementId === "string" && value.instanceIdentity === undefined) {
+      result.instanceIdentity = identityFor(value.instanceStatementId);
+    }
+    if (typeof value.exportedStatementId === "string" && value.exportedIdentity === undefined) {
+      result.exportedIdentity = identityFor(value.exportedStatementId);
+    }
+    if (value.kind === "recordField") result.record = mapTarget(value.record);
+    return result;
+  };
+  const mapExpression = (expression: ModuleScalarExpressionSemantic): ModuleScalarExpressionSemantic => ({
+    ...expression,
+    references: expression.references.map((reference) => ({ ...reference, target: mapTarget(reference.target) as ModuleSourceTarget | null })),
+    geometryProperties: expression.geometryProperties.map((property) => ({ ...property, target: mapTarget(property.target) as ModuleGeometryPropertySourceTarget | null })),
+    geometryBuiltinArguments: expression.geometryBuiltinArguments.map((argument) => ({
+      ...argument,
+      reference: mapGeometryReference(argument.reference)
+    })),
+    hasValueParameters: expression.hasValueParameters.map((parameter) => ({
+      ...parameter,
+      definitionIdentity: parameter.definitionIdentity ?? identityFor(parameter.definitionStatementId)
+    }))
+  });
+  const mapGeometryReference = (reference: ModuleGeometryReferenceSemantic): ModuleGeometryReferenceSemantic => ({
+    ...reference,
+    target: mapTarget(reference.target) as ModuleGeometrySourceTarget | null,
+    coordinate: reference.coordinate
+      ? {
+          ...reference.coordinate,
+          x: reference.coordinate.x ? mapExpression(reference.coordinate.x) : null,
+          y: reference.coordinate.y ? mapExpression(reference.coordinate.y) : null
+        }
+      : null
+  });
+  const mapRecordReference = (reference: ModuleRecordReferenceSemantic): ModuleRecordReferenceSemantic => ({
+    ...reference,
+    target: mapTarget(reference.target) as ModuleRecordSourceTarget | null,
+    constructor: reference.constructor
+      ? {
+          ...reference.constructor,
+          fields: reference.constructor.fields.map((field) => ({
+            ...field,
+            expression: field.expression ? mapExpression(field.expression) : null
+          }))
+        }
+      : null
+  });
+  const mapArgument = (argument: ModuleArgumentSemantic): ModuleArgumentSemantic => {
+    if (argument.kind === "scalar") return { ...argument, expression: mapExpression(argument.expression) };
+    if (argument.kind === "geometry") return { ...argument, reference: mapGeometryReference(argument.reference) };
+    return { ...argument, reference: mapRecordReference(argument.reference) };
+  };
+  const definitions = analysis.definitions.map((definition) => ({
+    ...definition,
+    documentId,
+    identity: definition.identity ?? identityFor(definition.statementId),
+    parameters: definition.parameters.map((parameter) => ({
+      ...parameter,
+      definitionIdentity: parameter.definitionIdentity ?? identityFor(parameter.definitionStatementId),
+      defaultExpression: parameter.defaultExpression ? mapExpression(parameter.defaultExpression) : null
+    })),
+    localScalars: definition.localScalars.map((scalar) => ({
+      ...scalar,
+      identity: identityFor(scalar.statementId),
+      initializer: scalar.initializer ? mapExpression(scalar.initializer) : null
+    })),
+    recordValues: definition.recordValues.map((value) => ({
+      ...value,
+      identity: value.identity ?? identityFor(value.value.statementId),
+      target: mapTarget(value.target) as ModuleRecordSourceTarget | null,
+      fields: value.fields.map((field) => ({
+        ...field,
+        expression: field.expression ? mapExpression(field.expression) : null
+      }))
+    })),
+    bodyStatements: definition.bodyStatements.map((statement) => ({
+      ...statement,
+      identity: identityFor(statement.statementId),
+      scalarExpressions: statement.scalarExpressions.map((site) => ({ ...site, expression: mapExpression(site.expression) })),
+      geometryReferences: statement.geometryReferences.map((site) => ({ ...site, reference: mapGeometryReference(site.reference) })),
+      textTemplateHoles: statement.textTemplateHoles.map((site) => ({ ...site, expression: mapExpression(site.expression) })),
+      scalarTarget: mapTarget(statement.scalarTarget) as ModuleScalarSourceTarget | null
+    })),
+    exports: definition.exports.map((entry) => ({
+      ...entry,
+      ownerModuleDefinitionIdentity: identityFor(entry.ownerModuleDefinitionStatementId),
+      exportedIdentity: identityFor(entry.exportedStatementId)
+    }))
+  }));
+  const instances = analysis.instances.map((instance) => ({
+    ...instance,
+    documentId,
+    identity: instance.identity ?? identityFor(instance.statementId),
+    callerModuleDefinitionIdentity: instance.callerModuleDefinitionStatementId
+      ? identityFor(instance.callerModuleDefinitionStatementId)
+      : null,
+    callee: instance.callee
+      ? {
+          ...instance.callee,
+          definitionIdentity: instance.callee.definitionIdentity ?? identityFor(instance.callee.definitionStatementId),
+          definitionDocumentId: instance.callee.definitionDocumentId ?? documentId
+        }
+      : null,
+    parameterBindings: instance.parameterBindings.map((binding) => ({
+      ...binding,
+      value: binding.value ? mapArgument(binding.value) : null
+    }))
+  }));
+  const callEdges = analysis.callEdges.map((edge) => ({
+    ...edge,
+    callerIdentity: edge.callerIdentity ?? identityFor(edge.callerModuleDefinitionStatementId),
+    calleeIdentity: edge.calleeIdentity ?? identityFor(edge.calleeModuleDefinitionStatementId),
+    instanceIdentity: edge.instanceIdentity ?? identityFor(edge.instanceStatementId)
+  }));
+  const definitionsByQualifiedIdentity = new Map(
+    definitions.flatMap((definition) => definition.identity ? [[
+      JSON.stringify([definition.identity.documentId, definition.identity.localIdentity]),
+      definition
+    ] as const] : [])
+  );
+  const instancesByQualifiedIdentity = new Map(
+    instances.flatMap((instance) => instance.identity ? [[
+      JSON.stringify([instance.identity.documentId, instance.identity.localIdentity]),
+      instance
+    ] as const] : [])
+  );
+  return {
+    ...analysis,
+    documentId,
+    definitions,
+    instances,
+    definitionsByStatementId: new Map(definitions.map((definition) => [definition.statementId, definition] as const)),
+    instancesByStatementId: new Map(instances.map((instance) => [instance.statementId, instance] as const)),
+    callEdges,
+    definitionsByQualifiedIdentity,
+    instancesByQualifiedIdentity
+  };
+};
