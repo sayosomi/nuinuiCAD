@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
+import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import type { EvaluationResult } from "../types/geometry";
@@ -101,6 +102,51 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
+  it("signals Webview readiness once without recompiling the authoritative document for benchmark configuration", async () => {
+    const source = sourceForSelectionChronology(0);
+    let readyCount = 0;
+    const api = {
+      postMessage: vi.fn((message: { type?: string }) => {
+        if (message.type !== "webviewReady") return;
+        readyCount += 1;
+        if (readyCount > 2) return;
+        queueMicrotask(() => {
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+          }));
+          window.dispatchEvent(new MessageEvent("message", {
+            data: { type: "benchmarkConfig", config: { runId: `run-${readyCount}` } }
+          }));
+        });
+      })
+    };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const documentAfterInitialSync = useCadDocumentStore.getState();
+    const readinessMessages = api.postMessage.mock.calls.filter(([message]) => message.type === "webviewReady");
+    expect(readinessMessages).toHaveLength(1);
+    expect(readyCount).toBe(1);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "benchmarkConfig", config: { runId: "repeated-1" } }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "benchmarkConfig", config: { runId: "repeated-2" } }
+      }));
+    });
+
+    expect(api.postMessage.mock.calls.filter(([message]) => message.type === "webviewReady")).toHaveLength(1);
+    expect(useCadDocumentStore.getState().sourceRevision).toBe(documentAfterInitialSync.sourceRevision);
+    expect(useCadDocumentStore.getState().compiledDocumentRevision).toBe(documentAfterInitialSync.compiledDocumentRevision);
+  });
+
   it("passes the VSCodeApp-owned Reference Pick authority through the Canvas boundary", async () => {
     const source = sourceForSelectionChronology(0);
     const api = { postMessage: vi.fn() };
@@ -170,6 +216,46 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       recipe: { type: "line" }
     });
+  });
+
+  it("routes document-end creation persistence through the existing canvasCommit bridge", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCreationCommand", commandId: "addFreePoint" }
+      }));
+    });
+
+    await act(async () => {
+      submitCommandLineInput("");
+      submitCommandLineInput("1");
+      submitCommandLineInput("2");
+      expect(confirmCommandLineSession()).toBe(true);
+    });
+
+    const committedDocument = useCadDocumentStore.getState();
+    expect(committedDocument.sourceUpdate.kind).toBe("model-patch");
+    const committedSplices = committedDocument.sourceUpdate.kind === "model-patch"
+      ? committedDocument.sourceUpdate.splices
+      : [];
+    expect(drawingCanvasProps.postCanonicalSourceText).not.toBeNull();
+    await act(async () => {
+      drawingCanvasProps.postCanonicalSourceText!(committedDocument.sourceText);
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommit",
+      sourceText: committedDocument.sourceText,
+      expectedDocumentVersion: 7,
+      mutationKind: "model-patch",
+      splices: committedSplices
+    }));
   });
 
   it("rolls back a rejected Canvas free-point commit to the exact Source and selection snapshot", async () => {

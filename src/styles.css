@@ -4551,6 +4551,350 @@ textarea {
   gap: 12px;
 }
 
+/* The VS Code creation assist owns a compact, Canvas-local presentation. The
+   command-line session, pick routing, and source commit remain shared. */
+.vscode-creation-assist-dock {
+  --vscode-creation-foreground: var(--vscode-foreground, var(--canvas-foreground, #cccccc));
+  --vscode-creation-muted: var(--vscode-descriptionForeground, var(--canvas-muted, #9d9d9d));
+  --vscode-creation-background: var(--vscode-editorWidget-background, var(--canvas-background, #252526));
+  --vscode-creation-border: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
+  --vscode-creation-hover: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground, #2a2d2e));
+  --vscode-creation-active: var(--vscode-list-activeSelectionBackground, #094771);
+  --vscode-creation-active-foreground: var(--vscode-list-activeSelectionForeground, #ffffff);
+  --vscode-creation-focus: var(--vscode-focusBorder, #007fd4);
+  --vscode-creation-input-background: var(--vscode-input-background, var(--vscode-editor-background, #1e1e1e));
+  --vscode-creation-input-foreground: var(--vscode-input-foreground, var(--vscode-foreground, #cccccc));
+  --vscode-creation-button-background: var(--vscode-button-secondaryBackground, var(--vscode-editor-background, #1e1e1e));
+  --vscode-creation-button-foreground: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #cccccc));
+  position: absolute;
+  z-index: 35;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: grid;
+  gap: 10px;
+  max-height: min(48vh, 440px);
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--vscode-creation-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-creation-background) 94%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+  color: var(--vscode-creation-foreground);
+  padding: 10px;
+  pointer-events: auto;
+  container-type: inline-size;
+  container-name: vscode-creation-assist;
+}
+
+.vscode-creation-assist-header,
+.vscode-creation-assist-title,
+.vscode-creation-assist-entry-actions,
+.vscode-creation-assist-actions,
+.vscode-creation-assist-restart-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.vscode-creation-assist-header {
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vscode-creation-assist-title {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vscode-creation-assist-title strong {
+  font-size: 13px;
+}
+
+.vscode-creation-assist-title span,
+.vscode-creation-assist-help,
+.vscode-creation-assist-review span,
+.vscode-creation-assist-selection-count {
+  color: var(--vscode-creation-muted);
+  font-size: 12px;
+}
+
+.vscode-creation-assist-legend {
+  color: var(--vscode-creation-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.vscode-creation-assist-navigator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vscode-creation-assist-navigator li {
+  min-width: 0;
+  flex: 1 1 112px;
+}
+
+.vscode-creation-assist-navigator button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-creation-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-creation-foreground);
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.vscode-creation-assist-navigator button:hover,
+.vscode-creation-assist-navigator button:focus-visible {
+  background: var(--vscode-creation-hover);
+}
+
+.vscode-creation-assist-navigator button.is-active {
+  border-color: var(--vscode-creation-focus);
+  background: var(--vscode-creation-active);
+  color: var(--vscode-creation-active-foreground);
+}
+
+.vscode-creation-assist-navigator button.is-filled:not(.is-active) {
+  border-color: color-mix(in srgb, var(--vscode-creation-focus) 55%, var(--vscode-creation-border));
+}
+
+.vscode-creation-assist-step-number {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.vscode-creation-assist-step-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.vscode-creation-assist-step-copy strong,
+.vscode-creation-assist-step-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vscode-creation-assist-step-copy strong {
+  font-size: 11px;
+}
+
+.vscode-creation-assist-step-copy small {
+  color: var(--vscode-creation-muted);
+  font-size: 10px;
+}
+
+.vscode-creation-assist-navigator button.is-active .vscode-creation-assist-step-copy small {
+  color: inherit;
+  opacity: 0.82;
+}
+
+.vscode-creation-assist-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.vscode-creation-assist-entry,
+.vscode-creation-assist-review {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.vscode-creation-assist-entry label,
+.vscode-creation-assist-review strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vscode-creation-assist-input-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.vscode-creation-assist-input-wrap > input {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-creation-border));
+  border-radius: 3px;
+  background: var(--vscode-creation-input-background);
+  color: var(--vscode-creation-input-foreground);
+  padding: 5px 7px;
+}
+
+.vscode-creation-assist-input-wrap > input:focus-visible,
+.vscode-creation-assist-dock button:focus-visible {
+  outline: 2px solid var(--vscode-creation-focus);
+  outline-offset: 1px;
+}
+
+.vscode-creation-assist-suggestions {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 5px);
+  left: 0;
+  z-index: 2;
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--vscode-creation-border);
+  border-radius: 4px;
+  background: var(--vscode-creation-background);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 32%);
+  list-style: none;
+}
+
+.vscode-creation-assist-suggestions button {
+  display: grid;
+  width: 100%;
+  gap: 1px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--vscode-creation-foreground);
+  padding: 5px 6px;
+  text-align: left;
+}
+
+.vscode-creation-assist-suggestions button:hover,
+.vscode-creation-assist-suggestions button:focus-visible,
+.vscode-creation-assist-suggestions button[aria-selected="true"] {
+  background: var(--vscode-creation-hover);
+}
+
+.vscode-creation-assist-suggestions small {
+  color: var(--vscode-creation-muted);
+  font-family: var(--vscode-editor-font-family, var(--dsl-code-font));
+  font-size: 10px;
+}
+
+/* NumericVariableSuggestPopover portals to body when the dock can scroll, so
+   keep its VS Code palette explicit instead of relying on dock-local vars. */
+.vscode-creation-assist-numeric-suggestions {
+  border-color: var(--vscode-widget-border, var(--vscode-panel-border, #454545));
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #252526));
+  box-shadow: 0 8px 20px rgb(0 0 0 / 32%);
+}
+
+.vscode-creation-assist-numeric-suggestions button {
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.vscode-creation-assist-numeric-suggestions button:hover,
+.vscode-creation-assist-numeric-suggestions button.active-suggestion {
+  background: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground, #2a2d2e));
+}
+
+.vscode-creation-assist-numeric-suggestions small {
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.vscode-creation-assist-entry-actions,
+.vscode-creation-assist-actions {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vscode-creation-assist-entry-actions {
+  margin-top: 2px;
+}
+
+.vscode-creation-assist-actions > button,
+.vscode-creation-assist-entry-actions > button {
+  min-height: 30px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-creation-border));
+  border-radius: 3px;
+  background: var(--vscode-creation-button-background);
+  color: var(--vscode-creation-button-foreground);
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.vscode-creation-assist-actions > button:hover:not(:disabled),
+.vscode-creation-assist-entry-actions > button:hover:not(:disabled) {
+  background: var(--vscode-creation-hover);
+}
+
+.vscode-creation-assist-actions > button:disabled,
+.vscode-creation-assist-entry-actions > button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.vscode-creation-assist-actions {
+  justify-content: flex-end;
+}
+
+.vscode-creation-assist-actions .is-primary {
+  border-color: var(--vscode-button-background, var(--vscode-creation-focus));
+  background: var(--vscode-button-background, var(--vscode-creation-focus));
+  color: var(--vscode-button-foreground, #ffffff);
+  font-weight: 700;
+}
+
+.vscode-creation-assist-error {
+  margin: 0;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-creation-border));
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, var(--vscode-creation-foreground)));
+  font-size: 12px;
+}
+
+.vscode-creation-assist-restart {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.vscode-creation-assist-restart-copy {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vscode-creation-assist-restart-copy span {
+  color: var(--vscode-creation-muted);
+  font-size: 12px;
+}
+
+@container vscode-creation-assist (max-width: 680px) {
+  .vscode-creation-assist-body,
+  .vscode-creation-assist-restart {
+    grid-template-columns: 1fr;
+  }
+
+  .vscode-creation-assist-actions {
+    justify-content: flex-start;
+  }
+
+  .vscode-creation-assist-legend {
+    width: 100%;
+    text-align: left;
+  }
+}
+
 .vscode-canvas-webview .command-ribbon-value-field {
   display: grid;
   gap: 2px;
