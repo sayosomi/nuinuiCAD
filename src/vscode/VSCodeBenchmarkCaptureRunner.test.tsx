@@ -54,7 +54,10 @@ const configFor = (expectedRenderSurface?: BenchmarkRenderSurface): VscodeBenchm
   resultPath: "/tmp/benchmark-result.json"
 });
 
-const renderRunner = (config: VscodeBenchmarkConfig) => {
+const renderRunner = (
+  config: VscodeBenchmarkConfig,
+  evaluationState: EvaluationEngineState = {} as EvaluationEngineState
+) => {
   const viewport = document.createElement("div");
   const canvas = document.createElement("canvas");
   Object.defineProperty(viewport, "clientWidth", { configurable: true, value: liveSurface.cssWidthPx });
@@ -69,7 +72,7 @@ const renderRunner = (config: VscodeBenchmarkConfig) => {
     <VSCodeBenchmarkCaptureRunner
       config={config}
       evaluation={{} as EvaluationResult}
-      evaluationState={{} as EvaluationEngineState}
+      evaluationState={evaluationState}
       compiledDocumentRevision={1}
       canvasFocusRef={canvasFocusRef}
       api={api}
@@ -101,5 +104,39 @@ describe("VSCode benchmark capture runner render surface", () => {
     const capture = mocks.runBrowserBenchmarkCapture.mock.calls[0]?.[0];
     expect(capture).toBeDefined();
     expect(() => capture.dependencies.getRenderSurface()).toThrow("VS Code render surface mismatch");
+  });
+});
+
+describe("VSCode benchmark capture runner evaluation failures", () => {
+  it("preserves the concrete error from a current failed Rust evaluation", async () => {
+    const error = new Error("evaluation_stdio is not available");
+    mocks.runBrowserBenchmarkCapture.mockImplementation(async ({ dependencies }: {
+      dependencies: { waitForRustEvaluation: (revision: number) => Promise<void> };
+    }) => {
+      await dependencies.waitForRustEvaluation(1);
+      throw new Error("unreachable");
+    });
+
+    const { api } = renderRunner(configFor(), {
+      evaluation: {} as EvaluationResult,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "rust",
+      source: "fallback",
+      status: "failed",
+      rustEligible: true,
+      isStale: false,
+      error
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "benchmarkError",
+      error: "VS Code benchmark Rust evaluation failed: evaluation_stdio is not available"
+    });
   });
 });
