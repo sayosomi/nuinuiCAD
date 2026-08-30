@@ -1,6 +1,6 @@
 import type { CompiledDslDocument } from "./dslDocument";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
-import type { ModuleGeometrySourceTarget, ModuleGeometryPropertySourceTarget } from "./moduleSemanticTypes";
+import { projectDslRevealRuntimeTarget } from "./dslRevealRuntimeProjection";
 import type { ElementId, CadElement } from "../types/geometry";
 import type {
   DslCanvasRevealDegradation,
@@ -31,125 +31,6 @@ type RevealableSet = {
   ids: readonly ElementId[];
   omittedCount: number;
   causes: readonly DslCanvasRevealRuntimeOmissionCause[];
-};
-
-const sameInstancePath = (left: readonly string[], right: readonly string[]) =>
-  left.length === right.length && left.every((identity, index) => identity === right[index]);
-
-const uniquePaths = (paths: readonly (readonly string[])[]) => {
-  const seen = new Set<string>();
-  const result: readonly string[][] = paths.reduce<string[][]>((acc, path) => {
-    const key = JSON.stringify(path);
-    if (seen.has(key)) return acc;
-    seen.add(key);
-    acc.push([...path]);
-    return acc;
-  }, []);
-  return result;
-};
-
-const semanticInstancePaths = (
-  compiled: DslCanvasRevealRuntimeInput["compiled"],
-  sourceStatementIndex: number
-): readonly (readonly string[])[] => {
-  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
-  const definition = analysis?.definitions.find((candidate) =>
-    candidate.bodyStatements.some((body) => body.statementIndex === sourceStatementIndex)
-  );
-  if (!definition) return [[]];
-
-  const paths = compiled.moduleMaterialization?.executionStatements
-    .filter((entry) =>
-      entry.type === "moduleInstance" &&
-      entry.origin?.moduleDefinitionStatementId === definition.statementId
-    )
-    .map((entry) => entry.instancePath) ?? [];
-  return uniquePaths(paths);
-};
-
-const runtimeElementIdForSourceGeometry = (
-  compiled: DslCanvasRevealRuntimeInput["compiled"],
-  statementIndex: number,
-  instancePath: readonly string[]
-): ElementId | null => {
-  if (instancePath.length === 0) {
-    return compiled.moduleMaterialization?.elementIdBySourceStatementIndex.get(statementIndex) ??
-      compiled.statementMap?.elementIdByStatementIndex.get(statementIndex) ??
-      null;
-  }
-  return compiled.moduleMaterialization?.executionStatements.find((entry) =>
-    entry.sourceStatementIndex === statementIndex &&
-    sameInstancePath(entry.instancePath, instancePath)
-  )?.runtimeElementId ?? null;
-};
-
-const directGeometryTargetId = (
-  compiled: DslCanvasRevealRuntimeInput["compiled"],
-  target: ModuleGeometrySourceTarget,
-  instancePath: readonly string[]
-): ElementId | null =>
-  target.kind === "sourceGeometry"
-    ? runtimeElementIdForSourceGeometry(compiled, target.statementIndex, instancePath)
-    : null;
-
-const directPropertyTargetId = (
-  compiled: DslCanvasRevealRuntimeInput["compiled"],
-  target: ModuleGeometryPropertySourceTarget,
-  instancePath: readonly string[]
-): ElementId | null =>
-  target.kind === "sourceGeometryProperty"
-    ? runtimeElementIdForSourceGeometry(compiled, target.statementIndex, instancePath)
-    : null;
-
-const semanticCandidates = ({
-  semantic,
-  compiled,
-  moduleGeometryRuntime,
-  elements
-}: {
-  semantic: DslCanvasRevealSemanticTarget;
-  compiled: DslCanvasRevealRuntimeInput["compiled"];
-  moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
-  elements: readonly CadElement[];
-}): readonly RuntimeCandidate[] => {
-  const paths = semanticInstancePaths(compiled, semantic.sourceStatementIndex);
-  if (paths.length === 0) return [null];
-  const elementsById = new Map(elements.map((element) => [element.id, element]));
-
-  if (semantic.kind === "geometry-reference") {
-    const target = semantic.reference.target;
-    if (!target || !["resolved", "deferred"].includes(semantic.reference.resolution)) return [null];
-    return paths.map((instancePath) => {
-      const direct = directGeometryTargetId(compiled, target, instancePath);
-      if (direct) return direct;
-      return moduleGeometryRuntime?.resolveBuiltinTarget(
-        target,
-        instancePath,
-        semantic.reference.expectedGeometryKind
-      )?.elementId ?? null;
-    });
-  }
-
-  const target = semantic.reference.target;
-  if (!target || !["resolved", "deferred"].includes(semantic.reference.resolution)) return [null];
-  return paths.map((instancePath) => {
-    const direct = directPropertyTargetId(compiled, target, instancePath);
-    if (direct) return direct;
-    const runtime = moduleGeometryRuntime?.resolvePropertyTarget(target, instancePath, elementsById);
-    return runtime?.kind === "runtime" ? runtime.elementId : null;
-  });
-};
-
-const ownerCandidates = (
-  compiled: DslCanvasRevealRuntimeInput["compiled"],
-  sourceStatementIndex: number
-): readonly RuntimeCandidate[] => {
-  const materialized = compiled.moduleMaterialization?.executionStatements
-    .filter((entry) => entry.sourceStatementIndex === sourceStatementIndex)
-    .map((entry) => entry.runtimeElementId) ?? [];
-  if (materialized.length > 0) return materialized;
-  const direct = compiled.statementMap?.elementIdByStatementIndex.get(sourceStatementIndex);
-  return direct ? [direct] : [];
 };
 
 const uniqueCauses = (
@@ -235,16 +116,18 @@ const ownerFallback = ({
   semantic,
   cause,
   ownerSourceStatementIndex,
+  ownerCandidates,
   input
 }: {
   semantic: DslCanvasRevealSemanticTarget;
   cause: DslCanvasRevealOwnerFallbackCause;
   ownerSourceStatementIndex: number | null;
+  ownerCandidates: readonly RuntimeCandidate[];
   input: DslCanvasRevealRuntimeInput;
 }): DslCanvasRevealResult => {
   if (ownerSourceStatementIndex === null) return { status: "failed", reason: "no-revealable-runtime-target" };
   const ownerSet = filterRevealable({
-    candidates: ownerCandidates(input.compiled, ownerSourceStatementIndex),
+    candidates: ownerCandidates,
     elements: input.elements,
     effectiveVisibleElementIds: input.effectiveVisibleElementIds,
     effectiveEnabledElementIds: input.effectiveEnabledElementIds,
@@ -271,9 +154,10 @@ const ownerFallback = ({
 export const queryDslCanvasRevealRuntimeTarget = (
   input: DslCanvasRevealRuntimeInput
 ): DslCanvasRevealResult => {
+  const projection = projectDslRevealRuntimeTarget(input);
   if (input.target.kind === "statement-owner") {
     const ownerSet = filterRevealable({
-      candidates: ownerCandidates(input.compiled, input.target.sourceStatementIndex),
+      candidates: projection.candidates,
       elements: input.elements,
       effectiveVisibleElementIds: input.effectiveVisibleElementIds,
       effectiveEnabledElementIds: input.effectiveEnabledElementIds,
@@ -292,17 +176,13 @@ export const queryDslCanvasRevealRuntimeTarget = (
       semantic,
       cause: semanticResolutionCause(semantic, input.compiled),
       ownerSourceStatementIndex: input.target.ownerSourceStatementIndex,
+      ownerCandidates: projection.ownerCandidates,
       input
     });
   }
 
   const semanticSet = filterRevealable({
-    candidates: semanticCandidates({
-      semantic,
-      compiled: input.compiled,
-      moduleGeometryRuntime: input.moduleGeometryRuntime,
-      elements: input.elements
-    }),
+    candidates: projection.candidates,
     elements: input.elements,
     effectiveVisibleElementIds: input.effectiveVisibleElementIds,
     effectiveEnabledElementIds: input.effectiveEnabledElementIds,
@@ -318,6 +198,7 @@ export const queryDslCanvasRevealRuntimeTarget = (
     semantic,
     cause: semanticSet.causes[0] ?? "runtime-target-unavailable",
     ownerSourceStatementIndex: input.target.ownerSourceStatementIndex,
+    ownerCandidates: projection.ownerCandidates,
     input
   });
 };
