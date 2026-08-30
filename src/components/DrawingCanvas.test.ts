@@ -242,6 +242,7 @@ const createFakeCanvasHostAdapter = (
     }),
     previewCanvasSelection: vi.fn(),
     finalizeCanvasSelectionSession: vi.fn(),
+    commitCanvasRectangleSelection: vi.fn(),
     movePointElementByDelta: vi.fn(),
     moveBezierHandleByDelta: vi.fn(),
     clearCanvasSelection: vi.fn(),

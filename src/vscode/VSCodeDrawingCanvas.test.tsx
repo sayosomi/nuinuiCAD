@@ -13,12 +13,17 @@ import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
+  commitCanvasRectangleSelection: vi.fn(),
   hostAdapter: null as CanvasHostAdapter | null,
   canvasFocusRef: null as { current: HTMLDivElement | null } | null
 }));
 
 vi.mock("../commands/commands", () => ({
   dispatchCommand: mocks.dispatchCommand
+}));
+
+vi.mock("../commands/canvasRectangleSelectionCommands", () => ({
+  commitCanvasRectangleSelection: mocks.commitCanvasRectangleSelection
 }));
 
 vi.mock("../components/DrawingCanvas", async () => {
@@ -43,6 +48,7 @@ vi.mock("../components/DrawingCanvas", async () => {
 
 afterEach(() => {
   mocks.dispatchCommand.mockReset();
+  mocks.commitCanvasRectangleSelection.mockReset();
   mocks.hostAdapter = null;
   mocks.canvasFocusRef = null;
 });
@@ -98,6 +104,15 @@ const renderCanvas = (
 };
 
 describe("VSCodeDrawingCanvas adapter", () => {
+  it("commits rectangle selection through the shared command owner with history enabled", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const { adapter } = renderCanvas(evaluation, undefined);
+
+    adapter.commitCanvasRectangleSelection(["selected"], "toggle");
+
+    expect(mocks.commitCanvasRectangleSelection).toHaveBeenCalledWith(["selected"], "toggle", true);
+  });
+
   it.each([
     ["blank", false],
     ["blank", true],

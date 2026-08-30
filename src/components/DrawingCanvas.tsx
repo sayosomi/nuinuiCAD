@@ -8,6 +8,7 @@ import type {
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
+import type { CanvasRectangleSelectionUpdateMode } from "../commands/canvasRectangleSelectionCommands";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
@@ -47,6 +48,11 @@ import {
 import { renderCanvasGeometry } from "./canvasRenderer";
 import { useCanvasOverlayData } from "./useCanvasOverlayData";
 import type { CanvasHostAdapter, CanvasSelectionMode, CanvasWorldPoint } from "./canvasHostAdapter";
+import {
+  canvasRectangleMemberIds,
+  screenSelectionRectangleBetween,
+  type CanvasRectangleMembershipMode
+} from "./canvasRectangleSelection";
 import { canvasThemeCssVariables } from "./canvasTheme";
 import type {
   CanvasOverlapCandidateSession,
@@ -129,6 +135,14 @@ type PolarLockKeys = {
 
 type CanvasOverlapSessionState = CanvasOverlapCandidateSession;
 
+type CanvasRectangleSelectionSessionState = {
+  pointerId: number;
+  start: ScreenPoint;
+  current: ScreenPoint;
+  updateMode: CanvasRectangleSelectionUpdateMode;
+  activated: boolean;
+};
+
 const WHEEL_ZOOM_BASE = 1.1;
 const BEZIER_HANDLE_HIT_RADIUS_PX = 9;
 const POINT_PICK_CANDIDATE_RADIUS_PX = 10;
@@ -138,6 +152,24 @@ const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
+
+const screenPointForClientCoordinates = (
+  viewport: HTMLDivElement,
+  coordinates: { clientX: number; clientY: number }
+): ScreenPoint => {
+  const rect = viewport.getBoundingClientRect();
+  return {
+    x: coordinates.clientX - rect.left - viewport.clientLeft,
+    y: coordinates.clientY - rect.top - viewport.clientTop
+  };
+};
+
+const rectangleSelectionModeFor = (intent: PendingCanvasPointerIntent): CanvasRectangleSelectionUpdateMode =>
+  intent.modifiers.metaKey || intent.modifiers.ctrlKey
+    ? "toggle"
+    : intent.modifiers.shiftKey
+      ? "add"
+      : "replace";
 
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   evaluation,
@@ -151,6 +183,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
+  const rectangleSelectionRef = useRef<CanvasRectangleSelectionSessionState | null>(null);
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
   const syntheticPointerEventRef = useRef(false);
   const [pendingPointerState, setPendingPointerState] = useState(initialPendingCanvasPointerState);
@@ -169,6 +202,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     useState<LinePickCandidateMenu | null>(null);
   const [overlapCandidateSession, setOverlapCandidateSession] =
     useState<CanvasOverlapSessionState | null>(null);
+  const [rectangleSelectionSession, setRectangleSelectionSession] =
+    useState<CanvasRectangleSelectionSessionState | null>(null);
   const [hoverIdentityState, setHoverIdentityState] = useState<CanvasHoverIdentityState>(null);
   const overlapCandidateSessionRef = useRef<CanvasOverlapSessionState | null>(null);
   const canvasInvalidationInputsRef = useRef<{
@@ -368,6 +403,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     ),
     [overlayTexts, previewElementIds, selectionEligibleElementIds]
   );
+  const commitRectangleSelectionAt = useCallback((
+    start: ScreenPoint,
+    end: ScreenPoint,
+    updateMode: CanvasRectangleSelectionUpdateMode
+  ) => {
+    const membershipMode: CanvasRectangleMembershipMode = end.x >= start.x ? "window" : "crossing";
+    const memberIds = canvasRectangleMemberIds({
+      rectangle: screenSelectionRectangleBetween(start, end),
+      mode: membershipMode,
+      lines: interactiveOverlayLines,
+      arcs: interactiveOverlayArcs,
+      curves: interactiveOverlayCurves,
+      offsetLines: interactiveOverlayOffsetLines,
+      polylines: interactiveOverlayPolylines,
+      images: interactiveOverlayImages,
+      texts: interactiveOverlayTexts,
+      points: interactiveOverlayPoints
+    });
+    hostAdapter.commitCanvasRectangleSelection(memberIds, updateMode);
+  }, [
+    hostAdapter,
+    interactiveOverlayArcs,
+    interactiveOverlayCurves,
+    interactiveOverlayImages,
+    interactiveOverlayLines,
+    interactiveOverlayOffsetLines,
+    interactiveOverlayPoints,
+    interactiveOverlayPolylines,
+    interactiveOverlayTexts
+  ]);
   const interactiveOverlayIdentityCandidates = useMemo(
     () => overlayIdentityCandidates.filter(({ elementId }) =>
       !previewElementIds.has(elementId) && selectionEligibleElementIds.has(elementId)
@@ -858,6 +923,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     isPanning ||
     isPointDragging ||
     isBezierHandleDragging ||
+    rectangleSelectionSession ||
     pendingPointerState.kind === "waiting" ||
     activePointPickTarget ||
     activeNumericReferencePickTarget ||
@@ -976,6 +1042,54 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     }
   }, [captureLedger]);
 
+  const beginRectangleSelection = useCallback((
+    viewport: HTMLDivElement,
+    intent: PendingCanvasPointerIntent,
+    start: ScreenPoint
+  ) => {
+    if (intent.pointerReleased) return;
+    capturePointer(viewport, intent.pointerId);
+    const current = screenPointForClientCoordinates(viewport, intent.latest);
+    const session = {
+      pointerId: intent.pointerId,
+      start,
+      current,
+      updateMode: rectangleSelectionModeFor(intent),
+      activated: Math.hypot(current.x - start.x, current.y - start.y) >= POINT_DRAG_THRESHOLD_PX
+    } satisfies CanvasRectangleSelectionSessionState;
+    rectangleSelectionRef.current = session;
+    setRectangleSelectionSession(session);
+    clearHoveredElement();
+  }, [capturePointer, clearHoveredElement]);
+
+  const cancelRectangleSelection = useCallback(() => {
+    const session = rectangleSelectionRef.current;
+    if (!session) return;
+    captureLedger.release(session.pointerId);
+    rectangleSelectionRef.current = null;
+    setRectangleSelectionSession(null);
+  }, [captureLedger]);
+
+  const stopRectangleSelection = useCallback((
+    event: ReactPointerEvent<HTMLDivElement>,
+    commit: boolean
+  ) => {
+    const session = rectangleSelectionRef.current;
+    if (!session || session.pointerId !== event.pointerId) return;
+    const current = screenPointForClientCoordinates(event.currentTarget, event);
+    const nextSession = {
+      ...session,
+      current,
+      activated: session.activated || Math.hypot(current.x - session.start.x, current.y - session.start.y) >= POINT_DRAG_THRESHOLD_PX
+    };
+    captureLedger.release(event.pointerId);
+    rectangleSelectionRef.current = null;
+    setRectangleSelectionSession(null);
+    if (commit && nextSession.activated) {
+      commitRectangleSelectionAt(nextSession.start, nextSession.current, nextSession.updateMode);
+    }
+  }, [captureLedger, commitRectangleSelectionAt]);
+
   // Normal Canvas selection reserves a Source Editor focus handoff for once the
   // gesture settles. Reference picking, blank clicks, && panning never call this,
   // so they never move focus off the canvas.
@@ -1010,10 +1124,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       pendingEditorFocusRef.current = null;
     },
     finalizeCanvasInteraction: () => {
+      cancelRectangleSelection();
       finalizeOverlapSession();
       clearHoveredElement();
     }
-  }), [applyPendingPointerTransition, clearHoveredElement, finalizeOverlapSession]);
+  }), [applyPendingPointerTransition, cancelRectangleSelection, clearHoveredElement, finalizeOverlapSession]);
 
   /**
    * Resolves an intent only against the current render.  The original pointer
@@ -1030,6 +1145,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       x: intent.start.clientX - rect.left - viewport.clientLeft,
       y: intent.start.clientY - rect.top - viewport.clientTop
     };
+    const latestScreen = screenPointForClientCoordinates(viewport, intent.latest);
     const movement = pendingCanvasPointerDistance(intent);
     const beginCapture = () => {
       if (intent.pointerReleased) return;
@@ -1128,6 +1244,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const frontmostCandidate = hitCandidates[0];
     if (!frontmostCandidate) {
       focusCanvas();
+      if (intent.pointerReleased) {
+        if (movement >= POINT_DRAG_THRESHOLD_PX) {
+          commitRectangleSelectionAt(
+            screen,
+            latestScreen,
+            rectangleSelectionModeFor(intent)
+          );
+        }
+      } else {
+        beginRectangleSelection(viewport, intent, screen);
+      }
       return;
     }
 
@@ -1208,8 +1335,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     activePointPickTarget,
     applyLinePickCandidate,
     applyPointPickCandidate,
+    beginRectangleSelection,
     canvasViewport.zoom,
     capturePointer,
+    commitRectangleSelectionAt,
     currentBezierHandleDragBase,
     currentDocumentDragBase,
     hasCommandLineGhost,
@@ -1313,12 +1442,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
     if (transition.releasePointerId !== undefined) captureLedger.release(transition.releasePointerId);
     pendingPointerStateRef.current = transition.state;
+    cancelRectangleSelection();
     finalizeOverlapSessionRef.current();
     if (hoverFrameRef.current !== null && typeof window.cancelAnimationFrame === "function") {
       window.cancelAnimationFrame(hoverFrameRef.current);
     }
     hoverFrameRef.current = null;
-  }, [captureLedger]);
+  }, [cancelRectangleSelection, captureLedger]);
 
   const stopPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -1616,6 +1746,27 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
 
+    const rectangleSelection = rectangleSelectionRef.current;
+    if (rectangleSelection?.pointerId === event.pointerId) {
+      if ((event.buttons & 1) === 0) {
+        stopRectangleSelection(event, true);
+        return;
+      }
+
+      const current = screen;
+      const nextRectangleSelection = {
+        ...rectangleSelection,
+        current,
+        activated: rectangleSelection.activated ||
+          Math.hypot(current.x - rectangleSelection.start.x, current.y - rectangleSelection.start.y) >= POINT_DRAG_THRESHOLD_PX
+      };
+      rectangleSelectionRef.current = nextRectangleSelection;
+      setRectangleSelectionSession(nextRectangleSelection);
+      clearHoveredElement();
+      event.preventDefault();
+      return;
+    }
+
     const drag = panDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) {
       if (event.buttons === 0) {
@@ -1648,6 +1799,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           isPanning ? "is-panning" : "",
           isPointDragging ? "is-point-dragging" : "",
           isBezierHandleDragging ? "is-bezier-handle-dragging" : "",
+          rectangleSelectionSession ? "is-rectangle-selecting" : "",
           activePointPickTarget ? "is-point-picking" : "",
           activeNumericReferencePickTarget ? "is-numeric-reference-picking" : "",
           activeLinePickTarget ? "is-line-picking" : ""
@@ -1673,6 +1825,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           }
           stopBezierHandleDragging(event);
           stopPointDragging(event);
+          stopRectangleSelection(event, true);
           stopPanning(event);
           resolveEditorFocusReservation(event.pointerId);
         }}
@@ -1684,6 +1837,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           }
           stopBezierHandleDragging(event);
           stopPointDragging(event);
+          stopRectangleSelection(event, false);
           stopPanning(event);
           discardEditorFocusReservation(event.pointerId);
         }}
@@ -1698,6 +1852,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           overlayArcs={overlayArcs}
           overlayCurves={overlayCurves}
           overlayOffsetLines={overlayOffsetLines}
+          rectangleSelection={rectangleSelectionSession?.activated ? {
+            rectangle: screenSelectionRectangleBetween(
+              rectangleSelectionSession.start,
+              rectangleSelectionSession.current
+            ),
+            mode: rectangleSelectionSession.current.x >= rectangleSelectionSession.start.x
+              ? "window"
+              : "crossing"
+          } : null}
           overlayPoints={overlayPoints}
           overlayTexts={overlayTexts}
           selectedBezierHandles={selectedBezierHandles}
