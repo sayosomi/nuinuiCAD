@@ -120,7 +120,7 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(screen.getByText("Line target")).toBeInTheDocument();
     expect(screen.getByText("Pick · Line")).toBeInTheDocument();
     const frame = document.querySelector("[data-reference-pick-frame='true']");
-    expect(frame).toHaveAttribute("style", expect.stringContaining("border: 2px solid var(--canvas-accent)"));
+    expect(frame).toHaveAttribute("style", expect.stringContaining("border: 4px solid var(--canvas-accent)"));
     expect(document.querySelector("[data-reference-pick-badge='true']")).not.toBeNull();
     expect(screen.getByText("Enter Done")).toBeInTheDocument();
     expect(screen.getByText("Esc Cancel")).toBeInTheDocument();
@@ -141,14 +141,34 @@ describe("VSCodeReferencePickOverlay", () => {
 
     const done = screen.getByRole("button", { name: "Done" });
     expect(done).toBeEnabled();
-    fireEvent.keyDown(viewport, { key: "Enter" });
+    fireEvent.keyDown(window, { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
 
     done.focus();
-    fireEvent.keyDown(done, { key: "Escape" });
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(onCancel).toHaveBeenCalledTimes(1);
 
     view.unmount();
+    viewport.remove();
+  });
+
+  it("cancels on initial Escape after focus moves away from the Canvas viewport", () => {
+    const onCancel = vi.fn<() => void>();
+    const { viewport, view } = renderOverlay(sessionFor(), { onCancel });
+    const hostFocusedElement = document.createElement("button");
+    hostFocusedElement.type = "button";
+    document.body.append(hostFocusedElement);
+    hostFocusedElement.focus();
+
+    expect(document.activeElement).toBe(hostFocusedElement);
+    expect(document.activeElement).not.toBe(viewport);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    hostFocusedElement.remove();
     viewport.remove();
   });
 
@@ -196,7 +216,7 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(screen.getByRole("option", { name: /@C/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /@Arc\.center/ })).toBeInTheDocument();
 
-    fireEvent.keyDown(viewport, { key: "Escape" });
+    fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("listbox", { name: "Reference Pick point candidates" })).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
 
@@ -208,6 +228,18 @@ describe("VSCodeReferencePickOverlay", () => {
       candidateElementId: "Arc",
       reference: { base: "Arc", pointKey: "center" }
     });
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("does not install a Webview keyboard owner for a terminal session", () => {
+    const onCancel = vi.fn<() => void>();
+    const { viewport, view } = renderOverlay(sessionFor({ status: "canceled" }), { onCancel });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCancel).not.toHaveBeenCalled();
 
     view.unmount();
     viewport.remove();
