@@ -10,6 +10,7 @@ import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import type {
   VscodeReferencePickResult,
+  VscodeReferencePickNumericPropertyDraft,
   VscodeReferencePickTargetProof
 } from "../../src/vscode/referencePickProtocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -40,6 +41,7 @@ type ActiveReferencePick = {
   endpoint: VscodeReferencePickCanvasEndpoint;
   bridge: VscodeReferencePickSourceBridge | null;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
+  initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   expectedTargetProof?: VscodeReferencePickTargetProof;
   webviewDisposable: vscode.Disposable;
   panelDisposable: vscode.Disposable;
@@ -303,6 +305,9 @@ export const registerVscodeReferencePickFeature = ({
       ...(current.initialDraftReferences !== undefined
         ? { initialDraftReferences: current.initialDraftReferences }
         : {}),
+      ...(current.initialNumericPropertyDraft
+        ? { initialNumericPropertyDraft: current.initialNumericPropertyDraft }
+        : {}),
       ...(current.expectedTargetProof ? { expectedTargetProof: current.expectedTargetProof } : {}),
       postMessage: (message) => current.endpoint.panel.webview.postMessage(message)
     });
@@ -387,7 +392,8 @@ export const registerVscodeReferencePickFeature = ({
       requestId: nextRequestId++,
       endpoint: handoff.endpoint,
       bridge: null,
-      initialDraftReferences: handoff.references,
+      ...(handoff.numericProperty ? {} : { initialDraftReferences: handoff.references }),
+      ...(handoff.numericProperty ? { initialNumericPropertyDraft: handoff.numericProperty } : {}),
       expectedTargetProof: handoff.targetProof,
       webviewDisposable: { dispose: () => undefined },
       panelDisposable: { dispose: () => undefined }

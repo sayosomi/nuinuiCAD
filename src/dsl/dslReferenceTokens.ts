@@ -190,6 +190,12 @@ const readProperty = (source: string, start: number, end: number) => {
   let segmentStart = start;
   while (cursor < end) {
     const char = source[cursor];
+    if (char === "[") {
+      const index = source.slice(cursor, end).match(/^\[\d+\]/)?.[0];
+      if (!index) break;
+      cursor += index.length;
+      continue;
+    }
     if (char === ".") {
       if (cursor === segmentStart) return { end: cursor, invalidAt: cursor, value: "" };
       cursor += 1;

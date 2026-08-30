@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   CadElement,
+  ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
   ComputedPoint,
@@ -12,6 +13,11 @@ import {
   numericReferenceCandidates,
   parameterPathsForElement
 } from "./numericReferencePaths";
+import {
+  computedReferencePathValue,
+  numericComputedGeometryPropertiesFor,
+  numericComputedGeometrySupportsProperty
+} from "./numericExpressions";
 
 const point = (id: string, x: number, y: number): ComputedPoint => ({
   kind: "point",
@@ -96,6 +102,23 @@ const curveGeometry: ComputedBezierCurve = {
   endHandleLength: 25
 };
 
+const arcGeometry: ComputedArcLine = {
+  kind: "arcLine",
+  elementId: "arc",
+  name: "円弧",
+  centerPointId: "center",
+  center: point("center", 0, 0),
+  start: point("arc:start", 10, 0),
+  end: point("arc:end", 0, 10),
+  radius: 10,
+  startAngleDeg: 0,
+  endAngleDeg: 90,
+  startTangentAngleDeg: 90,
+  endTangentAngleDeg: 180,
+  sweepAngleDeg: 90,
+  length: Math.PI * 5
+};
+
 const evaluation: EvaluationResult = {
   computedGeometry: new Map<string, ComputedGeometry>([
     ["a", point("a", 0, 0)],
@@ -107,6 +130,29 @@ const evaluation: EvaluationResult = {
 };
 
 describe("numericReferencePaths", () => {
+  it("enumerates canonical properties only when the shared computed accessor provides them", () => {
+    const arcProperties = numericComputedGeometryPropertiesFor(arcGeometry);
+    expect(arcProperties).toEqual(expect.arrayContaining([
+      "length",
+      "radius",
+      "sweepAngleDeg",
+      "centerPoint.x",
+      "startPoint.y",
+      "endPoint.x"
+    ]));
+    expect(arcProperties).not.toContain("startHandleLength");
+    expect(arcProperties.every((property) => typeof computedReferencePathValue(arcGeometry, property) === "number")).toBe(true);
+    expect(numericComputedGeometrySupportsProperty(arcGeometry, "radius")).toBe(true);
+    expect(numericComputedGeometrySupportsProperty(arcGeometry, "startHandleLength")).toBe(false);
+
+    const curveProperties = numericComputedGeometryPropertiesFor(curveGeometry);
+    expect(curveProperties).toContain("intermediatePoints[1].x");
+    expect(curveProperties).toContain("intermediatePoints[1].y");
+    expect(curveProperties).not.toContain("intermediatePoints[2].x");
+    expect(numericComputedGeometrySupportsProperty(curveGeometry, "intermediatePoints[1].x")).toBe(true);
+    expect(numericComputedGeometrySupportsProperty(curveGeometry, "intermediatePoints[2].x")).toBe(false);
+  });
+
   it("offers the canonical pi constant through the legacy numeric candidate path", () => {
     const candidate = numericReferenceCandidates({ elements, evaluation }).find((item) => item.expression === "pi");
     expect(candidate).toMatchObject({

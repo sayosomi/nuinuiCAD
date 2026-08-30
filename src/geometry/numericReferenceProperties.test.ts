@@ -5,7 +5,8 @@ import type {
   ComputedBezierCurve,
   ComputedLine,
   ComputedOffsetLine,
-  ComputedPoint
+  ComputedPoint,
+  ComputedPolyline
 } from "../types/geometry";
 import {
   angleNumericParameterStepLevels,
@@ -99,6 +100,19 @@ const offsetLine: ComputedOffsetLine = {
   endTangentAngleDeg: 180
 };
 
+const polyline: ComputedPolyline = {
+  kind: "polyline",
+  elementId: "polyline",
+  name: "ポリライン",
+  segments: [{ kind: "line", start: point("polyline:start"), end: point("polyline:end", 10), length: 10 }],
+  closed: false,
+  start: point("polyline:start"),
+  end: point("polyline:end", 10),
+  length: 10,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 180
+};
+
 const baseElement = {
   id: "element",
   name: "要素",
@@ -129,6 +143,11 @@ describe("numericReferenceProperties", () => {
       "endHandleLength"
     ]);
     expect(numericReferencePropertiesForGeometry(offsetLine)).toEqual([
+      "length",
+      "startTangentAngleDeg",
+      "endTangentAngleDeg"
+    ]);
+    expect(numericReferencePropertiesForGeometry(polyline)).toEqual([
       "length",
       "startTangentAngleDeg",
       "endTangentAngleDeg"
@@ -181,7 +200,7 @@ describe("numericReferenceProperties", () => {
   });
 
   it("chooses a default that every NumericReferenceGeometry kind actually supports", () => {
-    for (const geometry of [line, arc, curve, offsetLine]) {
+    for (const geometry of [line, arc, curve, offsetLine, polyline]) {
       expect(numericReferenceGeometrySupportsProperty(geometry, initialNumericReferencePickProperty(undefined))).toBe(true);
       expect(
         numericReferenceGeometrySupportsProperty(geometry, initialNumericReferencePickProperty(angleNumericParameterStepLevels))

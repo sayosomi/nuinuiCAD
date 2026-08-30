@@ -5,11 +5,14 @@ import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
 import { canvasThemeCssVariables, type CanvasTheme } from "../components/canvasTheme";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
+import { propertyLabels } from "../geometry/numericExpressionProperties";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {
   filterReferencePickGeometryHits,
   hitTestReferencePickPoints
 } from "../model/referencePickHitTest";
 import type { ReferencePickPointHit } from "../model/referencePickHitTest";
+import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import { referencePickDraftKey, type ReferencePickHover } from "../model/referencePickSession";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
@@ -34,6 +37,7 @@ type VSCodeReferencePickOverlayProps = {
   session: VscodeReferencePickCanvasSession;
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
+  onSelectNumericProperty?: (property: NumericComputedGeometryProperty) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -51,6 +55,10 @@ const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
 
 const eventTargetsReferencePickUi = (event: Event): boolean =>
   event.target instanceof Element && Boolean(event.target.closest("[data-reference-pick-ui='true']"));
+
+const geometryOptionFor = (candidate: ReferencePickCandidate) => candidate.options.find((option) =>
+  option.kind === "geometry" || option.kind === "numericProperty"
+);
 
 type ReferencePickPointCandidateMenu = {
   anchor: ScreenPoint;
@@ -71,6 +79,7 @@ export const VSCodeReferencePickOverlay = ({
   session,
   onHover,
   onSelect,
+  onSelectNumericProperty,
   onConfirm,
   onCancel
 }: VSCodeReferencePickOverlayProps) => {
@@ -80,6 +89,35 @@ export const VSCodeReferencePickOverlay = ({
     pointCandidateMenuRef.current = next;
     setPointCandidateMenuState(next);
   }, []);
+  type ReferencePickNumericPropertyMenu = {
+    anchor: ScreenPoint;
+    candidateElementId: string;
+    reference: ReferencePickHover["reference"];
+    properties: readonly NumericComputedGeometryProperty[];
+    activeIndex: number;
+    requestId: number;
+  };
+  const [numericPropertyMenu, setNumericPropertyMenuState] = useState<ReferencePickNumericPropertyMenu | null>(null);
+  const numericPropertyMenuRef = useRef<ReferencePickNumericPropertyMenu | null>(null);
+  const setNumericPropertyMenu = useCallback((next: ReferencePickNumericPropertyMenu | null) => {
+    numericPropertyMenuRef.current = next;
+    setNumericPropertyMenuState(next);
+  }, []);
+  const pointerCursorOriginalRef = useRef<string | null>(null);
+  const setPointerCandidateCursor = useCallback((selectable: boolean) => {
+    const viewport = canvasFocusRef.current;
+    if (!viewport) return;
+    if (selectable) {
+      if (pointerCursorOriginalRef.current === null) pointerCursorOriginalRef.current = viewport.style.cursor;
+      viewport.style.cursor = "pointer";
+      return;
+    }
+    if (pointerCursorOriginalRef.current !== null) {
+      viewport.style.cursor = pointerCursorOriginalRef.current;
+      pointerCursorOriginalRef.current = null;
+    }
+  }, [canvasFocusRef]);
+  useEffect(() => () => setPointerCandidateCursor(false), [setPointerCandidateCursor, session.request.requestId, session.draft.status]);
   const overlay = useCanvasOverlayData({
     evaluation,
     elements,
@@ -119,7 +157,7 @@ export const VSCodeReferencePickOverlay = ({
     }), session.candidates)[0];
     if (!hit) return null;
     const candidate = session.candidates.find((item) => item.elementId === hit.elementId);
-    const option = candidate?.options.find((item) => item.kind === "geometry");
+    const option = candidate ? geometryOptionFor(candidate) : undefined;
     return candidate && option ? referencePickHoverForCanvasOption(candidate, option) : null;
   }, [
     overlay.overlayArcs,
@@ -134,6 +172,13 @@ export const VSCodeReferencePickOverlay = ({
     session.target.expectedGeometryInterface,
     pointHitsAt
   ]);
+
+  const numericPropertyForHit = useCallback((hover: ReferencePickHover | null) => {
+    if (!hover) return null;
+    const candidate = session.candidates.find((item) => item.elementId === hover.candidateElementId);
+    const option = candidate ? geometryOptionFor(candidate) : undefined;
+    return option?.kind === "numericProperty" ? option : null;
+  }, [session.candidates]);
 
   const activatePointCandidate = useCallback((index: number) => {
     const menu = pointCandidateMenuRef.current;
@@ -153,6 +198,24 @@ export const VSCodeReferencePickOverlay = ({
     setPointCandidateMenu({ ...menu, activeIndex: next });
   }, [session.request.requestId, setPointCandidateMenu]);
 
+  const activateNumericProperty = useCallback((index: number) => {
+    const menu = numericPropertyMenuRef.current;
+    if (!menu || menu.requestId !== session.request.requestId || menu.properties.length === 0) return;
+    const wrappedIndex = ((index % menu.properties.length) + menu.properties.length) % menu.properties.length;
+    const property = menu.properties[wrappedIndex];
+    if (!property) return;
+    onSelectNumericProperty?.(property);
+    setNumericPropertyMenu(null);
+    canvasFocusRef.current?.focus({ preventScroll: true });
+  }, [canvasFocusRef, onSelectNumericProperty, session.request.requestId, setNumericPropertyMenu]);
+
+  const cycleNumericProperty = useCallback((offset: number) => {
+    const menu = numericPropertyMenuRef.current;
+    if (!menu || menu.requestId !== session.request.requestId) return;
+    const next = ((menu.activeIndex + offset) % menu.properties.length + menu.properties.length) % menu.properties.length;
+    setNumericPropertyMenu({ ...menu, activeIndex: next });
+  }, [session.request.requestId, setNumericPropertyMenu]);
+
   useEffect(() => {
     const viewport = canvasFocusRef.current;
     if (!viewport || session.draft.status !== "active") return;
@@ -164,11 +227,16 @@ export const VSCodeReferencePickOverlay = ({
     if (!viewport || session.draft.status !== "active") return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (eventTargetsReferencePickUi(event)) return;
+      if (eventTargetsReferencePickUi(event)) {
+        setPointerCandidateCursor(false);
+        return;
+      }
       const next = hitAt(pointerScreenPoint(event, viewport));
+      setPointerCandidateCursor(next !== null);
       if (!sameHover(next, session.draft.hover)) onHover(next);
     };
     const handlePointerLeave = () => {
+      setPointerCandidateCursor(false);
       if (session.draft.hover) onHover(null);
     };
     const handlePointerDown = (event: PointerEvent) => {
@@ -182,6 +250,8 @@ export const VSCodeReferencePickOverlay = ({
         viewport.focus();
         return;
       }
+      const numericMenu = numericPropertyMenuRef.current;
+      if (numericMenu && numericMenu.requestId === session.request.requestId && eventTargetsReferencePickUi(event)) return;
       if (eventTargetsReferencePickUi(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -195,11 +265,51 @@ export const VSCodeReferencePickOverlay = ({
           onSelect(hit ? { candidateElementId: hit.candidateElementId, reference: hit.option.reference } : null);
         }
       } else {
-        onSelect(hitAt(screen));
+        const hit = hitAt(screen);
+        const option = numericPropertyForHit(hit);
+        setNumericPropertyMenu(
+          session.target.role === "numericPropertyBase" &&
+          session.target.numericProperty?.kind === "propertySelectionRequired" &&
+          hit &&
+          option
+            ? {
+                anchor: screen,
+                candidateElementId: hit.candidateElementId,
+                reference: hit.reference,
+                properties: option.properties,
+                activeIndex: 0,
+                requestId: session.request.requestId
+              }
+            : null
+        );
+        onSelect(hit);
       }
       viewport.focus();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      const numericMenu = numericPropertyMenuRef.current;
+      if (numericMenu && numericMenu.requestId === session.request.requestId) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          cycleNumericProperty(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          activateNumericProperty(numericMenu.activeIndex);
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          setNumericPropertyMenu(null);
+          onSelect(null);
+          viewport.focus();
+          return;
+        }
+      }
       const pointMenu = pointCandidateMenuRef.current;
       if (pointMenu && pointMenu.requestId === session.request.requestId) {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -230,7 +340,9 @@ export const VSCodeReferencePickOverlay = ({
       }
       if (eventTargetsReferencePickUi(event)) return;
       if (event.key === "Enter") {
-        const canConfirm = session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
+        const canConfirm = session.target.role === "numericPropertyBase"
+          ? Boolean(session.draft.numericProperty?.draft)
+          : session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
         if (!canConfirm) return;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -248,17 +360,41 @@ export const VSCodeReferencePickOverlay = ({
       viewport.removeEventListener("pointerdown", handlePointerDown, true);
       window.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [activatePointCandidate, canvasFocusRef, cyclePointCandidate, hitAt, onCancel, onConfirm, onHover, onSelect, pointHitsAt, session.draft, session.request.requestId, session.target.expectedGeometryInterface, setPointCandidateMenu]);
+  }, [
+    activateNumericProperty,
+    activatePointCandidate,
+    canvasFocusRef,
+    cycleNumericProperty,
+    cyclePointCandidate,
+    hitAt,
+    numericPropertyForHit,
+    onCancel,
+    onConfirm,
+    onHover,
+    onSelect,
+    pointHitsAt,
+    session.draft,
+    session.request.requestId,
+    session.target.expectedGeometryInterface,
+    session.target.numericProperty,
+    session.target.role,
+    setNumericPropertyMenu,
+    setPointerCandidateCursor,
+    setPointCandidateMenu
+  ]);
 
   const draftKeys = useMemo(
-    () => new Set(session.draft.draftReferences.map(referencePickDraftKey)),
-    [session.draft.draftReferences]
+    () => new Set([
+      ...session.draft.draftReferences.map(referencePickDraftKey),
+      ...(session.draft.numericProperty?.draft ? [referencePickDraftKey(session.draft.numericProperty.draft.reference)] : [])
+    ]),
+    [session.draft.draftReferences, session.draft.numericProperty]
   );
   const hoverKey = session.draft.hover ? referencePickDraftKey(session.draft.hover.reference) : null;
   const geometryStateByElementId = useMemo(() => {
     const result = new Map<string, { candidate: boolean; draft: boolean; hover: boolean }>();
     for (const candidate of session.candidates) {
-      const option = candidate.options.find((item) => item.kind === "geometry");
+      const option = geometryOptionFor(candidate);
       if (!option) continue;
       const key = referencePickDraftKey(option.reference);
       result.set(candidate.elementId, {
@@ -333,8 +469,13 @@ export const VSCodeReferencePickOverlay = ({
       ? [{ candidateElementId: candidate.elementId, option }]
       : [])
   ), [session.candidates]);
-  const canConfirm = session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
-  const selectionCount = session.draft.draftReferences.length;
+  const numericPropertyState = session.draft.numericProperty;
+  const canConfirm = session.target.role === "numericPropertyBase"
+    ? Boolean(numericPropertyState?.draft)
+    : session.draft.multiplicity === "multiple" || session.draft.draftReferences.length === 1;
+  const selectionCount = session.target.role === "numericPropertyBase"
+    ? numericPropertyState?.draft ? 1 : 0
+    : session.draft.draftReferences.length;
   const targetLabel = session.target.role === "endpoint"
     ? "Endpoint"
     : session.target.role === "numericPropertyBase"
@@ -344,7 +485,10 @@ export const VSCodeReferencePickOverlay = ({
         : session.target.expectedGeometryInterface === "line"
           ? "Line"
           : "Path";
-  const instruction = session.draft.multiplicity === "multiple"
+  const instruction = session.target.role === "numericPropertyBase" &&
+    numericPropertyState?.stage === "propertySelection"
+    ? "Select a property"
+    : session.draft.multiplicity === "multiple"
     ? `${selectionCount} selected`
     : selectionCount === 0
       ? "Select a candidate"
@@ -356,6 +500,14 @@ export const VSCodeReferencePickOverlay = ({
     id: `${index}-${hit.candidateElementId}-${referencePickReferenceKey(hit.option.reference)}`,
     name: referencePickSourceForReference(hit.option.reference),
     detail: `${hit.option.label} · ${hit.candidateElementId}`
+  })) ?? [];
+  const currentNumericPropertyMenu = numericPropertyMenu?.requestId === session.request.requestId
+    ? numericPropertyMenu
+    : null;
+  const numericPropertyMenuCandidates = currentNumericPropertyMenu?.properties.map((property, index) => ({
+    id: `${index}-${property}`,
+    name: propertyLabels[property as keyof typeof propertyLabels] ?? property,
+    detail: referencePickSourceForReference(currentNumericPropertyMenu.reference)
   })) ?? [];
 
   return (
@@ -446,6 +598,20 @@ export const VSCodeReferencePickOverlay = ({
             ariaLabel="Reference Pick point candidates"
             onFocusViewport={() => canvasFocusRef.current?.focus()}
             onActivate={activatePointCandidate}
+          />
+        </div>
+      ) : null}
+      {currentNumericPropertyMenu ? (
+        <div data-reference-pick-ui="true">
+          <CanvasOverlapCandidateMenu
+            anchor={currentNumericPropertyMenu.anchor}
+            candidates={numericPropertyMenuCandidates}
+            activeIndex={currentNumericPropertyMenu.activeIndex}
+            viewportSize={viewportSize}
+            idPrefix="reference-pick-numeric-property"
+            ariaLabel="Reference Pick numeric properties"
+            onFocusViewport={() => canvasFocusRef.current?.focus()}
+            onActivate={activateNumericProperty}
           />
         </div>
       ) : null}

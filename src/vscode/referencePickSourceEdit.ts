@@ -4,12 +4,16 @@ import {
   type SourceSnapshot
 } from "../dsl/dslReferencePickQuery";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
+import { isNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {
   isCanonicalReferencePickReference,
   referencePickReferenceKey,
   referencePickReplacementText,
   referencePickSeedReferences,
   referencePickTargetMatchesProof,
+  referencePickSourceForReference,
+  type VscodeReferencePickNumericCandidate,
+  type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickTargetProof
 } from "./referencePickProtocol";
 
@@ -42,7 +46,9 @@ export const planVscodeReferencePickSourceEdit = ({
   normalizedSourceOffset,
   targetProof,
   references,
-  allowedCandidateReferences
+  allowedCandidateReferences,
+  numericProperty,
+  allowedNumericCandidates
 }: {
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
@@ -50,6 +56,8 @@ export const planVscodeReferencePickSourceEdit = ({
   targetProof: VscodeReferencePickTargetProof;
   references: readonly CanonicalGeometrySourceReference[];
   allowedCandidateReferences: readonly CanonicalGeometrySourceReference[];
+  numericProperty?: VscodeReferencePickNumericPropertyDraft;
+  allowedNumericCandidates?: readonly VscodeReferencePickNumericCandidate[];
 }): VscodeReferencePickSourceEditPlan | null => {
   const target = queryDslReferencePickTarget({
     source,
@@ -61,6 +69,34 @@ export const planVscodeReferencePickSourceEdit = ({
     }
   });
   if (!target || !referencePickTargetMatchesProof(source.normalizedSource, target, targetProof)) return null;
+  if (target.role === "numericPropertyBase") {
+    if (
+      !target.numericProperty ||
+      !numericProperty ||
+      references.length !== 0 ||
+      !isCanonicalReferencePickReference(numericProperty.reference) ||
+      numericProperty.reference.pointKey !== undefined ||
+      !isNumericComputedGeometryProperty(numericProperty.property)
+    ) return null;
+    if (
+      target.numericProperty.kind === "fixedProperty" &&
+      target.numericProperty.property !== numericProperty.property
+    ) return null;
+    const allowedCandidate = allowedNumericCandidates?.find((candidate) =>
+      referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(numericProperty.reference)
+    );
+    if (!allowedCandidate || !allowedCandidate.properties.includes(numericProperty.property)) return null;
+    const replacement = target.numericProperty.kind === "fixedProperty"
+      ? referencePickSourceForReference(numericProperty.reference)
+      : `${referencePickSourceForReference(numericProperty.reference)}.${numericProperty.property}`;
+    const suffixLength = (target.activationRange ?? target.range).to - target.range.to;
+    return {
+      range: { ...target.range },
+      replacement,
+      caretNormalizedOffset: target.range.from + replacement.length + suffixLength
+    };
+  }
+  if (numericProperty) return null;
   if (!references.every((reference) => referenceMatchesTargetShape(targetProof, reference))) return null;
 
   const allowedKeys = new Set([

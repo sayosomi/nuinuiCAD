@@ -104,22 +104,27 @@ const source = [
   "point P = offset(from: @A, dx: 0, dy: 0)"
 ].join("\n");
 
-const createEditor = (): TestEditor => {
+const createEditorForSource = (documentSource: string, offset: number): TestEditor => {
   const document: TestDocument = {
     version: 7,
     fileName: "/tmp/pick.nui",
     uri: { scheme: "file", toString: () => "file:///tmp/pick.nui" },
-    getText: () => source,
+    getText: () => documentSource,
     offsetAt: (position) => position.offset
   };
   return {
     document,
     selection: {
-      active: { offset: source.indexOf("@A", source.indexOf("offset")) + 1 }
+      active: { offset }
     },
     viewColumn: 1
   };
 };
+
+const createEditor = (): TestEditor => createEditorForSource(
+  source,
+  source.indexOf("@A", source.indexOf("offset")) + 1
+);
 
 const createMutableEditor = () => {
   let currentSource = source;
@@ -197,6 +202,37 @@ beforeEach(() => {
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it("keeps the Reference Pick context enabled across a complete existing numeric-property occurrence", async () => {
+    const numericSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const occurrence = numericSource.indexOf("@Base.length");
+    const editor = createEditorForSource(numericSource, occurrence + 1);
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(numericSource);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    for (const offset of [occurrence + 1, occurrence + "@Base".length, occurrence + "@Base.".length + 2]) {
+      editor.selection = { active: { offset } };
+      for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
+      await flush();
+      expect(mocks.executeCommand).toHaveBeenLastCalledWith(
+        "setContext",
+        VSCODE_REFERENCE_PICK_CONTEXT_KEY,
+        true
+      );
+    }
+
+    feature.dispose();
+  });
+
   it("derives the Source context key from the shared exact target query", async () => {
     const editor = createEditor();
     mocks.activeTextEditor = editor;
