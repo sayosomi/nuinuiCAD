@@ -236,6 +236,29 @@ describe("planInlineModule Checkpoint 1", () => {
     }
   });
 
+  it("rejects an atomic target batch when one target has an unsafe geometry rewrite", () => {
+    const source = [
+      "nui 4",
+      "point Anchor = coordinate(x: 0, y: 0)",
+      "module Safe(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}",
+      "module Unsafe(anchor: point) {",
+      "  const x: number = @anchor.x",
+      "}",
+      "instance Good = Safe(anchor: @Anchor)",
+      "instance Bad = Unsafe(anchor: (0, 0))"
+    ].join("\n");
+    const { result } = plan(source, ["Good", "Bad"]);
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      code: "unsafe-rewrite",
+      target: { statementId: "inline:9" }
+    });
+    expect("splices" in result).toBe(false);
+  });
+
   it("rejects invalid local authored identities and never guesses materialized or stale targets", () => {
     const source = [
       "nui 4",
@@ -1258,6 +1281,77 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(exportReference && dslSemanticIdentityKey(exportReference.identity)).toBe(
       `module:moduleSource:${exported.exportedStatementId}`
     );
+  });
+
+  it("composes a qualified record export with scalar, singular geometry, and array lowering", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "point Anchor = coordinate(x: 1, y: 2)",
+      "point A = coordinate(x: 3, y: 4)",
+      "module Provider() {",
+      "  export const output: Pair = Pair(x: 7)",
+      "}",
+      "module Mixed(width: number, anchor: point, points: point[], settings: Pair) {",
+      "  group G {",
+      "    line P = polyline(points: @points, closed: false)",
+      "    point Q = offset(from: @anchor, dx: @width + @settings.x, dy: 0)",
+      "  }",
+      "}",
+      "instance Source = Provider()",
+      "instance Use = Mixed(width: 2, anchor: @Anchor, points: [@A], settings: @Source::output)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+
+    const nextSource = applyLineSplices(source, result.splices);
+    const groupStart = nextSource.indexOf("group Use {");
+    const widthStart = nextSource.indexOf("const width: number = 2", groupStart);
+    const pointsStart = nextSource.indexOf("const points: point[] = [@A]", groupStart);
+    const settingsStart = nextSource.indexOf("const settings: Pair = @Source::output", groupStart);
+    expect(widthStart).toBeGreaterThanOrEqual(0);
+    expect(pointsStart).toBeGreaterThan(widthStart);
+    expect(settingsStart).toBeGreaterThan(pointsStart);
+    expect(nextSource.match(/const settings: Pair = @Source::output/g)).toHaveLength(1);
+    expect(nextSource).toContain("point Q = offset(from: @Anchor, dx: @width + @settings.x, dy: 0)");
+
+    const next = compileCurrent(nextSource, "inline-qualified-record-mix-next");
+    const groupIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const settings = next.statements.find((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "settings" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(settings).toBeDefined();
+    if (!settings) return;
+    const settingsIndex = next.statements.indexOf(settings);
+    const settingsValue = next.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(settingsIndex);
+    expect(settingsValue?.typeIdentity).toBe("inline-qualified-record-mix-next:1");
+
+    const sourceInstance = next.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Source")!;
+    const definition = next.moduleSemanticAnalysis!.definitionsByStatementId.get(sourceInstance.callee!.definitionStatementId)!;
+    const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
+    if (!exported || exported.kind !== "record") throw new Error("missing record export");
+    const index = createDslSemanticOccurrenceIndex(next);
+    const qualifiedStart = nextSource.indexOf("@Source::output", groupStart);
+    const sourceReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === qualifiedStart + 1 &&
+      occurrence.to === qualifiedStart + 1 + "Source".length
+    );
+    const exportReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === qualifiedStart + 1 + "Source::".length &&
+      occurrence.to === qualifiedStart + 1 + "Source::output".length
+    );
+    expect(sourceReference && dslSemanticIdentityKey(sourceReference.identity)).toBe(
+      `module:moduleInstance:${sourceInstance.statementId}`
+    );
+    expect(exportReference && dslSemanticIdentityKey(exportReference.identity)).toBe(
+      `module:moduleSource:${exported.exportedStatementId}`
+    );
+
   });
 
   it("substitutes repeated direct uses of one singular geometry parameter independently", () => {
