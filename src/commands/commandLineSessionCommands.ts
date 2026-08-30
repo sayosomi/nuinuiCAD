@@ -11,6 +11,7 @@ import type { CadElementType } from "../types/geometry";
 import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
+import { focusCanvasAfterCreation } from "./postCreationFocus";
 import {
   activateStep,
   beginStepEdit,
@@ -55,6 +56,7 @@ import { promoteDirectlyReferencedUnnamedElements } from "./commandLineUnnamedPr
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
 import { commitSourceCreationDraftInsertion } from "./sourceCreationDraftCommit";
 import {
+  resolveDocumentEndSourceCreationInsertion,
   resolveSourceCreationInsertion,
   sourceCreationInsertionUnsafeError
 } from "./sourceCreationInsertion";
@@ -119,13 +121,15 @@ export const startCommandLineCreationForRecipe = (
   }
   const sourceCursor = context?.currentSourceCursor?.() ?? null;
   const sourceDocument = useCadDocumentStore.getState();
-  const sourceResolution = resolveSourceCreationInsertion({
-    cursor: sourceCursor,
-    sourceRevision: sourceDocument.sourceRevision,
-    elements: sourceDocument.elements,
-    statementMap: sourceDocument.doc.statementMap
-  });
-  if (sourceResolution.kind === "unsafe") {
+  const sourceResolution = sourceCursor
+    ? resolveSourceCreationInsertion({
+        cursor: sourceCursor,
+        sourceRevision: sourceDocument.sourceRevision,
+        elements: sourceDocument.elements,
+        statementMap: sourceDocument.doc.statementMap
+      })
+    : null;
+  if (sourceResolution?.kind === "unsafe") {
     useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
     return false;
   }
@@ -142,14 +146,29 @@ export const startCommandLineCreationForRecipe = (
   }
   const document = useCadDocumentStore.getState();
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
-  const sourceInsertion = sourceResolution.kind === "safe" ? sourceResolution.insertion : null;
-  if (sourceInsertion && sourceInsertion.sourceRevision !== document.sourceRevision) {
+  const insertionResolution = sourceResolution?.kind === "safe"
+    ? sourceResolution
+    : resolveDocumentEndSourceCreationInsertion({
+        sourceText: document.sourceText,
+        documentText: document.docText,
+        sourceRevision: document.sourceRevision,
+        elements: document.elements,
+        statementMap: document.doc.statementMap
+      });
+  if (insertionResolution.kind !== "safe") {
     useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
     return false;
   }
-  const insertionAnchor = insertionAnchorForCommandLineCreation(sourceCursor?.elementId ?? cursorElementId);
-  const insertionTarget = sourceInsertion?.insertionTarget ?? resolveCommandLineInsertionAnchor(insertionAnchor, document.elements);
-  if (insertionTarget === null) return false;
+  const sourceInsertion = insertionResolution.insertion;
+  if (sourceInsertion.sourceRevision !== document.sourceRevision) {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
+  const sourceInsertionOrigin = sourceCursor ? "source-cursor" as const : "document-end" as const;
+  const insertionAnchor = sourceCursor
+    ? insertionAnchorForCommandLineCreation(sourceCursor.elementId ?? cursorElementId)
+    : { kind: "documentEnd" as const };
+  const insertionTarget = sourceInsertion.insertionTarget;
 
   // Re-entry ordering is intentional: nothing above mutates UI state, while
   // these three calls remove all pending Canvas/editor handoffs before the
@@ -166,7 +185,8 @@ export const startCommandLineCreationForRecipe = (
     insertionAnchor,
     insertionIndex: insertionTarget.insertionIndex,
     insertionTarget,
-    sourceInsertionLine: sourceInsertion?.sourceInsertionLine ?? null,
+    sourceInsertionLine: sourceInsertion.sourceInsertionLine,
+    sourceInsertionOrigin,
     revision: document.sourceRevision,
     elements: document.elements,
     placement
@@ -429,14 +449,19 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   if (!sessionCanConfirm(session)) return false;
 
   const document = useCadDocumentStore.getState();
-  const insertionTarget = session.sourceInsertionLine === null
+  const hasPhysicalSourceInsertion = session.sourceInsertionOrigin !== null;
+  if (hasPhysicalSourceInsertion && session.sourceInsertionLine === null) {
+    clearStaleSession();
+    return false;
+  }
+  const insertionTarget = !hasPhysicalSourceInsertion
     ? resolveCommandLineInsertionAnchor(session.insertionAnchor, document.elements)
     : session.insertionTarget;
   if (insertionTarget === null) {
     clearStaleSession();
     return false;
   }
-  const promotion = session.sourceInsertionLine === null
+  const promotion = session.sourceInsertionOrigin !== "source-cursor"
     ? promoteDirectlyReferencedUnnamedElements(session, document.elements)
     : { elements: document.elements, promotedElementIds: [] };
   // The resolved semantic anchor owns the insertion position; placement only
@@ -456,7 +481,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     // The draft path only ever writes a text splice at a known physical
     // line; the non-anchored fallback commit below is a full CadElement[]
     // diff && has no way to represent a blank field without a sentinel.
-    if (session.sourceInsertionLine === null) {
+    if (!hasPhysicalSourceInsertion) {
       setSessionAndSyncPickTarget(withCommandLineSessionError(session, draftRequiresSourceEditorError));
       return false;
     }
@@ -477,10 +502,11 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     clearCommandLineGhostPreview();
     const draftCommit = commitSourceCreationDraftInsertion({
       elements: promotion.elements,
-      sourceInsertionLine: session.sourceInsertionLine,
+      sourceInsertionLine: session.sourceInsertionLine!,
       element: draft.element,
       blankParameterKeys: draft.blankParameterKeys,
-      parentGroupId: placement.parentGroupId
+      parentGroupId: placement.parentGroupId,
+      promotedElementIds: promotion.promotedElementIds
     });
     if (draftCommit.result.status !== "applied") {
       const ui = useCadUiStore.getState();
@@ -495,7 +521,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     // session must be left exactly as it was.
     clearCommandLineGhostPreview();
     useCadUiStore.getState().clearPickMode();
-    const draftEndLine = session.sourceInsertionLine + draftCommit.insertedLineCount - 1;
+    const draftEndLine = session.sourceInsertionLine! + draftCommit.insertedLineCount - 1;
     const focusSourceEditorAtDraftEnd = () => {
       if (context?.focusSourceEditorAtLineEnd) {
         context.focusSourceEditorAtLineEnd(draftEndLine);
@@ -503,7 +529,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       }
       context?.focusSourceEditor?.();
     };
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditorAtDraftEnd);
+    if (session.sourceInsertionOrigin === "document-end") {
+      focusCanvasAfterCreation(context);
+    } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditorAtDraftEnd);
     else setTimeout(focusSourceEditorAtDraftEnd, 0);
     return true;
   }
@@ -523,17 +551,30 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     setSessionAndSyncPickTarget(withCommandLineSessionError(session, duplicateNameMessage));
     return false;
   }
+  // The Canvas presentation that rendered the ghost may already have
+  // published eligibility for the eventual element. Document commits
+  // invalidate that snapshot synchronously, so retain it only for this
+  // Canvas-owned selection handoff.
+  const canvasSelectionEligibility = session.sourceInsertionOrigin === "document-end"
+    ? useCadUiStore.getState().canvasSelectionEligibleElementIds
+    : undefined;
+  const canvasPreviewElementIds = session.sourceInsertionOrigin === "document-end"
+    ? new Set((document.previewElements ?? [])
+        .filter((previewElement) => !document.elements.some((element) => element.id === previewElement.id))
+        .map((previewElement) => previewElement.id))
+    : new Set<string>();
   // The final materialization owns the canonical document; clear the ephemeral
   // candidate first so a rejected bridge call cannot leave a stale ghost.
   clearCommandLineGhostPreview();
-  const sourceCommit = session.sourceInsertionLine === null
-    ? null
-    : commitSourceCreationInsertion({
+  const sourceCommit = hasPhysicalSourceInsertion
+    ? commitSourceCreationInsertion({
         elements: promotion.elements,
         insertionIndex: insertionTarget.insertionIndex,
         insertedElements: [element],
-        sourceInsertionLine: session.sourceInsertionLine
-      });
+        sourceInsertionLine: session.sourceInsertionLine!,
+        promotedElementIds: promotion.promotedElementIds
+      })
+    : null;
   const result = sourceCommit?.result ?? commitDocumentChangeAndSelect({
     elements: [
       ...promotion.elements.slice(0, insertionTarget.insertionIndex),
@@ -561,11 +602,15 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
 
   const selectedElementId = sourceCommit?.selectedElementId ?? element.id;
   if (sourceCommit?.selectedElementId) {
+    const canvasSelectionEligibilityForCommit = canvasSelectionEligibility &&
+      [...canvasPreviewElementIds].some((id) => canvasSelectionEligibility.has(id))
+      ? new Set([...canvasSelectionEligibility, sourceCommit.selectedElementId])
+      : canvasSelectionEligibility ?? undefined;
     useCadUiStore.getState().applySelection(useCadDocumentStore.getState().elements, {
       selectedElementId,
       selectedElementIds: sourceCommit.insertedElementIds,
       selectionAnchorElementId: selectedElementId
-    });
+    }, canvasSelectionEligibilityForCommit);
   }
 
   clearCommandLineGhostPreview();
@@ -577,7 +622,9 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     }
     context?.focusSourceEditor?.();
   };
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
+  if (session.sourceInsertionOrigin === "document-end") {
+    focusCanvasAfterCreation(context);
+  } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
   else setTimeout(focusSourceEditor, 0);
   return true;
 };

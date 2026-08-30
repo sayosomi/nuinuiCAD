@@ -48,10 +48,13 @@ describe("command-line session commands", () => {
 
   it("fills free-point values, leaves the element unnamed on empty Enter, and commits once", () => {
     const focusSourceEditorAtElementEnd = vi.fn();
+    const focusCanvas = vi.fn();
 
     expect(startCommandLineCreation("freePoint")).toBe(true);
     const started = useCadUiStore.getState().commandLineSession!;
     expect(started.currentStepIndex).toBe(0);
+    expect(started.sourceInsertionOrigin).toBe("document-end");
+    expect(started.sourceInsertionLine).toBe(2);
 
     submitCommandLineInput("");
     submitCommandLineInput("12");
@@ -61,7 +64,7 @@ describe("command-line session commands", () => {
     expect(atConfirm.args).not.toHaveProperty("name");
 
     const pastBeforeConfirm = useCadDocumentStore.getState().past.length;
-    expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd })).toBe(true);
+    expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd, focusCanvas })).toBe(true);
 
     const document = useCadDocumentStore.getState();
     expect(document.past).toHaveLength(pastBeforeConfirm + 1);
@@ -74,19 +77,59 @@ describe("command-line session commands", () => {
     });
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
-    expect(focusSourceEditorAtElementEnd).toHaveBeenCalledWith(document.elements[0].id);
+    expect(focusSourceEditorAtElementEnd).not.toHaveBeenCalled();
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
   });
 
   it("returns every creation to the end of its generated statement", () => {
     const focusSourceEditorAtElementEnd = vi.fn();
+    const focusCanvas = vi.fn();
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("12");
     submitCommandLineInput("34");
 
-    expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd })).toBe(true);
+    expect(confirmCommandLineSession({ focusSourceEditorAtElementEnd, focusCanvas })).toBe(true);
     const element = useCadDocumentStore.getState().elements[0]!;
-    expect(focusSourceEditorAtElementEnd).toHaveBeenCalledWith(element.id);
+    expect(element).toBeDefined();
+    expect(focusSourceEditorAtElementEnd).not.toHaveBeenCalled();
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits Canvas-origin complete creation as a document-end source splice", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "// preserve this comment",
+      "",
+      ""
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const before = useCadDocumentStore.getState();
+    const pastBefore = before.past.length;
+    const focusCanvas = vi.fn();
+    const focusSourceEditor = vi.fn();
+
+    expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
+    submitCommandLineInput("12");
+    submitCommandLineInput("34");
+
+    const preview = useCadDocumentStore.getState().previewElements!;
+    const previewIds = new Set(preview.map((element) => element.id));
+    publishTestCanvasSelectionEligibility(preview, previewIds);
+    expect(confirmCommandLineSession({ focusCanvas, focusSourceEditor })).toBe(true);
+
+    const document = useCadDocumentStore.getState();
+    const created = document.elements.find((element) => !before.elements.some((old) => old.id === element.id))!;
+    expect(document.sourceText.startsWith(source)).toBe(true);
+    expect(document.sourceText).toContain("point = coordinate(");
+    expect(document.sourceUpdate).toMatchObject({ kind: "model-patch" });
+    expect(document.past).toHaveLength(pastBefore + 1);
+    expect(useCadUiStore.getState().selectedElementId).toBe(created.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([created.id]);
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
+    expect(focusSourceEditor).not.toHaveBeenCalled();
   });
 
   it("rejects a duplicate name before attempting document materialization", () => {
@@ -575,14 +618,14 @@ describe("command-line session commands", () => {
     applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
     // initialCadDocumentState() resets state fields only, never store actions,
     // so the stub must be restored here || it leaks into every later test.
-    const originalCommitDocumentChange = useCadDocumentStore.getState().commitDocumentChange;
+    const originalCommitLineSplices = useCadDocumentStore.getState().commitLineSplices;
     useCadDocumentStore.setState({
-      commitDocumentChange: () => ({ status: "rejected", reason: "invalid-change" })
+      commitLineSplices: () => ({ status: "rejected", reason: "invalid-change" })
     });
     try {
       expect(confirmCommandLineSession()).toBe(false);
     } finally {
-      useCadDocumentStore.setState({ commitDocumentChange: originalCommitDocumentChange });
+      useCadDocumentStore.setState({ commitLineSplices: originalCommitLineSplices });
     }
     expect(useCadDocumentStore.getState().sourceText).toBe(source);
     expect(useCadDocumentStore.getState().elements.find((element) => element.id === unnamed.id)?.name).toBe("");
@@ -595,12 +638,17 @@ describe("command-line session commands", () => {
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     publishTestCanvasSelectionEligibility();
-    const pointB = useCadDocumentStore.getState().elements[1];
+    const documentBefore = useCadDocumentStore.getState();
+    const pointB = documentBefore.elements[1];
 
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointB.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointB.id,
+      currentSourceCursor: () => ({ sourceRevision: documentBefore.sourceRevision, line: 3, lineCount: 3, elementId: pointB.id })
+    })).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       insertionIndex: 2,
-      insertionAnchor: { kind: "afterElement", elementId: pointB.id }
+      insertionAnchor: { kind: "afterElement", elementId: pointB.id },
+      sourceInsertionOrigin: "source-cursor"
     });
   });
 
@@ -727,7 +775,10 @@ describe("command-line session commands", () => {
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements[0];
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointA.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 3, elementId: pointA.id })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
@@ -752,7 +803,10 @@ describe("command-line session commands", () => {
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointA.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 4, elementId: pointA.id })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
@@ -781,14 +835,17 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
     const pointA = useCadDocumentStore.getState().elements[0]!;
 
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointA.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 3, elementId: pointA.id })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
-    expect(committed.evaluationLimitIndex).toBe(committed.elements.length);
+    expect(committed.evaluationLimitIndex).toBe(2);
     expect(committed.sourceText.split("\n").filter((line) => line === "stop")).toHaveLength(1);
     expect(committed.sourceText.trimEnd().endsWith("stop")).toBe(true);
   });
@@ -807,8 +864,9 @@ describe("command-line session commands", () => {
     expect(confirmCommandLineSession()).toBe(true);
 
     const committed = useCadDocumentStore.getState();
-    expect(committed.evaluationLimitIndex).toBe(committed.elements.length);
+    expect(committed.evaluationLimitIndex).toBe(1);
     expect(committed.sourceText.split("\n").filter((line) => line === "stop")).toHaveLength(1);
+    expect(committed.sourceText.indexOf("stop")).toBeLessThan(committed.sourceText.lastIndexOf("point"));
   });
 
   it("does not introduce stop when the source has no manual evaluation boundary", () => {
@@ -841,7 +899,10 @@ describe("command-line session commands", () => {
     const pointA = elements.find((element) => element.name === "A")!;
 
     useCadUiStore.getState().setGroupFold(group.id, { expanded: false });
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointA.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 3, lineCount: 5, elementId: pointA.id })
+    })).toBe(true);
     const collapsedSession = useCadUiStore.getState().commandLineSession!;
     expect(collapsedSession.insertionTarget).toEqual({ insertionIndex: 2, parentGroupId: group.id });
     submitCommandLineInput("");
@@ -853,7 +914,10 @@ describe("command-line session commands", () => {
     expect(cancelCommandLineSession()).toBe(true);
 
     useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => pointA.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => pointA.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 3, lineCount: 5, elementId: pointA.id })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
@@ -879,7 +943,10 @@ describe("command-line session commands", () => {
     ].join("\n"), "test");
     const group = useCadDocumentStore.getState().elements.find((element) => element.type === "conditionalGroup")!;
 
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => group.id })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => group.id,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 2, lineCount: 9, elementId: group.id })
+    })).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.insertionTarget).toEqual({ insertionIndex: 4 });
     submitCommandLineInput("");
     submitCommandLineInput("3");
@@ -956,7 +1023,10 @@ describe("command-line session commands", () => {
       "test"
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => cursorElementId,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 5, lineCount: 5, elementId: cursorElementId })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
@@ -987,7 +1057,10 @@ describe("command-line session commands", () => {
     // Collapsed groups place new elements at the top level; expand G so the
     // insertion really lands inside the disabled group.
     useCadUiStore.getState().setGroupFold(group.id, { expanded: true });
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => cursorElementId,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 3, lineCount: 4, elementId: cursorElementId })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
@@ -1008,7 +1081,10 @@ describe("command-line session commands", () => {
       "test"
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
-    expect(startCommandLineCreation("freePoint", { currentCursorElementId: () => cursorElementId })).toBe(true);
+    expect(startCommandLineCreation("freePoint", {
+      currentCursorElementId: () => cursorElementId,
+      currentSourceCursor: () => ({ sourceRevision: useCadDocumentStore.getState().sourceRevision, line: 5, lineCount: 5, elementId: cursorElementId })
+    })).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");

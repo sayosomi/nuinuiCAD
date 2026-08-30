@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
+import { applyPickedPoint } from "./pickCommands";
+import { referenceAnchor } from "../model/pointAnchors";
 import {
   confirmCommandLineSession,
   startCommandLineCreation,
@@ -110,6 +112,41 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(useCadDocumentStore.getState().diagnostics.length).toBeGreaterThan(0);
   });
 
+  it("atomically promotes a directly referenced unnamed source in a Canvas-origin draft", () => {
+    const source = [
+      "nui 4",
+      "point = coordinate(x: 0, y: 0)",
+      "point = coordinate(x: 10, y: 0)"
+    ].join("\n");
+    useCadDocumentStore.getState().commitText(source, "test");
+    const before = useCadDocumentStore.getState();
+    const unnamed = before.elements[0]!;
+    const unrelatedUnnamed = before.elements[1]!;
+    const pastBefore = before.past.length;
+    const focusCanvas = vi.fn();
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(unnamed.id) });
+    expect(submitCommandLineInput("")).toBe(true); // end - intentionally blank
+    expect(confirmCommandLineSession({ focusCanvas })).toBe(true);
+
+    const document = useCadDocumentStore.getState();
+    const promoted = document.elements.find((element) => element.id === unnamed.id)!;
+    expect(document.past).toHaveLength(pastBefore + 1);
+    expect(promoted.name).toBe("点");
+    expect(document.elements.find((element) => element.id === unrelatedUnnamed.id)?.name).toBe("");
+    expect(document.sourceText).toContain("point 点 = coordinate(");
+    expect(document.sourceText).toContain("start: @点,");
+    expect(document.sourceText).toContain("end: ,");
+    expect(document.sourceUpdate).toMatchObject({ kind: "model-patch" });
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
+    expect(document.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+
+    useCadDocumentStore.getState().undo();
+    expect(useCadDocumentStore.getState().sourceText).toBe(source);
+  });
+
   it("moves Source Editor focus to the end of the inserted draft, without touching Canvas selection", () => {
     useCadDocumentStore.getState().commitText(
       ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"),
@@ -178,20 +215,44 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     ].join("\n"));
   });
 
-  it("blocks a blank-completing draft when there is no known Source Editor insertion line", () => {
-    useCadDocumentStore.getState().commitText("nui 4", "test");
+  it("inserts a blank-completing draft at document end without changing Canvas selection", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "// keep this trailing comment",
+      "",
+      ""
+    ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
+    const pointA = useCadDocumentStore.getState().elements[0]!;
+    useCadUiStore.getState().setSelectedElementId(pointA.id);
+    const sourceBefore = useCadDocumentStore.getState().sourceText;
+    const pastBefore = useCadDocumentStore.getState().past.length;
+    const focusCanvas = vi.fn();
+    const focusSourceEditor = vi.fn();
     expect(startCommandLineCreation("line")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true);
 
-    const sourceBefore = useCadDocumentStore.getState().sourceText;
-    expect(confirmCommandLineSession()).toBe(false);
-    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
-    expect(useCadUiStore.getState().commandLineSession?.error).toContain("Source Editor");
+    expect(confirmCommandLineSession({ focusCanvas, focusSourceEditor })).toBe(true);
+    const document = useCadDocumentStore.getState();
+    expect(document.past.length).toBe(pastBefore + 1);
+    expect(document.sourceText.startsWith(sourceBefore)).toBe(true);
+    expect(document.sourceText).toContain([
+      "line = segment(",
+      "  start: ,",
+      "  end: ,",
+      ")"
+    ].join("\n"));
+    expect(document.sourceText).not.toContain("start: 0");
+    expect(document.sourceUpdate).toMatchObject({ kind: "model-patch" });
+    expect(useCadUiStore.getState().selectedElementId).toBe(pointA.id);
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
+    expect(focusSourceEditor).not.toHaveBeenCalled();
   });
 
-  it("still commits a fully-filled creation without a known Source Editor insertion line (regression)", () => {
+  it("commits a fully-filled Canvas-origin creation at document end", () => {
     useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("");

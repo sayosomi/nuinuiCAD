@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "../dsl/dslDocument";
 import {
+  resolveDocumentEndSourceCreationInsertion,
   resolveSourceCreationInsertion,
   sourceInsertionForCreation
 } from "./sourceCreationInsertion";
@@ -168,5 +169,65 @@ describe("command-line source insertion", () => {
       elements: result.document!.elements,
       statementMap: { ...statementMap, statements: [...statementMap.statements, logicalStatement] }
     })).toEqual({ kind: "unsafe", reason: "ambiguous-source-location" });
+  });
+
+  it("resolves a safe root document-end boundary after existing trailing bytes", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "// keep this trailing comment",
+      "",
+      ""
+    ].join("\n");
+    const result = compiled(source.split("\n"));
+
+    expect(resolveDocumentEndSourceCreationInsertion({
+      sourceText: source,
+      documentText: source,
+      sourceRevision: result.statementMap!.sourceRevision,
+      elements: result.document!.elements,
+      statementMap: result.statementMap
+    })).toEqual({
+      kind: "safe",
+      insertion: {
+        sourceRevision: result.statementMap!.sourceRevision,
+        insertionTarget: { insertionIndex: result.document!.elements.length },
+        sourceInsertionLine: source.split("\n").length
+      }
+    });
+  });
+
+  it("fails closed for fatal, stale, and inconsistent document-end source state", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const result = compiled(source.split("\n"));
+    const statementMap = result.statementMap!;
+    const args = {
+      sourceText: source,
+      documentText: source,
+      sourceRevision: statementMap.sourceRevision,
+      elements: result.document!.elements,
+      statementMap
+    };
+
+    expect(resolveDocumentEndSourceCreationInsertion({
+      ...args,
+      documentText: `${source}\npoint Broken = coordinate(x: )`
+    })).toEqual({ kind: "unsafe", reason: "fatal-source-text" });
+    expect(resolveDocumentEndSourceCreationInsertion({
+      ...args,
+      sourceRevision: statementMap.sourceRevision + 1
+    })).toEqual({ kind: "unsafe", reason: "stale-source-revision" });
+    expect(resolveDocumentEndSourceCreationInsertion({
+      ...args,
+      statementMap: {
+        ...statementMap,
+        statements: statementMap.statements.map((info, index) => index === 0
+          ? { ...info, range: { ...info.range, endLine: source.split("\n").length + 1 } }
+          : info)
+      }
+    })).toEqual({ kind: "unsafe", reason: "missing-statement-metadata" });
   });
 });

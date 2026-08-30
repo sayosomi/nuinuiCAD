@@ -3,6 +3,7 @@ import { serializeElementStatementBlockWithBlanks } from "../dsl/dslSerializeEle
 import { DSL_INDENT } from "../dsl/dslTokens";
 import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
+import { sourceCreationPromotionSplices } from "./sourceCreationCommit";
 
 export type SourceCreationDraftCommit = {
   result: DocumentMutationResult;
@@ -35,22 +36,34 @@ export const commitSourceCreationDraftInsertion = ({
   sourceInsertionLine,
   element,
   blankParameterKeys,
-  parentGroupId
+  parentGroupId,
+  promotedElementIds = []
 }: {
   elements: CadElement[];
   sourceInsertionLine: number;
   element: CadElement;
   blankParameterKeys: ReadonlySet<string>;
   parentGroupId?: ElementId;
+  promotedElementIds?: readonly ElementId[];
 }): SourceCreationDraftCommit => {
   const refs = documentDslRefs(elements);
   const statement = serializeElementStatementBlockWithBlanks(element, refs, blankParameterKeys);
   const depth = containerNestingDepth(elements, parentGroupId);
   const replacementLines = serializedStatementLines(statement, DSL_INDENT.repeat(depth));
-  const result = useCadDocumentStore.getState().commitLineSplices([{
-    startLine: sourceInsertionLine,
-    endLine: sourceInsertionLine - 1,
-    replacementLines
-  }]);
+  const promotionSplices = sourceCreationPromotionSplices({
+    promotedElements: elements,
+    promotedElementIds
+  });
+  if (promotionSplices === null) {
+    return { result: { status: "rejected", reason: "invalid-change" }, insertedLineCount: 0 };
+  }
+  const result = useCadDocumentStore.getState().commitLineSplices([
+    ...promotionSplices,
+    {
+      startLine: sourceInsertionLine,
+      endLine: sourceInsertionLine - 1,
+      replacementLines
+    }
+  ]);
   return { result, insertedLineCount: replacementLines.length };
 };

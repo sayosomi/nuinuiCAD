@@ -1,5 +1,6 @@
 import { documentDslRefs } from "../dsl/dslSerializer";
 import { layoutElementTree } from "../dsl/dslDocument";
+import { buildTextPatch, type LineSplice } from "../document/textPatch";
 import { useCadDocumentStore, type DocumentMutationResult } from "../state/cadDocumentStore";
 import type { CadElement, ElementId } from "../types/geometry";
 
@@ -7,6 +8,30 @@ export type SourceCreationCommit = {
   result: DocumentMutationResult;
   insertedElementIds: ElementId[];
   selectedElementId: ElementId | null;
+};
+
+/**
+ * Builds the existing statement-level edits needed to persist direct unnamed
+ * source promotion. The creation append is added by the caller so both edits
+ * can be submitted through one document mutation boundary.
+ */
+export const sourceCreationPromotionSplices = ({
+  promotedElements,
+  promotedElementIds
+}: {
+  promotedElements: CadElement[];
+  promotedElementIds: readonly ElementId[];
+}): LineSplice[] | null => {
+  if (promotedElementIds.length === 0) return [];
+  const document = useCadDocumentStore.getState();
+  try {
+    return buildTextPatch({
+      old: document.doc,
+      newDocument: { ...document.doc.document, elements: promotedElements }
+    });
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -19,12 +44,14 @@ export const commitSourceCreationInsertion = ({
   insertionIndex,
   insertedElements,
   sourceInsertionLine,
+  promotedElementIds = [],
   selectedElementOffset = 0
 }: {
   elements: CadElement[];
   insertionIndex: number;
   insertedElements: CadElement[];
   sourceInsertionLine: number;
+  promotedElementIds?: readonly ElementId[];
   selectedElementOffset?: number;
 }): SourceCreationCommit => {
   const document = useCadDocumentStore.getState();
@@ -41,11 +68,25 @@ export const commitSourceCreationInsertion = ({
   )
     .filter((row) => row.elementId !== undefined && insertedIds.has(row.elementId))
     .flatMap((row) => row.lines);
-  const result = document.commitLineSplices([{
-    startLine: sourceInsertionLine,
-    endLine: sourceInsertionLine - 1,
-    replacementLines
-  }]);
+  const promotionSplices = sourceCreationPromotionSplices({
+    promotedElements: elements,
+    promotedElementIds
+  });
+  if (promotionSplices === null) {
+    return {
+      result: { status: "rejected", reason: "invalid-change" },
+      insertedElementIds: [],
+      selectedElementId: null
+    };
+  }
+  const result = document.commitLineSplices([
+    ...promotionSplices,
+    {
+      startLine: sourceInsertionLine,
+      endLine: sourceInsertionLine - 1,
+      replacementLines
+    }
+  ], { createdElementIds: insertedElements.map((element) => element.id) });
   if (result.status !== "applied") {
     return { result, insertedElementIds: [], selectedElementId: null };
   }

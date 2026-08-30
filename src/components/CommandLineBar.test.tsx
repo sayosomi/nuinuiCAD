@@ -7,9 +7,12 @@ import {
 } from "../commands/commandLineInputComposition";
 import {
   startCommandLineCreation as startCommandLineCreationForValuePrompt,
+  syncCommandLinePickTarget,
   startCommandLineStepEdit,
   submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
+import { creationRecipeForType } from "../commands/creationRecipes";
+import { startSession } from "../commands/commandLineSession";
 import { activePickCandidates, applyPickReference } from "../commands/pickCommands";
 import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -58,6 +61,20 @@ const startCommandLineCreation = (...args: Parameters<typeof startCommandLineCre
     submitCommandLineInput("");
   }
   return started;
+};
+
+const startIsolatedCommandLineCreation = (type: Parameters<typeof startCommandLineCreationForValuePrompt>[0]) => {
+  const document = useCadDocumentStore.getState();
+  const recipe = creationRecipeForType(type);
+  if (!recipe) return false;
+  useCadUiStore.getState().startCommandLineSession(startSession(recipe, {
+    insertionIndex: document.elements.length,
+    revision: document.sourceRevision,
+    elements: document.elements
+  }));
+  syncCommandLinePickTarget();
+  if (recipe.steps[0]?.kind === "name") submitCommandLineInput("");
+  return true;
 };
 
 // A few suggestion tests install an evaluation spy before starting. Move the
@@ -298,7 +315,7 @@ describe("CommandLineBar", () => {
     useCadUiStore.getState().setGroupFold("parent", { expanded: true });
     renderBar();
 
-    act(() => { startCommandLineCreation("line", { currentCursorElementId: () => "inside" }); });
+    act(() => { startIsolatedCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "先頭" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("先頭点");
@@ -322,7 +339,8 @@ describe("CommandLineBar", () => {
 
   it("confirms from the real completed-bar Enter path and hands focus back through its command context", async () => {
     const focusSourceEditorAtElementEnd = vi.fn();
-    renderBar({ commandContext: { focusSourceEditorAtElementEnd } });
+    const focusCanvas = vi.fn();
+    renderBar({ commandContext: { focusSourceEditorAtElementEnd, focusCanvas } });
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
@@ -340,7 +358,8 @@ describe("CommandLineBar", () => {
     // confirmCommandLineSession schedules the focus handoff via a real
     // requestAnimationFrame (see commandLineSessionCommands.ts), so it lands
     // after this synchronous submit.
-    await waitFor(() => expect(focusSourceEditorAtElementEnd).toHaveBeenCalledOnce());
+    await waitFor(() => expect(focusCanvas).toHaveBeenCalledOnce());
+    expect(focusSourceEditorAtElementEnd).not.toHaveBeenCalled();
   });
 
   it("edits a completed row in place, hides normal back, and restores row focus after commit or cancel", async () => {
@@ -1069,7 +1088,18 @@ describe("CommandLineBar", () => {
     ].join("\n"), "test");
     const group = useCadDocumentStore.getState().elements.find((element) => element.name === "G")!;
     renderBar();
-    act(() => { startCommandLineCreation("freePoint", { currentCursorElementId: () => group.id }); });
+    const documentState = useCadDocumentStore.getState();
+    act(() => {
+      startCommandLineCreation("freePoint", {
+        currentCursorElementId: () => group.id,
+        currentSourceCursor: () => ({
+          sourceRevision: documentState.sourceRevision,
+          line: 3,
+          lineCount: 6,
+          elementId: group.id
+        })
+      });
+    });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
     fireEvent.change(input, { target: { value: "@" } });
     input.setSelectionRange(1, 1);
