@@ -15,9 +15,12 @@ can be forwarded to the existing list-taking constructions; see
 [Types](types.md).
 
 Append `?` to make a parameter optional. An optional parameter has no value
-until supplied and cannot also have a default. A required parameter may have a
-default with `=`, and the default is evaluated in the module's parameter
-context. Defaults do not capture values from the module's caller.
+until supplied and cannot also have a default. Only non-optional scalar
+parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a
+default with `=`. Geometry parameters, geometry-array parameters, and record
+parameters do not gain default-value support. Scalar defaults are evaluated in
+source order in the module's parameter context and do not capture values from
+the module's caller.
 
 ## Arguments and exports
 
@@ -38,9 +41,9 @@ exports to later references.
 For an optional parameter, `hasValue(@parameter)` returns whether the caller
 supplied a value. The optional value itself may be read only in a branch whose
 condition proves presence. The proof is available in the true branch of
-`if (hasValue(...))`, in the right-hand branch of `and`, and in the left-hand
-branch of `or`; it does not flow through an arbitrary boolean alias or through
-the opposite branch.
+`if (hasValue(...))`, in the right-hand side of `and`, and in the false branch
+of `or`. `not` reverses the presence fact. Facts do not flow through an
+arbitrary boolean alias or into the opposite branch.
 
 ## Documentation comments
 
