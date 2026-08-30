@@ -1,7 +1,12 @@
 # Control flow
 
-Control-flow blocks are unnamed. A group creates a named container; `if` and
-`for` create unnamed containers whose children remain in source order.
+Control-flow blocks preserve source order and introduce lexical scopes. A
+`group` creates a named container, and named group/container members can be
+reached through a qualified namespace path such as `@Front::Hem`, subject to
+the usual source-order and activity rules. `if` and `for` create unnamed
+lexical scopes; their children have no user-visible `::` path and follow the
+normal block-scope rules. Modules are closed scopes: callers can reach only
+declarations marked `export`, through an instance path such as `@front::Hem`.
 
 ```text
 group Front {
@@ -19,12 +24,22 @@ for i in range(from: 0, count: 3, step: 1) {
 }
 ```
 
-The `if` condition is boolean after typed checking. A `for` iteration variable
-is a body-only numeric binding and is referenced as `@i` in typed expressions.
-`from`, `count`, and `step` are numeric; `step` defaults to `1` and
-`showGenerated` controls whether generated rows are shown. Containers inherit
-activity and drawing modifiers, while their dependency and evaluation rules
-remain deterministic.
+The `if` condition is a boolean expression. Its true branch is evaluated when
+the condition is true; an `else` branch, when present, is evaluated otherwise.
+The branches are separate scopes, and a declaration in one branch is not
+available in the other.
+
+The `for` iteration variable is an immutable, body-only `number` binding and is
+referenced as `@i` in typed expressions. `from`, `count`, and `step` are
+numeric expressions; `step` defaults to `1`. Invalid range values are
+evaluation diagnostics. The variable is not added to the surrounding scope.
+`showGenerated` controls whether generated rows are shown; it does not change
+the values produced by the loop.
+
+Containers inherit their ancestors' activity and drawing modifiers. A visible
+container evaluates and draws eligible children, a hidden container evaluates
+children without drawing them, and a disabled container prevents child
+evaluation and later references. See [Modifiers](modifiers.md).
 
 <!-- dsl-example: compile-success -->
 ```nui

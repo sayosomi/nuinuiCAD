@@ -1,37 +1,59 @@
 # Modules
 
-`module` defines a reusable lexical body. `instance` creates a module
-occurrence. A module does not implicitly capture outer values; required values
-must be parameters.
+## Definition and instance
 
-Module parameters may be scalar types, `point`, `line`, `path`, or the three
-geometry array types. Scalar, geometry, and array parameters may be optional
-with `?`. Optional parameters cannot also have defaults. Defaults are written
-with `=` and are evaluated in the module's parameter context.
+`module` defines a reusable, closed lexical body. `instance` creates a module
+occurrence from that definition. A module never implicitly captures an outer
+scalar, geometry value, group member, or loop binding; anything it needs must
+be declared as a parameter. Definitions and instances are non-hoisted and are
+resolved in document order.
 
-Arguments are named and may be supplied in any order. A simple relative
-reference such as `@width` is shorthand for the named argument `width: @width`.
-It is not a positional argument. Explicit named form is required for qualified
-references, properties, literals, and expressions.
+Module parameters may use scalar types, `point`, `line`, `path`, record types,
+or the geometry arrays `point[]`, `line[]`, and `path[]`. The singular geometry
+interfaces are read-only inside a module. Geometry arrays are immutable and
+can be forwarded to the existing list-taking constructions; see
+[Types](types.md).
 
-Module bodies may export geometry, arrays, scalar values, and records. An
-export is referenced through an instance with `@instance::export`. Module
-instances have their own activity option: `visible`, `hidden`, or `disabled`.
+Append `?` to make a parameter optional. An optional parameter has no value
+until supplied and cannot also have a default. Only non-optional scalar
+parameters (`number`, `boolean`, `string`, or `choice(...)`) may declare a
+default with `=`. Geometry parameters, geometry-array parameters, and record
+parameters do not gain default-value support. Scalar defaults are evaluated in
+source order in the module's parameter context and do not capture values from
+the module's caller.
 
-For an optional parameter, `hasValue(@parameter)` returns presence. The value
-may be read only in a branch whose condition proves presence, including the
-corresponding short-circuit branch of `and` or `or`.
+## Arguments and exports
+
+Module arguments are named and may be supplied in any order. A simple relative
+reference such as `@width` is shorthand for `width: @width`; it is still a
+named argument. Use explicit `name: value` form for qualified references,
+properties, literals, and compound expressions. Positional arguments are not
+supported. Unknown, duplicate, missing, or mixed-style arguments are errors.
+
+Module bodies can export geometry, geometry arrays, scalar values, and records.
+Exports are private to the instance until explicitly declared with `export`.
+An external reference uses `@instance::export`; an exported record field can
+then be read with `.`, for example `@front::measure.height`. A module instance
+has its own `state` option: visible content evaluates and draws, hidden content
+evaluates without drawing, and disabled content does not evaluate or provide
+exports to later references.
+
+For an optional parameter, `hasValue(@parameter)` returns whether the caller
+supplied a value. The optional value itself may be read only in a branch whose
+condition proves presence. The proof is available in the true branch of
+`if (hasValue(...))`, in the right-hand side of `and`, and in the false branch
+of `or`. `not` reverses the presence fact. Facts do not flow through an
+arbitrary boolean alias or into the opposite branch.
 
 ## Documentation comments
 
 A `///` documentation group can document the following module definition, the
 following parameter inside a module parameter list, or the following export
 declaration inside a module body. Association is forward. Blank lines and
-ordinary `//` or `/* ... */` comments do not break it, but intervening real DSL
-code or declarations consume or terminate the pending association; documentation
-never jumps over code. Multiple documentation groups for one declaration are
-concatenated in source order. A trailing `///` on a declaration does not attach
-backward.
+ordinary `//` or `/* ... */` comments do not break it, but intervening DSL code
+or a declaration consumes or terminates the pending association; documentation
+never jumps over code. Multiple groups for one declaration are concatenated in
+source order. A trailing `///` on a declaration does not attach backward.
 
 `/// @<locale>` starts an explicit locale section. Locale identifiers are
 arbitrary supported IDs, not a fixed `en`/`ja` list. Repeated non-empty sections
@@ -41,7 +63,7 @@ inferred locale. Malformed or locale-less documentation metadata is ignored and
 does not make an otherwise-valid document fail compilation or evaluation.
 
 The payload is source-semantic Markdown metadata. It does not change runtime
-geometry or evaluation behavior.
+geometry, module arguments, or evaluation behavior.
 
 <!-- dsl-example: compile-success -->
 ```nui

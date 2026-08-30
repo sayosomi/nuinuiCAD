@@ -1,11 +1,11 @@
 # Constructions
 
-A named geometry declaration normally has the form `category Name =
-construction(...)`. The construction registry below is generated from the
-implemented semantic construction and parameter authorities. Its `Syntax` and
-`Arguments` data is intentionally limited to facts those authorities own.
-Descriptions, examples, and notes in the sections below are human-authored
-language reference prose.
+A named geometry declaration has the form `category Name = construction(...)`.
+The generated catalog below is the authoritative syntax and argument reference
+for every implemented construction. Its tables intentionally contain only
+machine-owned signatures and parameter metadata. The human-authored sections
+after the catalog explain what each construction does, how its values are
+interpreted, and where its restrictions matter.
 
 <!-- dsl-ref:generated:start constructions -->
 <!-- This region is generated from src/dsl/dslConstructions.ts and src/parameters/parameterDefinitions.ts. -->
@@ -563,50 +563,301 @@ language reference prose.
 
 <!-- dsl-ref:generated:end constructions -->
 
+## How to use the catalog
+
+Each generated entry above supplies the exact **Syntax** and **Arguments** (the
+construction's parameter list) for one construction. The following sections
+supply the user-facing **Description**, **Example**, and **Notes** without
+repeating generated signatures or editor-owned parameter metadata.
+Construction arguments are
+named unless the catalog marks a positional argument. Common `state` and
+drawing metadata are described in [Modifiers](modifiers.md).
+
 ## Points
 
-Point constructions create free points, offsets, polar offsets, divisions,
-intersections, tangent offsets, and measurements on Bezier curves. Point
-references are valid inputs to later constructions. A `between` point selects
-exactly one of `distance` or `ratio`; `tangentOffset` selects `angle` or
-`curveSide` when that mode is used.
+### `coordinate`, `offset`, and `polar`
 
-## Lines and curves
+**Description:** `coordinate` creates a free point at its `x` and `y`
+coordinates. `offset` adds `dx` and `dy` millimetres to an earlier point.
+`polar` adds a distance at an angle in degrees from an earlier point.
 
-Line constructions include straight and polar lines, common tangents, offsets,
-polylines, splits, transforms, and mirrors. `path[]` is the broad line-like
-collection used by offset and copy/move operations. `bezier` creates a cubic
-Bezier path and may include intermediate points. Arc constructions include a
-center-based arc, a three-point arc, and a corner-radius arc. `arc` supports
-`counterclockwise` and `clockwise` directions; omitted direction has the
-counterclockwise meaning.
+**Notes:** Point references are valid inputs to later constructions. Angles are
+measured in the Y-up drafting coordinate system; ordinary distances are in
+millimetres.
 
-The mutation constructions `edge`, `extend`, `move`, `mirrorMove`, and
-`reverse` operate on earlier geometry without introducing a named declaration.
-They preserve document-order dependency rules and report invalid geometry.
+### `between` and `onLine`
 
-## Text and images
+**Description:** `between` places a point along the directed segment from
+`start` to `end`. Supply exactly one of `distance` or `ratio`: distance is a
+millimetre offset from `start`, while ratio `0` is `start` and ratio `1` is
+`end`. Ratios outside that interval continue along the same line. `onLine`
+does the corresponding operation from a referenced line endpoint; its
+`distance` or `ratio` also selects exactly one mode.
 
-`text Name = label(...)` creates a label. Its `text` argument accepts a text
-template, and its anchor may be a point or `none`. The image construction uses
-a source path, an origin, and optional natural-size, DPI, scale, rotation, and
-mirror values. Image data is an asset; the DSL stores its source and display
-parameters.
+**Notes:** A missing or simultaneous `distance` and `ratio` is invalid. The
+referenced endpoint must be available at the source position.
+
+### `intersection`
+
+**Description:** `intersection` returns one intersection of two referenced
+lines. `index` chooses among multiple intersections when the line-like
+geometry provides them. `extensions: true` permits the infinite extensions of
+the two lines; otherwise the construction uses the supported finite geometry
+intersection rules.
+
+**Notes:** Parallel, unavailable, or otherwise non-intersecting inputs produce
+an invalid point rather than a guessed result.
+
+### `tangentOffset`
+
+**Description:** `tangentOffset` starts at `base` on `line` and creates a point
+at the requested `distance` along a tangent direction. Use `angle` for an
+explicit tangent angle, or `curveSide: convex` / `concave` for a curvature-side
+offset on a computed cubic Bezier.
+
+**Notes:** `angle` and `curveSide` are mutually exclusive. With neither, the
+construction uses the existing angle mode with angle `0`. Curvature-side mode
+requires a computed Bezier result (including a split, trim, extend, or reverse
+result); lines, arcs, and offset lines are rejected. The base point must lie on
+the curve within the implemented `0.001 mm` tolerance. Degenerate, ambiguous,
+or off-curve cases are errors; distance `0` is valid after those checks.
+
+### `bezierExtremePoint` and `bezierBulgePoint`
+
+**Description:** These constructions inspect a computed cubic Bezier. The
+extreme-point form returns the point with the greatest projection in the
+requested direction. The bulge-point form returns the point with the greatest
+unsigned distance from the curve's chord, considering both sides.
+
+**Notes:** `segmentIndex` defaults to `0` and must select a valid segment. The
+source must be Bezier geometry at runtime, not merely a declaration whose
+category once happened to be `curve`. A degenerate chord is invalid for the
+bulge calculation. Ties use the point nearest the segment midpoint, then the
+smaller curve parameter.
+
+**Example:**
 
 <!-- dsl-example: compile-success -->
 ```nui
 nui 4
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
-point Mid = between(start: @A, end: @B, ratio: 0.5)
+point C = coordinate(x: 100, y: 80)
 line AB = segment(start: @A, end: @B)
-curve Shape = bezier(start: @A, end: @B, startAngle: 90, startLength: 20, endAngle: -90, endLength: 20)
+line BC = segment(start: @B, end: @C)
+point Offset = offset(from: @A, dx: 10, dy: 5)
+point Polar = polar(from: @A, angle: 90, distance: 20)
+point Mid = between(start: @A, end: @B, ratio: 0.5)
+point On = onLine(from: @AB.start, ratio: 0.5)
+point Cross = intersection(line1: @AB, line2: @BC)
+point Tangent = tangentOffset(line: @AB, base: @A, angle: 90, distance: 10)
+curve Bow = bezier(start: @A, end: @C, startAngle: 90, startLength: 20, endAngle: 180, endLength: 20)
+point High = bezierExtremePoint(source: @Bow, direction: 90)
+point Bulge = bezierBulgePoint(source: @Bow)
 ```
+
+## Lines and curves
+
+### `segment` and line `polar`
+
+**Description:** `segment` joins two points with a strict straight line.
+Line `polar` starts at a point and extends for a millimetre `length` at a
+degree `angle`. A zero-length result is not a usable strict line for line
+measurements.
+
+### `commonTangent`
+
+**Description:** `commonTangent` constructs a tangent line between two
+computed arcs. `kind` chooses an external or internal tangent and `side`
+chooses the left or right solution.
+
+**Notes:** Both inputs must be valid arcs with positive radii. Concentric,
+degenerate, or otherwise unavailable tangent solutions are errors.
+
+### `offset`
+
+**Description:** `offset` offsets one or more ordered line-like sources by a
+millimetre `distance`. `side: right` and `side: left` select the side of the
+source direction. `closed` closes the resulting chain when requested.
+
+**Notes:** Sources are supplied as a `path[]`-compatible list, so lines, arcs,
+and Bezier paths may participate. Offset trimming can produce warnings;
+`suppressTrimWarnings` controls those warnings, not the geometry calculation.
+
+### `polyline`
+
+**Description:** `polyline` connects an ordered `point[]` into a line-like
+path. With `closed: true`, it adds the final-to-first connection when needed.
+
+**Notes:** An open polyline requires at least two points; a closed polyline
+requires at least three. The authored order and duplicate points are retained.
+
+### `split`
+
+**Description:** `split` divides an earlier line-like value at an available
+point and returns the resulting split line value. The split point must satisfy
+the source geometry's supported split rules.
+
+### `transformCopy` and `mirrorCopy`
+
+**Description:** `transformCopy` copies an ordered line-like list by mapping
+its source start point to `endPoint`, then applying the optional positive
+`scale`, rotation in degrees, and `mirrorX` reflection. `mirrorCopy` reflects
+the list across the axis from `axis1` to `axis2`.
+
+**Notes:** The source list is not rewritten. The axis must be defined by two
+distinct available points, and a non-positive or non-finite scale is invalid.
+
+### `bezier`
+
+**Description:** `bezier` creates a cubic Bezier path between its start and end
+points. Handle angles are in degrees and handle lengths are millimetres.
+Optional intermediate points split the path into ordered cubic segments, each
+with its own handle data.
+
+**Notes:** Bezier geometry is broad `path` geometry. It can be consumed by
+`path[]` operations and by the Bezier-specific point constructions when the
+computed result remains a Bezier.
+
+### `arc`
+
+**Description:** `arc` creates a directed circular arc from a center, radius,
+start angle, and end angle. Angles are degrees. `direction` may be
+`counterclockwise` or `clockwise`; omitting it is the same as
+`counterclockwise`.
+
+**Notes:** Equal start and end angles produce zero sweep. An explicitly authored
+full turn such as `0` to `360` produces a full positive or negative turn
+according to direction. The readable `.direction` property is the corresponding
+choice value; see [Expressions](expressions.md).
+
+### `through`
+
+**Description:** `through` creates a circular arc through three points. The
+points determine the circle and the optional start/end angles select its
+directed portion.
+
+**Notes:** Collinear or duplicate defining points cannot determine a circle and
+produce an invalid arc. This construction has no `direction` argument; its
+geometry determines the resulting sweep.
+
+### `corner`
+
+**Description:** `corner` creates a radius arc at the intersection of two
+referenced line endpoints. `radius` controls the fillet size and `index`
+selects the relevant intersection when the inputs provide alternatives.
+
+**Notes:** The source lines must provide a valid corner and enough room for the
+requested radius. The construction trims the adjoining geometry as part of
+the corner result; impossible, parallel, or degenerate corners are errors.
+
+**Example:**
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 4
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+point C = coordinate(x: 100, y: 80)
+point D = coordinate(x: 0, y: 80)
+point Mid = between(start: @A, end: @B, ratio: 0.5)
+line Bottom = segment(start: @A, end: @B)
+line Right = segment(start: @B, end: @C)
+curve Sweep = bezier(start: @A, end: @C, startAngle: 90, startLength: 20, endAngle: 0, endLength: 20)
+arc Quarter = arc(center: @A, radius: 40, start: 0, end: 90, direction: counterclockwise)
+arc Through = through(point1: @A, point2: @B, point3: @C, start: 0, end: 90)
+line Shifted = offset(sources: [@Bottom], distance: 5, side: right, closed: false)
+line Outline = polyline(points: [@A, @B, @C, @D], closed: true)
+line Half = split(source: @Bottom, at: @Mid)
+line Copy = transformCopy(startPoint: @A, endPoint: @D, baseLines: [@Bottom])
+line Mirror = mirrorCopy(axis1: @A, axis2: @D, baseLines: [@Bottom])
+```
+
+## Text and images
+
+### `label`
+
+**Description:** `label` creates a text element. Its `text` may be a literal
+or a template using `${...}` holes. `anchor` may be an available point or
+`none`; `size` is the font size used for drawing.
+
+**Notes:** A template hole accepts a string, number, or boolean. Choices must
+be made explicit with `string(...)`; see [Expressions](expressions.md).
+
+### `image`
+
+**Description:** `image` places an image asset from `source` at `origin`.
+Optional natural width/height and source DPI describe the asset's physical
+size; `targetPixelsPerMm` can specify a target resolution. `scale`, `angleDeg`,
+and `mirrorX` control display transformation.
+
+**Notes:** Natural dimensions, DPI, target resolution, and scale must be
+positive when supplied. The DSL stores the source and display parameters; it
+does not turn image data into geometry.
+
+## Mutations
+
+Mutation statements have no declared name. They operate on earlier line-like
+geometry in document order and do not create a new referenceable element.
+Every target and source is still an `@` reference or a typed geometry array.
+
+### `edge`
+
+**Description:** `edge` trims or joins geometry at the intersection selected by
+two line endpoints. `index` selects an alternative intersection when one is
+available.
+
+**Notes:** The endpoints must be available line endpoints and the requested
+intersection must be geometrically valid.
+
+### `extend`
+
+**Description:** `extend` extends or trims the selected line endpoint toward a
+point. The point is used as the target on the line or its supported extension.
+
+**Notes:** The operation reports an invalid geometry result when the endpoint,
+target, or source type cannot support the requested extension.
+
+### `move`
+
+**Description:** `move` rewrites one or more earlier line-like targets by
+mapping `from` to `to` and applying optional positive `scale`, rotation
+`angleDeg`, and `mirrorX` settings. The targets retain their source order.
+
+### `mirrorMove`
+
+**Description:** `mirrorMove` rewrites the target list by reflecting it across
+the axis from `axis1` to `axis2`. The axis points must be distinct and
+available.
+
+### `reverse`
+
+**Description:** `reverse` reverses the direction of an earlier line-like
+target in place. Later constructions observe the reversed value; earlier
+scalar reads do not change retroactively.
+
+**Example:**
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 4
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 100, y: 0)
+line Base = segment(start: @A, end: @B)
+reverse(target: @Base)
+```
+
+The following shows the shape of a list-consuming mutation without claiming a
+particular geometric result.
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-point Name = construction(
-  start: @EarlierPoint,
-  end: @AnotherPoint,
+move(
+  targets: [@EarlierLine],
+  from: @A,
+  to: @B,
+  scale: 1,
+  angleDeg: 0,
+  mirrorX: false,
 )
 ```
