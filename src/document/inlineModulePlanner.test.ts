@@ -4,6 +4,7 @@ import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
+import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { applyLineSplices } from "./textPatch";
 import {
@@ -1074,7 +1075,7 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(compileCurrent(next, "inline-repeated-geometry-next").diagnostics).toEqual([]);
   });
 
-  it("skips body structures whose binder/capture proof is deferred", () => {
+  it("preserves nested groups as ordinary copied structure", () => {
     const source = [
       "nui 4",
       "module Stamp() {",
@@ -1088,9 +1089,382 @@ describe("planInlineModule Checkpoint 1", () => {
 
     expect(result).toMatchObject({
       status: "planned",
-      splices: [],
-      targets: [{ status: "skipped", code: "nested-module-validation-required" }]
+      targets: [{ status: "inlined" }]
     });
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("group Copy {\n  group Inner {\n    point P = coordinate(x: 0, y: 0)\n  }\n}");
+    const next = compileCurrent(nextSource, "inline-nested-group-next");
+    const copyIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Copy");
+    const innerIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Inner" && statement.enclosing?.statementIndex === copyIndex
+    );
+    const pointIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === innerIndex
+    );
+    expect(copyIndex).toBeGreaterThanOrEqual(0);
+    expect(innerIndex).toBeGreaterThanOrEqual(0);
+    expect(pointIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it("preserves nested group owners while lowering an outer geometry parameter", () => {
+    const source = [
+      "nui 4",
+      "point Outside = coordinate(x: 10, y: 0)",
+      "module M(anchor: point) {",
+      "  group G {",
+      "    point Local = coordinate(x: 0, y: 0)",
+      "    group Nested {",
+      "      point FromLocal = offset(from: @Local, dx: 1, dy: 0)",
+      "      point FromAnchor = offset(from: @anchor, dx: 2, dy: 0)",
+      "    }",
+      "  }",
+      "}",
+      "instance Use = M(anchor: @Outside)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+
+    const nextSource = applyLineSplices(source, result.splices);
+    const next = compileCurrent(nextSource, "inline-nested-groups-next");
+    const index = createDslSemanticOccurrenceIndex(next);
+    const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const groupIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "G" && statement.enclosing?.statementIndex === useIndex
+    );
+    const nestedIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Nested" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const localIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Local" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const fromLocalIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "FromLocal" && statement.enclosing?.statementIndex === nestedIndex
+    );
+    const fromAnchorIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "FromAnchor" && statement.enclosing?.statementIndex === nestedIndex
+    );
+    const outsideIndex = next.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Outside");
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    expect(nestedIndex).toBeGreaterThanOrEqual(0);
+    expect(localIndex).toBeGreaterThanOrEqual(0);
+    expect(fromLocalIndex).toBeGreaterThanOrEqual(0);
+    expect(fromAnchorIndex).toBeGreaterThanOrEqual(0);
+    expect(outsideIndex).toBeGreaterThanOrEqual(0);
+    if (localIndex < 0 || fromLocalIndex < 0 || fromAnchorIndex < 0 || outsideIndex < 0) return;
+
+    const declarationIdentity = (statementIndex: number) => {
+      const statement = next.statements[statementIndex]!;
+      return index.occurrences.find((occurrence) =>
+        occurrence.kind === "declaration" &&
+        occurrence.from >= statement.documentRange.from &&
+        occurrence.to <= statement.documentRange.to
+      )?.identity;
+    };
+    const referenceIdentity = (statementIndex: number, token: string) => {
+      const statement = next.statements[statementIndex]!;
+      return index.occurrences.find((occurrence) =>
+        occurrence.kind === "reference" &&
+        nextSource.slice(occurrence.from, occurrence.to) === token &&
+        occurrence.from >= statement.documentRange.from &&
+        occurrence.to <= statement.documentRange.to
+      )?.identity;
+    };
+    const localIdentity = declarationIdentity(localIndex);
+    const outsideIdentity = declarationIdentity(outsideIndex);
+    const localReference = referenceIdentity(fromLocalIndex, "Local");
+    const outsideReference = referenceIdentity(fromAnchorIndex, "Outside");
+    expect(localIdentity).toBeDefined();
+    expect(outsideIdentity).toBeDefined();
+    expect(localReference).toBeDefined();
+    expect(outsideReference).toBeDefined();
+    if (!localIdentity || !outsideIdentity || !localReference || !outsideReference) return;
+    expect(dslSemanticIdentityKey(localReference)).toBe(dslSemanticIdentityKey(localIdentity));
+    expect(dslSemanticIdentityKey(outsideReference)).toBe(dslSemanticIdentityKey(outsideIdentity));
+  });
+
+  it("preserves conditional branch ownership inside nested groups and loops", () => {
+    const source = [
+      "nui 4",
+      "module M(flag: boolean) {",
+      "  group G {",
+      "    for i in range(from: 0, count: 2) {",
+      "      if (@flag) {",
+      "        point Then = coordinate(x: @i, y: 0)",
+      "      } else {",
+      "        point Else = coordinate(x: @i, y: 1)",
+      "      }",
+      "    }",
+      "  }",
+      "}",
+      "instance Use = M(flag: true)"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = compileCurrent(applyLineSplices(source, result.splices), "inline-nested-conditional-next");
+    const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const groupIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "G" && statement.enclosing?.statementIndex === useIndex
+    );
+    const loopIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.type === "forGroup" && statement.enclosing?.statementIndex === groupIndex
+    );
+    const conditionalIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.type === "conditionalGroup" && statement.enclosing?.statementIndex === loopIndex
+    );
+    const thenIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Then" && statement.enclosing?.statementIndex === conditionalIndex
+    );
+    const elseIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Else" && statement.enclosing?.statementIndex === conditionalIndex
+    );
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    expect(loopIndex).toBeGreaterThanOrEqual(0);
+    expect(conditionalIndex).toBeGreaterThanOrEqual(0);
+    expect(thenIndex).toBeGreaterThanOrEqual(0);
+    expect(elseIndex).toBeGreaterThanOrEqual(0);
+    expect(next.statements[thenIndex]?.enclosing?.branch).toBe("then");
+    expect(next.statements[elseIndex]?.enclosing?.branch).toBe("else");
+    if (thenIndex < 0 || elseIndex < 0 || loopIndex < 0) return;
+    const stableIds = next.statementMap!.statementIdByStatementIndex!;
+    const thenLookup = resolveModuleLexicalPath(
+      { sourceNamespace: next.sourceLexicalNamespace!, stableStatementIdByIndex: stableIds },
+      thenIndex,
+      { absolute: false, segments: ["i"] }
+    );
+    const elseLookup = resolveModuleLexicalPath(
+      { sourceNamespace: next.sourceLexicalNamespace!, stableStatementIdByIndex: stableIds },
+      elseIndex,
+      { absolute: false, segments: ["i"] }
+    );
+    const loopId = stableIds.get(loopIndex);
+    expect(thenLookup).toMatchObject({ kind: "iteration", statementId: loopId });
+    expect(elseLookup).toMatchObject({ kind: "iteration", statementId: loopId });
+  });
+
+  it("preserves nested-loop iteration owners with same-name shadowing", () => {
+    const source = [
+      "nui 4",
+      "module M() {",
+      "  for i in range(from: 0, count: 2) {",
+      "    point Outer = coordinate(x: @i, y: 0)",
+      "    for i in range(from: 0, count: 2) {",
+      "      point Inner = coordinate(x: @i, y: @i)",
+      "    }",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = compileCurrent(applyLineSplices(source, result.splices), "inline-nested-loops-next");
+    const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const loops = next.statements
+      .map((statement, statementIndex) => ({ statement, statementIndex }))
+      .filter(({ statement, statementIndex }) =>
+        statementIndex > useIndex && statement.kind === "element" && statement.type === "forGroup"
+      );
+    expect(loops).toHaveLength(2);
+    const outerLoop = loops.find(({ statement }) => statement.enclosing?.statementIndex === useIndex);
+    const innerLoop = loops.find(({ statement }) => outerLoop && statement.enclosing?.statementIndex === outerLoop.statementIndex);
+    const outerPoint = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Outer" && outerLoop && statement.enclosing?.statementIndex === outerLoop.statementIndex
+    );
+    const innerPoint = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "Inner" && innerLoop && statement.enclosing?.statementIndex === innerLoop.statementIndex
+    );
+    expect(outerLoop).toBeDefined();
+    expect(innerLoop).toBeDefined();
+    expect(outerPoint).toBeGreaterThanOrEqual(0);
+    expect(innerPoint).toBeGreaterThanOrEqual(0);
+    if (!outerLoop || !innerLoop || outerPoint < 0 || innerPoint < 0) return;
+    const stableIds = next.statementMap!.statementIdByStatementIndex!;
+    const outerLookup = resolveModuleLexicalPath(
+      { sourceNamespace: next.sourceLexicalNamespace!, stableStatementIdByIndex: stableIds },
+      outerPoint,
+      { absolute: false, segments: ["i"] }
+    );
+    const innerLookup = resolveModuleLexicalPath(
+      { sourceNamespace: next.sourceLexicalNamespace!, stableStatementIdByIndex: stableIds },
+      innerPoint,
+      { absolute: false, segments: ["i"] }
+    );
+    expect(outerLookup).toMatchObject({ kind: "iteration", statementId: stableIds.get(outerLoop.statementIndex) });
+    expect(innerLookup).toMatchObject({ kind: "iteration", statementId: stableIds.get(innerLoop.statementIndex) });
+    expect(innerLookup).not.toMatchObject({ statementId: stableIds.get(outerLoop.statementIndex) });
+  });
+
+  it("keeps a copied nested Module's parameter, local, export, and callee identities", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  module Inner(p: number) {",
+      "    const q: number = @p + 1",
+      "    export point P = coordinate(x: @q, y: 0)",
+      "  }",
+      "  instance Child = Inner(p: 1)",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    expect(nextSource).toContain("export point P = coordinate(x: @q, y: 0)");
+    const next = compileCurrent(nextSource, "inline-nested-module-next");
+    const index = createDslSemanticOccurrenceIndex(next);
+    const useIndex = next.statements.findIndex((statement) => statement.kind === "group" && statement.name === "Use");
+    const nestedDefinitionIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleDefinition" && statement.name === "Inner" && statement.enclosing?.statementIndex === useIndex
+    );
+    const nestedInstanceIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleInstance" && statement.name === "Child" && statement.enclosing?.statementIndex === useIndex
+    );
+    const localIndex = next.statements.findIndex((statement) =>
+      statement.kind === "typedDeclaration" && statement.name === "q" && statement.enclosing?.statementIndex === nestedDefinitionIndex
+    );
+    const pointIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === nestedDefinitionIndex
+    );
+    expect(nestedDefinitionIndex).toBeGreaterThanOrEqual(0);
+    expect(nestedInstanceIndex).toBeGreaterThanOrEqual(0);
+    expect(localIndex).toBeGreaterThanOrEqual(0);
+    expect(pointIndex).toBeGreaterThanOrEqual(0);
+    if (nestedDefinitionIndex < 0 || nestedInstanceIndex < 0 || localIndex < 0 || pointIndex < 0) return;
+
+    const stableIds = next.statementMap!.statementIdByStatementIndex!;
+    const nestedDefinitionId = stableIds.get(nestedDefinitionIndex);
+    const nestedInstanceId = stableIds.get(nestedInstanceIndex);
+    const pointId = stableIds.get(pointIndex);
+    expect(nestedDefinitionId).toBeDefined();
+    expect(nestedInstanceId).toBeDefined();
+    expect(pointId).toBeDefined();
+    const nestedDefinition = next.moduleSemanticAnalysis!.definitionsByStatementId.get(nestedDefinitionId!);
+    const nestedInstance = next.moduleSemanticAnalysis!.instancesByStatementId.get(nestedInstanceId!);
+    expect(nestedDefinition?.parameters[0]).toMatchObject({ parameterIndex: 0, definitionStatementId: nestedDefinitionId });
+    expect(nestedDefinition?.exports).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "P", exportedStatementId: pointId })
+    ]));
+    expect(nestedInstance?.callee).toMatchObject({ definitionStatementId: nestedDefinitionId, name: "Inner" });
+
+    const localDeclaration = index.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" &&
+      occurrence.from >= next.statements[localIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[localIndex]!.documentRange.to
+    );
+    const localReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      nextSource.slice(occurrence.from, occurrence.to) === "q" &&
+      occurrence.from >= next.statements[pointIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[pointIndex]!.documentRange.to
+    );
+    const parameterReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.identity.kind === "module" &&
+      nextSource.slice(occurrence.from, occurrence.to) === "p" &&
+      occurrence.from >= next.statements[localIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[localIndex]!.documentRange.to
+    );
+    expect(localDeclaration).toBeDefined();
+    expect(localReference).toBeDefined();
+    expect(parameterReference).toBeDefined();
+    if (!localDeclaration || !localReference || !parameterReference) return;
+    expect(dslSemanticIdentityKey(localReference.identity)).toBe(dslSemanticIdentityKey(localDeclaration.identity));
+    expect(parameterReference.identity).toMatchObject({
+      kind: "module",
+      target: { kind: "moduleParameter", slot: { definitionStatementId: nestedDefinitionId, parameterIndex: 0 } }
+    });
+  });
+
+  it("inlines a selected local Module instance at its enclosing Module scope", () => {
+    const source = [
+      "nui 4",
+      "module Inner() {",
+      "  export point P = coordinate(x: 1, y: 0)",
+      "}",
+      "module Outer() {",
+      "  point Before = coordinate(x: 0, y: 0)",
+      "  instance Child = Inner()",
+      "  point After = offset(from: @Child::P, dx: 1, dy: 0)",
+      "}",
+      "instance Use = Outer()"
+    ].join("\n");
+    const { result } = plan(source, ["Child"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const nextSource = applyLineSplices(source, result.splices);
+    const next = compileCurrent(nextSource, "inline-local-instance-next");
+    const outerIndex = next.statements.findIndex((statement) => statement.kind === "moduleDefinition" && statement.name === "Outer");
+    const childGroupIndex = next.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Child" && statement.enclosing?.statementIndex === outerIndex
+    );
+    const pointIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "P" && statement.enclosing?.statementIndex === childGroupIndex
+    );
+    const afterIndex = next.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.name === "After" && statement.enclosing?.statementIndex === outerIndex
+    );
+    expect(childGroupIndex).toBeGreaterThanOrEqual(0);
+    expect(pointIndex).toBeGreaterThanOrEqual(0);
+    expect(afterIndex).toBeGreaterThanOrEqual(0);
+    if (childGroupIndex < 0 || pointIndex < 0 || afterIndex < 0) return;
+    const index = createDslSemanticOccurrenceIndex(next);
+    const childDeclaration = index.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" &&
+      occurrence.from >= next.statements[childGroupIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[childGroupIndex]!.documentRange.to
+    );
+    const pointDeclaration = index.occurrences.find((occurrence) =>
+      occurrence.kind === "declaration" &&
+      occurrence.from >= next.statements[pointIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[pointIndex]!.documentRange.to
+    );
+    const childReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      nextSource.slice(occurrence.from, occurrence.to) === "Child" &&
+      occurrence.from >= next.statements[afterIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[afterIndex]!.documentRange.to
+    );
+    const pointReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      nextSource.slice(occurrence.from, occurrence.to) === "P" &&
+      occurrence.from >= next.statements[afterIndex]!.documentRange.from &&
+      occurrence.to <= next.statements[afterIndex]!.documentRange.to
+    );
+    expect(childDeclaration).toBeDefined();
+    expect(pointDeclaration).toBeDefined();
+    expect(childReference).toBeDefined();
+    expect(pointReference).toBeDefined();
+    if (!childDeclaration || !pointDeclaration || !childReference || !pointReference) return;
+    expect(dslSemanticIdentityKey(childReference.identity)).toBe(dslSemanticIdentityKey(childDeclaration.identity));
+    expect(dslSemanticIdentityKey(pointReference.identity)).toBe(dslSemanticIdentityKey(pointDeclaration.identity));
+  });
+
+  it("composes scalar, singular geometry, and geometry-array lowering inside nested structure", () => {
+    const source = [
+      "nui 4",
+      "point Anchor = coordinate(x: 1, y: 2)",
+      "point A = coordinate(x: 3, y: 4)",
+      "module M(width: number, anchor: point, points: point[]) {",
+      "  group G {",
+      "    line P = polyline(points: @points, closed: false)",
+      "    point Q = offset(from: @anchor, dx: @width, dy: 0)",
+      "  }",
+      "}",
+      "instance Use = M(width: 3, anchor: @Anchor, points: [@A])"
+    ].join("\n");
+    const { result } = plan(source, ["Use"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const width: number = 3");
+    expect(next).toContain("const points: point[] = [@A]");
+    expect(next).toContain("line P = polyline(points: @points, closed: false)");
+    expect(next).toContain("point Q = offset(from: @Anchor, dx: @width, dy: 0)");
+    expect(compileCurrent(next, "inline-nested-lowering-next").diagnostics).toEqual([]);
   });
 
   it("preserves external instance-member resolution to the generated group member", () => {
