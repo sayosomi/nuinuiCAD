@@ -325,7 +325,7 @@ const eligiblePullRequest = (pullRequest, pushedAt) => {
     return null;
   }
   const createdAt = parseGitHubTime(pullRequest.created_at);
-  if (createdAt === null || createdAt > pushedAt) return null;
+  if (createdAt === null || createdAt >= pushedAt) return null;
   return pullRequest;
 };
 
@@ -377,6 +377,80 @@ export const notifyMainPush = async ({ event, environment = process.env, fetchIm
   }
 };
 
+const pullRequestLifecycleFromEvent = (event) => {
+  const action = event?.action;
+  if (![
+    "opened",
+    "reopened",
+    "ready_for_review"
+  ].includes(action)) {
+    throw new Error("Expected an opened, reopened, or ready_for_review pull_request_target event");
+  }
+
+  const pullRequest = event?.pull_request;
+  if (!pullRequest || typeof pullRequest !== "object" || Array.isArray(pullRequest)) {
+    throw new Error("Pull request lifecycle event does not identify a pull request safely");
+  }
+  const baseRef = pullRequest.base?.ref;
+  if (typeof baseRef !== "string" || !baseRef) {
+    throw new Error("Pull request lifecycle event does not identify its base branch safely");
+  }
+  if (baseRef !== "main" || pullRequest.draft === true) return null;
+  if (pullRequest.draft !== false) {
+    throw new Error("Pull request lifecycle event does not identify draft state safely");
+  }
+  if (pullRequest.state !== "open") {
+    throw new Error("Pull request lifecycle event does not identify an open pull request");
+  }
+  if (!Number.isSafeInteger(pullRequest.number) || pullRequest.number <= 0) {
+    throw new Error("Pull request lifecycle event does not identify a valid pull request number");
+  }
+  if (!SHA_PATTERN.test(pullRequest.head?.sha ?? "")) {
+    throw new Error("Pull request lifecycle event does not contain a valid head SHA");
+  }
+  return { action, pullRequest };
+};
+
+export const buildPullRequestLifecycleContent = ({ repository, pullRequest, mainSha }) => {
+  const lines = [
+    `⚠️ [${asText(repository, DISPLAY_CAPS.repository)}] PR #${asText(pullRequest?.number, DISPLAY_CAPS.prNumber)} out of date — latest main integration required`,
+    asText(pullRequest?.title, DISPLAY_CAPS.title),
+    `PR URL: ${asText(pullRequest?.html_url, DISPLAY_CAPS.runUrl)}`,
+    `event-time main SHA: ${asText(mainSha, DISPLAY_CAPS.mainSha)}`,
+    `PR head SHA: ${asText(pullRequest?.head?.sha, DISPLAY_CAPS.headSha)}`
+  ];
+  return truncate(lines.join("\n"), MAX_DISCORD_MESSAGE_LENGTH);
+};
+
+export const notifyPullRequestLifecycle = async ({ event, environment = process.env, fetchImpl = fetch }) => {
+  const lifecycle = pullRequestLifecycleFromEvent(event);
+  if (!lifecycle) return;
+
+  const mainSha = environment.GITHUB_SHA;
+  if (!SHA_PATTERN.test(mainSha ?? "")) {
+    throw new Error("GITHUB_SHA must be a valid event-time main SHA");
+  }
+  const repository = environment.GITHUB_REPOSITORY;
+  const token = environment.GITHUB_TOKEN;
+  if (typeof repository !== "string" || !repository.trim()) throw new Error("GITHUB_REPOSITORY is required");
+  if (typeof token !== "string" || !token) throw new Error("GITHUB_TOKEN is required");
+
+  const behindBy = await compareMainToPullRequest({
+    repository,
+    mainSha,
+    headSha: lifecycle.pullRequest.head.sha,
+    token,
+    fetchImpl
+  });
+  if (behindBy <= 0) return;
+
+  await postDiscord({
+    webhookUrl: environment.DISCORD_WEBHOOK_URL,
+    content: buildPullRequestLifecycleContent({ repository, pullRequest: lifecycle.pullRequest, mainSha }),
+    fetchImpl
+  });
+};
+
 export const notifyCiFailure = async ({ event, environment = process.env, fetchImpl = fetch }) => {
   const { run, pullRequest } = ciFailureFromEvent(event);
   if (!pullRequest) return;
@@ -422,7 +496,12 @@ const main = async () => {
     const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
     return notifyMainPush({ event });
   }
-  throw new Error("Usage: discordPrNotification.mjs <merge|ci-failure|main-push>");
+  if (mode === "pr-lifecycle") {
+    if (!process.env.GITHUB_EVENT_PATH) throw new Error("GITHUB_EVENT_PATH is required");
+    const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
+    return notifyPullRequestLifecycle({ event });
+  }
+  throw new Error("Usage: discordPrNotification.mjs <merge|ci-failure|main-push|pr-lifecycle>");
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
