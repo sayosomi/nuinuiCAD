@@ -2422,12 +2422,18 @@ export const decorateDocumentQualifiedModuleSemantics = (
     if (!target || typeof target !== "object") return target;
     const value = target as Record<string, unknown>;
     const result = { ...value };
-    if (typeof value.statementId === "string") result.identity = identityFor(value.statementId);
-    if (value.kind === "parameter" && typeof value.definitionStatementId === "string") {
+    if (typeof value.statementId === "string" && value.identity === undefined) {
+      result.identity = identityFor(value.statementId);
+    }
+    if (value.kind === "parameter" && typeof value.definitionStatementId === "string" && value.definitionIdentity === undefined) {
       result.definitionIdentity = identityFor(value.definitionStatementId);
     }
-    if (typeof value.instanceStatementId === "string") result.instanceIdentity = identityFor(value.instanceStatementId);
-    if (typeof value.exportedStatementId === "string") result.exportedIdentity = identityFor(value.exportedStatementId);
+    if (typeof value.instanceStatementId === "string" && value.instanceIdentity === undefined) {
+      result.instanceIdentity = identityFor(value.instanceStatementId);
+    }
+    if (typeof value.exportedStatementId === "string" && value.exportedIdentity === undefined) {
+      result.exportedIdentity = identityFor(value.exportedStatementId);
+    }
     if (value.kind === "recordField") result.record = mapTarget(value.record);
     return result;
   };
@@ -2441,7 +2447,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
     })),
     hasValueParameters: expression.hasValueParameters.map((parameter) => ({
       ...parameter,
-      definitionIdentity: identityFor(parameter.definitionStatementId)
+      definitionIdentity: parameter.definitionIdentity ?? identityFor(parameter.definitionStatementId)
     }))
   });
   const mapGeometryReference = (reference: ModuleGeometryReferenceSemantic): ModuleGeometryReferenceSemantic => ({

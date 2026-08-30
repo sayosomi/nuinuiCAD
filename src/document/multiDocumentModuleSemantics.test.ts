@@ -229,6 +229,73 @@ describe("multi-document Module semantics", () => {
     ]));
   });
 
+  it("preserves defining-document ownership when an imported default expression is transferred", async () => {
+    const library = savedSource("library", "sha256:library-defaults", [
+      "nui 4",
+      "const libraryDefault: number = 41",
+      "export module Panel(",
+      "  optional?: number,",
+      "  width: number = @libraryDefault,",
+      "  hasOptional: boolean = hasValue(@optional),",
+      ") {",
+      "}"
+    ].join("\n"));
+    const root = rootSource("root", [
+      "nui 4",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n"));
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([[`${root.documentId}|./library.nui`, library]])),
+      declarationContributors: [moduleDeclarationContributor]
+    });
+
+    expect(graph.valid).toBe(true);
+    const analysis = analyzeMultiDocumentModuleSemantics(graph);
+    expect(analysis.valid).toBe(true);
+
+    const rootInstance = analysis.root?.instances.find((instance) => instance.name === "use");
+    expect(rootInstance).toMatchObject({
+      callee: {
+        name: "Panel",
+        definitionDocumentId: library.documentId,
+        definitionIdentity: { documentId: library.documentId }
+      }
+    });
+    expect(rootInstance).toBeDefined();
+    if (!rootInstance) return;
+
+    const widthBinding = rootInstance.parameterBindings.find((binding) => binding.parameterName === "width");
+    expect(widthBinding).toMatchObject({
+      state: "defaultedOmitted",
+      value: {
+        kind: "scalar",
+        expression: {
+          references: [{
+            target: {
+              kind: "documentBinding",
+              identity: { documentId: library.documentId }
+            }
+          }]
+        }
+      }
+    });
+
+    const hasOptionalBinding = rootInstance.parameterBindings.find((binding) => binding.parameterName === "hasOptional");
+    expect(hasOptionalBinding).toMatchObject({
+      state: "defaultedOmitted",
+      value: {
+        kind: "scalar",
+        expression: {
+          hasValueParameters: [{
+            definitionIdentity: { documentId: library.documentId }
+          }]
+        }
+      }
+    });
+  });
+
   it("keeps private, missing, and too-early imported callees unresolved", async () => {
     const library = savedSource("library", "sha256:library", [
       "nui 4",

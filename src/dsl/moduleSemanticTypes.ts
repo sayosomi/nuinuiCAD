@@ -181,6 +181,7 @@ export type ModuleScalarExpressionSemantic = {
     span: DslSpan;
     definitionStatementId: StatementIdentity;
     parameterIndex: number;
+    definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   }[];
 };
 
