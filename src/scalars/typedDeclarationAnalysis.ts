@@ -5,6 +5,7 @@ import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAd
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { RecordValueSemantic } from "../dsl/recordSemanticAnalysis";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
@@ -33,7 +34,8 @@ import {
 import {
   planRecordScalarLowering,
   prepareRecordScalarExpression,
-  recordScalarSourceBindingResolverFor
+  recordScalarSourceBindingResolverFor,
+  type ExternalRecordScalarAlias
 } from "./recordScalarLowering";
 
 export type { DiagnosticSpanContext };
@@ -263,7 +265,8 @@ export const analyzeTypedDeclarations = ({
   additionalGeometryResolver,
   additionalInitializers,
   prepareScalarExpression,
-  additionalRecordPropertyResolver
+  additionalRecordPropertyResolver,
+  additionalRecordValueResolver
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -285,6 +288,7 @@ export const analyzeTypedDeclarations = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./recordScalarLowering").AdditionalRecordScalarPropertyResolution | null;
+  additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
@@ -297,7 +301,8 @@ export const analyzeTypedDeclarations = ({
         includeValue: (value) => {
           const statement = statements[value.statementIndex];
           return Boolean(statement && includeStatement(statement, value.statementIndex));
-        }
+        },
+        additionalRecordValueResolver
       })
     : null;
   const recordBindingResolver = recordAnalysis && sourceNamespace && recordPlan

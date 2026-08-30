@@ -1606,7 +1606,7 @@ export const compileModuleScalarRuntime = ({
     const sourceOrder = elementOrderById.get(lowered.elementId);
     return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
   };
-  const rootBindingForTarget = (target: ModuleScalarSourceTarget): Binding | undefined => {
+  const rootBindingForTarget = (target: ModuleScalarSourceTarget, statementIndex: number): Binding | undefined => {
     if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
     if (target.kind === "recordField") {
       const record = target.record;
@@ -1620,8 +1620,28 @@ export const compileModuleScalarRuntime = ({
             field: target.field
           })
         : record.kind === "recordValue"
-          ? rootRecordPlan?.fieldBindingIdsByValueStatementId.get(record.statementId)?.get(target.field.fieldIndex)
-            ?? recordScalarBindingIdFor(record.statementId, target.field)
+          ? (() => {
+              // The Module-aware document pass may have supplied an external
+              // backing map for an ordinary record alias. Reuse that existing
+              // catalog resolver here when rematerializing the root program;
+              // this runtime layer must not resolve Module exports itself.
+              const value = sourceNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(record.statementId);
+              const definition = value?.typeIdentity
+                ? sourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(value.typeIdentity)
+                : undefined;
+              const field = definition?.fields.find((candidate) => candidate.fieldIndex === target.field.fieldIndex);
+              const sourceResolution = value && field
+                ? documentBindingAnalysis?.catalog.sourceNamespaceBindingResolver?.(
+                    `${value.name}.${field.name}`,
+                    statementIndex,
+                    baseScopeIndex.scopeOfStatement.get(statementIndex) ?? baseScopeIndex.rootScopeId
+                  )
+                : undefined;
+              return sourceResolution?.kind === "resolved"
+                ? sourceResolution.bindingId
+                : rootRecordPlan?.fieldBindingIdsByValueStatementId.get(record.statementId)?.get(target.field.fieldIndex)
+                  ?? recordScalarBindingIdFor(record.statementId, target.field);
+            })()
           : undefined;
       return bindingId ? bindingsById.get(bindingId) : undefined;
     }
@@ -1645,7 +1665,7 @@ export const compileModuleScalarRuntime = ({
       if (semanticSite) {
         const lowered = lowerExpression(
           semanticSite.expression,
-          (target) => rootBindingForTarget(target),
+          (target) => rootBindingForTarget(target, statementIndex),
           bindingsById,
           rootGeometryPropertyFor,
           resolvedGeometryBuiltinForRoot

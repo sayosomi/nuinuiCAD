@@ -22,7 +22,8 @@ import type {
 import type {
   ModuleRecordReferenceSemantic,
   ModuleRecordSourceTarget,
-  ModuleScalarExpressionSemantic
+  ModuleScalarExpressionSemantic,
+  ResolvedModuleRecordExport
 } from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -372,6 +373,7 @@ const addRecordOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
   const namespace = compiled.sourceLexicalNamespace;
   const records = namespace?.recordSemanticAnalysis;
   if (!namespace || !records) return;
+  const source = compiled.spans.sourceMap.source;
 
   for (const definition of records.definitionsByStatementId.values()) {
     const statement = compiled.statements[definition.statementIndex];
@@ -397,6 +399,24 @@ const addRecordOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
           start: value.reference.span.start + 1,
           end: value.reference.span.end
         }, recordValueIdentityOccurrence(lookup.declaration.statementId), "reference");
+      } else {
+        const referenceRange = physicalRange(compiled, value.statementIndex, value.reference.span);
+        if (!referenceRange) continue;
+        const parsed = parseDslSourceReference(source.slice(referenceRange.from, referenceRange.to));
+        if (parsed.kind !== "valid" || parsed.reference.property !== null) continue;
+        const qualified = qualifiedModuleRecordExportAt(compiled, value.statementIndex, {
+          from: referenceRange.from + parsed.reference.pathRange.start,
+          to: referenceRange.from + parsed.reference.pathRange.end
+        }, value.typeIdentity);
+        if (!qualified) continue;
+        add("reference", qualified.instanceRange.from, qualified.instanceRange.to, {
+          kind: "module",
+          target: { kind: "moduleInstance", statementId: qualified.instanceStatementId }
+        });
+        add("reference", qualified.memberRange.from, qualified.memberRange.to, {
+          kind: "module",
+          target: { kind: "moduleSource", statementId: qualified.exportedStatementId }
+        });
       }
     }
   }
@@ -445,6 +465,46 @@ const addModuleRecordTarget = (
     kind: "module",
     target: { kind: "moduleSource", statementId: target.exportedStatementId }
   }, "reference");
+};
+
+type QualifiedModuleRecordExportOccurrence = {
+  instanceRange: DslSemanticRange;
+  memberRange: DslSemanticRange;
+  instanceStatementId: string;
+  exportedStatementId: string;
+  exported: ResolvedModuleRecordExport;
+};
+
+/** Reuse Module semantic export ownership when a root record alias keeps a
+ * qualified whole-record source reference outside the Module body path. */
+const qualifiedModuleRecordExportAt = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  pathRange: DslSemanticRange,
+  expectedTypeIdentity: string | null
+): QualifiedModuleRecordExportOccurrence | null => {
+  const namespace = compiled.sourceLexicalNamespace;
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  if (!namespace || !analysis) return null;
+  const source = compiled.spans.sourceMap.source;
+  const ranges = readDslReferencePathSegments(source, pathRange.from, pathRange.to);
+  if (ranges.kind !== "valid" || ranges.segments.length !== 2) return null;
+  const instanceSegment = ranges.segments[0];
+  const memberSegment = ranges.segments[1];
+  if (!instanceSegment || !memberSegment) return null;
+  const instanceLookup = resolveSourceLexicalDeclaration(namespace, statementIndex, instanceSegment.name);
+  if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
+  const instance = analysis.instancesByStatementId.get(instanceLookup.declaration.statementId);
+  const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const exported = definition?.exports.find((entry) => entry.kind === "record" && entry.name === memberSegment.name);
+  if (!instance || !exported || exported.kind !== "record" || (expectedTypeIdentity !== null && exported.typeIdentity !== expectedTypeIdentity)) return null;
+  return {
+    instanceRange: { from: instanceSegment.start, to: instanceSegment.end },
+    memberRange: { from: memberSegment.start, to: memberSegment.end },
+    instanceStatementId: instance.statementId,
+    exportedStatementId: exported.exportedStatementId,
+    exported
+  };
 };
 
 const addModuleRecordReferenceOccurrences = (
@@ -509,26 +569,19 @@ const addSyntheticRecordFieldOccurrences = (compiled: CompiledDslDocument, add: 
       // A qualified Module record export is not part of the source lexical
       // namespace path, so resolve its instance/export through the existing
       // Module semantic owner while keeping the field nominal identity.
-      const path = readDslReferencePathSegments(source, baseRange.start, baseRange.end);
-      if (path.kind !== "valid" || path.segments.length !== 2) continue;
-      const instanceLookup = resolveSourceLexicalDeclaration(namespace, statementIndex, path.segments[0]!.name);
-      if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") continue;
-      const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(instanceLookup.declaration.statementId);
-      const moduleDefinition = instance?.callee
-        ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
-        : null;
-      const exported = moduleDefinition?.exports.find((entry) => entry.kind === "record" && entry.name === path.segments[1]!.name);
-      const field = exported?.kind === "record"
-        ? exported.definition.fields.find((candidate) => candidate.name === fieldName)
-        : null;
-      if (!instance || !exported || exported.kind !== "record" || !field) continue;
-      add("reference", path.segments[0]!.start, path.segments[0]!.end, {
+      const qualified = qualifiedModuleRecordExportAt(compiled, statementIndex, {
+        from: baseRange.start,
+        to: baseRange.end
+      }, null);
+      const field = qualified?.exported.definition.fields.find((candidate) => candidate.name === fieldName);
+      if (!qualified || !field) continue;
+      add("reference", qualified.instanceRange.from, qualified.instanceRange.to, {
         kind: "module",
-        target: { kind: "moduleInstance", statementId: instance.statementId }
+        target: { kind: "moduleInstance", statementId: qualified.instanceStatementId }
       });
-      add("reference", path.segments[1]!.start, path.segments[1]!.end, {
+      add("reference", qualified.memberRange.from, qualified.memberRange.to, {
         kind: "module",
-        target: { kind: "moduleSource", statementId: exported.exportedStatementId }
+        target: { kind: "moduleSource", statementId: qualified.exportedStatementId }
       });
       add("reference", fieldRange.start, fieldRange.end, recordFieldIdentityOccurrence(field.identity));
     }
