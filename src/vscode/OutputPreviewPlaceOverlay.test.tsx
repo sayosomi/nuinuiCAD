@@ -80,6 +80,34 @@ describe("OutputPreviewPlaceOverlay", () => {
     expect(onHighlight).toHaveBeenLastCalledWith("b");
   });
 
+  it("lets a middle-button handle press bubble to the viewport pan owner", () => {
+    const onViewportPointerDown = vi.fn();
+    const onBeginDrag = vi.fn();
+    render(
+      <div onPointerDown={onViewportPointerDown}>
+        <OutputPreviewPlaceOverlay
+          projections={[projection({ placeId: "a", groupName: "Front" })]}
+          sourceText={sourceText}
+          viewportSize={{ width: 400, height: 300 }}
+          viewport={{ panX: 0, panY: 0, zoom: 1 }}
+          onNavigate={vi.fn()}
+          onHighlightPlaceIdChange={vi.fn()}
+          onBeginDrag={onBeginDrag}
+        />
+      </div>
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Place Front" }), {
+      button: 1,
+      clientX: 100,
+      clientY: 100,
+      pointerId: 7
+    });
+
+    expect(onViewportPointerDown).toHaveBeenCalledOnce();
+    expect(onBeginDrag).not.toHaveBeenCalled();
+  });
+
   it("skips the picker for a single handle hit", () => {
     render(
       <OutputPreviewPlaceOverlay
