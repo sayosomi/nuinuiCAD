@@ -125,6 +125,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.revealInOutputPreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
@@ -629,6 +633,11 @@
           "group": "navigation@1"
         },
         {
+          "command": "nuinuiCAD.revealInOutputPreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
+          "group": "navigation@2"
+        },
+        {
           "command": "nuinuiCAD.openModulePreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
           "group": "navigation@2"
@@ -699,6 +708,11 @@
         "command": "nuinuiCAD.revealInCanvas",
         "title": "nuinuiCAD: Reveal in Canvas",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.revealInOutputPreview",
+        "title": "nuinuiCAD: Reveal in Output Preview",
+        "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget"
       },
       {
         "command": "nuinuiCAD.pickReferenceFromCanvas",

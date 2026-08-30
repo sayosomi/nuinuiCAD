@@ -59,6 +59,7 @@ import {
 import { registerNuiElementsTreeFeature } from "./elementsTreeFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
+  outputPreviewRevealSourceTargetForEditor,
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
@@ -566,6 +567,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
       await rustProcessOwner.get().exportOutput(request);
     },
     activeNuiTextEditorForCommand,
+    outputPreviewRevealSourceTargetForEditor: (editor) => outputPreviewRevealSourceTargetForEditor(
+      editor,
+      languageAnalysisSessionFor(editor.document)
+    ),
     activeCanvasDocumentForOpenCommand: () => activeCanvasSessionForOpenCommand()?.document ?? null,
     isOutputPreviewTabActive: () => isNuiOutputPreviewTab(activeEditorTabInput())
   });
