@@ -38,7 +38,7 @@ group 前身頃 {
 
   for i in range(from: 0, count: 3, step: 1) {
     point P = coordinate(
-      x: i * 10,
+      x: @i * 10,
       y: 0
     )
   }

@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "fixtures": [
     {
-      "id": "interactive-medium-v1",
-      "file": "interactive-medium-v1.nui",
-      "hash": "sha256:5ce3d10605cd751f50eea0734e6c9a8ed869bba4454644ce0d0cd2de5234ab15",
+      "id": "interactive-medium-v2",
+      "file": "interactive-medium-v2.nui",
+      "hash": "sha256:022361207a2b8228cdcd06a1f2c706ee019ef5ac38046fc3742193bd4ea0c823",
       "workload": {
         "forGroupIterations": 50,
         "generatedGeometryPerIteration": 4
@@ -34,9 +34,9 @@
       }
     },
     {
-      "id": "interactive-large-v1",
-      "file": "interactive-large-v1.nui",
-      "hash": "sha256:98957b9071e741cae299c0bfc18d62be3d188690ebc8ca7b658dfddd47eb58af",
+      "id": "interactive-large-v2",
+      "file": "interactive-large-v2.nui",
+      "hash": "sha256:bb66e9fcace919f5ca4317ed5450809e77889a668f252cce573860c0b96ad075",
       "workload": {
         "forGroupIterations": 250,
         "generatedGeometryPerIteration": 4
