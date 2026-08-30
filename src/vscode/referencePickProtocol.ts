@@ -10,6 +10,10 @@ import {
 } from "../dsl/dslReferenceTokens";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
+import {
+  isNumericComputedGeometryProperty,
+  type NumericComputedGeometryProperty
+} from "../geometry/numericExpressions";
 
 /**
  * Only source-position facts that are stable across Extension Host and Webview
@@ -23,7 +27,20 @@ export type VscodeReferencePickTargetProof = {
   role: DslReferencePickTarget["role"];
   multiplicity: DslReferencePickTarget["multiplicity"];
   range: DslReferencePickTarget["range"];
+  activationRange: DslReferencePickTarget["range"];
   oldText: string;
+  activationOldText: string;
+  numericProperty: DslReferencePickTarget["numericProperty"] | null;
+};
+
+export type VscodeReferencePickNumericPropertyDraft = {
+  reference: CanonicalGeometrySourceReference;
+  property: NumericComputedGeometryProperty;
+};
+
+export type VscodeReferencePickNumericCandidate = {
+  reference: CanonicalGeometrySourceReference;
+  properties: readonly NumericComputedGeometryProperty[];
 };
 
 export type VscodeReferencePickStartRequest = {
@@ -34,6 +51,7 @@ export type VscodeReferencePickStartRequest = {
   normalizedSourceOffset: number;
   targetProof: VscodeReferencePickTargetProof;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
+  initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
 };
 
 export type VscodeReferencePickCancelRequest = {
@@ -54,12 +72,21 @@ type VscodeReferencePickResultBase = {
 export type VscodeReferencePickStartedResult = VscodeReferencePickResultBase & {
   status: "started";
   candidateReferences: readonly CanonicalGeometrySourceReference[];
+  numericCandidates?: readonly VscodeReferencePickNumericCandidate[];
 };
 
-export type VscodeReferencePickConfirmedResult = VscodeReferencePickResultBase & {
-  status: "confirmed";
-  references: readonly CanonicalGeometrySourceReference[];
-};
+export type VscodeReferencePickConfirmedResult =
+  | (VscodeReferencePickResultBase & {
+      status: "confirmed";
+      resultKind: "geometry";
+      references: readonly CanonicalGeometrySourceReference[];
+    })
+  | (VscodeReferencePickResultBase & {
+      status: "confirmed";
+      resultKind: "numericProperty";
+      reference: CanonicalGeometrySourceReference;
+      property: NumericComputedGeometryProperty;
+    });
 
 export type VscodeReferencePickTerminalResult = VscodeReferencePickResultBase & {
   status: "canceled" | "stale" | "rejected";
@@ -90,17 +117,36 @@ const sameStatementRange = (
   left.startLine === right.startLine &&
   left.endLine === right.endLine;
 
+const validRange = (
+  normalizedSource: string,
+  range: { from: number; to: number }
+): boolean => Number.isInteger(range.from) &&
+  Number.isInteger(range.to) &&
+  range.from >= 0 &&
+  range.to >= range.from &&
+  range.to <= normalizedSource.length;
+
+const sameNumericPropertyTarget = (
+  left: DslReferencePickTarget["numericProperty"] | null | undefined,
+  right: VscodeReferencePickTargetProof["numericProperty"] | null | undefined
+): boolean => {
+  if (!left || !right || left.kind !== right.kind) return left === right;
+  return left.kind === "fixedProperty" && right.kind === "fixedProperty"
+    ? left.property === right.property
+    : true;
+};
+
 export const referencePickTargetProofFor = (
   normalizedSource: string,
   target: DslReferencePickTarget
 ): VscodeReferencePickTargetProof | null => {
   const { from, to } = target.range;
+  const activationRange = target.activationRange ?? target.range;
+  const numericProperty = target.numericProperty ?? null;
+  if (!validRange(normalizedSource, target.range) || !validRange(normalizedSource, activationRange)) return null;
   if (
-    !Number.isInteger(from) ||
-    !Number.isInteger(to) ||
-    from < 0 ||
-    to < from ||
-    to > normalizedSource.length
+    (target.role === "numericPropertyBase" && !numericProperty) ||
+    (numericProperty?.kind === "fixedProperty" && !isNumericComputedGeometryProperty(numericProperty.property))
   ) return null;
   return {
     sourceAnchor: {
@@ -111,7 +157,10 @@ export const referencePickTargetProofFor = (
     role: target.role,
     multiplicity: target.multiplicity,
     range: { from, to },
-    oldText: normalizedSource.slice(from, to)
+    activationRange: { ...activationRange },
+    oldText: normalizedSource.slice(from, to),
+    activationOldText: normalizedSource.slice(activationRange.from, activationRange.to),
+    numericProperty
   };
 };
 
@@ -129,9 +178,23 @@ export const referencePickTargetMatchesProof = (
     target.role === proof.role &&
     target.multiplicity === proof.multiplicity &&
     sameRange(target.range, proof.range) &&
-    normalizedSource.slice(target.range.from, target.range.to) === proof.oldText
+    sameRange(target.activationRange ?? target.range, proof.activationRange) &&
+    normalizedSource.slice(target.range.from, target.range.to) === proof.oldText &&
+    normalizedSource.slice(
+      (target.activationRange ?? target.range).from,
+      (target.activationRange ?? target.range).to
+    ) === proof.activationOldText &&
+    sameNumericPropertyTarget(target.numericProperty ?? null, proof.numericProperty)
   );
 };
+
+export const isValidNumericReferencePickCandidate = (
+  candidate: VscodeReferencePickNumericCandidate
+): boolean => isCanonicalReferencePickReference(candidate.reference) &&
+  candidate.reference.pointKey === undefined &&
+  candidate.properties.length > 0 &&
+  new Set(candidate.properties).size === candidate.properties.length &&
+  candidate.properties.every((property) => isNumericComputedGeometryProperty(property));
 
 export const referencePickSourceForReference = (
   reference: CanonicalGeometrySourceReference
@@ -221,4 +284,7 @@ export const sameReferencePickTargetProof = (
   left.role === right.role &&
   left.multiplicity === right.multiplicity &&
   sameRange(left.range, right.range) &&
-  left.oldText === right.oldText;
+  sameRange(left.activationRange, right.activationRange) &&
+  left.oldText === right.oldText &&
+  left.activationOldText === right.activationOldText &&
+  sameNumericPropertyTarget(left.numericProperty, right.numericProperty);

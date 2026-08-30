@@ -64,6 +64,29 @@ describe("reference pick VS Code protocol proof", () => {
     )).toBe(false);
   });
 
+  it("proves the complete numeric occurrence separately from its editable base", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const { target } = targetAt(source, "@Base.length");
+    const proof = referencePickTargetProofFor(source, target)!;
+
+    expect(proof.range).toEqual({ from: target.range.from, to: target.range.to });
+    expect(source.slice(proof.range.from, proof.range.to)).toBe("@Base");
+    expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe("@Base.length");
+    expect(proof.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+    expect(referencePickTargetMatchesProof(source, target, proof)).toBe(true);
+    expect(referencePickTargetMatchesProof(source.replace("length", "endAngleDeg"), target, proof)).toBe(false);
+    expect(referencePickTargetMatchesProof(source, target, {
+      ...proof,
+      numericProperty: { kind: "fixedProperty", property: "endAngleDeg" }
+    })).toBe(false);
+  });
+
   it("parses current list references as draft seed without losing quoted names", () => {
     const source = [
       "nui 4",

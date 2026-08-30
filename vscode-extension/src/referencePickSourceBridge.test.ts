@@ -167,6 +167,7 @@ describe("createVscodeReferencePickSourceBridge", () => {
       documentVersion: request!.documentVersion,
       targetProof: request!.targetProof,
       status: "confirmed",
+      resultKind: "geometry",
       references: [{ base: "B" }]
     })).toBe("applied");
 
@@ -195,6 +196,58 @@ describe("createVscodeReferencePickSourceBridge", () => {
 
     expect(request).not.toBeNull();
     expect(request?.initialDraftReferences).toEqual([{ base: "A" }]);
+  });
+
+  it("applies a numeric confirmation as one complete Source edit and restores the final caret", async () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: 20, dy: 0)"
+    ].join("\n");
+    const document = createDocument(source);
+    const editor = createEditor(document);
+    mocks.textDocuments = [document];
+    const postMessage = vi.fn();
+    const position = source.indexOf("20") + 1;
+    const bridge = createVscodeReferencePickSourceBridge({
+      editor: editor as never,
+      languageAnalysisSession: createLanguageAnalysisSession(source),
+      requestId: 21,
+      normalizedSourceOffset: position,
+      postMessage
+    });
+    const request = bridge.start();
+    expect(request).not.toBeNull();
+    const proof = request!.targetProof;
+    expect(await bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 21,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: proof,
+      status: "started",
+      candidateReferences: [{ base: "Base" }],
+      numericCandidates: [{ reference: { base: "Base" }, properties: ["length"] }]
+    })).toBe("started");
+    expect(await bridge.handleResult({
+      type: "referencePickResult",
+      requestId: 21,
+      documentUri: request!.documentUri,
+      documentVersion: request!.documentVersion,
+      targetProof: proof,
+      status: "confirmed",
+      resultKind: "numericProperty",
+      reference: { base: "Base" },
+      property: "length"
+    })).toBe("applied");
+
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(document.getText()).toContain("dx: @Base.length");
+    expect(mocks.showTextDocument.mock.calls[0]?.[1]).toMatchObject({
+      selection: { start: { line: 4, character: source.split("\n")[4]!.indexOf("20") + "@Base.length".length } }
+    });
   });
 
   it("cancels the draft immediately when the captured Source document changes", () => {

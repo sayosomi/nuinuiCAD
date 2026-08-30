@@ -151,7 +151,9 @@ describe("queryDslReferencePickTarget", () => {
     expect(result).toMatchObject({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
-      multiplicity: "single"
+      multiplicity: "single",
+      activationRange: { from: numberFrom, to: numberFrom + 2 },
+      numericProperty: { kind: "propertySelectionRequired" }
     });
     expect(sliceRange(source, result)).toBe("20");
   });
@@ -175,6 +177,45 @@ describe("queryDslReferencePickTarget", () => {
     });
     expect(sliceRange(source, result)).toBe("@Base");
     expect(source.slice(result!.range.to, result!.range.to + ".length".length)).toBe(".length");
+    expect(result?.activationRange).toEqual({ from: baseFrom, to: baseFrom + "@Base.length".length });
+    expect(result?.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+
+    for (const offset of [baseFrom + 2, baseFrom + "@Base".length, baseFrom + "@Base.".length + 2]) {
+      const equivalent = queryAt(source, compiled, offset);
+      expect(equivalent?.range).toEqual(result?.range);
+      expect(equivalent?.activationRange).toEqual(result?.activationRange);
+      expect(equivalent?.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+    }
+  });
+
+  it("accepts canonical Arc and indexed Bezier numeric properties", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])",
+      "point P = offset(from: @A, dx: @Arc.radius, dy: @Arc.sweepAngleDeg)",
+      "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const cases = [
+      ["@Arc.radius", "radius"],
+      ["@Arc.sweepAngleDeg", "sweepAngleDeg"],
+      ["@Curve.intermediatePoints[1].x", "intermediatePoints[1].x"]
+    ] as const;
+
+    for (const [reference, property] of cases) {
+      const from = source.indexOf(reference);
+      const result = queryAt(source, compiled, from + reference.indexOf(".") + 2);
+      expect(result).toMatchObject({
+        role: "numericPropertyBase",
+        numericProperty: { kind: "fixedProperty", property },
+        range: { from, to: from + reference.indexOf(".") }
+      });
+      expect(result?.activationRange).toEqual({ from, to: from + reference.length });
+    }
   });
 
   it("supports empty numeric operands and typed number declarations", () => {
@@ -187,7 +228,8 @@ describe("queryDslReferencePickTarget", () => {
     const emptyPosition = emptySource.indexOf("dx: ") + "dx: ".length;
     expect(queryAt(emptySource, emptyCompiled, emptyPosition)).toMatchObject({
       role: "numericPropertyBase",
-      range: { from: emptyPosition, to: emptyPosition }
+      range: { from: emptyPosition, to: emptyPosition },
+      numericProperty: { kind: "propertySelectionRequired" }
     });
 
     const declarationSource = "nui 4\nconst width: number = 20";
@@ -197,8 +239,22 @@ describe("queryDslReferencePickTarget", () => {
     expect(declaration).toMatchObject({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
-      range: { from: numberFrom, to: numberFrom + 2 }
+      range: { from: numberFrom, to: numberFrom + 2 },
+      numericProperty: { kind: "propertySelectionRequired" }
     });
+  });
+
+  it("fails closed for an unsupported numeric property occurrence", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.notNumeric, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const occurrence = source.indexOf("@Base.notNumeric");
+    expect(queryAt(source, compiled, occurrence + "@Base.".length + 2)).toBeNull();
   });
 
   it("fails closed for an unlabeled call slot, non-geometry value, and operator position", () => {

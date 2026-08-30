@@ -2,10 +2,14 @@ import * as vscode from "vscode";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
 import {
   isCanonicalReferencePickReference,
+  isValidNumericReferencePickCandidate,
+  referencePickReferenceKey,
   referencePickTargetProofFor,
   sameReferencePickTargetProof,
   type VscodeReferencePickTargetProof,
   type VscodeReferencePickCancelRequest,
+  type VscodeReferencePickNumericCandidate,
+  type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickResult,
   type VscodeReferencePickStartRequest
 } from "../../src/vscode/referencePickProtocol";
@@ -34,6 +38,7 @@ export type VscodeReferencePickAppliedHandoff = {
   normalizedSourceOffset: number;
   targetProof: VscodeReferencePickTargetProof;
   references: readonly CanonicalGeometrySourceReference[];
+  numericProperty?: VscodeReferencePickNumericPropertyDraft;
 };
 
 export type VscodeReferencePickSourceBridge = {
@@ -52,6 +57,7 @@ type BridgeState = {
   request: VscodeReferencePickStartRequest;
   phase: BridgePhase;
   allowedCandidateReferences: readonly CanonicalGeometrySourceReference[] | null;
+  allowedNumericCandidates: readonly VscodeReferencePickNumericCandidate[] | null;
 };
 
 const sameDocumentUri = (document: vscode.TextDocument, documentUri: string): boolean =>
@@ -66,6 +72,7 @@ export const createVscodeReferencePickSourceBridge = ({
   requestId,
   normalizedSourceOffset,
   initialDraftReferences,
+  initialNumericPropertyDraft,
   expectedTargetProof,
   postMessage
 }: {
@@ -74,6 +81,7 @@ export const createVscodeReferencePickSourceBridge = ({
   requestId: number;
   normalizedSourceOffset: number;
   initialDraftReferences?: readonly CanonicalGeometrySourceReference[];
+  initialNumericPropertyDraft?: VscodeReferencePickNumericPropertyDraft;
   expectedTargetProof?: VscodeReferencePickTargetProof;
   postMessage: (message: VscodeReferencePickStartRequest | VscodeReferencePickCancelRequest) => unknown;
 }): VscodeReferencePickSourceBridge => {
@@ -146,9 +154,15 @@ export const createVscodeReferencePickSourceBridge = ({
       documentVersion: document.version,
       normalizedSourceOffset,
       targetProof,
-      ...(initialDraftReferences !== undefined ? { initialDraftReferences: [...initialDraftReferences] } : {})
+      ...(initialDraftReferences !== undefined ? { initialDraftReferences: [...initialDraftReferences] } : {}),
+      ...(initialNumericPropertyDraft ? { initialNumericPropertyDraft } : {})
     };
-    state = { request, phase: "waiting", allowedCandidateReferences: null };
+    state = {
+      request,
+      phase: "waiting",
+      allowedCandidateReferences: null,
+      allowedNumericCandidates: null
+    };
     registerFreshnessListeners();
     postMessage(request);
     return request;
@@ -176,13 +190,21 @@ export const createVscodeReferencePickSourceBridge = ({
     if (result.status === "started") {
       if (
         current.phase !== "waiting" ||
-        !result.candidateReferences.every(isCanonicalReferencePickReference)
+        !result.candidateReferences.every(isCanonicalReferencePickReference) ||
+        (current.request.targetProof.role === "numericPropertyBase" && (
+          result.numericCandidates === undefined ||
+          !result.numericCandidates.every(isValidNumericReferencePickCandidate) ||
+          result.numericCandidates.some((candidate) => !result.candidateReferences.some((reference) =>
+            referencePickReferenceKey(reference) === referencePickReferenceKey(candidate.reference)
+          ))
+        ))
       ) {
         cancel();
         return "rejected";
       }
       current.phase = "active";
       current.allowedCandidateReferences = [...result.candidateReferences];
+      current.allowedNumericCandidates = result.numericCandidates ? [...result.numericCandidates] : null;
       return "started";
     }
 
@@ -190,7 +212,11 @@ export const createVscodeReferencePickSourceBridge = ({
       finish();
       return result.status;
     }
-    if (current.phase !== "active" || !current.allowedCandidateReferences) {
+    if (
+      current.phase !== "active" ||
+      !current.allowedCandidateReferences ||
+      (current.request.targetProof.role === "numericPropertyBase" && !current.allowedNumericCandidates)
+    ) {
       cancel();
       return "rejected";
     }
@@ -210,13 +236,18 @@ export const createVscodeReferencePickSourceBridge = ({
       cancel();
       return "stale";
     }
+    const numericProperty = result.resultKind === "numericProperty"
+      ? { reference: result.reference, property: result.property }
+      : undefined;
     const plan = planVscodeReferencePickSourceEdit({
       source,
       compiled: semantic.compiled,
       normalizedSourceOffset: current.request.normalizedSourceOffset,
       targetProof: current.request.targetProof,
-      references: result.references,
-      allowedCandidateReferences: current.allowedCandidateReferences
+      references: result.resultKind === "geometry" ? result.references : [],
+      allowedCandidateReferences: current.allowedCandidateReferences,
+      ...(numericProperty ? { numericProperty } : {}),
+      ...(current.allowedNumericCandidates ? { allowedNumericCandidates: current.allowedNumericCandidates } : {})
     });
     if (!plan) {
       cancel();
@@ -247,11 +278,13 @@ export const createVscodeReferencePickSourceBridge = ({
       postConfirmSource: document.getText(),
       normalizedSourceOffset: current.request.normalizedSourceOffset,
       targetProof: current.request.targetProof,
-      references: [...result.references]
+      references: result.resultKind === "geometry" ? [...result.references] : [],
+      ...(numericProperty ? { numericProperty } : {})
     };
 
     const rawRangeStart = rawOffsetFromNormalized(rawSource, plan.range.from);
-    const caret = document.positionAt(rawRangeStart + plan.replacement.length);
+    const rawCaretOffset = rawRangeStart + plan.caretNormalizedOffset - plan.range.from;
+    const caret = document.positionAt(rawCaretOffset);
     finish();
     try {
       await vscode.window.showTextDocument(document, {

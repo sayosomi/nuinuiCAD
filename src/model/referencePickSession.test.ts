@@ -5,6 +5,8 @@ import {
   confirmedReferencePickResult,
   referencePickDraftKey,
   selectReferencePickDraft,
+  selectReferencePickNumericGeometry,
+  selectReferencePickNumericProperty,
   setReferencePickHover,
   startReferencePickSession,
   type ReferencePickHover
@@ -33,19 +35,41 @@ describe("referencePickSession", () => {
     expect(initial.hover).toBeNull();
   });
 
-  it("replaces a single-value draft on each valid selection", () => {
+  it("requires numeric property selection before a single-value draft can confirm", () => {
     const initial = startReferencePickSession({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
-      multiplicity: "single"
+      multiplicity: "single",
+      numericProperty: { kind: "propertySelectionRequired" }
     });
     expect(confirmReferencePickSession(initial)).toBe(initial);
 
-    const first = selectReferencePickDraft(initial, hover("line-a", "LineA"));
-    const second = selectReferencePickDraft(first, hover("line-b", "LineB"));
+    const first = selectReferencePickNumericGeometry(initial, hover("line-a", "LineA"), ["length", "startTangentAngleDeg"]);
+    expect(first.draftReferences).toEqual([]);
+    expect(first.numericProperty?.stage).toBe("propertySelection");
+    expect(confirmReferencePickSession(first)).toBe(first);
 
-    expect(first.draftReferences).toEqual([{ base: "LineA" }]);
-    expect(second.draftReferences).toEqual([{ base: "LineB" }]);
+    const drafted = selectReferencePickNumericProperty(first, "length");
+    expect(drafted.numericProperty?.draft).toEqual({
+      candidateElementId: "line-a",
+      reference: { base: "LineA" },
+      property: "length"
+    });
+    expect(confirmReferencePickSession(drafted).status).toBe("confirmed");
+    expect(confirmedReferencePickResult(drafted)).toBeNull();
+    expect(confirmedReferencePickResult(confirmReferencePickSession(drafted))).toBeNull();
+  });
+
+  it("keeps a fixed numeric property and creates the final draft on geometry selection", () => {
+    const initial = startReferencePickSession({
+      expectedGeometryInterface: "path",
+      role: "numericPropertyBase",
+      multiplicity: "single",
+      numericProperty: { kind: "fixedProperty", property: "length" }
+    });
+    const selected = selectReferencePickNumericGeometry(initial, hover("line-b", "LineB"), ["length"]);
+    expect(selected.numericProperty?.stage).toBe("draft");
+    expect(selected.numericProperty?.draft?.property).toBe("length");
   });
 
   it("seeds, adds, removes, and deduplicates a multiple-value draft by authored reference", () => {
