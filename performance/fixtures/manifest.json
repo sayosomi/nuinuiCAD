@@ -64,6 +64,70 @@
         },
         "dependentElementPath": "Benchmark::DependentOffset"
       }
+    },
+    {
+      "id": "dependency-chain-250-v1",
+      "file": "dependency-chain-250-v1.nui",
+      "hash": "sha256:5eedd3a0981a7b7aba3a2aa3f52affb1d63bbe3cde5d3e9f14743cded7369d1d",
+      "workload": {
+        "forGroupIterations": 1,
+        "generatedGeometryPerIteration": 250
+      },
+      "anchors": {
+        "sourceEdit": {
+          "bindingName": "benchOffset",
+          "from": "6",
+          "to": "7"
+        },
+        "pointDrag": {
+          "elementPath": "Benchmark::DragPoint",
+          "pointerDeltaCssPx": {
+            "x": 12,
+            "y": 8
+          }
+        },
+        "bezierHandleDrag": {
+          "elementPath": "Benchmark::DragCurve",
+          "handleRole": "start",
+          "pointerDeltaCssPx": {
+            "x": 12,
+            "y": -8
+          }
+        },
+        "dependentElementPath": "P0249"
+      }
+    },
+    {
+      "id": "dependency-chain-1000-v1",
+      "file": "dependency-chain-1000-v1.nui",
+      "hash": "sha256:d17abbf8cabc799a8e71d262b6fcee4308d343dad7e0747d23af29709b67ac33",
+      "workload": {
+        "forGroupIterations": 1,
+        "generatedGeometryPerIteration": 1000
+      },
+      "anchors": {
+        "sourceEdit": {
+          "bindingName": "benchOffset",
+          "from": "6",
+          "to": "7"
+        },
+        "pointDrag": {
+          "elementPath": "Benchmark::DragPoint",
+          "pointerDeltaCssPx": {
+            "x": 12,
+            "y": 8
+          }
+        },
+        "bezierHandleDrag": {
+          "elementPath": "Benchmark::DragCurve",
+          "handleRole": "start",
+          "pointerDeltaCssPx": {
+            "x": 12,
+            "y": -8
+          }
+        },
+        "dependentElementPath": "P0999"
+      }
     }
   ]
 }
