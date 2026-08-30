@@ -22,6 +22,7 @@ import {
   skipCurrentStep,
   startSession
 } from "./commandLineSession";
+import type { CommandLineStepValue } from "./commandLineSession";
 
 const recipe: CreationRecipe = {
   type: "line",
@@ -97,10 +98,55 @@ describe("commandLineSession", () => {
     expect(sessionCanConfirm(skippedNumber)).toBe(true);
   });
 
-  it("does not clear an actively-edited step back to blank for kinds with no default", () => {
-    const filled = fillCurrentStep(start(), referenceAnchor("point-a"));
-    const editing = beginStepEdit(filled, 0);
-    expect(skipCurrentStep(editing)).toBe(editing);
+  it("blanks every actively-edited step kind without changing the other arguments", () => {
+    const allStepKindsRecipe: CreationRecipe = {
+      type: "copyLine",
+      steps: [
+        { kind: "name", autoSuggest: true },
+        { kind: "number", key: "scale", prompt: "倍率", default: "1" },
+        { kind: "number", key: "angleDeg", prompt: "角度" },
+        { kind: "point", key: "startPoint", prompt: "始点" },
+        { kind: "endpoint", key: "endpoint", prompt: "端点" },
+        { kind: "line", key: "baseLineId", prompt: "基準線" },
+        { kind: "lineList", key: "baseLineIds", prompt: "基準線一覧" }
+      ]
+    };
+    let complete = startSession(allStepKindsRecipe, { insertionIndex: 0, revision: 0, elements: [] });
+    const values: CommandLineStepValue[] = [
+      "Copy",
+      2,
+      30,
+      referenceAnchor("point-a"),
+      { lineId: "line-a", endpointKey: "start" },
+      "line-a",
+      ["line-a", "line-b"]
+    ];
+    for (const value of values) {
+      complete = fillCurrentStep(complete, value);
+    }
+
+    for (const [stepIndex, key] of [
+      [0, "name"],
+      [1, "scale"],
+      [2, "angleDeg"],
+      [3, "startPoint"],
+      [4, "endpoint"],
+      [5, "baseLineId"],
+      [6, "baseLineIds"]
+    ] as const) {
+      const editing = beginStepEdit(complete, stepIndex);
+      const blanked = skipCurrentStep(editing);
+
+      expect(blanked.editingDraft).toBeNull();
+      expect(effectiveCommandLineArgs(blanked)).not.toHaveProperty(key);
+      expect(commitStepEdit(blanked)).toMatchObject({
+        currentStepIndex: allStepKindsRecipe.steps.length,
+        editingStepIndex: null,
+        args: Object.fromEntries(
+          Object.entries(complete.args).filter(([argumentKey]) => argumentKey !== key)
+        )
+      });
+    }
   });
 
   it("retreat preserves the returned-to step and all later values", () => {

@@ -258,20 +258,26 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
     : [];
   const editingStep = currentStep(draftSession);
   const editingArgumentKey = editingStep?.kind === "name" ? "name" : editingStep?.key;
+  const editingStepIsIntentionallyBlank = draftSession.editingStepIndex !== null &&
+    draftSession.editingDraft === null;
   // Check the draft-overlaid value itself before forgiving any later prompt.
-  // Name is the lone optional step && may intentionally be removed by skip.
-  const editingStepIsSatisfied = draftSession.editingStepIndex !== null &&
+  // An explicit blank is valid even when the ghost reports that this required
+  // step is missing; all other drafts must still satisfy the active step.
+  const editingStepIsSatisfied = editingStepIsIntentionallyBlank || (
+    draftSession.editingStepIndex !== null &&
     editingStep !== null &&
     (editingStep.kind === "name" || (
       draftSession.editingDraft !== null &&
       editingArgumentKey !== undefined &&
       Object.prototype.hasOwnProperty.call(effectiveCommandLineArgs(draftSession), editingArgumentKey)
     )) &&
-    !missingStepIndexes.includes(draftSession.editingStepIndex);
+    !missingStepIndexes.includes(draftSession.editingStepIndex)
+  );
   const onlyFutureStepsAreMissing = editingStepIsSatisfied &&
     missingStepIndexes.length > 0 &&
     missingStepIndexes.every((stepIndex) => stepIndex >= draftSession.currentStepIndex);
-  const accepted = status === "preview" ||
+  const accepted = (editingStepIsIntentionallyBlank && status !== "invalid") ||
+    status === "preview" ||
     ((status === "not-evaluated" || (status === "missing-input" && onlyFutureStepsAreMissing)) &&
       editingDraftIsParseable(draftSession));
   if (!accepted) {

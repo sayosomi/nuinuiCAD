@@ -1,4 +1,3 @@
-import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import {
   creationPlacementForEvaluationLimit,
@@ -25,7 +24,7 @@ export type CommandLineSession = {
   currentStepIndex: number;
   /** The completed recipe step being revised without mutating `args`. */
   editingStepIndex: number | null;
-  /** `null` is an explicit optional-name removal while editing. */
+  /** `null` is an explicit active-argument removal while editing. */
   editingDraft: CommandLineStepValue | null;
   /** Transient current-prompt pick progress to restore after an isolated edit. */
   editingReturnPickState: CommandLineEditingReturnPickState | null;
@@ -184,9 +183,9 @@ export const effectiveCommandLineArgs = (session: CommandLineSession): CreationA
   const step = currentStep(session);
   if (!step) return session.args;
   const key = keyForStep(step);
-  if (session.editingDraft === null && step.kind === "name") {
+  if (session.editingDraft === null) {
     const args = { ...session.args };
-    delete args.name;
+    delete args[key as keyof CreationArgs];
     return args;
   }
   return { ...session.args, [key]: session.editingDraft as CreationArgumentValue };
@@ -272,17 +271,11 @@ export const fillCurrentStep = (
 export const skipCurrentStep = (session: CommandLineSession): CommandLineSession => {
   const step = currentStep(session);
   if (!step) return session;
+  if (isEditingCommandLineStep(session)) return setEditingDraft(session, null);
   if (step.kind === "name") {
-    if (isEditingCommandLineStep(session)) return setEditingDraft(session, null);
     const args = { ...session.args };
     delete args.name;
     return { ...session, args, currentStepIndex: session.currentStepIndex + 1, error: null };
-  }
-  if (isEditingCommandLineStep(session)) {
-    if (step.kind === "number" && step.default !== undefined) {
-      return setEditingDraft(session, makeNumericExpression(step.default));
-    }
-    return session;
   }
   const args = { ...session.args };
   delete args[step.key];

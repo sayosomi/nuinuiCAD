@@ -199,8 +199,9 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: completedDivision.currentStepIndex,
       editingStepIndex: null,
-      args: { endpoint: { lineId: line.id, endpointKey: "start" }, ratio: 1 }
+      args: { endpoint: { lineId: line.id, endpointKey: "start" } }
     });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("ratio");
 
     expect(startCommandLineCreation("offsetLine")).toBe(true);
     submitCommandLineInput("");

@@ -3,7 +3,7 @@ import { compileDslDocument, serializeDocumentToDsl } from "../dsl/dslDocument";
 import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, referenceAnchor } from "../model/pointAnchors";
 import { applyPickedPoint, cancelPointPick } from "./pickCommands";
 import { selectElement } from "./selectionCommands";
 import {
@@ -255,6 +255,47 @@ describe("command-line session commands", () => {
       editingStepIndex: null,
       args: { x: 12, y: 5, name: "変数 B" }
     });
+  });
+
+  it("commits blank isolated reference and defaulted-number edits without losing later args", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 100, y: 0)",
+      "line AB = segment(start: @A, end: @B)"
+    ].join("\n"), "test");
+    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
+    const line = useCadDocumentStore.getState().elements.find((element) => element.name === "AB")!;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(startCommandLineStepEdit(1)).toBe(true);
+
+    expect(skipCommandLineStep()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 3,
+      editingStepIndex: null,
+      args: { endPoint: referenceAnchor(pointB.id) }
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+
+    expect(startCommandLineCreation("lineDivisionPoint")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: derivedAnchor(line.id, "start") });
+    expect(submitCommandLineInput("0.5")).toBe(true);
+    expect(startCommandLineStepEdit(2)).toBe(true);
+
+    expect(submitCommandLineInput("")).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      currentStepIndex: 3,
+      editingStepIndex: null,
+      args: { endpoint: { lineId: line.id, endpointKey: "start" } }
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("ratio");
   });
 
   it("does not save an empty return-pick state for a completed-session edit", () => {
