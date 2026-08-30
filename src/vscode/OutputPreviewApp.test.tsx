@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { OutputPlan } from "../output/outputCore";
+import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import type { DslDiagnostic } from "../dsl/dslTypes";
@@ -44,6 +42,30 @@ const source = [
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
 const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  margin: 2,\n)`;
+const coldRevealSource = [
+  "nui 4",
+  "group G {",
+  "  line AB = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "group Other {",
+  "  line CD = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "layout First {",
+  "  place @Other(at: (0, 0))",
+  "}",
+  "layout Target {",
+  "  place @G(at: (0, 0))",
+  "}",
+  "print A(",
+  "  layout: @First,",
+  "  paper: a4,",
+  "  overlap: 5,",
+  ")",
+  "svg B(",
+  "  layout: @Target,",
+  "  margin: 1,",
+  ")"
+].join("\n");
 const repairedSource = source.replace("overlap: 5", "overlap: 20");
 const invalidOverlapSource = source.replace("overlap: 5", "overlap: 200");
 
@@ -217,11 +239,6 @@ const postWindowMessage = (data: unknown) => {
   });
 };
 
-const rustBinary = process.env.NUINUICAD_RUST_EVALUATION_BINARY ?? resolve(
-  process.cwd(),
-  "rust-evaluator/target/debug/evaluation_stdio"
-);
-
 const createControlledRustApi = () => {
   const requests: Array<{ id: number; input: unknown; responded: boolean }> = [];
   const postMessage = vi.fn((message: VscodeToExtensionMessage) => {
@@ -234,13 +251,11 @@ const createControlledRustApi = () => {
     const request = requests.find((candidate) => !candidate.responded);
     if (!request) throw new Error("missing pending Rust evaluation request");
     request.responded = true;
-    const response = JSON.parse(execFileSync(rustBinary, [], {
-      encoding: "utf8",
-      input: `${JSON.stringify({ id: request.id, input: request.input })}\n`
-    })) as { id: number; payload: unknown };
+    const input = request.input as { elements: Parameters<typeof evaluateElementsReferencePayload>[0] };
+    const payload = evaluateElementsReferencePayload(input.elements);
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "rustEvaluationResponse", id: response.id, payload: response.payload }
+        data: { type: "rustEvaluationResponse", id: request.id, payload }
       }));
       await Promise.resolve();
     });
@@ -1144,7 +1159,7 @@ describe("Output Preview application", () => {
   });
 });
 
-describe.skipIf(!existsSync(rustBinary))("Output Preview production Rust transport lifecycle", () => {
+describe("Output Preview production Rust transport lifecycle", () => {
   afterEach(() => {
     cleanup();
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -1155,32 +1170,34 @@ describe.skipIf(!existsSync(rustBinary))("Output Preview production Rust transpo
     mocks.evaluateOutputPlan.mockImplementation(actual.evaluateOutputPlan);
   };
 
-  it("resolves a cold one-Output Reveal alongside ordinary Preview evaluation", async () => {
+  it("resolves cold Reveal alongside ordinary Preview evaluation without transport supersession", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     await useProductionOutputEvaluation();
     const controlled = createControlledRustApi();
     useCadDocumentStore.setState(initialCadDocumentState());
     render(<OutputPreviewApp api={controlled.api} />);
 
-    postWindowMessage({ type: "replaceTextDocument", sourceText: printSourceWithoutB, documentVersion: 1 });
+    postWindowMessage({ type: "replaceTextDocument", sourceText: coldRevealSource, documentVersion: 1 });
     await waitFor(() => expect(controlled.requests).toHaveLength(1));
     postWindowMessage({
       type: "outputPreviewReveal",
       requestId: 1,
       documentVersion: 1,
-      normalizedSourceOffset: printSourceWithoutB.indexOf("group G") + 2
+      normalizedSourceOffset: coldRevealSource.indexOf("group G") + 2
     });
     expect(controlled.requests).toHaveLength(1);
 
     await controlled.respondNext();
     await waitFor(() => expect(controlled.requests).toHaveLength(2));
     await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(3));
+    await controlled.respondNext();
     await waitFor(() => expect(controlled.api.postMessage).toHaveBeenCalledWith({
       type: "outputPreviewRevealResult",
       requestId: 1,
       documentVersion: 1,
       status: "resolved",
-      outputKey: outputKeyFor("print", "A")
+      outputKey: outputKeyFor("svg", "B")
     }));
   }, 30_000);
 
