@@ -152,6 +152,9 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   );
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
   useEffect(() => () => rustTransport.dispose(), [rustTransport]);
+  useEffect(() => {
+    api.postMessage({ type: "webviewReady" });
+  }, [api]);
   const evaluationOptions = useMemo(
     () => buildEvaluationOptions({ compiledDocument: evaluationDocument, evaluationLimitIndex }),
     [evaluationDocument, evaluationLimitIndex]
@@ -1172,7 +1175,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
     };
     window.addEventListener("message", onMessage);
-    api.postMessage({ type: "webviewReady" });
     return () => {
       window.removeEventListener("message", onMessage);
       deferredCanvasNavigationRequestRef.current = null;
