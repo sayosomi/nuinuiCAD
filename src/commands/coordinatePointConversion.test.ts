@@ -67,7 +67,7 @@ describe("coordinate point conversion", () => {
     expect(reevaluated.computedGeometry.get(targetId)).toMatchObject({ kind: "point", x: 30, y: 5 });
   });
 
-  it("accepts constant scalar expressions but rejects bindings and relational expressions", () => {
+  it("accepts constant scalar expressions but rejects binding-dependent expressions", () => {
     const constant = compile([
       "nui 4",
       "point Base = coordinate(x: 0, y: 0)",
@@ -87,6 +87,80 @@ describe("coordinate point conversion", () => {
     expect(coordinatePointConversionTargetEligibility(snapshotFor(bound), boundTarget)).toMatchObject({
       eligible: false,
       reason: { code: "target-not-eligible" }
+    });
+  });
+
+  it("rejects an already-relational point as a conversion target", () => {
+    const document = compile([
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = offset(from: @Base, dx: 10, dy: 5)"
+    ].join("\n"));
+    const targetId = elementId(document, "Target");
+
+    expect(coordinatePointConversionTargetEligibility(snapshotFor(document), targetId)).toMatchObject({
+      eligible: false,
+      reason: { code: "target-not-eligible" }
+    });
+  });
+
+  it("rejects a coordinate point whose scalar depends on a geometry property", () => {
+    const document = compile([
+      "nui 4",
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "point Target = coordinate(x: @AB.length, y: 0)"
+    ].join("\n"));
+    const targetId = elementId(document, "Target");
+
+    expect(coordinatePointConversionTargetEligibility(snapshotFor(document), targetId)).toMatchObject({
+      eligible: false,
+      reason: { code: "target-not-eligible" }
+    });
+  });
+
+  it("rejects a for-generated runtime coordinate point", () => {
+    const document = compile([
+      "nui 4",
+      "for i in range(from: 0, count: 1, step: 1) {",
+      "  point Generated = coordinate(x: @i * 10, y: 5)",
+      "}"
+    ].join("\n"));
+    const snapshot = snapshotFor(document);
+    const loop = document.doc.document.elements.find((element) => element.type === "forGroup");
+    const template = document.doc.document.elements.find((element) => element.name === "Generated");
+    const generatedRow = snapshot.evaluation.forGroupGeneratedRows?.find((row) =>
+      row.forGroupId === loop?.id && row.templateElementId === template?.id
+    );
+    if (!loop || !template || !generatedRow) throw new Error("expected a materialized for-generated point");
+
+    const generatedId = generatedRow.generatedElementId;
+    expect(document.doc.statementMap.byElementId.has(generatedId)).toBe(false);
+    expect(coordinatePointConversionTargetEligibility(snapshot, generatedId)).toMatchObject({
+      eligible: false,
+      reason: { code: "target-not-found" }
+    });
+  });
+
+  it("rejects a Module-instance-generated runtime coordinate point", () => {
+    const document = compile([
+      "nui 4",
+      "module Maker() {",
+      "  export point Generated = coordinate(x: 10, y: 5)",
+      "}",
+      "instance Root = Maker()"
+    ].join("\n"));
+    const runtimePoint = document.doc.moduleMaterialization?.executionStatements.find((entry) =>
+      entry.type === "freePoint" && entry.statement.kind === "element" &&
+      entry.statement.name === "Generated" && entry.origin?.kind === "moduleBody"
+    );
+    if (!runtimePoint) throw new Error("expected a materialized Module-generated point");
+
+    const runtimeId = runtimePoint.runtimeElementId;
+    expect(document.doc.moduleMaterialization?.originByRuntimeElementId.has(runtimeId)).toBe(true);
+    expect(document.doc.statementMap.byElementId.has(runtimeId)).toBe(false);
+    expect(coordinatePointConversionTargetEligibility(snapshotFor(document), runtimeId)).toMatchObject({
+      eligible: false,
+      reason: { code: "target-not-found" }
     });
   });
 
