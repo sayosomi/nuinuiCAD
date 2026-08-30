@@ -3349,6 +3349,36 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(context.subscriptions).toContain(collection);
   });
 
+  it("publishes invalid choice literals for typed declarations", () => {
+    const source = [
+      "nui 4",
+      "let width: number = 10",
+      "let mode: choice(front, back) = side"
+    ].join("\n");
+    const document = documentFor("/tmp/invalid-choice.nui", "file:///tmp/invalid-choice.nui", source);
+    setup(false, null, [document]);
+
+    const published = collectionFor().set.mock.calls.at(-1)?.[1] as Array<{
+      code?: string | number;
+      message: string;
+      range: { start: MockPosition; end: MockPosition };
+      severity: number;
+      source?: string;
+    }>;
+    const diagnostic = published.find((item) => item.code === "invalid-choice-literal");
+
+    expect(diagnostic).toMatchObject({
+      code: "invalid-choice-literal",
+      source: "nuinuiCAD",
+      severity: 0,
+      range: {
+        start: { line: 2, character: 32 },
+        end: { line: 2, character: 36 }
+      }
+    });
+    expect(published.filter((item) => item.code === "invalid-choice-literal")).toHaveLength(1);
+  });
+
   it("creates diagnostics for documents opened after activation", () => {
     setup(false, null, []);
     const document = documentFor("/tmp/opened.nui", "file:///tmp/opened.nui", invalidSource);
