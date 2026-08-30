@@ -1242,6 +1242,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
+    canvasFreePointAtPointerFeature?.disposeSession(session, session.document);
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
     session.inFlightCanvasHistory = null;

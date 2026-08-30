@@ -164,7 +164,206 @@ describe("Canvas free point at pointer feature", () => {
     authoritativeReady = true;
     feature.handleAuthoritativeDocumentReady(token, document, document.version);
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    feature.dispose();
+  });
+
+  it("queues a successor behind an in-flight request and dispatches it with its pointer and advanced anchor", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    const authoritativeReady = true;
+    const postFreePointAtPointer = vi.fn();
+    const endpoint = {
+      sessionToken: token,
+      document,
+      isCurrent: () => true,
+      isAuthoritativeReady: () => authoritativeReady,
+      lastCanvasPointer: () => ({ x: 12, y: -8 }),
+      postFreePointAtPointer
+    };
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => endpoint
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 11,
+      [vscodeCanvasPointerContextKeys.y]: -7
+    });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    document.version = 2;
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+
+    feature.handleAuthoritativeDocumentReady(token, document, 2);
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(2);
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 3, character: 19 }
+    }));
+    feature.dispose();
+  });
+
+  it("preserves FIFO order while authoritative readiness is pending", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    let authoritativeReady = false;
+    const postFreePointAtPointer = vi.fn();
+    const endpoint = {
+      sessionToken: token,
+      document,
+      isCurrent: () => true,
+      isAuthoritativeReady: () => authoritativeReady,
+      lastCanvasPointer: () => ({ x: 12, y: -8 }),
+      postFreePointAtPointer
+    };
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => endpoint
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 11,
+      [vscodeCanvasPointerContextKeys.y]: -7
+    });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+
+    authoritativeReady = true;
+    feature.handleAuthoritativeDocumentReady(token, document, 1);
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      pointer: { x: 11, y: -7 }
+    }));
+
+    const firstRequestId = postFreePointAtPointer.mock.calls[0]![0].requestId as number;
+    document.version = 2;
+    feature.handleResult(token, document, {
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 3, character: 19 }
+    });
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+
+    feature.handleAuthoritativeDocumentReady(token, document, 2);
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(2);
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      pointer: { x: 91, y: -37 },
+      documentVersion: 2,
+      sourcePosition: { documentVersion: 2, line: 3, character: 19 }
+    }));
+    feature.dispose();
+  });
+
+  it("isolates queued work by exact session and document during readiness and disposal", () => {
+    const documentA = documentFor();
+    const documentB = { ...documentFor(), uri: { scheme: "file", toString: () => "file:///other-pattern.nui" } };
+    const editorA = editorFor(documentA, 3, 4);
+    const editorB = editorFor(documentB, 5, 6);
+    const tokenA = {};
+    const tokenB = {};
+    const postA = vi.fn();
+    const postB = vi.fn();
+    const endpointA = {
+      sessionToken: tokenA,
+      document: documentA,
+      isCurrent: () => true,
+      isAuthoritativeReady: () => false,
+      lastCanvasPointer: () => ({ x: 1, y: 2 }),
+      postFreePointAtPointer: postA
+    };
+    const endpointB = {
+      sessionToken: tokenB,
+      document: documentB,
+      isCurrent: () => true,
+      isAuthoritativeReady: () => false,
+      lastCanvasPointer: () => ({ x: 3, y: 4 }),
+      postFreePointAtPointer: postB
+    };
+    let activeEndpoint = endpointA;
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => activeEndpoint
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editorA, kind: 1 });
+    mocks.selectionListeners[0]?.({ textEditor: editorB, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 10,
+      [vscodeCanvasPointerContextKeys.y]: 20
+    });
+    activeEndpoint = endpointB;
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 30,
+      [vscodeCanvasPointerContextKeys.y]: 40
+    });
+
+    feature.disposeSession(tokenA, documentA);
+    feature.handleAuthoritativeDocumentReady(tokenA, documentA, 1);
+    expect(postA).not.toHaveBeenCalled();
+
+    feature.handleAuthoritativeDocumentReady(tokenB, documentB, 1);
+    expect(postB).toHaveBeenCalledTimes(1);
+    expect(postB).toHaveBeenCalledWith(expect.objectContaining({ pointer: { x: 30, y: 40 } }));
+    feature.dispose();
+  });
+
+  it("fails closed with an explicit error when queued work crosses unrelated Source drift", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    let authoritativeReady = false;
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => true,
+        isAuthoritativeReady: () => authoritativeReady,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    document.version = 2;
+    mocks.documentChangeListeners[0]?.({ document, contentChanges: [{}] });
+    authoritativeReady = true;
+    feature.handleAuthoritativeDocumentReady(token, document, 2);
+
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
     feature.dispose();
   });
 

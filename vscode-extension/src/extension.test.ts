@@ -2364,6 +2364,84 @@ describe("VS Code production document lifecycle", () => {
     }));
   });
 
+  it("serializes Canvas free-point invocations through the authoritative session boundary", async () => {
+    const document = documentFor("/tmp/free-point-queue.nui", "file:///tmp/free-point-queue.nui", "nui 4\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    await handler({
+      type: "canvasPointerPublication",
+      documentVersion: 1,
+      pointer: { x: 12, y: -8 }
+    });
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+
+    await handler({
+      type: "canvasPointerPublication",
+      documentVersion: 1,
+      pointer: { x: 91, y: -37 }
+    });
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+
+    const freePointMessages = (): Array<{
+      requestId: number;
+      documentVersion: number;
+      pointer: { x: number; y: number };
+      sourcePosition: { documentVersion: number; line: number; character: number };
+    }> => panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is {
+        type: "canvasFreePointAtPointer";
+        requestId: number;
+        documentVersion: number;
+        pointer: { x: number; y: number };
+        sourcePosition: { documentVersion: number; line: number; character: number };
+      } => message?.type === "canvasFreePointAtPointer");
+    expect(freePointMessages()).toHaveLength(1);
+    const firstRequest = freePointMessages()[0]!;
+    expect(firstRequest.pointer).toEqual({ x: 12, y: -8 });
+
+    const committedSource = "nui 4\n// free point A\n";
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 2;
+      document.setSourceText(committedSource);
+      emitDocumentChange(document);
+      return true;
+    });
+    await handler({
+      type: "canvasCommit",
+      sourceText: committedSource,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset",
+      operationId: firstRequest.requestId
+    });
+    await handler({
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequest.requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 1, character: "// free point A".length }
+    });
+
+    panel.webview.postMessage.mockClear();
+    expect(freePointMessages()).toHaveLength(0);
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+
+    expect(freePointMessages()).toHaveLength(1);
+    expect(freePointMessages()[0]).toMatchObject({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 1, character: "// free point A".length }
+    });
+  });
+
   it("disposes only the matching panel when a document closes and creates a fresh session on reopen", async () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
     const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");
