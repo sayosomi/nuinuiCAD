@@ -15,6 +15,7 @@
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import { type BindingReferenceSite, visibleBindingsAt } from "./bindingResolution";
+import { BUILTIN_CONSTANT_DEFINITIONS } from "./builtinConstants";
 import { BUILTIN_FUNCTION_DEFINITIONS, type BuiltinFunctionName } from "./builtinFunctions";
 import type { ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarSpan } from "./literalScanner";
@@ -27,6 +28,11 @@ export type ScalarBindingCandidate = { readonly name: string; readonly bindingId
 
 /** boolean literal candidates first (declared value order matches source authoring convention elsewhere: true before false). */
 export const scalarLiteralCandidates = (type: ScalarType): readonly ScalarValueCandidate[] => {
+  if (type.kind === "number") {
+    return BUILTIN_CONSTANT_DEFINITIONS
+      .filter((definition) => isScalarTypeAssignable(definition.type, type))
+      .map((definition) => ({ label: definition.name }));
+  }
   if (type.kind === "boolean") return [{ label: "true" }, { label: "false" }];
   if (isChoiceScalarType(type)) return type.options.map((option) => ({ label: option }));
   return [];

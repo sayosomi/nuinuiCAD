@@ -1,14 +1,14 @@
 # Builtins
 
-The generated catalog below is the source of truth for builtin names,
-signatures, calling styles, parameter types, and return types. The sections
-after it describe what each argument means, its units, and its runtime
-restrictions. Positional and named-only calling styles are distinct;
+The generated catalog below is the source of truth for builtin function names,
+scalar constant spellings, signatures, calling styles, parameter types, and
+return types. The sections after it describe what each argument means, its
+units, and its runtime restrictions. Positional and named-only calling styles are distinct;
 `spreadAngle` is currently named-only and every other listed builtin is
 positional.
 
 <!-- dsl-ref:generated:start builtins -->
-<!-- This region is generated from src/scalars/builtinFunctions.ts. -->
+<!-- This region is generated from src/scalars/builtinFunctions.ts and src/scalars/builtinConstants.ts. -->
 | Builtin | Signatures | Reference identity |
 | --- | --- | --- |
 <!-- dsl-ref:builtin:abs -->
@@ -55,7 +55,19 @@ positional.
 | `lineDistance` | lineDistance(point, line) -> number | `dsl-ref:builtin:lineDistance` |
 <!-- dsl-ref:builtin:lineAngle -->
 | `lineAngle` | lineAngle(line, line) -> number | `dsl-ref:builtin:lineAngle` |
+
+### Scalar constants
+
+| Constant | Type | Value | Reference identity |
+| --- | --- | --- | --- |
+<!-- dsl-ref:builtin-constant:pi -->
+| `pi` | number | 3.141592653589793 | `dsl-ref:builtin-constant:pi` |
 <!-- dsl-ref:generated:end builtins -->
+
+`pi` is the canonical lowercase numeric constant. It is a number literal in
+expressions and evaluates to the binary64 value `3.141592653589793`. `PI` is
+not an alias, `pi()` is not a function call, and `@pi` is an ordinary reference
+to a user binding named `pi` when one exists.
 
 ## Scalar arithmetic
 

@@ -189,10 +189,10 @@ line AB = segment(
 ```
 
 `from: A` is not a reference in nui4. A bare identifier is a keyword, a choice
-literal, or another grammar token with a specifically defined role; it is never
-silently treated as a value reference. A missing, disabled, invalid, private, or
-too-late reference is a diagnostic and is not repaired by reordering the
-document.
+literal, the builtin numeric constant `pi`, or another grammar token with a
+specifically defined role; it is never silently treated as a value reference.
+A missing, disabled, invalid, private, or too-late reference is a diagnostic and
+is not repaired by reordering the document.
 
 ### Scalar geometry-property reads
 
@@ -261,6 +261,17 @@ fields, module arguments, conditions, property values, array members, and
 `layout`, `place`, `print`, and `svg` numeric fields all use one typed expression surface
 model. nui4 does not expose separate historical
 `NumericValue`, numeric-expression, or property-binding opt-in language features.
+
+The scalar builtin-constant registry defines one canonical numeric constant:
+the exact lowercase spelling `pi`, with type `number` and binary64 value
+`3.141592653589793`. The scanner lowers bare `pi` to the ordinary
+`numberLiteral` representation, so it uses the existing parser, typechecker,
+compiler, and evaluator paths. It is not a lexical binding, resolver entry, or
+runtime node. `PI` is not an alias and `pi()` is not a builtin function form.
+The spelling `@pi` remains an ordinary user-visible binding reference; a
+declaration named `pi` therefore remains referencable as `@pi` while bare `pi`
+retains the builtin meaning. Because `choice(...)` classifies options through
+the shared scalar literal scanner, `pi` is not a valid choice option.
 
 The formal operator set is:
 
@@ -1052,8 +1063,9 @@ Literal scales must be finite and positive. Literal angles are normalized to
 
 Bare identifiers such as `left`, `right`, `visible`, `hidden`, and `disabled`
 are choice literals when the surrounding typed position expects the
-corresponding `choice(...)` type. They are not references. A reference to a
-named value always includes `@`.
+corresponding `choice(...)` type. They are not references. The builtin numeric
+constant `pi` is the explicit scanner-level exception and is not a choice
+literal. A reference to a named value always includes `@`.
 
 nui4 implements exactly three first-class immutable geometry-array types:
 `point[]`, `line[]`, and `path[]`. Named arrays are `const` only; `let`, `set`,

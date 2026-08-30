@@ -79,6 +79,28 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(compiled.document?.layouts[0]).toMatchObject({ name: "空レイアウト", scale: 1, placements: [] });
   });
 
+  it("accepts the canonical pi constant in layout, placement, print, and SVG numeric fields", () => {
+    const source = [
+      "nui 4",
+      "group G {",
+      "}",
+      "layout L(scale: pi) {",
+      "  place @G(at: (0, 0), scale: pi, angle: pi)",
+      "}",
+      "print P(layout: @L, paper: a4, overlap: pi)",
+      "svg S(layout: @L, margin: pi)"
+    ].join("\n");
+    const compiled = compileWithStatementIds(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.document?.layouts[0]).toMatchObject({ scale: { kind: "expression", expression: "pi" } });
+    expect(compiled.document?.layouts[0].placements[0]).toMatchObject({
+      scale: { kind: "expression", expression: "pi" },
+      angleDeg: { kind: "expression", expression: "pi" }
+    });
+    expect(compiled.document?.printOutputs[0].overlap).toMatchObject({ kind: "expression", expression: "pi" });
+    expect(compiled.document?.svgOutputs[0].margin).toMatchObject({ kind: "expression", expression: "pi" });
+  });
+
   it("rejects the removed print margin attribute through normal DSL validation", () => {
     const compiled = compileDslDocument([
       "nui 4",

@@ -53,8 +53,8 @@ describe("scalarLiteralCandidates", () => {
   it("choice: declared option order", () => {
     expect(scalarLiteralCandidates({ kind: "choice", options: ["right", "left"] })).toEqual([{ label: "right" }, { label: "left" }]);
   });
-  it("number/string: no literal candidates", () => {
-    expect(scalarLiteralCandidates({ kind: "number" })).toEqual([]);
+  it("number: canonical builtin constant; string: no literal candidates", () => {
+    expect(scalarLiteralCandidates({ kind: "number" })).toEqual([{ label: "pi" }]);
     expect(scalarLiteralCandidates({ kind: "string" })).toEqual([]);
   });
 });
@@ -282,6 +282,7 @@ describe("scalarExpressionCandidates: end-to-end operand/operator wiring", () =>
       includeOperators: true
     });
     expect(candidates).toEqual(expect.arrayContaining([
+      { kind: "literal", label: "pi" },
       { kind: "function", name: "round", returnType: { kind: "number" } },
       { kind: "function", name: "roundTo", returnType: { kind: "number" } },
       { kind: "function", name: "sin", returnType: { kind: "number" } },

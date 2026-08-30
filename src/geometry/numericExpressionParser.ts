@@ -1,5 +1,6 @@
 import type { ElementId } from "../types/geometry";
 import { evaluateBuiltinFunction } from "../scalars/builtinFunctionSemantics";
+import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
 import { labelToProperty } from "./numericExpressionProperties";
 import type { NumericExpressionReference } from "./numericExpressionTypes";
 
@@ -35,8 +36,10 @@ const functionNames = new Map<string, NumericExpressionFunctionName>([
   ["sqrt", "sqrt"]
 ]);
 
+const piDefinition = getBuiltinConstantDefinition("pi");
+const piMatchPattern = new RegExp(`^${piDefinition.name}(?=$|[\\s(),+*/<>!=&|])`);
 const piMatch = (expression: string, index: number) =>
-  expression.slice(index).match(/^pi(?=$|[\s(),+*/<>!=&|])/);
+  expression.slice(index).match(piMatchPattern);
 
 export const tokenize = (expression: string): Token[] => {
   const tokens: Token[] = [];
@@ -144,7 +147,7 @@ export const tokenize = (expression: string): Token[] => {
 
     const constantMatch = piMatch(expression, index);
     if (constantMatch) {
-      tokens.push({ type: "number", value: Math.PI, start: index, end: index + constantMatch[0].length });
+      tokens.push({ type: "number", value: piDefinition.value, start: index, end: index + constantMatch[0].length });
       index += constantMatch[0].length;
       continue;
     }

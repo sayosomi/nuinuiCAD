@@ -232,6 +232,39 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("asserts the canonical pi number literal through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui4-builtin-constant-pi.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const piBinding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "piValue");
+    expect(fixture.compiled?.doc.scalarProgram?.statements.find((statement) => statement.bindingId === piBinding?.id)?.declaration.initializer).toMatchObject({
+      kind: "numberLiteral",
+      value: Math.PI
+    });
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "piValue"), Math.PI);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "piScaled"), 2 * Math.PI);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "piRadius"), 6 * Math.PI);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "builtinPiWithUserBinding"), Math.PI);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "explicitUserPi"), 2);
+      expect(scalarBindingFor(fixture, payload, "piComparison")).toMatchObject({
+        status: "ok",
+        value: { kind: "boolean", value: true }
+      });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "piMutable"), Math.PI);
+      const evaluated = evaluationPayloadToResult(payload);
+      const point = fixture.elements.find((element) => element.name === "PiPoint")!;
+      const template = fixture.elements.find((element) => element.name === "PiTemplate")!;
+      expect(evaluated.errors.filter((error) => error.elementId === point.id || error.elementId === template.id)).toEqual([]);
+      expect(evaluated.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: Math.PI, y: 2 * Math.PI });
+      expect(evaluated.computedGeometry.get(template.id)).toMatchObject({ kind: "text", text: "円周率=3.142" });
+    }
+  }, 30000);
+
   it("asserts public choice geometry properties through the Rust production boundary", () => {
     const fixture = readParityFixture(repoRoot, "nui4-choice-geometry-properties.nui");
     const options = optionsFor(fixture);

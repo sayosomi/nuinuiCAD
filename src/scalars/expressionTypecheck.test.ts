@@ -153,6 +153,27 @@ describe("typecheckScalarExpression / numeric comparison (< <= > >=)", () => {
   });
 });
 
+describe("typecheckScalarExpression / builtin pi number literal", () => {
+  it("types pi arithmetic and comparison through the normal number path", () => {
+    expect(check("2 * pi").type).toEqual({ kind: "number" });
+    expect(check("pi > 3").type).toEqual({ kind: "boolean" });
+  });
+
+  it("rejects bare pi where a boolean is required", () => {
+    const result = check("pi", { kind: "boolean" });
+    expect(result.type).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "scalar-type-mismatch", actualType: { kind: "number" } })
+    ]);
+  });
+
+  it("does not accept uppercase PI as a builtin alias", () => {
+    expect(check("PI", { kind: "number" }).diagnostics).toEqual([
+      expect.objectContaining({ code: "invalid-choice-literal" })
+    ]);
+  });
+});
+
 describe("typecheckScalarExpression / logical operators ( and   or )", () => {
   it.each([" and ", " or "])("accepts boolean %s boolean and yields boolean", (op) => {
     const result = check(`true ${op} false`);
