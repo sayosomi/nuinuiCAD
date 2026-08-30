@@ -10,6 +10,7 @@ import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from ".
 import { buildForGroupMutationOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
+import { moduleRecordExportFieldBindingIdFor } from "../scalars/moduleScalarRuntime";
 
 const compileWithIds = (source: string, prefix = "task6") => {
   const parsed = parseDsl(source);
@@ -651,6 +652,75 @@ describe("module scalar runtime integration", () => {
       expect.objectContaining({ kind: "point", x: 7, y: 0 }),
       expect.objectContaining({ kind: "point", x: 7, y: 0 })
     ]);
+  });
+
+  it("reuses Module record export field backing for an ordinary whole-record alias", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Pair(x: number)",
+      "module Provider() {",
+      "  export const output: Pair = Pair(x: 7)",
+      "}",
+      "instance Source = Provider()",
+      "const copied: Pair = @Source::output",
+      "const copiedX: number = @copied.x",
+      "point Result = coordinate(x: @copiedX, y: 0)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const sourceInstance = compiled.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Source")!;
+    const definition = compiled.moduleSemanticAnalysis!.definitionsByStatementId.get(sourceInstance.callee!.definitionStatementId)!;
+    const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
+    if (!exported || exported.kind !== "record") throw new Error("missing record export");
+    const field = exported.definition.fields[0]!;
+    const expectedBindingId = moduleRecordExportFieldBindingIdFor({
+      moduleSemanticAnalysis: compiled.moduleSemanticAnalysis!,
+      sourceNamespace: compiled.sourceLexicalNamespace!,
+      instanceStatementId: sourceInstance.statementId,
+      exportName: exported.name,
+      exportedStatementId: exported.exportedStatementId,
+      field: field.identity
+    });
+    expect(expectedBindingId).toBeDefined();
+
+    const copiedX = compiled.bindingAnalysis!.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "copiedX"
+    );
+    expect(copiedX).toBeDefined();
+    if (!copiedX || !expectedBindingId) return;
+    const copiedInitializer = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === copiedX.id);
+    expect(copiedInitializer?.declaration.initializer).toMatchObject({ kind: "reference", bindingId: expectedBindingId });
+    expect(compiled.bindingAnalysis!.catalog.bindings.filter((binding) => binding.kind === "typed" && binding.id === expectedBindingId)).toHaveLength(1);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(copiedX.id)).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+  });
+
+  it("does not accept a nominally incompatible Module record export as an ordinary alias", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Pair(x: number)",
+      "record Other(x: number)",
+      "module Provider() {",
+      "  export const output: Other = Other(x: 7)",
+      "}",
+      "instance Source = Provider()",
+      "const copied: Pair = @Source::output",
+      "const copiedX: number = @copied.x"
+    ].join("\n"));
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "record-field-unavailable")).toBe(true);
+
+    const copiedX = compiled.bindingAnalysis?.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "copiedX"
+    );
+    expect(copiedX).toBeDefined();
+    if (!copiedX) return;
+    const copiedInitializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === copiedX.id);
+    expect(copiedInitializer?.declaration.initializer).toMatchObject({ kind: "reference", bindingId: null });
+    expect(compiled.bindingAnalysis?.catalog.bindings.some((binding) =>
+      binding.kind === "typed" && binding.name === "copied.x"
+    )).toBe(false);
   });
 
   it("lowers module-local and child-module geometry exports through the same builtin target", () => {

@@ -1200,7 +1200,7 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(instance.parameterBindings[0]?.value?.kind).toBe("record");
   });
 
-  it("fails closed when a qualified Module record export cannot retain its owner after movement", () => {
+  it("lowers a compatible qualified Module record export as one whole-record local", () => {
     const source = [
       "nui 4",
       "record Pair(x: number)",
@@ -1214,8 +1214,50 @@ describe("planInlineModule Checkpoint 1", () => {
       "instance Copy = Consumer(settings: @Source::output)"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite" });
-    expect("splices" in result).toBe(false);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const settings: Pair = @Source::output");
+    expect(next).toContain("point P = coordinate(x: @settings.x, y: 0)");
+
+    const compiledNext = compileCurrent(next, "inline-qualified-record-export-next");
+    const groupIndex = compiledNext.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Copy"
+    );
+    const generated = compiledNext.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "settings" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(generated).toHaveLength(1);
+    const generatedIndex = compiledNext.statements.indexOf(generated[0]!);
+    expect(compiledNext.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(generatedIndex)?.typeIdentity)
+      .toBe("inline-qualified-record-export-next:1");
+
+    const sourceInstance = compiledNext.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Source")!;
+    const definition = compiledNext.moduleSemanticAnalysis!.definitionsByStatementId.get(sourceInstance.callee!.definitionStatementId)!;
+    const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
+    if (!exported || exported.kind !== "record") throw new Error("missing record export");
+    const index = createDslSemanticOccurrenceIndex(compiledNext);
+    const referenceStart = next.indexOf("@Source::output", next.indexOf("group Copy"));
+    const sourceReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === referenceStart + 1 &&
+      occurrence.to === referenceStart + 1 + "Source".length
+    );
+    const exportReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === referenceStart + 1 + "Source::".length &&
+      occurrence.to === referenceStart + 1 + "Source::output".length
+    );
+    expect(sourceReference).toBeDefined();
+    expect(exportReference).toBeDefined();
+    expect(sourceReference && dslSemanticIdentityKey(sourceReference.identity)).toBe(
+      `module:moduleInstance:${sourceInstance.statementId}`
+    );
+    expect(exportReference && dslSemanticIdentityKey(exportReference.identity)).toBe(
+      `module:moduleSource:${exported.exportedStatementId}`
+    );
   });
 
   it("substitutes repeated direct uses of one singular geometry parameter independently", () => {
