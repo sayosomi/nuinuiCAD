@@ -56,6 +56,7 @@ describe("coordinate point conversion", () => {
     expect(applied.document.sourceText).toContain("dx: 20");
     expect(applied.document.sourceText).toContain("dy: -15");
     expect(applied.document.sourceText).toContain("line Use = segment(start: @Target, end: @Base)");
+    expect(applied.document.sourceText).not.toContain("id:");
 
     const target = applied.document.doc.document.elements.find((element) => element.id === targetId)!;
     expect(target.name).toBe("Target");
@@ -120,6 +121,39 @@ describe("coordinate point conversion", () => {
     expect(applied.document.sourceText).toContain("  line Use = segment(start: @Target, end: @Base)");
     expect(applied.document.doc.document.elements.find((element) => element.id === targetId)?.name).toBe("Target");
     expect(applied.document.doc.document.elements.find((element) => element.id === targetId)?.parentGroupId).toBe(parentGroupId);
+  });
+
+  it("retains a Module-derived endpoint candidate and uses its canonical qualified reference", () => {
+    const document = compile([
+      "nui 4",
+      "module Maker() {",
+      "  export line Out = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "instance Root = Maker()",
+      "point Target = coordinate(x: 8, y: -6)"
+    ].join("\n"));
+    const snapshot = snapshotFor(document);
+    const targetId = elementId(document, "Target");
+    const candidates = coordinatePointConversionBaseCandidates({ snapshot, targetIds: [targetId] });
+    const moduleBase = candidates.find((candidate) =>
+      [...candidate.referencesByTargetId.values()].some((reference) =>
+        reference.base === "Root::Out" && reference.pointKey === "start"
+      )
+    );
+
+    expect(moduleBase).toBeDefined();
+    expect(moduleBase?.referencesByTargetId.get(targetId)).toEqual({ base: "Root::Out", pointKey: "start" });
+    if (!moduleBase) return;
+    const plan = planCoordinatePointConversion({ snapshot, targetIds: [targetId], base: moduleBase, mode: "xy" });
+    expect(plan.splices.flatMap((splice) => splice.replacementLines).join("\n")).toContain("from: @Root::Out.start");
+    const applied = applyCoordinatePointConversionPlan(plan, snapshot);
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied") return;
+    expect(snapshotFor(applied.document).evaluation.computedGeometry.get(targetId)).toMatchObject({
+      kind: "point",
+      x: 8,
+      y: -6
+    });
   });
 
   it("uses source-order candidates and intersects candidates across targets", () => {
@@ -198,6 +232,57 @@ describe("coordinate point conversion", () => {
     const stale = applyCoordinatePointConversionPlan(plan, snapshotFor(changed));
     expect(stale.status).toBe("rejected");
     if (stale.status === "rejected") expect(stale.reason.code).toBe("stale-source");
+  });
+
+  it("revalidates the current evaluation before applying a plan", () => {
+    const document = compile([
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 3, y: 4)"
+    ].join("\n"));
+    const snapshot = snapshotFor(document);
+    const base = coordinatePointConversionBaseCandidates({ snapshot, targetIds: [elementId(document, "Target")] })
+      .find((candidate) => candidate.sourceElementId === elementId(document, "Base"))!;
+    const plan = planCoordinatePointConversion({
+      snapshot,
+      targetIds: [elementId(document, "Target")],
+      base,
+      mode: "angle-distance"
+    });
+    const targetId = elementId(document, "Target");
+    const changedGeometry = new Map(snapshot.evaluation.computedGeometry);
+    const currentPoint = changedGeometry.get(targetId) as ComputedPoint;
+    changedGeometry.set(targetId, { ...currentPoint, x: currentPoint.x + 1 });
+    const staleEvaluation = applyCoordinatePointConversionPlan(plan, {
+      document,
+      evaluation: { ...snapshot.evaluation, computedGeometry: changedGeometry }
+    });
+
+    expect(staleEvaluation.status).toBe("rejected");
+    if (staleEvaluation.status === "rejected") expect(staleEvaluation.reason.code).toBe("revalidation-failed");
+  });
+
+  it("preserves identities by source statement order when targetIds are reversed", () => {
+    const document = compile([
+      "nui 4",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point First = coordinate(x: 3, y: 4)",
+      "point Second = coordinate(x: -5, y: 12)"
+    ].join("\n"));
+    const snapshot = snapshotFor(document);
+    const firstId = elementId(document, "First");
+    const secondId = elementId(document, "Second");
+    const targetIds = [secondId, firstId];
+    const base = coordinatePointConversionBaseCandidates({ snapshot, targetIds })
+      .find((candidate) => candidate.sourceElementId === elementId(document, "Base"))!;
+    const plan = planCoordinatePointConversion({ snapshot, targetIds, base, mode: "xy" });
+    const applied = applyCoordinatePointConversionPlan(plan, snapshot);
+
+    expect(applied.status).toBe("applied");
+    if (applied.status !== "applied") return;
+    expect(elementId(applied.document, "First")).toBe(firstId);
+    expect(elementId(applied.document, "Second")).toBe(secondId);
+    expect(applied.document.sourceText).not.toContain("id:");
   });
 
   it("rejects using the target as its own base and distinguishes all-skipped", () => {

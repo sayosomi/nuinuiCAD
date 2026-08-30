@@ -19,7 +19,6 @@ import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
-import { formatDslName } from "../dsl/dslTokens";
 import type { ComputedPoint, ElementId, EvaluationResult, PointAnchor } from "../types/geometry";
 
 /** Host-neutral input for a conversion query or source transformation. */
@@ -336,11 +335,8 @@ const legalCandidatesFor = (
         .filter((option): option is ReferencePickPointOption => option.kind === "point")
         .map((option) => [pointCandidateKey(option), { option, sourceElementId: candidate.elementId }] as const))
       .filter(([key, candidate]) => {
-        const owner = sourceOwnerForRuntimeElementId(compiled, candidate.sourceElementId);
         const anchorElementId = anchorReferenceElementId(candidate.option.anchor);
-        return owner?.kind === "ordinary" &&
-          owner.sourceStatementIndex < target.sourceStatementIndex &&
-          anchorElementId !== target.targetId &&
+        return anchorElementId !== target.targetId &&
           (anchorElementId === null || !targetIds.has(anchorElementId)) &&
           Number.isFinite(candidate.option.point.x) && Number.isFinite(candidate.option.point.y) &&
           key.length > 0;
@@ -428,9 +424,6 @@ const rewriteStatement = (
     .filter((arg) => arg.key !== null && arg.key !== "x" && arg.key !== "y")
     .map((arg) => ({ key: arg.key!, text: rawArgumentText(logical.logicalText, arg)! }))
     .filter((arg): arg is { key: string; text: string } => Boolean(arg.text));
-  if (!preservedArgs.some((arg) => arg.key === "id")) {
-    preservedArgs.push({ key: "id", text: `id: ${formatDslName(target.targetId)}` });
-  }
   const reference = sourceReferenceText(baseReference);
   if (!reference) return null;
   const dx = target.currentPoint.x - basePoint.x;
@@ -586,7 +579,12 @@ export const applyCoordinatePointConversionPlan = (
     };
   }
   if (revalidated.splices.length === 0) return { status: "noop", plan: revalidated };
-  const committed = commitLineSplicePatch(snapshot.document, revalidated.splices);
+  const createdElementIds = [...revalidated.successfulTargetIds].sort((left, right) => {
+    const leftIndex = compiled.statementMap.byElementId.get(left)?.statementIndex ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = compiled.statementMap.byElementId.get(right)?.statementIndex ?? Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex;
+  });
+  const committed = commitLineSplicePatch(snapshot.document, revalidated.splices, { createdElementIds });
   if (committed.status !== "committed") {
     return {
       status: "rejected",
