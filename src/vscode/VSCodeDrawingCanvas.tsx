@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
+import type { CommandContext } from "../commands/commandTypes";
 import {
   canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
@@ -34,6 +35,7 @@ import {
 } from "./vscodeCanvasRibbonConfig";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
+import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
@@ -226,6 +228,21 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       [dispatchGeometryAction]
     );
 
+    const creationCommandContext = useMemo<CommandContext>(() => ({
+      evaluation: canvasPresentation.renderEvaluation,
+      evaluationIsCurrent: evaluationStateIsCurrentFor(
+        canvasPresentation.renderEvaluationState,
+        compiledDocumentRevision
+      ),
+      getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
+      measureCanvasTextWidth,
+      recordSelectionHistory: true,
+      finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
+      focusCanvas: () => canvasFocusRef.current?.focus(),
+      clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
+      clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation()
+    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth]);
+
     useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
     useEffect(() => {
       if (!evaluationState) return;
@@ -344,6 +361,13 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       resolveImageSourceUrl: (sourcePath) => sourcePath,
       renderHostOverlay: (viewportSize) => (
         <>
+          <VSCodeCreationAssistOverlay
+            canvasFocusRef={canvasFocusRef}
+            commandContext={creationCommandContext}
+            evaluation={canvasPresentation.renderEvaluation}
+            evaluationIsCurrent={creationCommandContext.evaluationIsCurrent ?? true}
+            postCanonicalSourceText={postCanonicalSourceText}
+          />
           {referencePickSession ? (
             <VSCodeReferencePickOverlay
               canvasFocusRef={canvasFocusRef}
@@ -396,12 +420,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       canvasRibbonRibbons,
       ribbonCommandContext,
       canvasFocusRef,
+      creationCommandContext,
       referencePickSession,
       setReferencePickHover,
       selectReferencePick,
       confirmReferencePick,
       cancelReferencePick,
-      postCanvasPointerPosition
+      postCanvasPointerPosition,
+      postCanonicalSourceText
     ]);
 
     useImperativeHandle(ref, () => ({

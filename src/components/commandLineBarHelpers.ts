@@ -13,6 +13,6 @@ export const commandLineStepHelp = (step: CreationStep | null) => {
   if (step.kind === "point" || step.kind === "endpoint" || step.kind === "line") {
     return "クリックまたは名前入力で選択します。";
   }
-  if (step.kind === "lineList") return "クリックまたは名前入力で選び、⌘Enterで完了します。";
+  if (step.kind === "lineList") return "クリックまたは名前入力で選び、選択完了ボタンで確定します。";
   return step.default === undefined ? "値または式を入力します。" : `空Enterで ${step.default} を採用します。`;
 };
