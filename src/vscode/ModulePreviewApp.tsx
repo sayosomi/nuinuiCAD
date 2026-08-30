@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutomationDocument } from "../document/automationDocument";
-import { canvasSelectionForElement, canvasSelectionSnapshot } from "../commands/selectionCommands";
+import {
+  canvasSelectionForElement,
+  canvasSelectionSnapshot
+} from "../commands/selectionCommands";
+import { canvasRectangleSelectionForMembers } from "../commands/canvasRectangleSelectionCommands";
 import { dispatchCommand } from "../commands/commands";
 import { DrawingCanvas, type DrawingCanvasHandle } from "../components/DrawingCanvas";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
@@ -392,6 +396,17 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     useCadUiStore.getState().applySelection(renderElements, selection);
   }, [renderElements]);
 
+  const commitCanvasRectangleSelection = useCallback<CanvasHostAdapter["commitCanvasRectangleSelection"]>((memberIds, mode) => {
+    const selection = canvasRectangleSelectionForMembers(
+      renderElements,
+      canvasSelectionSnapshot(),
+      memberIds,
+      mode
+    );
+    if (!selection) return;
+    useCadUiStore.getState().applySelection(renderElements, selection);
+  }, [renderElements]);
+
   const ribbonCommandContext = useMemo(() => ({
     hasSelection: selectedElementIds.length > 0,
     showCanvasPointNames,
@@ -446,6 +461,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     getCanvasSelectionSnapshot: canvasSelectionSnapshot,
     previewCanvasSelection,
     finalizeCanvasSelectionSession: () => undefined,
+    commitCanvasRectangleSelection,
     clearCanvasSelection: () => useCadUiStore.getState().clearElementSelection(),
     movePointElementByDelta: () => undefined,
     moveBezierHandleByDelta: () => undefined,
@@ -490,6 +506,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     measureCanvasTextWidth,
     preview,
     previewCanvasSelection,
+    commitCanvasRectangleSelection,
     renderElements,
     ribbonCommandContext,
     selectElement,

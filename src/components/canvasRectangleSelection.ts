@@ -19,6 +19,7 @@ export type CanvasRectangleMembershipInput = {
   arcs?: ReadonlyArray<{ arc: GeometryIdentity; points: readonly ScreenPoint[] }>;
   curves?: ReadonlyArray<{ curve: GeometryIdentity; points: readonly ScreenPoint[] }>;
   offsetLines?: ReadonlyArray<{ line: GeometryIdentity; points: readonly ScreenPoint[] }>;
+  polylines?: ReadonlyArray<{ polyline: GeometryIdentity; points: readonly ScreenPoint[] }>;
   images?: ReadonlyArray<{ image: GeometryIdentity; corners: readonly ScreenPoint[] }>;
   texts?: ReadonlyArray<{
     text: GeometryIdentity & { text: string };
@@ -192,6 +193,7 @@ export const canvasRectangleMemberIds = ({
   arcs = [],
   curves = [],
   offsetLines = [],
+  polylines = [],
   images = [],
   texts = [],
   points = []
@@ -216,6 +218,9 @@ export const canvasRectangleMemberIds = ({
   }
   for (const { line, points: sampledPoints } of offsetLines) {
     addIf(line.elementId, polylineMatches(sampledPoints, rectangle, mode));
+  }
+  for (const { polyline, points: sampledPoints } of polylines) {
+    addIf(polyline.elementId, polylineMatches(sampledPoints, rectangle, mode));
   }
   for (const { text, screen, fontSizePx } of texts) {
     const bounds = textHitBounds({ text: text.text, screen, fontSizePx });

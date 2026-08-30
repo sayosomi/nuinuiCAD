@@ -157,6 +157,7 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
         previewCanvasSelection(previousSelection, elementId, selectionMode),
       finalizeCanvasSelectionSession: (previousSelection) =>
         finalizeCanvasSelectionSession(previousSelection),
+      commitCanvasRectangleSelection: () => undefined,
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection"),
       movePointElementByDelta: (action) => dispatchCommand("movePointElementByDelta", action),
       moveBezierHandleByDelta: (action) => dispatchCommand("moveBezierHandleByDelta", action),
