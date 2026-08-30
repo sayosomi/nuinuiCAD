@@ -25,11 +25,12 @@ a same-machine, coherent-render-surface comparability guard and is not fixture
 authority or mandatory Tauri provenance. Fixture ID and hash authority
 come from the current manifest and capture input.
 
-Available fixture IDs are `interactive-medium-v1` and
-`interactive-large-v1`. Each capture runs 5 warm-ups and 21 measured trials
-for `source-edit-v1`, `point-drag-v1`, and `bezier-handle-drag-v1`. The source
-edit changes `benchOffset` from `6` to `7`; the drag scenarios use one
-production DOM pointermove with their manifest-defined CSS-pixel deltas.
+Available fixture IDs are `interactive-medium-v1`, `interactive-large-v1`,
+`dependency-chain-250-v1`, and `dependency-chain-1000-v1`. Each capture runs
+5 warm-ups and 21 measured trials for `source-edit-v1`, `point-drag-v1`, and
+`bezier-handle-drag-v1`. The source edit changes `benchOffset` from `6` to
+`7`; the drag scenarios use one production DOM pointermove with their
+manifest-defined CSS-pixel deltas.
 
 The VS Code capture builds/uses the VS Code extension and the persistent
 Extension Host / Node stdio path into `rust-evaluator`'s `evaluation_stdio`
@@ -80,7 +81,12 @@ exact fixture initial state → settle → one deterministic action
 
 The files in `fixtures/` are dedicated benchmark workloads and are not part of
 the existing DSL fixture directory. The medium workload runs its four generated
-geometry declarations 50 times; the large workload runs them 250 times.
+geometry declarations 50 times; the large workload runs them 250 times. The
+dependency-chain workloads run one loop iteration containing an explicit,
+source-ordered chain of 250 or 1000 cheap offset-point declarations. The first
+point depends on `benchOffset`, `Benchmark::DragPoint`, and
+`Benchmark::DragCurve.length`; each later point depends on its immediate
+predecessor.
 
 `fixtures/manifest.json` records the exact UTF-8 SHA-256 hash and benchmark
 anchors for each workload. If fixture content or workload changes, create a new

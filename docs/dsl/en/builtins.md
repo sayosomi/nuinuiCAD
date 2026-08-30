@@ -1,9 +1,11 @@
 # Builtins
 
-Builtin names, signatures, calling styles, parameter types, and return types
-below are generated from `BUILTIN_FUNCTION_DEFINITIONS`. Positional and
-named-only calling styles are distinct. `spreadAngle` is currently named-only;
-the other listed signatures are positional.
+The generated catalog below is the source of truth for builtin names,
+signatures, calling styles, parameter types, and return types. The sections
+after it describe what each argument means, its units, and its runtime
+restrictions. Positional and named-only calling styles are distinct;
+`spreadAngle` is currently named-only and every other listed builtin is
+positional.
 
 <!-- dsl-ref:generated:start builtins -->
 <!-- This region is generated from src/scalars/builtinFunctions.ts. -->
@@ -55,23 +57,90 @@ the other listed signatures are positional.
 | `lineAngle` | lineAngle(line, line) -> number | `dsl-ref:builtin:lineAngle` |
 <!-- dsl-ref:generated:end builtins -->
 
+## Scalar arithmetic
+
+**Description:** `abs`, `min`, `max`, and `sqrt` operate on finite numbers and
+return numbers. `sqrt` rejects a negative input. Invalid arguments and
+non-finite results are evaluation errors; there is no numeric coercion.
+
+**Parameters:** `min` and `max` compare their two values. `sqrt` takes one
+value. `abs` returns the non-negative magnitude of its value.
+
+**Example:**
+
+```text
+const magnitude: number = abs(-12)
+const lower: number = min(@magnitude, 20)
+const root: number = sqrt(@lower)
+```
+
+## Rounding and comparison
+
+**Description:** `round`, `floor`, and `ceil` take an optional integer decimal
+digit position. With no second argument they operate at the unit position.
+`round` uses an away-from-zero midpoint rule, so `round(1.5)` is `2` and
+`round(-1.5)` is `-2`. `roundTo(value, step)` rounds to a positive step, using
+the same away-from-zero midpoint rule. `isClose(a, b, tolerance)` returns
+whether `abs(a - b) <= tolerance`.
+
+**Parameters and errors:** The precision argument must be an integer; `step`
+must be positive; and `tolerance` must be non-negative. Finite inputs are
+required and non-finite results are evaluation errors.
+
+## Trigonometry
+
+**Description:** `sin`, `cos`, and `tan` take degree inputs. `asin`, `acos`,
+and `atan` return degree outputs. `asin` and `acos` accept only `[-1, 1]`.
+`tan` reports an evaluation error for an exact odd multiple of `90` degrees.
+
+`atan2(y, x)` returns a normalized degree in `0 <= result < 360`: right is
+`0`, up is `90`, left is `180`, and down is `270`. `atan2(0, 0)` returns `0`.
+Non-finite inputs are invalid and non-finite results are evaluation errors.
+
+## `spreadAngle`
+
+**Description:** `spreadAngle(length: ..., spread: ...)` returns the central
+angle subtended by a chord. `spread` is a chord length, not an arc length. The
+result is `2 * asin(spread / (2 * length))` in degrees.
+
+**Parameters:** `length` must be positive and `spread` must satisfy
+`0 <= spread <= 2 * length`. The result is in `0..180` degrees; the endpoints
+map to `0` and `180`. Arguments are named-only, may be supplied in either
+order, and are evaluated using the canonical `length`, then `spread` order.
+Invalid or non-finite arguments are evaluation errors.
+
+## Choices and geometry measurements
+
+`string(choiceValue)` is the explicit choice-to-string conversion. It returns
+the selected canonical option token exactly as stored by the choice type. A
+number, boolean, string, or context-free bare choice literal is not accepted.
+Choice types remain nominal by option identity and order; see
+[Types](types.md).
+
+The measurement builtins use the geometry interfaces described in
+[Types](types.md):
+
+- `distance(first, second)` returns the Euclidean distance between two points
+  in millimetres.
+- `angle(first, second)` returns the directed point-to-point angle in degrees,
+  normalized to `0 <= result < 360`. Identical points return `0`.
+- `lineDistance(point, line)` returns the perpendicular distance to the
+  infinite extension of a strict line, not the finite segment. A line whose
+  length is at most `1e-9` mm is invalid.
+- `lineAngle(first, second)` returns the directionless smaller angle between
+  two strict lines, in the inclusive range `0..90` degrees. The lines need not
+  intersect; reversing or swapping them does not change the result. A line
+  whose length is at most `1e-9` mm is invalid.
+
+## Where calls are valid
+
 Scalar-only builtins can be used in typed declarations, `set` expressions,
-conditions, text-template holes, scalar properties, and module scalar
-expressions. Geometry measurement builtins resolve geometry operands through
-the existing geometry-reference path and return numbers:
-
-- `distance(point, point)` measures point-to-point distance.
-- `angle(point, point)` measures the direction from the first point to the
-  second.
-- `lineDistance(point, line)` measures point-to-line distance.
-- `lineAngle(line, line)` measures the angle between lines.
-
-`round`, `floor`, and `ceil` accept an optional integer precision. `roundTo`
-requires a positive step, and `isClose` requires a non-negative tolerance.
-Trigonometric inputs and outputs use degrees. `asin` and `acos` require inputs
-in `[-1, 1]`; `atan2(y, x)` returns a normalized degree angle. `string` accepts
-a concrete `choice(...)` value and returns its canonical option token; it does
-not convert numbers or booleans.
+conditions, text-template holes, scalar properties, and scalar module
+expressions. Geometry measurement builtins can be called directly in typed
+declaration initializers, `set` right-hand sides, and module scalar
+expressions. To use a measurement in a construction numeric argument, a scalar
+property, a text hole, or a layout/output numeric field, first assign it to a
+typed `number` and reference that binding.
 
 <!-- dsl-example: compile-success -->
 ```nui
@@ -82,4 +151,5 @@ const closeEnough: boolean = isClose(@seam, 5, 0.5)
 const side: choice(left, right) = right
 const sideText: string = string(@side)
 const turn: number = atan2(1, 0)
+const chordAngle: number = spreadAngle(length: 20, spread: 10)
 ```
