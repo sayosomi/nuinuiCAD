@@ -10,6 +10,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
+import { VscodeRustTransport } from "./vscodeRustTransport";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string) => void) | null,
@@ -83,6 +84,22 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("keeps the Rust transport alive across benchmark configuration and disposes it on unmount", async () => {
+    const dispose = vi.spyOn(VscodeRustTransport.prototype, "dispose");
+    const api = { postMessage: vi.fn() };
+    const view = render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "benchmarkConfig", config: {} }
+      }));
+    });
+
+    expect(dispose).not.toHaveBeenCalled();
+    view.unmount();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
 
   it("passes the VSCodeApp-owned Reference Pick authority through the Canvas boundary", async () => {
     const source = sourceForSelectionChronology(0);
