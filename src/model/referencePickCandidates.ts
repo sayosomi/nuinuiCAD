@@ -132,7 +132,8 @@ const canonicalReferenceForEntry = (
 const candidateVisibility = (
   elements: readonly CadElement[],
   evaluation: EvaluationResult,
-  compiled: CompiledDslDocument
+  compiled: CompiledDslDocument,
+  includeHidden: boolean
 ) => {
   const sourceElements = [...elements];
   const enabled = evaluation.effectiveEnabledElementIds ?? effectiveEnabledElementIds(sourceElements);
@@ -146,7 +147,7 @@ const candidateVisibility = (
   });
   return (elementId: ElementId) =>
     enabled.has(elementId) &&
-    canvasVisible.has(elementId) &&
+    (includeHidden || canvasVisible.has(elementId)) &&
     (!evaluated || evaluated.has(elementId)) &&
     evaluation.computedGeometry.has(elementId);
 };
@@ -186,11 +187,14 @@ const referenceWithPointKey = (
 export const referencePickCandidates = ({
   compiled,
   evaluation,
-  target
+  target,
+  includeHidden = false
 }: {
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
   target: DslReferencePickTarget;
+  /** Semantic consumers may reference hidden geometry; visual pickers retain the default filter. */
+  includeHidden?: boolean;
 }): ReferencePickCandidate[] => {
   const document = compiled.document;
   const namespace = compiled.sourceLexicalNamespace;
@@ -206,7 +210,7 @@ export const referencePickCandidates = ({
   for (const entry of materialization?.executionStatements ?? []) {
     entriesByRuntimeId.set(entry.runtimeElementId, entry);
   }
-  const isVisible = candidateVisibility(elements, evaluation, compiled);
+  const isVisible = candidateVisibility(elements, evaluation, compiled, includeHidden);
   const moduleSemanticContext: ModuleSemanticCandidateContext | null = materialization
     ? {
         moduleMaterialization: materialization,
