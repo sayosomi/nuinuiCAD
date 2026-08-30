@@ -69,6 +69,7 @@ type FreePointSessionState = {
   queuedInvocations: DeferredInvocation[];
   inFlightRequestId: number | null;
   expectedDocumentVersion: number;
+  provisionalCommandOwnedDocumentVersion: number | null;
   authoritativeReadyVersion: number | null;
 };
 
@@ -176,6 +177,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     state.queuedInvocations = [];
     if (state.inFlightRequestId !== null) pendingRequests.delete(state.inFlightRequestId);
     state.inFlightRequestId = null;
+    state.provisionalCommandOwnedDocumentVersion = null;
     state.authoritativeReadyVersion = null;
     sessionStates.delete(state.sessionToken);
     if (hadQueuedInvocations && errorMessage) void vscode.window.showErrorMessage(errorMessage);
@@ -196,6 +198,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       queuedInvocations: [],
       inFlightRequestId: null,
       expectedDocumentVersion: endpoint.document.version,
+      provisionalCommandOwnedDocumentVersion: null,
       authoritativeReadyVersion: null
     };
     sessionStates.set(endpoint.sessionToken, created);
@@ -240,6 +243,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     const requestId = nextRequestId++;
     state.queuedInvocations = state.queuedInvocations.slice(1);
     state.inFlightRequestId = requestId;
+    state.provisionalCommandOwnedDocumentVersion = null;
     state.authoritativeReadyVersion = null;
     const sourcePosition = { ...anchor };
     pendingRequests.set(requestId, {
@@ -265,7 +269,10 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     const state = stateForEndpoint(endpoint);
     if (
       (state.inFlightRequestId !== null || state.queuedInvocations.length > 0) &&
-      (state.document !== endpoint.document || endpoint.document.version !== state.expectedDocumentVersion)
+      (state.document !== endpoint.document ||
+        (endpoint.document.version !== state.expectedDocumentVersion &&
+          !(state.inFlightRequestId !== null &&
+            state.provisionalCommandOwnedDocumentVersion === endpoint.document.version)))
     ) {
       invalidateSessionState(state, staleSourceAnchorError);
       return;
@@ -275,7 +282,11 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       void vscode.window.showErrorMessage(sourceAnchorError);
       return;
     }
-    if (anchor.documentVersion !== endpoint.document.version) {
+    const anchorAtExpectedVersion = anchor.documentVersion === state.expectedDocumentVersion;
+    const anchorAtCurrentVersion = anchor.documentVersion === endpoint.document.version;
+    const enqueueBehindProvisionalCommandEdit = state.inFlightRequestId !== null &&
+      state.provisionalCommandOwnedDocumentVersion === endpoint.document.version;
+    if (!anchorAtCurrentVersion && !(enqueueBehindProvisionalCommandEdit && anchorAtExpectedVersion)) {
       void vscode.window.showErrorMessage(staleSourceAnchorError);
       return;
     }
@@ -307,13 +318,21 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     const documentUri = sourceDocumentKey(event.document);
     const currentAnchor = sourceAnchors.get(documentUri);
     const history = commandOwnedAnchorHistories.get(documentUri);
-    const canvasEdit = [...pendingRequests.values()].find((pending) =>
-      pending.canvasEditMarked &&
-      pending.document === event.document &&
-      event.document.version === pending.sourcePosition.documentVersion + 1
-    );
+    const canvasEditEntry = [...pendingRequests.entries()].find(([requestId, pending]) => {
+      const state = sessionStates.get(pending.sessionToken);
+      return pending.canvasEditMarked &&
+        pending.document === event.document &&
+        state?.document === event.document &&
+        state.inFlightRequestId === requestId &&
+        state.expectedDocumentVersion === pending.sourcePosition.documentVersion &&
+        state.provisionalCommandOwnedDocumentVersion === null &&
+        event.document.version === pending.sourcePosition.documentVersion + 1;
+    });
+    const canvasEdit = canvasEditEntry?.[1];
     if (canvasEdit) {
       canvasEdit.canvasEditMarked = false;
+      const state = sessionStates.get(canvasEdit.sessionToken);
+      if (state) state.provisionalCommandOwnedDocumentVersion = event.document.version;
       return;
     }
     if (event.reason === vscode.TextDocumentChangeReason?.Undo || event.reason === vscode.TextDocumentChangeReason?.Redo) {
@@ -417,11 +436,13 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       const state = sessionStates.get(pending.sessionToken);
       if (!state || state.document !== document || state.inFlightRequestId !== message.requestId) return;
       state.inFlightRequestId = null;
+      const provisionalDocumentVersion = state.provisionalCommandOwnedDocumentVersion;
       if (
         message.status !== "applied" ||
         !sourcePositionIsValid(message.nextSourcePosition) ||
         document.version !== message.documentVersion ||
-        message.documentVersion !== pending.sourcePosition.documentVersion + 1
+        message.documentVersion !== pending.sourcePosition.documentVersion + 1 ||
+        provisionalDocumentVersion !== message.documentVersion
       ) {
         invalidateSessionState(state, staleSourceAnchorError);
         return;
@@ -453,6 +474,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
         line: message.nextSourcePosition.line,
         character: message.nextSourcePosition.character
       });
+      state.provisionalCommandOwnedDocumentVersion = null;
       state.expectedDocumentVersion = message.documentVersion;
       if (state.queuedInvocations.length === 0) {
         sessionStates.delete(state.sessionToken);

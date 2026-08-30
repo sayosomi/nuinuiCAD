@@ -2382,13 +2382,6 @@ describe("VS Code production document lifecycle", () => {
     });
     commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
 
-    await handler({
-      type: "canvasPointerPublication",
-      documentVersion: 1,
-      pointer: { x: 91, y: -37 }
-    });
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
-
     const freePointMessages = (): Array<{
       requestId: number;
       documentVersion: number;
@@ -2422,6 +2415,16 @@ describe("VS Code production document lifecycle", () => {
       mutationKind: "reset",
       operationId: firstRequest.requestId
     });
+
+    mocks.showErrorMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    expect(freePointMessages()).toHaveLength(1);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+
     await handler({
       type: "canvasFreePointAtPointerResult",
       requestId: firstRequest.requestId,
