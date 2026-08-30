@@ -38,6 +38,39 @@ has its own `state` option: visible content evaluates and draws, hidden content
 evaluates without drawing, and disabled content does not evaluate or provide
 exports to later references.
 
+## Library modules
+
+Use `export module` at the document top level to publish a Module from a `.nui`
+library file:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 4
+export module Panel(width: number = 40) {
+}
+module Helper() {
+}
+```
+
+An ordinary top-level `module` is private to its defining document. Nested
+Module definitions are never file declarations, and `export module` inside a
+Module body is rejected. Import a library with an alias and call a public
+Module by its qualified name:
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+nui 4
+import "./library.nui" as lib
+instance front = lib::Panel(width: 60)
+```
+
+Imports and Module definitions are resolved in source order. Private, missing,
+wrong-family, invalid, stale, or cyclic dependency targets fail closed. A
+file-level `export @lib::Panel` re-exports the original public Module identity;
+it does not create a second Module declaration. Imported Module arguments are
+checked in the caller's lexical context, while defaults, body names, private
+helpers, exports, and nested calls remain owned by the defining document.
+
 For an optional parameter, `hasValue(@parameter)` returns whether the caller
 supplied a value. The optional value itself may be read only in a branch whose
 condition proves presence. The proof is available in the true branch of

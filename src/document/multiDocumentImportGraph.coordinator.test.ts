@@ -4,12 +4,10 @@ import {
   type MultiDocumentDeclarationContributor,
   type MultiDocumentSavedSourceLoader
 } from "./multiDocumentImportGraph";
+import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
 import {
   documentIdFromHost,
-  qualifySemanticIdentity,
-  qualifySourceLocation,
   savedSourceFingerprintFromHost,
-  sourceIdentityOf,
   type DependencySavedSourceSnapshot,
   type RootCurrentSourceSnapshot
 } from "./multiDocumentPrimitives";
@@ -29,7 +27,7 @@ const sharedSource: DependencySavedSourceSnapshot = {
   documentId: documentIdFromHost("shared"),
   normalizedSource: [
     "nui 4",
-    "module Pocket() {",
+    "export module Pocket() {",
     "}"
   ].join("\n"),
   savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:shared")
@@ -47,22 +45,9 @@ const loaderFor = (root: RootCurrentSourceSnapshot): MultiDocumentSavedSourceLoa
 describe("multi-document graph coordinator artifact cache", () => {
   it("shares one exact saved artifact across roots with the same DocumentId and fingerprint", async () => {
     let dependencyAnalyses = 0;
-    const contributor: MultiDocumentDeclarationContributor = ({
-      source,
-      parsed,
-      statementIdByStatementIndex
-    }) => {
-      if (source.kind === "dependency-saved") dependencyAnalyses += 1;
-      return parsed.statements.flatMap((statement, statementIndex) => {
-        if (statement.kind !== "moduleDefinition" || statement.enclosing) return [];
-        return [{
-          identity: qualifySemanticIdentity(source.documentId, statementIdByStatementIndex.get(statementIndex)!),
-          family: "module" as const,
-          name: statement.name,
-          declaration: qualifySourceLocation(sourceIdentityOf(source), statement.documentRange),
-          exported: true
-        }];
-      });
+    const contributor: MultiDocumentDeclarationContributor = (context) => {
+      if (context.source.kind === "dependency-saved") dependencyAnalyses += 1;
+      return moduleDeclarationContributor(context);
     };
     const roots = [rootSource("root-a"), rootSource("root-b")];
     const coordinator = new MultiDocumentGraphCoordinator();

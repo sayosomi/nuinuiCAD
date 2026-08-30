@@ -6,6 +6,7 @@ import {
   isGeometryDeclarationCategory,
 } from "./dslConstructions";
 import { parseDslExportStatement, parseDslExportedGeometryStatement } from "./dslExportParser";
+import { parseDsl } from "./dslParser";
 
 describe("DSL exported geometry parser", () => {
   it.each(DSL_GEOMETRY_DECLARATION_CATEGORIES)("accepts canonical geometry category: %s", (category) => {
@@ -49,5 +50,37 @@ describe("DSL exported geometry parser", () => {
       exported: true,
       exportSpan: { start: 0, end: 6 }
     });
+  });
+
+  it("parses only a direct top-level export module as public", () => {
+    const source = [
+      "nui 4",
+      "export module Public(width: number = 40) {",
+      "}",
+      "module Private() {",
+      "}",
+      "module Outer() {",
+      "  export module Nested() {",
+      "  }",
+      "}"
+    ].join("\n");
+    const parsed = parseDsl(source);
+    const definitions = parsed.statements.filter((statement) => statement.kind === "moduleDefinition");
+
+    expect(definitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Public", exported: true }),
+      expect.objectContaining({ name: "Private", exported: false }),
+      expect.objectContaining({ name: "Nested", exported: true, enclosing: { statementIndex: 5, branch: "then" } })
+    ]));
+    expect(parsed.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-export-top-level-only" })
+    ]));
+    const publicDefinition = definitions.find((statement) => statement.name === "Public")!;
+    expect(publicDefinition.exportSpan).toEqual({ start: 0, end: 6 });
+    expect(publicDefinition.exportPhysicalSpan?.segments[0]).toMatchObject({ from: 6, to: 12 });
+    expect(source.slice(
+      publicDefinition.namePhysicalSpan!.segments[0]!.from,
+      publicDefinition.namePhysicalSpan!.segments[0]!.to
+    )).toBe("Public");
   });
 });

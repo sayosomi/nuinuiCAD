@@ -8,6 +8,16 @@ import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import type {
+  DocumentId,
+  DocumentQualifiedSemanticIdentity,
+  DocumentQualifiedSourceLocation,
+  DocumentSourceIdentity
+} from "../document/multiDocumentPrimitives";
+import type {
+  SourceLexicalExternalNamespaceMember,
+  SourceLexicalExternalNamespaceResolver
+} from "./sourceLexicalNamespaceIndex";
+import type {
   RecordConstructorFieldSemantic,
   RecordDefinitionSemantic,
   RecordFieldIdentity,
@@ -18,6 +28,8 @@ import type {
 export type ModuleParameterSlot = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
+  /** Present when this semantic result is owned by a multi-document source. */
+  definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
 };
 
 export type ModuleRecordSourceTarget =
@@ -26,6 +38,7 @@ export type ModuleRecordSourceTarget =
       statementId: StatementIdentity;
       statementIndex: number;
       typeIdentity: RecordTypeIdentity;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | (ModuleParameterSlot & {
       kind: "recordParameter";
@@ -40,6 +53,8 @@ export type ModuleRecordSourceTarget =
       exportedStatementId: StatementIdentity;
       exportedStatementIndex: number;
       typeIdentity: RecordTypeIdentity;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
@@ -56,9 +71,9 @@ export type ModuleRecordFieldSourceTarget = {
 export type ModuleScalarSourceTarget =
   | (ModuleParameterSlot & { kind: "parameter" })
   | ModuleRecordFieldSourceTarget
-  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string }
-  | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number }
-  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number }
+  | { kind: "iteration"; statementId: StatementIdentity; statementIndex: number; name: string; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | { kind: "moduleLocal"; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
+  | { kind: "documentBinding"; bindingId: BindingId; statementId: StatementIdentity; statementIndex: number; identity?: DocumentQualifiedSemanticIdentity<StatementIdentity> }
   | {
       kind: "deferredModuleScalarExport";
       instanceStatementId: StatementIdentity;
@@ -68,6 +83,8 @@ export type ModuleScalarSourceTarget =
       exportedStatementId: StatementIdentity;
       exportedStatementIndex: number;
       declaredType: ScalarType;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
@@ -82,6 +99,7 @@ export type ModuleGeometrySourceTarget =
       category: DslGeometryDeclarationCategory;
       geometryKind: "point" | "line";
       pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
       kind: "deferredModuleExport";
@@ -95,6 +113,8 @@ export type ModuleGeometrySourceTarget =
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     };
 
 export type ModuleParentSourceTarget = {
@@ -102,6 +122,7 @@ export type ModuleParentSourceTarget = {
   statementId: StatementIdentity;
   statementIndex: number;
   containerKind: "group" | "conditionalGroup" | "forGroup";
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
 };
 
 export type ModuleParentReferenceSemantic = {
@@ -122,6 +143,7 @@ export type ModuleGeometryPropertySourceTarget =
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
       property: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
       kind: "deferredModuleExportProperty";
@@ -133,6 +155,8 @@ export type ModuleGeometryPropertySourceTarget =
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
+      instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+      exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     };
 
 export type ModuleSourceTarget = ModuleScalarSourceTarget | ModuleGeometrySourceTarget | ModuleGeometryPropertySourceTarget;
@@ -157,6 +181,7 @@ export type ModuleScalarExpressionSemantic = {
     span: DslSpan;
     definitionStatementId: StatementIdentity;
     parameterIndex: number;
+    definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   }[];
 };
 
@@ -227,6 +252,7 @@ export type ModuleGeometryReferenceSemantic = {
 export type ResolvedModuleParameter = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
+  definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   name: string;
   type: DslModuleParameterType | null;
   numericTypeOptions?: DslNumericTypeOptions;
@@ -262,6 +288,8 @@ type ResolvedModuleExportBase = {
   exportedStatementIndex: number;
   sourceOrder: number;
   name: string;
+  ownerModuleDefinitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
 };
 
 export type ResolvedModuleGeometryExport = ResolvedModuleExportBase & {
@@ -286,6 +314,7 @@ export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModule
 
 export type ModuleRecordValueSemantic = {
   value: RecordValueSemantic;
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   target: ModuleRecordSourceTarget | null;
   fields: readonly ModuleRecordConstructorFieldSemantic[];
   /** Optional Module parameters proven present at this declaration site. */
@@ -320,6 +349,7 @@ export type ModuleParentReferenceSite = {
 export type ModuleBodyStatementSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   statementKind: DslStatement["kind"];
   scalarExpressions: readonly ModuleScalarExpressionSite[];
   geometryReferences: readonly ModuleGeometryReferenceSite[];
@@ -333,12 +363,28 @@ export type ResolvedModuleCallee = {
   definitionStatementId: StatementIdentity;
   definitionStatementIndex: number;
   name: string;
+  /** Original defining Module identity; re-exports keep this identity. */
+  definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  definitionDocumentId?: DocumentId;
+  definitionLocation?: DocumentQualifiedSourceLocation;
+};
+
+export type ExternalModuleSemanticTarget = {
+  identity: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  declaration: DocumentQualifiedSourceLocation;
+  definitionStatementId: StatementIdentity;
+  definitionStatementIndex: number;
+  name: string;
+  parameters: readonly ResolvedModuleParameter[];
 };
 
 export type ModuleDefinitionSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
   name: string;
+  documentId?: DocumentId;
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  declaration?: DocumentQualifiedSourceLocation;
   /** Scope containing the module definition statement itself. */
   declarationScopeId: ScopeId;
   /** Synthetic lexical scope containing the module body && its parameters. */
@@ -349,6 +395,7 @@ export type ModuleDefinitionSemantic = {
   localScalars: readonly {
     statementId: StatementIdentity;
     statementIndex: number;
+    identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     name: string;
     type: ScalarType | null;
     bindingKind: "const" | "let";
@@ -364,7 +411,11 @@ export type ModuleInstanceSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
   name: string;
+  documentId?: DocumentId;
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  location?: DocumentQualifiedSourceLocation;
   callerModuleDefinitionStatementId: StatementIdentity | null;
+  callerModuleDefinitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity> | null;
   callee: ResolvedModuleCallee | null;
   calleeResolution: "resolved" | "undefined" | "forward" | "notModule" | "ambiguous";
   parameterBindings: readonly ResolvedModuleParameterBinding[];
@@ -374,9 +425,14 @@ export type ModuleCallEdge = {
   callerModuleDefinitionStatementId: StatementIdentity;
   calleeModuleDefinitionStatementId: StatementIdentity;
   instanceStatementId: StatementIdentity;
+  callerIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  calleeIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
 };
 
 export type ModuleSemanticAnalysis = {
+  documentId?: DocumentId;
+  source?: DocumentSourceIdentity;
   definitions: readonly ModuleDefinitionSemantic[];
   instances: readonly ModuleInstanceSemantic[];
   definitionsByStatementId: ReadonlyMap<StatementIdentity, ModuleDefinitionSemantic>;
@@ -389,6 +445,9 @@ export type ModuleSemanticAnalysis = {
   /** Source-only parent container references in the root document. */
   rootParentReferencesByStatementId: ReadonlyMap<StatementIdentity, ModuleParentReferenceSite>;
   diagnostics: readonly DslDiagnostic[];
+  /** Multi-document lookup maps use JSON identity keys, not local names. */
+  definitionsByQualifiedIdentity?: ReadonlyMap<string, ModuleDefinitionSemantic>;
+  instancesByQualifiedIdentity?: ReadonlyMap<string, ModuleInstanceSemantic>;
 };
 
 export type ModuleSemanticAnalysisInput = {
@@ -398,4 +457,15 @@ export type ModuleSemanticAnalysisInput = {
   spans: import("./dslDiagnosticSpan").DiagnosticSpanContext;
   logicalTextByStatementIndex?: ReadonlyMap<number, string>;
   documentScalarBindings?: ReadonlyMap<number, { bindingId: BindingId; statementId: StatementIdentity }>;
+  /** Exact owner used for document-qualified semantic identities. */
+  documentId?: DocumentId;
+  source?: DocumentSourceIdentity;
+  /** Existing graph-backed external namespace member resolver. */
+  externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
+  /** Resolves an external public Module entry to its defining semantic data. */
+  externalModuleResolver?: (member: SourceLexicalExternalNamespaceMember) => ExternalModuleSemanticTarget | null;
 };
+
+export const moduleSemanticIdentityKey = (
+  identity: DocumentQualifiedSemanticIdentity<StatementIdentity>
+) => JSON.stringify([identity.documentId, identity.localIdentity]);

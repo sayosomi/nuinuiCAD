@@ -26,6 +26,8 @@ export type DslModuleParsedStatement =
   | (DslModuleStatementCommon & {
       kind: "moduleDefinition";
       parameters: readonly DslModuleParameter[];
+      exported?: boolean;
+      exportSpan?: DslSpan | null;
     })
   | (DslModuleStatementCommon & {
       kind: "moduleInstance";
