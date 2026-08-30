@@ -93,6 +93,13 @@ describe("legacy numeric sqrt", () => {
   });
 });
 
+describe("legacy numeric pi constant", () => {
+  it("reuses the canonical constant value while retaining the legacy number token", () => {
+    expect(legacyTokenShape("pi")).toEqual([{ type: "number", value: Math.PI }]);
+    expect(evaluate("2 * pi")).toBe(2 * Math.PI);
+  });
+});
+
 describe("numeric expression literal spans", () => {
   it("selects only lexer-proven numeric literals, including contiguous unary signs", () => {
     expect(findNumericExpressionLiteralSpanAt("-0.5 + 2", { start: 1, end: 1 })).toEqual({ start: 0, end: 4 });

@@ -365,7 +365,7 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
   }
   if (expectedType?.kind === "string") {
     result.push({ kind: "literal", label: '""' });
-  } else if (expectedType && expectedType.kind !== "number") {
+  } else if (expectedType) {
     result.push(...scalarLiteralCandidates(expectedType).map((literal) => ({ kind: "literal" as const, label: literal.label })));
   }
   if (expectedType) {

@@ -40,6 +40,14 @@ describe("parseScalarExpression / literal nodes", () => {
     expect(parseOk("42")).toEqual({ kind: "numberLiteral", span: { start: 0, end: 2 }, value: 42 });
   });
 
+  it("lowers the pi spelling through the ordinary number literal node", () => {
+    expect(parseOk("pi")).toEqual({ kind: "numberLiteral", span: { start: 0, end: 2 }, value: Math.PI });
+  });
+
+  it("does not parse pi() as a builtin function form", () => {
+    expect(parseErr("pi()").code).toBe("trailing-token");
+  });
+
   it("parses a double- and single-quoted string literal", () => {
     expect(parseOk('"hello"')).toEqual({ kind: "stringLiteral", span: { start: 0, end: 7 }, value: "hello" });
     expect(parseOk("'hello'")).toEqual({ kind: "stringLiteral", span: { start: 0, end: 7 }, value: "hello" });

@@ -107,6 +107,16 @@ const evaluation: EvaluationResult = {
 };
 
 describe("numericReferencePaths", () => {
+  it("offers the canonical pi constant through the legacy numeric candidate path", () => {
+    const candidate = numericReferenceCandidates({ elements, evaluation }).find((item) => item.expression === "pi");
+    expect(candidate).toMatchObject({
+      id: "function:pi",
+      label: "pi",
+      valueLabel: "3.142",
+      insertable: true
+    });
+  });
+
   it("resolves Bezier handle and intermediate point reference values", () => {
     expect(computedNumericReferenceValue(curveGeometry, "startHandleAngleDeg")).toBe(15);
     expect(computedNumericReferenceValue(curveGeometry, "startHandleLength")).toBe(20);

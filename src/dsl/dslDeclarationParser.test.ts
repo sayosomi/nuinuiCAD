@@ -136,6 +136,7 @@ describe("DSL typed declaration parser", () => {
     expect(messages('const c: choice("a") = a').some((m) => m.includes("裸の識別子"))).toBe(true);
     expect(messages("const c: choice(1) = a").some((m) => m.includes("裸の識別子"))).toBe(true);
     expect(messages("const c: choice(a, a) = a").some((m) => m.includes("重複"))).toBe(true);
+    expect(messages("const c: choice(pi, left) = left").some((m) => m.includes("裸の識別子"))).toBe(true);
     expect(messages("const c: choice() = a").some((m) => m.includes("少なくとも1つ"))).toBe(true);
     // A valid bare Unicode identifier is accepted, matching scanScalarLiteral's
     // own Unicode-aware IDENTIFIER_PATTERN.

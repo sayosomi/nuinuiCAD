@@ -21,6 +21,7 @@ import {
   type BuiltinFunctionDefinition,
   type BuiltinParameterType,
 } from "../../src/scalars/builtinFunctions";
+import { BUILTIN_CONSTANT_DEFINITIONS } from "../../src/scalars/builtinConstants";
 import type { CadElement, CadElementType } from "../../src/types/geometry";
 
 export const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -87,10 +88,18 @@ export type BuiltinFact = {
   formattedSignatures: string;
 };
 
+export type BuiltinConstantFact = {
+  id: string;
+  name: string;
+  type: string;
+  value: number;
+};
+
 export type DslReferenceFacts = {
   constructions: readonly ConstructionFact[];
   statements: readonly StatementFact[];
   builtins: readonly BuiltinFact[];
+  builtinConstants: readonly BuiltinConstantFact[];
 };
 
 export type DocumentSourceMap = ReadonlyMap<string, string> | Readonly<Record<string, string>>;
@@ -221,10 +230,18 @@ const builtinFacts = (): readonly BuiltinFact[] => BUILTIN_FUNCTION_DEFINITIONS.
   formattedSignatures: formatBuiltinFunctionSignatures(definition),
 }));
 
+const builtinConstantFacts = (): readonly BuiltinConstantFact[] => BUILTIN_CONSTANT_DEFINITIONS.map((definition) => ({
+  id: `dsl-ref:builtin-constant:${definition.name}`,
+  name: definition.name,
+  type: definition.type.kind,
+  value: definition.value,
+}));
+
 export const buildDslReferenceFacts = (): DslReferenceFacts => ({
   constructions: constructionFacts(),
   statements: statementFacts(),
   builtins: builtinFacts(),
+  builtinConstants: builtinConstantFacts(),
 });
 
 const markdownCell = (value: string | number | boolean): string => String(value).replaceAll("|", "\\|");
@@ -289,7 +306,7 @@ export const renderStatementRegion = (facts: DslReferenceFacts): string => {
 export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
   const lines = [
     generatedRegionStart("builtins"),
-    "<!-- This region is generated from src/scalars/builtinFunctions.ts. -->",
+    "<!-- This region is generated from src/scalars/builtinFunctions.ts and src/scalars/builtinConstants.ts. -->",
     "| Builtin | Signatures | Reference identity |",
     "| --- | --- | --- |",
   ];
@@ -297,6 +314,19 @@ export const renderBuiltinRegion = (facts: DslReferenceFacts): string => {
     lines.push(
       `<!-- ${fact.id} -->`,
       `| \`${fact.name}\` | ${markdownCell(fact.formattedSignatures)} | \`${fact.id}\` |`,
+    );
+  }
+  lines.push(
+    "",
+    "### Scalar constants",
+    "",
+    "| Constant | Type | Value | Reference identity |",
+    "| --- | --- | --- | --- |",
+  );
+  for (const fact of facts.builtinConstants) {
+    lines.push(
+      `<!-- ${fact.id} -->`,
+      `| \`${fact.name}\` | ${markdownCell(fact.type)} | ${markdownCell(fact.value)} | \`${fact.id}\` |`,
     );
   }
   lines.push(generatedRegionEnd("builtins"));
@@ -351,6 +381,7 @@ const expectedReferenceIds = (facts: DslReferenceFacts): Set<string> => new Set(
   ...facts.constructions.map((fact) => fact.id),
   ...facts.statements.map((fact) => fact.id),
   ...facts.builtins.map((fact) => fact.id),
+  ...facts.builtinConstants.map((fact) => fact.id),
 ]);
 
 type GeneratedRegion = { start: number; end: number; content: string };
