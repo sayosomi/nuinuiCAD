@@ -64,9 +64,8 @@ const emittedCommandLineGhostCandidate = ({
 const missingRequiredStepIndexesFor = (session: CommandLineSession, emitted: CadElement) => {
   const args = effectiveCommandLineArgs(session);
   return session.recipe.steps.flatMap((step, index) => {
-    if (step.kind === "name" || hasOwn(args, step.key)) return [];
-    // A recipe default becomes usable only after skipCurrentStep writes it to
-    // args. Never substitute the factory's default for an unanswered prompt.
+    if (step.kind === "name" || (hasOwn(args, step.key) && args[step.key] !== undefined)) return [];
+    // Never substitute a recipe or factory default for an unanswered prompt.
     if (step.kind === "number") return step.default !== undefined ? [index] : [];
     if (!isReferenceStep(step.kind)) return [];
     // Allow omission only when the element's actual parameter definition says

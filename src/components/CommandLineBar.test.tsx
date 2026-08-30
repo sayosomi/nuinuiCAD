@@ -6,8 +6,9 @@ import {
   setCommandLineInputComposing
 } from "../commands/commandLineInputComposition";
 import {
-  startCommandLineCreation,
-  startCommandLineStepEdit
+  startCommandLineCreation as startCommandLineCreationForValuePrompt,
+  startCommandLineStepEdit,
+  submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
 import { activePickCandidates, applyPickReference } from "../commands/pickCommands";
 import { pickRefForOption } from "../model/pickReferences";
@@ -48,6 +49,31 @@ const renderBar = (props?: ComponentProps<typeof CommandLineBar>) => {
   return render(<CommandLineBar {...props} />);
 };
 
+// Most bar tests exercise a value/reference prompt rather than the name prompt.
+// Keep those fixtures concise while preserving a few explicit name-first tests
+// by calling the imported implementation directly where name behavior matters.
+const startCommandLineCreation = (...args: Parameters<typeof startCommandLineCreationForValuePrompt>) => {
+  const started = startCommandLineCreationForValuePrompt(...args);
+  if (started && useCadUiStore.getState().commandLineSession?.recipe.steps[0]?.kind === "name") {
+    submitCommandLineInput("");
+  }
+  return started;
+};
+
+// A few suggestion tests install an evaluation spy before starting. Move the
+// session past the name step directly there so starting the fixture does not
+// also exercise the ghost-preview path being observed by the test.
+const startFreePointAtValuePromptWithoutPreview = (
+  ...args: Parameters<typeof startCommandLineCreationForValuePrompt>
+) => {
+  const started = startCommandLineCreationForValuePrompt(...args);
+  const session = useCadUiStore.getState().commandLineSession;
+  if (started && session?.recipe.steps[0]?.kind === "name") {
+    useCadUiStore.setState({ commandLineSession: { ...session, currentStepIndex: 1 } });
+  }
+  return started;
+};
+
 describe("CommandLineBar", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
@@ -72,12 +98,8 @@ describe("CommandLineBar", () => {
 
   it("never adopts the suggested name on empty Enter - the name step stays unfilled and unnamed", () => {
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(input, { target: { value: "10" } });
-    fireEvent.submit(input.closest("form")!);
-    fireEvent.change(input, { target: { value: "rise / 2" } });
-    fireEvent.submit(input.closest("form")!);
 
     // The placeholder still shows the generated suggestion as a hint, but it
     // must never be adopted by an empty Enter.
@@ -88,13 +110,7 @@ describe("CommandLineBar", () => {
 
   it("keeps unnamed creation behind the explicit skip button", () => {
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
-    const input = screen.getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(input, { target: { value: "12" } });
-    fireEvent.submit(input.closest("form")!);
-    fireEvent.change(input, { target: { value: "8" } });
-    fireEvent.submit(input.closest("form")!);
-
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
   });
@@ -105,14 +121,9 @@ describe("CommandLineBar", () => {
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
-    const form = input.closest("form")!;
 
-    fireEvent.change(input, { target: { value: "1" } });
-    fireEvent.submit(form);
-    fireEvent.change(input, { target: { value: "2" } });
-    fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "A" } });
 
     expect(screen.getByRole("alert")).toHaveTextContent("このスコープには「A」という名前の要素が既にあります");
@@ -125,14 +136,10 @@ describe("CommandLineBar", () => {
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
 
-    fireEvent.change(input, { target: { value: "1" } });
-    fireEvent.submit(form);
-    fireEvent.change(input, { target: { value: "2" } });
-    fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "A" } });
     fireEvent.submit(form);
 
@@ -154,13 +161,13 @@ describe("CommandLineBar", () => {
       useCadUiStore.setState({
         commandLineSession: {
           ...session,
-          currentStepIndex: 1,
+          currentStepIndex: 2,
           args: { endpoint: { lineId: line.id, endpointKey: "start" } }
         }
       });
     });
 
-    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+    expect(screen.getByText("3 / 3")).toBeInTheDocument();
     expect(screen.getAllByText("入力中：割合")).toHaveLength(2);
     expect(screen.getByLabelText("完了済みの入力")).toHaveTextContent("端点");
     expect(screen.getByLabelText("完了済みの入力")).toHaveTextContent("基準線・始点");
@@ -189,7 +196,7 @@ describe("CommandLineBar", () => {
     // Enter during normal progression - the step blank-advances instead.
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
 
     fireEvent.change(input, { target: { value: "A" } });
     expect(screen.getByRole("listbox", { name: "参照候補" })).toHaveTextContent("A");
@@ -219,7 +226,7 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().activePickCursor).not.toBeNull();
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
   });
 
   it("shows the adoptable selected candidate's name, and adopts it on empty Enter, only while editing a completed reference step", () => {
@@ -246,8 +253,8 @@ describe("CommandLineBar", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual({ mode: "reference", pointId: pointA.id });
 
-    act(() => { startCommandLineStepEdit(0); });
-    expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBe(0);
+    act(() => { startCommandLineStepEdit(1); });
+    expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBe(1);
     act(() => { useCadUiStore.getState().setSelectedElementId(pointB.id); });
     expect(screen.getByText("Enterで選択中を採用：B")).toBeInTheDocument();
 
@@ -267,7 +274,7 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().commandLineSession?.editingStepIndex).toBeNull();
 
     // Outside the shared candidate set (unevaluated, past stop) nothing is offered.
-    act(() => { startCommandLineStepEdit(0); });
+    act(() => { startCommandLineStepEdit(1); });
     act(() => { useCadUiStore.getState().setActivePickCursor(null); });
     act(() => { useCadUiStore.getState().setSelectedElementId(pointC.id); });
     expect(screen.queryByText(/Enterで選択中を採用/)).not.toBeInTheDocument();
@@ -324,7 +331,6 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "8" } });
     fireEvent.submit(form);
-    fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByText("入力完了。Enterで作成します。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "作成（Enter）" })).toHaveFocus();
@@ -339,14 +345,14 @@ describe("CommandLineBar", () => {
 
   it("edits a completed row in place, hides normal back, and restores row focus after commit or cancel", async () => {
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "8" } });
-    fireEvent.submit(form);
-    fireEvent.change(input, { target: { value: "変数 A" } });
     fireEvent.submit(form);
 
     const expressionRow = screen.getByRole("button", { name: "xを編集" });
@@ -373,14 +379,14 @@ describe("CommandLineBar", () => {
     const frames = trackAnimationFrames();
     try {
       render(<CommandLineBar />);
-      act(() => { startCommandLineCreation("freePoint"); });
+      act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
       const input = screen.getByRole<HTMLInputElement>("textbox");
       const form = input.closest("form")!;
+      fireEvent.change(input, { target: { value: "変数 A" } });
+      fireEvent.submit(form);
       fireEvent.change(input, { target: { value: "12" } });
       fireEvent.submit(form);
       fireEvent.change(input, { target: { value: "8" } });
-      fireEvent.submit(form);
-      fireEvent.change(input, { target: { value: "変数 A" } });
       fireEvent.submit(form);
 
       const expressionRow = screen.getByRole("button", { name: "xを編集" });
@@ -397,46 +403,40 @@ describe("CommandLineBar", () => {
     }
   });
 
-  it("edits completed chips during an unfinished session, keeps a chip switch isolated, and returns focus to the prompt", async () => {
+  it("edits a completed chip during an unfinished session and returns focus to the prompt", async () => {
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
     fireEvent.change(input, { target: { value: "3" } });
     fireEvent.submit(form);
-    fireEvent.change(input, { target: { value: "4" } });
-    fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 2,
-      args: { x: 3, y: 4 }
+      args: { x: 3 }
     });
 
     fireEvent.click(screen.getByRole("button", { name: "xを編集" }));
     fireEvent.change(screen.getByRole<HTMLInputElement>("textbox"), { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: "yを編集" }));
-    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ editingStepIndex: 0, args: { x: 3, y: 4 } });
-    expect(screen.getByRole<HTMLInputElement>("textbox")).toHaveValue("10");
-
     fireEvent.submit(form);
     await waitFor(() => expect(screen.getByRole<HTMLInputElement>("textbox")).toHaveFocus());
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
       currentStepIndex: 2,
       editingStepIndex: null,
-      args: { x: 10, y: 4 }
+      args: { x: 10 }
     });
-    expect(screen.getAllByText("入力中：名前")).toHaveLength(2);
+    expect(screen.getAllByText("入力中：y")).toHaveLength(2);
   });
 
   it("returns focus to create when skipping an edited name removes its progress row", async () => {
     renderBar();
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startCommandLineCreationForValuePrompt("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     const form = input.closest("form")!;
+    fireEvent.change(input, { target: { value: "変数 A" } });
+    fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "12" } });
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "8" } });
-    fireEvent.submit(form);
-    fireEvent.change(input, { target: { value: "変数 A" } });
     fireEvent.submit(form);
 
     fireEvent.click(screen.getByRole("button", { name: "名前を編集" }));
@@ -466,7 +466,7 @@ describe("CommandLineBar", () => {
     fireEvent.compositionEnd(input);
     fireEvent.submit(form);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
+      currentStepIndex: 2,
       args: { x: { kind: "expression", expression: "未確定" } }
     });
   });
@@ -480,7 +480,6 @@ describe("CommandLineBar", () => {
     fireEvent.submit(form);
     fireEvent.change(input, { target: { value: "8" } });
     fireEvent.submit(form);
-    fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
     const completed = useCadUiStore.getState().commandLineSession;
     const confirmButton = screen.getByRole("button", { name: "作成（Enter）" });
 
@@ -652,13 +651,14 @@ describe("CommandLineBar", () => {
       useCadUiStore.setState({
         commandLineSession: {
           ...session,
-          currentStepIndex: 1,
+          currentStepIndex: 2,
           args: { startPoint: { mode: "reference", pointId: useCadDocumentStore.getState().elements[0].id } }
         }
       });
     });
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.submit(input.closest("form")!);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
   });
 
@@ -694,7 +694,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
     expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
+      currentStepIndex: 2,
       args: { x: { kind: "expression", expression: "@Height" } }
     });
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("name");
@@ -716,7 +716,7 @@ describe("CommandLineBar", () => {
 
     expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
     fireEvent.keyDown(input, { key: "Enter" });
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
@@ -815,12 +815,12 @@ describe("CommandLineBar", () => {
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "3" } });
     fireEvent.submit(input.closest("form")!);
-    act(() => { startCommandLineStepEdit(0); });
+    act(() => { startCommandLineStepEdit(1); });
 
     fireEvent.keyDown(screen.getByRole<HTMLInputElement>("textbox"), { key: "Escape" });
 
     expect(useCadUiStore.getState().commandLineSession).toMatchObject({
-      currentStepIndex: 1,
+      currentStepIndex: 2,
       editingStepIndex: null,
       args: { x: 3 }
     });
@@ -835,7 +835,6 @@ describe("CommandLineBar", () => {
     fireEvent.submit(input.closest("form")!);
     fireEvent.change(input, { target: { value: "4" } });
     fireEvent.submit(input.closest("form")!);
-    fireEvent.click(screen.getByRole("button", { name: "スキップ" }));
     fireEvent.click(screen.getByRole("button", { name: "xを編集" }));
 
     fireEvent.keyDown(screen.getByRole<HTMLInputElement>("textbox"), { key: "Escape" });
@@ -877,7 +876,7 @@ describe("CommandLineBar", () => {
     const existing = documentState.elements.find((element) => element.name === "Existing")!;
     renderBar();
     act(() => {
-      startCommandLineCreation("freePoint", {
+      startFreePointAtValuePromptWithoutPreview("freePoint", {
         currentSourceCursor: () => ({
           sourceRevision: documentState.sourceRevision,
           line: 7,
@@ -887,7 +886,7 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
 
     fireEvent.change(input, { target: { value: "@" } });
@@ -900,7 +899,7 @@ describe("CommandLineBar", () => {
     expect(popup).not.toHaveTextContent("side");
     expect(popup).not.toHaveTextContent("broken");
     expect(screen.getAllByRole("option")).toHaveLength(1);
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     // Downward placement (default jsdom zero-rect input, plenty of space below):
     // top must be a definite pixel value && bottom must be explicitly set to
     // "auto" inline (not merely absent), otherwise the stale base-class
@@ -922,7 +921,7 @@ describe("CommandLineBar", () => {
 
     fireEvent.click(screen.getByRole("option", { name: /length/ }));
     expect(input).toHaveValue("@length");
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
   });
 
@@ -994,7 +993,7 @@ describe("CommandLineBar", () => {
 
       fireEvent.keyDown(input, { key: "Enter" });
       expect(input).toHaveValue("@length14");
-      expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+      expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
       expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
     } finally {
       if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
@@ -1180,7 +1179,7 @@ describe("CommandLineBar", () => {
       "point B = coordinate(x: 100, y: 0)"
     ].join("\n"), "test");
     renderBar();
-    act(() => { startCommandLineCreation("line"); });
+    act(() => { startCommandLineCreationForValuePrompt("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
 
     fireEvent.change(input, { target: { value: "@Wi" } });
@@ -1308,7 +1307,7 @@ describe("CommandLineBar", () => {
       } as never,
       evaluationIsCurrent: false
     });
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startFreePointAtValuePromptWithoutPreview("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "直線AB." } });
     input.setSelectionRange(6, 6);
@@ -1368,7 +1367,7 @@ describe("CommandLineBar", () => {
       } as never,
       evaluationIsCurrent: false
     });
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startFreePointAtValuePromptWithoutPreview("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "直線AB." } });
     input.setSelectionRange(6, 6);
@@ -1376,7 +1375,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
 
     fireEvent.submit(input.closest("form")!);
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(input).toHaveValue("直線AB.");
   });
 
@@ -1393,7 +1392,7 @@ describe("CommandLineBar", () => {
         effectiveEnabledElementIds: new Set()
       } as never
     });
-    act(() => { startCommandLineCreation("freePoint"); });
+    act(() => { startFreePointAtValuePromptWithoutPreview("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
     fireEvent.change(input, { target: { value: "存在しない要素.length" } });
     input.setSelectionRange("存在しない要素.length".length, "存在しない要素.length".length);
@@ -1401,7 +1400,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
 
     fireEvent.submit(input.closest("form")!);
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(input).toHaveValue("存在しない要素.length");
   });
 
@@ -1434,7 +1433,7 @@ describe("CommandLineBar", () => {
       });
     });
     const input = screen.getByRole<HTMLInputElement>("textbox", { name: "x" });
-    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
 
     fireEvent.change(input, { target: { value: "AB" } });
     input.setSelectionRange(2, 2);
@@ -1454,8 +1453,8 @@ describe("CommandLineBar", () => {
 
     fireEvent.click(screen.getByRole("option", { name: /length/ }));
     expect(input).toHaveValue("AB.length");
-    expect(screen.getByText("1 / 3")).toBeInTheDocument();
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("x");
 
     fireEvent.change(input, { target: { value: "@" } });

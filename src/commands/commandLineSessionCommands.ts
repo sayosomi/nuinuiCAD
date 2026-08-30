@@ -12,6 +12,7 @@ import { sourceEditSession } from "../editor/sourceEditSession";
 import { isCommandLineInputComposing } from "./commandLineInputComposition";
 import { commitDocumentChangeAndSelect } from "./commitDocumentChangeAndSelect";
 import {
+  activateStep,
   beginStepEdit,
   cancelStepEdit,
   commitStepEdit,
@@ -24,6 +25,7 @@ import {
   retreatStep,
   sessionCanConfirm,
   sessionIsStale,
+  skipUnfilledStepsToReview,
   skipCurrentStep,
   startSession,
   withCommandLineSessionError
@@ -256,20 +258,26 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
     : [];
   const editingStep = currentStep(draftSession);
   const editingArgumentKey = editingStep?.kind === "name" ? "name" : editingStep?.key;
+  const editingStepIsIntentionallyBlank = draftSession.editingStepIndex !== null &&
+    draftSession.editingDraft === null;
   // Check the draft-overlaid value itself before forgiving any later prompt.
-  // Name is the lone optional step && may intentionally be removed by skip.
-  const editingStepIsSatisfied = draftSession.editingStepIndex !== null &&
+  // An explicit blank is valid even when the ghost reports that this required
+  // step is missing; all other drafts must still satisfy the active step.
+  const editingStepIsSatisfied = editingStepIsIntentionallyBlank || (
+    draftSession.editingStepIndex !== null &&
     editingStep !== null &&
     (editingStep.kind === "name" || (
       draftSession.editingDraft !== null &&
       editingArgumentKey !== undefined &&
       Object.prototype.hasOwnProperty.call(effectiveCommandLineArgs(draftSession), editingArgumentKey)
     )) &&
-    !missingStepIndexes.includes(draftSession.editingStepIndex);
+    !missingStepIndexes.includes(draftSession.editingStepIndex)
+  );
   const onlyFutureStepsAreMissing = editingStepIsSatisfied &&
     missingStepIndexes.length > 0 &&
     missingStepIndexes.every((stepIndex) => stepIndex >= draftSession.currentStepIndex);
-  const accepted = status === "preview" ||
+  const accepted = (editingStepIsIntentionallyBlank && status !== "invalid") ||
+    status === "preview" ||
     ((status === "not-evaluated" || (status === "missing-input" && onlyFutureStepsAreMissing)) &&
       editingDraftIsParseable(draftSession));
   if (!accepted) {
@@ -305,6 +313,17 @@ export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentS
   return isEditingCommandLineStep(session)
     ? confirmEditingDraft(next)
     : (setSessionAndSyncPickTarget(next), true);
+};
+
+/** Activates any recipe step without changing any existing argument value. */
+export const activateCommandLineStep = (stepIndex: number) => {
+  if (commandLineCompositionIsActive()) return false;
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const next = activateStep(session, stepIndex);
+  if (next === session) return false;
+  setSessionAndSyncPickTarget(next);
+  return true;
 };
 
 /** Opens one completed recipe row for isolated revision. */
@@ -381,6 +400,17 @@ export const skipCommandLineStep = () => {
 
 export const retreatCommandLineStep = () =>
   commandLineCompositionIsActive() ? false : updateSession(retreatStep);
+
+/** Moves to final review without filling or committing any unfilled step. */
+export const skipCommandLineStepsToReview = () => {
+  if (commandLineCompositionIsActive()) return false;
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const next = skipUnfilledStepsToReview(session);
+  if (next === session) return false;
+  setSessionAndSyncPickTarget(next);
+  return true;
+};
 
 /**
  * Materializes a complete session once.  The document bridge owns line

@@ -123,8 +123,8 @@ describe("creationRecipes", () => {
       if (elementTypesWithoutOwnDrawableGeometry.has(recipe.type)) {
         expect(nameSteps, `${recipe.type} must have no name step`).toEqual([]);
       } else {
-        expect(nameSteps, `${recipe.type} must end with one name step`).toEqual([{ kind: "name", autoSuggest: true }]);
-        expect(recipe.steps.at(-1)?.kind, `${recipe.type} name step must be last`).toBe("name");
+        expect(nameSteps, `${recipe.type} must have one name step`).toEqual([{ kind: "name", autoSuggest: true }]);
+        expect(recipe.steps[0]?.kind, `${recipe.type} name step must be first`).toBe("name");
       }
 
       for (const step of recipe.steps) {
@@ -220,10 +220,10 @@ describe("creationRecipes", () => {
   it("keeps angleLengthLine to one start-point prompt and leaves incomplete empty-document previews to Phase 4f", () => {
     const recipe = creationRecipeForLegacyCommand("addAngleLengthLine")!;
     expect(recipe.steps.map((step) => step.kind === "name" ? "name" : step.key)).toEqual([
+      "name",
       "startPoint",
       "angleDeg",
-      "length",
-      "name"
+      "length"
     ]);
 
     const element = emitCreationRecipe(recipe, {}, {
@@ -328,6 +328,11 @@ describe("creationRecipes", () => {
         .map((step) => [step.key, step.kind]);
 
       expect(actual, type).toEqual(expected);
+      if (elementTypesWithoutOwnDrawableGeometry.has(type)) {
+        expect(recipe.steps.some((step) => step.kind === "name"), `${type} must remain unnamed`).toBe(false);
+      } else {
+        expect(recipe.steps[0]?.kind, `${type} fallback name step must be first`).toBe("name");
+      }
       expect(creationRecipeForType(type) === null, type).toBe(excluded.has(type));
     }
   });

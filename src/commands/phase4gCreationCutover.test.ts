@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { referenceAnchor } from "../model/pointAnchors";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
-import { submitCommandLineInput, skipCommandLineStep } from "./commandLineSessionCommands";
+import { submitCommandLineInput } from "./commandLineSessionCommands";
 import { commands, dispatchCommand } from "./commands";
 import { type CommandId } from "./commandTypes";
 import { legacyCreationCommandRecipeMap, creationRecipeForLegacyCommand } from "./legacyCreationRecipes";
@@ -59,11 +59,11 @@ describe("Phase 4g creation command cutover", () => {
 
     expect(dispatchCommand("addAngleLengthLine")).toBe(true);
     expect(useCadUiStore.getState().commandLineSession?.args).toEqual({});
+    submitCommandLineInput("");
     dispatchCommand("applyPickedPoint", { pickedPointAnchor: referenceAnchor(pointA.id) });
     expect(useCadUiStore.getState().commandLineSession?.args.startPoint).toEqual(referenceAnchor(pointA.id));
     expect(submitCommandLineInput("45")).toBe(true);
     expect(submitCommandLineInput("120")).toBe(true);
-    expect(skipCommandLineStep()).toBe(true);
     expect(dispatchCommand("confirmCommandLineSession")).toBe(true);
 
     const document = useCadDocumentStore.getState();
