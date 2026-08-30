@@ -48,11 +48,41 @@ export type VscodeOutputPreviewExportResult = {
   status: "saved" | "cancelled" | "failed";
 };
 
+export type VscodeOutputPreviewRevealFailureReason =
+  | "stale"
+  | "current-target-unavailable"
+  | "no-containing-output"
+  | "evaluation-failed";
+
+export type VscodeOutputPreviewRevealRequest = {
+  type: "outputPreviewReveal";
+  requestId: number;
+  documentVersion: number;
+  normalizedSourceOffset: number;
+};
+
+export type VscodeOutputPreviewRevealResult =
+  | {
+      type: "outputPreviewRevealResult";
+      requestId: number;
+      documentVersion: number;
+      status: "resolved";
+      outputKey: string;
+    }
+  | {
+      type: "outputPreviewRevealResult";
+      requestId: number;
+      documentVersion: number;
+      status: "failed";
+      reason: VscodeOutputPreviewRevealFailureReason;
+    };
+
 export type VscodeOutputPreviewToExtensionMessage =
   | { type: "outputPreviewFit" }
   | { type: "outputPreviewResetView" }
   | VscodeOutputPreviewExportAvailability
   | VscodeOutputPreviewExportRequest
+  | VscodeOutputPreviewRevealResult
   | {
       type: "outputPreviewSourceNavigation";
       documentVersion: number;
@@ -66,4 +96,5 @@ export type VscodeExtensionToOutputPreviewMessage =
   | { type: "outputPreviewResetView" }
   | { type: "outputPreviewClearFocus" }
   | { type: "outputPreviewExport" }
+  | VscodeOutputPreviewRevealRequest
   | VscodeOutputPreviewExportResult;

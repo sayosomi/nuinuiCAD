@@ -12,9 +12,11 @@ import type {
 } from "../../src/vscode/protocol";
 import type {
   VscodeOutputPreviewExportAvailability,
-  VscodeOutputPreviewExportRequest
+  VscodeOutputPreviewExportRequest,
+  VscodeOutputPreviewRevealResult
 } from "../../src/vscode/outputPreviewProtocol";
 import type { VscodeWebviewSessionBase } from "../../src/vscode/vscodeWebviewSession";
+import type { VscodeOutputPreviewRevealSourceTargetResult } from "./referencePickCommandFeature";
 import { normalizedOffsetFromRaw } from "./sourceOffsetAdapter";
 import {
   createOutputPreviewSourceInteractionFeature
@@ -33,6 +35,13 @@ export type OutputPreviewSession = VscodeWebviewSessionBase & {
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
   pendingOpen: { normalizedSourceOffset: number | null } | null;
+  pendingReveal: {
+    requestId: number;
+    documentVersion: number;
+    normalizedSourceOffset: number;
+  } | null;
+  inFlightRevealRequestId: number | null;
+  latestRevealRequestId: number | null;
   exportAvailability: Omit<VscodeOutputPreviewExportAvailability, "type"> | null;
   inFlightExportRequestId: number | null;
 };
@@ -69,6 +78,9 @@ export type OutputPreviewFeatureHost = {
     payload: VscodeOutputPreviewExportRequest["payload"];
   }) => Promise<void>;
   activeNuiTextEditorForCommand: () => vscode.TextEditor | undefined;
+  outputPreviewRevealSourceTargetForEditor: (
+    editor: vscode.TextEditor
+  ) => VscodeOutputPreviewRevealSourceTargetResult;
   activeCanvasDocumentForOpenCommand: () => vscode.TextDocument | null;
   isOutputPreviewTabActive: () => boolean;
 };
@@ -90,6 +102,7 @@ export type OutputPreviewFeature = vscode.Disposable & {
  */
 export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): OutputPreviewFeature => {
   type OutputPreviewViewportAction = "outputPreviewFit" | "outputPreviewResetView";
+  let nextRevealRequestId = 1;
 
   const activeSession = (): OutputPreviewSession | null =>
     host.registry.values().find((candidate) => candidate.panel.active) ?? null;
@@ -100,6 +113,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   const resyncOutputPreview = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session || !host.isOpenDocument(session.document)) return;
     session.authoritativeDocumentVersion = null;
+    session.pendingReveal = null;
+    session.inFlightRevealRequestId = null;
+    session.latestRevealRequestId = null;
     host.postAuthoritativeDocument(session.panel, session.document);
   };
 
@@ -126,6 +142,66 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       documentVersion: session.document.version,
       normalizedSourceOffset: pending.normalizedSourceOffset
     } satisfies ExtensionToVscodeMessage);
+  };
+
+  const deliverPendingReveal = (session: OutputPreviewSession): void => {
+    const pending = session.pendingReveal;
+    if (!pending || !session.webviewReady || session.authoritativeDocumentVersion !== session.document.version) return;
+    if (
+      host.registry.get(session.documentUri) !== session ||
+      !host.isOpenDocument(session.document) ||
+      pending.documentVersion !== session.document.version ||
+      session.latestRevealRequestId !== pending.requestId
+    ) {
+      session.pendingReveal = null;
+      session.inFlightRevealRequestId = null;
+      return;
+    }
+    session.pendingReveal = null;
+    session.inFlightRevealRequestId = pending.requestId;
+    void session.panel.webview.postMessage({
+      type: "outputPreviewReveal",
+      requestId: pending.requestId,
+      documentVersion: pending.documentVersion,
+      normalizedSourceOffset: pending.normalizedSourceOffset
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const revealFailureMessageFor = (reason: Exclude<VscodeOutputPreviewRevealResult, { status: "resolved" }> ["reason"]): string => {
+    if (reason === "no-containing-output") {
+      return "nuinuiCAD: No current Output Preview output contains the Source target.";
+    }
+    if (reason === "evaluation-failed") {
+      return "nuinuiCAD: Output Preview evaluation failed while revealing the Source target.";
+    }
+    return "nuinuiCAD: The current Source target is no longer available in Output Preview.";
+  };
+
+  const invalidateReveal = (session: OutputPreviewSession): void => {
+    session.pendingReveal = null;
+    session.inFlightRevealRequestId = null;
+    session.latestRevealRequestId = null;
+  };
+
+  const handleRevealResult = (
+    session: OutputPreviewSession,
+    message: VscodeOutputPreviewRevealResult
+  ): void => {
+    if (
+      session.inFlightRevealRequestId !== message.requestId ||
+      session.latestRevealRequestId !== message.requestId
+    ) return;
+    session.inFlightRevealRequestId = null;
+    if (
+      host.registry.get(session.documentUri) !== session ||
+      !host.isOpenDocument(session.document) ||
+      message.documentVersion !== session.document.version
+    ) return;
+    if (message.status === "failed") {
+      if (message.reason !== "stale") void vscode.window.showErrorMessage(revealFailureMessageFor(message.reason));
+      return;
+    }
+    session.panel.reveal(vscode.ViewColumn.Beside, false);
   };
 
   const postExportResult = (
@@ -232,22 +308,20 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   const disposeSession = (session: OutputPreviewSession): void => {
     if (host.registry.get(session.documentUri) !== session) return;
     session.pendingOpen = null;
+    invalidateReveal(session);
     host.registry.delete(session.documentUri);
     for (const disposable of session.disposables.splice(0)) disposable.dispose();
   };
 
-  const openForDocument = (
+  const getOrCreateSession = (
     document: vscode.TextDocument,
-    normalizedSourceOffset: number | null,
-    preserveFocus = false
+    preserveFocus: boolean
   ): OutputPreviewSession => {
     const documentUri = host.documentKey(document);
     const existing = host.registry.get(documentUri);
     if (existing) {
-      existing.pendingOpen = { normalizedSourceOffset };
       if (preserveFocus) existing.panel.reveal(vscode.ViewColumn.Beside, true);
       else existing.panel.reveal(vscode.ViewColumn.Beside);
-      deliverPendingOpen(existing);
       return existing;
     }
 
@@ -271,7 +345,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       disposables: [],
       webviewReady: false,
       authoritativeDocumentVersion: null,
-      pendingOpen: { normalizedSourceOffset },
+      pendingOpen: null,
+      pendingReveal: null,
+      inFlightRevealRequestId: null,
+      latestRevealRequestId: null,
       exportAvailability: null,
       inFlightExportRequestId: null
     };
@@ -281,12 +358,15 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       if (!host.sameDocument(event.document, session.document) || event.contentChanges.length === 0) return;
       session.authoritativeDocumentVersion = null;
       session.exportAvailability = null;
+      invalidateReveal(session);
       host.postDocumentText(panel, event.document.getText(), event.document.version, host.documentChangeReasonFor(event.reason));
     }));
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         session.authoritativeDocumentVersion = null;
+        if (session.pendingReveal) session.inFlightRevealRequestId = null;
+        else invalidateReveal(session);
         host.postAuthoritativeDocument(panel, session.document);
         return;
       }
@@ -294,6 +374,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         if (message.documentVersion !== session.document.version) return;
         session.authoritativeDocumentVersion = message.documentVersion;
         deliverPendingOpen(session);
+        deliverPendingReveal(session);
         return;
       }
       if (message.type === "outputPreviewFit" || message.type === "outputPreviewResetView") {
@@ -319,6 +400,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         await handleExport(session, message);
         return;
       }
+      if (message.type === "outputPreviewRevealResult") {
+        handleRevealResult(session, message);
+        return;
+      }
       if (message.type === "outputPreviewSourceNavigation") {
         await sourceInteraction.handleSourceNavigation(session, message);
         return;
@@ -330,6 +415,18 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       if (message.type === "rustEvaluationRequest") await handleRustEvaluationRequest(session, message);
     }));
     panel.onDidDispose(() => disposeSession(session));
+    return session;
+  };
+
+  const openForDocument = (
+    document: vscode.TextDocument,
+    normalizedSourceOffset: number | null,
+    preserveFocus = false
+  ): OutputPreviewSession => {
+    const session = getOrCreateSession(document, preserveFocus);
+    invalidateReveal(session);
+    session.pendingOpen = { normalizedSourceOffset };
+    deliverPendingOpen(session);
     return session;
   };
 
@@ -346,6 +443,42 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       return;
     }
     void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Canvas.");
+  };
+
+  const executeRevealInOutputPreview = (): void => {
+    const editor = host.activeNuiTextEditorForCommand();
+    if (!editor) return;
+    const target = host.outputPreviewRevealSourceTargetForEditor(editor);
+    if (target.status === "failed") {
+      const message = target.reason === "analysis-unavailable"
+        ? "nuinuiCAD: Output Preview Reveal is unavailable because Source analysis is not ready."
+        : target.reason === "source-mismatch"
+          ? "nuinuiCAD: Output Preview Reveal is unavailable because the Source snapshot is stale."
+          : target.reason === "invalid-position"
+            ? "nuinuiCAD: Output Preview Reveal is unavailable at the current Source position."
+            : "nuinuiCAD: There is no Output Preview target at the current Source position.";
+      void vscode.window.showErrorMessage(message);
+      return;
+    }
+
+    const documentVersion = editor.document.version;
+    if (!host.isOpenDocument(editor.document)) return;
+    const session = getOrCreateSession(editor.document, true);
+    if (
+      editor.document.version !== documentVersion ||
+      host.registry.get(session.documentUri) !== session ||
+      !host.isOpenDocument(session.document)
+    ) return;
+
+    const requestId = nextRevealRequestId++;
+    session.pendingOpen = null;
+    session.pendingReveal = {
+      requestId,
+      documentVersion,
+      normalizedSourceOffset: target.normalizedSourceOffset
+    };
+    session.latestRevealRequestId = requestId;
+    deliverPendingReveal(session);
   };
 
   const executeFit = (): void => {
@@ -415,6 +548,7 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
   const commandDisposables = [
     vscode.commands.registerCommand("nuinuiCAD.openOutputPreview", executeOpen),
+    vscode.commands.registerCommand("nuinuiCAD.revealInOutputPreview", executeRevealInOutputPreview),
     vscode.commands.registerCommand("nuinuiCAD.resetOutputPreviewView", executeResetView),
     vscode.commands.registerCommand("nuinuiCAD.fitOutputPreview", executeFit),
     vscode.commands.registerCommand("nuinuiCAD.clearOutputPreviewFocus", executeClearFocus),

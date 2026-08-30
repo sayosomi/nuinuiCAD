@@ -6,6 +6,15 @@ import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { evaluateOutputPlan, type OutputDrawable, type OutputPlan, type OutputText } from "../output/outputCore";
 import { projectOutputPlaces } from "../output/outputPlaceProjection";
 import {
+  projectDslOutputPreviewRevealRuntimeTarget,
+  queryDslOutputPreviewRevealSourceTarget,
+  type DslOutputPreviewRevealRuntimeTarget
+} from "../dsl/dslOutputPreviewRevealQuery";
+import {
+  resolveOutputPreviewReveal,
+  type OutputPreviewRevealTarget
+} from "../output/outputPreviewReveal";
+import {
   effectiveCompiledDocument,
   useCadDocumentStore
 } from "../state/cadDocumentStore";
@@ -44,7 +53,13 @@ import {
   outputPreviewPathDataFor,
   outputPreviewTextTransformFor
 } from "./outputPreviewRendering";
-import { vscodeWebviewContextDataFor, type ExtensionToVscodeMessage, type VscodeWebviewApi } from "./protocol";
+import {
+  vscodeWebviewContextDataFor,
+  type ExtensionToVscodeMessage,
+  type VscodeOutputPreviewRevealRequest,
+  type VscodeOutputPreviewRevealResult,
+  type VscodeWebviewApi
+} from "./protocol";
 import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
@@ -63,6 +78,31 @@ type OutputPreviewPlaceDragPreviewState = {
   sourceText: string;
   compiledDocument: LastGoodDslDocument;
 };
+
+type OutputPreviewRevealState =
+  | { status: "idle" }
+  | {
+      status: "pending";
+      requestId: number;
+      documentVersion: number;
+      sourceRevision: number;
+    }
+  | {
+      status: "resolved";
+      requestId: number;
+      documentVersion: number;
+      sourceRevision: number;
+      outputKey: string;
+      plan: OutputPlan;
+      highlightedDrawables: readonly OutputDrawable[];
+    }
+  | {
+      status: "failed";
+      requestId: number;
+      documentVersion: number;
+      sourceRevision: number;
+      reason: Extract<VscodeOutputPreviewRevealResult, { status: "failed" }>["reason"];
+    };
 
 type PanState = { pointerId: number; lastX: number; lastY: number };
 type OutputPreviewClientPoint = { clientX: number; clientY: number };
@@ -141,15 +181,17 @@ const drawableSvg = (
 const highlightedDrawableSvg = (
   drawable: OutputDrawable,
   size: OutputPreviewViewportSize,
-  viewport: OutputPreviewViewport
+  viewport: OutputPreviewViewport,
+  layer: "place-highlight" | "reveal-highlight",
+  occurrenceIndex: number
 ) => {
   if (drawable.kind === "text") {
     const lines = outputTextLines(drawable.text);
     return (
       <text
-        key={`highlight-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
+        key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.anchor.x}-${drawable.anchor.y}`}
         transform={outputPreviewTextTransformFor(drawable, size, viewport)}
-        data-output-preview-layer="place-highlight"
+        data-output-preview-layer={layer}
         fill="var(--canvas-selection)"
         fontFamily="HeiseiKakuGo-W5, sans-serif"
         fontSize={drawable.fontSizeMm}
@@ -175,9 +217,9 @@ const highlightedDrawableSvg = (
   if (!path) return null;
   return (
     <path
-      key={`highlight-${drawable.elementId}-${drawable.kind}-${path}`}
+      key={`highlight-${layer}-${occurrenceIndex}-${drawable.elementId}-${drawable.kind}-${path}`}
       d={path}
-      data-output-preview-layer="place-highlight"
+      data-output-preview-layer={layer}
       fill="none"
       stroke="var(--canvas-selection)"
       strokeWidth={Math.max(3, drawable.stroke.widthMm * viewport.zoom + 3)}
@@ -225,6 +267,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [clearPlaceInteractionKey, setClearPlaceInteractionKey] = useState(0);
   const [pendingExportRequestId, setPendingExportRequestId] = useState<number | null>(null);
+  const [revealState, setRevealState] = useState<OutputPreviewRevealState>({ status: "idle" });
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
@@ -238,6 +281,9 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const fitPlanRef = useRef<(plan: OutputPlan | null) => boolean>(() => false);
   const nextExportRequestIdRef = useRef(1);
   const requestCurrentExportRef = useRef<() => boolean>(() => false);
+  const revealGenerationRef = useRef(0);
+  const pendingRevealResponseRef = useRef<VscodeOutputPreviewRevealResult | null>(null);
+  const preserveViewportForSelectionRef = useRef<string | null>(null);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
 
   const pointerWorldPoint = useMemo(
@@ -278,11 +324,19 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     return true;
   }, [viewportSize]);
 
-  const updateSelectedOutputKey = useCallback((nextKey: string | null) => {
+  const updateSelectedOutputKey = useCallback((nextKey: string | null, preserveViewport = false) => {
     if (selectedOutputKeyRef.current === nextKey) return;
+    preserveViewportForSelectionRef.current = preserveViewport ? nextKey : null;
     selectedOutputKeyRef.current = nextKey;
     selectionGenerationRef.current += 1;
     setSelectedOutputKey(nextKey);
+  }, []);
+
+  const clearExplicitReveal = useCallback(() => {
+    revealGenerationRef.current += 1;
+    pendingRevealResponseRef.current = null;
+    preserveViewportForSelectionRef.current = null;
+    setRevealState({ status: "idle" });
   }, []);
 
   const applyOpenSelection = useCallback((normalizedSourceOffset: number | null) => {
@@ -304,6 +358,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     selectedOutputKeyRef.current = selectedOutputKey;
   }, [selectedOutputKey]);
+
+  useEffect(() => useCadDocumentStore.subscribe((state, previous) => {
+    if (state.currentSourceRevision !== previous.currentSourceRevision) clearExplicitReveal();
+  }), [clearExplicitReveal]);
 
   useLayoutEffect(() => {
     measureViewport();
@@ -433,12 +491,193 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     fitPlanRef.current = fitPlan;
   }, [activePlan, fitPlan]);
 
+  const handleRevealRequest = useCallback((message: VscodeOutputPreviewRevealRequest): void => {
+    const state = useCadDocumentStore.getState();
+    const sourceRevision = state.currentSourceRevision;
+    const generation = ++revealGenerationRef.current;
+    const fail = (reason: Extract<VscodeOutputPreviewRevealResult, { status: "failed" }>["reason"]): void => {
+      pendingRevealResponseRef.current = {
+        type: "outputPreviewRevealResult",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        status: "failed",
+        reason
+      };
+      setRevealState({
+        status: "failed",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        sourceRevision,
+        reason
+      });
+    };
+
+    if (latestHostDocumentVersionRef.current !== message.documentVersion) {
+      fail("stale");
+      return;
+    }
+    if (state.sourceText !== state.docText) {
+      fail("current-target-unavailable");
+      return;
+    }
+
+    const compiled = effectiveCompiledDocument(state);
+    const normalizedSource = normalizedSourceForDrag(state.sourceText);
+    if (!Number.isInteger(message.normalizedSourceOffset) || message.normalizedSourceOffset < 0 || message.normalizedSourceOffset > normalizedSource.length) {
+      fail("current-target-unavailable");
+      return;
+    }
+    if (!compiled.document || !compiled.statementMap) {
+      fail("current-target-unavailable");
+      return;
+    }
+
+    const source = {
+      normalizedSource,
+      sourceRevision
+    };
+    const sourceTarget = queryDslOutputPreviewRevealSourceTarget({
+      source,
+      compiled,
+      position: message.normalizedSourceOffset
+    });
+    if (sourceTarget.status === "failed") {
+      fail("current-target-unavailable");
+      return;
+    }
+
+    let target: OutputPreviewRevealTarget;
+    if (sourceTarget.target.kind === "group" || sourceTarget.target.kind === "geometry" || sourceTarget.target.kind === "semantic") {
+      const runtimeTarget = projectDslOutputPreviewRevealRuntimeTarget({
+        target: sourceTarget.target,
+        compiled,
+        moduleGeometryRuntime: compiled.moduleGeometryRuntime,
+        elements: compiled.document.elements
+      });
+      if (runtimeTarget.status === "failed") {
+        fail("current-target-unavailable");
+        return;
+      }
+      target = runtimeTarget.target as DslOutputPreviewRevealRuntimeTarget;
+    } else {
+      target = sourceTarget.target;
+    }
+
+    const candidates = outputPreviewCandidatesFor(state.sourceText, compiled);
+    pendingRevealResponseRef.current = null;
+    setRevealState({
+      status: "pending",
+      requestId: message.requestId,
+      documentVersion: message.documentVersion,
+      sourceRevision
+    });
+
+    void Promise.all(candidates.map((candidate) => evaluateOutputPlan({
+      compiledDocument: compiled,
+      output: candidate.output,
+      evaluate: (elements, options) => evaluateElementsWithRust(elements, options, rustTransport.transport)
+    }))).then((plans) => {
+      const current = useCadDocumentStore.getState();
+      if (
+        generation !== revealGenerationRef.current ||
+        latestHostDocumentVersionRef.current !== message.documentVersion ||
+        current.currentSourceRevision !== sourceRevision ||
+        current.sourceText !== current.docText ||
+        effectiveCompiledDocument(current) !== compiled
+      ) return;
+
+      const resolved = resolveOutputPreviewReveal({
+        target,
+        elements: compiled.document!.elements,
+        plans,
+        selectedOutputKey: selectedOutputKeyRef.current
+      });
+      if (resolved.status === "failed") {
+        pendingRevealResponseRef.current = {
+          type: "outputPreviewRevealResult",
+          requestId: message.requestId,
+          documentVersion: message.documentVersion,
+          status: "failed",
+          reason: "no-containing-output"
+        };
+        setRevealState({
+          status: "failed",
+          requestId: message.requestId,
+          documentVersion: message.documentVersion,
+          sourceRevision,
+          reason: "no-containing-output"
+        });
+        return;
+      }
+
+      preserveViewportForSelectionRef.current = resolved.outputKey;
+      if (selectedOutputKeyRef.current !== resolved.outputKey) updateSelectedOutputKey(resolved.outputKey, true);
+      setEvaluationState({
+        outputKey: resolved.outputKey,
+        sourceRevision,
+        plan: resolved.plan,
+        evaluating: false,
+        error: null
+      });
+      pendingRevealResponseRef.current = {
+        type: "outputPreviewRevealResult",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        status: "resolved",
+        outputKey: resolved.outputKey
+      };
+      setRevealState({
+        status: "resolved",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        sourceRevision,
+        outputKey: resolved.outputKey,
+        plan: resolved.plan,
+        highlightedDrawables: resolved.highlightedDrawables
+      });
+    }).catch(() => {
+      const current = useCadDocumentStore.getState();
+      if (
+        generation !== revealGenerationRef.current ||
+        latestHostDocumentVersionRef.current !== message.documentVersion ||
+        current.currentSourceRevision !== sourceRevision ||
+        current.sourceText !== current.docText
+      ) return;
+      pendingRevealResponseRef.current = {
+        type: "outputPreviewRevealResult",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        status: "failed",
+        reason: "evaluation-failed"
+      };
+      setRevealState({
+        status: "failed",
+        requestId: message.requestId,
+        documentVersion: message.documentVersion,
+        sourceRevision,
+        reason: "evaluation-failed"
+      });
+    });
+  }, [rustTransport, updateSelectedOutputKey]);
+
+  useLayoutEffect(() => {
+    const response = pendingRevealResponseRef.current;
+    if (!response || revealState.status === "idle" || revealState.requestId !== response.requestId) return;
+    pendingRevealResponseRef.current = null;
+    api.postMessage(response);
+  }, [api, revealState]);
+
   useEffect(() => {
     if (!sourceIsCurrent || placeDragPreview) return;
     const plan = activePlan;
     if (!plan) return;
     const identity = `${plan.kind}:${plan.outputId}`;
     const fitToken = `${selectionGenerationRef.current}:${identity}`;
+    if (preserveViewportForSelectionRef.current === selectedOutputKey) {
+      preserveViewportForSelectionRef.current = null;
+      fittedSelectionTokenRef.current = fitToken;
+      return;
+    }
     if (fittedSelectionTokenRef.current === fitToken) return;
     if (fitPlan(plan)) fittedSelectionTokenRef.current = fitToken;
   }, [activePlan, fitPlan, placeDragPreview, sourceIsCurrent, selectedOutputKey]);
@@ -455,6 +694,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "outputPreviewOpen") {
         if (latestHostDocumentVersionRef.current !== message.documentVersion) return;
+        clearExplicitReveal();
         applyOpenSelection(message.normalizedSourceOffset);
         return;
       }
@@ -467,7 +707,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
       if (message.type === "outputPreviewClearFocus") {
+        clearExplicitReveal();
         setClearPlaceInteractionKey((current) => current + 1);
+        return;
+      }
+      if (message.type === "outputPreviewReveal") {
+        handleRevealRequest(message);
         return;
       }
       if (message.type === "outputPreviewExport") {
@@ -483,6 +728,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
+        clearExplicitReveal();
         setAuthoritativeContextGeneration((current) => current + 1);
         useCadDocumentStore.getState().replaceTextDocument(message.sourceText, {
           currentFilePath: null,
@@ -496,6 +742,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
+        clearExplicitReveal();
         setAuthoritativeContextGeneration((current) => current + 1);
         useCadDocumentStore.getState().commitText(message.sourceText, "editor");
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
@@ -507,7 +754,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, applyOpenSelection, rustTransport]);
+  }, [api, applyOpenSelection, clearExplicitReveal, handleRevealRequest, rustTransport]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -570,6 +817,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const highlightedPlace = highlightedPlaceId
     ? placeProjections.find((projection) => projection.placeId === highlightedPlaceId) ?? null
     : null;
+  const highlightedRevealDrawables = sourceIsCurrent &&
+    revealState.status === "resolved" &&
+    revealState.sourceRevision === currentSourceRevision &&
+    revealState.outputKey === selectedOutputKey
+    ? revealState.highlightedDrawables
+    : [];
 
   const currentDragPlanIdentity = dragPlanIdentityForCandidate(canonicalSelectedCandidate);
   const dragProofIsCurrent = useCallback((proof: OutputPreviewPlaceDragProof): boolean => {
@@ -692,7 +945,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           <select
             aria-label="Output"
             value={selectedOutputKey ?? ""}
-            onChange={(event) => updateSelectedOutputKey(event.target.value || null)}
+            onChange={(event) => {
+              clearExplicitReveal();
+              updateSelectedOutputKey(event.target.value || null);
+            }}
             disabled={canonicalCandidates.length === 0}
           >
             {canonicalCandidates.length === 0 ? <option value="">No outputs</option> : null}
@@ -878,7 +1134,8 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               {paperRect ? <rect {...paperRect} data-output-preview-layer="output-fill" fill="#ffffff" /> : null}
               {pageRects.map((page, index) => <rect key={`page-fill-${index}`} {...page} data-output-preview-layer="page-fill" fill="#ffffff" />)}
               {plan.drawables.map((drawable) => drawableSvg(drawable, viewportSize, viewport))}
-              {highlightedPlace?.drawables.map((drawable) => highlightedDrawableSvg(drawable, viewportSize, viewport))}
+              {highlightedRevealDrawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "reveal-highlight", index))}
+              {highlightedPlace?.drawables.map((drawable, index) => highlightedDrawableSvg(drawable, viewportSize, viewport, "place-highlight", index))}
               {pageRects.map((page, index) => <rect key={`page-boundary-${index}`} {...page} data-output-preview-layer="page-boundary" fill="none" stroke="#9aa0a6" strokeWidth={1} />)}
               {guideLines.map((guide, index) => <line key={`guide-${index}`} {...guide} data-output-preview-layer="overlap-guide" stroke="#70757a" strokeWidth={1} strokeDasharray="6 4" />)}
             </svg>

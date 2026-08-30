@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
+import {
+  queryDslOutputPreviewRevealSourceTarget,
+  type DslOutputPreviewRevealSourceQueryResult,
+  type DslOutputPreviewRevealSourceTarget
+} from "../../src/dsl/dslOutputPreviewRevealQuery";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import type {
@@ -18,6 +23,7 @@ import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdap
 export const VSCODE_REFERENCE_PICK_COMMAND_ID = "nuinuiCAD.pickReferenceFromCanvas";
 export const VSCODE_REFERENCE_PICK_CONTEXT_KEY = "nuinuiCAD.referencePickSourceTarget";
 export const VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.revealInCanvasSourceTarget";
+export const VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.revealInOutputPreviewSourceTarget";
 export const VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.bakeSourceTarget";
 
 export type VscodeReferencePickCanvasEndpoint = {
@@ -48,12 +54,14 @@ type ReferencePickHistoryHandoff = VscodeReferencePickAppliedHandoff & {
 export type VscodeSourceTargetAvailability = {
   referencePickSourceOffset: number | null;
   revealInCanvas: boolean;
+  revealInOutputPreview: boolean;
   bake: boolean;
 };
 
 const unavailableSourceTargets = (): VscodeSourceTargetAvailability => ({
   referencePickSourceOffset: null,
   revealInCanvas: false,
+  revealInOutputPreview: false,
   bake: false
 });
 
@@ -64,6 +72,70 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
+
+export type VscodeOutputPreviewRevealSourceTargetFailureReason =
+  | "analysis-unavailable"
+  | "source-mismatch"
+  | "invalid-position"
+  | "no-target";
+
+export type VscodeOutputPreviewRevealSourceTargetResult =
+  | {
+      status: "resolved";
+      normalizedSourceOffset: number;
+      target: DslOutputPreviewRevealSourceTarget;
+    }
+  | {
+      status: "failed";
+      reason: VscodeOutputPreviewRevealSourceTargetFailureReason;
+    };
+
+const outputPreviewRevealSourceTargetFromSnapshot = ({
+  source,
+  semantic,
+  normalizedSourceOffset
+}: {
+  source: { normalizedSource: string; sourceRevision: number };
+  semantic: ReturnType<NuiLanguageAnalysisSession["definitionSemanticSnapshot"]>;
+  normalizedSourceOffset: number;
+}): VscodeOutputPreviewRevealSourceTargetResult => {
+  if (!semantic?.compiled) return { status: "failed", reason: "analysis-unavailable" };
+  if (!Number.isInteger(normalizedSourceOffset) || normalizedSourceOffset < 0 || normalizedSourceOffset > source.normalizedSource.length) {
+    return { status: "failed", reason: "invalid-position" };
+  }
+  const result: DslOutputPreviewRevealSourceQueryResult = queryDslOutputPreviewRevealSourceTarget({
+    source,
+    compiled: semantic.compiled,
+    position: normalizedSourceOffset
+  });
+  return result.status === "resolved"
+    ? { status: "resolved", normalizedSourceOffset, target: result.target }
+    : { status: "failed", reason: result.reason };
+};
+
+/**
+ * Resolves the exact current Source target for Output Preview Reveal. The
+ * caller supplies the existing document analysis session so this command
+ * never creates a second parser, resolver, or semantic snapshot owner.
+ */
+export const outputPreviewRevealSourceTargetForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): VscodeOutputPreviewRevealSourceTargetResult => {
+  if (!isSupportedSourceEditor(editor)) return { status: "failed", reason: "no-target" };
+  const rawSource = editor.document.getText();
+  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(rawSource),
+    sourceRevision: languageAnalysisSession.getSourceRevision()
+  };
+  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  const normalizedSourceOffset = normalizedOffsetFromRaw(
+    rawSource,
+    editor.document.offsetAt(editor.selection.active)
+  );
+  return outputPreviewRevealSourceTargetFromSnapshot({ source, semantic, normalizedSourceOffset });
+};
 
 export const sourceTargetAvailabilityForEditor = (
   editor: vscode.TextEditor,
@@ -98,7 +170,12 @@ export const sourceTargetAvailabilityForEditor = (
     compiled: semantic.compiled,
     position: normalizedSourceOffset
   }) !== null;
-  return { referencePickSourceOffset, revealInCanvas, bake };
+  const revealInOutputPreview = outputPreviewRevealSourceTargetFromSnapshot({
+    source,
+    semantic,
+    normalizedSourceOffset
+  }).status === "resolved";
+  return { referencePickSourceOffset, revealInCanvas, revealInOutputPreview, bake };
 };
 
 export const referencePickSourceOffsetForEditor = (
@@ -147,6 +224,11 @@ export const registerVscodeReferencePickFeature = ({
           "setContext",
           VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
           availability.revealInCanvas
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY,
+          availability.revealInOutputPreview
         ),
         vscode.commands.executeCommand(
           "setContext",
