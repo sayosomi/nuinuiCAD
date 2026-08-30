@@ -1,6 +1,11 @@
 import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
+  numericReferencePropertiesForGeometry,
+  numericReferenceGeometrySupportsProperty,
+  type NumericReferenceGeometry
+} from "../geometry/numericReferenceProperties";
+import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
@@ -20,11 +25,13 @@ import {
 } from "./pointAnchors";
 import type {
   CadElement,
+  ComputedGeometry,
   ComputedPoint,
   ElementId,
   EvaluationResult,
   PointAnchor
 } from "../types/geometry";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type {
   CanonicalGeometrySourceReference,
   ModuleSemanticCandidateContext
@@ -45,7 +52,17 @@ export type ReferencePickGeometryOption = {
   reference: CanonicalGeometrySourceReference;
 };
 
-export type ReferencePickCandidateOption = ReferencePickPointOption | ReferencePickGeometryOption;
+export type ReferencePickNumericPropertyOption = {
+  kind: "numericProperty";
+  label: string;
+  reference: CanonicalGeometrySourceReference;
+  properties: readonly NumericMeasurementKey[];
+};
+
+export type ReferencePickCandidateOption =
+  | ReferencePickPointOption
+  | ReferencePickGeometryOption
+  | ReferencePickNumericPropertyOption;
 
 export type ReferencePickCandidate = {
   elementId: ElementId;
@@ -64,6 +81,17 @@ type CandidateContext = {
   moduleSemanticContext: ModuleSemanticCandidateContext | null;
   elements: readonly CadElement[];
 };
+
+const numericReferenceGeometryFor = (
+  geometry: ComputedGeometry
+): NumericReferenceGeometry | null =>
+  geometry.kind === "line" ||
+  geometry.kind === "arcLine" ||
+  geometry.kind === "bezierCurve" ||
+  geometry.kind === "offsetLine" ||
+  geometry.kind === "polyline"
+    ? geometry
+    : null;
 
 const moduleDefinitionForScope = (
   namespace: SourceLexicalNamespaceIndex,
@@ -200,6 +228,7 @@ export const referencePickCandidates = ({
   const namespace = compiled.sourceLexicalNamespace;
   if (!document || !namespace || !compiled.statementMap) return [];
   if (target.sourceAnchor.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return [];
+  if (target.role === "numericPropertyBase" && !target.numericProperty) return [];
 
   const materialization = compiled.moduleMaterialization;
   const elements = document.elements;
@@ -261,6 +290,27 @@ export const referencePickCandidates = ({
     }
 
     if (!isModuleGeometryInterfaceAssignable(actualGeometryInterface, target.expectedGeometryInterface)) {
+      continue;
+    }
+    if (target.role === "numericPropertyBase") {
+      const numericGeometry = numericReferenceGeometryFor(geometry);
+      if (!numericGeometry) continue;
+      const properties = numericReferencePropertiesForGeometry(numericGeometry);
+      if (properties.length === 0) continue;
+      if (
+        target.numericProperty?.kind === "fixedProperty" &&
+        !numericReferenceGeometrySupportsProperty(numericGeometry, target.numericProperty.property)
+      ) continue;
+      candidates.push({
+        elementId: element.id,
+        actualGeometryInterface,
+        options: [{
+          kind: "numericProperty",
+          label: geometry.name,
+          reference,
+          properties
+        }]
+      });
       continue;
     }
     candidates.push({

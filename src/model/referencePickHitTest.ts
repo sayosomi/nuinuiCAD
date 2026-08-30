@@ -48,7 +48,9 @@ export const filterReferencePickGeometryHits = (
 ): CanvasGeometryHitCandidate[] => {
   const eligibleIds = new Set(
     candidates
-      .filter((candidate) => candidate.options.some((option) => option.kind === "geometry"))
+      .filter((candidate) => candidate.options.some((option) =>
+        option.kind === "geometry" || option.kind === "numericProperty"
+      ))
       .map((candidate) => candidate.elementId)
   );
   return hits.filter((hit) => eligibleIds.has(hit.elementId));

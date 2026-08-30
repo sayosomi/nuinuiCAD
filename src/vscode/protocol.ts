@@ -70,6 +70,8 @@ export type {
   VscodeExtensionToReferencePickMessage,
   VscodeReferencePickCancelRequest,
   VscodeReferencePickConfirmedResult,
+  VscodeReferencePickNumericCandidate,
+  VscodeReferencePickNumericPropertyDraft,
   VscodeReferencePickResult,
   VscodeReferencePickStartedResult,
   VscodeReferencePickStartRequest,

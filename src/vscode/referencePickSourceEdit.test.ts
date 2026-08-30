@@ -46,14 +46,19 @@ describe("planVscodeReferencePickSourceEdit", () => {
       compiled,
       normalizedSourceOffset: position,
       targetProof: proof,
-      references: [{ base: "Other" }],
-      allowedCandidateReferences: [{ base: "Base" }, { base: "Other" }]
+      references: [],
+      allowedCandidateReferences: [{ base: "Base" }, { base: "Other" }],
+      numericProperty: { reference: { base: "Other" }, property: "length" },
+      allowedNumericCandidates: [
+        { reference: { base: "Base" }, properties: ["length"] },
+        { reference: { base: "Other" }, properties: ["length"] }
+      ]
     });
 
     expect(plan).not.toBeNull();
     const next = source.slice(0, plan!.range.from) + plan!.replacement + source.slice(plan!.range.to);
     expect(next).toContain("dx: @Other.length");
-    expect(plan?.caretNormalizedOffset).toBe(plan!.range.from + "@Other".length);
+    expect(plan?.caretNormalizedOffset).toBe(plan!.range.from + "@Other.length".length);
   });
 
   it("replaces a reference list as one canonical edit and permits removing every draft item", () => {
@@ -113,5 +118,55 @@ describe("planVscodeReferencePickSourceEdit", () => {
       references: [{ base: "B" }],
       allowedCandidateReferences: [{ base: "B" }]
     })).toBeNull();
+  });
+
+  it("writes a complete numeric property expression in one replacement", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: 20, dy: 0)"
+    ].join("\n");
+    const { compiled, position, proof } = fixture(source, "20");
+    const plan = planVscodeReferencePickSourceEdit({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled,
+      normalizedSourceOffset: position,
+      targetProof: proof,
+      references: [],
+      allowedCandidateReferences: [{ base: "Base" }],
+      numericProperty: { reference: { base: "Base" }, property: "length" },
+      allowedNumericCandidates: [{ reference: { base: "Base" }, properties: ["length"] }]
+    });
+    expect(plan).toMatchObject({ replacement: "@Base.length" });
+    expect(source.slice(0, plan!.range.from) + plan!.replacement + source.slice(plan!.range.to))
+      .toContain("dx: @Base.length");
+  });
+
+  it("rejects forged, unsupported, and fixed-property-mismatched numeric results", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const { compiled, position, proof } = fixture(source, "@Base.length");
+    const planFor = (reference: { base: string; pointKey?: string }, property: string) =>
+      planVscodeReferencePickSourceEdit({
+        source: { normalizedSource: source, sourceRevision: REVISION },
+        compiled,
+        normalizedSourceOffset: position,
+        targetProof: proof,
+        references: [],
+        allowedCandidateReferences: [{ base: "Base" }],
+        numericProperty: { reference, property: property as never },
+        allowedNumericCandidates: [{ reference: { base: "Base" }, properties: ["length"] }]
+      });
+    expect(planFor({ base: "Missing" }, "length")).toBeNull();
+    expect(planFor({ base: "Base" }, "startHandleLength")).toBeNull();
+    expect(planFor({ base: "Base" }, "endAngleDeg")).toBeNull();
+    expect(planFor({ base: "Base", pointKey: "start" }, "length")).toBeNull();
   });
 });

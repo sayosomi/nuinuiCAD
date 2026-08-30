@@ -12,8 +12,12 @@ import {
 import {
   cancelReferencePickSession,
   confirmReferencePickSession,
+  confirmedReferencePickNumericResult,
   confirmedReferencePickResult,
   selectReferencePickDraft,
+  selectReferencePickNumericGeometry,
+  selectReferencePickNumericProperty,
+  seedReferencePickNumericPropertyDraft,
   setReferencePickHover,
   startReferencePickSession,
   type ReferencePickHover,
@@ -26,8 +30,11 @@ import {
   referencePickSeedReferences,
   referencePickTargetMatchesProof,
   isCanonicalReferencePickReference,
+  isValidNumericReferencePickCandidate,
   sameReferencePickTargetProof,
   type VscodeReferencePickConfirmedResult,
+  type VscodeReferencePickNumericCandidate,
+  type VscodeReferencePickNumericPropertyDraft,
   type VscodeReferencePickResult,
   type VscodeReferencePickStartRequest,
   type VscodeReferencePickStartedResult
@@ -54,6 +61,28 @@ const uniqueCandidateReferences = (
     }
   }
   return result;
+};
+
+const uniqueNumericCandidates = (
+  candidates: readonly ReferencePickCandidate[]
+): VscodeReferencePickNumericCandidate[] => {
+  const byReference = new Map<string, VscodeReferencePickNumericCandidate>();
+  for (const candidate of candidates) {
+    for (const option of candidate.options) {
+      if (option.kind !== "numericProperty") continue;
+      const key = referencePickReferenceKey(option.reference);
+      const previous = byReference.get(key);
+      if (!previous) {
+        byReference.set(key, { reference: option.reference, properties: [...option.properties] });
+        continue;
+      }
+      byReference.set(key, {
+        reference: previous.reference,
+        properties: [...new Set([...previous.properties, ...option.properties])]
+      });
+    }
+  }
+  return [...byReference.values()];
 };
 
 const resultBase = (session: VscodeReferencePickCanvasSession) => ({
@@ -117,6 +146,10 @@ export const startVscodeReferencePickCanvasSession = ({
 
   const candidates = referencePickCandidates({ compiled, evaluation, target });
   const candidateReferenceKeys = new Set(uniqueCandidateReferences(candidates).map(referencePickReferenceKey));
+  const numericCandidates = uniqueNumericCandidates(candidates);
+  if (target.role === "numericPropertyBase" && !target.numericProperty) {
+    return { session: null, result: rejected("rejected") };
+  }
   const seedReferences = request.initialDraftReferences ?? (
     target.multiplicity === "multiple" ? referencePickSeedReferences(request.targetProof) : []
   );
@@ -130,17 +163,54 @@ export const startVscodeReferencePickCanvasSession = ({
   ) {
     return { session: null, result: rejected("rejected") };
   }
+  const initialNumericDraft = request.initialNumericPropertyDraft;
+  const matchingNumericCandidate = initialNumericDraft
+    ? numericCandidates.find((candidate) =>
+        referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(initialNumericDraft.reference) &&
+        candidate.properties.includes(initialNumericDraft.property)
+      )
+    : undefined;
+  const matchingNumericCandidateElement = initialNumericDraft
+    ? candidates.find((candidate) => candidate.options.some((option) =>
+        option.kind === "numericProperty" &&
+        referencePickReferenceKey(option.reference) === referencePickReferenceKey(initialNumericDraft.reference)
+      ))
+    : undefined;
+  if (initialNumericDraft) {
+    if (
+      target.role !== "numericPropertyBase" ||
+      !target.numericProperty ||
+      !matchingNumericCandidate ||
+      !matchingNumericCandidateElement ||
+      (target.numericProperty.kind === "fixedProperty" &&
+        target.numericProperty.property !== initialNumericDraft.property) ||
+      !isCanonicalReferencePickReference(initialNumericDraft.reference)
+    ) return { session: null, result: rejected("rejected") };
+  }
   const draft = startReferencePickSession({
     expectedGeometryInterface: target.expectedGeometryInterface,
     role: target.role,
     multiplicity: target.multiplicity,
-    seedReferences
+    seedReferences,
+    ...(target.numericProperty ? { numericProperty: target.numericProperty } : {})
   });
-  const session: VscodeReferencePickCanvasSession = { request, target, candidates, draft };
+  const seededDraft = initialNumericDraft
+    ? seedReferencePickNumericPropertyDraft(
+        draft,
+        {
+          candidateElementId: matchingNumericCandidateElement?.elementId ?? "",
+          reference: initialNumericDraft.reference,
+          property: initialNumericDraft.property
+        },
+        matchingNumericCandidate?.properties ?? []
+      )
+    : draft;
+  const session: VscodeReferencePickCanvasSession = { request, target, candidates, draft: seededDraft };
   const result: VscodeReferencePickStartedResult = {
     ...resultBase(session),
     status: "started",
-    candidateReferences: uniqueCandidateReferences(candidates)
+    candidateReferences: uniqueCandidateReferences(candidates),
+    ...(target.role === "numericPropertyBase" ? { numericCandidates } : {})
   };
   return { session, result };
 };
@@ -175,8 +245,26 @@ export const selectVscodeReferencePickCanvasDraft = (
   selection: ReferencePickHover | null
 ): VscodeReferencePickCanvasSession => {
   if (selection && !optionBelongsToSession(session, selection.candidateElementId, selection.reference)) return session;
+  if (session.target.role === "numericPropertyBase") {
+    if (!selection) return { ...session, draft: selectReferencePickDraft(session.draft, null) };
+    const option = session.candidates
+      .find((candidate) => candidate.elementId === selection.candidateElementId)
+      ?.options.find((candidate) => candidate.kind === "numericProperty" &&
+        referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(selection.reference));
+    return option?.kind === "numericProperty"
+      ? { ...session, draft: selectReferencePickNumericGeometry(session.draft, selection, option.properties) }
+      : session;
+  }
   return { ...session, draft: selectReferencePickDraft(session.draft, selection) };
 };
+
+export const selectVscodeReferencePickCanvasNumericProperty = (
+  session: VscodeReferencePickCanvasSession,
+  property: VscodeReferencePickNumericPropertyDraft["property"]
+): VscodeReferencePickCanvasSession => ({
+  ...session,
+  draft: selectReferencePickNumericProperty(session.draft, property)
+});
 
 export const confirmVscodeReferencePickCanvasSession = (
   session: VscodeReferencePickCanvasSession
@@ -184,11 +272,20 @@ export const confirmVscodeReferencePickCanvasSession = (
   const draft = confirmReferencePickSession(session.draft);
   const updated = { ...session, draft };
   const references = confirmedReferencePickResult(draft);
+  const numericProperty = confirmedReferencePickNumericResult(draft);
   return {
     session: updated,
     result: references
-      ? { ...resultBase(updated), status: "confirmed", references }
-      : null
+      ? { ...resultBase(updated), status: "confirmed", resultKind: "geometry", references }
+      : numericProperty
+        ? {
+            ...resultBase(updated),
+            status: "confirmed",
+            resultKind: "numericProperty",
+            reference: numericProperty.reference,
+            property: numericProperty.property
+          }
+        : null
   };
 };
 
@@ -205,8 +302,41 @@ export const cancelVscodeReferencePickCanvasSession = (
 export const referencePickCanvasResultMatchesSession = (
   session: VscodeReferencePickCanvasSession,
   result: VscodeReferencePickResult
-): boolean =>
-  result.requestId === session.request.requestId &&
-  result.documentUri === session.request.documentUri &&
-  result.documentVersion === session.request.documentVersion &&
-  sameReferencePickTargetProof(result.targetProof, session.request.targetProof);
+): boolean => {
+  if (
+    result.requestId !== session.request.requestId ||
+    result.documentUri !== session.request.documentUri ||
+    result.documentVersion !== session.request.documentVersion ||
+    !sameReferencePickTargetProof(result.targetProof, session.request.targetProof)
+  ) return false;
+  if (result.status === "started") {
+    if (!result.candidateReferences.every(isCanonicalReferencePickReference)) return false;
+    return session.target.role !== "numericPropertyBase"
+      ? result.numericCandidates === undefined
+      : result.numericCandidates !== undefined &&
+        result.numericCandidates.every(isValidNumericReferencePickCandidate) &&
+        result.numericCandidates.every((candidate) => session.candidates.some((entry) =>
+          entry.options.some((option) => option.kind === "numericProperty" &&
+            referencePickReferenceKey(option.reference) === referencePickReferenceKey(candidate.reference) &&
+            candidate.properties.every((property) => option.properties.includes(property))
+          )
+        ));
+  }
+  if (result.status !== "confirmed") return true;
+  if (result.resultKind === "numericProperty") {
+    if (session.target.role !== "numericPropertyBase") return false;
+    const option = session.candidates
+      .flatMap((candidate) => candidate.options)
+      .find((candidate) => candidate.kind === "numericProperty" &&
+        referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(result.reference));
+    return Boolean(
+      option?.kind === "numericProperty" &&
+      option.properties.includes(result.property) &&
+      isCanonicalReferencePickReference(result.reference) &&
+      result.reference.pointKey === undefined &&
+      (session.target.numericProperty?.kind !== "fixedProperty" ||
+        session.target.numericProperty.property === result.property)
+    );
+  }
+  return session.target.role !== "numericPropertyBase";
+}

@@ -28,6 +28,9 @@ export const numericReferencePickProperties: readonly NumericMeasurementKey[] = 
   "endHandleLength"
 ];
 
+export const isNumericMeasurementKey = (value: unknown): value is NumericMeasurementKey =>
+  typeof value === "string" && numericReferencePickProperties.includes(value as NumericMeasurementKey);
+
 export const numericReferencePropertiesForGeometry = (
   geometry: NumericReferenceGeometry
 ): readonly NumericMeasurementKey[] => {

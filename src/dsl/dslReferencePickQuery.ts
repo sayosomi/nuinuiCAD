@@ -26,12 +26,18 @@ import {
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import { isNumericMeasurementKey } from "../geometry/numericReferenceProperties";
 
 export type DslReferencePickRange = { from: number; to: number };
 
 export type DslReferencePickRole = "geometry" | "endpoint" | "numericPropertyBase";
 
 export type DslReferencePickMultiplicity = "single" | "multiple";
+
+export type DslReferencePickNumericPropertyTarget =
+  | { kind: "propertySelectionRequired" }
+  | { kind: "fixedProperty"; property: NumericMeasurementKey };
 
 export type DslReferencePickSourceAnchor = {
   sourceRevision: SourceRevision;
@@ -48,6 +54,9 @@ export type DslReferencePickTarget = {
   role: DslReferencePickRole;
   multiplicity: DslReferencePickMultiplicity;
   range: DslReferencePickRange;
+  /** Operation activation span; numeric-property targets may edit only a sub-span. */
+  activationRange?: DslReferencePickRange;
+  numericProperty?: DslReferencePickNumericPropertyTarget;
 };
 
 export type DslReferencePickSemanticSnapshot = {
@@ -80,6 +89,13 @@ type PickExpectation = {
   expectedGeometryInterface: ModuleGeometryInterfaceType;
   role: DslReferencePickRole;
   multiplicity: DslReferencePickMultiplicity;
+};
+
+type NumericOperandTarget = {
+  expectation: PickExpectation;
+  range: DslSpan;
+  activationRange?: DslSpan;
+  numericProperty?: DslReferencePickNumericPropertyTarget;
 };
 
 const semanticSourceText = (semantic: DslReferencePickSemanticSnapshot) =>
@@ -247,13 +263,15 @@ const callValueRange = (
 const targetFromExpectation = (
   anchor: DslReferencePickSourceAnchor,
   expectation: PickExpectation,
-  range: DslReferencePickRange
+  range: DslReferencePickRange,
+  details: Pick<DslReferencePickTarget, "activationRange" | "numericProperty"> = {}
 ): DslReferencePickTarget => ({
   sourceAnchor: anchor,
   expectedGeometryInterface: expectation.expectedGeometryInterface,
   role: expectation.role,
   multiplicity: expectation.multiplicity,
-  range
+  range,
+  ...details
 });
 
 const scalarTokenSpan = (token: ScalarExpressionToken): DslSpan =>
@@ -261,7 +279,7 @@ const scalarTokenSpan = (token: ScalarExpressionToken): DslSpan =>
 
 const tokenOwnsCaret = (source: string, expressionSpan: DslSpan, token: ScalarExpressionToken, position: number) => {
   const span = scalarTokenSpan(token);
-  if (position > span.start && position < span.end) return true;
+  if (position >= span.start && position < span.end) return true;
   if (position !== span.end) return false;
   return source.slice(span.end, expressionSpan.end).trim().length === 0;
 };
@@ -270,7 +288,7 @@ const numericOperandTarget = (
   source: string,
   logicalPosition: number,
   expressionSpan: DslSpan
-): { expectation: PickExpectation; range: DslSpan } | null => {
+): NumericOperandTarget | null => {
   if (logicalPosition < expressionSpan.start || logicalPosition > expressionSpan.end) return null;
   const tokenized = tokenizeScalarExpression(source, expressionSpan);
   if (tokenized.error) return null;
@@ -282,14 +300,32 @@ const numericOperandTarget = (
   };
 
   if (token?.kind === "geometryProperty") {
+    if (!isNumericMeasurementKey(token.property)) return null;
     const baseRange = { start: token.span.start, end: token.elementNameSpan.end };
-    return logicalPosition > baseRange.start && logicalPosition <= baseRange.end
-      ? { expectation, range: baseRange }
+    return logicalPosition >= baseRange.start && logicalPosition <= token.span.end
+      ? {
+          expectation,
+          range: baseRange,
+          activationRange: token.span,
+          numericProperty: { kind: "fixedProperty", property: token.property }
+        }
       : null;
   }
-  if (token?.kind === "reference") return { expectation, range: token.span };
+  if (token?.kind === "reference") {
+    return {
+      expectation,
+      range: token.span,
+      numericProperty: { kind: "propertySelectionRequired" }
+    };
+  }
   if (token?.kind === "literal") {
-    return token.literal.kind === "number" ? { expectation, range: token.literal.span } : null;
+    return token.literal.kind === "number"
+      ? {
+          expectation,
+          range: token.literal.span,
+          numericProperty: { kind: "propertySelectionRequired" }
+        }
+      : null;
   }
   if (token) return null;
 
@@ -300,7 +336,11 @@ const numericOperandTarget = (
     { kind: "number" }
   );
   if (completion?.kind !== "operand" || completion.expectedType?.kind !== "number") return null;
-  return { expectation, range: { start: completion.from, end: completion.to } };
+  return {
+    expectation,
+    range: { start: completion.from, end: completion.to },
+    numericProperty: { kind: "propertySelectionRequired" }
+  };
 };
 
 const constructionParameter = (
@@ -408,7 +448,16 @@ const targetForCall = (
   const numeric = numericOperandTarget(call.logicalText, call.logicalCursorPosition, argument.valueSpan);
   if (!numeric) return null;
   const range = physicalRangeForLogical(exact, numeric.range, position);
-  return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
+  if (!range) return null;
+  const activationRange = numeric.activationRange
+    ? physicalRangeForLogical(exact, numeric.activationRange, position)
+    : range;
+  return activationRange
+    ? targetFromExpectation(anchor, numeric.expectation, range, {
+        activationRange,
+        numericProperty: numeric.numericProperty
+      })
+    : null;
 };
 
 const callTarget = (
@@ -460,7 +509,10 @@ const emptyConstructionTarget = (
     expectedGeometryInterface: "path",
     role: "numericPropertyBase",
     multiplicity: "single"
-  }, range);
+  }, range, {
+    activationRange: range,
+    numericProperty: { kind: "propertySelectionRequired" }
+  });
 };
 
 const typedDeclarationTarget = (
@@ -481,7 +533,16 @@ const typedDeclarationTarget = (
   const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, expressionSpan);
   if (!numeric) return null;
   const range = physicalRangeForLogical(exact, numeric.range, position);
-  return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
+  if (!range) return null;
+  const activationRange = numeric.activationRange
+    ? physicalRangeForLogical(exact, numeric.activationRange, position)
+    : range;
+  return activationRange
+    ? targetFromExpectation(anchor, numeric.expectation, range, {
+        activationRange,
+        numericProperty: numeric.numericProperty
+      })
+    : null;
 };
 
 const setNumericTarget = (
@@ -499,7 +560,16 @@ const setNumericTarget = (
   const numeric = numericOperandTarget(exact.statement.logicalText, exact.logicalPosition, context.expressionSpan);
   if (!numeric) return null;
   const range = physicalRangeForLogical(exact, numeric.range, position);
-  return range ? targetFromExpectation(anchor, numeric.expectation, range) : null;
+  if (!range) return null;
+  const activationRange = numeric.activationRange
+    ? physicalRangeForLogical(exact, numeric.activationRange, position)
+    : range;
+  return activationRange
+    ? targetFromExpectation(anchor, numeric.expectation, range, {
+        activationRange,
+        numericProperty: numeric.numericProperty
+      })
+    : null;
 };
 
 /**

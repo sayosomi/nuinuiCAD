@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
-import type { ReferencePickHover } from "../model/referencePickSession";
+import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
+import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { CadElement, ComputedLine, EvaluationResult } from "../types/geometry";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 
@@ -13,6 +15,8 @@ const sessionFor = ({
   multiplicity = "single",
   draftReferences = [],
   candidates = [],
+  requestId = 1,
+  numericProperty,
   status = "active"
 }: {
   expectedGeometryInterface?: "point" | "line" | "path";
@@ -20,13 +24,18 @@ const sessionFor = ({
   multiplicity?: "single" | "multiple";
   draftReferences?: readonly { base: string; pointKey?: string }[];
   candidates?: readonly ReferencePickCandidate[];
+  requestId?: number;
+  numericProperty?: ReferencePickNumericPropertySession | null;
   status?: "active" | "confirmed" | "canceled";
 } = {}): VscodeReferencePickCanvasSession => ({
-  request: {},
+  request: { requestId },
   target: {
     expectedGeometryInterface,
     role,
-    multiplicity
+    multiplicity,
+    ...(numericProperty ? { numericProperty: numericProperty.target } : role === "numericPropertyBase"
+      ? { numericProperty: { kind: "propertySelectionRequired" as const } }
+      : {})
   },
   candidates,
   draft: {
@@ -35,6 +44,13 @@ const sessionFor = ({
     multiplicity,
     hover: null,
     draftReferences,
+    numericProperty: numericProperty ?? (role === "numericPropertyBase" ? {
+      target: { kind: "propertySelectionRequired" },
+      stage: "geometrySelection",
+      selectedGeometry: null,
+      properties: [],
+      draft: null
+    } : null),
     status
   }
 } as unknown as VscodeReferencePickCanvasSession);
@@ -68,13 +84,15 @@ const pointCandidate = ({
 type OverlayCallbacks = {
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
+  onSelectNumericProperty: (property: NumericMeasurementKey) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
-  overrides: Partial<OverlayCallbacks> = {}
+  overrides: Partial<OverlayCallbacks> = {},
+  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {}
 ) => {
   const viewport = document.createElement("div");
   viewport.tabIndex = 0;
@@ -82,6 +100,7 @@ const renderOverlay = (
   const callbacks: OverlayCallbacks = {
     onHover: overrides.onHover ?? vi.fn<(hover: ReferencePickHover | null) => void>(),
     onSelect: overrides.onSelect ?? vi.fn<(selection: ReferencePickHover | null) => void>(),
+    onSelectNumericProperty: overrides.onSelectNumericProperty ?? vi.fn<(property: NumericMeasurementKey) => void>(),
     onConfirm: overrides.onConfirm ?? vi.fn<() => void>(),
     onCancel: overrides.onCancel ?? vi.fn<() => void>()
   };
@@ -91,19 +110,63 @@ const renderOverlay = (
       viewportSize={{ width: 640, height: 480 }}
       canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
       canvasTheme={LEGACY_CANVAS_THEME}
-      elements={[]}
-      evaluation={emptyEvaluationResult([])}
+      elements={surface.elements ?? []}
+      evaluation={surface.evaluation ?? emptyEvaluationResult(surface.elements ?? [])}
       visibilityProfiles={[]}
       activeVisibilityProfileId={null}
       session={session}
       onHover={callbacks.onHover}
       onSelect={callbacks.onSelect}
+      onSelectNumericProperty={callbacks.onSelectNumericProperty}
       onConfirm={callbacks.onConfirm}
       onCancel={callbacks.onCancel}
     />,
     { container: viewport }
   );
   return { viewport, callbacks, view };
+};
+
+const numericLineElement: CadElement = {
+  id: "Base",
+  name: "Base",
+  type: "line",
+  activity: "visible",
+  startPoint: { mode: "coordinate", x: -100, y: 0 },
+  endPoint: { mode: "coordinate", x: 100, y: 0 }
+};
+
+const numericLineGeometry: ComputedLine = {
+  kind: "line",
+  elementId: "Base",
+  name: "Base",
+  startPointId: null,
+  endPointId: null,
+  start: { kind: "point", elementId: "Base:start", name: "start", x: -100, y: 0 },
+  end: { kind: "point", elementId: "Base:end", name: "end", x: 100, y: 0 },
+  length: 200,
+  startAngleDeg: 0,
+  endAngleDeg: 180,
+  startTangentAngleDeg: 0,
+  endTangentAngleDeg: 180
+};
+
+const numericLineEvaluation: EvaluationResult = {
+  ...emptyEvaluationResult([numericLineElement]),
+  computedGeometry: new Map([["Base", numericLineGeometry]]),
+  evaluatedElementIds: new Set(["Base"]),
+  effectiveVisibleElementIds: new Set(["Base"]),
+  effectiveEnabledElementIds: new Set(["Base"])
+};
+
+const numericLineCandidate: ReferencePickCandidate = {
+  elementId: "Base",
+  actualGeometryInterface: "line",
+  options: [{
+    kind: "numericProperty",
+    label: "Base",
+    reference: { base: "Base" },
+    properties: ["length", "startTangentAngleDeg"]
+  }]
 };
 
 describe("VSCodeReferencePickOverlay", () => {
@@ -230,6 +293,57 @@ describe("VSCodeReferencePickOverlay", () => {
     });
 
     view.unmount();
+    viewport.remove();
+  });
+
+  it("opens the numeric-property chooser after a geometry hit and keeps Pick active on Escape", () => {
+    const onSelect = vi.fn<(hover: ReferencePickHover | null) => void>();
+    const onSelectNumericProperty = vi.fn<(property: NumericMeasurementKey) => void>();
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        requestId: 17,
+        candidates: [numericLineCandidate]
+      }),
+      { onSelect, onSelectNumericProperty },
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+
+    fireEvent.pointerMove(viewport, { clientX: 320, clientY: 240 });
+    expect(viewport.style.cursor).toBe("pointer");
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getByRole("listbox", { name: "Reference Pick numeric properties" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /長さ/ })).toBeInTheDocument();
+    expect(onSelect).toHaveBeenCalledWith({ candidateElementId: "Base", reference: { base: "Base" } });
+
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(onSelectNumericProperty).toHaveBeenCalledWith("startTangentAngleDeg");
+    expect(screen.queryByRole("listbox", { name: "Reference Pick numeric properties" })).toBeNull();
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+    expect(screen.queryByRole("listbox", { name: "Reference Pick numeric properties" })).toBeNull();
+
+    fireEvent.pointerMove(viewport, { clientX: 20, clientY: 20 });
+    expect(viewport.style.cursor).toBe("");
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("restores the normal Canvas cursor when the active Pick overlay is removed", () => {
+    const { viewport, view } = renderOverlay(
+      sessionFor({ expectedGeometryInterface: "path", candidates: [numericLineCandidate] }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+    viewport.style.cursor = "crosshair";
+    fireEvent.pointerMove(viewport, { clientX: 320, clientY: 240 });
+    expect(viewport.style.cursor).toBe("pointer");
+    view.unmount();
+    expect(viewport.style.cursor).toBe("crosshair");
     viewport.remove();
   });
 
