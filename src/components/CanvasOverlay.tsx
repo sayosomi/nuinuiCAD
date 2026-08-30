@@ -7,6 +7,10 @@ import {
   type CanvasTheme
 } from "./canvasTheme";
 import type {
+  CanvasRectangleMembershipMode,
+  ScreenSelectionRectangle
+} from "./canvasRectangleSelection";
+import type {
   BezierEditingHelperOverlay,
   BezierHandleOverlay,
   CanvasOverlayArc,
@@ -26,6 +30,10 @@ type CanvasOverlayProps = {
   overlayArcs: CanvasOverlayArc[];
   overlayCurves: CanvasOverlayCurve[];
   overlayOffsetLines: CanvasOverlayOffsetLine[];
+  rectangleSelection?: {
+    rectangle: ScreenSelectionRectangle;
+    mode: CanvasRectangleMembershipMode;
+  } | null;
   overlayPoints: CanvasOverlayPoint[];
   overlayTexts: CanvasOverlayText[];
   overlayIdentityCandidates?: CanvasIdentityCandidate[];
@@ -61,6 +69,7 @@ export const CanvasOverlay = ({
   overlayArcs,
   overlayCurves,
   overlayOffsetLines,
+  rectangleSelection = null,
   overlayPoints,
   overlayTexts,
   overlayIdentityCandidates = [],
@@ -302,6 +311,23 @@ export const CanvasOverlay = ({
           />
         ))
       : null}
+    {rectangleSelection ? (
+      <rect
+        className="canvas-rectangle-selection"
+        data-canvas-rectangle-selection={rectangleSelection.mode}
+        x={rectangleSelection.rectangle.left}
+        y={rectangleSelection.rectangle.top}
+        width={rectangleSelection.rectangle.right - rectangleSelection.rectangle.left}
+        height={rectangleSelection.rectangle.bottom - rectangleSelection.rectangle.top}
+        fill="var(--canvas-selection)"
+        fillOpacity={0.12}
+        stroke="var(--canvas-selection)"
+        strokeWidth={1.5}
+        strokeDasharray={rectangleSelection.mode === "crossing" ? "6 4" : undefined}
+        vectorEffect="non-scaling-stroke"
+        style={{ pointerEvents: "none" }}
+      />
+    ) : null}
   </svg>
   );
 };

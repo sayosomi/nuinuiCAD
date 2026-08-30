@@ -55,6 +55,24 @@ describe("Canvas rectangle membership", () => {
     expect(members("crossing", pathInput)).toEqual(["arc", "curve", "offset"]);
   });
 
+  it("uses sampled polyline geometry for Window and Crossing semantics", () => {
+    const input = {
+      polylines: [
+        {
+          polyline: identity("contained-polyline"),
+          points: [{ x: 1, y: 1 }, { x: 9, y: 9 }]
+        },
+        {
+          polyline: identity("crossing-polyline"),
+          points: [{ x: -5, y: 5 }, { x: 5, y: 5 }, { x: 15, y: 5 }]
+        }
+      ]
+    };
+
+    expect(members("window", input)).toEqual(["contained-polyline"]);
+    expect(members("crossing", input)).toEqual(["contained-polyline", "crossing-polyline"]);
+  });
+
   it("handles image polygon containment and crossing when no image corner lies inside", () => {
     const input = {
       images: [

@@ -3,6 +3,7 @@ import type {
 import type { CanvasTextWidthMeasurer } from "../geometry/canvasDrawingBounds";
 import type { BezierHandleRole } from "../model/elementDragTransforms";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
+import type { CanvasRectangleSelectionUpdateMode } from "../commands/canvasRectangleSelectionCommands";
 import type { CanvasSelectionMode } from "../commands/selectionCommands";
 import type {
   ActiveLinePickTarget,
@@ -113,6 +114,10 @@ export type CanvasHostAdapter = {
     selectionMode: CanvasSelectionMode
   ) => unknown;
   finalizeCanvasSelectionSession: (previousSelection: SelectionSnapshot) => unknown;
+  commitCanvasRectangleSelection: (
+    memberIds: readonly ElementId[],
+    mode: CanvasRectangleSelectionUpdateMode
+  ) => unknown;
   clearCanvasSelection: () => unknown;
   movePointElementByDelta: (action: CanvasPointDragAction) => unknown;
   moveBezierHandleByDelta: (action: CanvasBezierHandleDragAction) => unknown;

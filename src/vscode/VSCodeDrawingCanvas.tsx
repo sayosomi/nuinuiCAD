@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
 import type { CommandContext } from "../commands/commandTypes";
+import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
 import {
   canvasSelectionSnapshot,
   finalizeCanvasSelectionSession,
@@ -342,6 +343,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         previewCanvasSelection(previousSelection, elementId, selectionMode),
       finalizeCanvasSelectionSession: (previousSelection) =>
         finalizeCanvasSelectionSession(previousSelection),
+      commitCanvasRectangleSelection: (memberIds, mode) =>
+        commitCanvasRectangleSelection(memberIds, mode, true),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
         ? dragPreviewScheduler.dispatchPreview(action, evaluationState)

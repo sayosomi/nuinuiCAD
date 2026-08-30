@@ -83,6 +83,7 @@ const createHostAdapter = (
   }),
   previewCanvasSelection: vi.fn(),
   finalizeCanvasSelectionSession: vi.fn(),
+  commitCanvasRectangleSelection: vi.fn(),
   clearCanvasSelection: vi.fn(),
   movePointElementByDelta: vi.fn(),
   moveBezierHandleByDelta: vi.fn(),
