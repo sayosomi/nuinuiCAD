@@ -34,6 +34,7 @@ describe("command-line unnamed promotion", () => {
       revision: 1,
       elements
     });
+    session = fillCurrentStep(session, "方向線");
     session = fillCurrentStep(session, {
       mode: "coordinate",
       x: { kind: "expression", expression: "second.length + unknown.length" },
@@ -41,7 +42,6 @@ describe("command-line unnamed promotion", () => {
     });
     session = fillCurrentStep(session, { kind: "expression", expression: "first.length + second.length" });
     session = fillCurrentStep(session, 20);
-    session = fillCurrentStep(session, "方向線");
 
     expect(directCommandLineReferenceIds(session, elements)).toEqual(["second", "base", "first"]);
   });
@@ -53,6 +53,7 @@ describe("command-line unnamed promotion", () => {
       revision: 1,
       elements
     });
+    session = fillCurrentStep(session, "コピー線");
     session = fillCurrentStep(session, ["base", "base"]);
     session = fillCurrentStep(session, referenceAnchor("second"));
     session = fillCurrentStep(session, derivedAnchor("first", "end"));

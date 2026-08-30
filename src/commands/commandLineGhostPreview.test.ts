@@ -34,7 +34,7 @@ describe("command-line ghost preview", () => {
     expect(previewFor(session)).toBeNull();
   });
 
-  it("waits for a defaulted number to be explicitly skipped before previewing", () => {
+  it("keeps a declared number blank when it is skipped", () => {
     const document = compiled(["nui 4", "line AB = segment(start: (0, 0), end: (10, 0))"].join("\n"));
     const line = document.elements[0];
     const recipe = creationRecipeForType("lineDivisionPoint")!;
@@ -43,6 +43,7 @@ describe("command-line ghost preview", () => {
       revision: 1,
       elements: document.elements
     });
+    session = skipCurrentStep(session);
     session = fillCurrentStep(session, { lineId: line.id, endpointKey: "start" });
 
     expect(commandLineGhostPreview({
@@ -56,7 +57,8 @@ describe("command-line ghost preview", () => {
       session,
       elements: document.elements,
       evaluationLimitIndex: document.evaluationLimitIndex
-    })?.elements.at(-1)).toMatchObject({ type: "lineDivisionPoint", placement: { kind: "ratio", value: 1 } });
+    })).toBeNull();
+    expect(session.args).not.toHaveProperty("ratio");
   });
 
   it("permits an omitted reference only when its parameter definition explicitly allows none", () => {
@@ -74,6 +76,7 @@ describe("command-line ghost preview", () => {
       revision: 1,
       elements: document.elements
     });
+    session = skipCurrentStep(session);
     session = fillCurrentStep(session, referenceAnchor(document.elements[0].id));
     session = fillCurrentStep(session, referenceAnchor(document.elements[1].id));
 
@@ -99,6 +102,7 @@ describe("command-line ghost preview", () => {
       revision: 1,
       elements: document.elements
     });
+    session = skipCurrentStep(session);
     session = fillCurrentStep(session, referenceAnchor(document.elements[0].id));
     session = fillCurrentStep(session, referenceAnchor("missing-point" as never));
 

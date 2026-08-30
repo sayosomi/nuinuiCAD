@@ -16,9 +16,9 @@ describe("common tangent creation command", () => {
     expect(recipe).not.toBeNull();
     expect(recipe!.type).toBe("commonTangentLine");
     expect(recipe!.steps.map((step) => step.kind === "name" ? "name" : step.key)).toEqual([
+      "name",
       "firstLineId",
-      "secondLineId",
-      "name"
+      "secondLineId"
     ]);
     expect(commands.addCommonTangentLine).toMatchObject({
       label: "Add Common Tangent",

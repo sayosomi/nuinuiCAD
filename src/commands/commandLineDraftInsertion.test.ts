@@ -42,9 +42,9 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     const pastBefore = useCadDocumentStore.getState().past.length;
 
     expect(startAnchored("line")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name
     expect(submitCommandLineInput("")).toBe(true); // start
     expect(submitCommandLineInput("")).toBe(true); // end
-    expect(submitCommandLineInput("")).toBe(true); // name
     expect(confirmCommandLineSession()).toBe(true);
 
     const document = useCadDocumentStore.getState();
@@ -63,9 +63,9 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   it("renders a blank lineReferenceList as `sources: `, never `sources: []`, end to end", () => {
     useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("offsetLine")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name
     expect(submitCommandLineInput("")).toBe(true); // sources
     expect(submitCommandLineInput("")).toBe(true); // distance
-    expect(submitCommandLineInput("")).toBe(true); // name
     expect(confirmCommandLineSession()).toBe(true);
 
     const sourceText = useCadDocumentStore.getState().sourceText;
@@ -73,29 +73,27 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(sourceText).not.toContain("sources: []");
   });
 
-  it("keeps a declared numeric default even inside an otherwise-blank draft", () => {
+  it("keeps a declared numeric default genuinely blank inside an otherwise-blank draft", () => {
     useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("divisionPoint")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name
     expect(submitCommandLineInput("")).toBe(true); // startPoint - blank
     expect(submitCommandLineInput("")).toBe(true); // endPoint - blank
-    expect(submitCommandLineInput("")).toBe(true); // ratio - has emptyInputDefaultValue, stays filled
-    expect(submitCommandLineInput("")).toBe(true); // name
+    expect(submitCommandLineInput("")).toBe(true); // ratio - declared default remains genuinely blank
     expect(confirmCommandLineSession()).toBe(true);
 
     const sourceText = useCadDocumentStore.getState().sourceText;
     expect(sourceText).toContain("start: ,");
     expect(sourceText).toContain("end: ,");
-    expect(sourceText).toContain("ratio: 1");
-    expect(sourceText).not.toContain("ratio: ,");
-    expect(sourceText).not.toContain("ratio: \n");
+    expect(sourceText).toContain("ratio: ,");
   });
 
   it("does not block confirmation on an unresolved value, and commits the raw expression as-is", () => {
     useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startAnchored("freePoint")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name - blank
     expect(submitCommandLineInput("@doesNotExist + 5")).toBe(true);
     expect(submitCommandLineInput("")).toBe(true); // y - blank
-    expect(submitCommandLineInput("")).toBe(true); // name
     expect(confirmCommandLineSession()).toBe(true);
 
     expect(useCadDocumentStore.getState().sourceText).toContain("x: @doesNotExist + 5");
@@ -196,9 +194,9 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
   it("still commits a fully-filled creation without a known Source Editor insertion line (regression)", () => {
     useCadDocumentStore.getState().commitText("nui 4", "test");
     expect(startCommandLineCreation("freePoint")).toBe(true);
+    submitCommandLineInput("");
     submitCommandLineInput("1");
     submitCommandLineInput("2");
-    submitCommandLineInput("");
 
     expect(confirmCommandLineSession()).toBe(true);
     expect(useCadDocumentStore.getState().elements).toHaveLength(1);

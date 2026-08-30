@@ -5,20 +5,24 @@ import { sampleElements } from "../sampleData";
 import type { CadElement } from "../types/geometry";
 import type { CreationRecipe } from "./creationRecipes";
 import {
+  activateStep,
   beginStepEdit,
   cancelStepEdit,
   commitStepEdit,
   currentStep,
   effectiveCommandLineArgs,
   fillCurrentStep,
+  hasCommandLineStepValue,
   isEditingCommandLineStep,
   retreatStep,
   sessionCanConfirm,
   setEditingDraft,
   sessionIsStale,
+  skipUnfilledStepsToReview,
   skipCurrentStep,
   startSession
 } from "./commandLineSession";
+import type { CommandLineStepValue } from "./commandLineSession";
 
 const recipe: CreationRecipe = {
   type: "line",
@@ -45,13 +49,13 @@ describe("commandLineSession", () => {
     expect(restarted).not.toBe(first);
   });
 
-  it("fills, skips permitted steps, and confirms only completed recipe progress", () => {
+  it("fills, skips steps without materializing defaults, and confirms only completed recipe progress", () => {
     const point = fillCurrentStep(start(), referenceAnchor(""));
     expect(currentStep(point)).toMatchObject({ kind: "number", key: "offset" });
     expect(sessionCanConfirm(point)).toBe(false);
 
     const withDefault = skipCurrentStep(point);
-    expect(withDefault.args).toMatchObject({ offset: 12 });
+    expect(withDefault.args).not.toHaveProperty("offset");
     expect(currentStep(withDefault)).toEqual({ kind: "name", autoSuggest: true });
 
     const complete = skipCurrentStep(withDefault);
@@ -72,7 +76,7 @@ describe("commandLineSession", () => {
     expect(sessionCanConfirm({ ...complete, currentStepIndex: recipe.steps.length - 1 })).toBe(false);
   });
 
-  it("skips every step kind: a declared number default is still applied, every other kind advances blank", () => {
+  it("skips every step kind while leaving every argument genuinely blank", () => {
     const point = start();
     const skippedPoint = skipCurrentStep(point);
     expect(skippedPoint.currentStepIndex).toBe(1);
@@ -80,7 +84,7 @@ describe("commandLineSession", () => {
     expect(currentStep(skippedPoint)).toMatchObject({ kind: "number", key: "offset" });
 
     const withDefault = skipCurrentStep(skippedPoint);
-    expect(withDefault.args).toMatchObject({ offset: 12 });
+    expect(withDefault.args).not.toHaveProperty("offset");
     expect(currentStep(withDefault)).toEqual({ kind: "name", autoSuggest: true });
 
     const numberWithoutDefault: CreationRecipe = {
@@ -94,13 +98,58 @@ describe("commandLineSession", () => {
     expect(sessionCanConfirm(skippedNumber)).toBe(true);
   });
 
-  it("does not clear an actively-edited step back to blank for kinds with no default", () => {
-    const filled = fillCurrentStep(start(), referenceAnchor("point-a"));
-    const editing = beginStepEdit(filled, 0);
-    expect(skipCurrentStep(editing)).toBe(editing);
+  it("blanks every actively-edited step kind without changing the other arguments", () => {
+    const allStepKindsRecipe: CreationRecipe = {
+      type: "copyLine",
+      steps: [
+        { kind: "name", autoSuggest: true },
+        { kind: "number", key: "scale", prompt: "倍率", default: "1" },
+        { kind: "number", key: "angleDeg", prompt: "角度" },
+        { kind: "point", key: "startPoint", prompt: "始点" },
+        { kind: "endpoint", key: "endpoint", prompt: "端点" },
+        { kind: "line", key: "baseLineId", prompt: "基準線" },
+        { kind: "lineList", key: "baseLineIds", prompt: "基準線一覧" }
+      ]
+    };
+    let complete = startSession(allStepKindsRecipe, { insertionIndex: 0, revision: 0, elements: [] });
+    const values: CommandLineStepValue[] = [
+      "Copy",
+      2,
+      30,
+      referenceAnchor("point-a"),
+      { lineId: "line-a", endpointKey: "start" },
+      "line-a",
+      ["line-a", "line-b"]
+    ];
+    for (const value of values) {
+      complete = fillCurrentStep(complete, value);
+    }
+
+    for (const [stepIndex, key] of [
+      [0, "name"],
+      [1, "scale"],
+      [2, "angleDeg"],
+      [3, "startPoint"],
+      [4, "endpoint"],
+      [5, "baseLineId"],
+      [6, "baseLineIds"]
+    ] as const) {
+      const editing = beginStepEdit(complete, stepIndex);
+      const blanked = skipCurrentStep(editing);
+
+      expect(blanked.editingDraft).toBeNull();
+      expect(effectiveCommandLineArgs(blanked)).not.toHaveProperty(key);
+      expect(commitStepEdit(blanked)).toMatchObject({
+        currentStepIndex: allStepKindsRecipe.steps.length,
+        editingStepIndex: null,
+        args: Object.fromEntries(
+          Object.entries(complete.args).filter(([argumentKey]) => argumentKey !== key)
+        )
+      });
+    }
   });
 
-  it("retreat discards the returned-to step and all later values", () => {
+  it("retreat preserves the returned-to step and all later values", () => {
     const complete = fillCurrentStep(
       fillCurrentStep(
         fillCurrentStep(start(), referenceAnchor("point-a")),
@@ -110,13 +159,56 @@ describe("commandLineSession", () => {
     );
     const retreated = retreatStep(complete);
     expect(retreated.currentStepIndex).toBe(2);
-    expect(retreated.args).toEqual({ startPoint: referenceAnchor("point-a"), offset: 8 });
+    expect(retreated.args).toEqual({ startPoint: referenceAnchor("point-a"), offset: 8, name: "Line A" });
 
     const retreatedAgain = retreatStep(retreated);
     expect(retreatedAgain.currentStepIndex).toBe(1);
-    expect(retreatedAgain.args).toEqual({ startPoint: referenceAnchor("point-a") });
+    expect(retreatedAgain.args).toEqual({ startPoint: referenceAnchor("point-a"), offset: 8, name: "Line A" });
     const initial = start();
     expect(retreatStep(initial)).toBe(initial);
+  });
+
+  it("activates any recipe step without using traversal as value state", () => {
+    const complete = fillCurrentStep(
+      fillCurrentStep(
+        fillCurrentStep(start(), referenceAnchor("point-a")),
+        8
+      ),
+      "Line A"
+    );
+
+    const futureBlank = activateStep(start(), 2);
+    expect(futureBlank.currentStepIndex).toBe(2);
+    expect(futureBlank.args).toEqual({});
+    expect(hasCommandLineStepValue(futureBlank, 2)).toBe(false);
+
+    const earlier = activateStep(complete, 0);
+    expect(earlier.currentStepIndex).toBe(0);
+    expect(earlier.args).toEqual(complete.args);
+    expect(hasCommandLineStepValue(earlier, 0)).toBe(true);
+
+    const revised = fillCurrentStep(earlier, referenceAnchor("point-b"));
+    expect(revised.currentStepIndex).toBe(1);
+    expect(revised.args).toEqual({
+      startPoint: referenceAnchor("point-b"),
+      offset: 8,
+      name: "Line A"
+    });
+
+    const blanked = skipCurrentStep(activateStep(complete, 1));
+    expect(blanked.currentStepIndex).toBe(2);
+    expect(blanked.args).toEqual({ startPoint: referenceAnchor("point-a"), name: "Line A" });
+  });
+
+  it("skips all unfilled steps to review without filling or committing them", () => {
+    const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
+    const review = skipUnfilledStepsToReview(partial);
+
+    expect(review.currentStepIndex).toBe(recipe.steps.length);
+    expect(review.args).toEqual({ startPoint: referenceAnchor("point-a") });
+    expect(hasCommandLineStepValue(review, 1)).toBe(false);
+    expect(hasCommandLineStepValue(review, 2)).toBe(false);
+    expect(sessionCanConfirm(review)).toBe(true);
   });
 
   it("keeps an edited draft isolated until it is committed", () => {
