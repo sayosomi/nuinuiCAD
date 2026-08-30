@@ -1,10 +1,10 @@
 import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
-  numericReferencePropertiesForGeometry,
-  numericReferenceGeometrySupportsProperty,
-  type NumericReferenceGeometry
-} from "../geometry/numericReferenceProperties";
+  numericComputedGeometryPropertiesFor,
+  numericComputedGeometrySupportsProperty,
+  type NumericComputedGeometryProperty
+} from "../geometry/numericExpressions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
@@ -31,7 +31,6 @@ import type {
   EvaluationResult,
   PointAnchor
 } from "../types/geometry";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type {
   CanonicalGeometrySourceReference,
   ModuleSemanticCandidateContext
@@ -56,7 +55,7 @@ export type ReferencePickNumericPropertyOption = {
   kind: "numericProperty";
   label: string;
   reference: CanonicalGeometrySourceReference;
-  properties: readonly NumericMeasurementKey[];
+  properties: readonly NumericComputedGeometryProperty[];
 };
 
 export type ReferencePickCandidateOption =
@@ -84,7 +83,7 @@ type CandidateContext = {
 
 const numericReferenceGeometryFor = (
   geometry: ComputedGeometry
-): NumericReferenceGeometry | null =>
+): Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }> | null =>
   geometry.kind === "line" ||
   geometry.kind === "arcLine" ||
   geometry.kind === "bezierCurve" ||
@@ -295,11 +294,11 @@ export const referencePickCandidates = ({
     if (target.role === "numericPropertyBase") {
       const numericGeometry = numericReferenceGeometryFor(geometry);
       if (!numericGeometry) continue;
-      const properties = numericReferencePropertiesForGeometry(numericGeometry);
+      const properties = numericComputedGeometryPropertiesFor(numericGeometry);
       if (properties.length === 0) continue;
       if (
         target.numericProperty?.kind === "fixedProperty" &&
-        !numericReferenceGeometrySupportsProperty(numericGeometry, target.numericProperty.property)
+        !numericComputedGeometrySupportsProperty(numericGeometry, target.numericProperty.property)
       ) continue;
       candidates.push({
         elementId: element.id,

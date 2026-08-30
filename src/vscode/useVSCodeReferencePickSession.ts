@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type { ReferencePickHover } from "../model/referencePickSession";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { EvaluationResult } from "../types/geometry";
 import {
   cancelVscodeReferencePickCanvasSession,
@@ -202,7 +202,7 @@ export const useVSCodeReferencePickSession = ({
     replaceSession(selectVscodeReferencePickCanvasDraft(current, selection));
   }, [replaceSession]);
 
-  const selectNumericProperty = useCallback((property: NumericMeasurementKey) => {
+  const selectNumericProperty = useCallback((property: NumericComputedGeometryProperty) => {
     const current = sessionRef.current;
     if (!current) return;
     replaceSession(selectVscodeReferencePickCanvasNumericProperty(current, property));

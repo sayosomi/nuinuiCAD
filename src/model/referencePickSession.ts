@@ -3,7 +3,7 @@ import type {
   DslReferencePickRole,
   DslReferencePickNumericPropertyTarget
 } from "../dsl/dslReferencePickQuery";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
 import type { CanonicalGeometrySourceReference } from "./moduleSemanticCandidateBoundary";
@@ -18,14 +18,14 @@ export type ReferencePickHover = {
 export type ReferencePickNumericPropertyDraft = {
   candidateElementId: ElementId;
   reference: CanonicalGeometrySourceReference;
-  property: NumericMeasurementKey;
+  property: NumericComputedGeometryProperty;
 };
 
 export type ReferencePickNumericPropertySession = {
   target: DslReferencePickNumericPropertyTarget;
   stage: "geometrySelection" | "propertySelection" | "draft";
   selectedGeometry: ReferencePickHover | null;
-  properties: readonly NumericMeasurementKey[];
+  properties: readonly NumericComputedGeometryProperty[];
   draft: ReferencePickNumericPropertyDraft | null;
 };
 
@@ -106,7 +106,7 @@ const numericPropertySessionFor = (
 export const selectReferencePickNumericGeometry = (
   session: ReferencePickSession,
   selection: ReferencePickHover,
-  properties: readonly NumericMeasurementKey[]
+  properties: readonly NumericComputedGeometryProperty[]
 ): ReferencePickSession => {
   const numeric = numericPropertySessionFor(session);
   if (session.status !== "active" || !numeric) return session;
@@ -143,7 +143,7 @@ export const selectReferencePickNumericGeometry = (
 
 export const selectReferencePickNumericProperty = (
   session: ReferencePickSession,
-  property: NumericMeasurementKey
+  property: NumericComputedGeometryProperty
 ): ReferencePickSession => {
   const numeric = numericPropertySessionFor(session);
   if (
@@ -170,7 +170,7 @@ export const selectReferencePickNumericProperty = (
 export const seedReferencePickNumericPropertyDraft = (
   session: ReferencePickSession,
   selection: ReferencePickNumericPropertyDraft,
-  properties: readonly NumericMeasurementKey[]
+  properties: readonly NumericComputedGeometryProperty[]
 ): ReferencePickSession => {
   const numeric = numericPropertySessionFor(session);
   if (

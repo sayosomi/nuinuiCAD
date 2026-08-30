@@ -10,8 +10,10 @@ import {
 } from "../dsl/dslReferenceTokens";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
-import { isNumericMeasurementKey } from "../geometry/numericReferenceProperties";
+import {
+  isNumericComputedGeometryProperty,
+  type NumericComputedGeometryProperty
+} from "../geometry/numericExpressions";
 
 /**
  * Only source-position facts that are stable across Extension Host and Webview
@@ -33,12 +35,12 @@ export type VscodeReferencePickTargetProof = {
 
 export type VscodeReferencePickNumericPropertyDraft = {
   reference: CanonicalGeometrySourceReference;
-  property: NumericMeasurementKey;
+  property: NumericComputedGeometryProperty;
 };
 
 export type VscodeReferencePickNumericCandidate = {
   reference: CanonicalGeometrySourceReference;
-  properties: readonly NumericMeasurementKey[];
+  properties: readonly NumericComputedGeometryProperty[];
 };
 
 export type VscodeReferencePickStartRequest = {
@@ -83,7 +85,7 @@ export type VscodeReferencePickConfirmedResult =
       status: "confirmed";
       resultKind: "numericProperty";
       reference: CanonicalGeometrySourceReference;
-      property: NumericMeasurementKey;
+      property: NumericComputedGeometryProperty;
     });
 
 export type VscodeReferencePickTerminalResult = VscodeReferencePickResultBase & {
@@ -144,7 +146,7 @@ export const referencePickTargetProofFor = (
   if (!validRange(normalizedSource, target.range) || !validRange(normalizedSource, activationRange)) return null;
   if (
     (target.role === "numericPropertyBase" && !numericProperty) ||
-    (numericProperty?.kind === "fixedProperty" && !isNumericMeasurementKey(numericProperty.property))
+    (numericProperty?.kind === "fixedProperty" && !isNumericComputedGeometryProperty(numericProperty.property))
   ) return null;
   return {
     sourceAnchor: {
@@ -192,7 +194,7 @@ export const isValidNumericReferencePickCandidate = (
   candidate.reference.pointKey === undefined &&
   candidate.properties.length > 0 &&
   new Set(candidate.properties).size === candidate.properties.length &&
-  candidate.properties.every((property) => isNumericMeasurementKey(property));
+  candidate.properties.every((property) => isNumericComputedGeometryProperty(property));
 
 export const referencePickSourceForReference = (
   reference: CanonicalGeometrySourceReference

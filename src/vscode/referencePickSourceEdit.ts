@@ -4,7 +4,7 @@ import {
   type SourceSnapshot
 } from "../dsl/dslReferencePickQuery";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
-import { isNumericMeasurementKey } from "../geometry/numericReferenceProperties";
+import { isNumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {
   isCanonicalReferencePickReference,
   referencePickReferenceKey,
@@ -76,7 +76,7 @@ export const planVscodeReferencePickSourceEdit = ({
       references.length !== 0 ||
       !isCanonicalReferencePickReference(numericProperty.reference) ||
       numericProperty.reference.pointKey !== undefined ||
-      !isNumericMeasurementKey(numericProperty.property)
+      !isNumericComputedGeometryProperty(numericProperty.property)
     ) return null;
     if (
       target.numericProperty.kind === "fixedProperty" &&

@@ -188,6 +188,36 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
+  it("accepts canonical Arc and indexed Bezier numeric properties", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])",
+      "point P = offset(from: @A, dx: @Arc.radius, dy: @Arc.sweepAngleDeg)",
+      "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const cases = [
+      ["@Arc.radius", "radius"],
+      ["@Arc.sweepAngleDeg", "sweepAngleDeg"],
+      ["@Curve.intermediatePoints[1].x", "intermediatePoints[1].x"]
+    ] as const;
+
+    for (const [reference, property] of cases) {
+      const from = source.indexOf(reference);
+      const result = queryAt(source, compiled, from + reference.indexOf(".") + 2);
+      expect(result).toMatchObject({
+        role: "numericPropertyBase",
+        numericProperty: { kind: "fixedProperty", property },
+        range: { from, to: from + reference.indexOf(".") }
+      });
+      expect(result?.activationRange).toEqual({ from, to: from + reference.length });
+    }
+  });
+
   it("supports empty numeric operands and typed number declarations", () => {
     const emptySource = [
       "nui 4",

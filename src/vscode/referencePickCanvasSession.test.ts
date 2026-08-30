@@ -248,7 +248,17 @@ describe("VS Code Canvas reference pick session bridge", () => {
     if (!started.session || started.result.status !== "started") throw new Error("session did not start");
     expect(started.result.numericCandidates).toContainEqual({
       reference: { base: "Base" },
-      properties: ["length", "startTangentAngleDeg", "endTangentAngleDeg"]
+      properties: expect.arrayContaining([
+        "length",
+        "startAngleDeg",
+        "endAngleDeg",
+        "startTangentAngleDeg",
+        "endTangentAngleDeg",
+        "startPoint.x",
+        "startPoint.y",
+        "endPoint.x",
+        "endPoint.y"
+      ])
     });
 
     const candidate = started.session.candidates[0];

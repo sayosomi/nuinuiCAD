@@ -26,8 +26,10 @@ import {
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
-import { isNumericMeasurementKey } from "../geometry/numericReferenceProperties";
+import {
+  isNumericComputedGeometryProperty,
+  type NumericComputedGeometryProperty
+} from "../geometry/numericExpressions";
 
 export type DslReferencePickRange = { from: number; to: number };
 
@@ -37,7 +39,7 @@ export type DslReferencePickMultiplicity = "single" | "multiple";
 
 export type DslReferencePickNumericPropertyTarget =
   | { kind: "propertySelectionRequired" }
-  | { kind: "fixedProperty"; property: NumericMeasurementKey };
+  | { kind: "fixedProperty"; property: NumericComputedGeometryProperty };
 
 export type DslReferencePickSourceAnchor = {
   sourceRevision: SourceRevision;
@@ -300,7 +302,7 @@ const numericOperandTarget = (
   };
 
   if (token?.kind === "geometryProperty") {
-    if (!isNumericMeasurementKey(token.property)) return null;
+    if (!isNumericComputedGeometryProperty(token.property)) return null;
     const baseRange = { start: token.span.start, end: token.elementNameSpan.end };
     return logicalPosition >= baseRange.start && logicalPosition <= token.span.end
       ? {

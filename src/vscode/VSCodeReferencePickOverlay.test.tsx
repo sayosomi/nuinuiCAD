@@ -4,7 +4,7 @@ import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { CadElement, ComputedLine, EvaluationResult } from "../types/geometry";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
@@ -84,7 +84,7 @@ const pointCandidate = ({
 type OverlayCallbacks = {
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
-  onSelectNumericProperty: (property: NumericMeasurementKey) => void;
+  onSelectNumericProperty: (property: NumericComputedGeometryProperty) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -100,7 +100,7 @@ const renderOverlay = (
   const callbacks: OverlayCallbacks = {
     onHover: overrides.onHover ?? vi.fn<(hover: ReferencePickHover | null) => void>(),
     onSelect: overrides.onSelect ?? vi.fn<(selection: ReferencePickHover | null) => void>(),
-    onSelectNumericProperty: overrides.onSelectNumericProperty ?? vi.fn<(property: NumericMeasurementKey) => void>(),
+    onSelectNumericProperty: overrides.onSelectNumericProperty ?? vi.fn<(property: NumericComputedGeometryProperty) => void>(),
     onConfirm: overrides.onConfirm ?? vi.fn<() => void>(),
     onCancel: overrides.onCancel ?? vi.fn<() => void>()
   };
@@ -298,7 +298,7 @@ describe("VSCodeReferencePickOverlay", () => {
 
   it("opens the numeric-property chooser after a geometry hit and keeps Pick active on Escape", () => {
     const onSelect = vi.fn<(hover: ReferencePickHover | null) => void>();
-    const onSelectNumericProperty = vi.fn<(property: NumericMeasurementKey) => void>();
+    const onSelectNumericProperty = vi.fn<(property: NumericComputedGeometryProperty) => void>();
     const { viewport, view } = renderOverlay(
       sessionFor({
         expectedGeometryInterface: "path",

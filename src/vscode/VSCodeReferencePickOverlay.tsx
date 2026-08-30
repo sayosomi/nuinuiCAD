@@ -6,6 +6,7 @@ import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
 import { canvasThemeCssVariables, type CanvasTheme } from "../components/canvasTheme";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
 import { propertyLabels } from "../geometry/numericExpressionProperties";
+import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import {
   filterReferencePickGeometryHits,
   hitTestReferencePickPoints
@@ -13,7 +14,6 @@ import {
 import type { ReferencePickPointHit } from "../model/referencePickHitTest";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import { referencePickDraftKey, type ReferencePickHover } from "../model/referencePickSession";
-import type { NumericMeasurementKey } from "../geometry/numericExpressionTypes";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import {
@@ -37,7 +37,7 @@ type VSCodeReferencePickOverlayProps = {
   session: VscodeReferencePickCanvasSession;
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
-  onSelectNumericProperty?: (property: NumericMeasurementKey) => void;
+  onSelectNumericProperty?: (property: NumericComputedGeometryProperty) => void;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -93,7 +93,7 @@ export const VSCodeReferencePickOverlay = ({
     anchor: ScreenPoint;
     candidateElementId: string;
     reference: ReferencePickHover["reference"];
-    properties: readonly NumericMeasurementKey[];
+    properties: readonly NumericComputedGeometryProperty[];
     activeIndex: number;
     requestId: number;
   };
@@ -506,7 +506,7 @@ export const VSCodeReferencePickOverlay = ({
     : null;
   const numericPropertyMenuCandidates = currentNumericPropertyMenu?.properties.map((property, index) => ({
     id: `${index}-${property}`,
-    name: propertyLabels[property],
+    name: propertyLabels[property as keyof typeof propertyLabels] ?? property,
     detail: referencePickSourceForReference(currentNumericPropertyMenu.reference)
   })) ?? [];
 
