@@ -701,20 +701,89 @@ describe("Output Preview application", () => {
     await waitFor(() => expect(pageFill().getAttribute("x")).not.toBe(before));
   });
 
-  it("pans with the middle mouse button", async () => {
+  it("pans with the middle mouse button after capture even when pointermove buttons are unavailable", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     renderFixture();
     await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
     const before = Number(pageFill().getAttribute("x"));
     const viewport = document.querySelector(".output-preview-viewport");
+    const status = screen.getByRole("status", { name: /Output Preview status:/ });
+    const zoomBeforePan = status.textContent?.match(/ZOOM\d+%/)?.[0];
 
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(viewport, { button: 1, buttons: 4, pointerId: 1, clientX: 120, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 120, clientY: 100 });
     fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 120, clientY: 100 });
 
     await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20));
+    expect(zoomBeforePan).toBeDefined();
+    expect(status).toHaveTextContent(zoomBeforePan ?? "");
+    expect(status).toHaveTextContent(/X-?\d+\.\d+Y-?\d+\.\d+/);
+  });
+
+  it("ends a captured middle-button pan on pointerup and keeps wheel zoom available", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+    const status = screen.getByRole("status", { name: /Output Preview status:/ });
+
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    const before = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 120, clientY: 100 });
+    await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 20));
+    const afterPan = Number(pageFill().getAttribute("x"));
+    const zoomBeforeWheel = status.textContent?.match(/ZOOM\d+%/)?.[0];
+
+    fireEvent.pointerUp(viewport, { button: 1, pointerId: 1, clientX: 120, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 160, clientY: 100 });
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(afterPan);
+
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
+    expect(zoomBeforeWheel).toBeDefined();
+    expect(status.textContent?.match(/ZOOM\d+%/)?.[0]).not.toBe(zoomBeforeWheel);
+  });
+
+  it("keeps the middle-button pan session bound to its pointer and cancels it safely", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
+    const beforeDifferentPointer = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 2, clientX: 140, clientY: 100 });
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(beforeDifferentPointer);
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 110, clientY: 100 });
+    await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(beforeDifferentPointer + 10));
+
+    fireEvent.pointerCancel(viewport, { pointerId: 1, clientX: 110, clientY: 100 });
+    const afterCancel = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 130, clientY: 100 });
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(afterCancel);
+  });
+
+  it("ends a middle-button pan when pointer capture is lost", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    renderFixture();
+    await waitFor(() => expect(Number(pageFill().getAttribute("width"))).toBeGreaterThan(400));
+    const viewport = document.querySelector(".output-preview-viewport");
+
+    if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+    const before = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 110, clientY: 100 });
+    await waitFor(() => expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(before + 10));
+    fireEvent.lostPointerCapture(viewport, { pointerId: 1, clientX: 110, clientY: 100 });
+    const afterLostCapture = Number(pageFill().getAttribute("x"));
+    fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 130, clientY: 100 });
+    expect(Number(pageFill().getAttribute("x"))).toBeCloseTo(afterLostCapture);
   });
 
   it("falls back to A, fits once, and keeps A selected when B is re-added", async () => {

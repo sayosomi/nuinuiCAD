@@ -798,7 +798,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     const pan = panRef.current;
-    if (!pan || pan.pointerId !== event.pointerId || (event.buttons & 4) === 0) return;
+    if (!pan || pan.pointerId !== event.pointerId) return;
     setViewport((current) => ({
       ...current,
       panX: current.panX + event.clientX - pan.lastX,
@@ -1129,6 +1129,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         onPointerMove={handlePointerMove}
         onPointerUp={stopPan}
         onPointerCancel={stopPan}
+        onLostPointerCapture={stopPan}
         onPointerLeave={() => setPointerClientPosition(null)}
         onAuxClick={(event) => event.preventDefault()}
       >
