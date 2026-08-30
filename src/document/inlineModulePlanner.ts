@@ -26,6 +26,7 @@ import {
   parseDslSourceReference,
   parseDslSourceReferenceAt
 } from "../dsl/dslReferenceTokens";
+import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
 import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type {
@@ -64,8 +65,7 @@ export type InlineModuleKnownSkipCode =
   | "unresolved-callee"
   | "hidden-excluded"
   | "disabled-excluded"
-  | "parameter-lowering-required"
-  | "nested-module-validation-required";
+  | "parameter-lowering-required";
 
 export type InlineModuleRejectCode =
   | "stale-semantic-snapshot"
@@ -1111,7 +1111,7 @@ const statementEntryForId = (
 const inlineOpenBraceLine = (
   source: string,
   starts: readonly number[],
-  statement: Extract<DslStatement, { kind: "moduleDefinition" }>
+  statement: DslStatement
 ): number | null => {
   const physical = statement.physicalSpan.segments;
   for (const segment of physical) {
@@ -1131,10 +1131,10 @@ const bodyEntriesForDefinition = (
   definition: ModuleDefinitionSemantic
 ): readonly StatementEntry[] | null => {
   const entries: StatementEntry[] = [];
-  for (const statementId of definition.bodyStatementIds) {
-    const entry = statementEntryForId(compiled, statementId);
-    if (!entry) return null;
-    let current = entry.statement.enclosing?.statementIndex ?? null;
+  for (const [statementIndex, statement] of compiled.statements.entries()) {
+    if (statement.kind === "blockEnd" || statement.kind === "blockElse") continue;
+    if (statementIndex === definition.statementIndex) continue;
+    let current = statement.enclosing?.statementIndex ?? null;
     const visited = new Set<number>();
     let ownedByDefinition = false;
     while (current !== null && !visited.has(current)) {
@@ -1145,41 +1145,20 @@ const bodyEntriesForDefinition = (
       visited.add(current);
       current = compiled.statements[current]?.enclosing?.statementIndex ?? null;
     }
-    if (!ownedByDefinition) return null;
-    entries.push(entry);
+    if (!ownedByDefinition) continue;
+    const statementId = statementIdAt(compiled, statementIndex);
+    if (!statementId) return null;
+    entries.push({ statementId, statementIndex, statement });
   }
   return entries.sort((left, right) => left.statementIndex - right.statementIndex);
 };
 
-const bodyRequiresDeferredValidation = (
-  entries: readonly StatementEntry[],
-  definitionStatementIndex: number
-): boolean => {
-  const directConditionals = new Set(
-    entries
-      .filter(({ statement }) =>
-        statement.enclosing?.statementIndex === definitionStatementIndex &&
-        statement.kind === "element" &&
-        statement.type === "conditionalGroup"
-      )
-      .map((entry) => entry.statementIndex)
-  );
-  const isOrdinary = (statement: DslStatement): boolean =>
-    (statement.kind === "typedDeclaration" &&
-      !statement.recordTypeReference &&
-      !geometryArrayTypeOfTypedDeclaration(statement)) ||
-    statement.kind === "set" ||
-    (statement.kind === "element" && statement.type !== "conditionalGroup" && statement.type !== "forGroup");
-
-  return entries.some(({ statement }) => {
-    const enclosing = statement.enclosing;
-    if (enclosing?.statementIndex === definitionStatementIndex) {
-      return !isOrdinary(statement) && !(statement.kind === "element" && statement.type === "conditionalGroup");
-    }
-    if (enclosing && directConditionals.has(enclosing.statementIndex)) return !isOrdinary(statement);
-    return true;
-  });
-};
+const bodyRequiresUnsupportedTypedLowering = (
+  entries: readonly StatementEntry[]
+): boolean => entries.some(({ statement }) =>
+  statement.kind === "typedDeclaration" &&
+  (statement.recordTypeReference !== null || geometryArrayTypeOfTypedDeclaration(statement) !== null)
+);
 
 const bodyRangeForDefinition = (
   source: string,
@@ -1230,22 +1209,6 @@ type BodyTransformationResult =
 const lineStartFor = (starts: readonly number[], line: number): number | null =>
   line >= 1 && line <= starts.length ? starts[line - 1] ?? null : null;
 
-const linesForRange = (
-  source: string,
-  starts: readonly number[],
-  startLine: number,
-  endLine: number
-): string[] => {
-  if (startLine > endLine) return [];
-  const result: string[] = [];
-  for (let line = startLine; line <= endLine; line += 1) {
-    const start = lineStartFor(starts, line);
-    if (start === null) return [];
-    result.push(source.slice(start, lineEndOffset(source, starts, line)));
-  }
-  return result;
-};
-
 const sourceRangeForLines = (
   source: string,
   starts: readonly number[],
@@ -1273,9 +1236,16 @@ const liftConditionalBranchLines = (
 };
 
 const bodyStatementSemanticFor = (
-  definition: ModuleDefinitionSemantic,
+  compiled: CompiledDslDocument,
   statementId: StatementIdentity
-) => definition.bodyStatements.find((body) => body.statementId === statementId) ?? null;
+) => {
+  const analysis = semanticAnalysisFor(compiled);
+  for (const definition of analysis?.definitions ?? []) {
+    const body = definition.bodyStatements.find((candidate) => candidate.statementId === statementId);
+    if (body) return body;
+  }
+  return null;
+};
 
 const geometryParameterForSlot = (
   entry: InlineEntry,
@@ -1422,19 +1392,6 @@ const buildBodyTransformation = (
   }
   const exportReplacements = exportedTokenReplacements(source, compiled, entry.body);
   if (!exportReplacements) return { kind: "unsafe", message: "Module export marker の exact-current source span を解決できません。" };
-  const directConditionals = entry.body.entries
-    .filter(({ statement }) =>
-      statement.enclosing?.statementIndex === entry.definition.statementIndex &&
-      statement.kind === "element" &&
-      statement.type === "conditionalGroup"
-    )
-    .sort((left, right) => left.statementIndex - right.statementIndex);
-  const conditionalIndexes = new Set(directConditionals.map((candidate) => candidate.statementIndex));
-  const conditionalChildren = new Set(
-    entry.body.entries
-      .filter(({ statement }) => statement.enclosing && conditionalIndexes.has(statement.enclosing.statementIndex))
-      .map((candidate) => candidate.statementId)
-  );
   const eliminatedSourceRangesByStatement = new Map<StatementIdentity, ExactSourceRange[]>();
   const geometrySubstitutions: GeometrySubstitutionProvenance[] = [];
   const geometryArrayReferences: GeometryArrayParameterReferenceProvenance[] = [];
@@ -1448,6 +1405,7 @@ const buildBodyTransformation = (
   };
   const eliminatedSourceRangesFor = (statementId: StatementIdentity): readonly ExactSourceRange[] =>
     eliminatedSourceRangesByStatement.get(statementId) ?? [];
+  const replacementsByStatement = new Map<StatementIdentity, AbsoluteReplacement[]>();
   const replacementsForEntry = (
     bodyEntry: StatementEntry,
     includeCondition: boolean
@@ -1456,8 +1414,14 @@ const buildBodyTransformation = (
     replacements: readonly AbsoluteReplacement[];
     geometrySubstitutions: readonly GeometrySubstitutionProvenance[];
   } | { kind: "unsafe"; message: string } => {
-    const semantic = bodyStatementSemanticFor(entry.definition, bodyEntry.statementId);
-    if (!semantic) return { kind: "unsafe", message: "Module body statement の semantic owner がありません。" };
+    const semantic = bodyStatementSemanticFor(compiled, bodyEntry.statementId);
+    if (!semantic) {
+      // A nested module definition owns its own body semantics. Its header is
+      // copied as authored source; descendants are visited through their own
+      // compiler-owned ModuleDefinitionSemantic below.
+      if (bodyEntry.statement.kind === "moduleDefinition") return { kind: "ok", replacements: [], geometrySubstitutions: [] };
+      return { kind: "unsafe", message: "Module body statement の semantic owner がありません。" };
+    }
     geometryArrayReferences.push(...geometryArrayParameterReferencesForStatement(source, compiled, entry, bodyEntry));
     const replacements: AbsoluteReplacement[] = [];
     const eliminatedSourceRanges: ExactSourceRange[] = [];
@@ -1522,7 +1486,10 @@ const buildBodyTransformation = (
         const added = addGeometryReplacement(result, builtin.reference.span);
         if (added.kind === "unsafe") return added;
       }
-      if (site.expression.hasValueParameters.length === 0 && geometryReplacements.size === 0) continue;
+      const hasInlinePresenceFact = site.expression.hasValueParameters.some((metadata) =>
+        presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
+      );
+      if (!hasInlinePresenceFact && geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.span);
       if (!range) return { kind: "unsafe", message: "Module body scalar expression の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1561,7 +1528,10 @@ const buildBodyTransformation = (
         const added = addGeometryReplacement(result, builtin.reference.span);
         if (added.kind === "unsafe") return added;
       }
-      if (site.expression.hasValueParameters.length === 0 && geometryReplacements.size === 0) continue;
+      const hasInlinePresenceFact = site.expression.hasValueParameters.some((metadata) =>
+        presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
+      );
+      if (!hasInlinePresenceFact && geometryReplacements.size === 0) continue;
       const range = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, site.contentSpan);
       if (!range) return { kind: "unsafe", message: "Module text-template hole の exact physical source span を解決できません。" };
       const specialized = specializeInlineScalarExpression(
@@ -1584,48 +1554,45 @@ const buildBodyTransformation = (
     return { kind: "ok", replacements, geometrySubstitutions: retainedSubstitutions };
   };
 
-  type ConditionalOutput = {
-    startLine: number;
-    endLine: number;
-    lines: string[];
-    provenance: BodyStatementProvenance[];
-  };
-  const conditionalOutputs: ConditionalOutput[] = [];
-  for (const conditional of directConditionals) {
-    const info = compiled.statementMap?.statements[conditional.statementIndex];
-    const conditionalSemantic = bodyStatementSemanticFor(entry.definition, conditional.statementId);
+  const conditionalStates = new Map<StatementIdentity, InlinePresenceValue | null>();
+  for (const bodyEntry of entry.body.entries) {
+    const result = replacementsForEntry(bodyEntry, false);
+    if (result.kind === "unsafe") return result;
+    replacementsByStatement.set(bodyEntry.statementId, [...result.replacements]);
+    if (bodyEntry.statement.kind !== "element" || bodyEntry.statement.type !== "conditionalGroup") continue;
+
+    const info = compiled.statementMap?.statements[bodyEntry.statementIndex];
+    const conditionalSemantic = bodyStatementSemanticFor(compiled, bodyEntry.statementId);
     const conditionSite = conditionalSemantic?.scalarExpressions.find((site) => site.parameterKey === "condition");
-    if (
-      !info ||
-      info.closeBraceLine === undefined ||
-      !conditionSite
-    ) return { kind: "unsafe", message: "conditional condition の compiler semantic owner を解決できません。" };
-    const conditionRange = physicalRangeForLogicalSpan(compiled, conditional.statement, conditionSite.span);
+    if (!info || info.closeBraceLine === undefined || !conditionSite) {
+      return { kind: "unsafe", message: "conditional condition の compiler semantic owner を解決できません。" };
+    }
+    const conditionRange = physicalRangeForLogicalSpan(compiled, bodyEntry.statement, conditionSite.span);
     if (!conditionRange) return { kind: "unsafe", message: "conditional condition の exact physical source span を解決できません。" };
     let conditionText = source.slice(conditionRange.from, conditionRange.to);
     let conditionKnown: InlinePresenceValue | null = null;
     const conditionGeometryReplacements = new Map<string, InlineGeometryExpressionReplacement>();
     const conditionSubstitutions: GeometrySubstitutionProvenance[] = [];
     const addConditionGeometryReplacement = (
-      result: GeometrySubstitutionResult,
+      substitution: GeometrySubstitutionResult,
       semanticSpan: { start: number; end: number }
     ): { kind: "ok" } | { kind: "unsafe"; message: string } => {
-      if (result.kind === "none") return { kind: "ok" };
-      if (result.kind === "unsafe") return result;
+      if (substitution.kind === "none") return { kind: "ok" };
+      if (substitution.kind === "unsafe") return substitution;
       const key = semanticSpanKey(semanticSpan);
       if (conditionGeometryReplacements.has(key)) {
         return { kind: "unsafe", message: "conditional condition の geometry semantic site が重複しています。" };
       }
       if ([...conditionGeometryReplacements.values()].some((candidate) =>
-        candidate.range.from < result.replacement.to && result.replacement.from < candidate.range.to
+        candidate.range.from < substitution.replacement.to && substitution.replacement.from < candidate.range.to
       )) {
         return { kind: "unsafe", message: "conditional condition の geometry semantic sites の physical span が重複しています。" };
       }
       conditionGeometryReplacements.set(key, {
-        range: { from: result.replacement.from, to: result.replacement.to },
-        text: result.replacement.text
+        range: { from: substitution.replacement.from, to: substitution.replacement.to },
+        text: substitution.replacement.text
       });
-      conditionSubstitutions.push(result.provenance);
+      conditionSubstitutions.push(substitution.provenance);
       return { kind: "ok" };
     };
     for (const reference of conditionSite.expression.geometryProperties) {
@@ -1640,22 +1607,25 @@ const buildBodyTransformation = (
         coordinate: null,
         resolution: reference.resolution === "resolved" ? "resolved" : "invalid"
       };
-      const result = geometrySubstitutionFor(source, compiled, entry, conditional, geometryReference, "property", reference.property);
+      const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, geometryReference, "property", reference.property);
       const added = addConditionGeometryReplacement(result, reference.span);
       if (added.kind === "unsafe") return added;
     }
     for (const builtin of conditionSite.expression.geometryBuiltinArguments) {
       const target = builtin.reference.target;
       if (target?.kind !== "parameter" || target.definitionStatementId !== entry.definition.statementId) continue;
-      const result = geometrySubstitutionFor(source, compiled, entry, conditional, builtin.reference, "builtin");
+      const result = geometrySubstitutionFor(source, compiled, entry, bodyEntry, builtin.reference, "builtin");
       const added = addConditionGeometryReplacement(result, builtin.reference.span);
       if (added.kind === "unsafe") return added;
     }
-    if (conditionSite.expression.hasValueParameters.length > 0 || conditionGeometryReplacements.size > 0) {
+    const hasInlinePresenceFact = conditionSite.expression.hasValueParameters.some((metadata) =>
+      presenceByParameter.has(parameterSlotKey(metadata.definitionStatementId, metadata.parameterIndex))
+    );
+    if (hasInlinePresenceFact || conditionGeometryReplacements.size > 0) {
       const specialized = specializeInlineScalarExpression(
         source,
         compiled,
-        conditional.statement,
+        bodyEntry.statement,
         conditionSite.expression,
         presenceByParameter,
         conditionGeometryReplacements
@@ -1663,200 +1633,239 @@ const buildBodyTransformation = (
       if (specialized.kind === "unsafe") return specialized;
       conditionText = specialized.text;
       conditionKnown = specialized.known?.presenceDerived ? specialized.known : null;
-      rememberEliminatedSourceRanges(conditional.statementId, specialized.eliminatedSourceRanges);
+      rememberEliminatedSourceRanges(bodyEntry.statementId, specialized.eliminatedSourceRanges);
       geometrySubstitutions.push(...conditionSubstitutions.filter((substitution) => !specialized.eliminatedSourceRanges.some((range) =>
         substitution.bodySourceRange.from >= range.from && substitution.bodySourceRange.to <= range.to
       )));
     }
+    conditionalStates.set(bodyEntry.statementId, conditionKnown);
     const conditionReplacement = conditionText === source.slice(conditionRange.from, conditionRange.to)
-      ? []
-      : [{ from: conditionRange.from, to: conditionRange.to, text: conditionText }];
-    const branchEntries = entry.body.entries.filter((candidate) =>
-      candidate.statement.enclosing?.statementIndex === conditional.statementIndex
-    );
-    const thenEntries = branchEntries.filter((candidate) => candidate.statement.enclosing?.branch === "then");
-    const elseEntries = branchEntries.filter((candidate) => candidate.statement.enclosing?.branch === "else");
-    const thenStartLine = info.endLine + 1;
+      ? null
+      : { from: conditionRange.from, to: conditionRange.to, text: conditionText };
+    if (conditionReplacement) {
+      replacementsByStatement.set(bodyEntry.statementId, [
+        ...(replacementsByStatement.get(bodyEntry.statementId) ?? []),
+        conditionReplacement
+      ]);
+    }
+  }
+
+  const allReplacements = [
+    ...[...replacementsByStatement.values()].flat(),
+    ...exportReplacements
+  ];
+  const entriesByParent = new Map<number, StatementEntry[]>();
+  for (const bodyEntry of entry.body.entries) {
+    const parent = bodyEntry.statement.enclosing?.statementIndex;
+    if (parent === undefined) return { kind: "unsafe", message: "Module body statement の parent owner を解決できません。" };
+    entriesByParent.set(parent, [...(entriesByParent.get(parent) ?? []), bodyEntry]);
+  }
+  for (const children of entriesByParent.values()) children.sort((left, right) => left.statementIndex - right.statementIndex);
+
+  type OutputParent = { statementId: StatementIdentity | null; branch: "then" | "else" | null };
+  type Rendered = { lines: string[]; provenance: BodyStatementProvenance[] };
+  const provenanceFor = (bodyEntry: StatementEntry, outputLineIndex: number, parent: OutputParent): BodyStatementProvenance => ({
+    originalStatementId: bodyEntry.statementId,
+    outputLineIndex,
+    originalParentStatementId: parent.statementId,
+    originalBranch: parent.branch,
+    eliminatedSourceRanges: eliminatedSourceRangesFor(bodyEntry.statementId)
+  });
+  const replacementsInRange = (range: { from: number; to: number }): AbsoluteReplacement[] => allReplacements.filter((replacement) =>
+    replacement.from >= range.from && replacement.to <= range.to
+  );
+  const rawLinesFor = (startLine: number, endLine: number, applyReplacements: boolean): string[] | null => {
+    if (startLine > endLine) return [];
+    const range = sourceRangeForLines(source, starts, startLine, endLine);
+    if (!range) return null;
+    const rendered = applyReplacements
+      ? applyAbsoluteReplacements(source, range.from, range.to, replacementsInRange(range))
+      : source.slice(range.from, range.to);
+    return rendered === null ? null : rendered.split("\n");
+  };
+
+  const renderSequence = (
+    startLine: number,
+    endLine: number,
+    parentIndex: number,
+    branch: "then" | "else",
+    parent: OutputParent
+  ): Rendered | null => {
+    const children = (entriesByParent.get(parentIndex) ?? []).filter((candidate) => candidate.statement.enclosing?.branch === branch);
+    const output: Rendered = { lines: [], provenance: [] };
+    let cursorLine = startLine;
+    const append = (lines: readonly string[], provenance: readonly BodyStatementProvenance[]) => {
+      const start = output.lines.length;
+      output.lines.push(...lines);
+      output.provenance.push(...provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + start })));
+    };
+    for (const child of children) {
+      const info = compiled.statementMap?.statements[child.statementIndex];
+      if (!info || child.statement.line < startLine || info.range.endLine > endLine || child.statement.line < cursorLine) return null;
+      const before = rawLinesFor(cursorLine, child.statement.line - 1, true);
+      if (before === null) return null;
+      append(before, []);
+      const rendered = renderStatement(child, parent);
+      if (!rendered) return null;
+      append(rendered.lines, rendered.provenance);
+      cursorLine = info.range.endLine + 1;
+    }
+    const after = rawLinesFor(cursorLine, endLine, true);
+    if (after === null) return null;
+    append(after, []);
+    return output;
+  };
+
+  const renderConditional = (bodyEntry: StatementEntry, parent: OutputParent): Rendered | null => {
+    const info = compiled.statementMap?.statements[bodyEntry.statementIndex];
+    if (!info || info.closeBraceLine === undefined) return null;
+    const conditionalIndent = leadingWhitespace(source.slice(
+      lineStartFor(starts, info.range.startLine) ?? 0,
+      lineEndOffset(source, starts, info.range.startLine)
+    ));
+    const conditionalOpenLine = info.openBraceLine ?? inlineOpenBraceLine(source, starts, bodyEntry.statement);
+    const openLine = conditionalOpenLine ?? info.range.startLine;
+    const thenStartLine = openLine + 1;
     const thenEndLine = (info.elseLine ?? info.closeBraceLine) - 1;
     const elseStartLine = info.elseLine === undefined ? info.closeBraceLine : info.elseLine + 1;
     const elseEndLine = info.closeBraceLine - 1;
-    const thenRange = sourceRangeForLines(source, starts, thenStartLine, thenEndLine);
-    const elseRange = info.elseLine === undefined ? null : sourceRangeForLines(source, starts, elseStartLine, elseEndLine);
-    const regionRange = sourceRangeForLines(source, starts, info.range.startLine, info.range.endLine);
-    if (!regionRange || (thenStartLine <= thenEndLine && !thenRange)) {
-      return { kind: "unsafe", message: "conditional branch の exact physical source range を解決できません。" };
+    const header = rawLinesFor(info.range.startLine, openLine, true);
+    const originalHeader = rawLinesFor(info.range.startLine, openLine, false);
+    const then = renderSequence(thenStartLine, thenEndLine, bodyEntry.statementIndex, "then", {
+      statementId: bodyEntry.statementId,
+      branch: "then"
+    });
+    const elseRendered = info.elseLine === undefined
+      ? { lines: [], provenance: [] as BodyStatementProvenance[] }
+      : renderSequence(elseStartLine, elseEndLine, bodyEntry.statementIndex, "else", {
+          statementId: bodyEntry.statementId,
+          branch: "else"
+        });
+    const close = rawLinesFor(info.closeBraceLine, info.closeBraceLine, true);
+    const elseMarker = info.elseLine === undefined ? [] : rawLinesFor(info.elseLine, info.elseLine, true);
+    if (!header || !originalHeader || !then || !elseRendered || !close || !elseMarker) return null;
+    const known = conditionalStates.get(bodyEntry.statementId) ?? null;
+    const conditionKnown = known !== null;
+    const thenLines = conditionKnown ? liftConditionalBranchLines(then.lines, conditionalIndent) : then.lines;
+    const elseLines = conditionKnown ? liftConditionalBranchLines(elseRendered.lines, conditionalIndent) : elseRendered.lines;
+    if (!conditionKnown) {
+      const headerLength = header.length;
+      const thenOffset = headerLength;
+      const elseOffset = thenOffset + thenLines.length + elseMarker.length;
+      return {
+        lines: [...header, ...thenLines, ...elseMarker, ...elseLines, ...close],
+        provenance: [
+          provenanceFor(bodyEntry, 0, parent),
+          ...then.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + thenOffset })),
+          ...elseRendered.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + elseOffset }))
+        ]
+      };
     }
-
-    const replacementsForEntries = (candidates: readonly StatementEntry[]): { kind: "ok"; replacements: AbsoluteReplacement[] } | { kind: "unsafe"; message: string } => {
-      const replacements: AbsoluteReplacement[] = [];
-      for (const candidate of candidates) {
-        const result = replacementsForEntry(candidate, false);
-        if (result.kind === "unsafe") return result;
-        replacements.push(...result.replacements);
-      }
-      return { kind: "ok", replacements };
-    };
-    const thenReplacements = replacementsForEntries(thenEntries);
-    if (thenReplacements.kind === "unsafe") return thenReplacements;
-    const elseReplacements = replacementsForEntries(elseEntries);
-    if (elseReplacements.kind === "unsafe") return elseReplacements;
-
-    const renderedBranch = (range: { from: number; to: number } | null, replacements: readonly AbsoluteReplacement[]): string[] => {
-      if (!range) return [];
-      const rendered = applyAbsoluteReplacements(source, range.from, range.to, replacements);
-      return rendered === null || rendered.length === 0 ? [] : rendered.split("\n");
-    };
-    const headerLines = linesForRange(source, starts, info.range.startLine, info.endLine);
-    const conditionalIndent = leadingWhitespace(headerLines[0] ?? "");
-    const thenAuthoredLines = renderedBranch(thenRange, [
-      ...thenReplacements.replacements,
-      ...exportReplacements.filter((replacement) => thenRange !== null && replacement.from >= thenRange.from && replacement.to <= thenRange.to)
-    ]);
-    const elseAuthoredLines = renderedBranch(elseRange, [
-      ...elseReplacements.replacements,
-      ...exportReplacements.filter((replacement) => elseRange !== null && replacement.from >= elseRange.from && replacement.to <= elseRange.to)
-    ]);
-    const thenLines = liftConditionalBranchLines(thenAuthoredLines, conditionalIndent);
-    const elseLines = liftConditionalBranchLines(elseAuthoredLines, conditionalIndent);
-    const elseMarkerLines = info.elseLine === undefined ? [] : linesForRange(source, starts, info.elseLine, info.elseLine);
-    const closeLines = linesForRange(source, starts, info.closeBraceLine, info.closeBraceLine);
-    const allLines = (
-      conditionKnown === null
-        ? (() => {
-            const replacements = [
-              ...conditionReplacement,
-              ...thenReplacements.replacements,
-              ...elseReplacements.replacements,
-              ...exportReplacements.filter((replacement) => replacement.from >= regionRange.from && replacement.to <= regionRange.to)
-            ];
-            const rendered = applyAbsoluteReplacements(source, regionRange.from, regionRange.to, replacements);
-            return rendered === null ? null : rendered.split("\n");
-          })()
-        : null
-    );
-    if (allLines === null && conditionKnown === null) return { kind: "unsafe", message: "conditional source specialization の重複 rewrite を構成できません。" };
-
-    const originalParentStatementId = conditional.statement.enclosing?.statementIndex === entry.definition.statementIndex
-      ? null
-      : statementIdAt(compiled, conditional.statement.enclosing?.statementIndex ?? -1);
-    const provenanceFor = (candidates: readonly StatementEntry[], outputStart: number, branch: "then" | "else" | null) => candidates.map((candidate) => ({
-      originalStatementId: candidate.statementId,
-      outputLineIndex: outputStart + candidate.statement.line - (branch === "then" ? thenStartLine : elseStartLine),
-      originalParentStatementId: candidate.statement.enclosing?.statementIndex === conditional.statementIndex ? conditional.statementId : originalParentStatementId,
-      originalBranch: branch,
-      eliminatedSourceRanges: eliminatedSourceRangesFor(candidate.statementId)
-    }));
-    let lines: string[];
-    let provenance: BodyStatementProvenance[];
-    if (conditionKnown === null) {
-      lines = allLines!;
-      provenance = [
-        {
-          originalStatementId: conditional.statementId,
-          outputLineIndex: 0,
-          originalParentStatementId,
-          originalBranch: null,
-          eliminatedSourceRanges: eliminatedSourceRangesFor(conditional.statementId)
-        },
-        ...provenanceFor(thenEntries, headerLines.length, "then"),
-        ...provenanceFor(elseEntries, info.elseLine === undefined ? 0 : info.elseLine - info.range.startLine + 1, "else")
-      ];
-    } else if (conditionKnown.value) {
-      lines = [...thenLines];
-      provenance = provenanceFor(thenEntries, 0, "then");
+    if (known.value) {
+      const lines = [...thenLines];
+      const provenance = then.provenance.map((item) => ({
+        ...item,
+        originalParentStatementId: parent.statementId,
+        originalBranch: parent.branch
+      }));
       if (info.elseLine !== undefined && emitOmittedBranchComments) {
-        lines.push(`${entry.body.definitionIndent}${DSL_INDENT}// Inline omitted: condition resolved to true`);
-        lines.push(...[...elseMarkerLines, ...elseAuthoredLines, ...closeLines].map((line) => commentSourceLine(line, conditionalIndent)));
+        lines.push(`${conditionalIndent}// Inline omitted: condition resolved to true`);
+        const omitted = [
+          ...elseMarker,
+          ...(rawLinesFor(elseStartLine, elseEndLine, false) ?? []),
+          ...close
+        ].map((line) => commentSourceLine(line, conditionalIndent));
+        lines.push(...omitted);
       }
-    } else {
-      provenance = info.elseLine === undefined ? [] : provenanceFor(elseEntries, emitOmittedBranchComments ? 0 : 0, "else");
-      if (info.elseLine === undefined) {
-        lines = emitOmittedBranchComments
-          ? [
-              `${entry.body.definitionIndent}${DSL_INDENT}// Inline omitted: condition resolved to false`,
-              ...[...headerLines, ...thenAuthoredLines, ...closeLines].map((line) => commentSourceLine(line, conditionalIndent))
-            ]
-          : [];
-      } else if (emitOmittedBranchComments) {
-        lines = [
-          `${entry.body.definitionIndent}${DSL_INDENT}// Inline omitted: condition resolved to false`,
-          ...[...headerLines, ...thenAuthoredLines, ...elseMarkerLines].map((line) => commentSourceLine(line, conditionalIndent)),
-          ...elseLines
-        ];
-        provenance = provenanceFor(elseEntries, lines.length - elseLines.length, "else");
-      } else {
-        lines = [...elseLines];
-        provenance = provenanceFor(elseEntries, 0, "else");
-      }
+      return { lines, provenance };
     }
-    conditionalOutputs.push({ startLine: info.range.startLine, endLine: info.range.endLine, lines, provenance });
-  }
+    if (info.elseLine === undefined) {
+      if (!emitOmittedBranchComments) return { lines: [], provenance: [] };
+      return {
+        lines: [
+          `${conditionalIndent}// Inline omitted: condition resolved to false`,
+          ...[
+            ...originalHeader,
+            ...(rawLinesFor(thenStartLine, thenEndLine, false) ?? []),
+            ...close
+          ].map((line) => commentSourceLine(line, conditionalIndent))
+        ],
+        provenance: []
+      };
+    }
+    if (!emitOmittedBranchComments) {
+      return {
+        lines: elseLines,
+        provenance: elseRendered.provenance.map((item) => ({
+          ...item,
+          originalParentStatementId: parent.statementId,
+          originalBranch: parent.branch
+        }))
+      };
+    }
+    const omitted = [
+      ...originalHeader,
+      ...(rawLinesFor(thenStartLine, thenEndLine, false) ?? []),
+      ...elseMarker
+    ].map((line) => commentSourceLine(line, conditionalIndent));
+    return {
+      lines: [
+        `${conditionalIndent}// Inline omitted: condition resolved to false`,
+        ...omitted,
+        ...elseLines
+      ],
+      provenance: elseRendered.provenance.map((item) => ({
+        ...item,
+        outputLineIndex: item.outputLineIndex + omitted.length + 1
+      }))
+    };
+  };
 
-  const ordinaryReplacements: AbsoluteReplacement[] = [];
-  const ordinaryEntries = entry.body.entries.filter((candidate) =>
-    !conditionalIndexes.has(candidate.statementIndex) && !conditionalChildren.has(candidate.statementId)
-  );
-  for (const candidate of ordinaryEntries) {
-    const result = replacementsForEntry(candidate, false);
-    if (result.kind === "unsafe") return result;
-    ordinaryReplacements.push(...result.replacements);
-  }
-  ordinaryReplacements.push(
-    ...exportReplacements.filter((replacement) => !conditionalOutputs.some((output) => {
-      const start = lineStartFor(starts, output.startLine);
-      const end = lineEndOffset(source, starts, output.endLine);
-      return start !== null && replacement.from >= start && replacement.to <= end;
-    }))
-  );
+  const renderStatement = (bodyEntry: StatementEntry, parent: OutputParent): Rendered | null => {
+    const info = compiled.statementMap?.statements[bodyEntry.statementIndex];
+    if (!info) return null;
+    if (bodyEntry.statement.kind === "element" && bodyEntry.statement.type === "conditionalGroup") {
+      return renderConditional(bodyEntry, parent);
+    }
+    if (!bodyEntry.statement.opensBlock) {
+      const lines = rawLinesFor(info.range.startLine, info.range.endLine, true);
+      return lines === null ? null : {
+        lines,
+        provenance: [provenanceFor(bodyEntry, 0, parent)]
+      };
+    }
+    const openLine = info.openBraceLine ?? inlineOpenBraceLine(source, starts, bodyEntry.statement);
+    const closeLine = info.closeBraceLine;
+    if (openLine === null || openLine === undefined || closeLine === undefined || closeLine <= openLine) return null;
+    const header = rawLinesFor(info.range.startLine, openLine, true);
+    const body = renderSequence(openLine + 1, closeLine - 1, bodyEntry.statementIndex, "then", {
+      statementId: bodyEntry.statementId,
+      branch: null
+    });
+    const close = rawLinesFor(closeLine, closeLine, true);
+    if (!header || !body || !close) return null;
+    return {
+      lines: [...header, ...body.lines, ...close],
+      provenance: [
+        provenanceFor(bodyEntry, 0, parent),
+        ...body.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + header.length }))
+      ]
+    };
+  };
 
-  const outputLines: string[] = [];
-  const provenance: BodyStatementProvenance[] = [];
   const bodyStartLine = openBraceLine + 1;
   const bodyEndLine = bodyInfo.closeBraceLine - 1;
-  const appendOrdinaryRange = (startLine: number, endLine: number): boolean => {
-    if (startLine > endLine) return true;
-    const range = sourceRangeForLines(source, starts, startLine, endLine);
-    if (!range) return false;
-    const rendered = applyAbsoluteReplacements(
-      source,
-      range.from,
-      range.to,
-      ordinaryReplacements.filter((replacement) => replacement.from >= range.from && replacement.to <= range.to)
-    );
-    if (rendered === null) return false;
-    const startOutput = outputLines.length;
-    outputLines.push(...rendered.split("\n"));
-    for (const candidate of ordinaryEntries) {
-      if (candidate.statement.line < startLine || candidate.statement.line > endLine) continue;
-      provenance.push({
-        originalStatementId: candidate.statementId,
-        outputLineIndex: startOutput + candidate.statement.line - startLine,
-        originalParentStatementId: null,
-        originalBranch: null,
-        eliminatedSourceRanges: eliminatedSourceRangesFor(candidate.statementId)
-      });
-    }
-    return true;
-  };
-  let cursorLine = bodyStartLine;
-  for (const output of conditionalOutputs) {
-    if (!appendOrdinaryRange(cursorLine, output.startLine - 1)) {
-      return { kind: "unsafe", message: "body ordinary source rewrite の exact range を構成できません。" };
-    }
-    const outputStart = outputLines.length;
-    outputLines.push(...output.lines);
-    provenance.push(...output.provenance.map((item) => ({ ...item, outputLineIndex: item.outputLineIndex + outputStart })));
-    cursorLine = output.endLine + 1;
-  }
-  if (!appendOrdinaryRange(cursorLine, bodyEndLine)) {
-    return { kind: "unsafe", message: "body ordinary source rewrite の exact range を構成できません。" };
-  }
-  const emittedStatementIds = new Set(provenance.map((item) => item.originalStatementId));
+  const renderedBody = renderSequence(bodyStartLine, bodyEndLine, entry.definition.statementIndex, "then", {
+    statementId: null,
+    branch: null
+  });
+  if (!renderedBody) return { kind: "unsafe", message: "Module body の recursive structural source rewrite を構成できません。" };
+  const emittedStatementIds = new Set(renderedBody.provenance.map((item) => item.originalStatementId));
   return {
     kind: "ok",
     transformation: {
-      bodyLines: outputLines,
-      provenance,
+      bodyLines: renderedBody.lines,
+      provenance: renderedBody.provenance,
       geometrySubstitutions: geometrySubstitutions.filter((substitution) =>
         emittedStatementIds.has(substitution.originalStatementId)
       ),
@@ -1874,9 +1883,17 @@ const exportedTokenReplacements = (
 ): AbsoluteReplacement[] | null => {
   const replacements: AbsoluteReplacement[] = [];
   const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+  const analysis = semanticAnalysisFor(compiled);
+  const definitionId = statementIdAt(compiled, body.definitionStatementIndex);
+  const ownedExportedStatementIds = new Set(
+    analysis?.definitions
+      .find((definition) => definition.statementId === definitionId)
+      ?.exports.map((entry) => entry.exportedStatementId) ?? []
+  );
   for (const entry of body.entries) {
     if (entry.statement.kind !== "typedDeclaration" && entry.statement.kind !== "element") continue;
     if (!entry.statement.exported) continue;
+    if (!ownedExportedStatementIds.has(entry.statementId)) continue;
     const range = singlePhysicalRange(entry.statement.exportPhysicalSpan, sourceRevision);
     if (
       !range ||
@@ -2012,6 +2029,9 @@ const remappedOwnerTokenForIdentity = (
   currentMapping: OwnerMapping,
   mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
 ): string => {
+  const copiedStatementIdFor = (statementId: StatementIdentity): StatementIdentity | undefined =>
+    currentMapping.bodyStatementIds.get(statementId) ??
+    [...mappingsByTarget.values()].map((mapping) => mapping.bodyStatementIds.get(statementId)).find(Boolean);
   if (identity.kind === "module") {
     if (identity.target.kind === "moduleParameter") {
       const generated = currentMapping.parameterBindings.get(
@@ -2021,16 +2041,24 @@ const remappedOwnerTokenForIdentity = (
         )
       );
       if (generated) return `statement:${generated.statementId}`;
+      const copiedDefinition = copiedStatementIdFor(identity.target.slot.definitionStatementId);
+      if (copiedDefinition) return `statement:${copiedDefinition}`;
     } else if (identity.target.kind === "moduleInstance") {
       const mapping = mappingsByTarget.get(identity.target.statementId);
       if (mapping) return `statement:${mapping.generatedGroupStatementId}`;
+      const copied = copiedStatementIdFor(identity.target.statementId);
+      if (copied) return `statement:${copied}`;
     } else if (identity.target.kind === "moduleSource") {
-      for (const mapping of mappingsByTarget.values()) {
-        const copiedStatementId = mapping.bodyStatementIds.get(identity.target.statementId);
-        if (copiedStatementId) return `statement:${copiedStatementId}`;
-      }
+      const copied = copiedStatementIdFor(identity.target.statementId);
+      if (copied) return `statement:${copied}`;
+    } else if (identity.target.kind !== "documentBinding") {
+      const copied = copiedStatementIdFor(identity.target.statementId);
+      if (copied) return `statement:${copied}`;
     }
   }
+  const owner = ownerStatementIdForIdentity(compiled, identity);
+  const copied = owner === null ? undefined : copiedStatementIdFor(owner);
+  if (copied) return `statement:${copied}`;
   return ownerTokenForIdentity(compiled, identity);
 };
 
@@ -2183,14 +2211,27 @@ const occurrenceSlotsForStatement = (
   compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
   statementIndex: number,
-  includeOccurrence: (occurrence: DslSemanticOccurrence) => boolean = () => true
+  includeOccurrence: (occurrence: DslSemanticOccurrence) => boolean = () => true,
+  extraOccurrences: readonly DslSemanticOccurrence[] = []
 ): OccurrenceSlot[] => {
   const statement = compiled.statements[statementIndex];
   if (!statement) return [];
   const slots = new Map<string, { kind: DslSemanticOccurrence["kind"]; token: string; ordinal: number; owners: Set<string> }>();
   const ordinalByToken = new Map<string, number>();
-  for (const occurrence of index.occurrences) {
+  const occurrences = [...index.occurrences, ...extraOccurrences].sort((left, right) =>
+    left.from - right.from || left.to - right.to || left.kind.localeCompare(right.kind)
+  );
+  const moduleOccurrenceKeys = new Set(
+    occurrences
+      .filter((occurrence) => occurrence.identity.kind === "module")
+      .map((occurrence) => `${occurrence.from}:${occurrence.to}:${occurrence.kind}`)
+  );
+  for (const occurrence of occurrences) {
     if (!includeOccurrence(occurrence)) continue;
+    if (
+      occurrence.identity.kind !== "module" &&
+      moduleOccurrenceKeys.has(`${occurrence.from}:${occurrence.to}:${occurrence.kind}`)
+    ) continue;
     if (
       occurrence.from < statement.documentRange.from ||
       occurrence.to > statement.documentRange.to
@@ -2217,6 +2258,53 @@ const occurrenceSlotsForStatement = (
     ordinal: slot.ordinal,
     owners: [...slot.owners].sort()
   }));
+};
+
+/**
+ * The module semantic index intentionally covers Module-owned source. A
+ * copied forGroup is ordinary document/group source after inlining, so its
+ * iteration references are not emitted into that index. Re-read only those
+ * compiler-owned iteration identities through the existing module lexical
+ * resolver for the candidate statement; no new semantic index is created.
+ */
+const iterationOccurrencesForStatement = (
+  source: string,
+  compiled: CompiledDslDocument,
+  statementIndex: number
+): readonly DslSemanticOccurrence[] => {
+  const statement = compiled.statements[statementIndex];
+  const namespace = compiled.sourceLexicalNamespace;
+  const stableIds = compiled.statementMap?.statementIdByStatementIndex;
+  if (!statement || !namespace || !stableIds) return [];
+  const result: DslSemanticOccurrence[] = [];
+  const seen = new Set<string>();
+  for (const segment of statement.physicalSpan.segments) {
+    for (let at = source.indexOf("@", segment.from); at >= 0 && at < segment.to; at = source.indexOf("@", at + 1)) {
+      const parsed = parseDslSourceReferenceAt(source, at, segment.to);
+      if (parsed.kind !== "valid") continue;
+      const lookup = resolveModuleLexicalPath(
+        { sourceNamespace: namespace, stableStatementIdByIndex: stableIds },
+        statementIndex,
+        parsed.reference.path
+      );
+      if (lookup.kind !== "iteration") continue;
+      const identity = semanticIdentityForModuleTarget(compiled, {
+        kind: "moduleIteration",
+        statementId: lookup.statementId
+      });
+      if (!identity) continue;
+      const key = `${parsed.reference.pathRange.start}:${parsed.reference.pathRange.end}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        from: parsed.reference.pathRange.start,
+        to: parsed.reference.pathRange.end,
+        kind: "reference",
+        identity
+      });
+    }
+  }
+  return result;
 };
 
 const occurrenceIsQualifiedTargetMember = (
@@ -2356,17 +2444,14 @@ const copyOwnerMappingFor = (
     if (provenance.originalParentStatementId === null) {
       if (nextInfo?.enclosing?.statementIndex !== groupIndex) return null;
     } else {
-      const parentMapping = [...bodyStatementIds.entries()].find(([oldId]) => oldId === provenance.originalParentStatementId);
-      if (provenance.originalBranch !== null) {
-        if (!parentMapping) {
-          if (nextInfo?.enclosing?.statementIndex !== groupIndex) return null;
-        } else if (
-          nextInfo?.enclosing?.statementIndex !== statementIndexForId(nextCompiled, parentMapping[1]) ||
-          nextInfo.enclosing.branch !== provenance.originalBranch
-        ) return null;
-      } else if (nextInfo?.enclosing?.statementIndex !== groupIndex) {
-        return null;
-      }
+      const parentMapping = bodyStatementIds.get(provenance.originalParentStatementId);
+      if (!parentMapping || nextInfo?.enclosing?.statementIndex !== statementIndexForId(nextCompiled, parentMapping)) return null;
+      const parentIndex = statementIndexForId(nextCompiled, parentMapping);
+      const parentStatement = parentIndex === null ? undefined : nextCompiled.statements[parentIndex];
+      if (
+        provenance.originalBranch !== null &&
+        (!nextInfo.enclosing || parentStatement?.kind !== "element" || parentStatement.type !== "conditionalGroup" || nextInfo.enclosing.branch !== provenance.originalBranch)
+      ) return null;
     }
     bodyStatementIds.set(oldBody.statementId, nextBodyId);
   }
@@ -2813,11 +2898,10 @@ const geometryRewritesFor = (
 
     const expectedBuiltins: { target: ScalarExpressionResolvedGeometryTarget; substitution: GeometrySubstitutionProvenance | null }[] = [];
     const actualBuiltins: ScalarExpressionResolvedGeometryTarget[] = [];
-    const oldBodies = entry.definition.bodyStatements
-      .map((body) => ({ body, index: statementIndexForId(compiled, body.statementId) }))
-      .filter((candidate): candidate is { body: ModuleDefinitionSemantic["bodyStatements"][number]; index: number } => candidate.index !== null);
-    for (const { body, index } of oldBodies) {
-      if (!mapping.bodyStatementIds.has(body.statementId)) continue;
+    for (const oldBodyId of mapping.bodyStatementIds.keys()) {
+      const body = bodyStatementSemanticFor(compiled, oldBodyId);
+      const index = statementIndexForId(compiled, oldBodyId);
+      if (!body || index === null) continue;
       const oldStatement = compiled.statements[index];
       if (!oldStatement) return { kind: "invalid", message: "Module body statement がありません。", target: entry.target };
       const nextBodyId = mapping.bodyStatementIds.get(body.statementId);
@@ -2876,7 +2960,8 @@ const verifyCopiedBodyOwners = (
   compiled: CompiledDslDocument,
   nextCompiled: CompiledDslDocument,
   entry: InlineEntry,
-  mapping: OwnerMapping
+  mapping: OwnerMapping,
+  mappingsByTarget: ReadonlyMap<StatementIdentity, OwnerMapping>
 ): boolean => {
   const beforeIndex = createDslSemanticOccurrenceIndex(compiled);
   const afterIndex = createDslSemanticOccurrenceIndex(nextCompiled);
@@ -2887,9 +2972,8 @@ const verifyCopiedBodyOwners = (
     const oldBodyIndex = statementIndexForId(compiled, oldBodyId);
     const nextBodyIndex = nextBodyId ? statementIndexForId(nextCompiled, nextBodyId) : null;
     if (oldBodyIndex === null || nextBodyIndex === null) return false;
-    const oldBodySemantic = entry.definition.bodyStatements.find((body) => body.statementId === oldBodyId);
     const oldBodyStatement = compiled.statements[oldBodyIndex];
-    if (!oldBodySemantic || !oldBodyStatement) return false;
+    if (!oldBodyStatement) return false;
     const eliminatedSourceRanges = entry.bodyTransformation.provenance.find((provenance) =>
       provenance.originalStatementId === oldBodyId
     )?.eliminatedSourceRanges ?? [];
@@ -2900,7 +2984,7 @@ const verifyCopiedBodyOwners = (
       const statement = compiled.statements[oldBodyIndex];
       if (!statement || occurrence.from < statement.documentRange.from || occurrence.to > statement.documentRange.to) return false;
       const occurrenceRange = occurrence.kind === "reference"
-        ? sourceReferenceRangeForOccurrence(source, beforeIndex.occurrences, occurrence, statement.documentRange)
+        ? sourceReferenceRangeForOccurrence(source, beforeIndex.occurrences, occurrence, statement.documentRange) ?? { from: occurrence.from, to: occurrence.to }
         : { from: occurrence.from, to: occurrence.to };
       if (!occurrenceRange) return false;
       if (eliminatedSourceRanges.some((range) => occurrenceRange.from >= range.from && occurrenceRange.to <= range.to)) return false;
@@ -2927,16 +3011,7 @@ const verifyCopiedBodyOwners = (
         // identity and maps it to the generated const.
         const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
         if (!candidate) return [];
-        if (candidate.identity.kind === "module" && candidate.identity.target.kind === "moduleParameter") {
-          const generated = mapping.parameterBindings.get(parameterSlotKey(
-            candidate.identity.target.slot.definitionStatementId,
-            candidate.identity.target.slot.parameterIndex
-          ));
-          return generated ? [`statement:${generated.statementId}`] : [];
-        }
-        const owner = ownerStatementIdForIdentity(compiled, candidate.identity);
-        const copied = owner ? mapping.bodyStatementIds.get(owner) : undefined;
-        return [copied ? `statement:${copied}` : ownerTokenForIdentity(compiled, candidate.identity)];
+        return [remappedOwnerTokenForIdentity(compiled, candidate.identity, mapping, mappingsByTarget)];
       })().sort()
     }));
     const generatedGeometryRanges = new Set<string>();
@@ -2964,7 +3039,8 @@ const verifyCopiedBodyOwners = (
           nextCompiled.statements[nextBodyIndex]!.documentRange
         );
         return range === null || !generatedGeometryRanges.has(`${range.from}:${range.to}`);
-      }
+      },
+      iterationOccurrencesForStatement(nextCompiled.spans.sourceMap.source, nextCompiled, nextBodyIndex)
     );
     if (!compareSlots(expected, actual)) return false;
 
@@ -3536,28 +3612,17 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
     if (scalarParameterPreparation.kind === "unsafe") {
       return reject(scalarParameterPreparation.code, scalarParameterPreparation.message, target);
     }
-    if (instance.callerModuleDefinitionStatementId !== null) {
-      results.push(skip(
-        target,
-        statementIndex,
-        statement.name,
-        "nested-module-validation-required",
-        "Module body 内の Module instance は broad capture-preservation 検証が必要なためこの slice の対象外です。"
-      ));
-      continue;
-    }
-
     const body = bodyRangeForDefinition(source, starts, compiled, definition);
     if (!body) {
       return reject("unsafe-source-span", "Module body の exact-current source range を解決できません。", target);
     }
-    if (bodyRequiresDeferredValidation(body.entries, body.definitionStatementIndex)) {
+    if (bodyRequiresUnsupportedTypedLowering(body.entries)) {
       results.push(skip(
         target,
         statementIndex,
         statement.name,
-        "nested-module-validation-required",
-        "Module body の nested structure は broad capture-preservation 検証が必要なためこの slice の対象外です."
+        "parameter-lowering-required",
+        "Module body の record / geometry-array local はこの Inline slice では lowering しません。"
       ));
       continue;
     }
@@ -3783,7 +3848,7 @@ export const planInlineModule = (input: InlineModulePlanInput): InlineModulePlan
 
   for (const entry of activeEntries) {
     const mapping = mappings.get(entry.target.statementId);
-    if (!mapping || !verifyCopiedBodyOwners(source, compiled, nextCompiled, entry, mapping)) {
+    if (!mapping || !verifyCopiedBodyOwners(source, compiled, nextCompiled, entry, mapping, mappings)) {
       return reject("unsafe-rewrite", "コピーした Module body の semantic ownership を証明できません。", entry.target);
     }
   }
