@@ -965,6 +965,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     if (session.document.version !== message.documentVersion) return;
+    canvasFreePointAtPointerFeature?.setExplicitSourceAuthoringPosition(session.document, {
+      documentVersion: message.documentVersion,
+      line: range.start.line,
+      character: range.start.character
+    });
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     clearCanvasHistoryHandoff(session);
   };
@@ -1024,6 +1029,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const completeCanvasHistory = (session: DocumentSession): void => {
     const inFlightHistory = session.inFlightCanvasHistory;
     if (!inFlightHistory) return;
+    if (!inFlightHistory.commandCompleted) return;
+    if (
+      inFlightHistory.changeObserved &&
+      session.authoritativeDocumentVersion !== session.document.version
+    ) return;
     session.inFlightCanvasHistory = null;
     session.panel.reveal(vscode.ViewColumn.Beside, false);
     void session.panel.webview.postMessage({
@@ -1222,6 +1232,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     if (inFlightHistory.changeObserved || session.document.version === inFlightHistory.expectedDocumentVersion) {
       completeCanvasHistory(session);
+      canvasFreePointAtPointerFeature?.handleAuthoritativeDocumentReady(
+        session,
+        session.document,
+        session.document.version
+      );
     }
   };
 
@@ -1440,6 +1455,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (message.type === "webviewAuthoritativeDocumentReady") {
         if (message.documentVersion !== session.document.version) return;
         session.authoritativeDocumentVersion = message.documentVersion;
+        completeCanvasHistory(session);
+        canvasFreePointAtPointerFeature?.handleAuthoritativeDocumentReady(
+          session,
+          session.document,
+          message.documentVersion
+        );
         deliverPendingCanvasNavigation(session);
         deliverPendingBake(session);
         return;
@@ -1573,22 +1594,21 @@ export const activate = (context: vscode.ExtensionContext): void => {
       if (
         !session ||
         !session.webviewReady ||
-        session.authoritativeDocumentVersion !== session.document.version ||
         !isOpenDocument(session.document) ||
         sessions.get(session.documentUri, "canvas") !== session
       ) return null;
-      const documentVersion = session.document.version;
       const isCurrent = (): boolean =>
-        canvasSessionForCommand() === session &&
         sessions.get(session.documentUri, "canvas") === session &&
         isOpenDocument(session.document) &&
-        session.webviewReady &&
-        session.authoritativeDocumentVersion === documentVersion &&
-        session.document.version === documentVersion;
+        session.webviewReady;
       return {
         sessionToken: session,
         document: session.document,
         isCurrent,
+        isAuthoritativeReady: () =>
+          isCurrent() &&
+          session.inFlightCanvasHistory === null &&
+          session.authoritativeDocumentVersion === session.document.version,
         lastCanvasPointer: () => session.lastCanvasPointer,
         postFreePointAtPointer: (request) => {
           if (!isCurrent()) return;

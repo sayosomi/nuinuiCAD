@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "../../src/document/automationDocument";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
-import type { VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
+import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { vscodeObservationState } from "./vscodeObservationState";
 
 type MockPosition = { line: number; character: number };
@@ -14,6 +14,7 @@ type MockSelection = {
 
 type TestDocument = {
   fileName: string;
+  languageId?: string;
   version: number;
   uri: { scheme: string; toString: () => string };
   getText: () => string;
@@ -38,6 +39,7 @@ type TestDocumentChangeEvent = {
 type TestEditor = {
   document: TestDocument;
   selection: MockSelection;
+  selections: MockSelection[];
   edit: ReturnType<typeof vi.fn>;
   editBuilder: { replace: ReturnType<typeof vi.fn> };
   revealRange?: ReturnType<typeof vi.fn>;
@@ -81,7 +83,7 @@ const mocks = vi.hoisted(() => ({
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
   activeEditorListeners: [] as Array<(editor?: TestEditor) => void>,
-  selectionChangeListeners: [] as Array<(event: { textEditor: TestEditor }) => void>,
+  selectionChangeListeners: [] as Array<(event: { textEditor: TestEditor; kind?: number }) => void>,
   activeColorThemeListeners: [] as Array<() => void>,
   documentOpenListeners: [] as Array<(document: TestDocument) => void>,
   documentChangeListeners: [] as Array<(event: TestDocumentChangeEvent) => void>,
@@ -238,6 +240,9 @@ vi.mock("vscode", () => {
       get textDocuments() {
         return mocks.textDocuments;
       },
+      fs: {
+        isWritableFileSystem: () => true
+      },
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
@@ -299,6 +304,7 @@ vi.mock("vscode", () => {
     FoldingRangeKind: { Comment: "comment" },
     ConfigurationTarget: { Global: 1 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
+    TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2 },
     TabInputText: mocks.TabInputText,
     TabInputWebview: mocks.TabInputWebview,
     Position,
@@ -413,6 +419,7 @@ const editorFor = (document = documentFor()): TestEditor => {
       start: { line: 1, character: 0 },
       end: { line: 1, character: 0 }
     },
+    selections: [],
     editBuilder,
     revealRange: vi.fn(),
     edit: vi.fn(async (callback: (builder: typeof editBuilder) => void) => {
@@ -466,9 +473,9 @@ const panelFor = (): TestPanel => {
 const messageHandlerFor = (panel: TestPanel) =>
   (panel as TestPanel & { messageHandler: (message: unknown) => Promise<void> }).messageHandler;
 
-const commandHandlerFor = (command: string): (() => void) | undefined => {
+const commandHandlerFor = (command: string): ((...args: unknown[]) => unknown) | undefined => {
   const handler = mocks.commandHandlers.get(command);
-  return handler as (() => void) | undefined;
+  return handler;
 };
 
 const setup = (
@@ -494,7 +501,7 @@ const setup = (
     return disposable();
   });
   mocks.onDidChangeTextEditorSelection.mockImplementation(
-    (listener: (event: { textEditor: TestEditor }) => void) => {
+    (listener: (event: { textEditor: TestEditor; kind?: number }) => void) => {
       mocks.selectionChangeListeners.push(listener);
       return disposable();
     }
@@ -1765,6 +1772,7 @@ describe("VS Code production document lifecycle", () => {
       direction,
       expectedDocumentVersion: 1
     });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
 
     expect(mocks.showTextDocument).toHaveBeenCalledWith(document, expect.objectContaining({
       preserveFocus: false,
@@ -1809,6 +1817,9 @@ describe("VS Code production document lifecycle", () => {
 
     emitDocumentChange(document);
 
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
       documentVersion: 2,
@@ -1821,6 +1832,52 @@ describe("VS Code production document lifecycle", () => {
       documentVersion: 2
     });
     expect(panel.reveal).toHaveBeenCalledWith(2, false);
+  });
+
+  it("completes changed Canvas history before releasing a deferred free-point invocation", async () => {
+    const document = documentFor("/tmp/history-free-point.nui", "file:///tmp/history-free-point.nui", "nui 4\n");
+    const editor = editorFor(document);
+    setup(false, editor);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    mocks.showTextDocument.mockResolvedValue(editor);
+    mocks.executeCommand.mockImplementation(async (command: string) => {
+      if (command === "setContext") return;
+      if (command === "undo") {
+        document.version = 2;
+        document.setSourceText("nui 4\n// undone\n");
+        emitDocumentChange(document);
+      }
+    });
+
+    await messageHandlerFor(panel)({
+      type: "canvasHistoryRequest",
+      direction: "undo",
+      expectedDocumentVersion: 1
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasHistoryResult" }));
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 24,
+      [vscodeCanvasPointerContextKeys.y]: -13
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasFreePointAtPointer"
+    }));
+
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+
+    const messages = panel.webview.postMessage.mock.calls.map(([message]) => message);
+    const historyResultIndex = messages.findIndex((message) => message?.type === "canvasHistoryResult");
+    const freePointIndex = messages.findIndex((message) => message?.type === "canvasFreePointAtPointer");
+    expect(historyResultIndex).toBeGreaterThanOrEqual(0);
+    expect(freePointIndex).toBeGreaterThan(historyResultIndex);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
   });
 
   it.each(["undo", "redo"] as const)("treats native Canvas %s with no document version change as a completed no-op", async (direction) => {
@@ -2239,6 +2296,72 @@ describe("VS Code production document lifecycle", () => {
     document.setSourceText("nui 4\n// changed\n");
     emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("retains an immediate Canvas free-point invocation until the changed document is authoritative again", async () => {
+    const document = documentFor("/tmp/free-point-sync.nui", "file:///tmp/free-point-sync.nui", "nui 4\n");
+    const editor = editorFor(document);
+    setup(false, editor);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+    await messageHandlerFor(panel)({
+      type: "canvasPointerPublication",
+      documentVersion: 1,
+      pointer: { x: 12, y: -8 }
+    });
+
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const firstRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasFreePointAtPointer") as {
+        requestId: number;
+      } | undefined;
+    expect(firstRequest).toBeDefined();
+
+    const committedSource = "nui 4\n// free point\n";
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 2;
+      document.setSourceText(committedSource);
+      emitDocumentChange(document);
+      return true;
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasCommit",
+      sourceText: committedSource,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset",
+      operationId: firstRequest!.requestId
+    });
+    await messageHandlerFor(panel)({
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequest!.requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 1, character: "// free point".length }
+    });
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasFreePointAtPointer"
+    }));
+
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasFreePointAtPointer",
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 1, character: "// free point".length }
+    }));
   });
 
   it("disposes only the matching panel when a document closes and creates a fresh session on reopen", async () => {
@@ -2899,7 +3022,10 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     const document = documentFor("/tmp/go-to-source.nui", "file:///tmp/go-to-source.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
+    document.languageId = "nui";
     const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
 
     commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
     const request = panel.webview.postMessage.mock.calls.find(([message]) => message?.type === "canvasSourceDefinitionRequest")?.[0] as { requestId: number };
@@ -2950,6 +3076,23 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       expect.objectContaining({ start: identifierStart, end: identifierEnd }),
       1
     );
+
+    panel.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
+    await messageHandlerFor(panel)({
+      type: "canvasPointerPublication",
+      documentVersion: 1,
+      pointer: { x: 5, y: -2 }
+    });
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasFreePointAtPointer",
+      sourcePosition: {
+        documentVersion: 1,
+        line: identifierStart.line,
+        character: identifierStart.character
+      }
+    }));
   });
 
   it("keeps unnamed Canvas keyword navigation exact without adding Rename support", async () => {

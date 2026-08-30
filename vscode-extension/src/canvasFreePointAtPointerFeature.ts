@@ -18,6 +18,7 @@ export type VscodeCanvasFreePointAtPointerEndpoint = {
   sessionToken: object;
   document: vscode.TextDocument;
   isCurrent: () => boolean;
+  isAuthoritativeReady: () => boolean;
   lastCanvasPointer: () => VscodeCanvasPointer | null;
   postFreePointAtPointer: (request: {
     requestId: number;
@@ -28,6 +29,15 @@ export type VscodeCanvasFreePointAtPointerEndpoint = {
 };
 
 export type VscodeCanvasFreePointAtPointerFeature = vscode.Disposable & {
+  handleAuthoritativeDocumentReady: (
+    sessionToken: object,
+    document: vscode.TextDocument,
+    documentVersion: number
+  ) => void;
+  setExplicitSourceAuthoringPosition: (
+    document: vscode.TextDocument,
+    position: VscodeSourceAuthoringPosition
+  ) => void;
   markCanvasEdit: (requestId: number) => void;
   handleResult: (
     sessionToken: object,
@@ -41,6 +51,13 @@ type PendingRequest = {
   documentUri: string;
   sourcePosition: VscodeSourceAuthoringPosition;
   canvasEditMarked: boolean;
+};
+
+type DeferredInvocation = {
+  endpoint: VscodeCanvasFreePointAtPointerEndpoint;
+  documentUri: string;
+  documentVersion: number;
+  pointer: VscodeCanvasPointer;
 };
 
 type CommandOwnedAnchorPosition = Pick<VscodeSourceAuthoringPosition, "line" | "character">;
@@ -127,6 +144,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   const sourceAnchors = new Map<string, VscodeSourceAuthoringPosition>();
   const commandOwnedAnchorHistories = new Map<string, CommandOwnedAnchorHistory>();
   const pendingRequests = new Map<number, PendingRequest>();
+  let deferredInvocation: DeferredInvocation | null = null;
   let nextRequestId = 1;
 
   const commandOwnedAnchorHistoryFor = (documentUri: string): CommandOwnedAnchorHistory => {
@@ -141,11 +159,51 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     commandOwnedAnchorHistories.delete(documentUri);
   };
 
+  const dispatch = (invocation: DeferredInvocation): void => {
+    const endpoint = invocation.endpoint;
+    if (!endpoint.isCurrent()) {
+      if (deferredInvocation === invocation) deferredInvocation = null;
+      return;
+    }
+    if (!endpoint.isAuthoritativeReady()) return;
+
+    const anchor = sourceAnchors.get(invocation.documentUri);
+    if (!anchor) {
+      if (deferredInvocation === invocation) deferredInvocation = null;
+      void vscode.window.showErrorMessage(sourceAnchorError);
+      return;
+    }
+    if (
+      anchor.documentVersion !== endpoint.document.version ||
+      anchor.documentVersion !== invocation.documentVersion
+    ) {
+      if (deferredInvocation === invocation) deferredInvocation = null;
+      void vscode.window.showErrorMessage(staleSourceAnchorError);
+      return;
+    }
+
+    const requestId = nextRequestId++;
+    if (deferredInvocation === invocation) deferredInvocation = null;
+    pendingRequests.set(requestId, {
+      sessionToken: endpoint.sessionToken,
+      documentUri: invocation.documentUri,
+      sourcePosition: anchor,
+      canvasEditMarked: false
+    });
+    endpoint.postFreePointAtPointer({
+      requestId,
+      documentVersion: endpoint.document.version,
+      pointer: invocation.pointer,
+      sourcePosition: anchor
+    });
+  };
+
   const execute = (context?: unknown): void => {
     const endpoint = activeCanvasEndpoint();
     if (!endpoint || !endpoint.isCurrent()) return;
 
-    const anchor = sourceAnchors.get(sourceDocumentKey(endpoint.document));
+    const documentUri = sourceDocumentKey(endpoint.document);
+    const anchor = sourceAnchors.get(documentUri);
     if (!anchor) {
       void vscode.window.showErrorMessage(sourceAnchorError);
       return;
@@ -161,19 +219,14 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       return;
     }
 
-    const requestId = nextRequestId++;
-    pendingRequests.set(requestId, {
-      sessionToken: endpoint.sessionToken,
-      documentUri: sourceDocumentKey(endpoint.document),
-      sourcePosition: anchor,
-      canvasEditMarked: false
-    });
-    endpoint.postFreePointAtPointer({
-      requestId,
+    const invocation: DeferredInvocation = {
+      endpoint,
+      documentUri,
       documentVersion: endpoint.document.version,
-      pointer,
-      sourcePosition: anchor
-    });
+      pointer
+    };
+    deferredInvocation = invocation;
+    dispatch(invocation);
   };
 
   const selectionListener = vscode.window.onDidChangeTextEditorSelection((event: SourceSelectionChangeEvent) => {
@@ -241,10 +294,12 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   });
 
   const closeListener = vscode.workspace.onDidCloseTextDocument((document: vscode.TextDocument) => {
-    sourceAnchors.delete(sourceDocumentKey(document));
-    clearCommandOwnedAnchorHistory(sourceDocumentKey(document));
+    const documentUri = sourceDocumentKey(document);
+    sourceAnchors.delete(documentUri);
+    clearCommandOwnedAnchorHistory(documentUri);
+    if (deferredInvocation?.documentUri === documentUri) deferredInvocation = null;
     for (const [requestId, pending] of pendingRequests) {
-      if (pending.documentUri === sourceDocumentKey(document)) pendingRequests.delete(requestId);
+      if (pending.documentUri === documentUri) pendingRequests.delete(requestId);
     }
   });
 
@@ -254,6 +309,40 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
   );
 
   return Object.assign(vscode.Disposable.from(selectionListener, documentChangeListener, closeListener, command), {
+    handleAuthoritativeDocumentReady: (
+      sessionToken: object,
+      document: vscode.TextDocument,
+      documentVersion: number
+    ): void => {
+      const invocation = deferredInvocation;
+      if (!invocation) return;
+      if (!invocation.endpoint.isCurrent()) {
+        deferredInvocation = null;
+        return;
+      }
+      if (
+        invocation.endpoint.sessionToken !== sessionToken ||
+        !sameDocument(invocation.endpoint.document, document) ||
+        document.version !== documentVersion
+      ) return;
+      if (invocation.documentVersion !== documentVersion) {
+        deferredInvocation = null;
+        void vscode.window.showErrorMessage(staleSourceAnchorError);
+        return;
+      }
+      dispatch(invocation);
+    },
+    setExplicitSourceAuthoringPosition: (
+      document: vscode.TextDocument,
+      position: VscodeSourceAuthoringPosition
+    ): void => {
+      if (
+        !isSupportedSourceDocument(document) ||
+        !sourcePositionIsValid(position) ||
+        position.documentVersion !== document.version
+      ) return;
+      sourceAnchors.set(sourceDocumentKey(document), position);
+    },
     handleResult: (
       sessionToken: object,
       document: vscode.TextDocument,

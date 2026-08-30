@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { vscodeCanvasPointerContextKeys } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -82,6 +83,91 @@ beforeEach(() => {
 });
 
 describe("Canvas free point at pointer feature", () => {
+  it("retains a pending invocation through authoritative sync with its pointer and current anchor", () => {
+    const document = documentFor();
+    const initialEditor = editorFor(document, 3, 4);
+    const latestEditor = editorFor(document, 8, 6);
+    const token = {};
+    let authoritativeReady = false;
+    let latestPointer = { x: 12, y: -8 };
+    const postFreePointAtPointer = vi.fn();
+    const endpoint = {
+      sessionToken: token,
+      document,
+      isCurrent: () => true,
+      isAuthoritativeReady: () => authoritativeReady,
+      lastCanvasPointer: () => latestPointer,
+      postFreePointAtPointer
+    };
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => endpoint
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: initialEditor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+
+    latestPointer = { x: 100, y: 100 };
+    mocks.selectionListeners[0]?.({ textEditor: latestEditor, kind: 1 });
+    authoritativeReady = true;
+    feature.handleAuthoritativeDocumentReady(token, document, document.version);
+    feature.handleAuthoritativeDocumentReady(token, document, document.version);
+
+    expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
+    expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 1, line: 8, character: 6 }
+    }));
+    feature.dispose();
+  });
+
+  it("fails closed when a deferred invocation becomes stale or its session is invalidated", () => {
+    const document = documentFor();
+    const editor = editorFor(document, 3, 4);
+    const token = {};
+    let current = true;
+    let authoritativeReady = false;
+    const postFreePointAtPointer = vi.fn();
+    const feature = registerVscodeCanvasFreePointAtPointerFeature({
+      activeCanvasEndpoint: () => ({
+        sessionToken: token,
+        document,
+        isCurrent: () => current,
+        isAuthoritativeReady: () => authoritativeReady,
+        lastCanvasPointer: () => ({ x: 12, y: -8 }),
+        postFreePointAtPointer
+      })
+    });
+
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 1 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    authoritativeReady = true;
+    document.version = 2;
+    feature.handleAuthoritativeDocumentReady(token, document, document.version);
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+
+    mocks.showErrorMessage.mockClear();
+    authoritativeReady = false;
+    document.version = 3;
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 3,
+      line: 3,
+      character: 4
+    });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    current = false;
+    authoritativeReady = true;
+    feature.handleAuthoritativeDocumentReady(token, document, document.version);
+    expect(postFreePointAtPointer).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
   it("retains explicit Source positions, uses the latest Canvas pointer, and advances after acceptance", () => {
     const document = documentFor();
     const editor = editorFor(document, 3, 4);
@@ -91,6 +177,7 @@ describe("Canvas free point at pointer feature", () => {
       sessionToken: token,
       document,
       isCurrent: () => true,
+      isAuthoritativeReady: () => true,
       lastCanvasPointer: () => ({ x: 12, y: -8 }),
       postFreePointAtPointer
     };
@@ -133,6 +220,7 @@ describe("Canvas free point at pointer feature", () => {
         sessionToken: token,
         document,
         isCurrent: () => true,
+        isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 12, y: -8 }),
         postFreePointAtPointer
       })
@@ -174,6 +262,7 @@ describe("Canvas free point at pointer feature", () => {
         sessionToken: token,
         document,
         isCurrent: () => true,
+        isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 12, y: -8 }),
         postFreePointAtPointer
       })
@@ -213,6 +302,7 @@ describe("Canvas free point at pointer feature", () => {
         sessionToken: token,
         document,
         isCurrent: () => true,
+        isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 12, y: -8 }),
         postFreePointAtPointer
       })
@@ -254,6 +344,7 @@ describe("Canvas free point at pointer feature", () => {
         sessionToken: {},
         document,
         isCurrent: () => true,
+        isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 1, y: 2 }),
         postFreePointAtPointer
       })
@@ -276,6 +367,7 @@ describe("Canvas free point at pointer feature", () => {
         sessionToken: {},
         document,
         isCurrent: () => true,
+        isAuthoritativeReady: () => true,
         lastCanvasPointer: () => ({ x: 1, y: 2 }),
         postFreePointAtPointer
       })
@@ -293,6 +385,18 @@ describe("Canvas free point at pointer feature", () => {
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
     expect(postFreePointAtPointer).toHaveBeenCalledWith(expect.objectContaining({
       sourcePosition: { documentVersion: 2, line: 5, character: 2 }
+    }));
+
+    feature.setExplicitSourceAuthoringPosition(document, {
+      documentVersion: 2,
+      line: 4,
+      character: 3
+    });
+    editor.selection.active = { line: 9, character: 9 };
+    mocks.selectionListeners[0]?.({ textEditor: editor, kind: 3 });
+    void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
+    expect(postFreePointAtPointer).toHaveBeenLastCalledWith(expect.objectContaining({
+      sourcePosition: { documentVersion: 2, line: 4, character: 3 }
     }));
     feature.dispose();
   });
