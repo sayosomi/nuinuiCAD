@@ -330,8 +330,8 @@ export const OutputPreviewPlaceOverlay = ({
   }, [candidateSessionIsCurrent, handleCandidateWheel]);
 
   const beginHandleDrag = (event: React.PointerEvent<HTMLButtonElement>, handle: OutputPreviewPlaceHandle) => {
-    event.stopPropagation();
     if (event.button !== 0 || !handle.projection.dragability.draggable || !onBeginDrag) return;
+    event.stopPropagation();
     const candidates = outputPreviewPlaceCandidatesAtScreen(handles, handle.screen);
     if (candidates.length > 1 && activePlaceId !== handle.placeId) return;
     const proof = onBeginDrag(handle.projection);
