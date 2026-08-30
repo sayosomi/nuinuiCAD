@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { OutputPlan } from "../output/outputCore";
+import { evaluateElementsReferencePayload } from "../geometry/evaluationEngine";
 import { OutputPreviewApp } from "./OutputPreviewApp";
 import { outputPreviewDiagnosticSourceRangeFor } from "./outputPreviewDiagnostics";
 import type { DslDiagnostic } from "../dsl/dslTypes";
@@ -40,6 +41,31 @@ const source = [
 ].join("\n");
 
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
+const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  margin: 2,\n)`;
+const coldRevealSource = [
+  "nui 4",
+  "group G {",
+  "  line AB = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "group Other {",
+  "  line CD = segment(start: (0, 0), end: (10, 0))",
+  "}",
+  "layout First {",
+  "  place @Other(at: (0, 0))",
+  "}",
+  "layout Target {",
+  "  place @G(at: (0, 0))",
+  "}",
+  "print A(",
+  "  layout: @First,",
+  "  paper: a4,",
+  "  overlap: 5,",
+  ")",
+  "svg B(",
+  "  layout: @Target,",
+  "  margin: 1,",
+  ")"
+].join("\n");
 const repairedSource = source.replace("overlap: 5", "overlap: 20");
 const invalidOverlapSource = source.replace("overlap: 5", "overlap: 200");
 
@@ -211,6 +237,30 @@ const postWindowMessage = (data: unknown) => {
   act(() => {
     window.dispatchEvent(new MessageEvent("message", { data }));
   });
+};
+
+const createControlledRustApi = () => {
+  const requests: Array<{ id: number; input: unknown; responded: boolean }> = [];
+  const postMessage = vi.fn((message: VscodeToExtensionMessage) => {
+    if (message.type === "rustEvaluationRequest") {
+      requests.push({ id: message.id, input: message.input, responded: false });
+    }
+  });
+  const api = { postMessage } satisfies VscodeWebviewApi;
+  const respondNext = async () => {
+    const request = requests.find((candidate) => !candidate.responded);
+    if (!request) throw new Error("missing pending Rust evaluation request");
+    request.responded = true;
+    const input = request.input as { elements: Parameters<typeof evaluateElementsReferencePayload>[0] };
+    const payload = evaluateElementsReferencePayload(input.elements);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "rustEvaluationResponse", id: request.id, payload }
+      }));
+      await Promise.resolve();
+    });
+  };
+  return { api, requests, respondNext };
 };
 
 describe("Output Preview application", () => {
@@ -932,11 +982,20 @@ describe("Output Preview application", () => {
       documentVersion: 13,
       normalizedSourceOffset: crossOutputSource.indexOf("layout Target") + 2
     });
-    await waitFor(() => expect(pending).toHaveLength(2));
-
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const firstRevealEvaluation = pending[0];
+    if (!firstRevealEvaluation) throw new Error("missing first Reveal evaluation");
     await act(async () => {
-      for (const evaluation of pending) evaluation.resolve(planFor(evaluation.output));
-      await Promise.all(pending.map(({ promise }) => promise));
+      firstRevealEvaluation.resolve(planFor(firstRevealEvaluation.output));
+      await firstRevealEvaluation.promise;
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(pending).toHaveLength(2));
+    const secondRevealEvaluation = pending[1];
+    if (!secondRevealEvaluation) throw new Error("missing second Reveal evaluation");
+    await act(async () => {
+      secondRevealEvaluation.resolve(planFor(secondRevealEvaluation.output));
+      await secondRevealEvaluation.promise;
       await Promise.resolve();
     });
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith({
@@ -1023,19 +1082,39 @@ describe("Output Preview application", () => {
     const revealOffset = source.indexOf("print A(") + 2;
     postWindowMessage({ type: "outputPreviewReveal", requestId: 20, documentVersion: 16, normalizedSourceOffset: revealOffset });
     postWindowMessage({ type: "outputPreviewReveal", requestId: 21, documentVersion: 16, normalizedSourceOffset: revealOffset });
-    await waitFor(() => expect(pending).toHaveLength(4));
-
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const firstRequestFirstEvaluation = pending[0];
+    if (!firstRequestFirstEvaluation) throw new Error("missing first request evaluation");
     await act(async () => {
-      for (const evaluation of pending.slice(0, 2)) evaluation.resolve(planFor(evaluation.output));
-      await Promise.all(pending.slice(0, 2).map(({ promise }) => promise));
+      firstRequestFirstEvaluation.resolve(planFor(firstRequestFirstEvaluation.output));
+      await firstRequestFirstEvaluation.promise;
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(pending).toHaveLength(2));
+    const firstRequestSecondEvaluation = pending[1];
+    if (!firstRequestSecondEvaluation) throw new Error("missing second request evaluation");
+    await act(async () => {
+      firstRequestSecondEvaluation.resolve(planFor(firstRequestSecondEvaluation.output));
+      await firstRequestSecondEvaluation.promise;
       await Promise.resolve();
     });
     expect(revealResultMessages().some(({ requestId, status }) => requestId === 20 && status === "resolved")).toBe(false);
     expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).toBeNull();
 
+    await waitFor(() => expect(pending).toHaveLength(3));
+    const secondRequestFirstEvaluation = pending[2];
+    if (!secondRequestFirstEvaluation) throw new Error("missing current request evaluation");
     await act(async () => {
-      for (const evaluation of pending.slice(2)) evaluation.resolve(planFor(evaluation.output));
-      await Promise.all(pending.slice(2).map(({ promise }) => promise));
+      secondRequestFirstEvaluation.resolve(planFor(secondRequestFirstEvaluation.output));
+      await secondRequestFirstEvaluation.promise;
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(pending).toHaveLength(4));
+    const secondRequestSecondEvaluation = pending[3];
+    if (!secondRequestSecondEvaluation) throw new Error("missing final current request evaluation");
+    await act(async () => {
+      secondRequestSecondEvaluation.resolve(planFor(secondRequestSecondEvaluation.output));
+      await secondRequestSecondEvaluation.promise;
       await Promise.resolve();
     });
     await waitFor(() => expect(revealResultMessages()).toContainEqual(expect.objectContaining({ requestId: 21, status: "resolved" })));
@@ -1078,4 +1157,80 @@ describe("Output Preview application", () => {
     });
     await waitFor(() => expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(2));
   });
+});
+
+describe("Output Preview production Rust transport lifecycle", () => {
+  afterEach(() => {
+    cleanup();
+    useCadDocumentStore.setState(initialCadDocumentState());
+  });
+
+  const useProductionOutputEvaluation = async () => {
+    const actual = await vi.importActual<typeof import("../output/outputCore")>("../output/outputCore");
+    mocks.evaluateOutputPlan.mockImplementation(actual.evaluateOutputPlan);
+  };
+
+  it("resolves cold Reveal alongside ordinary Preview evaluation without transport supersession", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    await useProductionOutputEvaluation();
+    const controlled = createControlledRustApi();
+    useCadDocumentStore.setState(initialCadDocumentState());
+    render(<OutputPreviewApp api={controlled.api} />);
+
+    postWindowMessage({ type: "replaceTextDocument", sourceText: coldRevealSource, documentVersion: 1 });
+    await waitFor(() => expect(controlled.requests).toHaveLength(1));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 1,
+      documentVersion: 1,
+      normalizedSourceOffset: coldRevealSource.indexOf("group G") + 2
+    });
+    expect(controlled.requests).toHaveLength(1);
+
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(2));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(3));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 1,
+      documentVersion: 1,
+      status: "resolved",
+      outputKey: outputKeyFor("svg", "B")
+    }));
+  }, 30_000);
+
+  it("completes warm Reveal with three Outputs through the ordered production transport path", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    await useProductionOutputEvaluation();
+    const controlled = createControlledRustApi();
+    useCadDocumentStore.setState(initialCadDocumentState());
+    render(<OutputPreviewApp api={controlled.api} />);
+
+    postWindowMessage({ type: "replaceTextDocument", sourceText: sourceWithThreeOutputs, documentVersion: 2 });
+    await waitFor(() => expect(controlled.requests).toHaveLength(1));
+    await controlled.respondNext();
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A")));
+
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 2,
+      documentVersion: 2,
+      normalizedSourceOffset: sourceWithThreeOutputs.indexOf("group G") + 2
+    });
+    await waitFor(() => expect(controlled.requests).toHaveLength(2));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(3));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(4));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 2,
+      documentVersion: 2,
+      status: "resolved",
+      outputKey: outputKeyFor("print", "A")
+    }));
+  }, 30_000);
 });
