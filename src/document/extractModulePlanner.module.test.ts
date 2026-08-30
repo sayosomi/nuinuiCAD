@@ -258,7 +258,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expectRejectedWithoutPatch(planAt(source, 2).result, "unsupported-statement");
   });
 
-  it("keeps direct nested Module targets outside the root Extract contract rejected", () => {
+  it("extracts a direct nested Module target inside an existing Module", () => {
     const source = [
       "nui 4",
       "module Outer() {",
@@ -266,6 +266,39 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "  }",
       "}"
     ].join("\n");
-    expectRejectedWithoutPatch(planAt(source, 2).result, "unsupported-statement");
+    const { result } = planAt(source, 2);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies).toEqual([]);
+    expect(result.exports).toEqual([]);
+    const transformed = applyLineSplices(source, result.splices);
+    expect(transformed).toBe([
+      "nui 4",
+      "module Outer() {",
+      "  module Extracted() {",
+      "    module Inner() {",
+      "    }",
+      "  }",
+      "  instance Part = Extracted()",
+      "}"
+    ].join("\n"));
+    const next = compileCurrent(transformed, "extract-module-candidate");
+    const outerIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleDefinition" && statement.name === "Outer"
+    );
+    const extractedIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleDefinition" && statement.name === "Extracted"
+    );
+    const partIndex = next.statements.findIndex((statement) =>
+      statement.kind === "moduleInstance" && statement.name === "Part"
+    );
+    const outerId = statementIdAt(next, outerIndex);
+    const extractedId = statementIdAt(next, extractedIndex);
+    const partId = statementIdAt(next, partIndex);
+    expect(next.moduleSemanticAnalysis?.instancesByStatementId.get(partId)).toMatchObject({
+      callerModuleDefinitionStatementId: outerId,
+      calleeResolution: "resolved",
+      callee: { definitionStatementId: extractedId }
+    });
   });
 });
