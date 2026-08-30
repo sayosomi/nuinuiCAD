@@ -2445,6 +2445,105 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
+  it("keeps the registered blank-Canvas command on the active session across the first native edit", async () => {
+    const document = documentFor("/tmp/free-point-consecutive.nui", "file:///tmp/free-point-consecutive.nui", "nui 4\n");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    await handler({
+      type: "canvasPointerPublication",
+      documentVersion: 1,
+      pointer: { x: 12, y: -8 }
+    });
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    const firstRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasFreePointAtPointer") as {
+        requestId: number;
+      } | undefined;
+    expect(firstRequest).toBeDefined();
+
+    const firstSource = "nui 4\n// free point A\n";
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 2;
+      document.setSourceText(firstSource);
+      emitDocumentChange(document);
+      // A real native Source edit can transiently make the Source tab the
+      // active tab while the Canvas command is still the user's operation.
+      mocks.activeTabInput = new mocks.TabInputText(document.uri);
+      return true;
+    });
+    await handler({
+      type: "canvasCommit",
+      sourceText: firstSource,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset",
+      operationId: firstRequest!.requestId
+    });
+    await handler({
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequest!.requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: { line: 1, character: "// free point A".length }
+    });
+
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 91,
+      [vscodeCanvasPointerContextKeys.y]: -37
+    });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+    const secondRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "canvasFreePointAtPointer")
+      .at(-1) as {
+        requestId: number;
+        documentVersion: number;
+        pointer: { x: number; y: number };
+        sourcePosition: { documentVersion: number; line: number; character: number };
+      } | undefined;
+    expect(secondRequest).toMatchObject({
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: { documentVersion: 2, line: 1, character: "// free point A".length }
+    });
+
+    const secondSource = "nui 4\n// free point A\n// free point B\n";
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 3;
+      document.setSourceText(secondSource);
+      emitDocumentChange(document);
+      return true;
+    });
+    await handler({
+      type: "canvasCommit",
+      sourceText: secondSource,
+      expectedDocumentVersion: 2,
+      mutationKind: "reset",
+      operationId: secondRequest!.requestId
+    });
+    await handler({
+      type: "canvasFreePointAtPointerResult",
+      requestId: secondRequest!.requestId,
+      status: "applied",
+      documentVersion: 3,
+      nextSourcePosition: { line: 2, character: "// free point B".length }
+    });
+
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(2);
+    expect(editor.edit).toHaveBeenCalledTimes(2);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+  });
+
   it("disposes only the matching panel when a document closes and creates a fresh session on reopen", async () => {
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui");
     const documentB = documentFor("/tmp/b.nui", "file:///tmp/b.nui");

@@ -69,6 +69,7 @@ import {
 } from "./canvasQuickCreateFeature";
 import {
   registerVscodeCanvasFreePointAtPointerFeature,
+  isVscodeCanvasBlankContext,
   type VscodeCanvasFreePointAtPointerEndpoint,
   type VscodeCanvasFreePointAtPointerFeature
 } from "./canvasFreePointAtPointerFeature";
@@ -511,6 +512,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
       lastActiveCanvasSession = activeSession;
       return activeSession;
     }
+    const remembered = lastActiveCanvasSession;
+    return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
+      ? remembered
+      : null;
+  };
+
+  const canvasSessionForFreePointCommand = (context?: unknown): DocumentSession | null => {
+    const activeSession = canvasSessionForCommand();
+    if (activeSession || !isVscodeCanvasBlankContext(context)) return activeSession;
     const remembered = lastActiveCanvasSession;
     return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
       ? remembered
@@ -1590,8 +1600,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
   });
   canvasFreePointAtPointerFeature = registerVscodeCanvasFreePointAtPointerFeature({
-    activeCanvasEndpoint: (): VscodeCanvasFreePointAtPointerEndpoint | null => {
-      const session = canvasSessionForCommand();
+    activeCanvasEndpoint: (context?: unknown): VscodeCanvasFreePointAtPointerEndpoint | null => {
+      const session = canvasSessionForFreePointCommand(context);
       if (
         !session ||
         !session.webviewReady ||
