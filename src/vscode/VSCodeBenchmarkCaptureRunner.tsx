@@ -41,6 +41,9 @@ const currentRenderSurface = (viewport: HTMLElement): ReturnType<BrowserBenchmar
 
 const claimedRuns = new Set<string>();
 
+const errorMessageFor = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export const VSCodeBenchmarkCaptureRunner = ({
   config,
   evaluation,
@@ -59,13 +62,20 @@ export const VSCodeBenchmarkCaptureRunner = ({
   const checkEvaluationWaiters = () => {
     for (const waiter of evaluationWaiters.current) {
       const snapshot = latestEvaluation.current;
-      if (snapshot.compiledDocumentRevision !== waiter.revision) continue;
-      if (snapshot.evaluationState.source === "reference" || snapshot.evaluationState.source === "fallback") {
+      if (
+        snapshot.compiledDocumentRevision !== waiter.revision ||
+        snapshot.evaluationState.evaluationRevision !== waiter.revision ||
+        snapshot.evaluationState.isStale
+      ) continue;
+      if (snapshot.evaluationState.status === "failed") {
+        evaluationWaiters.current.delete(waiter);
+        const detail = snapshot.evaluationState.error === null
+          ? "unknown error"
+          : errorMessageFor(snapshot.evaluationState.error);
+        waiter.reject(new Error(`VS Code benchmark Rust evaluation failed: ${detail}`));
+      } else if (snapshot.evaluationState.source === "reference" || snapshot.evaluationState.source === "fallback") {
         evaluationWaiters.current.delete(waiter);
         waiter.reject(new Error("VS Code benchmark requires Rust evaluation; reference/fallback is not allowed"));
-      } else if (snapshot.evaluationState.status === "failed") {
-        evaluationWaiters.current.delete(waiter);
-        waiter.reject(new Error("VS Code benchmark Rust evaluation failed"));
       } else if (
         snapshot.evaluationState.status === "ready" &&
         snapshot.evaluationState.source === "rust" &&
