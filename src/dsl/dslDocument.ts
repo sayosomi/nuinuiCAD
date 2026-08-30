@@ -1312,6 +1312,15 @@ export const compileDslDocument = (
       .some((site) => site.expression.geometryBuiltinArguments.length > 0);
     if (usableExportBindingSeeds.length > 0 || hasRootGeometryBuiltinOccurrences) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
+      const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
+        if (path.segments.length !== 2) return null;
+        const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]!);
+        if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
+        const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
+        const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        const exported = definition?.exports.find((entry) => entry.name === path.segments[1]) ?? null;
+        return instance && definition ? { instance, definition, exported } : null;
+      };
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
         const parsedSource = parseDslSourceReference(`@${name}`);
         const path = parsedSource.kind === "valid" ? parsedSource.reference.path : parseDslReferenceToken(name);
@@ -1329,14 +1338,13 @@ export const compileDslDocument = (
             : null;
         }
         if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
-        const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
-        const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        const resolved = qualifiedModuleExportFor(statementIndex, path);
         if (property !== null) {
-          const exportedRecord = definition?.exports.find((entry) => entry.kind === "record" && entry.name === path.segments[1]);
+          const exportedRecord = resolved?.exported;
           const field = exportedRecord?.kind === "record"
             ? exportedRecord.definition.fields.find((candidate) => candidate.name === property)
             : undefined;
-          if (!instance || !definition || !exportedRecord || exportedRecord.kind !== "record" || !field) {
+          if (!resolved || resolved.exported?.kind !== "record" || !field) {
             return {
               kind: "blocked",
               reason: "incompatible",
@@ -1347,21 +1355,21 @@ export const compileDslDocument = (
           const bindingId = moduleRecordExportFieldBindingIdFor({
             moduleSemanticAnalysis: moduleSemanticCompilation,
             sourceNamespace: sourceLexicalNamespace,
-            instanceStatementId: instance.statementId,
+            instanceStatementId: resolved.instance.statementId,
             exportName: path.segments[1],
-            exportedStatementId: exportedRecord.exportedStatementId,
+            exportedStatementId: resolved.exported.exportedStatementId,
             field: field.identity
           });
           return bindingId && seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
             kind: "blocked",
             reason: "incompatible",
             declarationKind: "moduleInstance",
-            statementId: instance.statementId
+            statementId: resolved.instance.statementId
           };
         }
-        const exported = definition?.exports.find((entry) => entry.kind === "scalar" && entry.name === path.segments[1]);
-        if (!instance || !definition || !exported || exported.kind !== "scalar") {
-          const privateMember = !definition?.exports.some((entry) => entry.name === path.segments[1]) && definition?.bodyStatements.some((body) =>
+        const exported = resolved?.exported;
+        if (!resolved || !exported || exported.kind !== "scalar") {
+          const privateMember = !resolved?.definition.exports.some((entry) => entry.name === path.segments[1]) && resolved?.definition.bodyStatements.some((body) =>
             parsed.statements[body.statementIndex]?.name === path.segments[1]
           );
           return {
@@ -1372,15 +1380,15 @@ export const compileDslDocument = (
           };
         }
         const bindingId = moduleScalarBindingIdFor(
-          [instance.statementId],
-          definition.statementId,
+          [resolved.instance.statementId],
+          resolved.definition.statementId,
           exported.exportedStatementId
         );
         return seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
           kind: "blocked",
           reason: "incompatible",
           declarationKind: "moduleInstance",
-          statementId: instance.statementId
+          statementId: resolved.instance.statementId
         };
       };
       scalarAnalysisCompilation = analyzeTypedDeclarations({
@@ -1395,6 +1403,30 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace,
         additionalBindings: usableExportBindingSeeds,
         additionalBindingResolver,
+        additionalRecordValueResolver: (value) => {
+          const reference = value.reference;
+          if (!reference || value.typeIdentity === null) return null;
+          const path = parseDslReferenceToken(reference.name);
+          const resolved = qualifiedModuleExportFor(value.statementIndex, path);
+          if (!resolved || resolved.exported?.kind !== "record" || resolved.exported.typeIdentity !== value.typeIdentity) return null;
+          const fieldBindingIdsByFieldIndex = new Map<number, BindingId>();
+          for (const field of resolved.exported.definition.fields) {
+            const bindingId = moduleRecordExportFieldBindingIdFor({
+              moduleSemanticAnalysis: moduleSemanticCompilation,
+              sourceNamespace: sourceLexicalNamespace,
+              instanceStatementId: resolved.instance.statementId,
+              exportName: resolved.exported.name,
+              exportedStatementId: resolved.exported.exportedStatementId,
+              field: field.identity
+            });
+            if (!bindingId || !seedById.has(bindingId)) return null;
+            fieldBindingIdsByFieldIndex.set(field.fieldIndex, bindingId);
+          }
+          return {
+            typeIdentity: resolved.exported.typeIdentity,
+            fieldBindingIdsByFieldIndex
+          };
+        },
         additionalRecordPropertyResolver: ({ statementIndex, node }) => {
           const statementId = stableStatementIdByIndex.get(statementIndex);
           const site = statementId

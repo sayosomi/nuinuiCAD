@@ -3,6 +3,7 @@ import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import type {
   RecordFieldIdentity,
   RecordSemanticAnalysis,
+  RecordTypeIdentity,
   RecordValueIdentity,
   RecordValueSemantic
 } from "../dsl/recordSemanticAnalysis";
@@ -44,6 +45,14 @@ export type RecordScalarLoweringPlan = {
   fieldBindingIdsByValueStatementId: ReadonlyMap<RecordValueIdentity, ReadonlyMap<number, BindingId>>;
   /** Values that are semantically present but cannot be lowered by this leaf. */
   unresolvedValueStatementIds: readonly RecordValueIdentity[];
+};
+
+/** Compiler-owned scalar backing for a whole-record alias resolved outside the
+ * source-only record namespace. The caller proves the nominal type and
+ * supplies existing field bindings; this planner never creates storage for it. */
+export type ExternalRecordScalarAlias = {
+  typeIdentity: RecordTypeIdentity;
+  fieldBindingIdsByFieldIndex: ReadonlyMap<number, BindingId>;
 };
 
 export type RecordScalarPropertyIssue = {
@@ -121,11 +130,13 @@ export const recordScalarDeclarationVersionIdFor = (
 export const planRecordScalarLowering = ({
   analysis,
   sourceNamespace,
-  includeValue = () => true
+  includeValue = () => true,
+  additionalRecordValueResolver
 }: {
   analysis: RecordSemanticAnalysis;
   sourceNamespace: SourceLexicalNamespaceIndex;
   includeValue?: (value: RecordValueSemantic) => boolean;
+  additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): RecordScalarLoweringPlan => {
   const bindingSeeds: BindingSeed[] = [];
   const initializers: RecordScalarFieldInitializer[] = [];
@@ -191,6 +202,18 @@ export const planRecordScalarLowering = ({
           continue;
         }
       }
+    }
+
+    const externalAlias = additionalRecordValueResolver?.(value) ?? null;
+    const definition = analysis.definitionsByStatementId.get(value.typeIdentity);
+    if (
+      externalAlias?.typeIdentity === value.typeIdentity &&
+      definition &&
+      externalAlias.fieldBindingIdsByFieldIndex.size === definition.fields.length &&
+      definition.fields.every((field) => externalAlias.fieldBindingIdsByFieldIndex.get(field.fieldIndex) !== undefined)
+    ) {
+      fieldBindingIdsByValueStatementId.set(value.statementId, externalAlias.fieldBindingIdsByFieldIndex);
+      continue;
     }
 
     unresolvedValueStatementIds.push(value.statementId);

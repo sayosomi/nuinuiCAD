@@ -93,6 +93,54 @@ describe("record scalar lowering planner", () => {
     expect(alias2).toBe(origin);
   });
 
+  it("reuses externally supplied field backing for a qualified Module record alias", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 4",
+      "record Pair(left: number, right: string)",
+      'const origin: Pair = Pair(left: 10, right: "base")',
+      "const alias: Pair = @Source::output"
+    ].join("\n"));
+    const externalFieldBindings = new Map([[0, "module-field-left"], [1, "module-field-right"]]);
+
+    const plan = planRecordScalarLowering({
+      analysis: records,
+      sourceNamespace,
+      additionalRecordValueResolver: (value) => value.name === "alias"
+        ? { typeIdentity: value.typeIdentity!, fieldBindingIdsByFieldIndex: externalFieldBindings }
+        : null
+    });
+
+    expect(plan.bindingSeeds).toHaveLength(2);
+    expect(plan.initializers).toHaveLength(2);
+    expect(plan.fieldBindingIdsByValueStatementId.get("stable-3")).toBe(externalFieldBindings);
+    expect(plan.fieldBindingIdsByValueStatementId.get("stable-3")?.get(0)).toBe("module-field-left");
+    expect(plan.fieldBindingIdsByValueStatementId.get("stable-3")?.get(1)).toBe("module-field-right");
+    expect(plan.unresolvedValueStatementIds).toEqual([]);
+  });
+
+  it("does not synthesize storage for an incompatible or incomplete external record alias", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 4",
+      "record Pair(left: number, right: string)",
+      'const mismatch: Pair = @Source::wrong',
+      'const incomplete: Pair = @Source::partial'
+    ].join("\n"));
+
+    const plan = planRecordScalarLowering({
+      analysis: records,
+      sourceNamespace,
+      additionalRecordValueResolver: (value) => value.name === "mismatch"
+        ? { typeIdentity: "other-record", fieldBindingIdsByFieldIndex: new Map([[0, "wrong-left"], [1, "wrong-right"]]) }
+        : value.name === "incomplete"
+          ? { typeIdentity: value.typeIdentity!, fieldBindingIdsByFieldIndex: new Map([[0, "partial-left"]]) }
+          : null
+    });
+
+    expect(plan.fieldBindingIdsByValueStatementId.has("stable-2")).toBe(false);
+    expect(plan.fieldBindingIdsByValueStatementId.has("stable-3")).toBe(false);
+    expect(plan.unresolvedValueStatementIds).toEqual(["stable-2", "stable-3"]);
+  });
+
   it("keeps constructor storage identity distinct across record values", () => {
     const { sourceNamespace, records } = analyze([
       "nui 4",

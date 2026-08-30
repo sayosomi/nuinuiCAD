@@ -6,6 +6,7 @@ import {
   type DslReferencesQueryResult,
   type DslReferencesSemanticSnapshot
 } from "./dslReferencesQuery";
+import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "./dslSemanticOccurrenceIndex";
 
 const compile = (source: string, sourceRevision = 7): CompiledDslDocument => {
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
@@ -230,6 +231,42 @@ describe("queryDslReferences", () => {
     expect(moduleParameter).not.toBeNull();
     expect(slices(source, moduleParameter!.declarationRange)).toEqual(["input"]);
     expect(slices(source, moduleParameter!.referenceRanges)).toEqual(expect.arrayContaining(["input", "input"]));
+  });
+
+  it("projects qualified whole-record aliases to the exact Module instance and export owners", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Provider() {",
+      "  export const output: Pair = Pair(x: 3)",
+      "}",
+      "instance Source = Provider()",
+      "const alias: Pair = @Source::output",
+      "const value: number = @alias.x"
+    ].join("\n");
+    const compiled = compile(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const sourceInstance = compiled.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Source")!;
+    const definition = compiled.moduleSemanticAnalysis!.definitionsByStatementId.get(sourceInstance.callee!.definitionStatementId)!;
+    const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
+    if (!exported || exported.kind !== "record") throw new Error("missing record export");
+    const index = createDslSemanticOccurrenceIndex(compiled);
+    const referenceStart = source.indexOf("@Source::output");
+    const sourceReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from === referenceStart + 1 && occurrence.to === referenceStart + 1 + "Source".length
+    );
+    const exportReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" && occurrence.from === referenceStart + 1 + "Source::".length && occurrence.to === referenceStart + 1 + "Source::output".length
+    );
+    expect(sourceReference).toBeDefined();
+    expect(exportReference).toBeDefined();
+    expect(sourceReference && dslSemanticIdentityKey(sourceReference.identity)).toBe(
+      `module:moduleInstance:${sourceInstance.statementId}`
+    );
+    expect(exportReference && dslSemanticIdentityKey(exportReference.identity)).toBe(
+      `module:moduleSource:${exported.exportedStatementId}`
+    );
   });
 
   it("keeps qualified export path segments as separate identities", () => {

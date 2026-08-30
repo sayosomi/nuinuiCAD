@@ -1041,21 +1041,223 @@ describe("planInlineModule Checkpoint 1", () => {
     expect(resolved.declaration.statementId).toBe("inline-point-next:1");
   });
 
-  it("keeps record parameters outside this singular geometry lowering slice", () => {
+  it("lowers a required record parameter from an inline constructor as one typed local", () => {
     const source = [
       "nui 4",
       "record Pair(x: number)",
       "module Box(settings: Pair) {",
-      "  point P = coordinate(x: 0, y: 0)",
+      "  point P = coordinate(x: @settings.x, y: 0)",
       "}",
       "instance Copy = Box(settings: Pair(x: 1))"
     ].join("\n");
     const { result } = plan(source, ["Copy"]);
-    expect(result).toMatchObject({
-      status: "planned",
-      splices: [],
-      targets: [{ status: "skipped", code: "parameter-lowering-required" }]
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const settings: Pair = Pair(x: 1)");
+    expect(next).toContain("point P = coordinate(x: @settings.x, y: 0)");
+    const compiledNext = compileCurrent(next, "inline-record-constructor-next");
+    const groupIndex = compiledNext.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Copy"
+    );
+    expect(compiledNext.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" && statement.name === "settings" && statement.enclosing?.statementIndex === groupIndex
+    )).toHaveLength(1);
+    expect(compiledNext.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(
+      compiledNext.statements.findIndex((statement) =>
+        statement.kind === "typedDeclaration" && statement.name === "settings" && statement.enclosing?.statementIndex === groupIndex
+      )
+    )?.typeIdentity).toBe("inline-record-constructor-next:1");
+  });
+
+  it("lowers a required record parameter from an ordinary source record value", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "const sourcePair: Pair = Pair(x: 1)",
+      "module Box(settings: Pair) {",
+      "  point P = coordinate(x: @settings.x, y: 0)",
+      "}",
+      "instance Copy = Box(settings: @sourcePair)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const settings: Pair = @sourcePair");
+    expect(compileCurrent(next, "inline-record-source-next").diagnostics).toEqual([]);
+  });
+
+  it("preserves a caller Module record parameter and local record source through Inline", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Outer(input: Pair) {",
+      "  const local: Pair = Pair(x: 2)",
+      "  module Inner(settings: Pair) {",
+      "    point P = coordinate(x: @settings.x, y: 0)",
+      "  }",
+      "  instance FromParameter = Inner(settings: @input)",
+      "  instance FromLocal = Inner(settings: @local)",
+      "}",
+      "const root: Pair = Pair(x: 7)",
+      "instance Top = Outer(input: @root)"
+    ].join("\n");
+    const { result } = plan(source, ["FromParameter", "FromLocal"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const settings: Pair = @input");
+    expect(next).toContain("const settings: Pair = @local");
+    expect(compileCurrent(next, "inline-record-caller-next").diagnostics).toEqual([]);
+  });
+
+  it("keeps record, scalar, and geometry-array locals in authored parameter order", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "point Anchor = coordinate(x: 0, y: 0)",
+      "module Mixed(width: number, settings: Pair, points: point[]) {",
+      "  point P = coordinate(x: @width + @settings.x, y: 0)",
+      "  line Path = polyline(points: @points)",
+      "}",
+      "instance Copy = Mixed(width: 2, settings: Pair(x: 3), points: [@Anchor])"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    const groupStart = next.indexOf("group Copy {");
+    const generated = [
+      "const width: number = 2",
+      "const settings: Pair = Pair(x: 3)",
+      "const points: point[] = [@Anchor]"
+    ];
+    expect(generated.every((line, index) => next.indexOf(line, groupStart) < next.indexOf(generated[index + 1] ?? "point P", groupStart))).toBe(true);
+    expect(compileCurrent(next, "inline-record-composition-next").diagnostics).toEqual([]);
+  });
+
+  it("uses normal presence specialization for optional record parameters", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Conditional(settings?: Pair) {",
+      "  if (hasValue(@settings)) {",
+      "    point Present = coordinate(x: @settings.x, y: 0)",
+      "  } else {",
+      "    point Missing = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "instance Supplied = Conditional(settings: Pair(x: 4))",
+      "instance Omitted = Conditional()"
+    ].join("\n");
+    const { result } = plan(source, ["Supplied", "Omitted"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("group Supplied {\n  const settings: Pair = Pair(x: 4)\n  point Present = coordinate(x: @settings.x, y: 0)\n}");
+    expect(next).toContain("group Omitted {\n  point Missing = coordinate(x: 0, y: 0)\n}");
+    expect(next).not.toContain("group Omitted {\n  const settings");
+    expect(next.slice(next.indexOf("group Omitted {"))).not.toContain("@settings");
+    expect(compileCurrent(next, "inline-record-optional-next").diagnostics).toEqual([]);
+  });
+
+  it("fails closed for a tampered nominal record owner", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Box(settings: Pair) {",
+      "  point P = coordinate(x: @settings.x, y: 0)",
+      "}",
+      "instance Copy = Box(settings: Pair(x: 1))"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const instance = analysis.instances.find((candidate) => candidate.name === "Copy")!;
+    const definition = analysis.definitions.find((candidate) => candidate.name === "Box")!;
+    const tamperedParameter = {
+      ...definition.parameters[0]!,
+      recordTypeIdentity: "tampered-record-owner"
+    };
+    const definitions = analysis.definitions.map((candidate) => candidate === definition
+      ? { ...candidate, parameters: [tamperedParameter] }
+      : candidate);
+    const tamperedAnalysis = {
+      ...analysis,
+      definitions,
+      definitionsByStatementId: new Map(definitions.map((candidate) => [candidate.statementId, candidate])),
+      instancesByStatementId: new Map(analysis.instances.map((candidate) => [candidate.statementId, candidate]))
+    };
+    const target = targetFor(compiled, "Copy");
+    const result = planInlineModule({
+      source: { normalizedSource: source, sourceRevision: REVISION },
+      compiled: { ...compiled, moduleSemanticAnalysis: tamperedAnalysis },
+      targets: [target],
+      policy: DEFAULT_POLICY
     });
+    expect(result).toMatchObject({ status: "rejected", code: "unsafe-rewrite", target });
+    expect("splices" in result).toBe(false);
+    expect(instance.parameterBindings[0]?.value?.kind).toBe("record");
+  });
+
+  it("lowers a compatible qualified Module record export as one whole-record local", () => {
+    const source = [
+      "nui 4",
+      "record Pair(x: number)",
+      "module Provider() {",
+      "  export const output: Pair = Pair(x: 3)",
+      "}",
+      "module Consumer(settings: Pair) {",
+      "  point P = coordinate(x: @settings.x, y: 0)",
+      "}",
+      "instance Source = Provider()",
+      "instance Copy = Consumer(settings: @Source::output)"
+    ].join("\n");
+    const { result } = plan(source, ["Copy"]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const next = applyLineSplices(source, result.splices);
+    expect(next).toContain("const settings: Pair = @Source::output");
+    expect(next).toContain("point P = coordinate(x: @settings.x, y: 0)");
+
+    const compiledNext = compileCurrent(next, "inline-qualified-record-export-next");
+    const groupIndex = compiledNext.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Copy"
+    );
+    const generated = compiledNext.statements.filter((statement) =>
+      statement.kind === "typedDeclaration" &&
+      statement.name === "settings" &&
+      statement.enclosing?.statementIndex === groupIndex
+    );
+    expect(generated).toHaveLength(1);
+    const generatedIndex = compiledNext.statements.indexOf(generated[0]!);
+    expect(compiledNext.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(generatedIndex)?.typeIdentity)
+      .toBe("inline-qualified-record-export-next:1");
+
+    const sourceInstance = compiledNext.moduleSemanticAnalysis!.instances.find((instance) => instance.name === "Source")!;
+    const definition = compiledNext.moduleSemanticAnalysis!.definitionsByStatementId.get(sourceInstance.callee!.definitionStatementId)!;
+    const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === "output");
+    if (!exported || exported.kind !== "record") throw new Error("missing record export");
+    const index = createDslSemanticOccurrenceIndex(compiledNext);
+    const referenceStart = next.indexOf("@Source::output", next.indexOf("group Copy"));
+    const sourceReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === referenceStart + 1 &&
+      occurrence.to === referenceStart + 1 + "Source".length
+    );
+    const exportReference = index.occurrences.find((occurrence) =>
+      occurrence.kind === "reference" &&
+      occurrence.from === referenceStart + 1 + "Source::".length &&
+      occurrence.to === referenceStart + 1 + "Source::output".length
+    );
+    expect(sourceReference).toBeDefined();
+    expect(exportReference).toBeDefined();
+    expect(sourceReference && dslSemanticIdentityKey(sourceReference.identity)).toBe(
+      `module:moduleInstance:${sourceInstance.statementId}`
+    );
+    expect(exportReference && dslSemanticIdentityKey(exportReference.identity)).toBe(
+      `module:moduleSource:${exported.exportedStatementId}`
+    );
   });
 
   it("substitutes repeated direct uses of one singular geometry parameter independently", () => {
