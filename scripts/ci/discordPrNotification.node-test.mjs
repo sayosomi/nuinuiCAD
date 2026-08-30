@@ -4,11 +4,13 @@ import test from "node:test";
 import { deflateRawSync } from "node:zlib";
 import {
   buildMainPushContent,
+  buildPullRequestLifecycleContent,
   buildCiFailureContent,
   fetchFailureDetails,
   notifyCiFailure,
   notifyMainPush,
-  notifyMergedPullRequest
+  notifyMergedPullRequest,
+  notifyPullRequestLifecycle
 } from "./discordPrNotification.mjs";
 import {
   MAX_ARTIFACT_BYTES,
@@ -177,6 +179,37 @@ const fetchForMainPush = ({ pages = [[]], compares = {}, listStatus = 200, compa
       const key = compareKey(match[1], match[2]);
       if (!Object.hasOwn(compares, key)) throw new Error(`unexpected compare ${key}`);
       return response(JSON.stringify({ behind_by: compares[key] }));
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  return { fetchImpl, posts, requests };
+};
+
+const lifecycleEnvironment = {
+  ...mainPushEnvironment,
+  GITHUB_SHA: "c".repeat(40)
+};
+
+const lifecycleEvent = ({ action = "opened", pullRequest = makePullRequest({ number: 201 }) } = {}) => ({
+  action,
+  pull_request: pullRequest
+});
+
+const fetchForLifecycle = ({ behindBy = 1, compareStatus = 200 } = {}) => {
+  const requests = [];
+  const posts = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url === lifecycleEnvironment.DISCORD_WEBHOOK_URL) {
+      posts.push(JSON.parse(options.body));
+      return response(null, { status: 204 });
+    }
+
+    const parsedUrl = new URL(url);
+    const match = parsedUrl.pathname.match(/\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/iu);
+    if (match) {
+      if (compareStatus !== 200) return response(null, { status: compareStatus });
+      return response(JSON.stringify({ behind_by: behindBy }));
     }
     throw new Error(`unexpected ${url}`);
   };
@@ -603,7 +636,7 @@ test("does not notify a PR created after the push-time oracle", async () => {
   assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 0);
 });
 
-test("accepts production-shape numeric pushed_at and uses it for PR time filtering", async () => {
+test("uses a strict production-shape numeric pushed_at boundary for PR time filtering", async () => {
   const createdAtPush = makePullRequest({ number: 114, createdAt: "2025-01-02T00:00:00.000Z" });
   const createdBeforePush = makePullRequest({ number: 115, createdAt: "2025-01-01T00:00:00Z" });
   const createdAfterPush = makePullRequest({ number: 116, createdAt: "2025-01-02T00:00:01Z" });
@@ -614,8 +647,6 @@ test("accepts production-shape numeric pushed_at and uses it for PR time filteri
   const { fetchImpl, posts } = fetchForMainPush({
     pages: [[createdAtPush, createdBeforePush, createdAfterPush]],
     compares: {
-      [compareKey(mainPushEvent.before, createdAtPush.head.sha)]: 0,
-      [compareKey(mainPushEvent.after, createdAtPush.head.sha)]: 1,
       [compareKey(mainPushEvent.before, createdBeforePush.head.sha)]: 0,
       [compareKey(mainPushEvent.after, createdBeforePush.head.sha)]: 1
     }
@@ -623,10 +654,9 @@ test("accepts production-shape numeric pushed_at and uses it for PR time filteri
 
   await notifyMainPush({ event: numericPushEvent, environment: mainPushEnvironment, fetchImpl });
 
-  assert.equal(posts.length, 2);
-  assert.match(posts[0].content, /PR #114/u);
-  assert.match(posts[1].content, /PR #115/u);
-  assert.doesNotMatch(posts.map(({ content }) => content).join("\n"), /PR #116/u);
+  assert.equal(posts.length, 1);
+  assert.match(posts[0].content, /PR #115/u);
+  assert.doesNotMatch(posts[0].content, /PR #114|PR #116/u);
 });
 
 test("follows pull request pagination and processes a qualifying PR beyond page one", async () => {
@@ -722,6 +752,191 @@ test("fails when a compare API call fails", async () => {
     /GitHub API returned 500/u
   );
   assert.equal(posts.length, 0);
+});
+
+test("notifies exactly once for an opened PR that is behind event-time main", async () => {
+  const pullRequest = makePullRequest({ number: 201, title: "Opened notification" });
+  const { fetchImpl, posts, requests } = fetchForLifecycle({ behindBy: 2 });
+
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "opened", pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl
+  });
+
+  assert.equal(posts.length, 1);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 1);
+  assert.match(posts[0].content, /PR #201 out of date/u);
+  assert.match(posts[0].content, /latest main integration required/u);
+  assert.match(posts[0].content, /event-time main SHA: c{40}/u);
+  assert.match(posts[0].content, new RegExp(`PR head SHA: ${pullRequest.head.sha}`, "u"));
+  assert.match(requests[0].url, new RegExp(`/compare/${lifecycleEnvironment.GITHUB_SHA}\.\.\.${pullRequest.head.sha}$`, "u"));
+});
+
+test("does not notify an opened PR that is current with event-time main", async () => {
+  const { fetchImpl, posts, requests } = fetchForLifecycle({ behindBy: 0 });
+
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "opened" }),
+    environment: lifecycleEnvironment,
+    fetchImpl
+  });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.filter(({ url }) => url.includes("/compare/")).length, 1);
+});
+
+test("does not compare or notify a draft opened PR", async () => {
+  const pullRequest = makePullRequest({ number: 202, draft: true });
+  const { fetchImpl, posts, requests } = fetchForLifecycle({ behindBy: 1 });
+
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "opened", pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl
+  });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.length, 0);
+});
+
+test("notifies ready_for_review PRs only when they are behind", async () => {
+  const pullRequest = makePullRequest({ number: 203 });
+  const behind = fetchForLifecycle({ behindBy: 1 });
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "ready_for_review", pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl: behind.fetchImpl
+  });
+  assert.equal(behind.posts.length, 1);
+
+  const current = fetchForLifecycle({ behindBy: 0 });
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "ready_for_review", pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl: current.fetchImpl
+  });
+  assert.equal(current.posts.length, 0);
+});
+
+test("notifies reopened PRs only when they are behind and skips draft reopenings", async () => {
+  const pullRequest = makePullRequest({ number: 204 });
+  const reopened = fetchForLifecycle({ behindBy: 1 });
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "reopened", pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl: reopened.fetchImpl
+  });
+  assert.equal(reopened.posts.length, 1);
+
+  const draft = fetchForLifecycle({ behindBy: 1 });
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ action: "reopened", pullRequest: { ...pullRequest, draft: true } }),
+    environment: lifecycleEnvironment,
+    fetchImpl: draft.fetchImpl
+  });
+  assert.equal(draft.posts.length, 0);
+  assert.equal(draft.requests.length, 0);
+});
+
+test("explicit non-main lifecycle bases are successful no-ops", async () => {
+  const { fetchImpl, posts, requests } = fetchForLifecycle({ behindBy: 1 });
+
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ pullRequest: makePullRequest({ number: 205, baseRef: "release" }) }),
+    environment: {},
+    fetchImpl
+  });
+
+  assert.equal(posts.length, 0);
+  assert.equal(requests.length, 0);
+});
+
+test("rejects malformed actionable lifecycle identity before API requests", async () => {
+  const pullRequest = makePullRequest({ number: 206 });
+  const invalidEvents = [
+    { name: "missing action", event: { pull_request: pullRequest } },
+    { name: "unsupported action", event: lifecycleEvent({ action: "synchronize", pullRequest }) },
+    { name: "missing pull request", event: { action: "opened" } },
+    { name: "missing base", event: lifecycleEvent({ pullRequest: { ...pullRequest, base: undefined } }) },
+    { name: "missing state", event: lifecycleEvent({ pullRequest: { ...pullRequest, state: undefined } }) },
+    { name: "closed state", event: lifecycleEvent({ pullRequest: { ...pullRequest, state: "closed" } }) },
+    { name: "missing number", event: lifecycleEvent({ pullRequest: { ...pullRequest, number: undefined } }) },
+    { name: "invalid head SHA", event: lifecycleEvent({ pullRequest: { ...pullRequest, head: { sha: "not-a-sha" } } }) }
+  ];
+
+  for (const { name, event } of invalidEvents) {
+    let requests = 0;
+    await assert.rejects(
+      notifyPullRequestLifecycle({
+        event,
+        environment: lifecycleEnvironment,
+        fetchImpl: async () => {
+          requests += 1;
+          throw new Error("unexpected request");
+        }
+      }),
+      (error) => error instanceof Error && error.message.length > 0,
+      name
+    );
+    assert.equal(requests, 0, name);
+  }
+
+  for (const environment of [
+    { ...lifecycleEnvironment, GITHUB_SHA: undefined },
+    { ...lifecycleEnvironment, GITHUB_SHA: "not-a-sha" },
+    { ...lifecycleEnvironment, GITHUB_REPOSITORY: undefined },
+    { ...lifecycleEnvironment, GITHUB_TOKEN: undefined }
+  ]) {
+    let requests = 0;
+    await assert.rejects(
+      notifyPullRequestLifecycle({
+        event: lifecycleEvent({ pullRequest }),
+        environment,
+        fetchImpl: async () => {
+          requests += 1;
+          throw new Error("unexpected request");
+        }
+      })
+    );
+    assert.equal(requests, 0);
+  }
+});
+
+test("fails on lifecycle compare errors without posting to Discord", async () => {
+  const { fetchImpl, posts } = fetchForLifecycle({ compareStatus: 500 });
+
+  await assert.rejects(
+    notifyPullRequestLifecycle({
+      event: lifecycleEvent({ action: "opened" }),
+      environment: lifecycleEnvironment,
+      fetchImpl
+    }),
+    /GitHub API returned 500/u
+  );
+  assert.equal(posts.length, 0);
+});
+
+test("sanitizes and bounds lifecycle content while disabling Discord mentions", async () => {
+  const pullRequest = makePullRequest({ number: 207, title: "@everyone\n<title>\u0000" });
+  const content = buildPullRequestLifecycleContent({
+    repository: "sayosomi/nuinuiCAD",
+    pullRequest: { ...pullRequest, title: "title\n".repeat(1000) },
+    mainSha: lifecycleEnvironment.GITHUB_SHA
+  });
+  assert.ok(content.length <= 2000);
+  assert.doesNotMatch(content, /[\u0000\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u);
+
+  const { fetchImpl, posts } = fetchForLifecycle({ behindBy: 1 });
+  await notifyPullRequestLifecycle({
+    event: lifecycleEvent({ pullRequest }),
+    environment: lifecycleEnvironment,
+    fetchImpl
+  });
+  assert.match(posts[0].content, /@everyone <title>/u);
+  assert.match(posts[0].content, /event-time main SHA: c{40}/u);
+  assert.match(posts[0].content, new RegExp(`PR head SHA: ${pullRequest.head.sha}`, "u"));
+  assert.deepEqual(posts[0].allowed_mentions, { parse: [] });
 });
 
 test("keeps merged pull request notification behavior covered", async () => {
