@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
+import type { DslOutputPreviewRevealRuntimeTarget } from "../dsl/dslOutputPreviewRevealQuery";
 import type { OutputDrawable, OutputPlan } from "./outputCore";
 import {
   outputPreviewRevealOutputKeyFor,
@@ -65,7 +66,9 @@ const elements = [
   element("B", "line", "N")
 ];
 
-const target = (overrides: Partial<Extract<OutputPreviewRevealTarget, { kind: "geometry" }>> = {}): OutputPreviewRevealTarget => ({
+type GeometryRevealTarget = DslOutputPreviewRevealRuntimeTarget & { kind: "geometry" };
+
+const target = (overrides: Partial<GeometryRevealTarget> = {}): GeometryRevealTarget => ({
   kind: "geometry",
   sourceStatementIndex: 1,
   runtimeElementIds: ["A"],
