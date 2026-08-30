@@ -25,7 +25,7 @@ a same-machine, coherent-render-surface comparability guard and is not fixture
 authority or mandatory Tauri provenance. Fixture ID and hash authority
 come from the current manifest and capture input.
 
-Available fixture IDs are `interactive-medium-v1`, `interactive-large-v1`,
+Available fixture IDs are `interactive-medium-v2`, `interactive-large-v2`,
 `dependency-chain-250-v1`, and `dependency-chain-1000-v1`. Each capture runs
 5 warm-ups and 21 measured trials for `source-edit-v1`, `point-drag-v1`, and
 `bezier-handle-drag-v1`. The source edit changes `benchOffset` from `6` to
@@ -87,6 +87,10 @@ source-ordered chain of 250 or 1000 cheap offset-point declarations. The first
 point depends on `benchOffset`, `Benchmark::DragPoint`, and
 `Benchmark::DragCurve.length`; each later point depends on its immediate
 predecessor.
+
+The superseded interactive v1 source files remain unchanged as historical
+fixtures; the v2 entries are the current manifest-supported interactive
+workloads.
 
 `fixtures/manifest.json` records the exact UTF-8 SHA-256 hash and benchmark
 anchors for each workload. If fixture content or workload changes, create a new

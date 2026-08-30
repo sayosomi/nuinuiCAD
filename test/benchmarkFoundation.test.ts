@@ -17,7 +17,8 @@ import {
   parseBenchmarkFixtureManifest
 } from "../src/performance/benchmarkFixtureManifest";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../src/document/canonicalDocument";
-import { evaluateElementsReference } from "../src/geometry/evaluationEngine";
+import { evaluateElementsReference, evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
+import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { forGroupGeneratedElementId } from "../src/geometry/forGroupExpansion";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { canUseRustEvaluationForElements } from "../src/geometry/rustEvaluationEligibility";
@@ -38,6 +39,10 @@ import {
 import { compileDslDocument } from "../src/dsl/dslDocument";
 import { emptyDocument } from "../src/dsl/dslDocumentTestUtils";
 import { parseDslSnapshot } from "../src/dsl/dslParser";
+import {
+  evaluateWithRustFixture,
+  normalizeParityPayload
+} from "./evaluationParitySupport";
 
 const temporaryDirectories: string[] = [];
 
@@ -113,6 +118,28 @@ const compileBenchmarkFixture = (source: string) =>
   compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
 
 const deepChainFixtures = new Set(["dependency-chain-250-v1", "dependency-chain-1000-v1"]);
+
+const interactiveFixtureExpectations = new Map([
+  ["interactive-medium-v2", {
+    file: "interactive-medium-v2.nui",
+    hash: "sha256:022361207a2b8228cdcd06a1f2c706ee019ef5ac38046fc3742193bd4ea0c823",
+    forGroupIterations: 50,
+    generatedGeometryPerIteration: 4,
+    generatedRows: 200
+  }],
+  ["interactive-large-v2", {
+    file: "interactive-large-v2.nui",
+    hash: "sha256:bb66e9fcace919f5ca4317ed5450809e77889a668f252cce573860c0b96ad075",
+    forGroupIterations: 250,
+    generatedGeometryPerIteration: 4,
+    generatedRows: 1000
+  }]
+]);
+
+const historicalInteractiveFixtureHashes = new Map([
+  ["interactive-medium-v1.nui", "sha256:5ce3d10605cd751f50eea0734e6c9a8ed869bba4454644ce0d0cd2de5234ab15"],
+  ["interactive-large-v1.nui", "sha256:98957b9071e741cae299c0bfc18d62be3d188690ebc8ca7b658dfddd47eb58af"]
+]);
 
 const chainPointName = (index: number) => `P${String(index).padStart(4, "0")}`;
 
@@ -257,6 +284,117 @@ const assertDeepChainFixture = ({
   expect(curveDraggedGeometry.x).not.toBe(terminalGeometry.x);
 };
 
+const assertInteractiveFixture = ({
+  fixture,
+  source,
+  compiled
+}: {
+  fixture: ReturnType<typeof parseBenchmarkFixtureManifest>["fixtures"][number];
+  source: string;
+  compiled: ReturnType<typeof compileBenchmarkFixture>;
+}) => {
+  const expected = interactiveFixtureExpectations.get(fixture.id);
+  expect(expected).toBeDefined();
+  if (!expected) throw new Error(`interactive fixture ${fixture.id} has no expected metadata`);
+
+  expect(fixture.file).toBe(expected.file);
+  expect(fixture.hash).toBe(expected.hash);
+  expect(fixture.workload).toEqual({
+    forGroupIterations: expected.forGroupIterations,
+    generatedGeometryPerIteration: expected.generatedGeometryPerIteration
+  });
+  expect(fixture.anchors).toEqual({
+    sourceEdit: { bindingName: "benchOffset", from: "6", to: "7" },
+    pointDrag: {
+      elementPath: "Benchmark::DragPoint",
+      pointerDeltaCssPx: { x: 12, y: 8 }
+    },
+    bezierHandleDrag: {
+      elementPath: "Benchmark::DragCurve",
+      handleRole: "start",
+      pointerDeltaCssPx: { x: 12, y: -8 }
+    },
+    dependentElementPath: "Benchmark::DependentOffset"
+  });
+
+  expect(compiled.status).toBe("valid");
+  if (compiled.status !== "valid") throw new Error("interactive benchmark fixture did not compile");
+
+  expect(source).toContain(`for i in range(from: 0, count: ${expected.forGroupIterations}, step: 1) {`);
+  expect(source).toContain("dx: @i * 3");
+  expect(source).toContain("dy: -(@i * 2)");
+  expect(source).not.toContain("dx: i * 3");
+  expect(source).not.toContain("dy: -(i * 2)");
+
+  const elements = compiled.doc.document.elements;
+  const benchmark = elements.find((element) => element.type === "group" && element.name === "Benchmark");
+  const load = elements.find((element) => element.type === "group" && element.name === "Load");
+  const forGroup = elements.find((element) => element.type === "forGroup" && element.parentGroupId === load?.id);
+  const benchmarkGeometry = elements
+    .filter((element) => element.parentGroupId === benchmark?.id)
+    .filter((element) => element.type !== "group");
+  expect(benchmark).toBeDefined();
+  expect(load).toBeDefined();
+  expect(forGroup).toBeDefined();
+  expect(benchmarkGeometry.map((element) => element.name)).toEqual([
+    "DragPoint",
+    "CurveEnd",
+    "Baseline",
+    "DragCurve",
+    "DependentOffset"
+  ]);
+  if (!forGroup) throw new Error("interactive benchmark forGroup is missing");
+
+  const evaluationFixture = {
+    elements,
+    evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex,
+    compiled
+  };
+  const evaluationOptions = buildEvaluationOptions({
+    compiledDocument: compiled.doc,
+    evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex
+  });
+  expect(canUseRustEvaluationForElements(elements, evaluationOptions)).toBe(true);
+
+  const tsPayload = evaluateElementsReferencePayload(elements, evaluationOptions);
+  const ts = evaluationPayloadToResult(tsPayload);
+  expect(ts.errors).toEqual([]);
+  expect(ts.forGroupGeneratedRows).toHaveLength(expected.generatedRows);
+  expect(ts.computedGeometry).toHaveLength(5 + expected.generatedRows);
+  expect(new Set(ts.forGroupGeneratedRows?.map((row) => row.generatedElementId)).size).toBe(expected.generatedRows);
+  for (const element of benchmarkGeometry) {
+    expect(ts.computedGeometry.get(element.id)).toMatchObject({ elementId: element.id });
+  }
+  for (const row of ts.forGroupGeneratedRows ?? []) {
+    expect(row.forGroupId).toBe(forGroup.id);
+    expect(ts.computedGeometry.has(row.generatedElementId)).toBe(true);
+  }
+  for (let iterationIndex = 0; iterationIndex < expected.forGroupIterations; iterationIndex += 1) {
+    const rows = (ts.forGroupGeneratedRows ?? []).filter((row) => row.iterationIndex === iterationIndex);
+    expect(rows).toHaveLength(expected.generatedGeometryPerIteration);
+    expect(rows.map((row) => row.elementType)).toEqual([
+      "offsetPoint",
+      "offsetPoint",
+      "bezierCurve",
+      "offsetLine"
+    ]);
+  }
+
+  const rustPayload = evaluateWithRustFixture(process.cwd(), evaluationFixture);
+  const rust = evaluationPayloadToResult(rustPayload);
+  expect(rust.errors).toEqual([]);
+  expect(rust.forGroupGeneratedRows).toHaveLength(expected.generatedRows);
+  expect(rust.computedGeometry).toHaveLength(5 + expected.generatedRows);
+  expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  for (const element of benchmarkGeometry) {
+    expect(rust.computedGeometry.get(element.id)).toMatchObject({ elementId: element.id });
+  }
+  for (const row of rust.forGroupGeneratedRows ?? []) {
+    expect(row.forGroupId).toBe(forGroup.id);
+    expect(rust.computedGeometry.has(row.generatedElementId)).toBe(true);
+  }
+};
+
 describe("benchmark foundation statistics", () => {
   it("uses nearest-rank percentiles for 1..21", () => {
     expect(calculateBenchmarkStatistics(samples())).toEqual({
@@ -397,6 +535,12 @@ describe("benchmark fixtures", () => {
     const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json");
     const manifest = parseBenchmarkFixtureManifest(JSON.parse(readFileSync(manifestPath, "utf8")) as unknown);
     expect(() => assertBenchmarkFixtureManifest(manifest)).not.toThrow();
+    expect(manifest.fixtures
+      .filter((fixture) => fixture.id.startsWith("interactive-"))
+      .map((fixture) => fixture.id)).toEqual([
+      "interactive-medium-v2",
+      "interactive-large-v2"
+    ]);
 
     for (const fixture of manifest.fixtures) {
       const fixturePath = resolve(process.cwd(), "performance/fixtures", fixture.file);
@@ -437,6 +581,39 @@ describe("benchmark fixtures", () => {
       }
     }
   });
+
+  it("preserves historical interactive v1 fixture identities", () => {
+    for (const [file, expectedHash] of historicalInteractiveFixtureHashes) {
+      const source = readFileSync(resolve(process.cwd(), "performance/fixtures", file), "utf8");
+      const actualHash = createHash("sha256").update(source, "utf8").digest("hex");
+      expect(`sha256:${actualHash}`).toBe(expectedHash);
+    }
+  });
+
+  it.each(["interactive-medium-v2", "interactive-large-v2"])(
+    "evaluates %s through the TypeScript oracle and production Rust parity boundary",
+    (fixtureId) => {
+      const manifestPath = resolve(process.cwd(), "performance/fixtures/manifest.json");
+      const manifest = parseBenchmarkFixtureManifest(JSON.parse(readFileSync(manifestPath, "utf8")) as unknown);
+      const fixture = manifest.fixtures.find((candidate) => candidate.id === fixtureId);
+      if (!fixture) throw new Error(`fixture ${fixtureId} is missing`);
+      const source = readFileSync(resolve(process.cwd(), "performance/fixtures", fixture.file), "utf8");
+      const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
+      const assignedStatementIds = new Map(
+        parsed.statements.map((_, index) => [index, `benchmark:statement:${index}`] as const)
+      );
+      const productionCompiled = compileDslDocument(source, { preparsed: parsed, assignedStatementIds });
+      expect(productionCompiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(productionCompiled.document).not.toBeNull();
+
+      assertInteractiveFixture({
+        fixture,
+        source,
+        compiled: compileBenchmarkFixture(source)
+      });
+    },
+    60_000
+  );
 
   it.each(["dependency-chain-250-v1", "dependency-chain-1000-v1"])(
     "rejects truncated, malformed, and non-adjacent %s chains",

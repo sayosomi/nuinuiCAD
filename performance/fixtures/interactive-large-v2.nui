@@ -1,0 +1,71 @@
+nui 4
+
+const benchOffset: number = 6
+
+group Benchmark {
+  point DragPoint = coordinate(
+    x: 0,
+    y: 0
+  )
+
+  point CurveEnd = offset(
+    from: @DragPoint,
+    dx: 120,
+    dy: 40
+  )
+
+  line Baseline = segment(
+    start: @DragPoint,
+    end: @CurveEnd
+  )
+
+  curve DragCurve = bezier(
+    start: @DragPoint,
+    end: @CurveEnd,
+    startAngle: 25,
+    startLength: 45,
+    endAngle: 200,
+    endLength: 40
+  )
+
+  line DependentOffset = offset(
+    sources: [@DragCurve],
+    distance: @benchOffset,
+    side: left,
+    closed: false,
+    suppressTrimWarnings: true
+  )
+}
+
+group Load {
+  for i in range(from: 0, count: 250, step: 1) {
+    point LoadStart = offset(
+      from: @Benchmark::DragPoint,
+      dx: @i * 3,
+      dy: -(@i * 2)
+    )
+
+    point LoadEnd = offset(
+      from: @LoadStart,
+      dx: 40 + @benchOffset + (@Benchmark::DragCurve.length * 0.01),
+      dy: 20
+    )
+
+    curve LoadCurve = bezier(
+      start: @LoadStart,
+      end: @LoadEnd,
+      startAngle: 20,
+      startLength: 18,
+      endAngle: 200,
+      endLength: 18
+    )
+
+    line LoadOffset = offset(
+      sources: [@LoadCurve],
+      distance: @benchOffset,
+      side: right,
+      closed: false,
+      suppressTrimWarnings: true
+    )
+  }
+}
