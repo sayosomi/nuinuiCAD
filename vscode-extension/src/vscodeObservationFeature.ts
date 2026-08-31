@@ -8,6 +8,8 @@ import {
 
 export const VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY = "nuinuiCAD.canvasHasSelection";
 export const VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY = "nuinuiCAD.canvasCanSelectInstance";
+export const VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY =
+  "nuinuiCAD.canvasHasCoordinatePointConversionTarget";
 
 export type VscodeObservationCanvasPublication = {
   sessionDocumentUri: string;
@@ -57,6 +59,19 @@ const activeCanvasCanSelectInstance = (
     activeDocument.canvas?.canvasCanSelectInstance === true;
 };
 
+const activeCanvasHasCoordinatePointConversionTarget = (
+  state: VscodeObservationState,
+  refreshHostProjection: boolean
+): boolean => {
+  const snapshot = refreshHostProjection ? state.snapshot() : state.cachedSnapshot();
+  if (!snapshot.activeDocumentUri) return false;
+  const activeDocument = snapshot.documents.find(
+    (document) => document.documentUri === snapshot.activeDocumentUri
+  );
+  return activeDocument?.activeSurface === "canvas" &&
+    (activeDocument.canvas?.coordinatePointConversionTargetIds?.length ?? 0) > 0;
+};
+
 /**
  * Owns attached-observation Extension Host lifecycle/publication wiring while
  * leaving exact-current state semantics in VscodeObservationState.
@@ -78,6 +93,7 @@ export const registerVscodeObservationFeature = (
   const projectCanvasSelectionContext = (refreshHostProjection = true): void => {
     const hasSelection = !disposed && activeCanvasHasSelection(state, refreshHostProjection);
     const canSelectInstance = !disposed && activeCanvasCanSelectInstance(state, refreshHostProjection);
+    const hasCoordinatePointConversionTarget = !disposed && activeCanvasHasCoordinatePointConversionTarget(state, refreshHostProjection);
     contextUpdate = contextUpdate
       .catch(() => undefined)
       .then(() => Promise.all([
@@ -90,6 +106,11 @@ export const registerVscodeObservationFeature = (
           "setContext",
           VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY,
           canSelectInstance
+        ),
+        vscode.commands.executeCommand(
+          "setContext",
+          VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY,
+          hasCoordinatePointConversionTarget
         )
       ]))
       .then(() => undefined);

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { compileFreshCanonicalText, type CanonicalDocumentValue } from "../document/canonicalDocument";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
+import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { CadElement } from "../types/geometry";
@@ -44,6 +47,7 @@ const snapshot = (input: {
   selectedElementIds?: readonly string[];
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
   elements?: readonly CadElement[];
+  document?: CanonicalDocumentValue;
   moduleMaterialization?: ModuleMaterialization;
   previewActive?: boolean;
   compiledDocumentRevision?: number;
@@ -53,6 +57,7 @@ const snapshot = (input: {
   selectedElementIds: input.selectedElementIds ?? ["point-a", "line-b"],
   selectedElementSources: input.selectedElementSources ?? [],
   elements: input.elements,
+  document: input.document,
   moduleMaterialization: input.moduleMaterialization,
   selectionSubject: input.selectionSubject ?? { kind: "elements" },
   compiledDocumentRevision: input.compiledDocumentRevision ?? 12,
@@ -61,6 +66,59 @@ const snapshot = (input: {
 });
 
 describe("canvasObservationSnapshot", () => {
+  it("publishes only eligible selected coordinate points for conversion availability", () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 2, y: 3)",
+      "point Relational = offset(from: @Base, dx: 1, dy: 1)"
+    ].join("\n");
+    const compiled = compileFreshCanonicalText(source);
+    expect(compiled.status).toBe("valid");
+    if (compiled.status === "fatal") return;
+    const evaluation = evaluateElements(compiled.doc.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled.doc,
+      evaluationLimitIndex: undefined
+    }));
+    const target = compiled.doc.document.elements.find((element) => element.name === "Target")!;
+    const relational = compiled.doc.document.elements.find((element) => element.name === "Relational")!;
+    const result = snapshot({
+      state: evaluationState({ evaluation }),
+      selectedElementIds: [target.id, relational.id],
+      document: compiled
+    });
+
+    expect(result.coordinatePointConversionTargetIds).toEqual([target.id]);
+  });
+
+  it("keeps mixed Canvas selection order while extracting every eligible coordinate target", () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point TargetA = coordinate(x: 2, y: 3)",
+      "line Guide = segment(start: @Base, end: @TargetA)",
+      "point TargetB = coordinate(x: 4, y: 6)"
+    ].join("\n");
+    const compiled = compileFreshCanonicalText(source);
+    expect(compiled.status).toBe("valid");
+    if (compiled.status === "fatal") return;
+    const evaluation = evaluateElements(compiled.doc.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled.doc,
+      evaluationLimitIndex: undefined
+    }));
+    const targetA = compiled.doc.document.elements.find((element) => element.name === "TargetA")!;
+    const targetB = compiled.doc.document.elements.find((element) => element.name === "TargetB")!;
+    const guide = compiled.doc.document.elements.find((element) => element.name === "Guide")!;
+
+    const result = snapshot({
+      state: evaluationState({ evaluation }),
+      selectedElementIds: [targetB.id, guide.id, targetA.id],
+      document: compiled
+    });
+
+    expect(result.coordinatePointConversionTargetIds).toEqual([targetB.id, targetA.id]);
+  });
+
   it("publishes Select Instance availability from the primary materialized Module body selection", () => {
     const source = [
       "nui 1",

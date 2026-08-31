@@ -1,9 +1,11 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
+import type { CanonicalDocumentValue } from "../document/canonicalDocument";
 import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { resolveOwningModuleInstanceId } from "../commands/selectionCommands";
+import { coordinatePointConversionTargetEligibility } from "../commands/coordinatePointConversion";
 import { effectiveCompiledDocument, effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import type { CadSelectionSubject } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -116,6 +118,7 @@ export const canvasObservationSnapshot = (input: {
   selectedElementId?: ElementId | null;
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
   elements?: readonly CadElement[];
+  document?: CanonicalDocumentValue;
   moduleMaterialization?: ModuleMaterialization;
   selectionSubject: CadSelectionSubject;
   compiledDocumentRevision: number;
@@ -137,10 +140,20 @@ export const canvasObservationSnapshot = (input: {
     elements: input.elements ?? [],
     moduleMaterialization: input.moduleMaterialization
   }) !== null;
+  const coordinatePointConversionTargetIds = input.document &&
+    !input.previewActive &&
+    evaluationStateIsCurrentFor(input.evaluationState, input.compiledDocumentRevision) &&
+    selection.selectionSubject.kind === "elements"
+    ? selection.selectedElementIds.filter((elementId) => coordinatePointConversionTargetEligibility({
+        document: input.document!,
+        evaluation: input.evaluationState.evaluation
+      }, elementId).eligible)
+    : [];
 
   return {
     documentVersion: input.documentVersion,
     selectedElementIds: selection.selectedElementIds,
+    coordinatePointConversionTargetIds,
     canvasCanSelectInstance,
     selectedElementSources: selection.selectedElementSources,
     selectionSubject: selection.selectionSubject,

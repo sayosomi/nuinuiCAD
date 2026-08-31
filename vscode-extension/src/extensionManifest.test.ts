@@ -49,6 +49,8 @@ type ExtensionManifest = {
       "webview/context"?: CommandPaletteMenu[];
       "editor/context"?: CommandPaletteMenu[];
       "nuinuiCAD.create"?: CommandPaletteMenu[];
+      "nuinuiCAD.convertPoint"?: CommandPaletteMenu[];
+      "view/item/context"?: CommandPaletteMenu[];
     };
   };
 };
@@ -72,6 +74,8 @@ const commandIds = [
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.revealInOutputPreview",
   "nuinuiCAD.pickReferenceFromCanvas",
+  "nuinuiCAD.convertPointToXYOffset",
+  "nuinuiCAD.convertPointToAngleDistanceOffset",
   "nuinuiCAD.replaceGeometryReferences",
   "nuinuiCAD.stepSourceValueForward",
   "nuinuiCAD.stepSourceValueBackward",
@@ -136,6 +140,8 @@ const canvasOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.reveal
 const outputPreviewRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const outputPreviewOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
+const coordinatePointConversionSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.coordinatePointConversionSourceTarget`;
+const coordinatePointConversionCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget";
 const outputPreviewRevealEnablement = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
@@ -186,6 +192,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Reveal in Output Preview",
       "nuinuiCAD: Pick Reference from Canvas",
+      "nuinuiCAD: Convert Point to XY Offset",
+      "nuinuiCAD: Convert Point to Angle-Distance Offset",
       "nuinuiCAD: Replace Geometry References",
       "nuinuiCAD: Step Source Value Forward",
       "nuinuiCAD: Step Source Value Backward",
@@ -271,6 +279,58 @@ describe("VS Code extension manifest command contributions", () => {
     expect(command?.shortTitle).toBe("Create Free Point at Pointer");
   });
 
+  it("keeps the public Convert titles while using native submenu short titles", async () => {
+    const manifest = await readManifest();
+    const commands = manifest.contributes?.commands ?? [];
+    const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+    const conversionCommands = [
+      {
+        id: "nuinuiCAD.convertPointToXYOffset",
+        title: "nuinuiCAD: Convert Point to XY Offset",
+        shortTitle: "XY Offset…"
+      },
+      {
+        id: "nuinuiCAD.convertPointToAngleDistanceOffset",
+        title: "nuinuiCAD: Convert Point to Angle-Distance Offset",
+        shortTitle: "Angle-Distance Offset…"
+      }
+    ];
+
+    for (const conversion of conversionCommands) {
+      expect(commands.find(({ command }) => command === conversion.id)).toMatchObject({
+        command: conversion.id,
+        title: conversion.title,
+        shortTitle: conversion.shortTitle
+      });
+      expect(commandPalette.find(({ command }) => command === conversion.id)?.when)
+        .toBe(sourceOrCanvasPaletteWhen);
+      expect(keybindings.some(({ command }) => command === conversion.id)).toBe(false);
+    }
+
+    expect(manifest.contributes?.menus?.["editor/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: coordinatePointConversionSourceContextWhen,
+      group: "1_modification@2"
+    });
+    expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: coordinatePointConversionCanvasContextWhen,
+      group: "1_modification@1"
+    });
+    expect(manifest.contributes?.menus?.["view/item/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'",
+      group: "1_modification@1"
+    });
+
+    expect(manifest.contributes?.menus?.["view/title"]?.some(({ command }) =>
+      conversionCommands.some((conversion) => conversion.id === command))).toBe(false);
+    const ribbonSetting = manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"];
+    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToXYOffset");
+    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToAngleDistanceOffset");
+  });
+
   it("scopes open commands without making Module Preview Palette visibility caret-dependent", async () => {
     const manifest = await readManifest();
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
@@ -284,6 +344,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
+      { command: "nuinuiCAD.convertPointToXYOffset", when: sourceOrCanvasPaletteWhen },
+      { command: "nuinuiCAD.convertPointToAngleDistanceOffset", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.replaceGeometryReferences", when: sourcePaletteWhen },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourcePaletteWhen },
       { command: "nuinuiCAD.stepSourceValueBackward", when: sourcePaletteWhen },
@@ -354,6 +416,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "navigation@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@3" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
+      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "1_modification@2" },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
       { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "1_modification@3" },
       { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "1_modification@4" },
@@ -364,6 +427,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
       { command: "nuinuiCAD.createGeometry", when: canvasBlankWhen, group: "1_create@0" },
       { submenu: "nuinuiCAD.create", when: canvasBlankWhen, group: "1_create@1" },
+      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionCanvasContextWhen, group: "1_modification@1" },
       { command: "nuinuiCAD.fitDrawing", when: canvasBlankWhen },
       { command: "nuinuiCAD.resetCanvasView", when: canvasBlankWhen },
       { command: "nuinuiCAD.toggleCanvasPointNames", when: canvasBlankWhen },
@@ -386,7 +450,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.modulePreview.togglePoints", when: modulePreviewBlankWhen },
       { command: "nuinuiCAD.modulePreview.clearSelection", when: `${modulePreviewBlankWhen} && nuinuiCAD.canvasHasSelection` }
     ]);
-    const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command }) => command);
+    const editorContextCommands = (manifest.contributes?.menus?.["editor/context"] ?? []).map(({ command, submenu }) => command ?? submenu);
     expect(editorContextCommands).toEqual([
       "nuinuiCAD.revealInCanvas",
       "nuinuiCAD.openCanvas",
@@ -394,6 +458,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.openOutputPreview",
       "nuinuiCAD.openModulePreview",
       "nuinuiCAD.pickReferenceFromCanvas",
+      "nuinuiCAD.convertPoint",
       "nuinuiCAD.stepSourceValueForward",
       "nuinuiCAD.stepSourceValueBackward",
       "nuinuiCAD.bakeCurrentShape",

@@ -301,6 +301,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       ? [[option.lineId, option.sourceReference] as const]
       : [])
   )), [sharedPickCandidates]);
+  const pointPickCandidates = hostAdapter.filterPointPickCandidates?.(sharedPickCandidates) ?? sharedPickCandidates;
   const selectedElementIdSet = useMemo(() => new Set(selectedElementIds), [selectedElementIds]);
   const draftLinePickElementIds = useMemo(() => {
     const draftLineIds = new Set(activeLinePickTarget?.draftLineIds ?? []);
@@ -338,7 +339,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     evaluation,
     elements,
     selectedElementId,
-    pointPickCandidates: activePointPickTarget ? sharedPickCandidates : [],
+    pointPickCandidates: activePointPickTarget ? pointPickCandidates : [],
     excludedInteractionElementIds: previewElementIds,
     viewportSize,
     canvasViewport,
@@ -1646,7 +1647,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       }
     }
     if (event.key !== "Escape" || event.currentTarget !== document.activeElement) return;
-    if (commandLineSession || activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget) return;
+    if (commandLineSession || activeNumericReferencePickTarget || activeLinePickTarget) return;
+    if (activePointPickTarget) {
+      if (hostAdapter.cancelCanvasPickOperation) {
+        event.preventDefault();
+        event.stopPropagation();
+        hostAdapter.cancelCanvasPickOperation();
+      }
+      return;
+    }
     event.preventDefault();
     hostAdapter.clearCanvasSelection();
   };

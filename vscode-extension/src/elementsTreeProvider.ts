@@ -12,6 +12,7 @@ export type NuiElementsTreeNode = {
 };
 
 export type NuiElementsDocumentFor = () => vscode.TextDocument | undefined;
+export type NuiElementsTreeItemContextValueFor = (node: NuiElementsTreeNode) => string | undefined;
 
 type TreeChange = NuiElementsTreeNode | undefined | null | void;
 
@@ -34,7 +35,8 @@ export class NuiElementsTreeProvider implements vscode.TreeDataProvider<NuiEleme
 
   constructor(
     private readonly documentFor: NuiElementsDocumentFor,
-    private readonly sessionFor: NuiDocumentSymbolSessionFor
+    private readonly sessionFor: NuiDocumentSymbolSessionFor,
+    private readonly contextValueFor?: NuiElementsTreeItemContextValueFor
   ) {}
 
   refresh(): void {
@@ -48,7 +50,8 @@ export class NuiElementsTreeProvider implements vscode.TreeDataProvider<NuiEleme
       description: symbol.detail || undefined,
       collapsibleState: symbol.children.length > 0
         ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.None
+        : vscode.TreeItemCollapsibleState.None,
+      ...(this.contextValueFor ? { contextValue: this.contextValueFor(element) } : {})
     };
   }
 
@@ -64,5 +67,6 @@ export class NuiElementsTreeProvider implements vscode.TreeDataProvider<NuiEleme
 
 export const createNuiElementsTreeProvider = (
   documentFor: NuiElementsDocumentFor,
-  sessionFor: NuiDocumentSymbolSessionFor
-): NuiElementsTreeProvider => new NuiElementsTreeProvider(documentFor, sessionFor);
+  sessionFor: NuiDocumentSymbolSessionFor,
+  contextValueFor?: NuiElementsTreeItemContextValueFor
+): NuiElementsTreeProvider => new NuiElementsTreeProvider(documentFor, sessionFor, contextValueFor);

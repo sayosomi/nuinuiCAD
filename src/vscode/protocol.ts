@@ -112,6 +112,9 @@ export const vscodeCanvasPointerContextKeys = {
   y: "nuinuiCAD.canvasPointerWorldY"
 } as const;
 
+export const VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY =
+  "nuinuiCAD.canvasHasCoordinatePointConversionTarget";
+
 export const isVscodeCanvasPointer = (value: unknown): value is VscodeCanvasPointer => {
   if (typeof value !== "object" || value === null) return false;
   const pointer = value as Partial<VscodeCanvasPointer>;
@@ -131,10 +134,14 @@ export const vscodeCanvasContextDataFor = (
   kind: VscodeCanvasContextMenuKind,
   hasSelection: boolean,
   pointer?: VscodeCanvasPointer,
-  canSelectInstance = false
+  canSelectInstance = false,
+  hasCoordinatePointConversionTarget = false
 ): string => vscodeWebviewContextDataFor(kind, {
   "nuinuiCAD.canvasHasSelection": hasSelection,
   "nuinuiCAD.canvasCanSelectInstance": canSelectInstance,
+  ...(hasCoordinatePointConversionTarget
+    ? { [VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY]: true }
+    : {}),
   ...(kind === "blank" && pointer && isVscodeCanvasPointer(pointer)
     ? {
         [vscodeCanvasPointerContextKeys.x]: pointer.x,
@@ -207,6 +214,25 @@ export type VscodeToExtensionMessage =
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
       operationId?: number;
+      coordinatePointConversionRequestId?: number;
+    }
+  | {
+      type: "coordinatePointConversionResult";
+      requestId: number;
+      operationId: number;
+      documentUri: string;
+      documentVersion: number;
+      origin: "source" | "canvas" | "explorer";
+      mode: "xy" | "angle-distance";
+      status: "applied" | "noop" | "rejected" | "canceled";
+      classification: "all-success" | "partial-success" | "all-skipped";
+      successfulTargetIds: readonly string[];
+      successfulTargetCount: number;
+      skippedTargets: readonly {
+        targetId: string;
+        reason: { code: string; message: string };
+      }[];
+      skippedTargetCount: number;
     }
   | {
       type: "canvasHistoryRequest";
@@ -276,6 +302,15 @@ export type ExtensionToVscodeMessage =
       operationId: number;
       status: "accepted" | "rejected";
       documentVersion: number;
+    }
+  | {
+      type: "coordinatePointConversionStart";
+      requestId: number;
+      documentUri: string;
+      documentVersion: number;
+      mode: "xy" | "angle-distance";
+      targetIds: readonly string[];
+      origin: "source" | "canvas" | "explorer";
     }
   | {
       type: "canvasCommand";

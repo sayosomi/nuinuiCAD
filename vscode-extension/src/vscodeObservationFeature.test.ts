@@ -40,6 +40,7 @@ vi.mock("vscode", () => ({
 import {
   registerVscodeObservationFeature,
   VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY,
+  VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY,
   VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY
 } from "./vscodeObservationFeature";
 
@@ -128,25 +129,32 @@ describe("registerVscodeObservationFeature", () => {
     await flushContextUpdates();
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(false);
 
-    expect(feature.acceptCanvasPublication(publication())).toBe(true);
+    expect(feature.acceptCanvasPublication(publication({
+      ...runtimeSnapshot(),
+      coordinatePointConversionTargetIds: ["point-a"]
+    }))).toBe(true);
     await flushContextUpdates();
     expect(hostDocuments).toHaveBeenCalled();
     expect(state.snapshot().documents[0]?.canvas?.selectedElementIds).toEqual(["point-a"]);
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(true);
 
     document = hostDocument({ activeSurface: "source" });
     for (const listener of [...mocks.activeEditorListeners]) listener();
     await flushContextUpdates();
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(false);
 
     document = hostDocument({ activeSurface: "canvas" });
     for (const listener of [...mocks.tabListeners]) listener();
     await flushContextUpdates();
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(true);
 
     feature.dispose();
     await flushContextUpdates();
@@ -154,6 +162,7 @@ describe("registerVscodeObservationFeature", () => {
     expect(state.snapshot().documents).toEqual([]);
     expect(contextValue(VSCODE_CANVAS_HAS_SELECTION_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_CANVAS_CAN_SELECT_INSTANCE_CONTEXT_KEY)).toBe(false);
+    expect(contextValue(VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY)).toBe(false);
   });
 
   it("reprojects when the active Canvas changes without a new selection publication", async () => {
