@@ -10,7 +10,8 @@ import {
   referencePickHoverForCanvasOption,
   selectVscodeReferencePickCanvasDraft,
   selectVscodeReferencePickCanvasNumericProperty,
-  startVscodeReferencePickCanvasSession
+  startVscodeReferencePickCanvasSession,
+  type VscodeReferencePickCanvasSnapshot
 } from "./referencePickCanvasSession";
 import {
   referencePickTargetProofFor,
@@ -91,7 +92,177 @@ const startSession = ({
   evaluationIsCurrent: true
 });
 
+const dualAuthorityFixture = (
+  currentSource: string,
+  canvasSource: string,
+  normalizedSourceOffset: number
+) => {
+  const currentCompiled = compile(currentSource, HOST_REVISION, "shared-pick");
+  const canvasCompiled = compile(canvasSource, CANVAS_REVISION, "shared-pick");
+  const target = queryDslReferencePickTarget({
+    source: { normalizedSource: currentSource, sourceRevision: HOST_REVISION },
+    position: normalizedSourceOffset,
+    semantic: {
+      sourceRevision: HOST_REVISION,
+      sourceText: currentSource,
+      compiled: currentCompiled
+    }
+  });
+  if (!target) throw new Error("fixture did not produce a current Source target");
+  const targetProof = referencePickTargetProofFor(currentSource, target);
+  if (!targetProof) throw new Error("fixture did not produce a current Source proof");
+  const request: VscodeReferencePickStartRequest = {
+    type: "referencePickStartRequest",
+    requestId: 144,
+    documentUri: DOCUMENT_URI,
+    documentVersion: DOCUMENT_VERSION,
+    normalizedSourceOffset,
+    targetProof
+  };
+  const canvasEvaluation = evaluate(canvasCompiled);
+  const canvasSnapshot: VscodeReferencePickCanvasSnapshot = {
+    source: {
+      normalizedSource: canvasSource,
+      sourceRevision: CANVAS_REVISION
+    },
+    compiled: canvasCompiled,
+    evaluation: canvasEvaluation
+  };
+  return {
+    currentSource,
+    currentCompiled,
+    canvasEvaluation,
+    canvasSnapshot,
+    request
+  };
+};
+
+const startWithCanvasSnapshot = (
+  fixture: ReturnType<typeof dualAuthorityFixture>
+) => startVscodeReferencePickCanvasSession({
+  request: fixture.request,
+  authoritativeDocumentUri: DOCUMENT_URI,
+  authoritativeDocumentVersion: DOCUMENT_VERSION,
+  source: {
+    normalizedSource: fixture.currentSource,
+    sourceRevision: HOST_REVISION
+  },
+  compiled: fixture.currentCompiled,
+  evaluation: fixture.canvasEvaluation,
+  evaluationIsCurrent: false,
+  candidateSnapshot: fixture.canvasSnapshot
+});
+
 describe("VS Code Canvas reference pick session bridge", () => {
+  it("uses coherent Canvas candidates for zero-width numeric targets while keeping the current Source target", () => {
+    const declarationSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const X: number = "
+    ].join("\n");
+    const declarationCanvasSource = declarationSource.replace(
+      "const X: number = ",
+      "const X: number = @Base.length"
+    );
+    const declarationPosition = declarationSource.length;
+    const declaration = startWithCanvasSnapshot(
+      dualAuthorityFixture(declarationSource, declarationCanvasSource, declarationPosition)
+    );
+    expect(declaration.result.status).toBe("started");
+    if (declaration.result.status !== "started") return;
+    expect(declaration.result.candidateReferences).toContainEqual({ base: "Base" });
+    expect(declaration.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
+
+    const coordinateSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = coordinate(x: 0, y: )"
+    ].join("\n");
+    const coordinateCanvasSource = coordinateSource.replace("y: )", "y: @Base.length)");
+    const coordinatePosition = coordinateSource.indexOf("y: )") + "y: ".length;
+    const coordinate = startWithCanvasSnapshot(
+      dualAuthorityFixture(coordinateSource, coordinateCanvasSource, coordinatePosition)
+    );
+    expect(coordinate.result.status).toBe("started");
+    if (coordinate.result.status !== "started") return;
+    expect(coordinate.result.candidateReferences).toContainEqual({ base: "Base" });
+    expect(coordinate.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
+  });
+
+  it("preserves strict and broad Module candidate semantics from the pinned Canvas snapshot", () => {
+    const currentSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Straight = segment(start: @A, end: @B)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "module M(straight: line, broad: path) {",
+      "}",
+      "instance X = M(straight: @Straight, broad: )"
+    ].join("\n");
+    const canvasSource = currentSource.replace("broad: )", "broad: @Curve)");
+    const position = currentSource.indexOf("broad: )") + "broad: ".length;
+    const started = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, canvasSource, position)
+    );
+
+    expect(started.result.status).toBe("started");
+    if (started.result.status !== "started") return;
+    expect(started.result.candidateReferences).toEqual(
+      expect.arrayContaining([{ base: "Straight" }, { base: "Curve" }])
+    );
+    expect(started.result.candidateReferences).not.toContainEqual({ base: "A" });
+  });
+
+  it("fails closed when the Canvas snapshot cannot be reconciled or is stale", () => {
+    const currentSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const X: number = "
+    ].join("\n");
+    const currentPosition = currentSource.length;
+    const missingTargetCanvasSource = currentSource.slice(0, currentSource.lastIndexOf("\n"));
+    const unmappable = startWithCanvasSnapshot(
+      dualAuthorityFixture(currentSource, missingTargetCanvasSource, currentPosition)
+    );
+    expect(unmappable.session).toBeNull();
+    expect(unmappable.result.status).toBe("stale");
+
+    const candidateSource = currentSource.replace(
+      "const X: number = ",
+      "const X: number = @Base.length"
+    );
+    const staleFixture = dualAuthorityFixture(currentSource, candidateSource, currentPosition);
+    const staleSnapshot = {
+      ...staleFixture.canvasSnapshot,
+      source: {
+        ...staleFixture.canvasSnapshot.source,
+        sourceRevision: CANVAS_REVISION + 1
+      }
+    };
+    const stale = startVscodeReferencePickCanvasSession({
+      request: staleFixture.request,
+      authoritativeDocumentUri: DOCUMENT_URI,
+      authoritativeDocumentVersion: DOCUMENT_VERSION,
+      source: {
+        normalizedSource: staleFixture.currentSource,
+        sourceRevision: HOST_REVISION
+      },
+      compiled: staleFixture.currentCompiled,
+      evaluation: staleFixture.canvasEvaluation,
+      evaluationIsCurrent: false,
+      candidateSnapshot: staleSnapshot
+    });
+    expect(stale.session).toBeNull();
+    expect(stale.result.status).toBe("stale");
+  });
+
   it("matches document/version proof across independent Host and Webview compiler sessions", () => {
     const source = [
       "nui 4",

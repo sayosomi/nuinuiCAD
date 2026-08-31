@@ -14,6 +14,7 @@ import {
   referencePickTargetProofFor,
   type VscodeReferencePickStartRequest
 } from "./referencePickProtocol";
+import type { VscodeReferencePickCanvasSnapshot } from "./referencePickCanvasSession";
 import {
   useVSCodeReferencePickSession,
   type VscodeReferencePickCurrentContext
@@ -97,6 +98,23 @@ const contextFor = (
   evaluationIsCurrent
 });
 
+const pinnedContextFor = (
+  fixture: ReturnType<typeof fixtureFor>
+): VscodeReferencePickCurrentContext => {
+  const canvasSnapshot: VscodeReferencePickCanvasSnapshot = {
+    source: {
+      normalizedSource: fixture.source,
+      sourceRevision: CANVAS_REVISION
+    },
+    compiled: fixture.compiled,
+    evaluation: fixture.evaluation
+  };
+  return {
+    ...contextFor(fixture, false),
+    canvasSnapshot
+  };
+};
+
 const authorityFor = (
   fixture: ReturnType<typeof fixtureFor>,
   documentVersion = DOCUMENT_VERSION
@@ -161,6 +179,21 @@ describe("useVSCodeReferencePickSession readiness lifecycle", () => {
 
     expect(resultMessages(api)).toHaveLength(1);
     expect(resultMessages(api)[0]?.status).toBe("started");
+    expect(hook.result.current.session).not.toBeNull();
+  });
+
+  it("starts immediately from a coherent pinned Canvas snapshot while Source remains exact-current", () => {
+    const fixture = fixtureFor();
+    const api = createApi();
+    const hook = renderHook(() => useVSCodeReferencePickSession({
+      api,
+      currentContextFor: () => pinnedContextFor(fixture),
+      currentReferencePickAuthorityFor: () => authorityFor(fixture)
+    }));
+
+    dispatch(fixture.request);
+
+    expect(resultMessages(api)).toMatchObject([{ status: "started" }]);
     expect(hook.result.current.session).not.toBeNull();
   });
 
