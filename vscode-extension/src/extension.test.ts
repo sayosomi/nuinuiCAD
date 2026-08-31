@@ -409,6 +409,13 @@ const documentFor = (
   return document;
 };
 
+const h3Source = [
+  "nui 4",
+  "point Left = coordinate(x: -50, y: 0)",
+  "point Right = coordinate(x: 50, y: 0)",
+  "line Guide = segment(start: @Left, end: @Right)"
+].join("\n");
+
 const editorFor = (document = documentFor()): TestEditor => {
   const editBuilder = { replace: vi.fn() };
   const editor = {
@@ -2445,8 +2452,8 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
-  it("keeps the registered blank-Canvas command on the active session across the first native edit", async () => {
-    const document = documentFor("/tmp/free-point-consecutive.nui", "file:///tmp/free-point-consecutive.nui", "nui 4\n");
+  it("creates two consecutive free points from the real H3 Source anchor across native edits", async () => {
+    const document = documentFor("/tmp/free-point-consecutive.nui", "file:///tmp/free-point-consecutive.nui", h3Source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
     document.languageId = "nui";
@@ -2454,30 +2461,66 @@ describe("VS Code production document lifecycle", () => {
     const handler = messageHandlerFor(panel);
     await handler({ type: "webviewReady" });
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
-    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    const sourceDefinitionStart = h3Source.indexOf("Guide");
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const sourceDefinitionRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as {
+        requestId: number;
+      } | undefined;
+    expect(sourceDefinitionRequest).toBeDefined();
+    mocks.showTextDocument.mockImplementation(async () => {
+      panel.active = false;
+      mocks.activeTextEditor = editor;
+      return editor;
+    });
+    await handler({
+      type: "canvasSourceDefinitionResult",
+      requestId: sourceDefinitionRequest!.requestId,
+      documentVersion: 1,
+      range: { from: sourceDefinitionStart, to: sourceDefinitionStart + "Guide".length }
+    });
+    panel.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
 
     await handler({
       type: "canvasPointerPublication",
       documentVersion: 1,
       pointer: { x: 12, y: -8 }
     });
-    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.();
+    commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
+      webviewSection: "blank",
+      [vscodeCanvasPointerContextKeys.x]: 12,
+      [vscodeCanvasPointerContextKeys.y]: -8
+    });
     const firstRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "canvasFreePointAtPointer") as {
         requestId: number;
+        documentVersion: number;
+        pointer: { x: number; y: number };
+        sourcePosition: { documentVersion: number; line: number; character: number };
       } | undefined;
-    expect(firstRequest).toBeDefined();
+    expect(firstRequest).toMatchObject({
+      documentVersion: 1,
+      pointer: { x: 12, y: -8 },
+      sourcePosition: { documentVersion: 1, line: 3, character: "line ".length }
+    });
 
-    const firstSource = "nui 4\n// free point A\n";
+    const firstSource = [
+      h3Source,
+      "point = coordinate(",
+      "  x: 12,",
+      "  y: -8,",
+      ")"
+    ].join("\n");
+    const firstSourcePosition = document.positionAt(firstSource.indexOf("point = coordinate("));
     editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
       callback(editor.editBuilder);
       document.version = 2;
       document.setSourceText(firstSource);
       emitDocumentChange(document);
-      // A real native Source edit can transiently make the Source tab the
-      // active tab while the Canvas command is still the user's operation.
-      mocks.activeTabInput = new mocks.TabInputText(document.uri);
       return true;
     });
     await handler({
@@ -2487,24 +2530,27 @@ describe("VS Code production document lifecycle", () => {
       mutationKind: "reset",
       operationId: firstRequest!.requestId
     });
-    await handler({
-      type: "canvasFreePointAtPointerResult",
-      requestId: firstRequest!.requestId,
-      status: "applied",
-      documentVersion: 2,
-      nextSourcePosition: { line: 1, character: "// free point A".length }
-    });
 
     commandHandlerFor("nuinuiCAD.createFreePointAtPointer")?.({
       webviewSection: "blank",
       [vscodeCanvasPointerContextKeys.x]: 91,
       [vscodeCanvasPointerContextKeys.y]: -37
     });
+    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(1);
+
+    await handler({
+      type: "canvasFreePointAtPointerResult",
+      requestId: firstRequest!.requestId,
+      status: "applied",
+      documentVersion: 2,
+      nextSourcePosition: firstSourcePosition
+    });
+
+    panel.webview.postMessage.mockClear();
     await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
     const secondRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message) => message?.type === "canvasFreePointAtPointer")
-      .at(-1) as {
+      .find((message) => message?.type === "canvasFreePointAtPointer") as {
         requestId: number;
         documentVersion: number;
         pointer: { x: number; y: number };
@@ -2513,10 +2559,17 @@ describe("VS Code production document lifecycle", () => {
     expect(secondRequest).toMatchObject({
       documentVersion: 2,
       pointer: { x: 91, y: -37 },
-      sourcePosition: { documentVersion: 2, line: 1, character: "// free point A".length }
+      sourcePosition: { documentVersion: 2, line: firstSourcePosition.line, character: firstSourcePosition.character }
     });
 
-    const secondSource = "nui 4\n// free point A\n// free point B\n";
+    const secondSource = [
+      firstSource,
+      "point = coordinate(",
+      "  x: 91,",
+      "  y: -37,",
+      ")"
+    ].join("\n");
+    const secondSourcePosition = document.positionAt(secondSource.indexOf("point = coordinate(", firstSource.length));
     editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
       callback(editor.editBuilder);
       document.version = 3;
@@ -2536,10 +2589,18 @@ describe("VS Code production document lifecycle", () => {
       requestId: secondRequest!.requestId,
       status: "applied",
       documentVersion: 3,
-      nextSourcePosition: { line: 2, character: "// free point B".length }
+      nextSourcePosition: secondSourcePosition
     });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 3 });
 
-    expect(panel.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasFreePointAtPointer")).toHaveLength(2);
+    const pointDeclarations = document.getText().match(/^point(?: [A-Za-z_][A-Za-z0-9_]*)? = coordinate\(/gm) ?? [];
+    expect(pointDeclarations).toHaveLength(4);
+    expect(document.getText().indexOf("line Guide = segment(start: @Left, end: @Right)")).toBeLessThan(
+      document.getText().indexOf("point = coordinate(\n  x: 12,\n  y: -8,\n)")
+    );
+    expect(document.getText().indexOf("point = coordinate(\n  x: 12,\n  y: -8,\n)")).toBeLessThan(
+      document.getText().indexOf("point = coordinate(\n  x: 91,\n  y: -37,\n)")
+    );
     expect(editor.edit).toHaveBeenCalledTimes(2);
     expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
