@@ -51,6 +51,17 @@ const plan = (
   };
 };
 
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof plan>["result"]
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-non-root-transformed");
+  return transformed;
+};
+
 describe("planExtractModule checkpoint 10 non-root source scopes", () => {
   it("extracts a group-local declaration with scalar/geometry dependencies and rewrites its same-scope export", () => {
     const source = [
@@ -397,7 +408,8 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
       ["config", "Config", "@config"]
     ]);
-    expect(applyLineSplices(source, result.splices)).toContain([
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
       "module Extracted(config__extract: Config) {",
       "    const inside: number = @config__extract.amount + 1",
       "  }",

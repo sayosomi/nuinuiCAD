@@ -1014,13 +1014,6 @@ const valueStatementRejection = (
     : "structural descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-    if (statement.recordTypeReference && context === "structural-descendant") {
-      return reject(
-        "unsupported-statement",
-        `${where} declaration「${statement.name}」の record value は structural Extract subtree の対象外です。`,
-        { statementId, statementIndex }
-      );
-    }
     if (!arrayType && !statement.declaredType && !statement.recordTypeReference) {
       return reject(
         "unsupported-statement",
@@ -1866,24 +1859,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   const nextOccurrenceIndex = nextCompiled.statementMap && nextCompiled.sourceLexicalNamespace
     ? createDslSemanticOccurrenceIndex(nextCompiled)
     : null;
-  const candidateRecordBindingIssuesOnly = Boolean(
-    nextOccurrenceIndex &&
-    (nextCompiled.bindingIssueDiagnostics ?? []).every((diagnostic) =>
-      diagnostic.code === "undefined-binding" &&
-      diagnostic.physicalSpan?.segments.length === 1 &&
-      nextOccurrenceIndex.occurrences.some((occurrence) =>
-        occurrence.kind === "reference" &&
-        occurrence.identity.kind === "recordField" &&
-        occurrence.from < diagnostic.physicalSpan!.segments[0]!.to &&
-        diagnostic.physicalSpan!.segments[0]!.from < occurrence.to
-      )
-    )
-  );
   if (
     !nextCompiled.statementMap ||
     !nextCompiled.sourceLexicalNamespace ||
     nextCompiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
-    (!candidateRecordBindingIssuesOnly && (nextCompiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error"))
+    (nextCompiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error")
   ) {
     const firstError = [...nextCompiled.diagnostics, ...(nextCompiled.bindingIssueDiagnostics ?? [])]
       .find((diagnostic) => diagnostic.severity === "error");

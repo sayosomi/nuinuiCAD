@@ -54,6 +54,17 @@ const expectRejectedWithoutPatch = (result: ReturnType<typeof planContainer>, co
   expect("splices" in result).toBe(false);
 };
 
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof planContainer>
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed);
+  return transformed;
+};
+
 describe("planExtractModule checkpoint 5 root if", () => {
   it("moves a complete root if/else subtree, preserves layout, and parameterizes condition/body dependencies", () => {
     const source = [
@@ -163,7 +174,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expectRejectedWithoutPatch(planContainer(crossingSource), "cross-boundary-mutation");
   });
 
-  it("keeps selected-root validation local when a sibling structural root contains an unsupported record value", () => {
+  it("moves a selected root containing a valid structural record value", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -196,6 +207,9 @@ describe("planExtractModule checkpoint 5 root if", () => {
       moduleName: "Extracted",
       instanceName: "Part"
     });
-    expectRejectedWithoutPatch(result, "unsupported-statement");
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain("const unsupported: Config = @config");
   });
 });

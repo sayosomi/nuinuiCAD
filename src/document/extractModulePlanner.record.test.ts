@@ -45,11 +45,33 @@ const plan = (
   instanceName: "Part"
 });
 
+const planAtIndex = (source: string, statementIndex: number) => {
+  const compiled = compileCurrent(source);
+  return planExtractModule({
+    source: { normalizedSource: source, sourceRevision: REVISION },
+    compiled,
+    statementIds: [statementIdAt(compiled, statementIndex)],
+    moduleName: "Extracted",
+    instanceName: "Part"
+  });
+};
+
 const expectRejectedWithoutPatch = (result: ReturnType<typeof plan>, code?: string) => {
   expect(result.status).toBe("rejected");
   if (result.status !== "rejected") return;
   if (code) expect(result.code).toBe(code);
   expect("splices" in result).toBe(false);
+};
+
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof plan>
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-record-transformed");
+  return transformed;
 };
 
 const withOuterRecordParameterIdentity = (
@@ -79,7 +101,7 @@ const withOuterRecordParameterIdentity = (
 };
 
 describe("planExtractModule record-valued interfaces", () => {
-  it("parameterizes a root record value through field access as one nominal dependency", () => {
+  it("fails closed for a root record dependency whose generated body uses field access", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -88,22 +110,8 @@ describe("planExtractModule record-valued interfaces", () => {
     ].join("\n");
     const result = plan(source, ["inside"]);
 
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    expect(result.dependencies.map((dependency) => [
-      dependency.name,
-      dependency.type,
-      dependency.recordTypeIdentity,
-      dependency.typeText,
-      dependency.argumentSource
-    ])).toEqual([["config", null, "extract-record:1", "Config", "@config"]]);
-    expect(result.dependencies).toHaveLength(1);
-    expect(applyLineSplices(source, result.splices)).toContain([
-      "module Extracted(config: Config) {",
-      "  const inside: number = @config.amount + 1",
-      "}",
-      "instance Part = Extracted(config: @config)"
-    ].join("\n"));
+    expectRejectedWithoutPatch(result, "unsafe-rewrite");
+    if (result.status === "rejected") expect(result.message).toContain("config.amount");
   });
 
   it("parameterizes an outer Module-local record value through its field access", () => {
@@ -122,7 +130,8 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
       ["config", "Config", "@config"]
     ]);
-    expect(applyLineSplices(source, result.splices)).toContain([
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
       "module Extracted(config__extract: Config) {",
       "    const inside: number = @config__extract.amount + 1",
       "  }",
@@ -144,7 +153,8 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
       ["config", "Config", "@config"]
     ]);
-    expect(applyLineSplices(source, result.splices)).toContain(
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain(
       "  const inside: Config = @config"
     );
   });
@@ -166,7 +176,8 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.type, dependency.typeText, dependency.argumentSource])).toEqual([
       ["output", null, "Config", "@Source::output"]
     ]);
-    expect(applyLineSplices(source, result.splices)).toContain([
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
       "module Extracted(output: Config) {",
       "  const inside: number = @output.amount + 1",
       "}",
@@ -187,7 +198,8 @@ describe("planExtractModule record-valued interfaces", () => {
     if (result.status !== "planned") return;
     expect(result.dependencies).toEqual([]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
-    expect(applyLineSplices(source, result.splices)).toContain(
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain(
       "const after: number = @Part::inside.amount"
     );
   });
@@ -208,7 +220,8 @@ describe("planExtractModule record-valued interfaces", () => {
       ["config", "Config"]
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
-    expect(applyLineSplices(source, result.splices)).toContain([
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
       "module Extracted(config: Config) {",
       "  export const inside: Config = @config",
       "}",
@@ -233,9 +246,91 @@ describe("planExtractModule record-valued interfaces", () => {
     expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
       ["config", "Config", "@config"]
     ]);
-    expect(applyLineSplices(source, result.splices)).toContain(
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain(
       "  instance Use = M(config: @config)"
     );
+  });
+
+  it("cleanly moves a complete group containing a record value and field consumer", () => {
+    const source = [
+      "nui 4",
+      "record Config(amount: number)",
+      "group Outer {",
+      "  const config: Config = Config(amount: 1)",
+      "  const inside: number = @config.amount + 1",
+      "}"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const groupIndex = compiled.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Outer"
+    );
+    expect(groupIndex).toBeGreaterThanOrEqual(0);
+    const result = planAtIndex(source, groupIndex);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted() {",
+      "  group Outer {",
+      "    const config: Config = Config(amount: 1)",
+      "    const inside: number = @config.amount + 1",
+      "  }",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"));
+  });
+
+  it("cleanly moves a complete conditional containing a record value and field consumer", () => {
+    const source = [
+      "nui 4",
+      "record Config(amount: number)",
+      "if (true) {",
+      "  const config: Config = Config(amount: 1)",
+      "  const inside: number = @config.amount + 1",
+      "}"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const conditionalIndex = compiled.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.type === "conditionalGroup"
+    );
+    expect(conditionalIndex).toBeGreaterThanOrEqual(0);
+    const result = planAtIndex(source, conditionalIndex);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted() {",
+      "  if (true) {",
+      "    const config: Config = Config(amount: 1)",
+      "    const inside: number = @config.amount + 1",
+      "  }",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"));
+  });
+
+  it("cleanly moves a complete loop containing a record value and field consumer", () => {
+    const source = [
+      "nui 4",
+      "record Config(amount: number)",
+      "for i in range(from: 0, count: 2, step: 1) {",
+      "  const config: Config = Config(amount: 1)",
+      "  const inside: number = @config.amount + @i",
+      "}"
+    ].join("\n");
+    const compiled = compileCurrent(source);
+    const loopIndex = compiled.statements.findIndex((statement) =>
+      statement.kind === "element" && statement.type === "forGroup"
+    );
+    expect(loopIndex).toBeGreaterThanOrEqual(0);
+    const result = planAtIndex(source, loopIndex);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted() {",
+      "  for i in range(from: 0, count: 2, step: 1) {",
+      "    const config: Config = Config(amount: 1)",
+      "    const inside: number = @config.amount + @i",
+      "  }",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"));
   });
 
   it("keeps record definitions non-movable", () => {

@@ -53,6 +53,17 @@ const expectRejectedWithoutPatch = (result: ReturnType<typeof planAt>["result"],
   expect("splices" in result).toBe(false);
 };
 
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof planAt>["result"]
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-module-transformed");
+  return transformed;
+};
+
 describe("planExtractModule checkpoint 8 Module structures", () => {
   it("extracts a complete root module definition without leaking its parameters or public interface", () => {
     const source = [
@@ -259,7 +270,8 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expect(result.status).toBe("planned");
     if (result.status !== "planned") return;
     expect(result.dependencies).toEqual([]);
-    expect(applyLineSplices(source, result.splices)).toContain([
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
       "module Extracted() {",
       "  module M(config: Config) {",
       "  }",

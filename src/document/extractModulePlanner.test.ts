@@ -278,7 +278,7 @@ describe("planExtractModule checkpoint 1", () => {
     ].join("\n"));
   });
 
-  it("parameterizes a nominal record dependency without splitting record fields", () => {
+  it("fails closed when a root record dependency requires generated Module field access", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -287,19 +287,8 @@ describe("planExtractModule checkpoint 1", () => {
     ].join("\n");
 
     const result = plan(source, [3]).result;
-    expect(result.status).toBe("planned");
-    if (result.status !== "planned") return;
-    expect(result.dependencies).toHaveLength(1);
-    expect(result.dependencies[0]).toMatchObject({
-      name: "config",
-      type: null,
-      recordTypeIdentity: "extract:1",
-      typeText: "Config",
-      argumentSource: "@config"
-    });
-    expect(applyLineSplices(source, result.splices)).toContain(
-      "const inside: number = @config.amount + 1"
-    );
+    expectRejectedWithoutPatch(result, "unsafe-rewrite");
+    if (result.status === "rejected") expect(result.message).toContain("config.amount");
   });
 
   it("extracts a nested scalar target with its outer scalar and iteration dependencies", () => {
