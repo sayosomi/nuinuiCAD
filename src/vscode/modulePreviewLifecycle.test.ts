@@ -32,7 +32,7 @@ const semanticSnapshot = (source: string, compiled: CompiledDslDocument, sourceR
 describe("currentModulePreviewTargetByIdentity", () => {
   it("keeps the same definition across a valid rename and reports the current source offset", () => {
     const initial = [
-      "nui 4",
+      "nui 1",
       "module Pocket() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -63,7 +63,7 @@ describe("currentModulePreviewTargetByIdentity", () => {
 
   it("keeps innermost nested Module identity rather than rebinding to an ancestor", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Inner() {",
       "    point P = coordinate(x: 0, y: 0)",
@@ -86,7 +86,7 @@ describe("currentModulePreviewTargetByIdentity", () => {
 
   it("fails closed when the target identity disappears or the semantic snapshot is stale", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"

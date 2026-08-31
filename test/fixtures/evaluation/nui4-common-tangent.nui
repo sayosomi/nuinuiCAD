@@ -1,9 +1,0 @@
-nui 4
-point C1 = coordinate(x: 0, y: 0)
-point C2 = coordinate(x: 60, y: 0)
-arc A = arc(center: @C1, radius: 20, start: 40, end: 80)
-arc B = arc(center: @C2, radius: 10, start: 210, end: 250)
-line ExternalLeft = commonTangent(first: @A, second: @B, kind: external, side: left)
-line ExternalRight = commonTangent(first: @A, second: @B, kind: external, side: right)
-line InternalLeft = commonTangent(first: @A, second: @B, kind: internal, side: left)
-line InternalRight = commonTangent(first: @A, second: @B, kind: internal, side: right)

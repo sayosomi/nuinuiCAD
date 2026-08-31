@@ -12,7 +12,7 @@ import {
 } from "./typedBindingRuntimeInspectorPresentation";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
   const result = compileCanonicalText(baseline, source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
@@ -66,7 +66,7 @@ const consumerRowsFor = (compiled: LastGoodDslDocument, bindingId: BindingId) =>
 describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   it("offsetLine.side (choice) - exact property jump", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const 方向: choice(right, left) = right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -82,7 +82,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("intersectionPoint.useExtensions (boolean)", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let 延長: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -101,7 +101,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("forGroup.showGenerated", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let 表示: boolean = true",
       "for i in range(from: 0, count: 2, step: 1, showGenerated: @表示) {",
       "  point P = coordinate(x: 0, y: 0)",
@@ -115,7 +115,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("text.text bare binding", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       'const ラベル: string = "前身頃"',
       "text T = label(text: @ラベル, anchor: none, size: 3)"
     ].join("\n"));
@@ -128,7 +128,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("conditionalGroup.condition - falls back to a whole-element jump (no Task 43 span index for a condition expression)", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let flag: boolean = true",
       "if (@flag) {",
       "  point P = coordinate(x: 0, y: 0)",
@@ -143,7 +143,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("a text-template interpolation hole - resolves the exact holeIndex", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       'const ラベル: string = "前身頃"',
       'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
     ].join("\n"));
@@ -156,7 +156,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
 
   it("a second hole later in the same template resolves a non-zero holeIndex", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       'const 前: string = "前身頃"',
       'const 後: string = "後身頃"',
       'text T = label(text: "${@前}と${@後}", anchor: none, size: 3)'
@@ -168,7 +168,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
   });
 
   it("a binding with no consumers returns an empty array", () => {
-    const compiled = compileCanonical(["nui 4", "const unused: number = 1"].join("\n"));
+    const compiled = compileCanonical(["nui 1", "const unused: number = 1"].join("\n"));
     const bindingId = bindingIdByName(compiled, "unused");
     expect(consumerRowsFor(compiled, bindingId)).toEqual([]);
   });

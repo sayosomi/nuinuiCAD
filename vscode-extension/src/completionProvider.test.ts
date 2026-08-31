@@ -78,7 +78,7 @@ const itemsFor = (source: string, line = source.split(/\r?\n/).length - 1, chara
 };
 
 const optionalModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M(",
   "  value?: number,",
   ") {",
@@ -97,7 +97,7 @@ const transientOptionalModuleSource = optionalModuleSource.replace(
 describe("VS Code native nui completion provider", () => {
   it("projects modifier authoring candidates through the native provider", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'modifier "Guide Line" {',
       "  state: visible,",
       "}",
@@ -119,14 +119,14 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("projects query candidates, kinds, details, and absolute replacement ranges", () => {
-    const source = "nui 4\nconst value: number = ab";
+    const source = "nui 1\nconst value: number = ab";
     const items = itemsFor(source);
     const abs = items.find((item) => item.label === "abs")!;
 
     expect(abs.kind).toBe(vscodeMocks.CompletionItemKind.Function);
     expect(abs.detail).toContain("abs");
     expect(abs.range).toMatchObject({
-      start: { line: 1, character: "nui 4\nconst value: number = ".length - "nui 4\n".length },
+      start: { line: 1, character: "nui 1\nconst value: number = ".length - "nui 1\n".length },
       end: { line: 1, character: "const value: number = ab".length }
     });
     expect(abs.filterText).toBeUndefined();
@@ -136,7 +136,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("projects a query-selected choice geometry property through the native provider", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
       "let direction: choice(counterclockwise, clockwise) = clockwise",
       "set direction = @A."
@@ -154,7 +154,7 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("inserts named arguments with a trailing colon and space", () => {
-    const source = "nui 4\nconst value: number = spreadAngle(";
+    const source = "nui 1\nconst value: number = spreadAngle(";
     const items = itemsFor(source);
 
     expect(items.filter((item) => item.label === "length" || item.label === "spread").map((item) => item.insertText)).toEqual([
@@ -165,7 +165,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("maps multiline argument ranges to the physical line", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
       "  from: @A",
@@ -182,11 +182,11 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("offers tolerant call arguments across a blank line with physical insertion ranges", () => {
-    const constructionSource = "nui 4\npoint P = coordinate(\n  \n)";
+    const constructionSource = "nui 1\npoint P = coordinate(\n  \n)";
     const constructionItems = itemsFor(constructionSource, 2, 2);
     expect(constructionItems.map((item) => item.label)).toEqual(expect.arrayContaining(["x", "y"]));
 
-    const builtinSource = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtinSource = "nui 1\nconst a: number = spreadAngle(\n  \n)";
     const builtinItems = itemsFor(builtinSource, 2, 2);
     expect(builtinItems.map((item) => item.label)).toEqual(["length", "spread"]);
 
@@ -211,7 +211,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("offers current-source Module labels when the incomplete call is opened cold", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "",
       "module M(",
       "value: number,",
@@ -259,7 +259,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("filters a later in-call argument without changing the blank-line range", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(",
       "",
       "y: 20",
@@ -278,7 +278,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("supports the manual E2E cases for incomplete argument, qualified member, and property completion", () => {
     const argumentSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
       "  from: @A,",
@@ -294,7 +294,7 @@ describe("VS Code native nui completion provider", () => {
     });
 
     const qualifiedSource = [
-      "nui 4",
+      "nui 1",
       "group 前身頃 {",
       "  point か = coordinate(x: 0, y: 0)",
       "}",
@@ -310,7 +310,7 @@ describe("VS Code native nui completion provider", () => {
     });
 
     const propertySource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: @A, end: @A)",
       "const value: number = @AB.le"
@@ -327,7 +327,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("keeps @, module ::, and property . prefixes outside the replacement", () => {
     const referenceSource = [
-      "nui 4",
+      "nui 1",
       "const width: number = 1",
       "const value: number = @se"
     ].join("\n");
@@ -336,7 +336,7 @@ describe("VS Code native nui completion provider", () => {
     expect(reference.range).toMatchObject({ start: { line: 2, character: 23 }, end: { line: 2, character: 25 } });
 
     const qualifiedSource = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -348,7 +348,7 @@ describe("VS Code native nui completion provider", () => {
     expect(qualified.range).toMatchObject({ start: { line: 4, character: 27 }, end: { line: 4, character: 28 } });
 
     const propertySource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: @A, end: @A)",
       "const value: number = @AB.length"
@@ -361,7 +361,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("preserves UTF-16 Japanese ranges and removes CRLF only for the query", () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "point 使用 = offset(from: @前身頃, dx: 0, dy: 0)"
     ].join("\n");
@@ -378,12 +378,12 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("uses a snippet only for the choice type and keeps set targets bare", () => {
-    const choice = itemsFor("nui 4\nconst value: cho").find((item) => item.label === "choice")!;
+    const choice = itemsFor("nui 1\nconst value: cho").find((item) => item.label === "choice")!;
     expect(choice.insertText).toBeInstanceOf(vscode.SnippetString);
     expect((choice.insertText as vscode.SnippetString).value).toBe("choice($0)");
 
     const setSource = [
-      "nui 4",
+      "nui 1",
       "let target: number = 1",
       "set target = 1"
     ].join("\n");
@@ -406,12 +406,12 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("does not add call parentheses and does not truncate query results", () => {
-    const construction = itemsFor("nui 4\npoint P = co").find((item) => item.label === "coordinate")!;
+    const construction = itemsFor("nui 1\npoint P = co").find((item) => item.label === "coordinate")!;
     expect(construction.insertText).toBe("coordinate");
 
     const points = Array.from({ length: 12 }, (_, index) => `point P${index} = coordinate(x: ${index}, y: 0)`);
     const source = [
-      "nui 4",
+      "nui 1",
       ...points,
       "line L = segment(start: @P0, end: @P1)"
     ].join("\n");
@@ -427,12 +427,12 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("offers transformCopy and its existing argument names through the native provider", () => {
-    const constructionItems = itemsFor("nui 4\nline L = tran");
+    const constructionItems = itemsFor("nui 1\nline L = tran");
     expect(constructionItems.map((item) => item.label)).toContain("transformCopy");
     expect(constructionItems.map((item) => item.label)).not.toContain("copy");
     expect(constructionItems.find((item) => item.label === "transformCopy")?.insertText).toBe("transformCopy");
 
-    const argumentItems = itemsFor("nui 4\nline L = transformCopy(");
+    const argumentItems = itemsFor("nui 1\nline L = transformCopy(");
     expect(argumentItems.map((item) => item.label)).toEqual(expect.arrayContaining([
       "startPoint", "endPoint", "scale", "angleDeg", "mirrorX", "baseLines"
     ]));
@@ -440,7 +440,7 @@ describe("VS Code native nui completion provider", () => {
 
   it("keeps Module template-hole completion scoped to Module parameters and locals", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number) {",
       "  const local: number = 1",
@@ -457,7 +457,7 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("returns syntax candidates for incomplete source and does not require Rust", () => {
-    const source = "nui 4\npoint P = co";
+    const source = "nui 1\npoint P = co";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const result = provider.provideCompletionItems(
@@ -472,19 +472,19 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("projects normalized offsets in both directions without CRLF drift", () => {
-    const source = "nui 4\r\n日本語";
+    const source = "nui 1\r\n日本語";
     const normalized = source.replace(/\r\n/g, "\n");
     expect(normalizedOffsetAt(normalized, new vscode.Position(1, 2))).toBe(8);
     expect(normalizedPositionAt(normalized, 8)).toMatchObject({ line: 1, character: 2 });
   });
 
   it("does not use stale semantic candidates after a fatal edit", () => {
-    const source = "nui 4\nconst old: number = 1\nconst value: number = @old";
+    const source = "nui 1\nconst old: number = 1\nconst value: number = @old";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
-    session.replaceSource("nui 4\npoint Broken = coordinate(");
+    session.replaceSource("nui 1\npoint Broken = coordinate(");
     const items = provider.provideCompletionItems(
-      documentFor("nui 4\npoint Broken = coordinate(") as vscode.TextDocument,
+      documentFor("nui 1\npoint Broken = coordinate(") as vscode.TextDocument,
       new vscode.Position(1, "point Broken = coordinate(".length),
       undefined as never,
       undefined as never
@@ -531,7 +531,7 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("keeps the provider limited to the query result", () => {
-    const source = "nui 4\nconst value: number = ab";
+    const source = "nui 1\nconst value: number = ab";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const normalized = source.replace(/\r\n/g, "\n");

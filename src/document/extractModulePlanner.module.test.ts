@@ -67,7 +67,7 @@ const expectCleanTransformedSource = (
 describe("planExtractModule checkpoint 8 Module structures", () => {
   it("extracts a complete root module definition without leaking its parameters or public interface", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(input: number) {",
       "  export const publicValue: number = @input",
       "  module Inner() {",
@@ -83,7 +83,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expect(result.dependencies).toEqual([]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "module Extracted() {",
       "  module Outer(input: number) {",
       "    export const publicValue: number = @input",
@@ -99,7 +99,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("extracts a root module instance, parameterizes ordinary arguments, and keeps its earlier external callee authored", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(anchor: point, width: number) {",
       "  export const result: number = @width",
       "}",
@@ -127,7 +127,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("keeps an immutable geometry-array argument on the existing generated-parameter path", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(lines: line[]) {",
       "}",
       "line Base = segment(start: (0, 0), end: (10, 0))",
@@ -151,7 +151,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("preserves nested Module definitions, instances, and loop iteration identities inside a moved Module", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(count: number) {",
       "  module Inner() {",
       "    for i in range(from: 0, count: 2, step: 1) {",
@@ -204,7 +204,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "}"
     ]]
   ] as const)("moves Module descendants under selected %s structures", (_label, structure) => {
-    const source = ["nui 4", "module M() {", "}", ...structure].join("\n");
+    const source = ["nui 1", "module M() {", "}", ...structure].join("\n");
     const compiled = compileCurrent(source);
     const index = compiled.statements.findIndex((statement) =>
       (_label === "group" && statement.kind === "group") ||
@@ -228,7 +228,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("rejects outside references to moved Module definitions and instances atomically", () => {
     const definitionSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "}",
       "instance Use = M()"
@@ -236,7 +236,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expectRejectedWithoutPatch(planAt(definitionSource, 1).result, "unrepresentable-export");
 
     const instanceSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const value: number = 1",
       "}",
@@ -248,7 +248,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("rejects generated names colliding with moved Module declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  module Inner() {",
       "  }",
@@ -261,7 +261,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("accepts a moved Module definition with a record-valued parameter", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module M(config: Config) {",
       "}"
@@ -282,7 +282,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
 
   it("extracts a direct nested Module target inside an existing Module", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Inner() {",
       "  }",
@@ -295,7 +295,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expect(result.exports).toEqual([]);
     const transformed = applyLineSplices(source, result.splices);
     expect(transformed).toBe([
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Extracted() {",
       "    module Inner() {",

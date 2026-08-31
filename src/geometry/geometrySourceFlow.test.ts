@@ -43,7 +43,7 @@ const point = (id: string, x: number, y: number): CadElement => ({
 describe("geometry source flow", () => {
   it("emits a declaration-only construction step", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
     const evaluation = evaluateCompiled(compiled);
@@ -55,7 +55,7 @@ describe("geometry source flow", () => {
 
   it("preserves successful mutation execution order and exact authored spans", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "reverse(target: @AB)",
       "reverse(target: @AB)"
@@ -80,7 +80,7 @@ describe("geometry source flow", () => {
 
   it("does not turn ordinary geometry references into flow steps", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Source = segment(start: (0, 0), end: (10, 0))",
       "line Offset = offset(sources: [@Source], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
@@ -112,7 +112,7 @@ describe("geometry source flow", () => {
 
   it("maps for-generated runtime geometry and mutation occurrences back to authored template steps", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "for i in range(from: 0, count: 2, step: 1) {",
@@ -137,7 +137,7 @@ describe("geometry source flow", () => {
 
   it("maps separate module runtime occurrences to the same authoritative authored operations", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "  reverse(target: @L)",

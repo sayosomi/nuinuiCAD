@@ -94,7 +94,7 @@ import {
 } from "./geometryReferenceRetargetCommandFeature";
 
 const sourceWithReplacement = (lineEnding = "\n"): string => [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 20, y: 0)",
   "point First = offset(from: @A, dx: 1, dy: 0)",
@@ -102,7 +102,7 @@ const sourceWithReplacement = (lineEnding = "\n"): string => [
 ].join(lineEnding);
 
 const sourceWithoutReplacement = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point Use = offset(from: @A, dx: 1, dy: 0)"
 ].join("\n");
@@ -259,7 +259,7 @@ describe("VS Code geometry-reference retarget feature", () => {
 
   it("passes searchable, disambiguated candidate presentation to native QuickPick", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",

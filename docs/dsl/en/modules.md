@@ -45,7 +45,7 @@ library file:
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 export module Panel(width: number = 40) {
 }
 module Helper() {
@@ -59,7 +59,7 @@ Module by its qualified name:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
-nui 4
+nui 1
 import "./library.nui" as lib
 instance front = lib::Panel(width: 60)
 ```
@@ -100,7 +100,7 @@ geometry, module arguments, or evaluation behavior.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 /// @en
 /// Creates a **marker** from an origin point.
@@ -123,7 +123,7 @@ instance Front = Marker(origin: @A)
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 module Marker(origin: point, label?: string) {
   export point Tip = offset(from: @origin, dx: 10, dy: 0)

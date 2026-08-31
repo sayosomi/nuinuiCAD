@@ -31,7 +31,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -203,7 +203,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     expect(source?.kind === "expression" ? source.expression.kind : null).toBe("binary");
   });
 
-  it("accepts nui4 compound property expressions and resolves geometry-property leaves", () => {
+  it("accepts nui1 compound property expressions and resolves geometry-property leaves", () => {
     const compiled = compileFor([
       "let 下書き: boolean = false",
       "point A = coordinate(x: 0, y: 0)",

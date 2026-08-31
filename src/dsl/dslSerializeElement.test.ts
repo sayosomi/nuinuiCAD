@@ -46,7 +46,7 @@ const calls: ReadonlyArray<readonly [CadElementType, string, string]> = [
 const bareMutationTypes: ReadonlySet<CadElementType> =
   new Set(["edge", "extendTrim", "move", "symmetricMove", "pathReverse"]);
 
-describe("DSL nui 4 element serializer", () => {
+describe("DSL nui 1 element serializer", () => {
   it("serializes all element types from their registry construction", () => {
     for (const [type, category, construction] of calls) {
       const element = minimal(type);
@@ -188,7 +188,7 @@ describe("DSL nui 4 element serializer", () => {
   });
 });
 
-describe("nui 4 activity serialization", () => {
+describe("nui 1 activity serialization", () => {
   const argTexts = (element: CadElement) =>
     serializeElementStatementBlock(element, flatRefs()).args.map((arg) => arg.text);
 

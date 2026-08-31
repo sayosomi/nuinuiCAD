@@ -21,8 +21,8 @@ import {
 
 describe("VS Code source offset adapter", () => {
   it("normalizes CRLF offsets in both directions", () => {
-    const raw = "nui 4\r\npoint A\r\npoint B";
-    expect(normalizedSourceFor(raw)).toBe("nui 4\npoint A\npoint B");
+    const raw = "nui 1\r\npoint A\r\npoint B";
+    expect(normalizedSourceFor(raw)).toBe("nui 1\npoint A\npoint B");
     expect(normalizedOffsetFromRaw(raw, raw.indexOf("point B"))).toBe(
       normalizedSourceFor(raw).indexOf("point B")
     );
@@ -32,7 +32,7 @@ describe("VS Code source offset adapter", () => {
   });
 
   it("projects a normalized range back to the raw VS Code document", () => {
-    const raw = "nui 4\r\npoint A";
+    const raw = "nui 1\r\npoint A";
     const document = {
       positionAt: (offset: number) => new vscode.Position(
         offset >= raw.indexOf("point A") ? 1 : 0,

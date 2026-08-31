@@ -44,7 +44,7 @@ const observationFor = (
     canvasSessionPresent: false,
     outputPreviewSessionPresent: false,
     canvas: null,
-    sourceText: "nui 4\npoint A = coordinate(x: 0, y: 0)\n",
+    sourceText: "nui 1\npoint A = coordinate(x: 0, y: 0)\n",
     ...overrides
   }]
 });
@@ -137,7 +137,7 @@ describe("vscode_observe", () => {
     expect(result.status).toBe("ok");
     const observation = result.observation as { documents: Array<Record<string, unknown>> };
     expect(observation.documents[0]?.sourceText).toBe(
-      "nui 4\npoint A = coordinate(x: 0, y: 0)\n"
+      "nui 1\npoint A = coordinate(x: 0, y: 0)\n"
     );
     expect(sourceRequests).toEqual([false, true]);
   });
@@ -146,7 +146,7 @@ describe("vscode_observe", () => {
     const descriptorDirectory = temporaryDirectory();
     const documentPath = join(descriptorDirectory, "selection.nui");
     const sourceText = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -207,7 +207,7 @@ describe("vscode_observe", () => {
     const descriptorDirectory = temporaryDirectory();
     const documentPath = join(descriptorDirectory, "module-selection.nui");
     const sourceText = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  group Body {",
       "    point P = coordinate(x: 1, y: 2)",
@@ -303,7 +303,7 @@ describe("vscode_observe", () => {
   });
 
   it("fails closed without a partial stable/runtime selection when proof is incomplete or duplicated", async () => {
-    const sourceText = "nui 4\npoint A = coordinate(x: 0, y: 0)\n";
+    const sourceText = "nui 1\npoint A = coordinate(x: 0, y: 0)\n";
 
     const cases = [
       [{ runtimeElementId: "runtime-a", sourceStatementIndex: 1, elementType: "freePoint" }],

@@ -24,7 +24,7 @@ const compileFor = (
     sourceMap: parsed.sourceMap,
     logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom
   };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -49,7 +49,7 @@ const compileFor = (
 
 const compileTemplatesFor = (source: string) => compileTextTemplates(compileFor(source));
 
-describe("nui4 string(choice) text-template surface", () => {
+describe("nui1 string(choice) text-template surface", () => {
   it("accepts explicit string(@choice) as a string hole", () => {
     const compiled = compileTemplatesFor([
       "const side: choice(right, left) = right",

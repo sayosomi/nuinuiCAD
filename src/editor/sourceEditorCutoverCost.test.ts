@@ -16,7 +16,7 @@ import { sourceEditSession } from "./sourceEditSession";
  * garbage collection, JIT warm-up, && OS scheduling can vary substantially.
  */
 
-const source = (count: number) => ["nui 4", ...Array.from({ length: count }, (_, index) =>
+const source = (count: number) => ["nui 1", ...Array.from({ length: count }, (_, index) =>
   `point P${index} = coordinate(x: ${index}, y: ${index + 1})`
 )].join("\n");
 

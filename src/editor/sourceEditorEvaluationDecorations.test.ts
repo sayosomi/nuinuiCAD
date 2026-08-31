@@ -48,7 +48,7 @@ describe("Evaluation decoration viewport index", () => {
   });
 
   it("only returns statuses for ranges intersecting the given viewport", () => {
-    const { doc, ranges, elements } = rangesFor("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)");
+    const { doc, ranges, elements } = rangesFor("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)");
     const evaluation = baseEvaluation(elements);
     const pointB = elements.find((element) => element.name === "B")!;
     const line3 = doc.line(3);
@@ -63,7 +63,7 @@ describe("Evaluation decoration viewport index", () => {
   });
 
   it("marks hasError/hasWarning/isEvaluated from the evaluation result", () => {
-    const { doc, ranges, elements } = rangesFor("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    const { doc, ranges, elements } = rangesFor("nui 1\npoint A = coordinate(x: 0, y: 0)");
     const pointA = elements.find((element) => element.name === "A")!;
     const evaluation: EvaluationResult = {
       ...baseEvaluation([]),
@@ -76,7 +76,7 @@ describe("Evaluation decoration viewport index", () => {
   });
 
   it("keeps own element state separate from ancestor and evaluation state", () => {
-    const { doc, ranges, elements } = rangesFor("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    const { doc, ranges, elements } = rangesFor("nui 1\npoint A = coordinate(x: 0, y: 0)");
     const point = { ...elements[0], activity: "disabled" as const };
     const status = entriesInVisibleRanges(indexFor(ranges, [point], {
       ...baseEvaluation([point]),
@@ -88,7 +88,7 @@ describe("Evaluation decoration viewport index", () => {
 });
 
 const forGroupSource = [
-  "nui 4",
+  "nui 1",
   "for i in range(from: 0, count: 2, step: 1, showGenerated: true) {",
   "  point P = coordinate(x: @i, y: 0)",
   "}"
@@ -160,7 +160,7 @@ describe("for-group generated widget index", () => {
 
 describe("pick candidate index", () => {
   it("filters candidates to visible ranges and flags the cursor candidate", () => {
-    const { doc, ranges, elements } = rangesFor("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)");
+    const { doc, ranges, elements } = rangesFor("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)");
     const pointA = elements.find((element) => element.name === "A")!;
     const pointB = elements.find((element) => element.name === "B")!;
     const index = createEvaluationDecorationIndex({

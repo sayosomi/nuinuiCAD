@@ -120,7 +120,7 @@ describe("nuinuiCAD MCP stdio server", () => {
     temporaryDirectories.push(directory);
     const filePath = path.join(directory, "sample.nui");
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "point C = offset(from: @A, dx: 2, dy: 0)"

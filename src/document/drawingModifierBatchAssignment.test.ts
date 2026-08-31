@@ -56,7 +56,7 @@ const modifierNamesFor = (source: string, name: string) => {
 describe("drawing modifier batch assignment", () => {
   it("adds one quoted modifier reference using existing DSL name formatting", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier \"review guide\" {",
       "  state: visible,",
       "}",
@@ -77,7 +77,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("batch-adds geometry and group targets, preserves order, dedupes targets, and is idempotent", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Base {",
       "  state: visible,",
       "}",
@@ -106,7 +106,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("removes every duplicate direct reference while preserving other modifier order", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  state: visible,",
       "}",
@@ -131,7 +131,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("removes undefined direct references without requiring a modifier definition", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Keep {",
       "  state: visible,",
       "}",
@@ -152,7 +152,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("supports authored Module-body geometry without materialization semantics", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -174,7 +174,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("preserves multiline layout and comments while editing only modifier tokens and delimiters", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  state: visible,",
       "}",
@@ -218,7 +218,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("returns no mutation for an all-noop batch", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -243,7 +243,7 @@ describe("drawing modifier batch assignment", () => {
   });
 
   it("rejects undefined and ambiguous add definitions", () => {
-    const undefinedSource = sourceLines("nui 4", "point A = coordinate(x: 0, y: 0)");
+    const undefinedSource = sourceLines("nui 1", "point A = coordinate(x: 0, y: 0)");
     const undefinedCurrent = setup(undefinedSource);
     expect(planDrawingModifierBatchAssignment({
       source: undefinedCurrent.source,
@@ -253,7 +253,7 @@ describe("drawing modifier batch assignment", () => {
     })).toEqual({ ok: false, reason: "modifier-undefined" });
 
     const ambiguousSource = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -273,7 +273,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("does not treat a nested modifier definition as a document-level add target", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  modifier Nested {",
       "    state: visible,",
@@ -292,7 +292,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("fails closed for an ineligible target without committing an earlier eligible edit", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -316,7 +316,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("fails closed for stale target identity or mismatched current parse", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -341,7 +341,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("applies one multi-target batch through exactly one source transaction callback", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -364,7 +364,7 @@ describe("drawing modifier batch assignment", () => {
 
   it("exposes pure eligibility without UI-specific target lists", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "group G {",
       "}",

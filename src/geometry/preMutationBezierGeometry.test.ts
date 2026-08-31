@@ -173,9 +173,9 @@ describe("preMutationGeometry", () => {
 
   it("captures materialized numeric binding values", () => {
     const compiled = compileCanonicalText(
-      regenerateCanonicalFromModel(emptyDocument(), 4),
+      regenerateCanonicalFromModel(emptyDocument(), 1),
       [
-        "nui 4",
+        "nui 1",
         "const handleLength: number = 15",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 100, y: 0)",

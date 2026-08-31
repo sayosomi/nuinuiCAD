@@ -17,7 +17,7 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 }));
 
 const source = [
-  "nui 4",
+  "nui 1",
   "modifier Guide {",
   "  state: visible,",
   "}",
@@ -31,7 +31,7 @@ const source = [
 ].join("\n");
 
 const baseSource = [
-  "nui 4",
+  "nui 1",
   "point BC0 = coordinate(x: 0, y: 140)",
   "point BC1 = coordinate(x: 100, y: 140)",
   "line BaseCurrent = segment(",

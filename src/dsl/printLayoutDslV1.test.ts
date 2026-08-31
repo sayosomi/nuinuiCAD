@@ -3,7 +3,7 @@ import { compileDslDocument, planSourceOutputSection, serializeDocumentToDsl } f
 import { parseDsl } from "./dslParser";
 
 const validSource = [
-  "nui 4",
+  "nui 1",
   "profile 印刷用",
   "profile SVG用",
   "group 前身頃 {",
@@ -70,7 +70,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("accepts omitted layout parentheses and empty layouts", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "layout 空レイアウト {",
       "}",
     ].join("\n"));
@@ -81,7 +81,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("accepts the canonical pi constant in layout, placement, print, and SVG numeric fields", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "}",
       "layout L(scale: pi) {",
@@ -103,7 +103,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("rejects the removed print margin attribute through normal DSL validation", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "layout L {",
       "}",
       "print P(layout: @L, paper: a4, margin: 10, overlap: 10)"
@@ -114,7 +114,7 @@ describe("SAY-63 print layout DSL v1", () => {
   it("preserves the canonical source model through serialization", () => {
     const compiled = compileDslDocument(validSource);
     expect(compiled.document).not.toBeNull();
-    const serialized = serializeDocumentToDsl(compiled.document!, 4);
+    const serialized = serializeDocumentToDsl(compiled.document!, 1);
     expect(serialized).toContain("layout 型紙 {");
     expect(serialized).toContain("print 家庭用A4(");
     expect(serialized).toContain("svg 型紙SVG(");
@@ -129,13 +129,13 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("serializes a default layout without an empty settings block", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "layout 型紙 {",
       "}"
     ].join("\n");
     const compiled = compileDslDocument(source);
     expect(errors(source)).toEqual([]);
-    const serialized = serializeDocumentToDsl(compiled.document!, 4);
+    const serialized = serializeDocumentToDsl(compiled.document!, 1);
     expect(serialized).toContain("layout 型紙 {");
     expect(serialized).not.toContain("layout 型紙(");
     expect(serialized).not.toContain("scale: 1");
@@ -144,7 +144,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("uses non-hoisted lexical references and rejects wrong kinds and cross-group origins", () => {
     const forward = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "print 出力(layout: @後出し, paper: a4, overlap: 0)",
       "layout 後出し {",
       "}",
@@ -152,7 +152,7 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(errors(forward.sourceLines.join("\n")).some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(true);
 
     const invalid = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "group A {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -170,7 +170,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("enforces required fields and static literal constraints", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "}",
       "layout L(scale: 0) {",
@@ -199,7 +199,7 @@ describe("SAY-63 print layout DSL v1", () => {
     ["place angle", "  place @G(at: (0, 0), angle: 1e999)"],
   ])("rejects non-finite literal %s while keeping expressions compile-time-valid", (_label, line) => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const finite: number = 2",
       "group G {",
       "}",
@@ -213,7 +213,7 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("有限"))).toBe(true);
 
     const expressionSource = [
-      "nui 4",
+      "nui 1",
       "const finite: number = 2",
       "group G {",
       "}",
@@ -233,7 +233,7 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(parseDsl("printLayout A4(output: pdf)").diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
     expect(parseDsl("activePrintLayout A4").diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
     const nested = parseDsl([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  layout L {",
       "  }",
@@ -241,14 +241,14 @@ describe("SAY-63 print layout DSL v1", () => {
     ].join("\n"));
     expect(nested.diagnostics.some((diagnostic) => diagnostic.message.includes("トップレベル"))).toBe(true);
     for (const field of ["printEnabled", "printAnchor"]) {
-      const legacyGroup = parseDsl(["nui 4", `group G (${field}: true) {`, "}"].join("\n"));
+      const legacyGroup = parseDsl(["nui 1", `group G (${field}: true) {`, "}"].join("\n"));
       expect(legacyGroup.diagnostics.some((diagnostic) => diagnostic.message.includes(field))).toBe(true);
     }
   });
 
   it("resolves qualified nested placement targets and origins for both output kinds", () => {
     const compiled = compileWithStatementIds([
-      "nui 4",
+      "nui 1",
       "profile P",
       "group Outer {",
       "  group Inner {",
@@ -271,7 +271,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("reports undefined, forward, and wrong-kind layout references", () => {
     const undefinedReferences = compileWithStatementIds([
-      "nui 4",
+      "nui 1",
       "profile P",
       "group G {",
       "  point Origin = coordinate(x: 0, y: 0)",
@@ -285,7 +285,7 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(undefinedReferences.diagnostics.filter((diagnostic) => diagnostic.message.includes("未定義の参照"))).not.toHaveLength(0);
 
     const forward = compileWithStatementIds([
-      "nui 4",
+      "nui 1",
       "print Paper(layout: @Later, paper: a4, overlap: 0)",
       "layout Later {",
       "}"
@@ -293,7 +293,7 @@ describe("SAY-63 print layout DSL v1", () => {
     expect(forward.diagnostics.some((diagnostic) => diagnostic.message.includes("後で宣言"))).toBe(true);
 
     const wrongKind = compileWithStatementIds([
-      "nui 4",
+      "nui 1",
       "profile P",
       "group G {",
       "}",
@@ -311,7 +311,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("accepts typed numeric references in layout, place, print, and SVG fields", () => {
     const compiled = compileWithStatementIds([
-      "nui 4",
+      "nui 1",
       "profile P",
       "const n: number = 2",
       "group G {",
@@ -348,7 +348,7 @@ describe("SAY-63 print layout DSL v1", () => {
       "}"
     ];
     const lines = [
-      "nui 4",
+      "nui 1",
       "profile P",
       ...(reference === "@later" ? [] : declarations),
       "group G {",
@@ -364,7 +364,7 @@ describe("SAY-63 print layout DSL v1", () => {
 
   it("keeps default and inherited placement values in the source model while preserving explicit overrides and identities", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "}",
       "layout L {",

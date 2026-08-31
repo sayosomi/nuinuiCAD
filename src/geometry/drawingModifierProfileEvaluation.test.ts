@@ -4,7 +4,7 @@ import { evaluateElementsReference } from "./evaluationEngine";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "profile Print",
   "modifier HideInPrint {",
   "  for @Print {",

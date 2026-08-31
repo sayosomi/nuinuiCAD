@@ -1,4 +1,4 @@
-// End-to-end coverage for Task 23: compiles real nui 4 source through the
+// End-to-end coverage for Task 23: compiles real nui 1 source through the
 // production document pipeline (mirroring scalarProgramEvaluation.test.ts's
 // approach), builds Task 23's elementId-keyed property binding entries via
 // buildPropertyBindingRuntimeEntries, && evaluates through evaluateElements
@@ -16,7 +16,7 @@ import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { resolveDocumentGeometryProperty, type DocumentGeometryRuntime } from "./scalarProgramEvaluation";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
@@ -121,7 +121,7 @@ const evaluateDirectionRead = (
 describe("Task 23 standard property runtime, end-to-end through the real compiler", () => {
   it("evaluates a resolved geometry-property expression in a common boolean property", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -138,7 +138,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
 
   it("offsetLine.side bound to a choice const flips the offset direction, matching a literal side of the same value", () => {
     const bound = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const 方向: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -146,14 +146,14 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
       "line Off = offset(sources: [@AB], distance: 5, side: @方向, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalLeft = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "line Off = offset(sources: [@AB], distance: 5, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n"));
     const literalRight = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -184,7 +184,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     // property, mirroring scalarProgramEvaluation.test.ts's own poison
     // fixture.
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, state: disabled)",
@@ -212,7 +212,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
     // survive && wouldn't exercise "every generated instance individually".
     const source = (mirrorXArg: string) =>
       [
-        "nui 4",
+        "nui 1",
         ...(mirrorXArg === "@反転" ? ["let 反転: boolean = true"] : []),
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",

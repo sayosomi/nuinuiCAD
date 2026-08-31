@@ -40,7 +40,7 @@ describe("dslReferenceCompletionOptions", () => {
     const laterLines = dslLinesForElements([
       { id: "later", name: "Later", type: "freePoint", activity: "visible", x: 10, y: 0 }
     ]);
-    const source = ["nui 4", ...groupLines, ...laterLines].join("\n");
+    const source = ["nui 1", ...groupLines, ...laterLines].join("\n");
     const { elements, ids } = identities(source);
     const blankLine = source.split("\n").findIndex((line) => line === "") + 1;
     const pointALine = lineOf(source, "point A");

@@ -51,13 +51,13 @@ const loaderFrom = (
 });
 
 const libraryText = [
-  "nui 4",
+  "nui 1",
   "export module Pocket() {",
   "}"
 ].join("\n");
 
 const facadeText = [
-  "nui 4",
+  "nui 1",
   "import \"./library.nui\" as library",
   "export @library::Pocket"
 ].join("\n");
@@ -137,7 +137,7 @@ describe("multi-document language queries", () => {
       .get(fixture.librarySaved.documentId)!
       .publicApi.publicEntriesByName.get("Pocket")!.identity;
     const dirtyText = [
-      "nui 4",
+      "nui 1",
       "",
       "export module Pocket() {",
       "}"

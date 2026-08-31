@@ -44,14 +44,14 @@ const payloadFor = (
 });
 
 const twoPointSource = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 1, y: 2)",
   "point B = offset(from: @A, dx: 3, dy: 4)"
 ].join("\n");
 
 describe("document_evaluate", () => {
   it("prepares the exact-current compiled document for Rust and stays compact by default", async () => {
-    const filePath = await writeFixture("nui 4\npoint A = coordinate(x: 1, y: 2)");
+    const filePath = await writeFixture("nui 1\npoint A = coordinate(x: 1, y: 2)");
     let captured: EvaluateDocumentInput | null = null;
     const result = await evaluateNuiDocument(filePath, {}, {
       transport: async (input) => {
@@ -70,7 +70,7 @@ describe("document_evaluate", () => {
   });
 
   it("reports Rust ineligibility without calling the transport", async () => {
-    const filePath = await writeFixture("nui 4\npoint A = coordinate(x: 1, y: 2)");
+    const filePath = await writeFixture("nui 1\npoint A = coordinate(x: 1, y: 2)");
     const transport = vi.fn(async (input: EvaluateDocumentInput) => payloadFor(input));
     const result = await evaluateNuiDocument(filePath, {}, {
       transport,
@@ -82,7 +82,7 @@ describe("document_evaluate", () => {
   });
 
   it("distinguishes an unavailable process from a transport failure", async () => {
-    const filePath = await writeFixture("nui 4\npoint A = coordinate(x: 1, y: 2)");
+    const filePath = await writeFixture("nui 1\npoint A = coordinate(x: 1, y: 2)");
     const unavailableTransport = vi.fn(async (input: EvaluateDocumentInput) => payloadFor(input));
     const unavailable = await evaluateNuiDocument(filePath, {}, {
       transport: unavailableTransport,
@@ -98,10 +98,10 @@ describe("document_evaluate", () => {
   });
 
   it("returns stale when source identity changes during asynchronous Rust work", async () => {
-    const filePath = await writeFixture("nui 4\npoint A = coordinate(x: 1, y: 2)");
+    const filePath = await writeFixture("nui 1\npoint A = coordinate(x: 1, y: 2)");
     const result = await evaluateNuiDocument(filePath, {}, {
       transport: async (input) => {
-        await writeFile(filePath, "nui 4\npoint A = coordinate(x: 9, y: 9)", "utf8");
+        await writeFile(filePath, "nui 1\npoint A = coordinate(x: 9, y: 9)", "utf8");
         return payloadFor(input);
       }
     });

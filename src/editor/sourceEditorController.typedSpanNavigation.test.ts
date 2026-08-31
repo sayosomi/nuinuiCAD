@@ -58,7 +58,7 @@ describe("SourceEditorController Task 43: typed declaration Tab/click navigation
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 4", "const flag: boolean = true"].join("\n");
+  const source = ["nui 1", "const flag: boolean = true"].join("\n");
 
   it("Tab cycles name -> type -> initializer -> wraps to name, on a line dslDocumentValueSpansAt itself reports as having no spans", () => {
     useCadDocumentStore.getState().commitText(source, "test");
@@ -119,7 +119,7 @@ describe("SourceEditorController Task 43: typed declaration Tab/click navigation
   });
 
   it("leaves the initializer span null (fail-closed), while name/type stay reachable, when the initializer spans a continuation line", () => {
-    const multilineSource = ["nui 4", "let total: number = (", "  1 + 2", ")"].join("\n");
+    const multilineSource = ["nui 1", "let total: number = (", "  1 + 2", ")"].join("\n");
     useCadDocumentStore.getState().commitText(multilineSource, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -181,7 +181,7 @@ describe("SourceEditorController Task 43: set statement Tab/click navigation", (
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 4", "let total: number = 0", "set total = @total + 1"].join("\n");
+  const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
 
   it("Tab cycles target -> expression -> wraps to target on a set statement line", () => {
     useCadDocumentStore.getState().commitText(source, "test");
@@ -219,7 +219,7 @@ describe("SourceEditorController Task 43: text template hole click precision", (
   afterEach(() => vi.restoreAllMocks());
 
   const source = [
-    "nui 4",
+    "nui 1",
     'const label: string = "A"',
     'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'
   ].join("\n");
@@ -254,7 +254,7 @@ describe("SourceEditorController Task 43: text template hole click precision", (
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
     const initialText = internals.view.state.doc.toString();
-    const insertPos = initialText.indexOf("nui 4") + "nui 4".length;
+    const insertPos = initialText.indexOf("nui 1") + "nui 1".length;
     internals.view.dispatch({ changes: { from: insertPos, insert: "\n// a dirty comment line" } });
     const text = internals.view.state.doc.toString();
     expect(text).toContain("// a dirty comment line");
@@ -270,7 +270,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   afterEach(() => vi.restoreAllMocks());
 
   it("Tab no-ops (never selects a stale field) once any edit lands inside a typed declaration statement, even before the next compile", () => {
-    const source = ["nui 4", "const flag: boolean = true"].join("\n");
+    const source = ["nui 1", "const flag: boolean = true"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -287,7 +287,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("Tab no-ops once any edit lands inside a set statement, even before the next compile", () => {
-    const source = ["nui 4", "let total: number = 0", "set total = @total + 1"].join("\n");
+    const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -303,7 +303,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("clicking on a template hole's opening brace selects the inner content, not the outer brace-inclusive span || the whole string", () => {
-    const source = ["nui 4", 'const label: string = "A"', 'text T = label(text: "${@label}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "${@label}", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -318,7 +318,7 @@ describe("SourceEditorController Task 43: dirty-source fail-closed semantics for
   });
 
   it("falls back to the whole (freshly re-parsed) string, not a stale hole position, once an edit elsewhere in the statement drops the hole index", () => {
-    const source = ["nui 4", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -344,7 +344,7 @@ describe("SourceEditorController Task 45: jumpToTemplateHole", () => {
   beforeEach(setUp);
   afterEach(() => vi.restoreAllMocks());
 
-  const source = ["nui 4", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
+  const source = ["nui 1", 'const label: string = "A"', 'text T = label(text: "prefix ${@label} suffix", anchor: none, size: 3)'].join("\n");
 
   it("selects exactly the hole's inner (brace-interior) span for the given holeIndex", () => {
     useCadDocumentStore.getState().commitText(source, "test");

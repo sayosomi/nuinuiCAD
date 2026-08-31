@@ -14,7 +14,7 @@ import {
 describe("SAY-128 record scalar mixed numeric fallback parity", () => {
   it("materializes record fields before the legacy forGroup iteration runtime in TS and Rust", () => {
     const fixture = fixtureFromSource([
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "const offset: number = 2",

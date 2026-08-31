@@ -160,7 +160,7 @@ afterEach(() => {
 describe("VS Code typo Quick Fix provider", () => {
   it("uses a file-backed selector and localized unique action without depending on diagnostic message", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @widht"
     ].join("\n");
@@ -181,7 +181,7 @@ describe("VS Code typo Quick Fix provider", () => {
 
   it("returns every eligible candidate in query order and prefers none when multiple exist", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
       "const result: number = @alhpa"
@@ -199,7 +199,7 @@ describe("VS Code typo Quick Fix provider", () => {
   });
 
   it("routes only by source, stable code, and exact range", () => {
-    const document = documentFor("nui 4\npont P = coordinate(x: 0, y: 0)\n");
+    const document = documentFor("nui 1\npont P = coordinate(x: 0, y: 0)\n");
     mocks.textDocuments.push(document);
 
     const wrongSource = diagnosticFor(document, "unknown-dsl-keyword");
@@ -217,7 +217,7 @@ describe("VS Code typo Quick Fix provider", () => {
 
   it("adds a localized diagnostic suffix only for a unique candidate", () => {
     const uniqueSource = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @widht"
     ].join("\n");
@@ -230,7 +230,7 @@ describe("VS Code typo Quick Fix provider", () => {
     expect(ja?.message).toContain("「width」のことですか？");
 
     const multipleSource = [
-      "nui 4",
+      "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
       "const result: number = @alhpa"
@@ -244,7 +244,7 @@ describe("VS Code typo Quick Fix provider", () => {
 
   it("edits only the exact typo token, including inside an @ reference and CRLF document", async () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "const seamAllowance: number = 10",
       "const result: number = @seamAlowance"
     ].join("\n");
@@ -270,7 +270,7 @@ describe("VS Code typo Quick Fix provider", () => {
   });
 
   it("fails closed for document version, raw source, source revision, diagnostic, range/text, and candidate staleness", async () => {
-    const source = "nui 4\npont P = coordinate(x: 0, y: 0)\n";
+    const source = "nui 1\npont P = coordinate(x: 0, y: 0)\n";
 
     const versionDocument = documentFor(source, "/tmp/version.nui");
     mocks.textDocuments.push(versionDocument);
@@ -322,7 +322,7 @@ describe("VS Code typo Quick Fix provider", () => {
   });
 
   it("ignores unsupported documents", () => {
-    const document = documentFor("nui 4\npont P = coordinate(x: 0, y: 0)\n", "/tmp/typo.txt");
+    const document = documentFor("nui 1\npont P = coordinate(x: 0, y: 0)\n", "/tmp/typo.txt");
     mocks.textDocuments.push(document);
     expect(actionsFor(document, "unknown-dsl-keyword").actions).toEqual([]);
   });

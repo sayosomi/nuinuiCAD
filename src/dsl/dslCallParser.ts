@@ -359,7 +359,7 @@ export const parseDslCallStatement = (
   const equals = topLevelIndex(logicalText, "=", afterCategory.start);
 
   if (isContainer) {
-    // nui4's for header is deliberately normalized into the existing `for`
+    // nui1's for header is deliberately normalized into the existing `for`
     // construction representation: the iterator remains the construction's
     // positional `variable` argument, while range(...) contributes the same
     // named from/count/step arguments used by the existing forGroup runtime.

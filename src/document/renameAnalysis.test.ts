@@ -186,7 +186,7 @@ describe("renameAnalysis", () => {
 
   it("fails closed when a mixed Module document has unresolved source ownership", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)",
       "module Measure(input: point) {",

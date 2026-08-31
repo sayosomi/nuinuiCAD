@@ -16,7 +16,7 @@ import {
 const savedSource = (id: string): DependencySavedSourceSnapshot => ({
   kind: "dependency-saved",
   documentId: documentIdFromHost(id),
-  normalizedSource: "nui 4\n",
+  normalizedSource: "nui 1\n",
   savedSourceFingerprint: savedSourceFingerprintFromHost(`sha256:${id}`)
 });
 

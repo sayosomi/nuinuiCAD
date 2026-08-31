@@ -66,7 +66,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("toggles a boolean declaration initializer in both directions", () => {
-    const source = ["nui 4", "let flag: boolean = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     selectToken(view, "true");
@@ -81,7 +81,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("cycles a choice declaration initializer in declared order, wrapping at both ends", () => {
-    const source = ["nui 4", "let dir: choice(right, left, center) = right"].join("\n");
+    const source = ["nui 1", "let dir: choice(right, left, center) = right"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     // "right" also appears in the type annotation (occurrence 0); the initializer is occurrence 1.
@@ -99,7 +99,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("steps a numeric declaration initializer by the default one-unit step", () => {
-    const source = ["nui 4", "const length: number = 12.3456"].join("\n");
+    const source = ["nui 1", "const length: number = 12.3456"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     selectToken(view, "12.3456");
@@ -116,7 +116,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
 
   it("uses declaration step and bounds, including recovery from an out-of-range initializer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let capped: number(step: 5, min: 0, max: 200) = 250",
       "let floored: number(step: 5, min: 0, max: 200) = -20"
     ].join("\n");
@@ -148,7 +148,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("writes an exponent-free decimal when a small min bound clamps the initializer", () => {
-    const source = ["nui 4", "let floor: number(step: 1, min: 0.0000001) = 0.00"].join("\n");
+    const source = ["nui 1", "let floor: number(step: 1, min: 0.0000001) = 0.00"].join("\n");
     const { controller, parent, view } = openEditor(source);
     selectToken(view, "0.00", 1);
 
@@ -162,7 +162,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("keeps a held out-of-range recovery and subsequent valid step as one Undo step", () => {
-    const source = ["nui 4", "let capped: number(step: 5, max: 200) = 250"].join("\n");
+    const source = ["nui 1", "let capped: number(step: 5, max: 200) = 250"].join("\n");
     const { controller, parent, view } = openEditor(source);
     selectToken(view, "250");
     const pastBefore = useCadDocumentStore.getState().past.length;
@@ -178,7 +178,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("consumes every held numeric initializer step with normalized formatting", () => {
-    const source = ["nui 4", "const length: number = 12.3400"].join("\n");
+    const source = ["nui 1", "const length: number = 12.3400"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     selectToken(view, "12.3400");
@@ -199,7 +199,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("steps a `set` statement's boolean/choice RHS via the target binding's resolved declared type", () => {
-    const booleanSource = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+    const booleanSource = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
     const { controller: booleanController, parent: booleanParent, view: booleanView } = openEditor(booleanSource);
     selectToken(booleanView, "true", 1);
     pressStep(booleanView, 1);
@@ -208,7 +208,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
     booleanController.destroy();
     booleanParent.remove();
 
-    const choiceSource = ["nui 4", "let dir: choice(right, left) = right", "set dir = right"].join("\n");
+    const choiceSource = ["nui 1", "let dir: choice(right, left) = right", "set dir = right"].join("\n");
     const { controller: choiceController, parent: choiceParent, view: choiceView } = openEditor(choiceSource);
     // "right" occurs in the type annotation (0), the initializer (1), && the set RHS (2).
     selectToken(choiceView, "right", 2);
@@ -219,7 +219,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("does not step when the cursor is on a declaration's name/type span, or a set statement's target span", () => {
-    const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
     const { controller, parent, view } = openEditor(source);
 
     selectToken(view, "flag"); // the declaration's own name
@@ -238,7 +238,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("does not step immediately after a live edit inside the declaration itself, before recompile (Task 43 span drop)", () => {
-    const source = ["nui 4", "let flag: boolean = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true"].join("\n");
     const { controller, parent, view } = openEditor(source);
     const internals = controller as unknown as ControllerInternals;
 
@@ -254,7 +254,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("steps a numeric `set` RHS using its target declaration's numeric metadata", () => {
-    const source = ["nui 4", "let count: number(step: 0.5) = 1", "set count = 2.00"].join("\n");
+    const source = ["nui 1", "let count: number(step: 0.5) = 1", "set count = 2.00"].join("\n");
     const { controller, parent, view } = openEditor(source);
     selectToken(view, "2.00");
     pressStep(view, 1);
@@ -265,7 +265,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("keeps Canvas/evaluation input live through a held repeat but creates exactly one Undo step on keyup", () => {
-    const source = ["nui 4", "let flag: boolean = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true"].join("\n");
     const { controller, parent, view } = openEditor(source);
     selectToken(view, "true");
     const before = useCadDocumentStore.getState();
@@ -286,9 +286,9 @@ describe("SourceEditor typed value step (Task 44)", () => {
     parent.remove();
   });
 
-  it("still steps a literal (non-@binding) boolean/choice property attribute via the existing legacy path in a nui 4 document", () => {
+  it("still steps a literal (non-@binding) boolean/choice property attribute via the existing legacy path in a nui 1 document", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -309,7 +309,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
 
   it("does not step an @binding-valued property attribute (reference stepping is out of scope)", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const 方向: choice(right, left) = right",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -329,7 +329,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
   });
 
   it("never triggers a Canvas pick for a typed declaration/set-statement selection", () => {
-    const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
     const { controller, parent, view } = openEditor(source);
     const internals = controller as unknown as ControllerInternals;
 
@@ -346,7 +346,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
 
   describe("set target staleness (doc.bindingAnalysis/doc.setStatements freshness gate)", () => {
     it("no-ops when a same-named binding is inserted before the set statement, uncommitted", () => {
-      const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+      const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
       const { controller, parent, view } = openEditor(source);
       const internals = controller as unknown as ControllerInternals;
 
@@ -363,7 +363,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
     });
 
     it("no-ops when the target declaration is renamed away before the set statement, uncommitted", () => {
-      const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+      const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
       const { controller, parent, view } = openEditor(source);
       const internals = controller as unknown as ControllerInternals;
 
@@ -380,7 +380,7 @@ describe("SourceEditor typed value step (Task 44)", () => {
     });
 
     it("no-ops when the target declaration is deleted before the set statement, uncommitted", () => {
-      const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+      const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
       const { controller, parent, view } = openEditor(source);
       const internals = controller as unknown as ControllerInternals;
 
@@ -397,11 +397,11 @@ describe("SourceEditor typed value step (Task 44)", () => {
     });
 
     it("steps using the new target's declared type once the edit actually recompiles", () => {
-      const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+      const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
       const { controller, parent, view } = openEditor(source);
       const internals = controller as unknown as ControllerInternals;
 
-      const nextSource = ["nui 4", "let flag: choice(a, b) = a", "set flag = a"].join("\n");
+      const nextSource = ["nui 1", "let flag: choice(a, b) = a", "set flag = a"].join("\n");
       useCadDocumentStore.getState().commitText(nextSource, "test");
 
       const rhsPos = view.state.doc.toString().lastIndexOf("a");
@@ -413,11 +413,11 @@ describe("SourceEditor typed value step (Task 44)", () => {
     });
 
     it("no-ops on a semantically-inert whitespace edit before the set statement, until the next compile", () => {
-      const source = ["nui 4", "let flag: boolean = true", "set flag = true"].join("\n");
+      const source = ["nui 1", "let flag: boolean = true", "set flag = true"].join("\n");
       const { controller, parent, view } = openEditor(source);
       const internals = controller as unknown as ControllerInternals;
 
-      const insertPos = view.state.doc.line(1).to; // end of the "nui 4" header line
+      const insertPos = view.state.doc.line(1).to; // end of the "nui 1" header line
       view.dispatch({ changes: { from: insertPos, insert: "   " } });
       const setRhsPos = view.state.doc.toString().lastIndexOf("true");
       view.dispatch({ selection: EditorSelection.cursor(setRhsPos) });

@@ -5,7 +5,7 @@ import { createModuleSemanticRangeIndex, moduleSemanticDeclarationRange, moduleS
 import { analyzeModuleSemanticRename } from "../document/moduleSemanticRenameAnalysis";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "module M(width: number) {",
   "  export point Public = coordinate(x: @width, y: 0)",
   "  point Private = coordinate(x: @width, y: 0)",
@@ -34,7 +34,7 @@ describe("module semantic editor range view", () => {
 
   it("uses tokenizer-owned element/property spans for geometry property source targets", () => {
     const propertySource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  line lineA = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @lineA.length",
@@ -53,7 +53,7 @@ describe("module semantic editor range view", () => {
 
   it("connects deferred export property instance and member tokens to stable source targets", () => {
     const deferredSource = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "  export line Output = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -71,7 +71,7 @@ describe("module semantic editor range view", () => {
 
   it("connects scalar export declarations and qualified members to one source target", () => {
     const scalarSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const value: number = 1",
       "  export let label: string = \"\"",
@@ -116,7 +116,7 @@ describe("module semantic editor range view", () => {
 
   it("collects scalar and geometry-property occurrences from text-template holes", () => {
     const templateSource = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "  export line Export = segment(start: (0, 0), end: (10, 0))",
       "}",

@@ -639,7 +639,7 @@ smaller curve parameter.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 point C = coordinate(x: 100, y: 80)
@@ -755,7 +755,7 @@ the corner result; impossible, parallel, or degenerate corners are errors.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 point C = coordinate(x: 100, y: 80)
@@ -840,7 +840,7 @@ scalar reads do not change retroactively.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 line Base = segment(start: @A, end: @B)

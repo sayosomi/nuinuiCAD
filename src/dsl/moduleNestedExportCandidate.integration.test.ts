@@ -26,7 +26,7 @@ const evaluateSource = (compiled: ReturnType<typeof compileSource>) => {
 };
 
 const source = [
-  "nui 4",
+  "nui 1",
   "module C() {",
   "  export line Out = segment(start: (0, 0), end: (10, 0))",
   "}",

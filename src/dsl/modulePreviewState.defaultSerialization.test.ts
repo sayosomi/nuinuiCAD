@@ -7,7 +7,7 @@ import { queryModulePreviewTarget } from "./modulePreviewTarget";
 describe("Module Preview explicit default serialization", () => {
   it("serializes string template braces, booleans, and choices as safe literals", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'module Defaults(label: string = "a\\{b\\}", enabled: boolean = true, side: choice(left, right) = left) {',
       "  point P = coordinate(x: 0, y: 0)",
       "}"

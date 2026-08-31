@@ -144,7 +144,7 @@ describe("imageCreationCommands", () => {
 
   it("captures a Source Editor insertion line and uses it after image configuration", async () => {
     useCadStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "// insert image here",
       "point B = coordinate(x: 10, y: 0)"
@@ -181,7 +181,7 @@ describe("imageCreationCommands", () => {
   });
 
   it("rejects an unsafe Source cursor before opening the image picker", async () => {
-    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    useCadStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)", "test");
     const before = useCadStore.getState();
     const { createObjectURL, pickerClick } = installBrowserImagePicker();
 
@@ -205,7 +205,7 @@ describe("imageCreationCommands", () => {
   });
 
   it("rejects an image import when its captured source revision is stale", async () => {
-    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n// capture", "test");
+    useCadStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)\n// capture", "test");
     const document = useCadStore.getState();
     installBrowserImagePicker();
     await addImage({
@@ -217,7 +217,7 @@ describe("imageCreationCommands", () => {
       })
     });
     const pending = useCadStore.getState().pendingImageImport!;
-    useCadStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\n// changed", "test");
+    useCadStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)\n// changed", "test");
 
     expect(commitPendingImageImport({
       sourcePath: pending.sourcePath,

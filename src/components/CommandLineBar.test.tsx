@@ -95,7 +95,7 @@ describe("CommandLineBar", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 4", "test");
+    useCadDocumentStore.getState().commitText("nui 1", "test");
     publishTestCanvasSelectionEligibility();
   });
 
@@ -134,7 +134,7 @@ describe("CommandLineBar", () => {
 
   it("warns about a same-scope duplicate name while it is being entered", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     renderBar();
@@ -149,7 +149,7 @@ describe("CommandLineBar", () => {
 
   it("shows a rejected duplicate name only once", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     renderBar();
@@ -165,7 +165,7 @@ describe("CommandLineBar", () => {
 
   it("separates the active step from recipe-ordered completed progress", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "line 基準線 = segment(start: @A, end: @B)"
@@ -193,7 +193,7 @@ describe("CommandLineBar", () => {
 
   it("blank-advances a reference step on empty Enter even with a Canvas selection, then accepts a typed Tab candidate", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point = coordinate(x: 200, y: 0)"
@@ -225,7 +225,7 @@ describe("CommandLineBar", () => {
 
   it("does not implicitly adopt a Canvas selection or pick cursor on empty Enter during normal step progression", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)"
     ].join("\n"), "test");
@@ -248,7 +248,7 @@ describe("CommandLineBar", () => {
 
   it("shows the adoptable selected candidate's name, and adopts it on empty Enter, only while editing a completed reference step", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "stop",
@@ -549,7 +549,7 @@ describe("CommandLineBar", () => {
 
   it("switches between empty Canvas cycling and non-empty text completion after full deletion", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -573,7 +573,7 @@ describe("CommandLineBar", () => {
 
   it("uses arrows to select a reference, Enter to reflect it, and a second Enter to adopt its stable pick reference", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point AB = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -614,7 +614,7 @@ describe("CommandLineBar", () => {
 
   it("drops a Tab-reflected reference after any edit and lets Space insert exactly one ordinary character", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point AB = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -641,7 +641,7 @@ describe("CommandLineBar", () => {
   });
 
   it("drops a Tab-reflected reference when Escape cancels the session", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -658,7 +658,7 @@ describe("CommandLineBar", () => {
   });
 
   it("drops a Tab-reflected reference when retreat returns to its earlier step", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -683,7 +683,7 @@ describe("CommandLineBar", () => {
 
   it("uses arrows to select a numeric candidate, Tab to reflect it, and Enter to submit it", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const Width: number = 10",
       "const Height: number = 20"
     ].join("\n"), "test");
@@ -722,7 +722,7 @@ describe("CommandLineBar", () => {
 
   it("uses Enter twice to adopt one visible line-list candidate and Mod+Enter to review", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)"
@@ -749,7 +749,7 @@ describe("CommandLineBar", () => {
 
   it("shows the mouse completion action only for a multiple line pick", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)"
@@ -763,7 +763,7 @@ describe("CommandLineBar", () => {
   });
 
   it("keeps Tab inside an open reference list but otherwise falls through from the input", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -791,7 +791,7 @@ describe("CommandLineBar", () => {
   });
 
   it("does not treat IME Enter, Tab, arrows, Escape, or Mod+Enter as assistant operations", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("line"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -820,7 +820,7 @@ describe("CommandLineBar", () => {
   });
 
   it("rejects a stable pick reference after the creation session becomes stale", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     act(() => { startCommandLineCreation("line"); });
     const candidate = activePickCandidates()[0];
     const option = candidate.options[0];
@@ -865,7 +865,7 @@ describe("CommandLineBar", () => {
   });
 
   it("shows @variable candidates in a number step and narrows them by typed prefix", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "const Width: number = 10", "const Height: number = 20"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10", "const Height: number = 20"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -886,7 +886,7 @@ describe("CommandLineBar", () => {
 
   it("autocompletes typed number bindings in a free point x field without advancing the step", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       "const label: string = \"front\"",
       "const printed: boolean = true",
@@ -950,7 +950,7 @@ describe("CommandLineBar", () => {
   it("keeps a long typed-binding list inside the viewport and follows keyboard selection", () => {
     const bindingCount = 14;
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       ...Array.from({ length: bindingCount }, (_, index) =>
         `const length${String(index + 1).padStart(2, "0")}: number = ${index + 1}`
       ),
@@ -1025,7 +1025,7 @@ describe("CommandLineBar", () => {
 
   it("fails closed for stale Source metadata before starting a free point session", () => {
     const validSource = [
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       "point Existing = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -1053,7 +1053,7 @@ describe("CommandLineBar", () => {
 
   it("does not offer a typed number binding declared after the pending source insertion", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       "point Existing = coordinate(x: 0, y: 0)",
       "const later: number = 99"
@@ -1082,7 +1082,7 @@ describe("CommandLineBar", () => {
 
   it("uses an after-element anchor's full block end as the typed binding insertion boundary", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       "group G {",
       "  point Inside = coordinate(x: 0, y: 0)",
@@ -1114,7 +1114,7 @@ describe("CommandLineBar", () => {
 
   it("uses the pending insertion scope when a typed binding shadows an outer numeric binding", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: number = 1",
       "group G {",
       "  const length: string = \"inner\"",
@@ -1146,7 +1146,7 @@ describe("CommandLineBar", () => {
 
   it("uses the else-branch insertion target for typed binding visibility", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: string = \"outer\"",
       "if (true) {",
       "  const length: string = \"then\"",
@@ -1176,7 +1176,7 @@ describe("CommandLineBar", () => {
   });
 
   it("replaces only the @token range on selection, leaving surrounding text untouched", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "const Width: number = 10"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -1190,7 +1190,7 @@ describe("CommandLineBar", () => {
   });
 
   it("shows the human-readable @name (not an internal id) after selecting a candidate", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "const Width: number = 10"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -1206,7 +1206,7 @@ describe("CommandLineBar", () => {
 
   it("never shows @variable candidates for name, element-reference, or lineList steps", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const Width: number = 10",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)"
@@ -1222,7 +1222,7 @@ describe("CommandLineBar", () => {
   });
 
   it("does not open @variable candidates during IME composition", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "const Width: number = 10"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "const Width: number = 10"].join("\n"), "test");
     renderBar();
     act(() => { startCommandLineCreation("freePoint"); });
     const input = screen.getByRole<HTMLInputElement>("textbox");
@@ -1257,7 +1257,7 @@ describe("CommandLineBar", () => {
 
   it("shows AB's referenceable parameters after ElementName. && narrows them by prefix", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1289,7 +1289,7 @@ describe("CommandLineBar", () => {
 
   it("replaces only the member token on selection, leaving ElementName. untouched", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1326,7 +1326,7 @@ describe("CommandLineBar", () => {
     const evaluateElementsModule = await import("../geometry/evaluate");
     const evaluateElementsSpy = vi.spyOn(evaluateElementsModule, "evaluateElements");
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1363,7 +1363,7 @@ describe("CommandLineBar", () => {
 
   it("still excludes a genuinely disabled element when evaluation is current", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1388,7 +1388,7 @@ describe("CommandLineBar", () => {
 
   it("Task 51: Enter does not advance the step while element-property candidates are pending (evaluation not current)", async () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     renderBar({
@@ -1414,7 +1414,7 @@ describe("CommandLineBar", () => {
 
   it("Task 51: Enter does not advance the step for an unresolvable element token", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       "test"
     );
     renderBar({
@@ -1439,7 +1439,7 @@ describe("CommandLineBar", () => {
 
   it("completes both @typed-binding && ElementName.property references in a free point x field, in the same session", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -1499,7 +1499,7 @@ describe("CommandLineBar", () => {
   it("never guesses candidates for an ambiguous (duplicate) element name", () => {
     useCadDocumentStore.getState().commitText(
       [
-        "nui 4",
+        "nui 1",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "point C = coordinate(x: 20, y: 0)",
@@ -1530,7 +1530,7 @@ describe("CommandLineBar", () => {
 
   it("coexists with @variable candidates in the same input without interference", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "const Width: number = 10", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const elements = useCadDocumentStore.getState().elements;
@@ -1559,7 +1559,7 @@ describe("CommandLineBar", () => {
 
   it("does not open element-parameter candidates during IME composition", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)", "line 直線AB = segment(start: @A, end: @B)"].join("\n"),
       "test"
     );
     const abId = useCadDocumentStore.getState().elements.find((element) => element.name === "直線AB")!.id;
@@ -1593,7 +1593,7 @@ describe("CommandLineBar", () => {
     expect(screen.getByRole("form", { name: "コマンドライン作成" })).toBeInTheDocument();
 
     act(() => {
-      useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+      useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)", "test");
     });
     await waitFor(() => expect(screen.queryByRole("form", { name: "コマンドライン作成" })).not.toBeInTheDocument());
     expect(useCadUiStore.getState().commandErrorMessage).toContain("変更されたため");

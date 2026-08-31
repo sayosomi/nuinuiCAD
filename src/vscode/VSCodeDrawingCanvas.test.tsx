@@ -158,7 +158,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const previousUi = useCadUiStore.getState();
     try {
       const compiled = compileMaterializedModuleDocument([
-        "nui 4",
+        "nui 1",
         "module M() {",
         "  point P = coordinate(x: 1, y: 2)",
         "}",

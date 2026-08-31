@@ -25,7 +25,7 @@ describe("VS Code observation MCP payload", () => {
   it("keeps source text opt-in and observation state JSON-friendly over the read-only protocol", async () => {
     const descriptorDirectory = mkdtempSync(join(tmpdir(), "nuinuicad-observation-mcp-payload-"));
     directories.push(descriptorDirectory);
-    const sourceText = "nui 4\nline AB = segment(start: (0, 0), end: (10, 0))\n";
+    const sourceText = "nui 1\nline AB = segment(start: (0, 0), end: (10, 0))\n";
     const compactObservation = {
       activeDocumentUri: "file:///tmp/pattern.nui",
       documents: [{

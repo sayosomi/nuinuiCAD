@@ -72,7 +72,7 @@ const specs = [
   ["image", "image"], ["group", ""], ["if", ""], ["for", ""],
 ] as const;
 
-describe("DSL nui 4 compiler argument application", () => {
+describe("DSL nui 1 compiler argument application", () => {
   it("applies populated and minimal arguments for every registry construction", () => {
     for (const [category, construction] of specs) {
       const spec = constructionFor(category, construction)!;
@@ -266,7 +266,7 @@ describe("DSL nui 4 compiler argument application", () => {
   });
 });
 
-describe("nui 4 state syntax lowering", () => {
+describe("nui 1 state syntax lowering", () => {
   it("lowers each of the 3 state literals to ElementActivity", () => {
     const visible = applyArgs(sample("freePoint"), constructionFor("point", "coordinate")!, [arg("state", "visible")], resolvers);
     expect(visible.diagnostics).toEqual([]);

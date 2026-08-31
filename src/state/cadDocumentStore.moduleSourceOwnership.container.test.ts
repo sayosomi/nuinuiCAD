@@ -3,7 +3,7 @@ import type { CadElement } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const groupModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  group G {",
   "    point P = coordinate(x: 0, y: 0)",
@@ -14,7 +14,7 @@ const groupModuleSource = [
 ].join("\n");
 
 const forModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  // keep this for source comment",
   "  for i in range(from: 0, count: 2) {",

@@ -104,7 +104,7 @@ const createBridgeFixture = (
   requestId: number,
   initialDraftReferences?: readonly { base: string; pointKey?: string }[]
 ) => {
-  const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
+  const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint P = offset(from: @A, dx: 0, dy: 0)";
   const document = createDocument(source);
   const editor = createEditor(document);
   mocks.textDocuments = [document];
@@ -131,7 +131,7 @@ beforeEach(() => {
 describe("createVscodeReferencePickSourceBridge", () => {
   it("revalidates then applies exactly one native editor edit / Undo step and restores Source focus", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point P = offset(from: @A, dx: 0, dy: 0)"
@@ -200,7 +200,7 @@ describe("createVscodeReferencePickSourceBridge", () => {
 
   it("applies a numeric confirmation as one complete Source edit and restores the final caret", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",

@@ -1,4 +1,4 @@
-// Assignability rules for typed scalar bindings. nui4 uses exact structural
+// Assignability rules for typed scalar bindings. nui1 uses exact structural
 // matching for both ordinary bindings && schema-typed property bindings.
 
 import { scalarTypesEqual, type ChoiceScalarType, type ScalarType } from "./types";

@@ -43,7 +43,7 @@ evaluation and later references. See [Modifiers](modifiers.md).
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 const show: boolean = true
 group Front {
   point A = coordinate(x: 0, y: 0)

@@ -73,7 +73,7 @@ describe("tokenizeScalarExpression / parens and operators", () => {
     ]);
   });
 
-  it("uses the Unicode identifier grammar for nui4 word-operator boundaries", () => {
+  it("uses the Unicode identifier grammar for nui1 word-operator boundaries", () => {
     expect(tokenizeOk("and")).toEqual([{ kind: "operator", value: "&&", span: { start: 0, end: 3 } }]);
     expect(tokenizeOk("or")).toEqual([{ kind: "operator", value: "||", span: { start: 0, end: 2 } }]);
     expect(tokenizeOk("not")).toEqual([{ kind: "operator", value: "!", span: { start: 0, end: 3 } }]);

@@ -43,13 +43,13 @@ const query = (
 
 describe("DSL Source Value Step query", () => {
   it("steps exact element literals in single- and multi-line statements", () => {
-    const single = ["nui 4", "point A = coordinate(x: 1.5, y: 0)"].join("\n");
+    const single = ["nui 1", "point A = coordinate(x: 1.5, y: 0)"].join("\n");
     expect(query(single, "1.5")).toMatchObject({
       edit: { expectedText: "1.5", newText: "2.5" }
     });
 
     const multiline = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 1 + 2,",
       "  y: 0",
@@ -62,7 +62,7 @@ describe("DSL Source Value Step query", () => {
 
   it("steps typed declarations and set RHS values through compiler binding identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let count: number(step: 0.5) = 1.50",
       "let flag: boolean = true",
       "let side: choice(right, left) = right",
@@ -76,7 +76,7 @@ describe("DSL Source Value Step query", () => {
 
   it("steps only current split modifier tokens and leaves fixed colors non-steppable", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "  width: 1.5px,",
@@ -102,7 +102,7 @@ describe("DSL Source Value Step query", () => {
   });
 
   it("accepts an after-value caret or exact selection and rejects partial or multiple selections", () => {
-    const source = ["nui 4", "let flag: boolean = true"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true"].join("\n");
     expect(query(source, "true", 1, "after")).toMatchObject({ edit: { newText: "false" } });
     expect(query(source, "true", 1, "exact")).toMatchObject({ edit: { newText: "false" } });
     expect(query(source, "true", 1, "partial")).toBeNull();
@@ -117,7 +117,7 @@ describe("DSL Source Value Step query", () => {
 
   it("fails closed for stale semantics but not for an unrelated current diagnostic", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  style: solid",
       "}",
@@ -133,10 +133,10 @@ describe("DSL Source Value Step query", () => {
     })).toBeNull();
 
     const elementSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 0)",
       "point Broken = coordinate(x: nope, y: 0)"
     ].join("\n");
-    expect(query(elementSource, "1")).toMatchObject({ edit: { newText: "2" } });
+    expect(query(elementSource, "1", 1, "caret", 1)).toMatchObject({ edit: { newText: "2" } });
   });
 });

@@ -16,7 +16,7 @@ const compileWithIds = (source: string) => {
 describe("typed BindingId rename occurrences inside Module semantics", () => {
   it("patches module defaults and explicit scalar arguments through the existing atomic splice path", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number = @outer) {",
       "}",

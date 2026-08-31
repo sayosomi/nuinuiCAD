@@ -23,13 +23,13 @@ describe("multi-document identity primitives", () => {
     const root: RootCurrentSourceSnapshot = {
       kind: "root-current",
       documentId: documentIdFromHost("root"),
-      normalizedSource: "nui 4\n",
+      normalizedSource: "nui 1\n",
       sourceRevision: 12
     };
     const dependency: DependencySavedSourceSnapshot = {
       kind: "dependency-saved",
       documentId: documentIdFromHost("dependency"),
-      normalizedSource: "nui 4\n",
+      normalizedSource: "nui 1\n",
       savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:abc")
     };
 

@@ -55,7 +55,7 @@ const evaluateWithProductionRust = (compiled: ReturnType<typeof compile>) => {
 describe("Bake geometry", () => {
   it.skipIf(!existsSync(productionRustBinary))("bakes a division point through the production Rust evaluation path", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -102,7 +102,7 @@ describe("Bake geometry", () => {
 
   it("creates independent coordinate primitives in source order", () => {
     const current = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "line AB = segment(start: @A, end: @B)"
@@ -125,7 +125,7 @@ describe("Bake geometry", () => {
 
   it("treats a reusable module body as a hard Source Bake boundary", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -162,7 +162,7 @@ describe("Bake geometry", () => {
 
   it("bakes a reversed arc exactly as an explicit clockwise arc", () => {
     const current = compile([
-      "nui 4",
+      "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
       "reverse(target: @A)"
@@ -186,7 +186,7 @@ describe("Bake geometry", () => {
 
   it("bakes a representable positive arc exactly", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 12, start: 30, end: 150)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
@@ -205,7 +205,7 @@ describe("Bake geometry", () => {
 
   it("uses the pre-mutation snapshot for Base and final geometry for Current", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "reverse(target: @L)"
     ].join("\n"));
@@ -235,7 +235,7 @@ describe("Bake geometry", () => {
 
   it("decomposes a multi-segment Bezier into independent curves", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
@@ -259,7 +259,7 @@ describe("Bake geometry", () => {
 
   it("uses _bake for unnamed single primitives and _bake_N for unnamed multi primitives", () => {
     const unnamedPointDocument = compile([
-      "nui 4",
+      "nui 1",
       "point = coordinate(x: 1, y: 2)"
     ].join("\n"));
     const unnamedPoint = unnamedPointDocument.doc.document.elements.find((element) => element.name === "")!;
@@ -275,7 +275,7 @@ describe("Bake geometry", () => {
     );
 
     const unnamedCurveDocument = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
@@ -296,7 +296,7 @@ describe("Bake geometry", () => {
 
   it("preserves the exact primitive order of an open offset path", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "arc B = arc(center: (10, 5), radius: 5, start: -90, end: 0)",
       "line O = offset(sources: [@A, @B], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
@@ -321,7 +321,7 @@ describe("Bake geometry", () => {
 
   it("keeps multiple insertion sites in source order", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "text Memo = label(text: \"memo\", anchor: none, size: 3)",
       "point B = coordinate(x: 3, y: 4)"
@@ -341,7 +341,7 @@ describe("Bake geometry", () => {
 
   it("copies modifier references to every generated declaration", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Basic {",
       "  state: visible,",
       "}",
@@ -363,7 +363,7 @@ describe("Bake geometry", () => {
 
   it("silently filters hidden geometry when hidden inclusion is off", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point Hidden = coordinate(x: 1, y: 2, state: hidden)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
@@ -382,7 +382,7 @@ describe("Bake geometry", () => {
 
   it("bakes hidden geometry when enabled and preserves its modifier/activity semantics", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Hide {",
       "  state: hidden,",
       "}",
@@ -405,7 +405,7 @@ describe("Bake geometry", () => {
 
   it("silently filters disabled geometry by default and bakes it only through the sandbox", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
     ].join("\n"));
     const disabled = compiled.doc.document.elements.find((element) => element.name === "Disabled")!;
@@ -446,7 +446,7 @@ describe("Bake geometry", () => {
 
   it("emits or suppresses a skip when disabled sandbox evaluation genuinely fails", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
       "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
     ].join("\n"));
@@ -483,7 +483,7 @@ describe("Bake geometry", () => {
 
   it("resolves only attempted disabled targets and fails closed without their sandbox", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
       "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
     ].join("\n"));
@@ -511,7 +511,7 @@ describe("Bake geometry", () => {
 
   it("can succeed with skipped comments only, and leaves source unchanged when disabled", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "text Memo = label(text: \"Memo\", anchor: none, size: 3)"
     ].join("\n"));
     const evaluation = evaluate(compiled);
@@ -541,7 +541,7 @@ describe("Bake geometry", () => {
 
   it("bakes materialized geometry descendants, applies activity per descendant, and includes internal moves in Instance Base", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Hide {",
       "  state: hidden,",
       "}",
@@ -618,7 +618,7 @@ describe("Bake geometry", () => {
 
   it("uses the instance Base boundary before caller-side mutations", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "}",

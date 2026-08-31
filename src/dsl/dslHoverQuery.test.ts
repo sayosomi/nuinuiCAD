@@ -39,7 +39,7 @@ const declarationFor = (
 describe("queryDslGeometryHoverTarget", () => {
   it("returns the same geometry target for a declaration and semantic reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 10, dy: 0)"
     ].join("\n");
@@ -68,7 +68,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("resolves a single materialized runtime geometry back to its authored declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Marker() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -87,7 +87,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("targets the element segment rather than a numeric property suffix", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Shoulder = segment(start: @A, end: @B)",
@@ -105,7 +105,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("targets a qualified element segment for a choice geometry property", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  point Start = coordinate(x: 0, y: 0)",
       "  point End = coordinate(x: 10, y: 0)",
@@ -127,7 +127,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("does not target language keywords, construction names, parameter keys, containers, text, or typed bindings", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "group Front {",
       "  point A = coordinate(x: @width, y: 0)",
@@ -150,7 +150,7 @@ describe("queryDslGeometryHoverTarget", () => {
   });
 
   it("fails closed when a named source geometry becomes unnamed in the exact semantic snapshot", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const compiled = compileWithIds(source);
     const element = compiled.document?.elements.find((candidate) => candidate.name === "A");
     expect(element).toBeDefined();
@@ -169,7 +169,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("fails closed for repeated Module materialization from one source declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Marker() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -188,7 +188,7 @@ describe("queryDslGeometryHoverTarget", () => {
 
   it("fails closed for geometry authored inside a for-generated source body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 2) {",
       "  point P = coordinate(x: i * 10, y: 0)",
       "}"
@@ -202,7 +202,7 @@ describe("queryDslGeometryHoverTarget", () => {
   });
 
   it("fails closed for stale revisions and same-revision source mismatches", () => {
-    const oldSource = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const oldSource = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const compiled = compileWithIds(oldSource, 3);
     const element = compiled.document?.elements.find((candidate) => candidate.name === "A");
     const liveSource = oldSource.replace("A", "Renamed");

@@ -64,7 +64,7 @@ record definition rather than structural field matching.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 const points: point[] = [@A, @B]

@@ -26,7 +26,7 @@ const relatedTexts = (source: string, diagnostic: DslDiagnostic) =>
 describe("Module diagnostic related source information", () => {
   it("points a missing argument back to its required parameter declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(required: number) {",
       "}",
       "instance Use = M()"
@@ -39,7 +39,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points a duplicate public export collision back to the first export name only", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const Output: number = 1",
       "  export point Output = coordinate(x: 0, y: 0)",
@@ -56,7 +56,7 @@ describe("Module diagnostic related source information", () => {
     expect(diagnostics.filter((candidate) => candidate.code === "module-duplicate-export")).toHaveLength(0);
 
     const ordinarySource = [
-      "nui 4",
+      "nui 1",
       "const Output: number = 1",
       "point Output = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -66,7 +66,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points scalar and geometry call mismatches to the expected parameter type", () => {
     const scalarSource = [
-      "nui 4",
+      "nui 1",
       "module M(value: number) {",
       "}",
       "instance Use = M(value: \"bad\")"
@@ -75,7 +75,7 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(scalarSource, scalar)).toEqual(["number"]);
 
     const geometrySource = [
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "module M(anchor: point) {",
       "}",
@@ -87,7 +87,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points optional-value errors and parameter collisions to the parameter declaration", () => {
     const optionalSource = [
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  const copy: number = @value",
       "}",
@@ -97,7 +97,7 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(optionalSource, optional)).toEqual(["value"]);
 
     const collisionSource = [
-      "nui 4",
+      "nui 1",
       "module M(x: number) {",
       "  const x: number = 1",
       "}"
@@ -108,7 +108,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points an optional path[] list-consumer error to the parameter declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(paths?: path[]) {",
       "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}"
@@ -128,7 +128,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points a forward callee to the later module definition", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "instance Before = Later()",
       "module Later() {",
       "}"
@@ -141,7 +141,7 @@ describe("Module diagnostic related source information", () => {
 
   it("points private members and outer captures to the proven source declaration", () => {
     const privateSource = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "  const secret: number = 1",
       "}",
@@ -155,7 +155,7 @@ describe("Module diagnostic related source information", () => {
     expect(relatedTexts(privateSource, privateDiagnostic)).toEqual(["secret"]);
 
     const captureSource = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 1",
       "module M() {",
       "  const copy: number = @outer",
@@ -167,7 +167,7 @@ describe("Module diagnostic related source information", () => {
 
   it("explains an indirect recursion cycle with only the other cycle call sites", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module A() {",
       "  module B() {",
       "    instance toA = A()",
@@ -185,7 +185,7 @@ describe("Module diagnostic related source information", () => {
 
   it("does not duplicate the primary call site for self recursion", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Self() {",
       "  instance again = Self()",
       "}",
@@ -199,7 +199,7 @@ describe("Module diagnostic related source information", () => {
 
   it("omits related information when there is no exact current cause span", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const copy: number = @missing",
       "}"

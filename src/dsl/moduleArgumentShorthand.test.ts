@@ -27,7 +27,7 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
     .sort((left, right) => right.from - left.from || right.to - left.to)
     .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
 
-describe("nui4 Module same-name argument shorthand", () => {
+describe("nui1 Module same-name argument shorthand", () => {
   it("parses only a simple relative source reference as an implicit named argument", () => {
     const source = 'instance X = M(@width, @縫い代幅, @"name with spaces")';
     const parsed = parseDslModuleStatement(source);
@@ -66,7 +66,7 @@ describe("nui4 Module same-name argument shorthand", () => {
   });
 
   const shorthandSource = [
-    "nui 4",
+    "nui 1",
     "const width: number = 10",
     "const height: number = 20",
     "module Pocket(width: number, height: number) {",
@@ -154,7 +154,7 @@ describe("nui4 Module same-name argument shorthand", () => {
 
   it("offers compatible shorthand before the explicit named form and suppresses a consumed shorthand", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const height: number = 20",
       "module Pocket(width: number, height: number) {",
@@ -189,7 +189,7 @@ describe("nui4 Module same-name argument shorthand", () => {
 
   it("offers shorthand only when the same-name caller value is type compatible", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'const width: string = "10"',
       "module Pocket(width: number) {",
       "}",
@@ -211,7 +211,7 @@ describe("nui4 Module same-name argument shorthand", () => {
 
   it("detects duplicate arguments after shorthand label derivation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "module Pocket(width: number) {",
       "}",

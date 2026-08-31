@@ -5,7 +5,7 @@ import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTe
 import { cycleElementActivity, setElementActivity, setElementsActivity } from "./selectionCommands";
 
 const twoPointsAndVariableSource = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)",
   "line AB = segment(start: @A, end: @B)",

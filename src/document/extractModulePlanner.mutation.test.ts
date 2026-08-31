@@ -51,7 +51,7 @@ const expectRejectedWithoutPatch = (result: ReturnType<typeof plan>["result"], c
 describe("planExtractModule checkpoint 9 bare mutations", () => {
   it("extracts reverse with its mutated line and does not create a mutation export", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "reverse(target: @AB)"
     ].join("\n");
@@ -63,7 +63,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
     expect(result.dependencies).toEqual([]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "module Extracted() {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "  reverse(target: @AB)",
@@ -74,7 +74,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("extracts extend with its target line while parameterizing only the read-only point", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point To = coordinate(x: 20, y: 0)",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "extend(end: @AB.end, to: @To)"
@@ -95,7 +95,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("requires every move target to move and preserves multiple target owners", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const Scale: number = 2",
       "point From = coordinate(x: 0, y: 0)",
       "point To = coordinate(x: 10, y: 0)",
@@ -116,7 +116,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("keeps mirrorMove axis geometry as ordinary read-only dependencies", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Axis1 = coordinate(x: 0, y: 0)",
       "point Axis2 = coordinate(x: 0, y: 10)",
       "line A = segment(start: (1, 0), end: (2, 0))",
@@ -135,7 +135,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("preserves both edge endpoint owners when they move with the mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
       "line B = segment(start: (1, 0), end: (2, 0))",
       "edge(end1: @A.end, end2: @B.start)"
@@ -150,14 +150,14 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("rejects either direction of a bare mutation boundary without partial mutation", () => {
     const mutationOutside = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
       "reverse(target: @A)"
     ].join("\n");
     expectRejectedWithoutPatch(plan(mutationOutside, [2]).result, "cross-boundary-mutation");
 
     const ownerOutside = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (1, 0))",
       "reverse(target: @A)"
     ].join("\n");
@@ -166,7 +166,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("accepts bare mutations recursively under a selected group, if, and for", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point To = coordinate(x: 20, y: 0)",
       "group Pocket {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
@@ -198,7 +198,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("keeps a bare mutation valid inside a moved Module definition", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  reverse(target: @A)",
@@ -215,7 +215,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
 
   it("retains the cross-boundary mutation guard for a nested bare mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Pocket {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  reverse(target: @A)",

@@ -11,8 +11,8 @@ const recordIndex = (source: string) => {
 
 describe("statement reconciler record identity", () => {
   it("inherits a record definition identity across field edits", () => {
-    const oldSource = ["nui 4", "record Pair(x: number)"].join("\n");
-    const newSource = ["nui 4", "record Pair(x: number, label: string)"].join("\n");
+    const oldSource = ["nui 1", "record Pair(x: number)"].join("\n");
+    const newSource = ["nui 1", "record Pair(x: number, label: string)"].join("\n");
     const oldRecord = recordIndex(oldSource);
     const newRecord = recordIndex(newSource);
     const result = reconcileStatements({

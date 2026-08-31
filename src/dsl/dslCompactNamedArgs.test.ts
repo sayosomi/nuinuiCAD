@@ -8,9 +8,9 @@ const errors = (source: string) =>
   parseDsl(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
 
 describe("compact named arguments", () => {
-  it("compiles compact nui4 element arguments without whitespace diagnostics", () => {
+  it("compiles compact nui1 element arguments without whitespace diagnostics", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x:10,y:-20,state:hidden)"
     ].join("\n");
     const compiled = compileDslDocument(source);
@@ -25,8 +25,8 @@ describe("compact named arguments", () => {
   });
 
   it("keeps missing compact values invalid", () => {
-    const compact = errors("nui 4\npoint A = coordinate(x:10,y:)");
-    const spaced = errors("nui 4\npoint A = coordinate(x:10,y:   )");
+    const compact = errors("nui 1\npoint A = coordinate(x:10,y:)");
+    const spaced = errors("nui 1\npoint A = coordinate(x:10,y:   )");
 
     expect(compact).toContainEqual(expect.objectContaining({ code: "missing-attribute-value" }));
     expect(spaced).toContainEqual(expect.objectContaining({ code: "missing-attribute-value" }));
@@ -34,7 +34,7 @@ describe("compact named arguments", () => {
 
   it("parses compact module parameters, instance options, and instance arguments", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value?:number, flag:boolean = false) {",
       "}",
       "instance X(state:hidden) = M(value:1,flag:true)"
@@ -75,7 +75,7 @@ describe("compact named arguments", () => {
   });
 
   it("replaces only the compact value token during completion", () => {
-    const source = "nui 4\nline L = offset(sources:[A],distance:1,side:le)";
+    const source = "nui 1\nline L = offset(sources:[A],distance:1,side:le)";
     const position = source.indexOf("side:le") + "side:le".length;
     const result = queryDslCompletion({
       source: { normalizedSource: source, sourceRevision: 1 },

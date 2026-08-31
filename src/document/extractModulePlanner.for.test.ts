@@ -83,7 +83,7 @@ const expectCleanTransformedSource = (
 describe("planExtractModule checkpoint 7 recursive structural descendants", () => {
   it("moves a complete root for subtree, parameterizes range/body dependencies, and keeps the iteration binding internal", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const start: number = 1",
       "const count: number = 2",
       "const step: number = 1",
@@ -114,7 +114,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
 
     const transformed = applyLineSplices(source, result.splices);
     expect(transformed).toBe([
-      "nui 4",
+      "nui 1",
       "const start: number = 1",
       "const count: number = 2",
       "const step: number = 1",
@@ -147,7 +147,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
 
   it("recursively moves nested for headers and bodies, parameterizes external dependencies, and proves both iteration owners after recompile", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const start: number = 1",
       "const count: number = 2",
       "const step: number = 1",
@@ -189,7 +189,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
 
   it("keeps iteration ownership exact when a nested for shadows the outer binder", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const count: number = 2",
       "for i in range(from: 100, count: @count, step: 100) {",
       "  const outerValue: number = @i",
@@ -216,7 +216,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
 
   it("moves a selected root containing a valid structural record value", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 1)",
       "group Outer {",

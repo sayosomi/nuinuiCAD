@@ -59,7 +59,7 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 describe("module geometry runtime", () => {
   it("lowers actual, derived, coordinate, forwarded, and repeated point aliases", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "line Guide = segment(start: (0, 0), end: (20, 0))",
       "module Inner(p: point) {",
@@ -84,7 +84,7 @@ describe("module geometry runtime", () => {
 
   it("keeps path aliases broad and lowers endpoint/list references", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Base = segment(start: (0, 0), end: (10, 0))",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
       "module M(path: path) {",
@@ -109,7 +109,7 @@ describe("module geometry runtime", () => {
 
   it("checks strict line and broad path interfaces at direct Module argument boundaries", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Straight = segment(start: (0, 0), end: (10, 0))",
       "line Polar = polar(start: (0, 0), angle: 0, length: 10)",
       "curve Bezier = bezier(start: (0, 0), end: (10, 0))",
@@ -134,7 +134,7 @@ describe("module geometry runtime", () => {
 
   it("uses the public geometry interface in direct Module argument diagnostics", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point Point = coordinate(x: 0, y: 0)",
       "module Broad(input: path) {",
       "}",
@@ -156,7 +156,7 @@ describe("module geometry runtime", () => {
 
   it("checks line-to-path and path-to-line parameter forwarding directionally", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Straight = segment(start: (0, 0), end: (10, 0))",
       "module AcceptPath(input: path) {",
       "}",
@@ -178,7 +178,7 @@ describe("module geometry runtime", () => {
 
   it("applies the same interface check to qualified exported geometry", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export line Straight = segment(start: (0, 0), end: (10, 0))",
       "  export curve Bezier = bezier(start: (0, 0), end: (10, 0))",
@@ -205,7 +205,7 @@ describe("module geometry runtime", () => {
 
   it("resolves exported root and nested geometry through instance-local namespaces", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  export point P = coordinate(x: 3, y: 4)",
       "}",
@@ -231,7 +231,7 @@ describe("module geometry runtime", () => {
 
   it("lowers line and point geometry properties to stable targets", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "line Guide = segment(start: (0, 0), end: (12, 0))",
       "module M(p: point, path: line) {",
@@ -258,7 +258,7 @@ describe("module geometry runtime", () => {
 
   it("lowers nested export properties through the same runtime target path", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  export line L = segment(start: (0, 0), end: (9, 0))",
       "}",
@@ -278,7 +278,7 @@ describe("module geometry runtime", () => {
 
   it("validates exported point properties and category-aware derived points", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  export point P = coordinate(x: 3, y: 4)",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
@@ -311,7 +311,7 @@ describe("module geometry runtime", () => {
     ["point start", "export point P = coordinate(x: 3, y: 4)", "@X::P.start"]
   ])("rejects invalid exported derived point accessor: %s", (_label, exported, reference) => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       `  ${exported}`,
       "}",
@@ -327,7 +327,7 @@ describe("module geometry runtime", () => {
 
   it("keeps module coordinate aliases on the existing numeric binding path", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const x: number = 6",
       "module M(p: point) {",
       "  point Result = offset(from: @p, dx: 1, dy: 2)",
@@ -343,7 +343,7 @@ describe("module geometry runtime", () => {
 
   it("captures distinct pre-mutation Bezier snapshots for materialized Module occurrences", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(origin: point) {",
       "  curve Curve = bezier(start: @origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
       "}",
@@ -391,7 +391,7 @@ describe("module geometry runtime", () => {
 
   it("reports private, undefined, and geometry-kind export diagnostics", () => {
     const privateMember = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Private = coordinate(x: 1, y: 2)",
       "}",
@@ -402,7 +402,7 @@ describe("module geometry runtime", () => {
     expect(errorsOf(privateMember).some((diagnostic) => diagnostic.code === "module-private-member")).toBe(true);
 
     const undefinedMember = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export point Public = coordinate(x: 1, y: 2)",
       "}",
@@ -412,7 +412,7 @@ describe("module geometry runtime", () => {
     expect(errorsOf(undefinedMember).some((diagnostic) => diagnostic.code === "module-undefined-export")).toBe(true);
 
     const mismatch = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export line Public = segment(start: (0, 0), end: (1, 0))",
       "}",
@@ -424,7 +424,7 @@ describe("module geometry runtime", () => {
 
   it("guards only mutation write targets for caller-owned geometry parameters", () => {
     const uninstantiated = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module DefinitionOnly(path: line) {",
       "  reverse(target: @path)",
       "}"
@@ -439,7 +439,7 @@ describe("module geometry runtime", () => {
       "reverse(target: @path)"
     ]) {
       const compiled = compileWithIds([
-        "nui 4",
+        "nui 1",
         "point Input = coordinate(x: 0, y: 0)",
         "module M(path: line, input: point) {",
         `  ${mutation}`,
@@ -451,7 +451,7 @@ describe("module geometry runtime", () => {
     }
 
     const allowed = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(path: line) {",
       "  line Copy = transformCopy(startPoint: @path.start, endPoint: @path.end, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@path])",
       "  reverse(target: @Copy)",

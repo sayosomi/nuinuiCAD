@@ -39,7 +39,7 @@ source but are outside the evaluation limit.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 group Front {
   point A = coordinate(x: 0, y: 0)
 }

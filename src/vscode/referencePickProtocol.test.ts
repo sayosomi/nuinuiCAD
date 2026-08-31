@@ -31,7 +31,7 @@ const targetAt = (source: string, fragment: string) => {
 describe("reference pick VS Code protocol proof", () => {
   it("captures cross-process-stable target identity and old source text", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -66,7 +66,7 @@ describe("reference pick VS Code protocol proof", () => {
 
   it("proves the complete numeric property operand as its editable range", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -89,7 +89,7 @@ describe("reference pick VS Code protocol proof", () => {
 
   it("parses current list references as draft seed without losing quoted names", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line \"B, C\" = segment(start: (0, 10), end: (10, 10))",
       "line Seam = offset(sources: [@A, @\"B, C\"], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"

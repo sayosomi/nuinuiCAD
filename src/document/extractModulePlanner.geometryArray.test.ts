@@ -41,7 +41,7 @@ const plan = (source: string, selectedIndexes: readonly number[]) => {
 describe("planExtractModule checkpoint 3 geometry arrays", () => {
   it("preserves the exact array dependency type, exports the moved array, and rewrites an outside array reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const source: line[] = [@A]",
       "const moved: path[] = @source",
@@ -57,7 +57,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["moved"]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const source: line[] = [@A]",
       "module Extracted(source: line[]) {",
@@ -70,7 +70,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
 
   it("extracts a direct point-array literal without inventing runtime scalar semantics when authored identity is available", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line IdentityAnchor = segment(start: (0, 0), end: (1, 0))",
       "const points: point[] = [(0, 0), (10, 5)]"
     ].join("\n");
@@ -82,7 +82,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
     expect(result.dependencies).toEqual([]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "line IdentityAnchor = segment(start: (0, 0), end: (1, 0))",
       "module Extracted() {",
       "  const points: point[] = [(0, 0), (10, 5)]",
@@ -93,7 +93,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
 
   it("uses the existing singular geometry interface for geometry referenced inside an array literal", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const moved: path[] = [@A]"
     ].join("\n");
@@ -111,7 +111,7 @@ describe("planExtractModule checkpoint 3 geometry arrays", () => {
 
   it("keeps a selected array-to-array reference internal while preserving outside singular geometry parameterization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const first: line[] = [@A]",
       "const second: path[] = @first"

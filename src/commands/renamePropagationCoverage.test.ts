@@ -145,10 +145,10 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("propagates direct, start/end, point-key, and typed-property references", () => {
-    // Canonical nui 4 vertical-call shape throughout (see the in-place-patch
+    // Canonical nui 1 vertical-call shape throughout (see the in-place-patch
     // note in renameElementWithPropagation.test.ts).
     const source = [
-      "nui 4",
+      "nui 1",
       "// unchanged comment",
       "point A = coordinate(",
       "  x: 0,",
@@ -201,7 +201,7 @@ describe("rename propagation reference-form coverage", () => {
     // role/view/group(roles:)/place stay in their canonical source shapes,
     // matching serializeDocumentToDsl.
     const source = [
-      "nui 4",
+      "nui 1",
       "role seam (name: \"Seam\")",
       "view Draft (default: true, seam: true)",
       "activeView Draft",
@@ -243,7 +243,7 @@ describe("rename propagation reference-form coverage", () => {
 
   it("names an explicit-id unnamed element, propagates its raw reference, and reloads cleanly", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -278,7 +278,7 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects an absolute-path rename when serializer output would resolve to a shadowing element", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group A {",
       "  point Target = coordinate(x: 0, y: 0)",
       "}",
@@ -297,7 +297,7 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects same-scope explicit-id duplicates even though the DSL parser accepts them", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0, id: a1)",
       "point A = coordinate(x: 1, y: 0, id: a2)",
       "point B = coordinate(x: 2, y: 0, id: b)"
@@ -311,7 +311,7 @@ describe("rename propagation reference-form coverage", () => {
 
   it("rejects a shadowing resolution change and an invalid name without mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Outer = coordinate(x: 0, y: 0)",
       "group G {",
       "  point Inner = coordinate(x: 1, y: 0)",
@@ -322,13 +322,13 @@ describe("rename propagation reference-form coverage", () => {
     expectRejectedWithoutMutation(() => renameElementWithPropagation(elementId("Inner"), "Outer"));
     expect(useCadUiStore.getState().commandErrorMessage).toContain("参照先が変わる");
 
-    seed("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    seed("nui 1\npoint A = coordinate(x: 0, y: 0)");
     expectRejectedWithoutMutation(() => renameElementWithPropagation(elementId("A"), "A::B"));
     expect(useCadUiStore.getState().commandErrorMessage).toContain("`::`");
   });
 
   it("rejects an existing dangling document at the clean-source gate", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)";
     seed(source);
     expect(useCadDocumentStore.getState().diagnostics).toEqual([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining("参照先が見つかりません") })
@@ -339,7 +339,7 @@ describe("rename propagation reference-form coverage", () => {
   });
 
   it("rejects dangling capture in 5d analysis before bridge execution", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @NewName, dx: 1, dy: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint User = offset(from: @NewName, dx: 1, dy: 0)";
     const compiled = compileDslDocument(source);
     const target = compiled.document!.elements.find((element) => element.name === "A")!;
 

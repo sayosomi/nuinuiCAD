@@ -40,7 +40,7 @@ const errorfulWithBoth = [
 ].join("\n");
 
 const vscodeE2eBaseline = [
-  "nui 4",
+  "nui 1",
   "",
   "point A = coordinate(",
   "  x: 0,",
@@ -59,7 +59,7 @@ const vscodeE2eBaseline = [
 ].join("\n");
 
 const vscodeE2eErrorfulWithoutA = [
-  "nui 4",
+  "nui 1",
   "",
   "point B = coordinate(",
   "  x: 60,",

@@ -29,7 +29,7 @@ it. A module parameter or export must use the exact nominal record type; see
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 record Pair(
   x: number,
   label: string,

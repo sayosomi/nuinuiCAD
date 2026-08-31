@@ -186,7 +186,7 @@ export const parseDslSettingsStatement = (
   const diagnostics: DslSettingsDiagnostic[] = [];
   if (logicalText.trimStart().startsWith("@stop")) {
     const start = logicalText.indexOf("@stop");
-    addDiagnostic(diagnostics, "`@stop` は nui4 では使えません。`stop` を使用してください。", { start, end: start + 5 });
+    addDiagnostic(diagnostics, "`@stop` は nui1 では使えません。`stop` を使用してください。", { start, end: start + 5 });
     return { statement: null, diagnostics };
   }
   const keywordMatch = logicalText.match(identifier);

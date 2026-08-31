@@ -115,21 +115,21 @@ const resultFilePair = (): { directory: string; baselinePath: string; candidateP
 };
 
 const compileBenchmarkFixture = (source: string) =>
-  compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+  compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
 
 const deepChainFixtures = new Set(["dependency-chain-250-v1", "dependency-chain-1000-v1"]);
 
 const interactiveFixtureExpectations = new Map([
   ["interactive-medium-v2", {
     file: "interactive-medium-v2.nui",
-    hash: "sha256:022361207a2b8228cdcd06a1f2c706ee019ef5ac38046fc3742193bd4ea0c823",
+    hash: "sha256:376434ef4c88293a04e70a96c0fa186678c7fbbedec5ef9de5e1a0a35d403ba5",
     forGroupIterations: 50,
     generatedGeometryPerIteration: 4,
     generatedRows: 200
   }],
   ["interactive-large-v2", {
     file: "interactive-large-v2.nui",
-    hash: "sha256:bb66e9fcace919f5ca4317ed5450809e77889a668f252cce573860c0b96ad075",
+    hash: "sha256:fc480108ecf149f47ff4815dc5f9c69610cd7e167012c24a79196097199f7aea",
     forGroupIterations: 250,
     generatedGeometryPerIteration: 4,
     generatedRows: 1000
@@ -137,8 +137,8 @@ const interactiveFixtureExpectations = new Map([
 ]);
 
 const historicalInteractiveFixtureHashes = new Map([
-  ["interactive-medium-v1.nui", "sha256:5ce3d10605cd751f50eea0734e6c9a8ed869bba4454644ce0d0cd2de5234ab15"],
-  ["interactive-large-v1.nui", "sha256:98957b9071e741cae299c0bfc18d62be3d188690ebc8ca7b658dfddd47eb58af"]
+  ["interactive-medium-v1.nui", "sha256:211bcda72d6791791c306a4b147b712982ceaa2a91786f58067711351d4ae37e"],
+  ["interactive-large-v1.nui", "sha256:f23a755ba77d813704a8b5dceb4a0e442a0a806f9b51c53e0c0e5550cdca2b39"]
 ]);
 
 const chainPointName = (index: number) => `P${String(index).padStart(4, "0")}`;

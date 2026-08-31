@@ -29,10 +29,10 @@ const runBindingAnalysis = (prepared: ReturnType<typeof prepare>) => {
     assignedStatementIds: prepared.assignedStatementIds
   });
   if (compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
-    throw new Error("pure nui 4 binding analysis fixture must compile without diagnostics");
+    throw new Error("pure nui 1 binding analysis fixture must compile without diagnostics");
   }
   if (!compiled.bindingAnalysis || !compiled.scalarProgram) {
-    throw new Error("pure nui 4 binding analysis fixture must produce binding analysis and a scalar program");
+    throw new Error("pure nui 1 binding analysis fixture must produce binding analysis and a scalar program");
   }
   return {
     catalogBindingCount: compiled.bindingAnalysis.catalog.bindings.length,
@@ -51,7 +51,7 @@ const counts = (bindingCount: number): FixtureCounts => ({
   generatedRowCount: 0
 });
 
-describePerformanceGates("pure nui 4 binding analysis performance", () => {
+describePerformanceGates("pure nui 1 binding analysis performance", () => {
   it("gates 250/1000 typed const/let binding analysis without runtime evaluation", () => {
     const small = prepare(SMALL_SIZE);
     const large = prepare(LARGE_SIZE);

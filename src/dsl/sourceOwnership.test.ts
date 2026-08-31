@@ -19,7 +19,7 @@ const compileWithStableIds = (source: string) => {
 
 describe("source ownership", () => {
   const source = [
-    "nui 4",
+    "nui 1",
     "point Outside = coordinate(x: 0, y: 0)",
     "module Inner() {",
     "  point InnerPoint = coordinate(x: 1, y: 2)",

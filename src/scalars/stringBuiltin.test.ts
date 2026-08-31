@@ -36,7 +36,7 @@ const typedChoiceStringCall = (
   return result.typed;
 };
 
-describe("nui4 string(choice) builtin", () => {
+describe("nui1 string(choice) builtin", () => {
   it("publishes registry-driven signature metadata", () => {
     const definition = getBuiltinFunctionDefinition("string");
     expect(definition).not.toBeNull();

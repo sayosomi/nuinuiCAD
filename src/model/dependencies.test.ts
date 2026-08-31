@@ -64,7 +64,7 @@ describe("dependencies", () => {
 
   it("uses compiled templates to exclude literals and typed holes from text geometry parents", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "const length: number = 12.3456",
       'const label: string = "前身頃"',
       "point A = coordinate(x: 0, y: 0)",

@@ -27,7 +27,7 @@ const queryAt = (
 describe("queryModulePreviewTarget", () => {
   it("resolves a top-level Module from its header, body, and closing block line", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -51,7 +51,7 @@ describe("queryModulePreviewTarget", () => {
 
   it("selects the innermost enclosing Module for nested definitions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  module Inner(width: number) {",
       "    point P = coordinate(x: @width, y: 0)",
@@ -68,7 +68,7 @@ describe("queryModulePreviewTarget", () => {
 
   it("fails closed for stale revisions and same-revision source mismatches", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -90,7 +90,7 @@ describe("queryModulePreviewTarget", () => {
 
   it("can target a safe Module statement when an unrelated root error prevents a full document", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Safe(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",

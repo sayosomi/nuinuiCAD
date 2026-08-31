@@ -36,7 +36,7 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 }));
 
 const moduleSource = (suffix = "") => [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate(x: 80, y: 0)",
   "}",
@@ -102,7 +102,7 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
 
   it("rejects ordinary geometry Reveal when no current evaluation presentation is available", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };

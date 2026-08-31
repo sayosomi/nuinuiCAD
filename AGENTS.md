@@ -43,7 +43,7 @@ coordinate values should remain Y-up.
 ## Source of truth
 
 `ARCHITECTURE.md` is the current repository architecture and navigation index.
-`docs/nui4/spec.md` is the normative nui4 language contract. `docs/dsl.md` is
+`docs/nui1/spec.md` is the normative nui1 language contract. `docs/dsl.md` is
 the current user-facing documentation for the implemented DSL. Source code is
 the final authority for implementation details and behavior. `AGENTS.md` is the
 durable product, engineering, and workflow policy. When a task-specific
@@ -246,7 +246,7 @@ model or saved file format, prefer the cleanest durable shape over backward
 compatibility with earlier local drafts. Breaking saved-format changes are
 acceptable unless the user explicitly asks for a compatibility layer.
 
-The current and only supported saved-document language is `nui 4`. Missing or
+The current and only supported saved-document language is `nui 1`. Missing or
 unsupported versions fail closed. A nui3 compatibility parser, converter,
 importer, or migration layer does not currently exist; do not add old-format
 compatibility without an explicit Task.

@@ -68,7 +68,7 @@ const expectCleanTransformedSource = (
 describe("planExtractModule checkpoint 5 root if", () => {
   it("moves a complete root if/else subtree, preserves layout, and parameterizes condition/body dependencies", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const enabled: boolean = true",
       "const width: number = 10",
       "if (@enabled) {",
@@ -91,7 +91,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "const enabled: boolean = true",
       "const width: number = 10",
       "module Extracted(enabled: boolean, width: number) {",
@@ -110,7 +110,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
 
   it("accepts a nested for under a selected root if and parameterizes its header and body dependencies", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const enabled: boolean = true",
       "const start: number = 1",
       "const count: number = 2",
@@ -150,7 +150,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
 
   it("keeps a let/set pair inside the conditional but rejects a write crossing the Extract boundary", () => {
     const internalSource = [
-      "nui 4",
+      "nui 1",
       "const enabled: boolean = true",
       "if (@enabled) {",
       "  let total: number = 0",
@@ -164,7 +164,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
     }
 
     const crossingSource = [
-      "nui 4",
+      "nui 1",
       "const enabled: boolean = true",
       "let total: number = 0",
       "if (@enabled) {",
@@ -176,7 +176,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
 
   it("moves a selected root containing a valid structural record value", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 1)",
       "group Outer {",

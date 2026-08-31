@@ -32,7 +32,7 @@ const warningsFor = (source: string, background: string) => {
 };
 
 const modifierSource = (colors: readonly string[]): string => [
-  "nui 4",
+  "nui 1",
   ...colors.flatMap((color, index) => [
     `modifier M${index} {`,
     `  color: ${color},`,
@@ -58,7 +58,7 @@ describe("fixed-color Canvas contrast warnings", () => {
 
   it("evaluates fixed colors independently and excludes roles, lookalikes, malformed values, and comments", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// color: #999999",
       "modifier Low {",
       "  color: #999999,",

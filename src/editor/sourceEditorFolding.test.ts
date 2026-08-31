@@ -9,7 +9,7 @@ import { createStatementRangeIndex } from "./statementRangeIndex";
 describe("sourceEditorFolding structural rows", () => {
   it("resolves only collapsed folds from their visible opening and terminal rows", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -55,7 +55,7 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("offers an expanded-by-default target for an ordinary multiline statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A,",
@@ -81,7 +81,7 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("places controls on independent brace rows and leaves both markers visible", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true)",
       "{",
       "  point T = coordinate(x: 0, y: 0)",
@@ -104,7 +104,7 @@ describe("sourceEditorFolding structural rows", () => {
 
   it("projects then and else targets independently when both are collapsed", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
@@ -139,7 +139,7 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("creates a source-only target keyed by the compiled StatementIdentity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(a: number) {",
       "  let x: number = @a",
       "  point P = coordinate(x: @x, y: 0)",
@@ -167,8 +167,8 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("uses the opening brace row for multiline headers and standalone braces", () => {
     for (const source of [
-      ["nui 4", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
-      ["nui 4", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
+      ["nui 1", "module M(", "  a: number", ") {", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n"),
+      ["nui 1", "module M(a: number)", "{", "  point P = coordinate(x: @a, y: 0)", "}"].join("\n")
     ]) {
       const compiled = compileModule(source);
       const definition = compiled.moduleSemanticAnalysis!.definitions[0]!;
@@ -190,7 +190,7 @@ describe("sourceEditorFolding module definitions", () => {
 
   it("creates an independent parameter-list target only for multiline non-empty lists", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  a: choice(通常, 反転),",
       "  b: number",
@@ -222,8 +222,8 @@ describe("sourceEditorFolding module definitions", () => {
     ]);
 
     for (const singleLineSource of [
-      "nui 4\nmodule M(a: number, b: number) {\n}",
-      "nui 4\nmodule M() {\n}"
+      "nui 1\nmodule M(a: number, b: number) {\n}",
+      "nui 1\nmodule M() {\n}"
     ]) {
       const singleLine = compileModule(singleLineSource);
       const singleDefinition = singleLine.moduleSemanticAnalysis!.definitions[0]!;

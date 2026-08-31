@@ -85,7 +85,7 @@ import {
 const sourceFor = (lines: readonly string[]): string => lines.join("\n");
 
 const activitySource = sourceFor([
-  "nui 4",
+  "nui 1",
   "role seam (name: \"seam\")",
   "view Draft (default: false, seam: false)",
   "activeView Draft",
@@ -219,7 +219,7 @@ describe("VS Code native Source activity decorations", () => {
     const runtime = runtimeFor(new Map());
     const feature = registerNuiSourceActivityDecorationFeature({
       rustProcessOwner: { get: vi.fn() } as never,
-      sessionFor: () => createLanguageAnalysisSession("nui 4\n"),
+      sessionFor: () => createLanguageAnalysisSession("nui 1\n"),
       runtimeEvaluation: runtime
     });
 
@@ -257,7 +257,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("applies only exact-current matching document results to all visible editors", async () => {
-    const source = "nui 4\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
     const documentA = documentFor(source, 1, "/tmp/a.nui");
     const documentB = documentFor(source, 1, "/tmp/b.nui");
     const editorA1 = editorFor(documentA);
@@ -284,7 +284,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("clears changed/closed documents and discards stale completion", async () => {
-    const source = "nui 4\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
     let currentSource = source;
     const document = {
       ...documentFor(source),
@@ -305,7 +305,7 @@ describe("VS Code native Source activity decorations", () => {
     });
     await flush();
 
-    currentSource = "nui 4\npoint New = coordinate(x: 1, y: 1)";
+    currentSource = "nui 1\npoint New = coordinate(x: 1, y: 1)";
     document.version = 2;
     mocks.changeListeners[0]!({ document, contentChanges: [{}] });
     expect(runtime.invalidateDocument).toHaveBeenCalledWith(document.uri.toString());
@@ -320,7 +320,7 @@ describe("VS Code native Source activity decorations", () => {
   });
 
   it("refreshes a reopened visible editor and keeps diagnostics outside the adapter", async () => {
-    const source = "nui 4\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
+    const source = "nui 1\npoint Hidden = coordinate(x: 0, y: 0, state: hidden)";
     const document = documentFor(source);
     const firstEditor = editorFor(document);
     mocks.textDocuments.push(document);

@@ -34,7 +34,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -267,7 +267,7 @@ describe("compileTextTemplates: typed holes", () => {
 });
 
 describe("compileTextTemplates: numeric-expression holes", () => {
-  it("element-property syntax outside the typed grammar remains a numeric-expression hole (nui 4 sigil form)", () => {
+  it("element-property syntax outside the typed grammar remains a numeric-expression hole (nui 1 sigil form)", () => {
     const compiled = compileTemplatesFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
@@ -324,9 +324,9 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
     'text T = label(text: "length \\{AB.length\\} = ${@AB.length}", anchor: none, size: 3)'
   ].join("\n");
 
-  it("characterization: analyzeTypedDeclarations produces no analysis for a nui 4 doc with zero typed declarations", () => {
+  it("characterization: analyzeTypedDeclarations produces no analysis for a nui 1 doc with zero typed declarations", () => {
     const parsed = parseDsl(noTypedDeclarationSource);
-    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 1 });
     const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
     const stableStatementIdByIndex = new Map<number, string>(parsed.statements.map((_, index) => [index, `stable-${index}`]));
     for (const [statementIndex, elementId] of elementIdByStatementIndex) stableStatementIdByIndex.set(statementIndex, elementId);
@@ -342,7 +342,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
 
   it("still scans brace/escape structure and classifies numeric holes with bindingAnalysis undefined", () => {
     const parsed = parseDsl(noTypedDeclarationSource);
-    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(noTypedDeclarationSource, { elements: [], mode: "document", majorVersion: 1 });
     const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
     const result = compileTextTemplates({
       statements: parsed.statements,
@@ -365,7 +365,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
       'text T = label(text: "direction ${@A.direction}", anchor: none, size: 3)'
     ].join("\n");
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
     const result = compileTextTemplates({
       statements: parsed.statements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -382,7 +382,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   it("typed-only syntax (no bindingAnalysis) still fails closed on any reference as unresolved", () => {
     const source = ['text T = label(text: "${not @x}", anchor: none, size: 3)'].join("\n");
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
     const result = compileTextTemplates({
       statements: parsed.statements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -397,7 +397,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   it("reference-free boolean interpolation works with zero typed declarations", () => {
     const source = 'text T = label(text: "${false} ${1 < 2}", anchor: none, size: 3)';
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
     const result = compileTextTemplates({
       statements: parsed.statements,
       elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -416,7 +416,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   it("reference-free boolean builtin interpolation works with zero typed declarations", () => {
     const source = 'text T = label(text: "${isClose(1, 1, 0.1)}", anchor: none, size: 3)';
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const result = compileTextTemplates({
@@ -434,7 +434,7 @@ describe("compileTextTemplates: runs without any typed declaration in the docume
   it("reference-free numeric builtin interpolation remains numeric with zero typed declarations", () => {
     const source = 'text T = label(text: "${sqrt(4)}", anchor: none, size: 3)';
     const parsed = parseDsl(source);
-    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+    const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     const result = compileTextTemplates({

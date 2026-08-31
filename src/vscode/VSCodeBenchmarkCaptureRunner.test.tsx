@@ -43,7 +43,7 @@ const configFor = (expectedRenderSurface?: BenchmarkRenderSurface): VscodeBenchm
   runId: `run-${nextRunId++}`,
   fixtureId: fixture.id,
   fixtureHash: fixture.hash,
-  fixtureSource: "nui 4\n",
+  fixtureSource: "nui 1\n",
   fixture,
   build: {
     gitCommit: "a".repeat(40),

@@ -4,9 +4,9 @@ import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 
 describe("SAY-128 record scalar set integration", () => {
   it("resolves a record scalar field in set RHS to its hidden scalar backing binding", () => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
     const result = compileCanonicalText(baseline, [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "let x: number = 0",

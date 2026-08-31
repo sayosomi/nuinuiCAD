@@ -39,7 +39,7 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 }));
 
 const source = [
-  "nui 4",
+  "nui 1",
   "const x: number = 1",
   "point P = coordinate(x: 0, y: 0)"
 ].join("\n");

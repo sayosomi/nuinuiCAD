@@ -12,7 +12,7 @@ const queryAt = (source: string, position = source.length): DslSignatureHelpQuer
 
 describe("DSL Signature Help query", () => {
   it("keeps builtin overloads in canonical definition order", () => {
-    const result = queryAt("nui 4\nconst value: number = round(");
+    const result = queryAt("nui 1\nconst value: number = round(");
 
     expect(result?.signatures.map((signature) => signature.identity)).toEqual([
       "builtin:round:0",
@@ -23,7 +23,7 @@ describe("DSL Signature Help query", () => {
   });
 
   it("shows any concrete choice for the string builtin without inventing allowed values", () => {
-    const result = queryAt("nui 4\nconst value: string = string(");
+    const result = queryAt("nui 1\nconst value: string = string(");
     const parameter = result?.signatures[0]?.parameters[0];
 
     expect(result?.signatures[0]).toMatchObject({
@@ -39,16 +39,16 @@ describe("DSL Signature Help query", () => {
   });
 
   it("selects a uniquely active positional builtin overload and parameter", () => {
-    const result = queryAt("nui 4\nconst value: number = round(1, ");
+    const result = queryAt("nui 1\nconst value: number = round(1, ");
 
     expect(result?.activeSignature).toBe(1);
     expect(result?.activeParameter).toBe(1);
   });
 
   it("keeps named-only builtin parameter activation exact", () => {
-    const known = queryAt("nui 4\nconst value: number = spreadAngle(spread: ");
-    const comma = queryAt("nui 4\nconst value: number = spreadAngle(length: 100, ");
-    const typo = queryAt("nui 4\nconst value: number = spreadAngle(sid: ");
+    const known = queryAt("nui 1\nconst value: number = spreadAngle(spread: ");
+    const comma = queryAt("nui 1\nconst value: number = spreadAngle(length: 100, ");
+    const typo = queryAt("nui 1\nconst value: number = spreadAngle(sid: ");
 
     expect(known?.activeParameter).toBe(1);
     expect(comma?.activeParameter).toBeUndefined();
@@ -56,8 +56,8 @@ describe("DSL Signature Help query", () => {
   });
 
   it("projects construction and mutation arguments through the completion-owned projection", () => {
-    const construction = queryAt("nui 4\npoint P = coordinate(y: ");
-    const mutation = queryAt("nui 4\nmove(targets: @P, ");
+    const construction = queryAt("nui 1\npoint P = coordinate(y: ");
+    const mutation = queryAt("nui 1\nmove(targets: @P, ");
 
     expect(construction?.signatures[0]?.parameters.map((parameter) => parameter.name)).toEqual([
       "x", "y", "state", "steps"
@@ -74,7 +74,7 @@ describe("DSL Signature Help query", () => {
   });
 
   it("projects canonical construction defaults and boolean choices", () => {
-    const result = queryAt("nui 4\nline L = offset(sources: ");
+    const result = queryAt("nui 1\nline L = offset(sources: ");
     const parameters = result?.signatures[0]?.parameters ?? [];
     const closed = parameters.find((parameter) => parameter.name === "closed");
 
@@ -87,9 +87,9 @@ describe("DSL Signature Help query", () => {
   });
 
   it("does not guess unknown construction names, comma gaps, or out-of-range arguments", () => {
-    const typo = queryAt("nui 4\npoint P = coordinate(sid: ");
-    const comma = queryAt("nui 4\npoint P = coordinate(x: 0, ");
-    const outOfRange = queryAt("nui 4\nconst value: number = round(1, 2, ");
+    const typo = queryAt("nui 1\npoint P = coordinate(sid: ");
+    const comma = queryAt("nui 1\npoint P = coordinate(x: 0, ");
+    const outOfRange = queryAt("nui 1\nconst value: number = round(1, 2, ");
 
     expect(typo?.activeParameter).toBeUndefined();
     expect(comma?.activeParameter).toBeUndefined();
@@ -98,15 +98,15 @@ describe("DSL Signature Help query", () => {
   });
 
   it("chooses the innermost nested callable and supports incomplete calls", () => {
-    const nested = queryAt("nui 4\nconst value: number = round(abs(");
-    const incomplete = queryAt("nui 4\nconst value: number = abs(");
+    const nested = queryAt("nui 1\nconst value: number = round(abs(");
+    const incomplete = queryAt("nui 1\nconst value: number = abs(");
 
     expect(nested?.signatures[0]?.name).toBe("abs");
     expect(incomplete?.signatures[0]?.name).toBe("abs");
   });
 
   it("keeps the enclosing construction active inside a text template hole", () => {
-    const source = "nui 4\ntext Label = label(text: \"width=${@width}\", anchor: (0, 0))";
+    const source = "nui 1\ntext Label = label(text: \"width=${@width}\", anchor: (0, 0))";
     const position = source.indexOf("${@width}") + 2;
     const result = queryAt(source, position);
 
@@ -115,7 +115,7 @@ describe("DSL Signature Help query", () => {
   });
 
   it("reuses tolerant blank-line call contexts", () => {
-    const source = "nui 4\npoint P = coordinate(\n\n)";
+    const source = "nui 1\npoint P = coordinate(\n\n)";
     const position = source.indexOf("\n\n") + 1;
     const result = queryAt(source, position);
 
@@ -125,7 +125,7 @@ describe("DSL Signature Help query", () => {
 
   it("uses exact current Module semantics for names, defaults, optionality, and choices", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value: number, side?: choice(left, right), count: number = 2) {",
       "}",
       "instance Use = M(value: 1, ",
@@ -149,10 +149,10 @@ describe("DSL Signature Help query", () => {
   });
 
   it("does not use stale Module semantics", () => {
-    const source = "nui 4\nmodule M(value: number) {\n}\ninstance Use = M(value: 1)";
+    const source = "nui 1\nmodule M(value: number) {\n}\ninstance Use = M(value: 1)";
     const session = createLanguageAnalysisSession(source);
     const oldSnapshot = snapshotFor(source, session.getSourceRevision());
-    session.replaceSource("nui 4\nmodule Other(value: number) {\n}\ninstance Use = Other(value: 1)");
+    session.replaceSource("nui 1\nmodule Other(value: number) {\n}\ninstance Use = Other(value: 1)");
 
     expect(session.signatureHelpSemanticSnapshot(oldSnapshot)).toBeUndefined();
     expect(queryDslSignatureHelp({ source: oldSnapshot, position: source.length })).toBeNull();

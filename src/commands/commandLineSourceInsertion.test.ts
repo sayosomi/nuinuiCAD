@@ -15,7 +15,7 @@ const compiled = (lines: string[], assignedStatementIds?: Map<number, string>) =
 describe("command-line source insertion", () => {
   it("keeps an element-statement cursor after the complete statement", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)"
     ]);
@@ -34,7 +34,7 @@ describe("command-line source insertion", () => {
 
   it("keeps an element-statement cursor after a multiline unnamed declaration", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "point Left = coordinate(x: -50, y: 0)",
       "point Right = coordinate(x: 50, y: 0)",
       "line Guide = segment(start: @Left, end: @Right)",
@@ -66,7 +66,7 @@ describe("command-line source insertion", () => {
 
   it("inserts a comment-line cursor inside its enclosing group", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  // keep this comment with the following insertion",
@@ -88,7 +88,7 @@ describe("command-line source insertion", () => {
 
   it("places an stop-line cursor before the evaluation boundary", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "// create before the stop",
       "stop",
@@ -108,7 +108,7 @@ describe("command-line source insertion", () => {
 
   it("normalizes an interior line of a non-element logical statement to its header", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "const width: number = (",
       "  10",
       ")",
@@ -134,7 +134,7 @@ describe("command-line source insertion", () => {
 
   it("distinguishes no Source target, safe insertion, and unsafe current metadata", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ]);
     const statementMap = result.statementMap!;
@@ -173,7 +173,7 @@ describe("command-line source insertion", () => {
 
   it("fails closed for unresolved and ambiguous Source locations", () => {
     const result = compiled([
-      "nui 4",
+      "nui 1",
       "const width: number = (",
       "  10",
       ")",
@@ -205,7 +205,7 @@ describe("command-line source insertion", () => {
 
   it("resolves a safe root document-end boundary after existing trailing bytes", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "// keep this trailing comment",
       "",
@@ -231,7 +231,7 @@ describe("command-line source insertion", () => {
 
   it("fails closed for fatal, stale, and inconsistent document-end source state", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const result = compiled(source.split("\n"));

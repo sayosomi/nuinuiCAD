@@ -84,7 +84,7 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("stop")).toEqual(["keyword"]);
   });
 
-  it("classifies the nui 4 sigil form @Element.property as one reference token (Task 51)", () => {
+  it("classifies the nui 1 sigil form @Element.property as one reference token (Task 51)", () => {
     expect(highlightDslLine("point P = coordinate(x: @AB.length,y: 0)")).toEqual(
       expect.arrayContaining([{ kind: "reference", text: "@AB.length" }])
     );

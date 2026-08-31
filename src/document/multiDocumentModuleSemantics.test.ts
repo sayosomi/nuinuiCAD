@@ -78,7 +78,7 @@ const moduleDefinition = (analysis: ReturnType<typeof analyzeMultiDocumentModule
 describe("multi-document Module semantics", () => {
   it("contributes only direct modules and preserves exact exported name locations", async () => {
     const source = rootSource("library", [
-      "nui 4",
+      "nui 1",
       "export module Public() {",
       "}",
       "module Private() {",
@@ -115,12 +115,12 @@ describe("multi-document Module semantics", () => {
 
   it("resolves imported and re-exported Modules with defining-document identity and lexical context", async () => {
     const helper = savedSource("helper", "sha256:helper", [
-      "nui 4",
+      "nui 1",
       "export module ExternalHelper(value: number) {",
       "}"
     ].join("\n"));
     const library = savedSource("library", "sha256:library", [
-      "nui 4",
+      "nui 1",
       "import \"./helper.nui\" as helperLib",
       "const libraryDefault: number = 41",
       "module Helper(value: number) {",
@@ -132,12 +132,12 @@ describe("multi-document Module semantics", () => {
       "}"
     ].join("\n"));
     const facade = savedSource("facade", "sha256:facade", [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library",
       "export @library::Panel"
     ].join("\n"));
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./facade.nui\" as facade",
       "const callerWidth: number = 60",
       "instance use = facade::Panel(width: @callerWidth)"
@@ -231,7 +231,7 @@ describe("multi-document Module semantics", () => {
 
   it("preserves defining-document ownership when an imported default expression is transferred", async () => {
     const library = savedSource("library", "sha256:library-defaults", [
-      "nui 4",
+      "nui 1",
       "const libraryDefault: number = 41",
       "export module Panel(",
       "  optional?: number,",
@@ -241,7 +241,7 @@ describe("multi-document Module semantics", () => {
       "}"
     ].join("\n"));
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as lib",
       "instance use = lib::Panel()"
     ].join("\n"));
@@ -298,7 +298,7 @@ describe("multi-document Module semantics", () => {
 
   it("keeps private, missing, and too-early imported callees unresolved", async () => {
     const library = savedSource("library", "sha256:library", [
-      "nui 4",
+      "nui 1",
       "module Hidden() {",
       "}",
       "profile Wrong",
@@ -308,7 +308,7 @@ describe("multi-document Module semantics", () => {
       "}"
     ].join("\n"));
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "instance early = library::Public()",
       "import \"./library.nui\" as library",
       "instance hidden = library::Hidden()",

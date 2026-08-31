@@ -58,7 +58,7 @@ conversion. A choice must first be converted with `string(...)`.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 line AB = segment(start: @A, end: @B)

@@ -36,7 +36,7 @@ const previewFor = (source: string, needle: string) => {
 describe("buildModulePreviewEvaluationOptions", () => {
   it("evaluates Module Preview scalar/default materialization through the shared evaluator", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(width: number = 12) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -61,7 +61,7 @@ describe("buildModulePreviewEvaluationOptions", () => {
 
   it("carries materialized text templates without a Preview-only evaluator", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Labelled(value: number = 4) {",
       "  text L = label(text: \"v=${@value}\", anchor: none, size: 3)",
       "}"

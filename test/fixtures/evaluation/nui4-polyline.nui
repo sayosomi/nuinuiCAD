@@ -1,9 +1,0 @@
-nui 4
-// Active nui4 polyline evaluation fixture.
-point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: 10, y: 0)
-point C = coordinate(x: 10, y: 10)
-const vertices: point[] = [@A, @A, @B, @C]
-line Open = polyline(points: @vertices, closed: false)
-line Closed = polyline(points: [@A, @B, @C], closed: true)
-line Coordinates = polyline(points: [(0, 0), (3, 4)], closed: false)

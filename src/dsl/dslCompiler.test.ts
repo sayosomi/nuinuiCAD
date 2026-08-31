@@ -746,7 +746,7 @@ describe("DSL compiler: typed declarations", () => {
       ["const x: number = 1", "let y: boolean = true", 'const label: string = "front"', "const dir: choice(a, b) = a"].join(
         "\n"
       ),
-      { elements: [], majorVersion: 4 }
+      { elements: [], majorVersion: 1 }
     );
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(0);
@@ -755,7 +755,7 @@ describe("DSL compiler: typed declarations", () => {
   it("does not perturb duplicate-name or element compilation for surrounding elements", () => {
     const result = compileDslToElements(
       ["const x: number = 1", "point A = coordinate(x: 0,y: 0)", "const x: number = 2"].join("\n"),
-      { elements: [], majorVersion: 4 }
+      { elements: [], majorVersion: 1 }
     );
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(1);
@@ -764,7 +764,7 @@ describe("DSL compiler: typed declarations", () => {
 
 describe("DSL compiler: set statements", () => {
   it("accepts set with no diagnostics, and does not lift it into elements", () => {
-    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 4 });
+    const result = compileDslToElements(["set x = 1", "set y = 2"].join("\n"), { elements: [], majorVersion: 1 });
     expect(result.diagnostics).toEqual([]);
     expect(result.elements).toHaveLength(0);
   });

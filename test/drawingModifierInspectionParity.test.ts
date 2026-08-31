@@ -17,7 +17,7 @@ const runRustParity = import.meta.env.VITE_RUN_RUST_PARITY === "1";
 
 describe.skipIf(!runRustParity)("Drawing Modifier inspection Rust parity", () => {
   it("emits the same selected-profile winner metadata from TS and Rust", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-drawing-modifier-profiles.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-profiles.nui");
     const profile = fixture.compiled?.doc.document.drawingProfiles?.find(
       (candidate) => candidate.name === "Print"
     );

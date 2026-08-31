@@ -131,14 +131,15 @@ const stableIdsFor = (compiled: CompiledDslDocument): Map<number, StatementIdent
   return ids;
 };
 
-const syntheticCallSource = (
+export const modulePreviewSyntheticCallSource = (
   instanceName: string,
   moduleName: string,
   args: readonly ModulePreviewArgument[]
 ) => {
-  if (args.length === 0) return `nui 4\ninstance ${instanceName} = ${formatDslName(moduleName)}()`;
+  const header = `nui ${NEW_DOCUMENT_DSL_MAJOR_VERSION}`;
+  if (args.length === 0) return `${header}\ninstance ${instanceName} = ${formatDslName(moduleName)}()`;
   return [
-    "nui 4",
+    header,
     `instance ${instanceName} = ${formatDslName(moduleName)}(`,
     ...args.map((argument) => `  ${formatDslName(argument.name)}: ${argument.expression},`),
     ")"
@@ -159,7 +160,7 @@ const syntheticCallStatement = (
   args: readonly ModulePreviewArgument[],
   enclosing: DslStatement["enclosing"]
 ): SyntheticCall | null => {
-  const source = syntheticCallSource(instanceName, moduleName, args);
+  const source = modulePreviewSyntheticCallSource(instanceName, moduleName, args);
   const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision });
   if (parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return null;
   const statement = parsed.statements.find(

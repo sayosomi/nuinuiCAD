@@ -35,7 +35,7 @@ const queryFor = (source: string) => {
 
 describe("queryDslConstructionCategoryQuickFixes", () => {
   it("repairs only the category token for a known construction mismatch", () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)";
     const { diagnostic, result } = queryFor(source);
 
     expect(diagnostic.exactSpanOnly).toBe(true);
@@ -55,12 +55,12 @@ describe("queryDslConstructionCategoryQuickFixes", () => {
 
     const plan = result[0]!;
     expect(`${source.slice(0, plan.edit.from)}${plan.edit.newText}${source.slice(plan.edit.to)}`).toBe(
-      "nui 4\nline P = segment(start: @A, end: @B)"
+      "nui 1\nline P = segment(start: @A, end: @B)"
     );
   });
 
   it("returns all canonical categories in registry order without rewriting arguments", () => {
-    const source = "nui 4\narc P = offset(sources: [@A], distance: 2)";
+    const source = "nui 1\narc P = offset(sources: [@A], distance: 2)";
     const { result } = queryFor(source);
 
     expect(result.map((plan) => plan.targetCategory)).toEqual(["point", "line"]);
@@ -108,13 +108,13 @@ describe("queryDslConstructionCategoryQuickFixes", () => {
       semantic: { sourceRevision: SOURCE_REVISION, compiled }
     })]
   ])("fails closed for %s", (_name, inputFor) => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)";
     const { diagnostic, compiled } = queryFor(source);
     expect(queryDslConstructionCategoryQuickFixes(inputFor(source, diagnostic, compiled))).toEqual([]);
   });
 
   it("fails closed when the semantic statement no longer proves the diagnosed construction", () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)";
     const { diagnostic, compiled } = queryFor(source);
     const statement = compiled.statements.find((item) => item.kind === "element");
     expect(statement).toBeDefined();

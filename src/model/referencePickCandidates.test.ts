@@ -46,7 +46,7 @@ const referenceBases = (candidates: ReturnType<typeof referencePickCandidates>) 
 describe("referencePickCandidates", () => {
   it("uses strict line/path assignability, source order, and current Canvas visibility", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Straight = segment(start: @A, end: @B)",
@@ -87,7 +87,7 @@ describe("referencePickCandidates", () => {
 
   it("offers canonical point references and restricts endpoint-only targets to line endpoints", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -117,7 +117,7 @@ describe("referencePickCandidates", () => {
 
   it("authors safe Module export references and private local references from Source anchors", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Maker() {",
       "  export line Out = segment(start: (0, 0), end: (10, 0))",
       "}",

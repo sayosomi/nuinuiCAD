@@ -6,7 +6,7 @@ import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "module Outer(scale: number(step: 2, min: 1, max: 9)) {",
   "  module Inner(width: number(step: 0.5, min: 0, max: 10), plain: number) {",
   "    point P = coordinate(x: @width, y: 0)",

@@ -177,7 +177,7 @@ describe("normalizeNumericExpressionInput", () => {
     ).toBe("distance(曲線AC.中間点2, 曲線AC.終点)");
   });
 
-  it("normalizes the nui 4 sigil form of an element property reference (Task 51)", () => {
+  it("normalizes the nui 1 sigil form of an element property reference (Task 51)", () => {
     const elements: CadElement[] = [
       {
         id: "line-ab",
@@ -195,7 +195,7 @@ describe("normalizeNumericExpressionInput", () => {
     );
   });
 
-  it("normalizes the nui 4 sigil form of a Japanese-label element property reference", () => {
+  it("normalizes the nui 1 sigil form of a Japanese-label element property reference", () => {
     const elements: CadElement[] = [
       {
         id: "curve-ac",

@@ -24,7 +24,7 @@ const rename = (compiled: ReturnType<typeof compile>, targetName: string, newNam
 
 describe("typed binding rename safety analysis", () => {
   it("allows a safe rename with an initializer reference, with a span that excludes the leading @", () => {
-    const source = ["nui 4", "const base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 1", "const base: number = 1", "let derived: number = @base"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "base", "renamed");
     expect(analysis.verdict).toBe("ok");
@@ -39,7 +39,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("collects references inside builtin call arguments without treating the function name as a binding", () => {
-    const source = ["nui 4", "const oldName: number = 1", "let result: number = max(@oldName, 10)"].join("\n");
+    const source = ["nui 1", "const oldName: number = 1", "let result: number = max(@oldName, 10)"].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "oldName", "newName");
     expect(analysis.verdict).toBe("ok");
@@ -52,7 +52,7 @@ describe("typed binding rename safety analysis", () => {
 
   it("allows a safe rename of a set target", () => {
     const compiled = compile(
-      ["nui 4", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
+      ["nui 1", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
     );
     const analysis = rename(compiled, "counter", "total");
     expect(analysis.verdict).toBe("ok");
@@ -65,7 +65,7 @@ describe("typed binding rename safety analysis", () => {
 
   it("allows a safe rename of a set RHS reference", () => {
     const compiled = compile(
-      ["nui 4", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
+      ["nui 1", "let counter: number = 0", "let other: number = 1", "set counter = @other + 1"].join("\n")
     );
     const analysis = rename(compiled, "other", "renamedOther");
     expect(analysis.verdict).toBe("ok");
@@ -77,7 +77,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a property binding reference", () => {
-    const compiled = compile(["nui 4", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n"));
+    const compiled = compile(["nui 1", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n"));
     const analysis = rename(compiled, "flag", "enabled");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -88,7 +88,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a typed text template hole reference, with a span that excludes the leading @", () => {
-    const source = ["nui 4", "let amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", "let amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
     const compiled = compile(source);
     const analysis = rename(compiled, "amount", "qty");
     expect(analysis.verdict).toBe("ok");
@@ -103,7 +103,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a rename with zero referencing occurrences (declaration only)", () => {
-    const compiled = compile(["nui 4", "const lonely: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const lonely: number = 1"].join("\n"));
     const analysis = rename(compiled, "lonely", "renamed");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -111,7 +111,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("rejects a same-scope collision against another typed binding", () => {
-    const compiled = compile(["nui 4", "const a: number = 1", "const b: number = 2"].join("\n"));
+    const compiled = compile(["nui 1", "const a: number = 1", "const b: number = 2"].join("\n"));
     const analysis = rename(compiled, "a", "b");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "same-scope-collision" });
     if (analysis.verdict !== "rejected" || analysis.reason !== "same-scope-collision") return;
@@ -119,7 +119,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("rejects a same-scope collision against a forGroup iteration binding (D05 shared namespace)", () => {
-    const compiled = compile(["nui 4", "for loopVar in range(from: 0, count: 2) {", "  const a: number = 1", "}"].join("\n"));
+    const compiled = compile(["nui 1", "for loopVar in range(from: 0, count: 2) {", "  const a: number = 1", "}"].join("\n"));
     const analysis = rename(compiled, "a", "loopVar");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "same-scope-collision" });
     if (analysis.verdict !== "rejected" || analysis.reason !== "same-scope-collision") return;
@@ -129,7 +129,7 @@ describe("typed binding rename safety analysis", () => {
   it("rejects an outer rename that would be captured by an existing inner shadow", () => {
     const compiled = compile(
       [
-        "nui 4",
+        "nui 1",
         "const outer: number = 1",
         "group G {",
         "const inner: number = 2",
@@ -144,7 +144,7 @@ describe("typed binding rename safety analysis", () => {
   it("allows a safe rename that propagates into a layout numeric field", () => {
     const compiled = compile(
       [
-        "nui 4",
+        "nui 1",
         "const printScale: number = 120",
         "layout Main (scale: @printScale) {",
         "}"
@@ -162,7 +162,7 @@ describe("typed binding rename safety analysis", () => {
   it("rejects a rename that would collide with an existing binding, when the only reference is inside a layout place", () => {
     const compiled = compile(
       [
-        "nui 4",
+        "nui 1",
         "const angleA: number = 30",
         "const angleB: number = 45",
         "group G {",
@@ -188,7 +188,7 @@ describe("typed binding rename safety analysis", () => {
     // then correctly stops resolving at all (reason shifts from
     // const-assignment to unresolved), a genuine before/after difference
     // this rename must still surface rather than silently drop.
-    const source = ["nui 4", "const frozen: number = 1", "set frozen = 2"].join("\n");
+    const source = ["nui 1", "const frozen: number = 1", "set frozen = 2"].join("\n");
     const parsed = parseDsl(source);
     const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
     const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
@@ -199,7 +199,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("does not reject a rename because of an unrelated, already-invalid set target", () => {
-    const source = ["nui 4", "const frozen: number = 1", "let counter: number = 0", "set undefinedName = 2"].join("\n");
+    const source = ["nui 1", "const frozen: number = 1", "let counter: number = 0", "set undefinedName = 2"].join("\n");
     const parsed = parseDsl(source);
     const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `statement:test:${index}`]));
     const compiled = compileDslDocument(source, { assignedStatementIds, preparsed: parsed });
@@ -208,7 +208,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename with a Japanese (non-ASCII) name", () => {
-    const compiled = compile(["nui 4", "const 元: number = 1", "let 派生: number = @元"].join("\n"));
+    const compiled = compile(["nui 1", "const 元: number = 1", "let 派生: number = @元"].join("\n"));
     const analysis = rename(compiled, "元", "改元");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -217,19 +217,19 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("rejects an empty new name", () => {
-    const compiled = compile(["nui 4", "const a: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const a: number = 1"].join("\n"));
     const analysis = rename(compiled, "a", "");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "invalid-name" });
   });
 
   it("rejects a reserved scalar keyword as a new name", () => {
-    const compiled = compile(["nui 4", "const a: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const a: number = 1"].join("\n"));
     const analysis = rename(compiled, "a", "true");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "invalid-name" });
   });
 
   it("rejects an unknown target binding id", () => {
-    const compiled = compile(["nui 4", "const a: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const a: number = 1"].join("\n"));
     const analysis = analyzeTypedBindingRenameInDocument({ compiled, targetBindingId: "binding:not-real", newName: "renamed" });
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "target-not-found" });
   });

@@ -29,7 +29,7 @@ describe("Bake command operation result", () => {
 
   it("preserves a structured skipped target when skipped comments are disabled", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "text Memo = label(text: \"memo\", anchor: none, size: 3)"
     ].join("\n");
     replaceSource(source);
@@ -62,7 +62,7 @@ describe("Bake command operation result", () => {
 
   it("returns the successful target count alongside an applied mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 2)"
     ].join("\n");
     replaceSource(source);

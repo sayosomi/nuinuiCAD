@@ -15,7 +15,7 @@ describe("source lexical namespace index", () => {
   it("indexes module, group, geometry, and typed declarations in their enclosing lexical scopes", () => {
     const { parsed, stableIds } = parseWithStableIds(
       [
-        "nui 4",
+        "nui 1",
         "module M() {",
         "  point M = coordinate(x: 0, y: 0)",
         "  group Body {",
@@ -43,7 +43,7 @@ describe("source lexical namespace index", () => {
 
   it("reports module-related same-scope collisions without duplicating geometry or scalar owners", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point M = coordinate(x: 0, y: 0)",
       "}",
@@ -65,7 +65,7 @@ describe("source lexical namespace index", () => {
 
   it("reports duplicate top-level Drawing Profile declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile Print",
       "profile Print"
     ].join("\n");
@@ -90,7 +90,7 @@ describe("source lexical namespace index", () => {
 
   it("reports duplicate geometry declarations inside an inert module body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point A = coordinate(x: 1, y: 1)",
@@ -104,7 +104,7 @@ describe("source lexical namespace index", () => {
 
   it("reports group/geometry collisions inside an inert module body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group A {",
       "  }",
@@ -119,7 +119,7 @@ describe("source lexical namespace index", () => {
 
   it("reports duplicate typed declarations inside an inert module body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const A: number = 1",
       "  let A: number = 2",
@@ -134,7 +134,7 @@ describe("source lexical namespace index", () => {
 
   it("indexes anonymous conditional and for containers without treating them as named collisions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module A() {",
       "}",
       "if (true) {",
@@ -157,7 +157,7 @@ describe("source lexical namespace index", () => {
 
   it("allows equal names in different lexical scopes and exposes the index through document compilation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    point X = coordinate(x: 0, y: 0)",
@@ -186,7 +186,7 @@ describe("source lexical namespace index", () => {
 
   it("does not add a second diagnostic to the existing CAD geometry namespace owner", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "}",
       "point G = coordinate(x: 0, y: 0)"
@@ -200,7 +200,7 @@ describe("source lexical namespace index", () => {
 
   it("keeps regular root duplicates with their existing diagnostic owners", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point A = coordinate(x: 1, y: 1)",
       "const Scalar: number = 1",
@@ -215,7 +215,7 @@ describe("source lexical namespace index", () => {
 
   it("keeps module source statements out of runtime geometry and scalar analysis", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Hidden = coordinate(x: 0, y: 0)",
       "  const hidden: number = 1",
@@ -239,7 +239,7 @@ describe("source lexical namespace index", () => {
 
   it("retains source-only identities for module const, set, and nested module statements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  const value: number = 1",
       "  set value = 2",
@@ -262,7 +262,7 @@ describe("source lexical namespace index", () => {
 
   it("uses one collision namespace across scalar, geometry, group, module definition, and module instance kinds", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point X = coordinate(x: 0, y: 0)",
       "const X: number = 1",
       "group G {",
@@ -291,7 +291,7 @@ describe("source lexical namespace index", () => {
 
   it("keeps nested shadowing source-ordered without allowing a later local to shadow an outer declaration", () => {
     const { parsed, stableIds } = parseWithStableIds([
-      "nui 4",
+      "nui 1",
       "const X: number = 1",
       "group G {",
       "  const before: number = 0",
@@ -310,7 +310,7 @@ describe("source lexical namespace index", () => {
 
   it("reports later same-scope declarations as forward rather than falling through when no outer declaration exists", () => {
     const { parsed, stableIds } = parseWithStableIds([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  const use: number = 0",
       "  point Later = coordinate(x: 0, y: 0)",
@@ -325,7 +325,7 @@ describe("source lexical namespace index", () => {
 
   it("resolves nested qualified group paths and rejects traversal through a non-container", () => {
     const { parsed, stableIds } = parseWithStableIds([
-      "nui 4",
+      "nui 1",
       "const Scalar: number = 1",
       "group Outer {",
       "  group Inner {",
@@ -349,7 +349,7 @@ describe("source lexical namespace index", () => {
 
   it("distinguishes qualified missing, forward, and ambiguous intermediate results", () => {
     const { parsed, stableIds } = parseWithStableIds([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  const before: number = 0",
       "  point Later = coordinate(x: 0, y: 0)",
@@ -369,7 +369,7 @@ describe("source lexical namespace index", () => {
 
   it("lets a scalar consumer fail on an inner geometry instead of selecting an outer scalar", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const X: number = 5",
       "group G {",
       "  point X = coordinate(x: 0, y: 0)",
@@ -389,7 +389,7 @@ describe("source lexical namespace index", () => {
 
   it("lets a geometry consumer fail on an inner scalar instead of selecting an outer geometry", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point X = coordinate(x: 0, y: 0)",
       "group G {",
       "  const X: number = 1",
@@ -407,7 +407,7 @@ describe("source lexical namespace index", () => {
 
   it("keeps a qualified typed scalar forward result in the canonical namespace", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  const use: number = @G::X",
       "  const X: number = 1",
@@ -426,7 +426,7 @@ describe("source lexical namespace index", () => {
 
   it("keeps a qualified typed scalar ambiguity in the canonical namespace", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  const X: number = 1",
       "  let X: number = 2",

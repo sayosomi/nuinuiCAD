@@ -24,7 +24,7 @@ const semanticFor = (source: string) => {
 };
 
 const base = [
-  "nui 4",
+  "nui 1",
   "/// @ja",
   "/// ポケット。",
   "/// @en",

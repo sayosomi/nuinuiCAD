@@ -5,7 +5,7 @@ import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 
 const compile = (source: string): LastGoodDslDocument => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
@@ -35,7 +35,7 @@ describe("general numeric typed binding runtime", () => {
     ["-2 ^ 2", -4],
     ["2 ^ -2", 0.25]
   ])("keeps ref-free typed arithmetic in the runtime for %s", (expression, expected) => {
-    const compiled = compile(["nui 4", `point P = coordinate(x: ${expression}, y: 0)`].join("\n"));
+    const compiled = compile(["nui 1", `point P = coordinate(x: ${expression}, y: 0)`].join("\n"));
     const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
     expect(binding?.typedExpression).toBeDefined();
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -44,7 +44,7 @@ describe("general numeric typed binding runtime", () => {
   });
 
   it("keeps remainder by zero on the typed runtime failure path", () => {
-    const compiled = compile(["nui 4", "point P = coordinate(x: 5 % 0, y: 0)"].join("\n"));
+    const compiled = compile(["nui 1", "point P = coordinate(x: 5 % 0, y: 0)"].join("\n"));
     const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
     expect(binding?.typedExpression).toBeDefined();
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
@@ -52,7 +52,7 @@ describe("general numeric typed binding runtime", () => {
   });
 
   it("evaluates a BindingId-compiled typed number in coordinate x", () => {
-    const compiled = compile(["nui 4", "const length: number = 12.3456", "point B = coordinate(x: @length, y: 0)"].join("\n"));
+    const compiled = compile(["nui 1", "const length: number = 12.3456", "point B = coordinate(x: @length, y: 0)"].join("\n"));
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
     expect(result.errors).toEqual([]);
@@ -61,7 +61,7 @@ describe("general numeric typed binding runtime", () => {
 
   it("keeps arithmetic typed-number construction arguments numeric", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "const offset: number = 3",
       "point B = coordinate(x: @offset + 2, y: 0)"
     ].join("\n"));
@@ -73,7 +73,7 @@ describe("general numeric typed binding runtime", () => {
 
   it("uses the current version at each geometry statement", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "let length: number = 2",
       "point Before = coordinate(x: @length, y: 0)",
       "set length = 9",
@@ -84,9 +84,9 @@ describe("general numeric typed binding runtime", () => {
     expect((result.computedGeometry.get(point(compiled, "After").id) as { x: number }).x).toBe(9);
   });
 
-  it("keeps legacy measurement tokens in the existing numeric evaluator (nui 4 sigil form, Task 51)", () => {
+  it("keeps legacy measurement tokens in the existing numeric evaluator (nui 1 sigil form, Task 51)", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "const offset: number = 2",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
@@ -102,7 +102,7 @@ describe("general numeric typed binding runtime", () => {
 
   describe("Rule R self-reference fall-through (review fix: no more `continue` on self-name)", () => {
     it("compiles @A.length (no typed binding) to sigil-free self-referencing IR and fails at evaluation, not normalize", () => {
-      const compiled = compile(["nui 4", "point A = coordinate(x: 0, y: @A.length)"].join("\n"));
+      const compiled = compile(["nui 1", "point A = coordinate(x: 0, y: @A.length)"].join("\n"));
       const a = point(compiled, "A");
       const yValue = a.type === "freePoint" ? a.y : undefined;
       expect(yValue).toEqual({ kind: "expression", expression: `${a.id}.length` });

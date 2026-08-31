@@ -37,9 +37,9 @@ const hoverDirection = (evaluation: EvaluationResult, arc: ArcLineElement) => {
   return presentation.availability.rows.find((row) => row.kind === "value" && row.label === "進行方向");
 };
 
-describe("nui4 concrete arc direction", () => {
+describe("nui1 concrete arc direction", () => {
   it("defaults omitted direction to counterclockwise and serializes it explicitly", () => {
-    const compiled = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155)");
+    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155)");
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);
 
@@ -52,7 +52,7 @@ describe("nui4 concrete arc direction", () => {
   });
 
   it("evaluates clockwise as the negative complementary sweep with positive length", () => {
-    const compiled = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)");
+    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)");
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);
     const geometry = computedArc(evaluation, arc.id);
@@ -64,7 +64,7 @@ describe("nui4 concrete arc direction", () => {
 
   it("uses the existing typed choice binding path", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "const 向き: choice(counterclockwise, clockwise) = clockwise",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: @向き)"
     ].join("\n"));
@@ -74,7 +74,7 @@ describe("nui4 concrete arc direction", () => {
 
   it("compiles and evaluates direction as a public choice geometry property", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "const direction: choice(counterclockwise, clockwise) = @A.direction"
     ].join("\n"));
@@ -88,7 +88,7 @@ describe("nui4 concrete arc direction", () => {
   });
 
   it("keeps equal angles at canonical zero and Hover reports no direction", () => {
-    const compiled = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 0, direction: clockwise)");
+    const compiled = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 0, direction: clockwise)");
     const arc = arcByName(compiled, "A");
     const evaluation = evaluate(compiled);
     const geometry = computedArc(evaluation, arc.id);
@@ -99,8 +99,8 @@ describe("nui4 concrete arc direction", () => {
   });
 
   it("preserves explicit whole turns with the requested sign", () => {
-    const clockwise = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: clockwise)");
-    const counterclockwise = compile("nui 4\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: counterclockwise)");
+    const clockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: clockwise)");
+    const counterclockwise = compile("nui 1\narc A = arc(center: (0, 0), radius: 40, start: 0, end: 360, direction: counterclockwise)");
     const cwArc = arcByName(clockwise, "A");
     const ccwArc = arcByName(counterclockwise, "A");
 

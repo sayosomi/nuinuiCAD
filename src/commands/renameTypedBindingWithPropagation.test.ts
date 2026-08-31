@@ -32,7 +32,7 @@ describe("renameTypedBindingWithPropagation", () => {
 
   it("patches declaration, initializer, set-rhs, and set-target occurrences, leaving comments/blank lines/unrelated statements untouched, tagged model-patch, in one Undo step", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// keep this comment",
       "let base: number = 1",
       "let derived: number = @base",
@@ -62,7 +62,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("patches a typed text-template-hole reference", () => {
-    const source = ["nui 4", "let amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
+    const source = ["nui 1", "let amount: number = 5", 'text T = label(text: "${@amount}", anchor: none, size: 3)'].join("\n");
     seed(source);
     const id = typedBindingId("amount");
 
@@ -74,7 +74,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("patches a typed property-binding reference", () => {
-    const source = ["nui 4", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n");
     seed(source);
     const id = typedBindingId("flag");
 
@@ -86,7 +86,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("treats an already canonical same-name rename as a successful no-op", () => {
-    const source = ["nui 4", "const base: number = 1"].join("\n");
+    const source = ["nui 1", "const base: number = 1"].join("\n");
     seed(source);
     const id = typedBindingId("base");
     useCadUiStore.getState().setCommandErrorMessage("previous error");
@@ -103,7 +103,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("flushes pending text, then analyzes and patches the flushed document as its own, second Undo step", () => {
-    seed(["nui 4", "let base: number = 1", "let derived: number = @base"].join("\n"));
+    seed(["nui 1", "let base: number = 1", "let derived: number = @base"].join("\n"));
     const id = typedBindingId("base");
     let pending = true;
     unregister = registerSourceEditSession({
@@ -112,7 +112,7 @@ describe("renameTypedBindingWithPropagation", () => {
       flush: () => {
         pending = false;
         useCadDocumentStore.getState().commitText(
-          ["nui 4", "let base: number = 9", "let derived: number = @base"].join("\n"),
+          ["nui 1", "let base: number = 9", "let derived: number = @base"].join("\n"),
           "editor"
         );
         return "flushed";
@@ -128,7 +128,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("rejects composition and error-source requests without any mutation", () => {
-    seed(["nui 4", "const base: number = 1"].join("\n"));
+    seed(["nui 1", "const base: number = 1"].join("\n"));
     const id = typedBindingId("base");
     const compositionBefore = useCadDocumentStore.getState();
     unregister = registerSourceEditSession({
@@ -143,7 +143,7 @@ describe("renameTypedBindingWithPropagation", () => {
     expect(useCadUiStore.getState().commandErrorMessage).toContain("日本語入力");
 
     unregister();
-    seed("nui 4\nconst base: number = 1\nlet broken: number = (");
+    seed("nui 1\nconst base: number = 1\nlet broken: number = (");
     const errorBefore = useCadDocumentStore.getState();
     expect(renameTypedBindingWithPropagation(id, "broken2")).toBe(false);
     expect(useCadDocumentStore.getState().sourceText).toBe(errorBefore.sourceText);
@@ -152,7 +152,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("rejects a same-scope collision without changing source or history, then permits a retry", () => {
-    seed(["nui 4", "const a: number = 1", "const b: number = 2"].join("\n"));
+    seed(["nui 1", "const a: number = 1", "const b: number = 2"].join("\n"));
     const id = typedBindingId("a");
     const documentBefore = useCadDocumentStore.getState();
 
@@ -167,7 +167,7 @@ describe("renameTypedBindingWithPropagation", () => {
 
   it("rejects an outer rename captured by an inner shadow, without changing source or history", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 1",
       "group G {",
       "const inner: number = 2",
@@ -185,7 +185,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("uses one rename snapshot; undo/redo restore exact text and the binding's identity", () => {
-    const source = ["nui 4", "let base: number = 1", "let derived: number = @base"].join("\n");
+    const source = ["nui 1", "let base: number = 1", "let derived: number = @base"].join("\n");
     seed(source);
     const id = typedBindingId("base");
     const pastBefore = useCadDocumentStore.getState().past.length;

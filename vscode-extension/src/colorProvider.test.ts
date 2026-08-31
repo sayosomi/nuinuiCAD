@@ -68,7 +68,7 @@ const documentFor = (initialSource: string, fileName = "/tmp/guide.nui") => {
 describe("VS Code fixed-color provider", () => {
   it("projects independent exact modifier fixed colors through CRLF source offsets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  color: #0a10ff",
       "}",
@@ -103,7 +103,7 @@ describe("VS Code fixed-color provider", () => {
 
   it("keeps fixed colors without a current Canvas theme and appends all current theme roles when available", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Fixed {",
       "  color: #0a10ff",
       "}",
@@ -155,7 +155,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("does not offer a source rewrite for a theme-role token", () => {
-    const source = ["nui 4", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session, () => ({
@@ -172,7 +172,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("offers one canonical token-only edit after revalidating the exact current range", () => {
-    const source = ["nui 4", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
+    const source = ["nui 1", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
     const document = documentFor(source);
     const provider = createNuiColorProvider(() => createLanguageAnalysisSession(source));
     const start = source.indexOf("#0a10ff");
@@ -190,7 +190,7 @@ describe("VS Code fixed-color provider", () => {
   });
 
   it("rejects a stale presentation range, source change, and unsupported document", () => {
-    const source = ["nui 4", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
+    const source = ["nui 1", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiColorProvider(() => session);

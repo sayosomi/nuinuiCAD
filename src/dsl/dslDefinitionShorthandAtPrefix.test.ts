@@ -11,10 +11,10 @@ const compileWithIds = (source: string) => {
   });
 };
 
-describe("nui4 Module shorthand Definition hit testing", () => {
+describe("nui1 Module shorthand Definition hit testing", () => {
   it("resolves the caller binding when the caret is on the shorthand @ prefix", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "module Pocket(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
