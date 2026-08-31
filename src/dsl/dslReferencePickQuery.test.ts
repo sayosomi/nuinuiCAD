@@ -149,6 +149,51 @@ describe("queryDslReferencePickTarget", () => {
     expect(queryAt(ambiguousSource, ambiguousCompiled, ambiguousPosition)).toBeNull();
   });
 
+  it("recognizes multiline final empty labeled Module geometry arguments with or without a trailing comma", () => {
+    const source = [
+      "nui 1",
+      "module M(broad: path) {",
+      "}",
+      "instance X = M(",
+      "broad: ",
+      ")"
+    ].join("\n");
+    const noCommaPosition = source.lastIndexOf("broad: ") + "broad: ".length;
+    const compiled = compileWithIds(source);
+
+    expect(queryAt(source, compiled, noCommaPosition)).toMatchObject({
+      expectedGeometryInterface: "path",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: noCommaPosition, to: noCommaPosition }
+    });
+
+    const commaSource = source.replace("instance X = M(\nbroad: ", "instance X = M(\nbroad: ,");
+    const commaCompiled = compileWithIds(commaSource);
+    const commaPosition = commaSource.lastIndexOf("broad: ") + "broad: ".length;
+    expect(queryAt(commaSource, commaCompiled, commaPosition)).toMatchObject({
+      expectedGeometryInterface: "path",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: commaPosition, to: commaPosition }
+    });
+  });
+
+  it("fails closed for an unlabeled multiline final Module slot", () => {
+    const source = [
+      "nui 1",
+      "module M(broad: path) {",
+      "}",
+      "instance X = M(",
+      "",
+      ")"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const position = source.indexOf("\n\n", source.indexOf("instance X")) + 1;
+
+    expect(queryAt(source, compiled, position)).toBeNull();
+  });
+
   it("uses geometry builtin registry metadata for active arguments", () => {
     const source = [
       "nui 1",

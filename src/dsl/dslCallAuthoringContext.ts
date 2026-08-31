@@ -284,7 +284,9 @@ const strictCallAuthoringContextAt = (
     ? null
     : logicalOffsetToPhysical(map, statement, call.close) ?? position;
   const projectArgumentRange = (range: DslCallAuthoringRange) =>
-    projectLogicalRange(logicalSourceSegments, range, position);
+    range.from === range.to && range.from === logicalPosition
+      ? { from: position, to: position }
+      : projectLogicalRange(logicalSourceSegments, range, position);
   const scanned = scanCallArgs(statement.logicalText, { start: call.open + 1, end: callEnd });
 
   return {

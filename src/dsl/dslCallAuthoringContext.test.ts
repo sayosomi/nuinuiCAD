@@ -41,6 +41,33 @@ describe("dslCallAuthoringContextAt", () => {
     expect(value && value.argument.value && valueSource.slice(value.argument.value.from, value.argument.value.to)).toBe("s");
   });
 
+  it("recognizes a multiline final empty labeled Module argument", () => {
+    const source = [
+      "nui 1",
+      "module M(broad: path) {",
+      "}",
+      "instance X = M(",
+      "broad: ",
+      ")"
+    ].join("\n");
+    const position = source.lastIndexOf("broad: ") + "broad: ".length;
+    const context = dslCallAuthoringContextAt(snapshotFor(source), position);
+
+    expect(context).toMatchObject({
+      kind: "module",
+      callee: { name: "M" },
+      argument: {
+        index: 0,
+        label: { from: source.lastIndexOf("broad: "), to: source.lastIndexOf("broad: ") + "broad".length },
+        value: { from: position, to: position }
+      }
+    });
+    expect(context && projectDslCallAuthoringRange(context, {
+      from: context.logicalCursorPosition,
+      to: context.logicalCursorPosition
+    })).toEqual({ from: position, to: position });
+  });
+
   it("selects the outer active call after a closed nested coordinate literal", () => {
     const source = [
       "nui 1",
