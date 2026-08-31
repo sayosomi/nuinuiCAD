@@ -1391,7 +1391,15 @@ export const compileModuleScalarRuntime = ({
     }
     if (statement.kind === "moduleDefinition") continue;
     if (statement.kind === "moduleInstance") {
-      const context = contextsByKey.get(pathKey([stableStatementIdByIndex.get(statementIndex)!]));
+      const statementId = stableStatementIdByIndex.get(statementIndex);
+      const rootInstance = statementId
+        ? moduleRuntimeContext?.instanceFor({ documentId: moduleRuntimeContext.rootDocumentId, localIdentity: statementId })
+          ?? moduleSemanticAnalysis.instancesByStatementId.get(statementId)
+        : undefined;
+      const rootPath = rootInstance && moduleRuntimeContext
+        ? moduleRuntimeContext.runtimePathForInstance([], rootInstance)
+        : statementId ? [statementId] : [];
+      const context = rootPath.length > 0 ? contextsByKey.get(pathKey(rootPath)) : undefined;
       if (context) emitInstance(context);
       continue;
     }
@@ -1953,6 +1961,21 @@ export const compileModuleScalarRuntime = ({
   const sourceControls = sourceScopeIndex
     ? buildBindingControlMetadata(sourceScopeIndex, stableStatementIdByIndex, sourceOrderByStatementIndex)
     : new Map<string, BindingControlMetadata>();
+  const sourceControlsByDocument = new Map<DocumentId, ReadonlyMap<string, BindingControlMetadata>>();
+  if (moduleRuntimeContext) {
+    for (const document of moduleRuntimeContext.documentsById.values()) {
+      const sourceOrder = document.documentId === moduleRuntimeContext.rootDocumentId
+        ? sourceOrderByStatementIndex
+        : new Map([...document.statementIdByStatementIndex.keys()].map((statementIndex) => [statementIndex, statementIndex] as const));
+      sourceControlsByDocument.set(document.documentId, buildBindingControlMetadata(
+        document.sourceLexicalNamespace.scopeIndex,
+        document.statementIdByStatementIndex,
+        sourceOrder
+      ));
+    }
+  }
+  const sourceControlsForDocument = (documentId: DocumentId | undefined) =>
+    (documentId ? sourceControlsByDocument.get(documentId) : undefined) ?? sourceControls;
   const sourceScopeOfInstance = (context: InstanceContext) =>
     moduleRuntimeContext?.documentFor(context.instanceDocumentId)?.sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(context.instance.statementIndex)
       ?? sourceScopeIndex?.scopeOfStatement.get(context.instance.statementIndex);
@@ -1981,13 +2004,15 @@ export const compileModuleScalarRuntime = ({
         };
   };
   const controlForContextScope = (context: InstanceContext, sourceScopeId: string): BindingControlMetadata => {
-    const sourceControl = sourceControls.get(sourceScopeId);
+    const definitionSourceControls = sourceControlsForDocument(context.definitionDocumentId);
+    const sourceControl = definitionSourceControls.get(sourceScopeId);
     if (!sourceControl) {
       return { scopeId: moduleScopeIdFor(context.path, sourceScopeId), scopeExitSourceOrder: events.length, ownerChain: [], kind: "linear" };
     }
     const parentContext = context.parentKey ? contextsByKey.get(context.parentKey) : undefined;
+    const instanceSourceControls = sourceControlsForDocument(context.instanceDocumentId);
     const callSiteOwnerChain = sourceScopeOfInstance(context)
-      ? sourceControls.get(sourceScopeOfInstance(context)!)?.ownerChain ?? []
+      ? instanceSourceControls.get(sourceScopeOfInstance(context)!)?.ownerChain ?? []
       : [];
     const inherited = parentContext
       ? callSiteOwnerChain.map((owner) => qualifyOwner(owner, parentContext.path, parentContext.iterations, true))
