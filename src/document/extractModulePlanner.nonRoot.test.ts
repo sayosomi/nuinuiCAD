@@ -162,7 +162,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     expect(collision).toMatchObject({ status: "rejected", code: "name-collision" });
   });
 
-  it("keeps targets owned by an existing Module definition fail closed", () => {
+  it("extracts targets owned by an existing Module definition through its parameters", () => {
     const source = [
       "nui 4",
       "module Outer(width: number) {",
@@ -171,7 +171,228 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     ].join("\n");
 
     const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "local")]);
-    expect(result).toMatchObject({ status: "rejected", code: "unsupported-statement" });
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["width", "number", "@width"]
+    ]);
+    expect(applyLineSplices(source, result.splices)).toBe([
+      "nui 4",
+      "module Outer(width: number) {",
+      "  module Extracted(width: number) {",
+      "    const local: number = @width + 1",
+      "  }",
+      "  instance Part = Extracted(width: @width)",
+      "}"
+    ].join("\n"));
+  });
+
+  it("parameterizes an outer Module-local scalar", () => {
+    const source = [
+      "nui 4",
+      "module Outer(width: number) {",
+      "  const local: number = @width + 1",
+      "  const inside: number = @local + 1",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["local", "number", "@local"]
+    ]);
+    expect(applyLineSplices(source, result.splices)).toBe([
+      "nui 4",
+      "module Outer(width: number) {",
+      "  const local: number = @width + 1",
+      "  module Extracted(local: number) {",
+      "    const inside: number = @local + 1",
+      "  }",
+      "  instance Part = Extracted(local: @local)",
+      "}"
+    ].join("\n"));
+  });
+
+  it("parameterizes an outer Module geometry value", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  point Base = coordinate(x: 0, y: 0)",
+      "  point inside = offset(from: @Base, dx: 1, dy: 0)",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["Base", "point", "@Base"]
+    ]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(Base: point) {",
+      "    point inside = offset(from: @Base, dx: 1, dy: 0)",
+      "  }",
+      "  instance Part = Extracted(Base: @Base)"
+    ].join("\n"));
+  });
+
+  it("parameterizes an outer Module immutable geometry-array value", () => {
+    const source = [
+      "nui 4",
+      "module Outer(source: line[]) {",
+      "  const moved: path[] = @source",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "moved")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["source", "line[]", "@source"]
+    ]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(source: line[]) {",
+      "    const moved: path[] = @source",
+      "  }",
+      "  instance Part = Extracted(source: @source)"
+    ].join("\n"));
+  });
+
+  it("exports a selected Module-local scalar and rewrites a later outer Module consumer", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  const inside: number = 1",
+      "  const after: number = @inside + 1",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
+    expect(applyLineSplices(source, result.splices)).toBe([
+      "nui 4",
+      "module Outer() {",
+      "  module Extracted() {",
+      "    export const inside: number = 1",
+      "  }",
+      "  instance Part = Extracted()",
+      "  const after: number = @Part::inside + 1",
+      "}"
+    ].join("\n"));
+  });
+
+  it("exports a selected Module-local geometry and rewrites its later consumer", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  point inside = coordinate(x: 0, y: 0)",
+      "  point after = offset(from: @inside, dx: 1, dy: 0)",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
+    expect(applyLineSplices(source, result.splices)).toContain(
+      "point after = offset(from: @Part::inside, dx: 1, dy: 0)"
+    );
+  });
+
+  it("exports a selected Module-local geometry array and rewrites its later consumer", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  line base = segment(start: (0, 0), end: (10, 0))",
+      "  const inside: line[] = [@base]",
+      "  const after: path[] = @inside",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.exports.map((entry) => entry.name)).toEqual(["inside"]);
+    expect(applyLineSplices(source, result.splices)).toContain(
+      "const after: path[] = @Part::inside"
+    );
+  });
+
+  it("supports a target inside a nested group/conditional/for scope owned by a Module", () => {
+    const cases = [
+      [
+        "group G {",
+        "  const inside: number = @width + 1",
+        "}"
+      ],
+      [
+        "if (@enabled) {",
+        "  const inside: number = @width + 1",
+        "} else {",
+        "}"
+      ],
+      [
+        "for i in range(from: 0, count: 2, step: 1) {",
+        "  const inside: number = @i + 1",
+        "}"
+      ]
+    ] as const;
+
+    for (const structure of cases) {
+      const source = [
+        "nui 4",
+        "module Outer(width: number, enabled: boolean) {",
+        ...structure,
+        "}"
+      ].join("\n");
+      const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+      expect(result.status).toBe("planned");
+      if (result.status !== "planned") continue;
+      expect(applyLineSplices(source, result.splices)).toContain("instance Part = Extracted(");
+    }
+  });
+
+  it("rejects moving an existing outer Module export", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  export const publicValue: number = 1",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "publicValue")]);
+    expect(result).toMatchObject({ status: "rejected", code: "existing-public-interface" });
+    if (result.status === "rejected") expect("splices" in result).toBe(false);
+  });
+
+  it("keeps Module-local cross-boundary mutation rejection intact", () => {
+    const source = [
+      "nui 4",
+      "module Outer() {",
+      "  let total: number = 0",
+      "  set total = @total + 1",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "total") + 1]);
+    expect(result).toMatchObject({ status: "rejected", code: "cross-boundary-mutation" });
+    if (result.status === "rejected") expect("splices" in result).toBe(false);
+  });
+
+  it("keeps record-valued Module-owned dependencies fail closed", () => {
+    const source = [
+      "nui 4",
+      "record Config(amount: number)",
+      "module Outer(config: Config) {",
+      "  const inside: number = @config.amount + 1",
+      "}"
+    ].join("\n");
+
+    const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
+    expect(result.status).toBe("rejected");
     if (result.status === "rejected") expect("splices" in result).toBe(false);
   });
 });
