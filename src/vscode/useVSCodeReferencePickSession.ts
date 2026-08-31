@@ -11,6 +11,7 @@ import {
   selectVscodeReferencePickCanvasNumericProperty,
   setVscodeReferencePickCanvasHover,
   startVscodeReferencePickCanvasSession,
+  type VscodeReferencePickCanvasSnapshot,
   type VscodeReferencePickCanvasSession
 } from "./referencePickCanvasSession";
 import type {
@@ -23,6 +24,8 @@ export type VscodeReferencePickCurrentContext = {
   compiled: CompiledDslDocument;
   evaluation: EvaluationResult;
   evaluationIsCurrent: boolean;
+  /** Candidate authority used only when Canvas is rendering a coherent pinned snapshot. */
+  canvasSnapshot?: VscodeReferencePickCanvasSnapshot;
 };
 
 export type VscodeReferencePickAuthority = {
@@ -93,7 +96,7 @@ export const useVSCodeReferencePickSession = ({
       postStale(message);
       return;
     }
-    if (!current.evaluationIsCurrent) {
+    if (!current.evaluationIsCurrent && !current.canvasSnapshot) {
       pendingStartRequestRef.current = message;
       return;
     }
@@ -103,14 +106,16 @@ export const useVSCodeReferencePickSession = ({
       request: message,
       // The Extension Host routes the request only to the Canvas session
       // bound to this Source document. The host snapshot above proves the
-      // matching version/source; target proof and candidates are re-derived
-      // independently in this Webview compiler session.
+      // matching version/source; the exact current target is re-derived in
+      // this Webview compiler session, while candidates may use only the
+      // explicitly reconciled coherent Canvas snapshot.
       authoritativeDocumentUri: message.documentUri,
       authoritativeDocumentVersion: authoritative.documentVersion,
       source: current.source,
       compiled: current.compiled,
       evaluation: current.evaluation,
-      evaluationIsCurrent: current.evaluationIsCurrent
+      evaluationIsCurrent: current.evaluationIsCurrent,
+      ...(current.canvasSnapshot ? { candidateSnapshot: current.canvasSnapshot } : {})
     });
     api.postMessage(started.result);
     replaceSession(started.session);

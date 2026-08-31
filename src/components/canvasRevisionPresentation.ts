@@ -1,4 +1,5 @@
 import { useLayoutEffect, useState } from "react";
+import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type {
   EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { ModuleSemanticCandidateContext } from "../model/moduleSemanticCandidateBoundary";
@@ -12,6 +13,8 @@ import type {
 export type CanvasRevisionPresentationInputs = {
   elements: CadElement[];
   canonicalElements: CadElement[];
+  /** Compiler metadata paired with the document elements and evaluation. */
+  compiledDocument?: CompiledDslDocument;
   evaluationLimitIndex: number | undefined;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
@@ -29,6 +32,8 @@ export type CanvasRevisionPresentation = CanvasRevisionPresentationInputs & {
   renderEvaluation: EvaluationResult;
   renderEvaluationState: EvaluationEngineState | undefined;
   isPinned: boolean;
+  /** True only when the rendered evaluation has a coherent document snapshot. */
+  hasCoherentSnapshot: boolean;
 };
 
 const EMPTY_CANVAS_PRESENTATION: CanvasRevisionPresentationInputs = {
@@ -62,7 +67,8 @@ const pinnedStablePresentation = (
   ...snapshot.inputs,
   renderEvaluation: snapshot.evaluation,
   renderEvaluationState: pinnedEvaluationState(evaluationState, snapshot),
-  isPinned: true
+  isPinned: true,
+  hasCoherentSnapshot: true
 });
 
 export const resolveRevisionCoherentCanvasPresentation = ({
@@ -88,7 +94,8 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       renderEvaluationState: evaluationState
         ? { ...evaluationState, isStale: true }
         : undefined,
-      isPinned: true
+      isPinned: true,
+      hasCoherentSnapshot: false
     };
   }
 
@@ -97,7 +104,8 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       ...current,
       renderEvaluation: evaluation,
       renderEvaluationState: undefined,
-      isPinned: false
+      isPinned: false,
+      hasCoherentSnapshot: true
     };
   }
   if (!evaluationState.isStale && evaluationState.evaluationRevision === compiledDocumentRevision) {
@@ -105,7 +113,8 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       ...current,
       renderEvaluation: evaluation,
       renderEvaluationState: evaluationState,
-      isPinned: false
+      isPinned: false,
+      hasCoherentSnapshot: true
     };
   }
   // Once a complete presentation has been accepted, it is safe to keep that
@@ -122,7 +131,8 @@ export const resolveRevisionCoherentCanvasPresentation = ({
     ...EMPTY_CANVAS_PRESENTATION,
     renderEvaluation: evaluation,
     renderEvaluationState: evaluationState,
-    isPinned: true
+    isPinned: true,
+    hasCoherentSnapshot: false
   };
 };
 

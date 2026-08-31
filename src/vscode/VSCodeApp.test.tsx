@@ -176,6 +176,28 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(currentReferencePickAuthorityFor!(6)).toBeNull();
   });
 
+  it("keeps Reference Pick authority on exact current Source text while the compiled document is last-good", async () => {
+    const valid = sourceForSelectionChronology(0);
+    const fatal = `${valid}\nconst X: number = `;
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: valid, documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: fatal, documentVersion: 8, reason: "edit" }
+      }));
+    });
+
+    expect(useCadDocumentStore.getState().docText).toBe(valid);
+    expect(drawingCanvasProps.currentReferencePickAuthorityFor!(8)).toEqual({
+      documentVersion: 8,
+      normalizedSource: fatal
+    });
+  });
+
   it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {
     const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
     const api = { postMessage: vi.fn() };
