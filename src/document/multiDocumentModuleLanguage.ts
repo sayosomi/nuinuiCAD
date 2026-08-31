@@ -1,4 +1,4 @@
-import type { CompiledDslDocument } from "../dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
 import {
   dslSemanticIdentityKey,
   type DslSemanticIdentity,
@@ -11,6 +11,11 @@ import {
   type ModuleRenameAnalysis
 } from "./moduleSemanticRenameAnalysis";
 import {
+  analyzeMultiDocumentModuleSemantics,
+  moduleDeclarationContributor,
+  type MultiDocumentModuleSemanticAnalysis
+} from "./multiDocumentModuleSemantics";
+import {
   buildMultiDocumentSemanticOccurrenceIndex,
   projectDslSemanticDocumentView,
   type DslSemanticIdentityResolver,
@@ -18,14 +23,25 @@ import {
   type MultiDocumentSemanticDocumentView,
   type MultiDocumentSemanticOccurrence
 } from "./multiDocumentLanguageQueries";
-import type { MultiDocumentModuleSemanticAnalysis } from "./multiDocumentModuleSemantics";
-import type { MultiDocumentImportGraph } from "./multiDocumentImportGraph";
+import {
+  analyzeMultiDocumentSource,
+  type MultiDocumentGraphNode,
+  type MultiDocumentImportEdge,
+  type MultiDocumentImportGraph
+} from "./multiDocumentImportGraph";
+import {
+  buildMultiDocumentPublicApiCatalog,
+  resolveMultiDocumentPublicApiMember,
+  type MultiDocumentPublicApiCatalog
+} from "./multiDocumentPublicApi";
+import { createModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
 import {
   sourceIdentityOf,
   qualifySemanticIdentity,
   type DocumentId,
   type DocumentQualifiedSemanticIdentity,
-  type MultiDocumentSourceSnapshot
+  type MultiDocumentSourceSnapshot,
+  type RootCurrentSourceSnapshot
 } from "./multiDocumentPrimitives";
 
 const sameIdentity = (
@@ -218,6 +234,114 @@ const editsExactlyCover = (
   return editKeys.size === occurrenceKeys.size;
 };
 
+type CandidatePublicApiCatalogs = ReadonlyMap<DocumentId, MultiDocumentPublicApiCatalog<unknown>>;
+
+const modulePublicEntryForIdentity = (
+  catalog: MultiDocumentPublicApiCatalog<unknown>,
+  identity: DocumentQualifiedSemanticIdentity<string>
+) => [...catalog.publicEntriesByName.values()].find((entry) =>
+  entry.family === "module" && sameIdentity(entry.identity, identity)
+);
+
+/**
+ * Projects one candidate public name through the existing graph topology.
+ * Current public entries decide which re-export descriptors are renamed;
+ * candidate catalogs then resolve those descriptors dependency-first.
+ */
+const candidatePublicApiCatalogsForGraph = (
+  graph: MultiDocumentImportGraph,
+  identity: DocumentQualifiedSemanticIdentity<string>,
+  newName: string
+): CandidatePublicApiCatalogs | null => {
+  if (!graph.valid) return null;
+  const catalogs = new Map<DocumentId, MultiDocumentPublicApiCatalog<unknown>>();
+  const visiting = new Set<DocumentId>();
+
+  const build = (documentId: DocumentId): MultiDocumentPublicApiCatalog<unknown> | null => {
+    const existing = catalogs.get(documentId);
+    if (existing) return existing;
+    if (visiting.has(documentId)) return null;
+    const node = graph.nodes.get(documentId);
+    if (!node || !node.valid || !node.publicApi.valid) return null;
+    visiting.add(documentId);
+
+    for (const edge of node.imports) {
+      if (edge.status !== "resolved" || !edge.targetDocumentId || !build(edge.targetDocumentId)) {
+        visiting.delete(documentId);
+        return null;
+      }
+    }
+
+    const declarations = node.artifact.declarations.map((declaration) =>
+      declaration.family === "module" && sameIdentity(declaration.identity, identity)
+        ? { ...declaration, name: newName }
+        : declaration
+    );
+    const reExports = node.artifact.reExports.map((reExport) => {
+      const edge = node.imports.find((candidate) =>
+        candidate.alias === reExport.importAlias && candidate.status === "resolved"
+      );
+      const targetNode = edge?.targetDocumentId ? graph.nodes.get(edge.targetDocumentId) : undefined;
+      const targetCatalog = targetNode?.publicApi;
+      const lookup = targetCatalog
+        ? resolveMultiDocumentPublicApiMember(targetCatalog, reExport.exportedName)
+        : { kind: "missing" as const };
+      return lookup.kind === "public" && lookup.entry.family === "module" && sameIdentity(lookup.entry.identity, identity)
+        ? { ...reExport, exportedName: newName }
+        : reExport;
+    });
+    const catalog = buildMultiDocumentPublicApiCatalog({
+      documentId,
+      declarations,
+      reExports,
+      resolveImportCatalog: (alias) => {
+        const edge = node.imports.find((candidate) =>
+          candidate.alias === alias && candidate.status === "resolved"
+        );
+        return edge?.targetDocumentId ? catalogs.get(edge.targetDocumentId) ?? null : null;
+      }
+    });
+    visiting.delete(documentId);
+    catalogs.set(documentId, catalog);
+    return catalog;
+  };
+
+  for (const documentId of graph.nodes.keys()) {
+    if (!build(documentId)) return null;
+  }
+  if (catalogs.size !== graph.nodes.size || [...catalogs.values()].some((catalog) => !catalog.valid)) return null;
+
+  for (const [documentId, node] of graph.nodes) {
+    const currentEntry = modulePublicEntryForIdentity(node.publicApi, identity);
+    if (!currentEntry) continue;
+    const candidateCatalog = catalogs.get(documentId);
+    const candidateEntry = candidateCatalog
+      ? resolveMultiDocumentPublicApiMember(candidateCatalog, newName)
+      : { kind: "missing" as const };
+    if (
+      candidateEntry.kind !== "public" ||
+      candidateEntry.entry.family !== "module" ||
+      !sameIdentity(candidateEntry.entry.identity, identity)
+    ) return null;
+  }
+  return catalogs;
+};
+
+const candidatePublicApiExposesForDocument = (
+  graph: MultiDocumentImportGraph,
+  catalogs: CandidatePublicApiCatalogs,
+  documentId: DocumentId,
+  identity: DocumentQualifiedSemanticIdentity<string>,
+  newName: string
+) => {
+  const node = graph.nodes.get(documentId);
+  const candidateCatalog = catalogs.get(documentId);
+  if (!node || !candidateCatalog || !modulePublicEntryForIdentity(node.publicApi, identity)) return false;
+  const candidateEntry = resolveMultiDocumentPublicApiMember(candidateCatalog, newName);
+  return candidateEntry.kind === "public" && candidateEntry.entry.family === "module" &&
+    sameIdentity(candidateEntry.entry.identity, identity);
+};
+
 const physicalRenameEdits = (analysis: Extract<ModuleRenameAnalysis, { verdict: "ok" }>) => {
   const edits = [] as { from: number; to: number; expectedText: string; newText: string }[];
   for (const entry of analysis.entries) {
@@ -229,15 +353,27 @@ const physicalRenameEdits = (analysis: Extract<ModuleRenameAnalysis, { verdict: 
   return edits;
 };
 
+type ModuleRenameGraphEvidence = {
+  graph: MultiDocumentImportGraph;
+  index: ReturnType<typeof buildMultiDocumentSemanticOccurrenceIndex>;
+  candidateCatalogs: CandidatePublicApiCatalogs | null;
+};
+
 const graphReExportOccurrence = (
-  graphIndexes: readonly ReturnType<typeof buildMultiDocumentSemanticOccurrenceIndex>[],
+  graphEvidence: readonly ModuleRenameGraphEvidence[],
   source: MultiDocumentSourceSnapshot,
-  occurrence: MultiDocumentSemanticOccurrence
-) => graphIndexes.some((graphIndex) => graphIndex.valid && graphIndex.occurrences.some((candidate) =>
-  candidate.kind === "reference" && exactOccurrence(candidate, occurrence) &&
-  graphIndex.sourceByDocument.get(source.documentId) !== undefined &&
-  sameSourceSnapshot(graphIndex.sourceByDocument.get(source.documentId)!, source)
-));
+  occurrence: MultiDocumentSemanticOccurrence,
+  identity: DocumentQualifiedSemanticIdentity<string>,
+  newName: string
+) => graphEvidence.some(({ graph, index, candidateCatalogs }) => {
+  const graphSource = index.sourceByDocument.get(source.documentId);
+  return index.valid && candidateCatalogs &&
+    candidatePublicApiExposesForDocument(graph, candidateCatalogs, source.documentId, identity, newName) &&
+    graphSource !== undefined && sameSourceSnapshot(graphSource, source) &&
+    index.occurrences.some((candidate) =>
+      candidate.kind === "reference" && exactOccurrence(candidate, occurrence)
+    );
+});
 
 export type MultiDocumentModuleRenameProofInput = {
   graph: MultiDocumentImportGraph;
@@ -246,6 +382,162 @@ export type MultiDocumentModuleRenameProofInput = {
   graphs?: readonly MultiDocumentImportGraph[];
   /** Compiled source-semantic owner for every document that may be planned. */
   compiledByDocument: ReadonlyMap<DocumentId, CompiledDslDocument>;
+};
+
+const sameStatementIdMap = (
+  left: ReadonlyMap<number, string>,
+  right: ReadonlyMap<number, string>
+) => left.size === right.size && [...left].every(([statementIndex, statementId]) => right.get(statementIndex) === statementId);
+
+const candidateGraphForRename = (input: {
+  graph: MultiDocumentImportGraph;
+  source: MultiDocumentSourceSnapshot;
+  compiled: CompiledDslDocument;
+  identity: DocumentQualifiedSemanticIdentity<string>;
+  newName: string;
+  editedSource: string;
+}): { graph: MultiDocumentImportGraph; rootNode: MultiDocumentGraphNode } | null => {
+  const currentIds = input.compiled.statementMap?.statementIdByStatementIndex;
+  const currentNode = input.graph.nodes.get(input.identity.documentId);
+  if (!currentIds || !currentNode || !currentNode.valid || input.compiled.statements.length === 0) return null;
+  const currentRevision = input.compiled.spans.sourceMap.sourceRevision;
+  if (!Number.isSafeInteger(currentRevision) || currentRevision >= Number.MAX_SAFE_INTEGER) return null;
+  const candidateSource: RootCurrentSourceSnapshot = {
+    kind: "root-current",
+    documentId: input.identity.documentId,
+    normalizedSource: input.editedSource,
+    sourceRevision: currentRevision + 1
+  };
+  const candidateArtifact = analyzeMultiDocumentSource(candidateSource, {
+    declarationContributors: [moduleDeclarationContributor],
+    statementIdByStatementIndex: currentIds
+  });
+  if (
+    !candidateArtifact.syntaxValid ||
+    candidateArtifact.parsed.statements.length !== input.compiled.statements.length ||
+    !sameStatementIdMap(currentIds, candidateArtifact.statementIdByStatementIndex)
+  ) return null;
+
+  const candidateImports: MultiDocumentImportEdge[] = [];
+  const usedEdges = new Set<MultiDocumentImportEdge>();
+  for (const directive of candidateArtifact.imports) {
+    const matches = currentNode.imports.filter((edge) =>
+      !usedEdges.has(edge) &&
+      sameIdentity(edge.importIdentity, directive.identity) &&
+      edge.importPath === directive.importPath &&
+      edge.alias === directive.alias
+    );
+    if (matches.length !== 1) return null;
+    const edge = matches[0]!;
+    if (edge.status !== "resolved" || !edge.targetDocumentId) return null;
+    usedEdges.add(edge);
+    candidateImports.push({
+      ...edge,
+      importerDocumentId: candidateSource.documentId,
+      importIdentity: directive.identity,
+      importLocation: directive.location,
+      alias: directive.alias,
+      aliasLocation: directive.aliasLocation
+    });
+  }
+  if (candidateImports.length !== currentNode.imports.length) return null;
+
+  const reachableDocumentIds = new Set<DocumentId>();
+  const collectDependencies = (documentId: DocumentId): boolean => {
+    if (reachableDocumentIds.has(documentId)) return true;
+    const node = input.graph.nodes.get(documentId);
+    if (!node || !node.valid) return false;
+    reachableDocumentIds.add(documentId);
+    for (const edge of node.imports) {
+      if (edge.status !== "resolved" || !edge.targetDocumentId || !collectDependencies(edge.targetDocumentId)) return false;
+    }
+    return true;
+  };
+  if (!collectDependencies(input.identity.documentId)) return null;
+
+  const currentEdges = input.graph.edges.filter((edge) => edge.importerDocumentId === input.identity.documentId);
+  if (currentEdges.length !== candidateImports.length) return null;
+  const candidateEdgeByIdentity = new Map(candidateImports.map((edge) => [edge.importIdentity.localIdentity, edge]));
+  const candidateEdges: MultiDocumentImportEdge[] = [];
+  for (const edge of input.graph.edges) {
+    if (edge.importerDocumentId !== input.identity.documentId) {
+      candidateEdges.push(edge);
+      continue;
+    }
+    const candidateEdge = candidateEdgeByIdentity.get(edge.importIdentity.localIdentity);
+    if (!candidateEdge) return null;
+    candidateEdges.push(candidateEdge);
+  }
+
+  const candidateNodes = new Map<DocumentId, MultiDocumentGraphNode>();
+  for (const [documentId, node] of input.graph.nodes) {
+    if (reachableDocumentIds.has(documentId)) candidateNodes.set(documentId, node);
+  }
+  const candidateRootNode: MultiDocumentGraphNode = {
+    ...currentNode,
+    artifact: candidateArtifact,
+    imports: candidateImports,
+    publicApi: currentNode.publicApi,
+    publicApiDiagnostics: currentNode.publicApiDiagnostics,
+    sourceDiagnostics: [
+      ...candidateArtifact.parsed.diagnostics,
+      ...candidateArtifact.sourceLexicalNamespace.diagnostics
+    ],
+    valid: candidateArtifact.syntaxValid
+  };
+  candidateNodes.set(input.identity.documentId, candidateRootNode);
+  const provisionalGraph: MultiDocumentImportGraph = {
+    ...input.graph,
+    rootDocumentId: input.identity.documentId,
+    rootSource: candidateSource,
+    nodes: candidateNodes,
+    edges: candidateEdges.filter((edge) => reachableDocumentIds.has(edge.importerDocumentId)),
+    valid: input.graph.valid && candidateRootNode.valid
+  };
+  const candidateCatalogs = candidatePublicApiCatalogsForGraph(provisionalGraph, input.identity, input.newName);
+  if (!candidateCatalogs) return null;
+  const finalizedNodes = new Map<DocumentId, MultiDocumentGraphNode>();
+  for (const [documentId, node] of candidateNodes) {
+    const publicApi = candidateCatalogs.get(documentId);
+    if (!publicApi) return null;
+    finalizedNodes.set(documentId, {
+      ...node,
+      publicApi,
+      publicApiDiagnostics: publicApi.diagnostics,
+      valid: node.valid && publicApi.valid
+    });
+  }
+  const candidateGraph: MultiDocumentImportGraph = {
+    ...provisionalGraph,
+    nodes: finalizedNodes,
+    valid: provisionalGraph.valid && [...finalizedNodes.values()].every((node) => node.valid)
+  };
+  return { graph: candidateGraph, rootNode: finalizedNodes.get(input.identity.documentId)! };
+};
+
+const graphAwareCandidateCompile = (input: {
+  graph: MultiDocumentImportGraph;
+  source: MultiDocumentSourceSnapshot;
+  identity: DocumentQualifiedSemanticIdentity<string>;
+  newName: string;
+  editedSource: string;
+  compiled: CompiledDslDocument;
+}): CompiledDslDocument | null => {
+  const compiledGraph = input.compiled.moduleRuntimeContext?.graph;
+  if (!compiledGraph || compiledGraph.rootDocumentId !== input.identity.documentId) return null;
+  const candidate = candidateGraphForRename({ ...input, graph: compiledGraph });
+  if (!candidate) return null;
+  const candidateAnalysis = analyzeMultiDocumentModuleSemantics(candidate.graph);
+  if (!candidateAnalysis.valid || !candidateAnalysis.analysesByDocument.has(input.identity.documentId)) return null;
+  const candidateContext = createModuleRuntimeContext(candidate.graph, candidateAnalysis);
+  if (!candidateContext.valid) return null;
+  const candidateCompiled = compileDslDocument(input.editedSource, {
+    preparsed: candidate.rootNode.artifact.parsed,
+    sourceRevision: candidate.graph.rootSource.sourceRevision,
+    assignedStatementIds: candidate.rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext: candidateContext
+  });
+  return candidateCompiled;
 };
 
 /**
@@ -257,10 +549,6 @@ export type MultiDocumentModuleRenameProofInput = {
 export const createMultiDocumentModuleRenameDocumentProof = (
   input: MultiDocumentModuleRenameProofInput
 ): MultiDocumentRenameDocumentProof => {
-  const graphIndexes = [input.graph, ...(input.graphs ?? [])].map((graph) =>
-    buildMultiDocumentSemanticOccurrenceIndex({ graph })
-  );
-
   return ({ source, identity, occurrences, newName }) => {
     if (!input.graph.valid || !input.analysis.valid || input.analysis.graph !== input.graph || source.normalizedSource.includes("\r")) {
       return { status: "rejected", reason: "graph or Module semantics are not valid" };
@@ -269,19 +557,36 @@ export const createMultiDocumentModuleRenameDocumentProof = (
     if (!globalDefinition) return { status: "rejected", reason: "Module definition identity is not owned by the graph" };
     const compiled = input.compiledByDocument.get(source.documentId);
     const compiledAnalysis = compiledAnalysisFor(compiled, source.documentId);
+    const graphEvidence: ModuleRenameGraphEvidence[] = [input.graph, ...(input.graphs ?? [])].map((graph) => ({
+      graph,
+      index: buildMultiDocumentSemanticOccurrenceIndex({ graph }),
+      candidateCatalogs: candidatePublicApiCatalogsForGraph(graph, identity, newName)
+    }));
 
     if (source.documentId === identity.documentId) {
       if (!compiled || !compiledSourceIsExact(source, compiled)) {
         return { status: "rejected", reason: "defining Module source is stale or unavailable" };
       }
-      const compiledDefinition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(identity.localIdentity);
+      const compiledDefinition = compiledAnalysis?.definitionsByStatementId.get(identity.localIdentity);
       if (!compiledDefinition || !sameDefinitionOwnership(compiledDefinition, globalDefinition)) {
         return { status: "rejected", reason: "defining Module identity does not match compiled ownership" };
+      }
+      if (!candidatePublicApiCatalogsForGraph(input.graph, identity, newName)) {
+        return { status: "rejected", reason: "candidate Module public API is invalid or ambiguous" };
       }
       const result = analyzeModuleSemanticRename(source.normalizedSource, compiled, {
         kind: "moduleDefinition",
         statementId: identity.localIdentity
-      }, newName);
+      }, newName, {
+        compileCandidate: (editedSource, before) => graphAwareCandidateCompile({
+          graph: input.graph,
+          source,
+          identity,
+          newName,
+          editedSource,
+          compiled: before
+        })
+      });
       if (result.verdict !== "ok") return { status: "rejected", reason: result.reason };
       const edits = physicalRenameEdits(result);
       if (!edits || !editsExactlyCover(source, edits, occurrences, identity)) {
@@ -315,7 +620,7 @@ export const createMultiDocumentModuleRenameDocumentProof = (
         candidate.range.from === occurrence.location.range.from &&
         candidate.range.to === occurrence.location.range.to
       ) ?? false;
-      const provedByGraph = graphReExportOccurrence(graphIndexes, source, occurrence);
+      const provedByGraph = graphReExportOccurrence(graphEvidence, source, occurrence, identity, newName);
       if (!provedByView && !provedByGraph) {
         return { status: "rejected", reason: "Module occurrence was not proven by semantic view or graph re-export owner" };
       }

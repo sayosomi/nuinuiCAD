@@ -24,6 +24,18 @@ export type ModuleRenameAnalysis =
   | { verdict: "ok"; target: ModuleSemanticTarget; oldName: string; newName: string; entries: readonly SourceSemanticRenameSpliceEntry[] }
   | ModuleRenameAnalysisRejected;
 
+/** Optional boundary for callers whose exact candidate source needs the
+ * already-established multi-document Module namespace during compile-after-
+ * splice validation. The default remains compileWithStableIds below. */
+export type ModuleRenameCandidateCompiler = (
+  editedSource: string,
+  before: CompiledDslDocument
+) => CompiledDslDocument | null;
+
+export type ModuleSemanticRenameOptions = {
+  compileCandidate?: ModuleRenameCandidateCompiler;
+};
+
 export type RecordRenameTarget =
   | { kind: "recordType"; statementId: string }
   | { kind: "recordValue"; statementId: string }
@@ -366,7 +378,8 @@ export const analyzeModuleSemanticRename = (
   sourceText: string,
   compiled: CompiledDslDocument,
   target: ModuleSemanticTarget,
-  newName: string
+  newName: string,
+  options: ModuleSemanticRenameOptions = {}
 ): ModuleRenameAnalysis => {
   if (!compiled.moduleSemanticAnalysis || !compiled.statementMap || !compiled.sourceLexicalNamespace) return { verdict: "rejected", reason: "stale" };
   if (sourceText.replace(/\r\n/g, "\n") !== compiled.spans.sourceMap.source) return { verdict: "rejected", reason: "stale" };
@@ -427,8 +440,10 @@ export const analyzeModuleSemanticRename = (
     const span = entry.physicalSpan!.segments[0];
     return `${text.slice(0, span.from)}${entry.newName}${text.slice(span.to)}`;
   }, candidate);
-  const after = compileWithStableIds(edited, compiled);
-  if (after.diagnostics.length > 0 || !after.moduleSemanticAnalysis || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)) {
+  const after = options.compileCandidate
+    ? options.compileCandidate(edited, compiled)
+    : compileWithStableIds(edited, compiled);
+  if (!after || after.diagnostics.length > 0 || !after.moduleSemanticAnalysis || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)) {
     return { verdict: "rejected", reason: "capture" };
   }
   return { verdict: "ok", target, oldName, newName, entries };

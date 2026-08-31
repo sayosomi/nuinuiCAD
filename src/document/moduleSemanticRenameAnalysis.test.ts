@@ -50,6 +50,28 @@ describe("module source-semantic rename analysis", () => {
     expect(analyzeModuleSemanticRename(`${source}\n`, compiled, { kind: "moduleDefinition", statementId: "statement:test:1" }, "Renamed").verdict).toBe("rejected");
   });
 
+  it("keeps the default stable-ID compiler while accepting an exact candidate compiler", () => {
+    const compiled = compileWithIds(source);
+    let candidateSource: string | null = null;
+    const result = analyzeModuleSemanticRename(
+      source,
+      compiled,
+      { kind: "moduleDefinition", statementId: "statement:test:1" },
+      "Renamed",
+      {
+        compileCandidate: (editedSource, before) => {
+          candidateSource = editedSource;
+          return compileDslDocument(editedSource, {
+            assignedStatementIds: before.statementMap?.statementIdByStatementIndex
+          });
+        }
+      }
+    );
+    expect(result.verdict).toBe("ok");
+    expect(candidateSource).toContain("module Renamed");
+    expect(analyzeModuleSemanticRename(source, compiled, { kind: "moduleDefinition", statementId: "statement:test:1" }, "Renamed").verdict).toBe("ok");
+  });
+
   it("projects a module parameter collision to the conflicting declaration range", () => {
     const parameterSource = [
       "nui 1",

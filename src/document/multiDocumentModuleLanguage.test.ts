@@ -122,6 +122,96 @@ const directFixture = async () => {
   return { library, root, rootBundle, libraryRoot, libraryBundle, rootView, libraryView, rootIndex, libraryIndex, proof };
 };
 
+const importedDefiningFixture = async () => {
+  const dependency = savedSource("language-defining-dependency", "sha256:language-defining-dependency", [
+    "nui 1",
+    "export module Helper() {",
+    "}"
+  ].join("\n"));
+  const definingText = [
+    "nui 1",
+    "import \"./dependency.nui\" as dependency",
+    "export module Pocket() {",
+    "}",
+    "instance helper = dependency::Helper()"
+  ].join("\n");
+  const defining = savedSource("language-defining-library", "sha256:language-defining-library", definingText);
+  const root = rootSource("language-defining-root", [
+    "nui 1",
+    "import \"./library.nui\" as library",
+    "instance use = library::Pocket()"
+  ].join("\n"), 4);
+  const rootBundle = await buildRoot(root, new Map([
+    [`${root.documentId}|./library.nui`, defining],
+    [`${defining.documentId}|./dependency.nui`, dependency]
+  ]));
+  const savedDefiningNode = rootBundle.graph.nodes.get(defining.documentId)!;
+  const definingRoot = rootSource("language-defining-library", definingText, 8);
+  const definingBundle = await buildRoot(
+    definingRoot,
+    new Map([[`${definingRoot.documentId}|./dependency.nui`, dependency]]),
+    savedDefiningNode.artifact.statementIdByStatementIndex
+  );
+  const rootView = projectMultiDocumentModuleSemanticDocumentView({ source: root, compiled: rootBundle.compiled });
+  const definingView = projectMultiDocumentModuleSemanticDocumentView({ source: definingRoot, compiled: definingBundle.compiled });
+  const rootIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: rootBundle.graph, documentViews: [rootView] });
+  const definingIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: definingBundle.graph, documentViews: [definingView] });
+  const proof = createMultiDocumentModuleRenameDocumentProof({
+    graph: rootBundle.graph,
+    analysis: rootBundle.analysis,
+    compiledByDocument: new Map([
+      [root.documentId, rootBundle.compiled],
+      [definingRoot.documentId, definingBundle.compiled]
+    ])
+  });
+  return { root, rootBundle, definingRoot, definingBundle, rootIndex, definingIndex, proof };
+};
+
+const definingPublicCollisionFixture = async () => {
+  const other = savedSource("language-defining-collision-other", "sha256:language-defining-collision-other", [
+    "nui 1",
+    "export module Bag() {",
+    "}"
+  ].join("\n"));
+  const definingText = [
+    "nui 1",
+    "import \"./other.nui\" as other",
+    "export module Pocket() {",
+    "}",
+    "export @other::Bag"
+  ].join("\n");
+  const defining = savedSource("language-defining-collision-library", "sha256:language-defining-collision-library", definingText);
+  const root = rootSource("language-defining-collision-root", [
+    "nui 1",
+    "import \"./library.nui\" as library",
+    "instance use = library::Pocket()"
+  ].join("\n"), 9);
+  const rootBundle = await buildRoot(root, new Map([
+    [`${root.documentId}|./library.nui`, defining],
+    [`${defining.documentId}|./other.nui`, other]
+  ]));
+  const savedDefiningNode = rootBundle.graph.nodes.get(defining.documentId)!;
+  const definingRoot = rootSource("language-defining-collision-library", definingText, 10);
+  const definingBundle = await buildRoot(
+    definingRoot,
+    new Map([[`${definingRoot.documentId}|./other.nui`, other]]),
+    savedDefiningNode.artifact.statementIdByStatementIndex
+  );
+  const rootView = projectMultiDocumentModuleSemanticDocumentView({ source: root, compiled: rootBundle.compiled });
+  const definingView = projectMultiDocumentModuleSemanticDocumentView({ source: definingRoot, compiled: definingBundle.compiled });
+  const rootIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: rootBundle.graph, documentViews: [rootView] });
+  const definingIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: definingBundle.graph, documentViews: [definingView] });
+  const proof = createMultiDocumentModuleRenameDocumentProof({
+    graph: rootBundle.graph,
+    analysis: rootBundle.analysis,
+    compiledByDocument: new Map([
+      [root.documentId, rootBundle.compiled],
+      [definingRoot.documentId, definingBundle.compiled]
+    ])
+  });
+  return { root, rootBundle, definingRoot, definingBundle, rootIndex, definingIndex, proof };
+};
+
 const reExportFixture = async () => {
   const cache = new SavedDocumentArtifactCache();
   const library = savedSource("language-chain-library", "sha256:language-chain-library", libraryText);
@@ -321,6 +411,25 @@ describe("host-neutral multi-document Module language adapter", () => {
     ]);
   });
 
+  it("keeps defining-document imported Module semantics during candidate validation", async () => {
+    const fixture = await importedDefiningFixture();
+    const result = planMultiDocumentRename({
+      index: fixture.definingIndex,
+      documentId: fixture.definingRoot.documentId,
+      position: fixture.definingRoot.normalizedSource.indexOf("Pocket") + 1,
+      newName: "Bag",
+      reverseImporters: { status: "complete", indexes: [fixture.rootIndex] },
+      proveDocument: fixture.proof
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.plan.documents.flatMap((document) => document.edits).map((edit) => [edit.expectedText, edit.newText])).toEqual([
+      ["Pocket", "Bag"],
+      ["Pocket", "Bag"]
+    ]);
+  });
+
   it("plans exact defining, facade, and final importer edits for a re-export chain", async () => {
     const fixture = await reExportFixture();
     const result = planMultiDocumentRename({
@@ -338,6 +447,81 @@ describe("host-neutral multi-document Module language adapter", () => {
       expect.objectContaining({ expectedText: "Pocket", newText: "Bag" })
     ]));
     expect(result.plan.documents.flatMap((document) => document.edits)).toHaveLength(3);
+  });
+
+  it("rejects a re-export candidate that collides with another public API name", async () => {
+    const library = savedSource("language-collision-library", "sha256:language-collision-library", libraryText);
+    const facade = savedSource("language-collision-facade", "sha256:language-collision-facade", [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "export module Bag() {",
+      "}",
+      "export @library::Pocket"
+    ].join("\n"));
+    const root = rootSource("language-collision-root", [
+      "nui 1",
+      "import \"./facade.nui\" as facade",
+      "instance use = facade::Pocket()"
+    ].join("\n"), 5);
+    const rootBundle = await buildRoot(root, new Map([
+      [`${root.documentId}|./facade.nui`, facade],
+      [`${facade.documentId}|./library.nui`, library]
+    ]));
+    const savedLibraryNode = rootBundle.graph.nodes.get(library.documentId)!;
+    const savedFacadeNode = rootBundle.graph.nodes.get(facade.documentId)!;
+    const libraryStatementIndex = savedLibraryNode.artifact.parsed.statements.findIndex((statement) => statement.kind === "moduleDefinition");
+    const facadeStatementIndex = savedFacadeNode.artifact.parsed.statements.findIndex((statement) => statement.kind === "fileReExport");
+    const libraryRoot = rootSource("language-collision-library", libraryText, 6);
+    const facadeRoot = rootSource("language-collision-facade", facade.normalizedSource, 7);
+    const libraryBundle = await buildRoot(
+      libraryRoot,
+      new Map(),
+      new Map([[libraryStatementIndex, savedLibraryNode.artifact.statementIdByStatementIndex.get(libraryStatementIndex)!]])
+    );
+    const facadeBundle = await buildRoot(
+      facadeRoot,
+      new Map([[`${facadeRoot.documentId}|./library.nui`, library]]),
+      new Map([[facadeStatementIndex, savedFacadeNode.artifact.statementIdByStatementIndex.get(facadeStatementIndex)!]])
+    );
+    const rootView = projectMultiDocumentModuleSemanticDocumentView({ source: root, compiled: rootBundle.compiled });
+    const libraryView = projectMultiDocumentModuleSemanticDocumentView({ source: libraryRoot, compiled: libraryBundle.compiled });
+    const rootIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: rootBundle.graph, documentViews: [rootView] });
+    const facadeIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: facadeBundle.graph });
+    const libraryIndex = buildMultiDocumentSemanticOccurrenceIndex({ graph: libraryBundle.graph, documentViews: [libraryView] });
+    const proof = createMultiDocumentModuleRenameDocumentProof({
+      graph: rootBundle.graph,
+      analysis: rootBundle.analysis,
+      graphs: [facadeBundle.graph],
+      compiledByDocument: new Map([
+        [root.documentId, rootBundle.compiled],
+        [libraryRoot.documentId, libraryBundle.compiled],
+        [facadeRoot.documentId, facadeBundle.compiled]
+      ])
+    });
+    const result = planMultiDocumentRename({
+      index: libraryIndex,
+      documentId: libraryRoot.documentId,
+      position: libraryText.indexOf("Pocket") + 1,
+      newName: "Bag",
+      reverseImporters: { status: "complete", indexes: [facadeIndex, rootIndex] },
+      proveDocument: proof
+    });
+
+    expect(result).toEqual({ status: "rejected", reason: "unsafe-edit-proof" });
+  });
+
+  it("rejects a defining public Module rename that collides with a public re-export", async () => {
+    const fixture = await definingPublicCollisionFixture();
+    const result = planMultiDocumentRename({
+      index: fixture.definingIndex,
+      documentId: fixture.definingRoot.documentId,
+      position: fixture.definingRoot.normalizedSource.indexOf("Pocket") + 1,
+      newName: "Bag",
+      reverseImporters: { status: "complete", indexes: [fixture.rootIndex] },
+      proveDocument: fixture.proof
+    });
+
+    expect(result).toEqual({ status: "rejected", reason: "unsafe-edit-proof" });
   });
 
   it("reuses defining Module safety and rejects stale, mismatched, and unproved importer occurrences", async () => {
