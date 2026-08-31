@@ -1,8 +1,0 @@
-nui 4
-// Active nui4 evaluation fixture.
-point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: 10, y: 0)
-line AB = segment(start: @A, end: @B)
-for i in range(from: 0, count: 2, step: 1, showGenerated: true) {
-  line Copy = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 90 +, mirrorX: false, baseLines: [@AB])
-}

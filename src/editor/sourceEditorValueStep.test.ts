@@ -8,7 +8,7 @@ import { effectiveElements, initialCadDocumentState, useCadDocumentStore } from 
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { SourceEditorController } from "./sourceEditorController";
 
-const source = "nui 4\npoint A = coordinate(x: 12, y: 0)";
+const source = "nui 1\npoint A = coordinate(x: 12, y: 0)";
 
 const openEditor = (initialSource = source) => {
   useCadDocumentStore.getState().commitText(initialSource, "test");
@@ -106,7 +106,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("steps one quoted expression literal with the parameter step and keeps repeat Undo semantics", () => {
     const expressionSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       'point B = offset(from: @A, dx: "@変数1 * 2", dy: 0, steps: [dx: 0.25])'
     ].join("\n");
@@ -137,7 +137,7 @@ describe("SourceEditor editor-native value step commands", () => {
     // closing `)` as the *next* line — a stronger version of the original
     // "end of physical line" check now that single-line calls always end in `)`.
     const offsetSource = [
-      "nui 4",
+      "nui 1",
       "point 点A = coordinate(x: 0, y: 0)",
       "point 点B = offset(",
       "  from: @点A,",
@@ -178,7 +178,7 @@ describe("SourceEditor editor-native value step commands", () => {
 
   it("runs boolean and choice changes through the same command path", () => {
     const booleanChoiceSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",

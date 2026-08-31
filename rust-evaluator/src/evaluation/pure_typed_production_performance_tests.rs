@@ -1,5 +1,5 @@
 //! Record-only Task 50 production benchmarks for the two mutually-exclusive
-//! pure nui4 payload forms accepted by `evaluate_document`.
+//! pure nui1 payload forms accepted by `evaluate_document`.
 
 use serde_json::{json, Value};
 
@@ -138,12 +138,12 @@ fn input(scalar_program: Option<Value>, binding_versions: Option<Value>) -> Eval
 
 fn evaluate_scalar_program(program: Value) -> EvaluationPayload {
     evaluate_document(input(Some(program), None))
-        .expect("pure nui4 scalarProgram production payload must be accepted")
+        .expect("pure nui1 scalarProgram production payload must be accepted")
 }
 
 fn evaluate_binding_versions(versions: Value) -> EvaluationPayload {
     evaluate_document(input(None, Some(versions)))
-        .expect("pure nui4 bindingVersions production payload must be accepted")
+        .expect("pure nui1 bindingVersions production payload must be accepted")
 }
 
 fn assert_scalar_result(

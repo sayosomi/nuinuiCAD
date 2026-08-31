@@ -7,7 +7,7 @@ import {
 } from "./selectionCommands";
 
 const noStopSource = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 1, y: 1)"
 ].join("\n");
@@ -49,7 +49,7 @@ describe("evaluation divider commands", () => {
 
   it("keeps an explicit terminal stop when a middle divider moves to the end", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop",
       "point B = coordinate(x: 1, y: 1)"
@@ -65,7 +65,7 @@ describe("evaluation divider commands", () => {
 
   it("continues to move an explicit divider between elements", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop",
       "point B = coordinate(x: 1, y: 1)",

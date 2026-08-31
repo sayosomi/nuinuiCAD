@@ -16,7 +16,7 @@ const compiled = (source: string) => {
 
 const previewFor = (
   session: ReturnType<typeof startSession>,
-  source = "nui 4"
+  source = "nui 1"
 ) => {
   const document = compiled(source);
   return commandLineGhostPreview({
@@ -35,7 +35,7 @@ describe("command-line ghost preview", () => {
   });
 
   it("keeps a declared number blank when it is skipped", () => {
-    const document = compiled(["nui 4", "line AB = segment(start: (0, 0), end: (10, 0))"].join("\n"));
+    const document = compiled(["nui 1", "line AB = segment(start: (0, 0), end: (10, 0))"].join("\n"));
     const line = document.elements[0];
     const recipe = creationRecipeForType("lineDivisionPoint")!;
     let session = startSession(recipe, {
@@ -69,7 +69,7 @@ describe("command-line ghost preview", () => {
   });
 
   it("does not preview a fully supplied candidate inserted after stop", () => {
-    const document = compiled(["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 0)"].join("\n"));
+    const document = compiled(["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 0)"].join("\n"));
     const recipe = creationRecipeForType("line")!;
     let session = startSession(recipe, {
       insertionIndex: document.elements.length,
@@ -95,7 +95,7 @@ describe("command-line ghost preview", () => {
   });
 
   it("classifies a broken reference as invalid, not as an unevaluated position", () => {
-    const document = compiled(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const document = compiled(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const recipe = creationRecipeForType("line")!;
     let session = startSession(recipe, {
       insertionIndex: document.elements.length,

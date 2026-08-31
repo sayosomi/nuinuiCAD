@@ -51,7 +51,7 @@ export const MAX_SCALAR_EXPRESSION_DEPTH = 128;
  * Returns whether a property value should be offered to the shared typed
  * expression frontend. Literal-only values remain owned by the normal model
  * lowering path; this predicate only identifies expression-shaped input,
- * including the nui4 word spellings && the migration-era symbolic aliases.
+ * including the nui1 word spellings && the migration-era symbolic aliases.
  */
 export const isScalarNamedCallCandidateSource = (source: string): boolean => {
   const trimmed = source.trim();

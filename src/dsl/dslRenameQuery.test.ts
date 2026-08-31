@@ -31,7 +31,7 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
 describe("host-neutral DSL rename query", () => {
   it("renames a typed declaration from either its declaration or reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "let result: number = @width + 1"
     ].join("\n");
@@ -46,7 +46,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("returns a structured typed same-scope collision while preserving the null wrapper", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + 5"
     ].join("\n");
@@ -60,7 +60,7 @@ describe("host-neutral DSL rename query", () => {
   });
 
   it("returns a structured invalid-name rejection from the typed analyzer", () => {
-    const source = "nui 4\nconst width: number = 10";
+    const source = "nui 1\nconst width: number = 10";
 
     expect(planDslRenameEditsResult(snapshot(source), at(source, "width"), "")).toEqual({
       status: "rejected",
@@ -70,7 +70,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("returns a structured typed reference-resolution rejection for capture", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 1",
       "group G {",
       "  const inner: number = 2",
@@ -90,7 +90,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("keeps @ and qualified separators outside the target range", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "  point Shoulder = coordinate(x: 0, y: 0)",
       "}",
@@ -106,7 +106,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("projects an element rename without changing comments or unrelated text", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// Base in a comment",
       "point Base = coordinate(",
       "  x: 0,",
@@ -128,7 +128,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("projects element-side geometry properties from numeric expressions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// A in a comment",
       "point A = coordinate(",
       "  x: 0,",
@@ -160,7 +160,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("projects qualified numeric geometry-property segments independently", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Group {",
       "  point A = coordinate(",
       "    x: 0,",
@@ -192,7 +192,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames the element path of a qualified choice geometry property", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "}",
@@ -214,7 +214,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("rejects semantic fallback renames that capture an ordinary reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "group Nested {",
       "  arc Taken = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
@@ -237,7 +237,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("starts element rename from derived endpoint geometry properties", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -264,7 +264,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("starts rename from layout and place numeric geometry properties", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -293,7 +293,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("routes module definitions, parameters, instances, and call labels through module semantics", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -307,7 +307,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames nominal record types, values, fields, and record Module parameters safely", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       "record Other(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
@@ -360,7 +360,7 @@ describe("host-neutral DSL rename query", () => {
   });
 
   it("fails closed for stale, fatal, unresolved, and module-iteration snapshots", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const stale = snapshot(source, 7);
     expect(queryDslRenameTarget({ ...stale, source: { ...stale.source, sourceRevision: 8 } }, 6)).toBeNull();
     expect(queryDslRenameTarget({
@@ -368,11 +368,11 @@ describe("host-neutral DSL rename query", () => {
       semantic: { ...stale.semantic!, sourceText: `${source} ` }
     }, 6)).toBeNull();
 
-    const brokenSource = ["nui 4", "point A = offset(from: @Missing, dx: 1, dy: 0)"].join("\n");
+    const brokenSource = ["nui 1", "point A = offset(from: @Missing, dx: 1, dy: 0)"].join("\n");
     expect(queryDslRenameTarget(snapshot(brokenSource), at(brokenSource, "Missing"))).toBeNull();
 
     const iterationSource = [
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 1) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -382,7 +382,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("uses UTF-16 offsets when a surrogate pair precedes a Japanese identifier", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -393,7 +393,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames an ordinary source element in a document with materialized Module elements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + 5",
       "point 前身頃 = coordinate(x: 0, y: 0)",
@@ -428,7 +428,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames qualified module-backed element segments without projecting aggregate candidates", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "  point Shoulder = coordinate(x: 0, y: 20)",
       "}",
@@ -465,7 +465,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("preserves ordinary same-scope collisions in a document with materialized Module elements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)",
       "module Measure(input: point) {",
@@ -489,7 +489,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("returns a structured collision for an ordinary element without Module materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)"
     ].join("\n");
@@ -506,7 +506,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("returns a structured Module parameter collision", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number, length: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -521,7 +521,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames multiline layout/profile outputs and qualified placement paths", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile OutputProfile",
       "group Outer {",
       "  group Inner {",
@@ -602,7 +602,7 @@ describe("host-neutral DSL rename query", () => {
 
   it("renames print and SVG declarations and rejects same-scope source collisions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Existing {",
       "}",
       "layout Layout {",

@@ -88,9 +88,9 @@ point depends on `benchOffset`, `Benchmark::DragPoint`, and
 `Benchmark::DragCurve.length`; each later point depends on its immediate
 predecessor.
 
-The superseded interactive v1 source files remain unchanged as historical
-fixtures; the v2 entries are the current manifest-supported interactive
-workloads.
+The superseded interactive v1 source files retain their historical fixture
+identities while their source headers follow the supported `nui 1` baseline;
+the v2 entries are the current manifest-supported interactive workloads.
 
 `fixtures/manifest.json` records the exact UTF-8 SHA-256 hash and benchmark
 anchors for each workload. If fixture content or workload changes, create a new

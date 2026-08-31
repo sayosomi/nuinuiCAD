@@ -74,7 +74,7 @@ describe("VS Code structural folding provider", () => {
   });
 
   it("synchronizes unsaved text and converts syntax lines from 1-based to 0-based", () => {
-    const oldSource = "nui 4\n";
+    const oldSource = "nui 1\n";
     const source = [
       "group A {",
       "  point P = coordinate(x: 0, y: 0)",
@@ -108,13 +108,13 @@ describe("VS Code structural folding provider", () => {
   });
 
   it("fails closed for unsupported documents and stale snapshots", () => {
-    const session = sessionFor("nui 4\n", { stale: true });
+    const session = sessionFor("nui 1\n", { stale: true });
     const sessionForDocument = vi.fn(() => session);
     const provider = createNuiFoldingProvider(sessionForDocument);
 
-    expect(provideRanges(provider, documentFor("nui 4\n", "/tmp/pattern.txt"))).toEqual([]);
+    expect(provideRanges(provider, documentFor("nui 1\n", "/tmp/pattern.txt"))).toEqual([]);
     expect(sessionForDocument).not.toHaveBeenCalled();
-    expect(provideRanges(provider, documentFor("nui 4\n"))).toEqual([]);
+    expect(provideRanges(provider, documentFor("nui 1\n"))).toEqual([]);
   });
 
   it("returns safe ranges from a fatal current source without using last-good text", () => {
@@ -124,7 +124,7 @@ describe("VS Code structural folding provider", () => {
       "}",
       "point Broken = coordinate(x: )"
     ].join("\n");
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const provider = createNuiFoldingProvider(() => session);
 
     const ranges = provideRanges(provider, documentFor(source));

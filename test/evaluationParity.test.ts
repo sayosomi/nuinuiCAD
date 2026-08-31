@@ -56,7 +56,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("evaluates Label, Bare, and Boolean through the Rust-first declarations/templates fixture", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-declarations-templates.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-declarations-templates.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -77,7 +77,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("evaluates reference-free boolean templates through the Rust production boundary", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-reference-free-boolean-template.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-reference-free-boolean-template.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -96,7 +96,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("keeps tangentOffset curveSide literal, choice binding, and pathReverse parity", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-tangent-offset-curve-side.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-tangent-offset-curve-side.nui");
     const options = optionsFor(fixture);
     const ts = evaluationPayloadToResult(evaluateElementsReferencePayload(fixture.elements, options));
     const rust = evaluationPayloadToResult(evaluateWithRustFixture(repoRoot, fixture));
@@ -144,7 +144,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("matches TS/Rust for selected Drawing Profile modifier deltas and disabled state", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-drawing-modifier-profiles.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-drawing-modifier-profiles.nui");
     const profile = fixture.compiled?.doc.document.drawingProfiles?.find((candidate) => candidate.name === "Print");
     if (!profile) throw new Error("Print Drawing Profile was not compiled");
     const options = optionsFor(fixture, profile.id);
@@ -177,8 +177,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(rust.computedGeometry.has(disabled!.id)).toBe(false);
   }, 30000);
 
-  it("asserts nui4 builtin scalar values and runtime errors in both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-builtin-functions.nui");
+  it("asserts nui1 builtin scalar values and runtime errors in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -233,7 +233,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts the canonical pi number literal through the Rust production boundary", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-builtin-constant-pi.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-builtin-constant-pi.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -266,7 +266,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts public choice geometry properties through the Rust production boundary", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-choice-geometry-properties.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-choice-geometry-properties.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -286,8 +286,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
-  it("asserts nui4 trigonometric scalar, geometry, module, and text values in both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-trigonometric-functions.nui");
+  it("asserts nui1 trigonometric scalar, geometry, module, and text values in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-trigonometric-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -336,8 +336,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
-  it("asserts nui4 spreadAngle named arguments, domains, module, and text values in both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-spread-angle.nui");
+  it("asserts nui1 spreadAngle named arguments, domains, module, and text values in both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-spread-angle.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -379,8 +379,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
-  it("asserts nui4 geometry builtin values and mutation through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-geometry-builtin-functions.nui");
+  it("asserts nui1 geometry builtin values and mutation through both evaluators", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -461,7 +461,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts lineAngle semantics and errors through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-line-angle.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-line-angle.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -493,7 +493,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts module geometry builtin lowering values and parity through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-module-geometry-builtin-functions.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-module-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -519,7 +519,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts the Module numeric geometry builtin through the Rust production boundary", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-module-numeric-geometry-builtin.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-module-numeric-geometry-builtin.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
@@ -539,7 +539,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("asserts root set geometry builtin resolution with an unrelated module through both evaluators", () => {
-    const fixture = readParityFixture(repoRoot, "nui4-module-root-set-geometry-builtin-functions.nui");
+    const fixture = readParityFixture(repoRoot, "nui1-module-root-set-geometry-builtin-functions.nui");
     const options = optionsFor(fixture);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustFixture(repoRoot, fixture);

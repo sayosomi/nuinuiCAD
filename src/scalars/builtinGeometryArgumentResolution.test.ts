@@ -12,7 +12,7 @@ import {
 } from "./builtinGeometryArgumentResolution";
 
 const documentSource = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 3, y: 4)",
   "line AB = segment(start: @A, end: @B)",

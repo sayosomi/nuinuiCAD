@@ -11,7 +11,7 @@ const compile = (source: string) => {
 describe("record source-semantic document integration", () => {
   it("builds the nominal source-semantic model for a record-definition-only document", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)"
     ].join("\n"));
 
@@ -26,7 +26,7 @@ describe("record source-semantic document integration", () => {
 
   it("compiles record definitions and const constructors without creating runtime elements", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       'const pair: Pair = Pair(x: 1, label: "A")'
     ].join("\n"));
@@ -41,7 +41,7 @@ describe("record source-semantic document integration", () => {
 
   it("keeps record Module parameters source-semantic-only without enabling runtime pass-through", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const copy: Pair = @input",

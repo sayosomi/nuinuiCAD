@@ -15,7 +15,7 @@ const namespaceFor = (source: string) => {
 describe("multi-document lexical namespace integration", () => {
   it("keeps import aliases source-ordered and delegates only the member lookup", () => {
     const { index } = namespaceFor([
-      "nui 4",
+      "nui 1",
       "const before: number = 0",
       "import \"./library.nui\" as library",
       "const after: number = 0"
@@ -39,7 +39,7 @@ describe("multi-document lexical namespace integration", () => {
 
   it("puts import aliases in the ordinary top-level collision namespace", () => {
     const { index } = namespaceFor([
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library",
       "const library: number = 1"
     ].join("\n"));
@@ -56,7 +56,7 @@ describe("multi-document lexical namespace integration", () => {
 
   it("reports duplicate import aliases in the same lexical scope", () => {
     const { index } = namespaceFor([
-      "nui 4",
+      "nui 1",
       "import \"./a.nui\" as common",
       "import \"./b.nui\" as common"
     ].join("\n"));
@@ -77,7 +77,7 @@ describe("multi-document lexical namespace integration", () => {
 
   it("does not expose private or unknown members when the external owner returns null", () => {
     const { index } = namespaceFor([
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library",
       "const after: number = 0"
     ].join("\n"));

@@ -23,7 +23,7 @@ const elementByName = (document: DslDocumentData, name: string): CadElement => {
 
 // 小さなDSL片から挿入用の要素オブジェクトを作る(IDは新規=挿入として扱われる)。
 const makeElement = (statement: string, overrides: Partial<CadElement> = {}): CadElement => {
-  const compiled = compileDslDocument(`nui 4\n${statement}`);
+  const compiled = compileDslDocument(`nui 1\n${statement}`);
   expect(compiled.document).not.toBeNull();
   return { ...compiled.document!.elements[0], ...overrides } as CadElement;
 };
@@ -74,7 +74,7 @@ const canonicalFrom = (source: string): CanonicalDocumentValue => {
 };
 
 const BASE_SOURCE = [
-  "nui 4",
+  "nui 1",
   "",
   "// legacy palette source removed",
   "// retained source-noise line",
@@ -145,7 +145,7 @@ describe("applyLineSplices", () => {
 describe("textPatch 要素の更新", () => {
   it("preserves a block-comment close before statement code during a model edit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "/* keep this note",
       "*/ point P = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -163,7 +163,7 @@ describe("textPatch 要素の更新", () => {
 
   it("preserves a block-comment close before an argument during a model edit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -190,7 +190,7 @@ describe("textPatch 要素の更新", () => {
 
   it("preserves a block-comment close before the call close during a model edit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -221,7 +221,7 @@ describe("textPatch 要素の更新", () => {
     "@enabled and true"
   ])("@ の有無にかかわらず compound boolean source を保持する: %s", (expression) => {
     const source = [
-      "nui 4",
+      "nui 1",
       ...(expression.includes("@enabled") ? ["let enabled: boolean = true"] : []),
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -319,7 +319,7 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("else枝への初回挿入は `} else {` 行を生成する", () => {
-    const source = ["nui 4", "if (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "if (true) {", "  point T = coordinate(x: 0, y: 0)", "}"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const conditional = elementByName(document, "分岐");
       const inserted = makeElement("point E = coordinate(x: 5, y: 5)", {
@@ -358,14 +358,14 @@ describe("textPatch 要素の挿入", () => {
   });
 
   it("要素セクションが空の文書への挿入はセクションを新設する", () => {
-    const source = ["nui 4", "", 'role seam (name: "縫い代")'].join("\n");
+    const source = ["nui 1", "", 'role seam (name: "縫い代")'].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [makeElement("point Z = coordinate(x: 9, y: 9)")],
       evaluationLimitIndex: undefined
     }));
     expect(patched.split("\n")).toEqual([
-      "nui 4",
+      "nui 1",
       "",
       'role seam (name: "縫い代")',
       "",
@@ -437,7 +437,7 @@ describe("textPatch 要素の削除", () => {
 
   it("else枝の最後のメンバー削除は `} else {` 行も除去する", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
@@ -456,7 +456,7 @@ describe("textPatch 要素の削除", () => {
 
 describe("textPatch 要素の移動・親変更", () => {
   it("同一スコープ内の並べ替えは削除+挿入で表現される", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const [a, b, c] = document.elements;
       return { ...document, elements: [a, c, b] };
@@ -485,7 +485,7 @@ describe("textPatch 要素の移動・親変更", () => {
   });
 
   it("非連続な親子順序は parent: フォールバックで表現される", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       const inserted = makeElement("point B = coordinate(x: 1, y: 1)", { parentGroupId: group.id });
@@ -501,7 +501,7 @@ describe("textPatch 要素の移動・親変更", () => {
     // ヘッダ)とstatement自身の内容の相対順序がinsertBeforeの呼び出し順に
     // 依存してしまい、子の内容がgroupヘッダより前に出てしまう回帰があった
     // (発見・修正はW2実装時)。ここで固定する。
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = makeElement("group G {\n}");
       return {
@@ -528,7 +528,7 @@ describe("textPatch 要素の移動・親変更", () => {
 // パッチ挙動を主題として検証するため、手書きリテラルのまま残す。
 describe("textPatch 複数行statement(括弧継続)", () => {
   const CONTINUATION_SOURCE = [
-    "nui 4",
+    "nui 1",
     "point A = coordinate(",
     "  x: 0,",
     "  y: 0,",
@@ -551,7 +551,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
   });
 
   it("内容変更のない継続statementの移動(既存groupへのdepth変更)も全範囲を置換する", () => {
-    const source = ["nui 4", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
+    const source = ["nui 1", "group G {", "}", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
     const { patched } = applyChange(source, (document) => {
       const group = elementByName(document, "G");
       return {
@@ -594,7 +594,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
     // だけを見ていると、無変更の複数行文が文書末尾にあるとき、新規要素が
     // ヘッダ行と継続行の間に挟まってしまい継続が壊れる回帰があった
     // (property testで発見・修正)。
-    const source = ["nui 4", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
+    const source = ["nui 1", "point B = coordinate(x: 1, y: 1)", "point A = coordinate(", "  x: 0,", "  y: 0,", "  state: hidden", ")"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       elements: [...document.elements, makeElement("point Z = coordinate(x: 9, y: 9)")],
@@ -612,7 +612,7 @@ describe("textPatch 複数行statement(括弧継続)", () => {
 describe("textPatch リネーム伝播", () => {
   it("参照元のリネームで参照行が書き換わり、無関係行は不変", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// 注釈",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 2)",
@@ -635,7 +635,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("visibility line rewrites keep a full-source block-comment close before activeView code", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "view 印刷 (default: true, seam: true)",
@@ -654,7 +654,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("ロール追加は各view行を個別に書き換え、行間コメントを保存する", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "// ビュー間コメント",
@@ -678,7 +678,7 @@ describe("textPatch 非要素セクション", () => {
 
   it("activeView の切替はその行だけを書き換える", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'role seam (name: "縫い代")',
       "view 通常 (default: true, seam: false)",
       "view 印刷 (default: true, seam: true)",
@@ -696,7 +696,7 @@ describe("textPatch 非要素セクション", () => {
   });
 
   it("stop の移動は削除+挿入", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)", "point C = coordinate(x: 2, y: 2)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: 2
@@ -711,7 +711,7 @@ describe("textPatch 非要素セクション", () => {
   });
 
   it("stop を明示的に除去したら行も除去される", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { patched } = applyChange(source, (document) => ({
       ...document,
       evaluationLimitIndex: undefined
@@ -775,7 +775,7 @@ describe("diffDocuments", () => {
 // full比較と一致することを検証する。
 describe("elementUpdateSet 高速経路とfull比較の等価性", () => {
   const NESTED_SOURCE = [
-    "nui 4",
+    "nui 1",
     "group Outer {",
     "  group Inner {",
     "    point P1 = coordinate(x: 0, y: 0)",

@@ -17,7 +17,7 @@ const geometryPropertiesInOccurrenceOrder = geometryPropertiesIn;
 describe("analyzeTypedDeclarations resolution buckets", () => {
   it("resolves geometry builtin calls without scalar dependency edges", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "line AB = segment(start: @A, end: @B)",
@@ -74,7 +74,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("reports geometry interface mismatches while keeping geometry arguments out of scalar dependencies", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "line AB = segment(start: @A, end: @B)",
@@ -94,7 +94,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("reports wrong geometry builtin arity once without reclassifying the geometry child as scalar", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "const BadArity: number = distance(@Origin)"
     ].join("\n"), { expectNoDiagnostics: false });
@@ -105,7 +105,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("keeps an independent missing geometry child diagnostic during wrong-arity recovery", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "const BadArity: number = distance(@Missing)"
     ].join("\n"), { expectNoDiagnostics: false });
     const codes = fixture.diagnostics.map((diagnostic) => diagnostic.code);
@@ -117,7 +117,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("resolves derived point builtin operands without scalar or numeric geometry-property edges", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point C = coordinate(x: 0, y: 5)",
       "line AB = segment(start: @A, end: @C)",
@@ -143,7 +143,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("keeps a geometry reference outside a geometry builtin as a scalar namespace mismatch", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const x: number = @A"
     ].join("\n"), { expectNoDiagnostics: false });
@@ -153,7 +153,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("resolves a rooted scalar reference to the outer binding through a shadowing group", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 50",
       "group Copy {",
       "  const width: number = @::width",
@@ -194,7 +194,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("keeps multiple occurrences for one binding in source occurrence order", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "const first: number = 1",
       "const second: number = 2",
       "let total: number = @second + @first + @second"
@@ -214,7 +214,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("keeps interleaved references isolated by their originating binding", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "const first: number = 1",
       "const second: number = 2",
       "let left: number = @first + @second",
@@ -233,7 +233,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("preserves invalid reference diagnostics, binding IDs, exact spans, and order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const invalid: number = @later + @missing",
       "const later: number = 1"
     ].join("\n");
@@ -258,7 +258,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("retains reference-free declarations in the compiled scalar program", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "const value: number = 42",
       "let copy: number = @value"
     ].join("\n"));
@@ -276,7 +276,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("resolves scoped and local geometry properties inside a nested group", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "group 後ろ身頃 {",
       "  line 先に縫う = segment(start: (0, 0), end: (10, 0))",
       "  group 縫い代 {",
@@ -318,7 +318,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
 
   it("walks references and geometry properties inside builtin call arguments", () => {
     const fixture = typedDeclarationAnalysisFor([
-      "nui 4",
+      "nui 1",
       "const first: number = 1",
       "const second: number = 2",
       "line curve = segment(start: (0, 0), end: (10, 0))",

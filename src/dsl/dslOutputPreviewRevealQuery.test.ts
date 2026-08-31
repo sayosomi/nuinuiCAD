@@ -29,7 +29,7 @@ const positionOf = (source: string, token: string, offset = 1) => {
 
 describe("queryDslOutputPreviewRevealSourceTarget", () => {
   it("fails closed for stale source, invalid positions, and missing targets", () => {
-    const { source, compiled, snapshot } = compileSource(["nui 4", "point A = coordinate(x: 0, y: 0)"]);
+    const { source, compiled, snapshot } = compileSource(["nui 1", "point A = coordinate(x: 0, y: 0)"]);
 
     expect(queryDslOutputPreviewRevealSourceTarget({
       source: { ...snapshot, sourceRevision: snapshot.sourceRevision + 1 },
@@ -41,7 +41,7 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
     expect(queryDslOutputPreviewRevealSourceTarget({ source: snapshot, compiled, position: source.length + 1 }))
       .toEqual({ status: "failed", reason: "invalid-position" });
 
-    const empty = compileSource(["nui 4", "", "  "]);
+    const empty = compileSource(["nui 1", "", "  "]);
     expect(queryDslOutputPreviewRevealSourceTarget({
       source: empty.snapshot,
       compiled: empty.compiled,
@@ -51,7 +51,7 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
 
   it("resolves output, layout, place, group, and ordinary geometry owners by current identities", () => {
     const { source, compiled, snapshot } = compileSource([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -81,7 +81,7 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
 
   it("keeps Canvas geometry-reference and geometry-property precedence", () => {
     const { source, compiled, snapshot } = compileSource([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: @A.start, end: @A.end)",
       "const width: number = @A.length"

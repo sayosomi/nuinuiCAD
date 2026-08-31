@@ -180,15 +180,15 @@ describe("VS Code multi-document host lifecycle", () => {
     const rootPath = "/workspace/root.nui";
     const dependencyPath = "/workspace/library.nui";
     const rootSource = [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library"
     ].join("\n");
     const savedDependency = [
-      "nui 4",
+      "nui 1",
       "// saved dependency"
     ].join("\n");
     const dirtyDependency = [
-      "nui 4",
+      "nui 1",
       "// dirty editor buffer must not replace graph authority"
     ].join("\n");
 
@@ -229,7 +229,7 @@ describe("VS Code multi-document host lifecycle", () => {
     });
 
     const nextSavedDependency = [
-      "nui 4",
+      "nui 1",
       "// changed on disk"
     ].join("\n");
     mocks.files.set(dependencyPath, encoder.encode(nextSavedDependency));

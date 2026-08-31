@@ -18,13 +18,13 @@ const candidatesAt = (source: string, needle = "set b") => {
 
 describe("recoverLiveSetTargetCandidates", () => {
   it("recovers a poisoned let from the tolerant parse", () => {
-    const { candidates } = candidatesAt(["nui 4", "let broken: number = @broken", "set b"].join("\n"));
+    const { candidates } = candidatesAt(["nui 1", "let broken: number = @broken", "set b"].join("\n"));
     expect(candidates.map(({ name, type }) => ({ name, type }))).toEqual([{ name: "broken", type: { kind: "number" } }]);
   });
 
   it("excludes const and declarations with an unknown type", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const constant: number = @constant",
       "let unknown: notAType = @unknown",
       "set b"
@@ -33,13 +33,13 @@ describe("recoverLiveSetTargetCandidates", () => {
   });
 
   it("excludes forward declarations", () => {
-    const source = ["nui 4", "set b", "let later: number = @later"].join("\n");
+    const source = ["nui 1", "set b", "let later: number = @later"].join("\n");
     expect(candidatesAt(source).candidates).toEqual([]);
   });
 
   it("does not leak declarations from sibling or child scopes", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  let branchOnly: number = @branchOnly",
       "}",
@@ -48,7 +48,7 @@ describe("recoverLiveSetTargetCandidates", () => {
     expect(candidatesAt(source).candidates.map(({ name }) => name)).not.toContain("branchOnly");
 
     const nested = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  let branchOnly: number = @branchOnly",
       "  set b",
@@ -59,7 +59,7 @@ describe("recoverLiveSetTargetCandidates", () => {
 
   it("resolves live-vs-live shadowing by lexical scope and declaration order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let value: number = 1",
       "if (true) {",
       "  let value: boolean = @value",
@@ -79,7 +79,7 @@ describe("recoverLiveSetTargetCandidates", () => {
 
   it("merges a live inner declaration over a committed outer declaration without source priority", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let value: number = 1",
       "if (true) {",
       "  let value: boolean = @value",
@@ -104,7 +104,7 @@ describe("recoverLiveSetTargetCandidates", () => {
     ["string", "number"]
   ] as const)("reconciles same declaration identity from %s to %s", (committedType, liveType) => {
     const source = [
-      "nui 4",
+      "nui 1",
       `let total: ${liveType} = ${liveType === "string" ? '"x"' : "0"}`,
       "set total ="
     ].join("\n");
@@ -125,7 +125,7 @@ describe("recoverLiveSetTargetCandidates", () => {
     "const total: number = 0",
     "let total: unknownType = 0"
   ])("suppresses stale committed metadata when live declaration is not set-target eligible: %s", (liveDeclaration) => {
-    const source = ["nui 4", liveDeclaration, "set total ="].join("\n");
+    const source = ["nui 1", liveDeclaration, "set total ="].join("\n");
     const recovery = recoverLiveSetTargetCandidates({ source, cursorPosition: cursorAfter(source, "set total =") });
     const live = recovery.declarations.find((declaration) => declaration.name === "total")!;
     const merged = mergeSetTargetCandidates([{
@@ -140,7 +140,7 @@ describe("recoverLiveSetTargetCandidates", () => {
 
   it("does not let an out-of-scope live declaration replace a visible committed candidate", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  let value: boolean = @value",
       "}",
@@ -159,13 +159,13 @@ describe("recoverLiveSetTargetCandidates", () => {
 
   it("derives a newly typed scope without a committed scope snapshot", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  let broken: number = @broken",
       "  set b",
       "}"
     ].join("\n");
     expect(candidatesAt(source, "  set b").candidates.map(({ name }) => name)).toContain("broken");
-    expect(candidatesAt(source, "nui 4").candidates.map(({ name }) => name)).not.toContain("broken");
+    expect(candidatesAt(source, "nui 1").candidates.map(({ name }) => name)).not.toContain("broken");
   });
 });

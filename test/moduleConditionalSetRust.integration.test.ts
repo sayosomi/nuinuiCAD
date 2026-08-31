@@ -12,7 +12,7 @@ import {
 } from "./evaluationParitySupport";
 
 const exactFalseSource = [
-  "nui 4",
+  "nui 1",
   "",
   "point 外の点 = coordinate(x: 0, y: 0)",
   "",
@@ -29,7 +29,7 @@ const exactFalseSource = [
 const exactTrueSource = exactFalseSource.replace("false", "true");
 
 const independentInstancesSource = [
-  "nui 4",
+  "nui 1",
   "module M(enabled: boolean) {",
   "  let 値: number = 0",
   "  if (@enabled) {",
@@ -42,7 +42,7 @@ const independentInstancesSource = [
 ].join("\n");
 
 const optionalModuleBodySource = [
-  "nui 4",
+  "nui 1",
   "",
   "module M(value?: number) {",
   "  if (hasValue(@value) and @value > 0) {",
@@ -150,7 +150,7 @@ describe("Rust-first Module conditional set runtime", () => {
   }, 30000);
 
   it("evaluates the convex-notch manual fixture through the Rust/parity payload", () => {
-    const source = readFileSync("docs/module/manual-fixtures/nui4-convex-notch.nui", "utf8");
+    const source = readFileSync("docs/module/manual-fixtures/nui1-convex-notch.nui", "utf8");
     const fixture = fixtureFromSource(source);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, optionsFor(fixture));
     const rustPayload = evaluateWithRustFixture(process.cwd(), fixture);

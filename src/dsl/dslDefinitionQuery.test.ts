@@ -34,7 +34,7 @@ const sourceSlice = (source: string, range: { from: number; to: number }) => sou
 describe("queryDslDefinition", () => {
   it("returns the exact ordinary geometry reference and declaration identifiers", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -49,7 +49,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves ordinary geometry from source semantics without runtime materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "  point Same = coordinate(x: 0, y: 0)",
       "  point Use = offset(from: @Same, dx: 1, dy: 0)",
@@ -77,7 +77,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves parent references to source container declarations without runtime materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "}",
       "point Child = coordinate(x: 0, y: 0, parent: @Front)"
@@ -110,7 +110,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves parent references from root group declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "}",
       "group Inner (parent: @Outer) {",
@@ -140,7 +140,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves parent references from root conditional and for containers", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "}",
       "if (true, parent: @Outer) {",
@@ -168,13 +168,13 @@ describe("queryDslDefinition", () => {
 
   it("fails closed for unresolved, ambiguous, and non-container parent references", () => {
     const unresolved = [
-      "nui 4",
+      "nui 1",
       "point Child = coordinate(x: 0, y: 0, parent: @Missing)"
     ].join("\n");
     expect(exactQuery(unresolved, "@Missing")).toBeNull();
 
     const ambiguous = [
-      "nui 4",
+      "nui 1",
       "group One {}",
       "group One {}",
       "point Child = coordinate(x: 0, y: 0, parent: @One)"
@@ -182,14 +182,14 @@ describe("queryDslDefinition", () => {
     expect(exactQuery(ambiguous, "@One")).toBeNull();
 
     const invalid = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Child = coordinate(x: 0, y: 0, parent: @Base)"
     ].join("\n");
     expect(exactQuery(invalid, "@Base")).toBeNull();
 
     const unresolvedContainer = [
-      "nui 4",
+      "nui 1",
       "group Inner (parent: @Missing) {",
       "}"
     ].join("\n");
@@ -198,7 +198,7 @@ describe("queryDslDefinition", () => {
 
   it("uses the resolved BindingId for a typed reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width"
     ].join("\n");
@@ -212,7 +212,7 @@ describe("queryDslDefinition", () => {
 
   it("follows typed-binding shadowing through the resolved identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const value: number = 1",
       "group Inner {",
       "  const value: number = 2",
@@ -228,7 +228,7 @@ describe("queryDslDefinition", () => {
 
   it("follows a resolved BindingId even when the declaration binding is invalid", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const broken: number = @missing",
       "const result: number = @broken"
     ].join("\n");
@@ -242,7 +242,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves Module callees and parameters to their declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number) {",
       "}",
       "instance Call = Measure(width: 10)"
@@ -263,7 +263,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves nominal record types, values, fields, Module parameters, and qualified exports", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
       "const alias: Pair = @input",
@@ -297,7 +297,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves Module body source references by StatementIdentity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  point Q = offset(from: @P, dx: 1, dy: 0)",
@@ -313,7 +313,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves qualified Module exports without resolving the member name again", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -335,13 +335,13 @@ describe("queryDslDefinition", () => {
 
   it("fails closed for unresolved and ambiguous references", () => {
     const unresolved = [
-      "nui 4",
+      "nui 1",
       "point B = offset(from: @Missing, dx: 1, dy: 0)"
     ].join("\n");
     expect(exactQuery(unresolved, "@Missing")).toBeNull();
 
     const ambiguous = [
-      "nui 4",
+      "nui 1",
       "group One {",
       "  point Same = coordinate(x: 0, y: 0)",
       "}",
@@ -354,7 +354,7 @@ describe("queryDslDefinition", () => {
   });
 
   it("fails closed for stale revisions and same-revision source mismatches", () => {
-    const oldSource = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
+    const oldSource = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
     const oldCompiled = compileWithIds(oldSource, 3);
     const liveSource = oldSource.replace("@A", "@Renamed");
 
@@ -373,7 +373,7 @@ describe("queryDslDefinition", () => {
 
   it("returns null on declaration identifiers, comments, literals, and punctuation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// @A in a comment",
       "point A = coordinate(x: 0, y: 0)",
       "text Label = label(text: \"@A\", anchor: (0, 0))",
@@ -394,7 +394,7 @@ describe("queryDslDefinition", () => {
 
   it("returns null for builtin function names and geometry property names", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "const width: number = abs(@Base.length)"
     ].join("\n");
@@ -414,7 +414,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves a qualified choice geometry property from its element path only", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "}",
@@ -438,7 +438,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves choice geometry properties in Module arguments and body expressions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "module M(direction: choice(counterclockwise, clockwise)) {",
       "  arc Local = arc(center: (0, 0), radius: 20, start: 10, end: 90, direction: clockwise)",
@@ -469,7 +469,7 @@ describe("queryDslDefinition", () => {
 
   it("preserves exact Japanese and UTF-16 offsets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "text Prefix = label(text: \"😀\", anchor: (0, 0))",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
@@ -485,7 +485,7 @@ describe("queryDslDefinition", () => {
 
   it("resolves multiline print, SVG, and qualified place source references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile OutputProfile",
       "group Outer {",
       "  group Inner {",

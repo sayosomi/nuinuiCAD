@@ -37,7 +37,7 @@ const calls = [
   ["image", "image", "image I = image(source: \"a.png\", origin: A)"],
 ] as const;
 
-describe("DSL nui 4 call parser", () => {
+describe("DSL nui 1 call parser", () => {
   it("parses every registry element construction", () => {
     for (const [category, construction, source] of calls) {
       const result = parse(source);
@@ -137,9 +137,9 @@ describe("DSL nui 4 call parser", () => {
   });
 
   it("keeps legacy syntax out of the live parser", () => {
-    const arrow = parseDsl("nui 4\nline AB = A -> B");
-    const genericElement = parseDsl("nui 4\nelement Copy type=copyLine startPoint=A");
-    const equalsArguments = parseDsl("nui 4\npoint A = coordinate(x=0 y=0)");
+    const arrow = parseDsl("nui 1\nline AB = A -> B");
+    const genericElement = parseDsl("nui 1\nelement Copy type=copyLine startPoint=A");
+    const equalsArguments = parseDsl("nui 1\npoint A = coordinate(x=0 y=0)");
 
     expect(arrow.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
     expect(genericElement.diagnostics.some((diagnostic) => diagnostic.message.includes("未対応のDSLキーワード"))).toBe(true);
@@ -147,7 +147,7 @@ describe("DSL nui 4 call parser", () => {
   });
 });
 
-describe("DSL nui 4 construction registry parser queries", () => {
+describe("DSL nui 1 construction registry parser queries", () => {
   it("keeps parser candidates sourced from the registry", () => {
     expect(constructionCandidatesFor("point").map((spec) => spec.construction)).toContain("coordinate");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("offset");

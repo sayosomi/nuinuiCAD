@@ -10,7 +10,7 @@ import type { DslStatement } from "./dslTypes";
 
 export type DslCompletionParameter = {
   definition: ParameterDefinition;
-  /** nui 4 unifies all element call arguments into `key: value` (no positional/
+  /** nui 1 unifies all element call arguments into `key: value` (no positional/
    * named split), so every non-name parameter maps to "attr". "printLayoutBlock"
    * marks a synthetic parameter for `place`/`printLayout` block
    * statements, which have no real CadElement/ParameterDefinition to derive
@@ -67,7 +67,7 @@ const metadataFor = (element: CadElement): DslCompletionElementMetadata => {
   const samples = [element, ...variants];
   const parameters = new Map<string, DslCompletionParameter>();
   for (const sample of samples) {
-    // nui 4 is a stable, deterministic form for label derivation; this doesn't reflect
+    // nui 1 is a stable, deterministic form for label derivation; this doesn't reflect
     // any real document's version.
     const line = serializeElementStatementLogical(sample, documentDslRefs([sample]));
     for (const definition of definitions) {

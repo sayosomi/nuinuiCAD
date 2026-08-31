@@ -9,7 +9,7 @@ const snapshotFor = (source: string) => ({ normalizedSource: source, sourceRevis
 
 describe("dslCallAuthoringContextAt", () => {
   it("anchors a whitespace-only line to the strict incomplete construction call", () => {
-    const source = "nui 4\npoint P = coordinate(\n  \n)";
+    const source = "nui 1\npoint P = coordinate(\n  \n)";
     const position = source.indexOf("  \n") + 2;
     const context = dslCallAuthoringContextAt(snapshotFor(source), position);
 
@@ -28,13 +28,13 @@ describe("dslCallAuthoringContextAt", () => {
   });
 
   it("keeps the current partial label and value on physical source spans", () => {
-    const labelSource = "nui 4\ninstance Use = M(\n\n  v\n)";
+    const labelSource = "nui 1\ninstance Use = M(\n\n  v\n)";
     const labelPosition = labelSource.lastIndexOf("  v") + 3;
     const label = dslCallAuthoringContextAt(snapshotFor(labelSource), labelPosition);
     expect(label?.kind).toBe("module");
     expect(label && label.argument.label && labelSource.slice(label.argument.label.from, label.argument.label.to)).toBe("v");
 
-    const valueSource = "nui 4\nconst a: number = spreadAngle(\n\n  s\n)";
+    const valueSource = "nui 1\nconst a: number = spreadAngle(\n\n  s\n)";
     const valuePosition = valueSource.lastIndexOf("  s") + 3;
     const value = dslCallAuthoringContextAt(snapshotFor(valueSource), valuePosition);
     expect(value?.kind).toBe("builtin");
@@ -43,7 +43,7 @@ describe("dslCallAuthoringContextAt", () => {
 
   it("selects the outer active call after a closed nested coordinate literal", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line L = segment(",
       "start: (0, 0),",
       "",
@@ -64,7 +64,7 @@ describe("dslCallAuthoringContextAt", () => {
 
   it("selects the outer active builtin after a closed nested scalar call", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const a: number = spreadAngle(",
       "length: abs(10),",
       "",
@@ -82,7 +82,7 @@ describe("dslCallAuthoringContextAt", () => {
 
   it("keeps later arguments inside a proven envelope for used-name filtering", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(",
       "",
       "y: 20",
@@ -97,7 +97,7 @@ describe("dslCallAuthoringContextAt", () => {
 
   it("uses the parser-owned statement keyword authority for tolerant boundaries", () => {
     for (const keyword of dslStatementKeywordCompletions) {
-      const source = `nui 4\npoint P = coordinate(\n\n${keyword}\n)`;
+      const source = `nui 1\npoint P = coordinate(\n\n${keyword}\n)`;
       const position = source.length - 1;
 
       expect(dslCallAuthoringContextAt(snapshotFor(source), position), keyword).toBeNull();
@@ -106,9 +106,9 @@ describe("dslCallAuthoringContextAt", () => {
 
   it("fails closed for comments, quoted text, and unrelated code after the boundary", () => {
     const cases = [
-      "nui 4\n// point P = coordinate(\n\n",
-      "nui 4\nconst text: string = \"quoted ( text\"\n\n",
-      "nui 4\npoint P = coordinate(\n\nconst next: number = "
+      "nui 1\n// point P = coordinate(\n\n",
+      "nui 1\nconst text: string = \"quoted ( text\"\n\n",
+      "nui 1\npoint P = coordinate(\n\nconst next: number = "
     ];
 
     for (const source of cases) {
@@ -117,7 +117,7 @@ describe("dslCallAuthoringContextAt", () => {
   });
 
   it("does not cross a comment line after the containment boundary", () => {
-    const source = "nui 4\npoint P = coordinate(\n\n// not a call (\n";
+    const source = "nui 1\npoint P = coordinate(\n\n// not a call (\n";
     expect(dslCallAuthoringContextAt(snapshotFor(source), source.length)).toBeNull();
   });
 });

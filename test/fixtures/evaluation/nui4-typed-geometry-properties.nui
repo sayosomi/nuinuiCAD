@@ -1,9 +1,0 @@
-nui 4
-// Active nui4 evaluation fixture.
-point A = coordinate(x: 0, y: 0)
-point B = coordinate(x: 10, y: 0)
-line AB = segment(start: @A, end: @B)
-const length: number = @AB.length
-let half: number = 0
-set half = @AB.length / 2
-point C = coordinate(x: @length + @half, y: 0)

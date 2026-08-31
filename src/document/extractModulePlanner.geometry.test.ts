@@ -41,7 +41,7 @@ const plan = (source: string, selectedIndexes: readonly number[]) => {
 describe("planExtractModule checkpoint 2 direct geometry", () => {
   it("parameterizes a direct point dependency, exports selected geometry, and rewrites the outside reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "point Inside = offset(from: @Base, dx: 1, dy: 2)",
       "point After = offset(from: @Inside, dx: 3, dy: 4)"
@@ -56,7 +56,7 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
     ]);
     expect(result.exports.map((entry) => entry.name)).toEqual(["Inside"]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 10, y: 20)",
       "module Extracted(Base: point) {",
       "  export point Inside = offset(from: @Base, dx: 1, dy: 2)",
@@ -68,7 +68,7 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
 
   it("classifies direct geometry dependencies as strict line or broad path from existing Module semantics", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line Guide = segment(start: (0, 0), end: (10, 0))",
       "curve Bezier = bezier(start: (0, 0), end: (10, 10))",
       "point FromLine = offset(from: @Guide.start, dx: 1, dy: 0)",
@@ -91,7 +91,7 @@ describe("planExtractModule checkpoint 2 direct geometry", () => {
 
   it("keeps deterministic source-order parameters across scalar and point dependencies while preserving internal references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const dx: number = 2",
       "point Base = coordinate(x: 10, y: 20)",
       "const local: number = @dx + 1",

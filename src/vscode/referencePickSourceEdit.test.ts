@@ -33,7 +33,7 @@ const fixture = (source: string, fragment: string) => {
 describe("planVscodeReferencePickSourceEdit", () => {
   it("revalidates the exact target and replaces a complete numeric property operand", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -68,7 +68,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
   it("replaces a reference list as one canonical edit and permits removing every draft item", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "line C = segment(start: (0, 20), end: (10, 20))",
@@ -98,7 +98,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
   it("rejects stale target proofs and references outside the captured candidate set", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point P = offset(from: @A, dx: 0, dy: 0)"
@@ -127,7 +127,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
   it("writes a complete numeric property expression in one replacement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -151,7 +151,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
   it("inserts complete numeric property expressions for empty declaration and coordinate operands", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -201,7 +201,7 @@ describe("planVscodeReferencePickSourceEdit", () => {
 
   it("rejects forged and unsupported numeric results", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",

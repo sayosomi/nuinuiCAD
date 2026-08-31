@@ -28,7 +28,7 @@ const machine: BenchmarkMachine = {
   logicalCpuCount: 8
 };
 const fixtureHash = `sha256:${"a".repeat(64)}`;
-const fixtureSource = "nui 4\nconst benchOffset: number = 6\n";
+const fixtureSource = "nui 1\nconst benchOffset: number = 6\n";
 const fixture = {
   id: "interactive-medium-v1",
   file: "fixture.nui",

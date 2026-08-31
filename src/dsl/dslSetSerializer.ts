@@ -8,7 +8,7 @@ import { formatDslName } from "./dslTokens";
 // the DSL parser level keeps the RHS as source text rather than reparsing it.
 // This matches dslDeclarationSerializer.ts's treatment of `initializer`.
 //
-// This statement only exists in nui 4 - there is no v2 form - so no
+// This statement only exists in nui 1 - there is no v2 form - so no
 // majorVersion branching is needed here.
 
 export const serializeSetStatement = (

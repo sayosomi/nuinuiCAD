@@ -12,7 +12,7 @@ describe("selection move commands", () => {
 
   it("moves only the cursor-owned group and its complete subtree", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point Before = coordinate(x: 0, y: 0)",
       "group G {",
       "  point Child = coordinate(x: 1, y: 1)",

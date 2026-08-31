@@ -23,7 +23,7 @@ const applyLineSplices = (source: string, splices: readonly LineSplice[]) => {
 describe("drawing modifier batch assignment multi-target remove", () => {
   it("removes the requested direct modifier from multiple targets in one batch", () => {
     const sourceText = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",

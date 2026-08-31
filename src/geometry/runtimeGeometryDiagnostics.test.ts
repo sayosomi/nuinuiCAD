@@ -4,7 +4,7 @@ import type { DependencyError } from "../types/geometry";
 import { runtimeGeometryDiagnostics } from "./runtimeGeometryDiagnostics";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point C1 = coordinate(x: 0, y: 0)",
   "point C2 = coordinate(x: 20, y: 0)",
   "arc A = arc(center: @C1, radius: 20, start: 0, end: 359)",

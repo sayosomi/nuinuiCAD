@@ -103,7 +103,7 @@ const withOuterRecordParameterIdentity = (
 describe("planExtractModule record-valued interfaces", () => {
   it("parameterizes a root record dependency used through generated Module field access", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "const inside: number = @config.amount + 1"
@@ -126,7 +126,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("parameterizes an outer Module-local record value through its field access", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module Outer() {",
       "  const config: Config = Config(amount: 12)",
@@ -151,7 +151,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("preserves a whole-record alias source without splitting its fields", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "const inside: Config = @config"
@@ -171,7 +171,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("parameterizes a qualified existing Module record export through a field", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module Provider() {",
       "  export const output: Config = Config(amount: 7)",
@@ -197,7 +197,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("exports a selected record const and rewrites an outside field reference through the generated instance", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const inside: Config = Config(amount: 12)",
       "const after: number = @inside.amount"
@@ -216,7 +216,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("combines a record dependency with a direct record export", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "const inside: Config = @config",
@@ -242,7 +242,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("accepts a moved external-callee Module instance with a record argument", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module M(config: Config) {",
       "}",
@@ -264,7 +264,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("cleanly moves a complete group containing a record value and field consumer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "group Outer {",
       "  const config: Config = Config(amount: 1)",
@@ -291,7 +291,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("cleanly moves a complete conditional containing a record value and field consumer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "if (true) {",
       "  const config: Config = Config(amount: 1)",
@@ -318,7 +318,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("cleanly moves a complete loop containing a record value and field consumer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "for i in range(from: 0, count: 2, step: 1) {",
       "  const config: Config = Config(amount: 1)",
@@ -345,7 +345,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("keeps record definitions non-movable", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const value: number = 1"
     ].join("\n");
@@ -354,7 +354,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("fails closed when a Module record parameter has missing nominal identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module Outer(config: Config) {",
       "  const inside: number = @config.amount + 1",
@@ -367,7 +367,7 @@ describe("planExtractModule record-valued interfaces", () => {
 
   it("fails closed when record field and whole-record base identities disagree", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "module Outer(config: Config) {",
       "  const inside: number = @config.amount + 1",

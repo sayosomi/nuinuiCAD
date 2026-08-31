@@ -44,7 +44,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("prefers a module source target over a materialized child and clears it while dirty", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Private = coordinate(x: 0, y: 0)",
       "}",
@@ -77,7 +77,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("navigates callee, argument label, and qualified export member to exact source declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "  export const value: number = 1",
@@ -122,7 +122,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("bridges a module default document binding back to the existing BindingId declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number = @outer) {",
       "}",
@@ -142,7 +142,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("keeps root qualified references stale-safe when their token is replaced", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -183,7 +183,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("maps a dirty new Module body statement through the controller's real completion site", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number) {",
       "}"
@@ -205,7 +205,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("uses source order for a new body declaration after an existing Module local", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number) {",
       "  const first: number = 1",
@@ -233,7 +233,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("does not map a new statement typed after Enter onto the previous statement range", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  const first: number = 1",
       "}"
@@ -259,7 +259,7 @@ describe("SourceEditorController module semantic target priority", () => {
     ["for", "for i in range(from: 0, count: 1, step: 1) {\n}", "for Loop"]
   ])("keeps Module ownership for a new statement inside nested %s scope", async (_kind, nested, marker) => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number) {",
       "  const first: number = 1",
@@ -300,7 +300,7 @@ describe("SourceEditorController module semantic target priority", () => {
       useCadDocumentStore.setState(initialCadDocumentState());
       useCadUiStore.setState(initialCadUiState());
       const source = [
-        "nui 4",
+        "nui 1",
         "module M(width: number) {",
         "  const first: number = 1",
         "}"
@@ -319,7 +319,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("preserves generic typed completion outside Modules while dirty Module structure fails closed", async () => {
     const ordinarySource = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "point P = coordinate(x: 0, y: 0)"
     ].join("\n");
@@ -332,7 +332,7 @@ describe("SourceEditorController module semantic target priority", () => {
     ordinaryController.destroy();
 
     const moduleSource = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  const inside: number = @width",
       "}"
@@ -354,7 +354,7 @@ describe("SourceEditorController module semantic target priority", () => {
 
   it("maps a dirty new Module call and new argument through the controller site", async () => {
     const lastGood = [
-      "nui 4",
+      "nui 1",
       "module M(width: number, optional: number = 0) {",
       "}",
       "module First() {",
@@ -372,7 +372,7 @@ describe("SourceEditorController module semantic target priority", () => {
     controller.destroy();
 
     const existingCall = [
-      "nui 4",
+      "nui 1",
       "module M(width: number, optional: number = 0) {",
       "}",
       "instance I = M(width: 1)"

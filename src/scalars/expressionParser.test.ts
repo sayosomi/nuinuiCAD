@@ -380,7 +380,7 @@ describe("parseScalarExpression / precedence and associativity", () => {
     });
   });
 
-  it("accepts nui4 word operators while retaining the internal operator representation", () => {
+  it("accepts nui1 word operators while retaining the internal operator representation", () => {
     const ast = parseOk("@a or @b and not @c");
     expect(ast).toMatchObject({
       kind: "binary",

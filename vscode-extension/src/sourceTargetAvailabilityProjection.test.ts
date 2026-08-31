@@ -101,7 +101,7 @@ beforeEach(() => {
 describe("Source target availability projection", () => {
   it("reuses Reveal and Bake target semantics without conflating their hit areas", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "const width: number = @L.length"
     ].join("\n");
@@ -150,7 +150,7 @@ describe("Source target availability projection", () => {
 
   it("refreshes fail-closed after the active Source document loses its target", async () => {
     let source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document: TestDocument = {
@@ -176,7 +176,7 @@ describe("Source target availability projection", () => {
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
 
-    source = "nui 4\n// target removed";
+    source = "nui 1\n// target removed";
     document.version += 1;
     editor.selection = { active: { offset: 0 } };
     mocks.executeCommand.mockClear();

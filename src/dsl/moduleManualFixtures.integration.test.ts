@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import convexNotchSource from "../../docs/module/manual-fixtures/nui4-convex-notch.nui?raw";
-import seamAllowanceCopySource from "../../docs/module/manual-fixtures/nui4-seam-allowance-copy.nui?raw";
+import convexNotchSource from "../../docs/module/manual-fixtures/nui1-convex-notch.nui?raw";
+import seamAllowanceCopySource from "../../docs/module/manual-fixtures/nui1-seam-allowance-copy.nui?raw";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
@@ -26,7 +26,7 @@ const compileSource = (source: string) => {
   });
 };
 
-const fixtureSource = (name: string) => name === "nui4-convex-notch.nui"
+const fixtureSource = (name: string) => name === "nui1-convex-notch.nui"
   ? convexNotchSource
   : seamAllowanceCopySource;
 
@@ -112,7 +112,7 @@ const errorsOf = (compiled: ReturnType<typeof compileFixture>) =>
 
 describe("Module v1 manual fixtures", () => {
   it("compiles and evaluates the convex notch fixture with two independent instances", () => {
-    const compiled = compileFixture("nui4-convex-notch.nui");
+    const compiled = compileFixture("nui1-convex-notch.nui");
     expect(errorsOf(compiled)).toEqual([]);
     expect(compiled.document).not.toBeNull();
 
@@ -142,7 +142,7 @@ describe("Module v1 manual fixtures", () => {
   });
 
   it("materializes private and exported geometry for the nested seam-allowance fixture", () => {
-    const compiled = compileFixture("nui4-seam-allowance-copy.nui");
+    const compiled = compileFixture("nui1-seam-allowance-copy.nui");
     expect(errorsOf(compiled)).toEqual([]);
     expect(compiled.document).not.toBeNull();
 
@@ -312,7 +312,7 @@ describe("Module v1 manual fixtures", () => {
 
   it("keeps module geometry inputs read-only and private exports opaque", () => {
     const mutation = compileSource([
-      "nui 4",
+      "nui 1",
       "module M(path: line) {",
       "  move(targets: [@path], from: @path.start, to: @path.end, scale: 1, angleDeg: 0, mirrorX: false)",
       "}",
@@ -322,7 +322,7 @@ describe("Module v1 manual fixtures", () => {
     expect(errorsOf(mutation).some((diagnostic) => diagnostic.code === "module-geometry-parameter-mutation")).toBe(true);
 
     const privateReference = compileSource([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Private = coordinate(x: 0, y: 0)",
       "}",
@@ -334,7 +334,7 @@ describe("Module v1 manual fixtures", () => {
 
   it("uses source lexical scope for private geometry and nested export candidates", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
       "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",
@@ -435,7 +435,7 @@ describe("Module v1 manual fixtures", () => {
 
   it("adopts an exported line from the command pick path as canonical source syntax", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export line Out = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -472,7 +472,7 @@ describe("Module v1 manual fixtures", () => {
 
   it("adopts quoted Module exports without splitting dots in source references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module \"M.dot\"() {",
       "  export line \"Out.dot\" = segment(start: (0, 0), end: (10, 0))",
       "  export point \"Point.dot\" = coordinate(x: 0, y: 0)",

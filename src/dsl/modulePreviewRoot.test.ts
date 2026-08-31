@@ -4,7 +4,7 @@ import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRun
 import { buildBindingVersionGraph } from "../scalars/bindingVersions";
 import { compileDslDocument, type CompiledDslDocument } from "./dslDocument";
 import { parseDslSnapshot } from "./dslParser";
-import { compileModulePreviewRoot } from "./modulePreviewRoot";
+import { compileModulePreviewRoot, modulePreviewSyntheticCallSource } from "./modulePreviewRoot";
 import { queryModulePreviewTarget } from "./modulePreviewTarget";
 
 const compileWithIds = (source: string, sourceRevision = 41): CompiledDslDocument => {
@@ -47,9 +47,16 @@ const evaluatePreview = (result: NonNullable<ReturnType<typeof compileModulePrev
 };
 
 describe("compileModulePreviewRoot", () => {
+  it("builds synthetic preview source with the current nui 1 header", () => {
+    expect(modulePreviewSyntheticCallSource("Preview", "Pocket", [])).toBe(
+      "nui 1\ninstance Preview = Pocket()"
+    );
+    expect(modulePreviewSyntheticCallSource("Preview", "Pocket", [])).not.toContain("nui 4");
+  });
+
   it("materializes and evaluates a top-level preview through the existing runtime with omission semantics and provenance", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(base: number, width: number = @base * 2, note?: string) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -107,7 +114,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("evaluates nested preview arguments in the ancestor parameter context without granting body outer capture", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  module Inner(width: number) {",
       "    point P = coordinate(x: @width, y: 0)",
@@ -163,7 +170,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("evaluates a nested preview argument from the exact enclosing local scalar scope", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  group G {",
       "    const half: number = @scale * 0.5",
@@ -203,7 +210,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("evaluates a nested preview geometry argument from enclosing Module geometry", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(dx: number) {",
       "  point Anchor = coordinate(x: @dx, y: 4)",
       "  module Inner(anchor: point) {",
@@ -241,7 +248,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("rejects caller locals that are forward or outside the nested definition scope", () => {
     const forwardSource = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Inner(width: number) {",
       "    point P = coordinate(x: @width, y: 0)",
@@ -261,7 +268,7 @@ describe("compileModulePreviewRoot", () => {
     })).toBeNull();
 
     const outOfScopeSource = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  group G {",
       "    const local: number = 10",
@@ -285,7 +292,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("still rejects direct nested Module-body capture of an enclosing local", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  const half: number = 5",
       "  module Inner() {",
@@ -308,7 +315,7 @@ describe("compileModulePreviewRoot", () => {
 
   it("does not let an unrelated fatal root diagnostic block a safe selected Module", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Safe(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",

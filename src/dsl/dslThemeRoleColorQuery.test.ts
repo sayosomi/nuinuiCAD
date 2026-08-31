@@ -23,7 +23,7 @@ describe("DSL theme-role color query", () => {
   it("returns all six parser-owned modifier theme roles with normalized token ranges", () => {
     const roles = ["foreground", "muted", "accent", "info", "warning", "error"] as const;
     const source = [
-      "nui 4",
+      "nui 1",
       ...roles.flatMap((role) => [
         `modifier ${role}Modifier {`,
         `  color: ${role},`,
@@ -41,7 +41,7 @@ describe("DSL theme-role color query", () => {
 
   it("excludes fixed colors, comments, strings, lookalikes, and malformed values", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// color: accent",
       'modifier "accent" {',
       "  color: \"accent\",",
@@ -68,7 +68,7 @@ describe("DSL theme-role color query", () => {
   });
 
   it("fails closed for stale source revisions and source text", () => {
-    const source = "nui 4\nmodifier Guide {\n  color: accent,\n}";
+    const source = "nui 1\nmodifier Guide {\n  color: accent,\n}";
     const compiled = compiledFor(source);
 
     expect(queryDslThemeRoleColors({

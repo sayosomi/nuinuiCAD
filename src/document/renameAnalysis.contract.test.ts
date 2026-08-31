@@ -85,7 +85,7 @@ describe("renameAnalysis contract", () => {
     });
 
     // The unnamed point's construction call spans every physical line after
-    // "nui 4" (a canonical vertical call), and
+    // "nui 1" (a canonical vertical call), and
     // expectedPatchedLines now covers a changed statement's full line range
     // (renameAnalysisCandidate.ts) rather than just a diffed line.
     const statementLineCount = source.split("\n").length - 1;

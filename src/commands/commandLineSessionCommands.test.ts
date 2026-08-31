@@ -34,7 +34,7 @@ describe("command-line session commands", () => {
     unregister = () => {};
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 4", "test");
+    useCadDocumentStore.getState().commitText("nui 1", "test");
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
@@ -98,7 +98,7 @@ describe("command-line session commands", () => {
 
   it("commits Canvas-origin complete creation as a document-end source splice", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "// preserve this comment",
       "",
@@ -134,7 +134,7 @@ describe("command-line session commands", () => {
 
   it("rejects a duplicate name before attempting document materialization", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const sourceBefore = useCadDocumentStore.getState().sourceText;
@@ -302,7 +302,7 @@ describe("command-line session commands", () => {
 
   it("commits blank isolated reference and defaulted-number edits without losing later args", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "line AB = segment(start: @A, end: @B)"
@@ -379,7 +379,7 @@ describe("command-line session commands", () => {
 
   it("confirms a line start-point edit and returns to its unanswered end-point prompt", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)"
     ].join("\n"), "test");
@@ -410,7 +410,7 @@ describe("command-line session commands", () => {
       ]
     };
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)"
     ].join("\n"), "test");
@@ -430,7 +430,7 @@ describe("command-line session commands", () => {
   });
 
   it("never restores an edited session's saved pick progress after stale cancellation or re-entry", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
 
@@ -526,7 +526,7 @@ describe("command-line session commands", () => {
 
   it("promotes directly picked unnamed sources and inserts the new element in one undo entry", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// このコメントは変えない",
       "point = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -569,7 +569,7 @@ describe("command-line session commands", () => {
 
   it("uses the promoted group-scoped name when serializing a root-level reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point = coordinate(x: 0, y: 0)",
       "}",
@@ -590,7 +590,7 @@ describe("command-line session commands", () => {
   });
 
   it("leaves no provisional promotion behind when a stale session is rejected", () => {
-    const source = ["nui 4", "point = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
+    const source = ["nui 1", "point = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const [unnamed] = useCadDocumentStore.getState().elements.filter((element) => element.name === "");
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
@@ -607,7 +607,7 @@ describe("command-line session commands", () => {
   });
 
   it("leaves no provisional promotion behind when the final commit is rejected", () => {
-    const source = ["nui 4", "point = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
+    const source = ["nui 1", "point = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const [unnamed] = useCadDocumentStore.getState().elements.filter((element) => element.name === "");
     const pointB = useCadDocumentStore.getState().elements.find((element) => element.name === "B")!;
@@ -633,7 +633,7 @@ describe("command-line session commands", () => {
 
   it("anchors Source Editor creation after the cursor element", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -654,7 +654,7 @@ describe("command-line session commands", () => {
 
   it("splices a Source Editor comment-line cursor at that physical line", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "// insert here",
       "point B = coordinate(x: 10, y: 0)"
@@ -677,7 +677,7 @@ describe("command-line session commands", () => {
 
   it("keeps Source Editor element cursors after that statement instead of appending", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -697,7 +697,7 @@ describe("command-line session commands", () => {
 
   it("preserves a comment-line cursor inside a group", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  // insert here",
@@ -722,7 +722,7 @@ describe("command-line session commands", () => {
 
   it("rejects a stale Source cursor before starting or falling back to document end", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const before = useCadDocumentStore.getState();
@@ -760,7 +760,7 @@ describe("command-line session commands", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("12");
     expect(useCadDocumentStore.getState().previewElements).not.toBeNull();
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)", "test");
 
     expect(cancelStaleCommandLineSession()).toBe(true);
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
@@ -770,7 +770,7 @@ describe("command-line session commands", () => {
 
   it("rejects confirmation after a source revision changes instead of reusing its cached index", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -784,7 +784,7 @@ describe("command-line session commands", () => {
     submitCommandLineInput("2");
 
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point X = coordinate(x: 5, y: 5)",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
@@ -797,7 +797,7 @@ describe("command-line session commands", () => {
 
   it("keeps a manual stop text boundary stable when inserting before it without double correction", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop",
       "point B = coordinate(x: 10, y: 0)"
@@ -822,14 +822,14 @@ describe("command-line session commands", () => {
 
     const reparsed = compileDslDocument(committed.sourceText).document!;
     expect(reparsed.evaluationLimitIndex).toBe(committed.evaluationLimitIndex);
-    expect(serializeDocumentToDsl(reparsed, 4)).toContain("stop");
+    expect(serializeDocumentToDsl(reparsed, 1)).toContain("stop");
     useCadDocumentStore.getState().commitText(committed.sourceText, "test");
     expect(useCadDocumentStore.getState().evaluationLimitIndex).toBe(2);
   });
 
   it("keeps one explicit terminal stop when creation follows its last element", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop"
     ].join("\n"), "test");
@@ -852,7 +852,7 @@ describe("command-line session commands", () => {
 
   it("keeps one explicit terminal stop when creation is anchored at document end", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop"
     ].join("\n"), "test");
@@ -871,7 +871,7 @@ describe("command-line session commands", () => {
 
   it("does not introduce stop when the source has no manual evaluation boundary", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
 
@@ -888,7 +888,7 @@ describe("command-line session commands", () => {
 
   it("uses the anchor's parent scope for ghost and confirmation regardless of group folding", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -931,7 +931,7 @@ describe("command-line session commands", () => {
 
   it("places group-header creation outside the complete conditional structure", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -1019,7 +1019,7 @@ describe("command-line session commands", () => {
 
   it("confirms a step edit at a post-stop insertion position where no ghost can exist", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
       "test"
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
@@ -1049,7 +1049,7 @@ describe("command-line session commands", () => {
 
   it("confirms a step edit inside a disabled group where no ghost can exist", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "group G (state: disabled) {", "point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
+      ["nui 1", "group G (state: disabled) {", "point A = coordinate(x: 0, y: 0)", "}"].join("\n"),
       "test"
     );
     const group = useCadDocumentStore.getState().elements.find((element) => element.type === "group")!;
@@ -1077,7 +1077,7 @@ describe("command-line session commands", () => {
 
   it("still rejects an unparseable edit draft at a position without a ghost", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop", "point B = coordinate(x: 10, y: 10)", "point C = coordinate(x: 20, y: 20)"].join("\n"),
       "test"
     );
     const cursorElementId = useCadDocumentStore.getState().elements.find((element) => element.name === "C")!.id;
@@ -1102,7 +1102,7 @@ describe("command-line session commands", () => {
 
   it("keeps measurement-insert progress through selection changes and session cancel, resetting only on session start", () => {
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 10, y: 0)"].join("\n"),
       "test"
     );
     const elements = useCadDocumentStore.getState().elements;

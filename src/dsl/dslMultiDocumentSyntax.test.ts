@@ -12,10 +12,10 @@ const importStatement = (statements: readonly DslStatement[]) =>
 const reExportStatement = (statements: readonly DslStatement[]) =>
   statements.find((statement): statement is Extract<DslStatement, { kind: "fileReExport" }> => statement.kind === "fileReExport");
 
-describe("nui4 multi-document source syntax", () => {
+describe("nui1 multi-document source syntax", () => {
   it("parses relative imports with explicit aliases and preserves source order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const Before: number = 1",
       "import \"./library/basic.nui\" as basic",
       "const After: number = 2",
@@ -46,7 +46,7 @@ describe("nui4 multi-document source syntax", () => {
   });
 
   it("keeps exact path/alias physical spans on the current source snapshot", () => {
-    const source = "nui 4\nimport \"./library/basic.nui\" as basic";
+    const source = "nui 1\nimport \"./library/basic.nui\" as basic";
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 17 });
     const statement = importStatement(parsed.statements)!;
 
@@ -60,15 +60,15 @@ describe("nui4 multi-document source syntax", () => {
   });
 
   it("rejects non-relative paths, missing .nui extensions, and implicit aliases", () => {
-    expect(errorCodes("nui 4\nimport \"/tmp/basic.nui\" as basic")).toContain("invalid-import-path");
-    expect(errorCodes("nui 4\nimport \"basic.nui\" as basic")).toContain("invalid-import-path");
-    expect(errorCodes("nui 4\nimport \"./basic\" as basic")).toContain("invalid-import-path");
-    expect(errorCodes("nui 4\nimport \"./basic.nui\"")).toContain("missing-import-alias");
+    expect(errorCodes("nui 1\nimport \"/tmp/basic.nui\" as basic")).toContain("invalid-import-path");
+    expect(errorCodes("nui 1\nimport \"basic.nui\" as basic")).toContain("invalid-import-path");
+    expect(errorCodes("nui 1\nimport \"./basic\" as basic")).toContain("invalid-import-path");
+    expect(errorCodes("nui 1\nimport \"./basic.nui\"")).toContain("missing-import-alias");
   });
 
   it("parses generic file re-exports as exactly one imported public name", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "import \"./common.nui\" as common",
       "export @common::Pocket"
     ].join("\n");
@@ -85,15 +85,15 @@ describe("nui4 multi-document source syntax", () => {
   });
 
   it("rejects absolute, unqualified, nested, and property re-export targets", () => {
-    expect(errorCodes("nui 4\nexport @Pocket")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 4\nexport @::common::Pocket")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 4\nexport @common::Pocket::Inner")).toContain("invalid-file-reexport");
-    expect(errorCodes("nui 4\nexport @common::Pocket.length")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport @Pocket")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport @::common::Pocket")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport @common::Pocket::Inner")).toContain("invalid-file-reexport");
+    expect(errorCodes("nui 1\nexport @common::Pocket.length")).toContain("invalid-file-reexport");
   });
 
   it("requires import and file re-export declarations to stay at top level", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  import \"./common.nui\" as common",
       "  export @common::Pocket",
@@ -108,7 +108,7 @@ describe("nui4 multi-document source syntax", () => {
 
   it("keeps source-only multi-document declarations out of existing runtime elements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "import \"./common.nui\" as common",
       "export @common::Pocket",
       "point A = coordinate(x: 1, y: 2)"

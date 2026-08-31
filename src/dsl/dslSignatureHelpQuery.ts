@@ -117,7 +117,7 @@ const parameterTypeFor = (definition: ParameterDefinition): string | undefined =
       return "line";
     default:
       // `lineEndpointReference` and `lineReferenceList` have no single
-      // established nui4 type spelling. Their documentation carries the
+      // established nui1 type spelling. Their documentation carries the
       // structural meaning instead of presenting an invented type.
       return undefined;
   }

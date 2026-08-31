@@ -156,7 +156,7 @@ beforeEach(() => {
 
 describe("VS Code Source Value Step feature", () => {
   it("projects target availability from the shared exact-current query", async () => {
-    const source = ["nui 4", "let count: number = 1.50"].join("\n");
+    const source = ["nui 1", "let count: number = 1.50"].join("\n");
     const { editor } = createEditor(source, source.indexOf("1.50"));
     mocks.activeTextEditor = editor;
     const session = createLanguageAnalysisSession(source);
@@ -181,7 +181,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("applies one exact edit, normalizes formatting, and selects the replacement", async () => {
-    const source = ["nui 4", "let count: number(step: 0.5) = 1.50"].join("\n");
+    const source = ["nui 1", "let count: number(step: 0.5) = 1.50"].join("\n");
     const start = source.indexOf("1.50");
     const { editor, source: currentSource } = createEditor(source, start);
     mocks.activeTextEditor = editor;
@@ -203,7 +203,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("keeps broad keybinding dispatch separate from target-enabled Palette commands", async () => {
-    const source = ["nui 4", "let count: number = 1"].join("\n");
+    const source = ["nui 1", "let count: number = 1"].join("\n");
     const start = source.lastIndexOf("1");
     const { editor, source: currentSource } = createEditor(source, start);
     mocks.activeTextEditor = editor;
@@ -221,7 +221,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("projects normalized query offsets back onto a CRLF TextDocument", async () => {
-    const source = "nui 4\r\nlet count: number = 1.50\r\n";
+    const source = "nui 1\r\nlet count: number = 1.50\r\n";
     const start = source.indexOf("1.50");
     const { editor, source: currentSource } = createEditor(source, start);
     mocks.activeTextEditor = editor;
@@ -236,7 +236,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("silently no-ops for a fixed color and for read-only Source", async () => {
-    const source = ["nui 4", "modifier Fixed {", "  color: #336699", "}"].join("\n");
+    const source = ["nui 1", "modifier Fixed {", "  color: #336699", "}"].join("\n");
     const { editor } = createEditor(source, source.indexOf("#336699"));
     mocks.activeTextEditor = editor;
     const session = createLanguageAnalysisSession(source);
@@ -257,7 +257,7 @@ describe("VS Code Source Value Step feature", () => {
   });
 
   it("revalidates the captured document version before applying", async () => {
-    const source = ["nui 4", "let count: number = 1"].join("\n");
+    const source = ["nui 1", "let count: number = 1"].join("\n");
     const { editor, document } = createEditor(source, source.lastIndexOf("1"));
     const base = createLanguageAnalysisSession(source);
     let invalidated = false;

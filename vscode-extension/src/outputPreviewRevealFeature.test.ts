@@ -58,7 +58,7 @@ vi.mock("vscode", () => ({
 import type { VscodeOutputPreviewRevealResult } from "../../src/vscode/outputPreviewProtocol";
 import { registerOutputPreviewFeature, type OutputPreviewSession } from "./outputPreviewFeature";
 
-const source = "nui 4\nline A = segment(start: (0, 0), end: (10, 0))";
+const source = "nui 1\nline A = segment(start: (0, 0), end: (10, 0))";
 
 const createPanel = () => {
   const messageListeners: Array<(message: unknown) => void> = [];
@@ -287,7 +287,7 @@ describe("VS Code Output Preview Reveal lifecycle", () => {
     await commandFor("nuinuiCAD.revealInOutputPreview")();
     await sendToHost(state, { type: "webviewReady" });
     await sendToHost(state, { type: "webviewAuthoritativeDocumentReady", documentVersion: 4 });
-    state.setSource("nui 4\n// changed", 5);
+    state.setSource("nui 1\n// changed", 5);
     for (const listener of [...mocks.documentChangeListeners]) {
       listener({ document: state.document, contentChanges: [{}] });
     }

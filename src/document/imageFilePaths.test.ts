@@ -5,7 +5,7 @@ import { rebaseImageSourcePathsInText } from "./imageFilePaths";
 describe("rebaseImageSourcePathsInText", () => {
   it("rewrites only the source value of a vertical (canonical) image statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -42,7 +42,7 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("produces no diagnostics on reparse after rebasing a vertical image statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "image Img = image(",
       "  source: \"assets/photo.png\",",
       "  origin: (0, 0),",
@@ -56,21 +56,21 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("still rewrites a compact single-line image statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "image Img = image(source: \"assets/photo.png\", origin: (0, 0))"
     ].join("\n");
 
     const rebased = rebaseImageSourcePathsInText(source, "/docs/a/pattern.nui", "/docs/b/pattern.nui");
 
     expect(rebased).toBe(
-      ["nui 4", "image Img = image(source: \"../a/assets/photo.png\", origin: (0, 0))"].join("\n")
+      ["nui 1", "image Img = image(source: \"../a/assets/photo.png\", origin: (0, 0))"].join("\n")
     );
     expect(parseDsl(rebased).diagnostics).toEqual([]);
   });
 
   it("leaves the text unchanged when the source and destination directories are the same", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "image Img = image(",
       "  source: \"assets/photo.png\",",
       "  origin: (0, 0),",
@@ -84,7 +84,7 @@ describe("rebaseImageSourcePathsInText", () => {
 
   it("rewrites multiple image statements independently, each at its own physical position", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "image First = image(",
       "  source: \"assets/first.png\",",
       "  origin: (0, 0),",

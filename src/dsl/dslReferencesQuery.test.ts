@@ -44,7 +44,7 @@ const slices = (
 describe("queryDslReferences", () => {
   it("returns one declaration and ordered usages from either declaration or reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "point C = offset(from: @A, dx: 2, dy: 0)"
@@ -63,7 +63,7 @@ describe("queryDslReferences", () => {
 
   it("resolves ordinary containers, parent references, and geometry properties", () => {
     const parentSource = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "}",
       "group Inner (parent: @Outer) {",
@@ -75,7 +75,7 @@ describe("queryDslReferences", () => {
     expect(slices(parentSource, parent!.referenceRanges)).toEqual(["Outer"]);
 
     const propertySource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const width: number = @A.x + 1",
       "const height: number = @A.x + 2"
@@ -88,7 +88,7 @@ describe("queryDslReferences", () => {
 
   it("keeps qualified root typed geometry-property references at path-segment identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -117,7 +117,7 @@ describe("queryDslReferences", () => {
 
   it("indexes choice geometry properties across typed expression consumers", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "}",
@@ -155,7 +155,7 @@ describe("queryDslReferences", () => {
 
   it("uses BindingId identity and preserves typed shadowing", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const value: number = 1",
       "const rootUse: number = @value",
       "group Inner {",
@@ -176,7 +176,7 @@ describe("queryDslReferences", () => {
 
   it("enumerates Module definitions, callees, parameters, and source symbols", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "  point Q = offset(from: @P, dx: 1, dy: 0)",
@@ -200,7 +200,7 @@ describe("queryDslReferences", () => {
 
   it("keeps nominal record fields separate while including Module and qualified usages", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "record Other(x: number)",
       "const input: Pair = Pair(x: 1)",
@@ -235,7 +235,7 @@ describe("queryDslReferences", () => {
 
   it("projects qualified whole-record aliases to the exact Module instance and export owners", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Provider() {",
       "  export const output: Pair = Pair(x: 3)",
@@ -271,7 +271,7 @@ describe("queryDslReferences", () => {
 
   it("keeps qualified export path segments as separate identities", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -293,7 +293,7 @@ describe("queryDslReferences", () => {
 
   it("does not match comments, literals, punctuation, or unresolved and ambiguous references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// @A comment",
       "point A = coordinate(x: 0, y: 0)",
       "text Label = label(text: \"@A\", anchor: none, size: 3)",
@@ -307,11 +307,11 @@ describe("queryDslReferences", () => {
       semantic: snapshot(source)
     })).toBeNull();
 
-    const unresolved = "nui 4\npoint B = offset(from: @Missing, dx: 1, dy: 0)";
+    const unresolved = "nui 1\npoint B = offset(from: @Missing, dx: 1, dy: 0)";
     expect(queryAt(unresolved, "@Missing")).toBeNull();
 
     const ambiguous = [
-      "nui 4",
+      "nui 1",
       "group One {}",
       "group One {}",
       "point Use = offset(from: @One, dx: 1, dy: 0)"
@@ -320,7 +320,7 @@ describe("queryDslReferences", () => {
   });
 
   it("fails closed for stale revision, source text, and source-map mismatches", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = offset(from: @A, dx: 1, dy: 0)";
     const compiled = compile(source, 7);
     const query = (liveSource: string, sourceRevision: number, semantic: DslReferencesSemanticSnapshot) => queryDslReferences({
       source: { normalizedSource: liveSource, sourceRevision },
@@ -345,7 +345,7 @@ describe("queryDslReferences", () => {
 
   it("keeps a safe resolved target available with an unrelated compiler diagnostic", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "const broken: number = @Missing"
@@ -356,7 +356,7 @@ describe("queryDslReferences", () => {
   });
 
   it("returns an unused declaration with no references and dedupes duplicate semantic reports", () => {
-    const unused = "nui 4\nconst unused: number = 1";
+    const unused = "nui 1\nconst unused: number = 1";
     const unusedResult = queryAt(unused, "unused");
     expect(unusedResult).toEqual({
       declarationRange: { from: unused.indexOf("unused"), to: unused.indexOf("unused") + "unused".length },
@@ -364,7 +364,7 @@ describe("queryDslReferences", () => {
     });
 
     const typed = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + @width"
     ].join("\n");
@@ -376,7 +376,7 @@ describe("queryDslReferences", () => {
 
   it("returns multiline output and qualified placement references by source identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile OutputProfile",
       "group Outer {",
       "  group Inner {",

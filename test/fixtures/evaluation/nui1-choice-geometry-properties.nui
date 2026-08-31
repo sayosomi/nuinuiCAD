@@ -1,0 +1,13 @@
+nui 1
+// Active nui1 evaluation fixture.
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 0)
+line Base = segment(start: @A, end: @B)
+arc Arc = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)
+const direction: choice(counterclockwise, clockwise) = @Arc.direction
+const isClockwise: boolean = @Arc.direction == clockwise
+let copied: choice(counterclockwise, clockwise) = counterclockwise
+set copied = @Arc.direction
+line Off = offset(sources: [@Base], distance: 10, side: right, closed: false, suppressTrimWarnings: false)
+line Off2 = offset(sources: [@Base], distance: 20, side: @Off.side, closed: false, suppressTrimWarnings: false)
+text Note = label(text: "clockwise=${@Arc.direction == clockwise}", anchor: none, size: 3)

@@ -167,7 +167,7 @@ describe("VS Code observation discovery", () => {
   it("selects a document only when exactly one live instance reports the canonical path open", async () => {
     const directory = temporaryDirectory();
     const filePath = join(directory, "pattern.nui");
-    writeFileSync(filePath, "nui 4\n", "utf8");
+    writeFileSync(filePath, "nui 1\n", "utf8");
     const first = bridgeFor(directory, 5, [filePath]);
     const second = bridgeFor(directory, 6, [join(directory, "other.nui")]);
     await Promise.all([first.ready, second.ready]);
@@ -187,7 +187,7 @@ describe("VS Code observation discovery", () => {
   it("reports document ambiguity instead of guessing between two matching live instances", async () => {
     const directory = temporaryDirectory();
     const filePath = join(directory, "shared.nui");
-    writeFileSync(filePath, "nui 4\n", "utf8");
+    writeFileSync(filePath, "nui 1\n", "utf8");
     const first = bridgeFor(directory, 7, [filePath]);
     const second = bridgeFor(directory, 8, [filePath]);
     await Promise.all([first.ready, second.ready]);

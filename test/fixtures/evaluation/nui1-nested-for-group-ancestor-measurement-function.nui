@@ -1,0 +1,11 @@
+nui 1
+// Active nui1 evaluation fixture.
+point P = coordinate(x: 0, y: 5)
+for i in range(from: 0, count: 2, step: 1) {
+  point A = coordinate(x: @i, y: 0)
+  point B = coordinate(x: @i + 10, y: 0)
+  line AB = segment(start: @A, end: @B)
+  for j in range(from: 0, count: 2, step: 1) {
+    point Q = coordinate(x: lineDistance(@P, @AB), y: @j)
+  }
+}

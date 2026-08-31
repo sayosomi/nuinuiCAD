@@ -21,7 +21,7 @@ const queryAt = (source: string, compiled: CompiledDslDocument, position: number
 describe("queryDslReferencePickTarget empty values", () => {
   it("accepts an empty known Module geometry argument", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(broad: path) {",
       "}",
       "instance X = M(broad: )"
@@ -39,7 +39,7 @@ describe("queryDslReferencePickTarget empty values", () => {
 
   it("accepts an empty positional geometry builtin argument", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const d: number = distance(, @A)"
     ].join("\n");

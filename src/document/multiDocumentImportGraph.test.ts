@@ -49,14 +49,61 @@ const loaderFrom = (
 });
 
 describe("multi-document import graph", () => {
+  it("requires nui 1 independently for the current root and every saved dependency", async () => {
+    const invalidRoot = rootSource("invalid-root", "nui 4\n");
+    const invalidRootGraph = await buildMultiDocumentImportGraph({
+      root: invalidRoot,
+      loader: loaderFrom(new Map())
+    });
+    expect(invalidRootGraph.valid).toBe(false);
+    expect(invalidRootGraph.nodes.get(invalidRoot.documentId)?.artifact.syntaxValid).toBe(false);
+
+    const root = rootSource("root-version", [
+      "nui 1",
+      "import \"./middle.nui\" as middle"
+    ].join("\n"));
+    const middle = savedSource("middle-version", "sha256:middle-version", [
+      "nui 1",
+      "import \"./legacy.nui\" as legacy"
+    ].join("\n"));
+    const legacy = savedSource("legacy-version", "sha256:legacy-version", "nui 4\n");
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: loaderFrom(new Map([
+        [`${root.documentId}|./middle.nui`, middle],
+        [`${middle.documentId}|./legacy.nui`, legacy]
+      ]))
+    });
+
+    expect(graph.valid).toBe(false);
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        importerDocumentId: root.documentId,
+        targetDocumentId: middle.documentId,
+        status: "failed",
+        failureReason: "invalid-dependency"
+      }),
+      expect.objectContaining({
+        importerDocumentId: middle.documentId,
+        targetDocumentId: legacy.documentId,
+        status: "failed",
+        failureReason: "invalid-source"
+      })
+    ]));
+    expect(graph.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "import-invalid-source", message: expect.stringContaining("nui 1") }),
+      expect.objectContaining({ code: "import-invalid-dependency" })
+    ]));
+  });
+
   it("builds source-ordered saved dependency edges and resolves import public members through the lexical owner", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library",
       "const after: number = 0"
     ].join("\n"));
     const library = savedSource("library", "sha256:library", [
-      "nui 4",
+      "nui 1",
       "export module Pocket() {",
       "}"
     ].join("\n"));
@@ -96,18 +143,18 @@ describe("multi-document import graph", () => {
 
   it("does not make transitive imports public without an explicit re-export", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./middle.nui\" as middle",
       "const after: number = 0"
     ].join("\n"));
     const middle = savedSource("middle", "sha256:middle", [
-      "nui 4",
+      "nui 1",
       "import \"./leaf.nui\" as leaf",
       "export module MiddleOnly() {",
       "}"
     ].join("\n"));
     const leaf = savedSource("leaf", "sha256:leaf", [
-      "nui 4",
+      "nui 1",
       "module LeafOnly() {",
       "}"
     ].join("\n"));
@@ -132,17 +179,17 @@ describe("multi-document import graph", () => {
 
   it("flattens an explicit parsed file re-export to the original semantic identity", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./facade.nui\" as facade",
       "const after: number = 0"
     ].join("\n"));
     const facade = savedSource("facade", "sha256:facade", [
-      "nui 4",
+      "nui 1",
       "import \"./leaf.nui\" as leaf",
       "export @leaf::Pocket"
     ].join("\n"));
     const leaf = savedSource("leaf", "sha256:leaf", [
-      "nui 4",
+      "nui 1",
       "export module Pocket() {",
       "}"
     ].join("\n"));
@@ -166,11 +213,11 @@ describe("multi-document import graph", () => {
 
   it("marks every participating cycle edge and never resolves through it", async () => {
     const root = rootSource("A", [
-      "nui 4",
+      "nui 1",
       "import \"./b.nui\" as b"
     ].join("\n"));
     const b = savedSource("B", "sha256:b", [
-      "nui 4",
+      "nui 1",
       "import \"./a.nui\" as a"
     ].join("\n"));
     const savedA = savedSource("A", "sha256:a", root.normalizedSource);
@@ -190,7 +237,7 @@ describe("multi-document import graph", () => {
 
   it("reports structured load failures on the importing statement", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./missing.nui\" as missing",
       "import \"./secret.nui\" as secret"
     ].join("\n"));
@@ -212,11 +259,11 @@ describe("multi-document import graph", () => {
 
   it("reuses only the exact DocumentId+fingerprint artifact and never falls back after a changed dependency becomes invalid", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library"
     ].join("\n"));
     const valid = savedSource("library", "sha256:v1", [
-      "nui 4",
+      "nui 1",
       "export module Pocket() {",
       "}"
     ].join("\n"));
@@ -260,20 +307,20 @@ describe("multi-document import graph", () => {
 
   it("fails closed when one graph observes two fingerprints for the same DocumentId", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./left.nui\" as left",
       "import \"./right.nui\" as right"
     ].join("\n"));
     const left = savedSource("left", "sha256:left", [
-      "nui 4",
+      "nui 1",
       "import \"./shared.nui\" as shared"
     ].join("\n"));
     const right = savedSource("right", "sha256:right", [
-      "nui 4",
+      "nui 1",
       "import \"./shared.nui\" as shared"
     ].join("\n"));
-    const sharedV1 = savedSource("shared", "sha256:shared-v1", "nui 4\n");
-    const sharedV2 = savedSource("shared", "sha256:shared-v2", "nui 4\n");
+    const sharedV1 = savedSource("shared", "sha256:shared-v1", "nui 1\n");
+    const sharedV2 = savedSource("shared", "sha256:shared-v2", "nui 1\n");
     const graph = await buildMultiDocumentImportGraph({
       root,
       loader: loaderFrom(new Map([
@@ -296,11 +343,11 @@ describe("multi-document import graph", () => {
 
   it("discards a slower previous build for the same root", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library"
     ].join("\n"));
-    const oldDependency = savedSource("library", "sha256:old", "nui 4\n");
-    const newDependency = savedSource("library", "sha256:new", "nui 4\n");
+    const oldDependency = savedSource("library", "sha256:old", "nui 1\n");
+    const newDependency = savedSource("library", "sha256:new", "nui 1\n");
     let releaseOld!: (result: SavedDependencyLoadResult) => void;
     const slowLoader: MultiDocumentSavedSourceLoader = {
       loadSavedDependency: () => new Promise((resolve) => {
@@ -326,10 +373,10 @@ describe("multi-document import graph", () => {
   });
 
   it("invalidates exactly the active roots that transitively contain a changed saved dependency", async () => {
-    const shared = savedSource("shared", "sha256:shared", "nui 4\n");
-    const unrelated = rootSource("unrelated", "nui 4\n");
+    const shared = savedSource("shared", "sha256:shared", "nui 1\n");
+    const unrelated = rootSource("unrelated", "nui 1\n");
     const roots = ["root-a", "root-b"].map((id) => rootSource(id, [
-      "nui 4",
+      "nui 1",
       "import \"./shared.nui\" as shared"
     ].join("\n")));
     const coordinator = new MultiDocumentGraphCoordinator();
@@ -353,7 +400,7 @@ describe("multi-document import graph", () => {
 
   it("tracks a loaded invalid dependency so a later saved change invalidates its active root", async () => {
     const root = rootSource("root", [
-      "nui 4",
+      "nui 1",
       "import \"./invalid.nui\" as invalid"
     ].join("\n"));
     const invalid = savedSource("invalid", "sha256:invalid-v1", "nui 3\n");

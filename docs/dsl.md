@@ -1,10 +1,10 @@
 # nuinuiCAD DSL Reference
 
-This is the stable, language-neutral landing page for the implemented `nui 4`
+This is the stable, language-neutral landing page for the implemented `nui 1`
 DSL. Read the [English DSL Reference](dsl/en/index.md) for the complete
 user-facing reference, organized by language concept.
 
-[`docs/nui4/spec.md`](nui4/spec.md) is the normative `nui 4` language contract.
+[`docs/nui1/spec.md`](nui1/spec.md) is the normative `nui 1` language contract.
 The `.nui` source document is canonical. The English pages describe the
 behavior implemented by nuinuiCAD. Repository implementation is authoritative
 for actual implementation details.

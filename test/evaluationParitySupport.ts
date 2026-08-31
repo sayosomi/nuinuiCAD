@@ -24,10 +24,10 @@ export const parityFixtureNames = (repoRoot: string): string[] =>
     .filter((name) => name.endsWith(".nui"))
     .sort();
 
-export const isCurrentReleaseFixture = (name: string) => name.startsWith("nui4-") && name.endsWith(".nui");
+export const isCurrentReleaseFixture = (name: string) => name.startsWith("nui1-") && name.endsWith(".nui");
 
 export const fixtureFromSource = (source: string): EvaluationFixture => {
-  const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+  const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
   if (compiled.status === "fatal") throw new Error("parity source failed to compile");
   const doc = compiled.doc;
   return {

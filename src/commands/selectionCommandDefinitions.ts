@@ -51,6 +51,7 @@ import { createCadElement } from "../model/elementFactory";
 import { setParameterValue } from "../parameters/parameterAccess";
 import { commitSourceCreationInsertion } from "./sourceCreationCommit";
 import { resolveSourceCreationInsertion } from "./sourceCreationInsertion";
+import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "../dsl/dslVersion";
 
 const reverseEligible = () => {
   const selected = getSelectedElement();
@@ -74,8 +75,8 @@ const reverseEligible = () => {
 const insertReverseAfterSelectedPath = () => {
   const selected = reverseEligible();
   const document = useCadDocumentStore.getState();
-  if (!selected || document.doc.majorVersion !== 4 || document.docText !== document.sourceText) {
-    useCadUiStore.getState().setCommandErrorMessage("nui 4 の線を1件選択してから実行してください。");
+  if (!selected || document.doc.majorVersion !== NEW_DOCUMENT_DSL_MAJOR_VERSION || document.docText !== document.sourceText) {
+    useCadUiStore.getState().setCommandErrorMessage("nui 1 の線を1件選択してから実行してください。");
     return false;
   }
   const sourceResolution = resolveSourceCreationInsertion({

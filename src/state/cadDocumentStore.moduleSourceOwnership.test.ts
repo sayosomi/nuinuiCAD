@@ -6,7 +6,7 @@ import { setParameterValue } from "../parameters/parameterAccess";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
 
 const moduleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate(x: 1, y: 2)",
   "}",
@@ -15,7 +15,7 @@ const moduleSource = [
 ].join("\n");
 
 const geometryParameterModuleSource = [
-  "nui 4",
+  "nui 1",
   "line Base = segment(start: (0, 0), end: (10, 0))",
   "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
   "module M(path: path, side: choice(right, left) = left) {",
@@ -33,7 +33,7 @@ const geometryParameterModuleSource = [
 ].join("\n");
 
 const pointParameterModuleSource = [
-  "nui 4",
+  "nui 1",
   "point BasePoint = coordinate(x: 0, y: 0)",
   "point OtherPoint = coordinate(x: 10, y: 0)",
   "module PointModule(p: point) {",
@@ -44,7 +44,7 @@ const pointParameterModuleSource = [
 ].join("\n");
 
 const omittedLiteralModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate()",
   "}",
@@ -53,7 +53,7 @@ const omittedLiteralModuleSource = [
 ].join("\n");
 
 const multilineOmittedLiteralModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate(",
   "    // keep this source comment",
@@ -64,7 +64,7 @@ const multilineOmittedLiteralModuleSource = [
 ].join("\n");
 
 const coordinateAnchorModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  line L = segment(start: (0, 0), end: (10, 0))",
   "}",
@@ -73,7 +73,7 @@ const coordinateAnchorModuleSource = [
 ].join("\n");
 
 const placementModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point A = coordinate(x: 0, y: 0)",
   "  point B = coordinate(x: 10, y: 0)",
@@ -84,7 +84,7 @@ const placementModuleSource = [
 ].join("\n");
 
 const bezierModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M(origin: point) {",
   "  curve Curve = bezier(start: @origin, end: (100, 0), startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
   "}",
@@ -318,7 +318,7 @@ describe("module source-owned model mutation", () => {
 
   it("keeps module syntax while editing an ordinary geometry outside the module", () => {
     seed([
-      "nui 4",
+      "nui 1",
       "point Outside = coordinate(x: 0, y: 0)",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",

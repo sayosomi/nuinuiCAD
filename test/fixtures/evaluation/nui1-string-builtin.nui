@@ -1,0 +1,7 @@
+nui 1
+// Explicit choice-to-string production parity fixture.
+const side: choice(right, left) = right
+const sideText: string = string(@side)
+const piece: choice(front, back) = back
+const pieceText: string = string(@piece)
+text StringTemplate = label(text: "side=${string(@side)},piece=${string(@piece)}", anchor: none, size: 3)

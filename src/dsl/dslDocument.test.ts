@@ -79,7 +79,7 @@ describe("dslDocument round-trip matrix", () => {
 
   it("keeps multi-token numeric expressions intact across a round-trip", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -116,7 +116,7 @@ describe("dslDocument round-trip matrix", () => {
       return element;
     });
     const document = { ...initial, elements };
-    const serialized = serializeDocumentToDsl(document, 4);
+    const serialized = serializeDocumentToDsl(document, 1);
     const compiled = compileDslDocument(serialized);
 
     expect(serialized).toContain("angle: 1 + 2");
@@ -303,7 +303,7 @@ describe("dslDocument unnamed elements", () => {
 
 describe("dslDocument legacy palette syntax", () => {
   it("rejects top-level color statements", () => {
-    const parsed = parseDslDocument(["nui 4", 'color main ("#112233", name: "本体")'].join(String.fromCharCode(10)));
+    const parsed = parseDslDocument(["nui 1", 'color main ("#112233", name: "本体")'].join(String.fromCharCode(10)));
     expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);
     expect(parsed.document).toBeNull();
   });
@@ -311,9 +311,9 @@ describe("dslDocument legacy palette syntax", () => {
 
 describe("dslDocument canonical blocks", () => {
   it("adds a trailing comma to every argument in canonical multi-line calls", () => {
-    const compiled = compileDslDocument("nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0\n)");
+    const compiled = compileDslDocument("nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0\n)");
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(serializeDocumentToDsl(compiled.document!, 4)).toContain(
+    expect(serializeDocumentToDsl(compiled.document!, 1)).toContain(
       "point A = coordinate(\n  x: 0,\n  y: 0,\n)"
     );
   });
@@ -362,7 +362,7 @@ describe("dslDocument stop / evaluationLimitIndex", () => {
 
 describe("dslDocument layoutElementTree ElementTreeRow shape", () => {
   it("bakes a container's `{` onto its own header row and emits multi-line vertical-call rows for regular elements", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "  stop", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "  stop", "  point B = coordinate(x: 1, y: 1)", "}"].join("\n");
     const compiled = compileDslDocument(source);
     const document = compiled.document!;
     const refs = documentDslRefs(document.elements);
@@ -391,18 +391,18 @@ describe("dslDocument idempotence", () => {
   it("is a fixed point for a rich hand-written document", () => {
     const first = parseDslDocument(sampleFixture);
     expect(first.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const canonical = serializeDocumentToDsl(first.document!, 4);
+    const canonical = serializeDocumentToDsl(first.document!, 1);
     const second = parseDslDocument(canonical);
     expect(second.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    const reserialized = serializeDocumentToDsl(second.document!, 4);
+    const reserialized = serializeDocumentToDsl(second.document!, 1);
     expect(reserialized).toBe(canonical);
   });
 
   it("is a fixed point for an empty document", () => {
-    const canonical = serializeDocumentToDsl(emptyDocument(), 4);
+    const canonical = serializeDocumentToDsl(emptyDocument(), 1);
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(serializeDocumentToDsl(parsed.document!, 4)).toBe(canonical);
+    expect(serializeDocumentToDsl(parsed.document!, 1)).toBe(canonical);
   });
 
   it("is a fixed point for a document with non-contiguous group children (parent= fallback)", () => {
@@ -413,11 +413,11 @@ describe("dslDocument idempotence", () => {
     elements = compileDslToElements("point B = coordinate(x: 2, y: 2, id: pb, parent: @g1)", { elements }).elements;
 
     const document: DslDocumentData = { ...emptyDocument(), elements, evaluationLimitIndex: elements.length };
-    const canonical = serializeDocumentToDsl(document, 4);
+    const canonical = serializeDocumentToDsl(document, 1);
     expect(canonical).toContain("parent: @G");
     const parsed = parseDslDocument(canonical);
     expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(serializeDocumentToDsl(parsed.document!, 4)).toBe(canonical);
+    expect(serializeDocumentToDsl(parsed.document!, 1)).toBe(canonical);
 
     const b = parsed.document!.elements.find((element) => element.name === "B");
     const g = parsed.document!.elements.find((element) => element.name === "G");
@@ -438,18 +438,16 @@ describe("dslDocument version handling", () => {
     expect(parsed.diagnostics.some((item) => item.severity === "error")).toBe(true);
   });
 
-  it("accepts nui 4 as the only supported major version", () => {
-    const v4 = compileDslDocument("nui 4\npoint A = coordinate(x: 0, y: 0)");
-    expect(v4.document).not.toBeNull();
-    expect(v4.majorVersion).toBe(4);
+  it("accepts nui 1 as the only supported major version", () => {
+    const v1 = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)");
+    expect(v1.document).not.toBeNull();
+    expect(v1.majorVersion).toBe(1);
   });
 
-  it("rejects an unsupported major version and lists the supported set", () => {
-    const parsed = parseDslDocument("nui 3\npoint A = coordinate(x: 0, y: 0)");
+  it.each([2, 3, 4, 5])("rejects unsupported major version %s and lists supported major 1", (major) => {
+    const parsed = parseDslDocument(`nui ${major}\npoint A = coordinate(x: 0, y: 0)`);
     expect(parsed.document).toBeNull();
-    expect(parsed.diagnostics.some((item) => item.message.includes("未対応のDSLバージョンです: 3(対応: 4)"))).toBe(
-      true
-    );
+    expect(parsed.diagnostics.some((item) => item.message.includes(`未対応のDSLバージョンです: ${major}(対応: 1)`))).toBe(true);
   });
 
   it("rejects a non-numeric version", () => {
@@ -459,32 +457,38 @@ describe("dslDocument version handling", () => {
   });
 
   it("rejects a duplicate nui statement and leaves majorVersion unresolved", () => {
-    const compiled = compileDslDocument(["nui 4", "nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const compiled = compileDslDocument(["nui 1", "nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.majorVersion).toBeNull();
     expect(compiled.diagnostics.some((item) => item.message.includes("先頭に1つだけ"))).toBe(true);
   });
 
-  it("accepts a valid nui 4 header with a leading comment", () => {
-    const parsed = parseDslDocument(["// comment before header is not allowed to precede nui", "nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    // comments do not produce statements, so nui 4 is still the first statement
+  it("accepts a valid nui 1 header with a leading comment", () => {
+    const parsed = parseDslDocument(["// comment before header is not allowed to precede nui", "nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    // comments do not produce statements, so nui 1 is still the first statement
     expect(parsed.document).not.toBeNull();
   });
 
   it("keeps majorVersion resolved even when an unrelated body statement is fatal", () => {
-    // A valid nui 4 header, but the body has a known-fatal DivisionPlacement
+    // A valid nui 1 header, but the body has a known-fatal DivisionPlacement
     // conflict (both distance and ratio given) unrelated to the header itself.
     const compiled = compileDslDocument(
       [
-        "nui 4",
+        "nui 1",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "point Both = between(start: @A, end: @B, distance: 4, ratio: 0.25)"
       ].join("\n")
     );
     expect(compiled.document).toBeNull();
-    expect(compiled.majorVersion).toBe(4);
+    expect(compiled.majorVersion).toBe(1);
     expect(compiled.diagnostics.some((item) => item.severity === "error")).toBe(true);
+  });
+
+  it("serializes the current major without regenerating the removed nui 4 header", () => {
+    const serialized = serializeDocumentToDsl(emptyDocument(), 1);
+    expect(serialized.startsWith("nui 1")).toBe(true);
+    expect(serialized).not.toContain("nui 4");
   });
 });
 
@@ -555,7 +559,7 @@ describe("compileDslDocument facade", () => {
   });
 
   it("counts a trailing stop as the end of the elements section, not the statement before it", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "stop"].join("\n");
     const compiled = compileDslDocument(source);
     const map = compiled.statementMap!;
     // Line 2 is "point A = ..."; line 3 is "stop" - sectionEnds.elements must
@@ -566,7 +570,7 @@ describe("compileDslDocument facade", () => {
   });
 
   it("injects assignedElementIds while letting explicit id= win", () => {
-    const source = ["nui 4", "", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1, id: pinned-b)"].join("\n");
+    const source = ["nui 1", "", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1, id: pinned-b)"].join("\n");
     const baseline = compileDslDocument(source);
     expect(baseline.document!.elements.map((item) => item.name)).toEqual(["A", "B"]);
 
@@ -594,10 +598,10 @@ describe("dslDocument golden fixture", () => {
   });
 });
 
-describe("nui 4 state syntax wiring", () => {
+describe("nui 1 state syntax wiring", () => {
   it("accepts state: visible/hidden/disabled and lowers to ElementActivity", () => {
     const parsed = parseDslDocument([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0, state: hidden)",
       "point B = coordinate(x: 1, y: 0, state: disabled)",
       "point C = coordinate(x: 2, y: 0)"
@@ -611,22 +615,22 @@ describe("nui 4 state syntax wiring", () => {
   });
 
   it("regenerates canonical output as state: only", () => {
-    const compiled = compileDslDocument("nui 4\npoint A = coordinate(x: 0, y: 0, state: hidden)");
-    expect(compiled.majorVersion).toBe(4);
+    const compiled = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0, state: hidden)");
+    expect(compiled.majorVersion).toBe(1);
     const regenerated = serializeDocumentToDsl(compiled.document!, compiled.majorVersion!);
     expect(regenerated).toContain("state: hidden");
     expect(regenerated).not.toContain("visible:");
     expect(regenerated).not.toContain("enabled:");
-    expect(regenerated.startsWith("nui 4")).toBe(true);
+    expect(regenerated.startsWith("nui 1")).toBe(true);
   });
 });
 
-describe("nui 4 typed declaration wiring", () => {
+describe("nui 1 typed declaration wiring", () => {
   it("accepts const/let with no diagnostics, staying out of document.elements", () => {
     // 型付き宣言のidentityはstatement reconcilerが供給する。直接compilerを
     // 呼ぶこの単体テストでも、その契約を明示して渡す。
     const compiled = compileDslDocument(
-      ["nui 4", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0, y: 0)"].join("\n"),
+      ["nui 1", "const x: number = 1", "let 表示する: boolean = true", "point A = coordinate(x: 0, y: 0)"].join("\n"),
       {
         assignedStatementIds: new Map([
           [1, "test:typed:x"],
@@ -635,7 +639,7 @@ describe("nui 4 typed declaration wiring", () => {
       }
     );
     expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
-    expect(compiled.majorVersion).toBe(4);
+    expect(compiled.majorVersion).toBe(1);
     expect(compiled.document!.elements).toMatchObject([{ name: "A" }]);
     const declarations = compiled.statements.filter((item) => item.kind === "typedDeclaration");
     expect(declarations).toHaveLength(2);
@@ -646,7 +650,7 @@ describe("Task 22 property binding wiring", () => {
   it("accepts schema-typed property bindings without a property-name allowlist", () => {
     const compiled = compileDslDocument(
       [
-        "nui 4",
+        "nui 1",
         'const パス: string = "x.png"',
         'image IMG = image(source: @パス, origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false)'
       ].join("\n"),
@@ -664,7 +668,7 @@ describe("Task 22 property binding wiring", () => {
 describe("Task 26 text template wiring", () => {
   it("stores a compiled template on compiled.textTemplates for a typed string hole", () => {
     const compiled = compileDslDocument(
-      ["nui 4", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", 'const ラベル: string = "前身頃"', 'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:label"]]) }
     );
     expect(compiled.diagnostics).toEqual([]);
@@ -676,7 +680,7 @@ describe("Task 26 text template wiring", () => {
 
   it("still compiles textTemplates for a document with no typed declaration at all, unlike propertyBindings/bindingAnalysis", () => {
     const compiled = compileDslDocument(
-      ["nui 4", 'text T = label(text: "cost \\{5\\} yen", anchor: none, size: 3)'].join("\n")
+      ["nui 1", 'text T = label(text: "cost \\{5\\} yen", anchor: none, size: 3)'].join("\n")
     );
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.document).not.toBeNull();
@@ -691,7 +695,7 @@ describe("Task 26 text template wiring", () => {
 
   it("accepts a boolean hole and stores the compiled boolean template", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "let 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
+      ["nui 1", "let 表示する: boolean = true", 'text T = label(text: "flag ${@表示する}", anchor: none, size: 3)'].join("\n"),
       { assignedStatementIds: new Map([[1, "test:flag"]]) }
     );
     expect(compiled.document).not.toBeNull();
@@ -703,7 +707,7 @@ describe("Task 26 text template wiring", () => {
 
   it("keeps the last-good document (null) and surfaces unterminated-interpolation for an unclosed hole", () => {
     const compiled = compileDslDocument(
-      ["nui 4", 'text T = label(text: "prefix ${oops", anchor: none, size: 3)'].join("\n")
+      ["nui 1", 'text T = label(text: "prefix ${oops", anchor: none, size: 3)'].join("\n")
     );
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics).toEqual(
@@ -716,7 +720,7 @@ describe("Task 26 text template wiring", () => {
 describe("Task 29 set statement wiring", () => {
   it("stores a resolved target/typed RHS on compiled.setStatements, alongside a clean diagnostics list", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "let x: number = 1", "set x = 2"].join("\n"),
+      ["nui 1", "let x: number = 1", "set x = 2"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
     );
     expect(compiled.diagnostics).toEqual([]);
@@ -727,7 +731,7 @@ describe("Task 29 set statement wiring", () => {
 
   it("keeps the last-good document (null) and surfaces const-assignment for a const target", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "const x: number = 1", "set x = 2"].join("\n"),
+      ["nui 1", "const x: number = 1", "set x = 2"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:x"], [2, "test:set-x"]]) }
     );
     expect(compiled.document).toBeNull();
@@ -738,7 +742,7 @@ describe("Task 29 set statement wiring", () => {
 
   it("keeps the last-good document (null) and surfaces invalid-set-target for an undefined name", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "let unrelated: number = 1", "set missing = 2"].join("\n"),
+      ["nui 1", "let unrelated: number = 1", "set missing = 2"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:unrelated"], [2, "test:set-missing"]]) }
     );
     expect(compiled.document).toBeNull();
@@ -749,7 +753,7 @@ describe("Task 29 set statement wiring", () => {
 
   it("keeps the last-good document (null) and surfaces invalid-set-target for a set with no typed declarations at all", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "set missing = 2"].join("\n"),
+      ["nui 1", "set missing = 2"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:set-missing"]]) }
     );
     expect(compiled.document).toBeNull();
@@ -759,7 +763,7 @@ describe("Task 29 set statement wiring", () => {
   });
 
   it("fails closed with missing-stable-statement-identity when no reconciled identity is supplied for a set statement", () => {
-    const compiled = compileDslDocument(["nui 4", "let x: number = 1", "set x = 2"].join("\n"));
+    const compiled = compileDslDocument(["nui 1", "let x: number = 1", "set x = 2"].join("\n"));
     expect(compiled.document).toBeNull();
     expect(compiled.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ severity: "error", code: MISSING_SET_STATEMENT_IDENTITY_CODE })])
@@ -768,7 +772,7 @@ describe("Task 29 set statement wiring", () => {
 
   it("leaves setStatements undefined for a document with no set statements at all", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "let x: number = 1"].join("\n"),
+      ["nui 1", "let x: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:x"]]) }
     );
     expect(compiled.diagnostics).toEqual([]);
@@ -781,7 +785,7 @@ describe("Task 29 set statement wiring", () => {
 describe("Task 36 typed dependency graph wiring", () => {
   it("keeps static missing and late initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
+      ["nui 1", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:missing"], [2, "test:late"], [3, "test:later"]]) }
     );
 
@@ -794,7 +798,7 @@ describe("Task 36 typed dependency graph wiring", () => {
 
   it("connects a set RHS to the version current before its statement", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "let x: number = 1", "let y: number = 2", "set x = @y", "set y = 3"].join("\n"),
+      ["nui 1", "let x: number = 1", "let y: number = 2", "set x = @y", "set y = 3"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:x"], [2, "test:y"], [3, "test:set-x"], [4, "test:set-y"]]) }
     );
     const edge = compiled.typedDependencyGraph?.edges.find((candidate) => candidate.kind === "set-rhs");
@@ -807,7 +811,7 @@ describe("Task 36 typed dependency graph wiring", () => {
 
   it("deduplicates repeated initializer targets while retaining an invalid target reason", () => {
     const compiled = compileDslDocument(
-      ["nui 4", "const bad: number = @missing", "const use: number = @bad + @bad"].join("\n"),
+      ["nui 1", "const bad: number = @missing", "const use: number = @bad + @bad"].join("\n"),
       { assignedStatementIds: new Map([[1, "test:bad"], [2, "test:use"]]) }
     );
     const edges = compiled.typedDependencyGraph?.edges.filter((edge) =>

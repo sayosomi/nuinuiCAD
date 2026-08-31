@@ -31,7 +31,7 @@ const elementId = (document: CanonicalDocumentValue, name: string) =>
 describe("coordinate point conversion", () => {
   it("finds a shared legal base and preserves the target source identity when converting XY", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 10, y: 20, state: hidden)",
       "point Target = coordinate(x: 30, y: 5)",
       "line Use = segment(start: @Target, end: @Base)"
@@ -69,7 +69,7 @@ describe("coordinate point conversion", () => {
 
   it("accepts constant scalar expressions but rejects binding-dependent expressions", () => {
     const constant = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: 2 + 3, y: -4 + 1)"
     ].join("\n"));
@@ -78,7 +78,7 @@ describe("coordinate point conversion", () => {
     expect(coordinatePointConversionTargetEligibility(constantSnapshot, constantTarget).eligible).toBe(true);
 
     const bound = compile([
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: @width, y: 1)"
@@ -92,7 +92,7 @@ describe("coordinate point conversion", () => {
 
   it("rejects an already-relational point as a conversion target", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = offset(from: @Base, dx: 10, dy: 5)"
     ].join("\n"));
@@ -106,7 +106,7 @@ describe("coordinate point conversion", () => {
 
   it("rejects a coordinate point whose scalar depends on a geometry property", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "point Target = coordinate(x: @AB.length, y: 0)"
     ].join("\n"));
@@ -120,7 +120,7 @@ describe("coordinate point conversion", () => {
 
   it("rejects a for-generated runtime coordinate point", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 1, step: 1) {",
       "  point Generated = coordinate(x: @i * 10, y: 5)",
       "}"
@@ -143,7 +143,7 @@ describe("coordinate point conversion", () => {
 
   it("rejects a Module-instance-generated runtime coordinate point", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "module Maker() {",
       "  export point Generated = coordinate(x: 10, y: 5)",
       "}",
@@ -166,7 +166,7 @@ describe("coordinate point conversion", () => {
 
   it("preserves modifiers, common attributes, explicit ids, and existing references", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -199,7 +199,7 @@ describe("coordinate point conversion", () => {
 
   it("retains a Module-derived endpoint candidate and uses its canonical qualified reference", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "module Maker() {",
       "  export line Out = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -232,7 +232,7 @@ describe("coordinate point conversion", () => {
 
   it("uses source-order candidates and intersects candidates across targets", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "line Guide = segment(start: @A, end: @B)",
@@ -250,7 +250,7 @@ describe("coordinate point conversion", () => {
 
   it("computes normalized polar angles in all quadrants and handles coincidence", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Q1 = coordinate(x: 1, y: 1)",
       "point Q3 = coordinate(x: -1, y: -1)",
@@ -285,7 +285,7 @@ describe("coordinate point conversion", () => {
 
   it("classifies skipped targets and rejects a stale apply", () => {
     const original = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Good = coordinate(x: 1, y: 0)",
       "const width: number = 10",
@@ -310,7 +310,7 @@ describe("coordinate point conversion", () => {
 
   it("revalidates the current evaluation before applying a plan", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: 3, y: 4)"
     ].join("\n"));
@@ -338,7 +338,7 @@ describe("coordinate point conversion", () => {
 
   it("preserves identities by source statement order when targetIds are reversed", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point First = coordinate(x: 3, y: 4)",
       "point Second = coordinate(x: -5, y: 12)"
@@ -361,7 +361,7 @@ describe("coordinate point conversion", () => {
 
   it("rejects using the target as its own base and distinguishes all-skipped", () => {
     const document = compile([
-      "nui 4",
+      "nui 1",
       "point Target = coordinate(x: 1, y: 2)"
     ].join("\n"));
     const snapshot = snapshotFor(document);
@@ -387,7 +387,7 @@ describe("coordinate point conversion", () => {
     expect(applyCoordinatePointConversionPlan(plan, snapshot).status).toBe("noop");
 
     const withBase = compile([
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Target = coordinate(x: 1, y: 2)"
     ].join("\n"));

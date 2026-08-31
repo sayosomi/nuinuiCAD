@@ -156,7 +156,7 @@ typed `number` and reference that binding.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 const seam: number = 5
 const rounded: number = round(@seam, 1)
 const closeEnough: boolean = isClose(@seam, 5, 0.5)

@@ -6,7 +6,7 @@ import { createLogicalStatementSourceMap } from "./logicalStatementSourceMap";
 describe("blank lines inside multiline calls", () => {
   it("parses a balanced construction call with a blank line before the closer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -25,7 +25,7 @@ describe("blank lines inside multiline calls", () => {
 
   it("keeps blank and whitespace-only lines between named arguments inside the same statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 10,",
       "",
@@ -46,7 +46,7 @@ describe("blank lines inside multiline calls", () => {
 
   it("preserves module definitions, module instances, and builtin scalar calls across safe blanks", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  value: number,",
       "",
@@ -115,7 +115,7 @@ describe("blank lines inside multiline calls", () => {
 
   it("keeps an argument after the blank line mapped to its exact physical token", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 10,",
       "",
@@ -137,7 +137,7 @@ describe("blank lines inside multiline calls", () => {
 
   it("keeps a genuinely unterminated call as unclosed-call without blaming blank lines", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0"
     ].join("\n");

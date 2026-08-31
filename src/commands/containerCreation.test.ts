@@ -4,7 +4,7 @@ import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { addContainer } from "./containerCreation";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "",
   "const ZOOM_RATIO: number = 2",
   "const SA: number = 7 * @ZOOM_RATIO",
@@ -46,7 +46,7 @@ describe("container creation from the Source Editor", () => {
 
   it("keeps a declaration cursor's established after-statement behavior", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n"), "test");
@@ -69,7 +69,7 @@ describe("container creation from the Source Editor", () => {
 
   it("uses the enclosing conditional else branch for a comment-line cursor", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -98,7 +98,7 @@ describe("container creation from the Source Editor", () => {
 
   it("rejects an unsafe Source cursor without using the evaluation-limit fallback", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"), "test");
     const before = useCadDocumentStore.getState();

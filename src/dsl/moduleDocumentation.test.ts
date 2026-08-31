@@ -63,7 +63,7 @@ describe("Module documentation extraction", () => {
 
   it("associates docs with stable Module, parameter, and resolved export identities without skipping real code", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "/// @ja",
       "/// ポケットを生成する。",
       "///",
@@ -155,7 +155,7 @@ describe("Module documentation extraction", () => {
 
   it("treats malformed or locale-less documentation as metadata absence without changing DSL validity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "/// no locale marker",
       "/// @",
       "module Plain() {",

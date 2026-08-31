@@ -25,7 +25,7 @@ const HOST_REVISION = 93;
 const CANVAS_REVISION = 1093;
 
 const sourceFor = (endX = 10): string => [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   `point B = coordinate(x: ${endX}, y: 0)`,
   "line Straight = segment(start: @A, end: @B)",

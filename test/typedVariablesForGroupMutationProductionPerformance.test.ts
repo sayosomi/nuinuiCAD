@@ -16,8 +16,8 @@ const runPerformanceGates = (globalThis as {
 const describePerformanceGates = runPerformanceGates ? describe : describe.skip;
 
 const buildCase = (generatedRows: number) => {
-  const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), [
-    "nui 4",
+  const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+    "nui 1",
     "let total: number = 0",
     `for i in range(from: 0, count: ${generatedRows}, step: 1) {`,
     "  set total = @total + 1",

@@ -6,7 +6,7 @@ be written across several lines without changing its meaning. Ordinary
 comments begin with `//` and continue to the end of the line; block comments
 use `/* ... */`. The `#` character does not start a comment.
 
-The first meaningful statement must be `nui 4`; comments and blank lines may
+The first meaningful statement must be `nui 1`; comments and blank lines may
 come before it. Names follow the DSL identifier grammar, including non-ASCII
 names. A reference always has an `@` sigil: `@Front` names a declaration,
 `@Front::Hem` selects a module export, and `@Line.length` reads an available
@@ -126,7 +126,7 @@ an invalid, disabled, or not-yet-evaluated value is not.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 // Comments preserve source layout and do not change evaluation.
 point A = coordinate(
   x: 0,
@@ -147,6 +147,6 @@ category Name = construction(
 
 <!-- dsl-example: expected-diagnostic code=missing-declared-type -->
 ```nui
-nui 4
+nui 1
 const missing = 5
 ```

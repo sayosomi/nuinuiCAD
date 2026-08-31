@@ -7,7 +7,7 @@ import { queryModulePreviewTarget } from "./modulePreviewTarget";
 describe("Module Preview target-scoped context state", () => {
   it("restores sibling targets with their own ancestor-context values", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  module A(width: number) {",
       "    point PA = coordinate(x: @width, y: 0)",

@@ -17,7 +17,7 @@ import { compileDslDocument } from "./dslDocument";
 describe("missing-attribute-value tolerance", () => {
   it("compileDslDocument still compiles a document with one blank argument, alongside an unrelated valid statement", () => {
     const text = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
       "  start: @A,",
@@ -39,7 +39,7 @@ describe("missing-attribute-value tolerance", () => {
 
   it("compileDslToElements still builds every other element when one statement has a blank argument", () => {
     const text = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line = segment(",
       "  start: @A,",
@@ -54,10 +54,10 @@ describe("missing-attribute-value tolerance", () => {
 
   it("an actual syntax error remains fully fatal", () => {
     const text = [
-      "nui 4",
+      "nui 1",
       "line = segment(",
       "  start: @A",
-      "  end: @B", // missing comma - a real nui 4 syntax error, not missing-attribute-value
+      "  end: @B", // missing comma - a real nui 1 syntax error, not missing-attribute-value
       ")"
     ].join("\n");
     const compiled = compileDslDocument(text, { sourceRevision: 1 });
@@ -68,7 +68,7 @@ describe("missing-attribute-value tolerance", () => {
 
   it("a missing required argument alongside a genuine syntax error elsewhere stays fatal", () => {
     const text = [
-      "nui 4",
+      "nui 1",
       "line = segment(",
       "  start: ,",
       "  end: @A",

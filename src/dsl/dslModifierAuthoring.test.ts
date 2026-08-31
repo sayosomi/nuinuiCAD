@@ -7,7 +7,7 @@ import { parseDslSnapshot } from "./dslParser";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
 
 const source = [
-  "nui 4",
+  "nui 1",
   'modifier "Guide Line" {',
   "  state: visible,",
   "  width: 1.5px,",

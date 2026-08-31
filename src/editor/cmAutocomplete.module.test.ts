@@ -57,20 +57,20 @@ describe("module completion through the existing CodeMirror pipeline", () => {
   });
 
   it("offers only source-order visible module callees and excludes forward definitions", async () => {
-    const source = ["nui 4", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
+    const source = ["nui 1", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
     const result = await completionFor(source, source.indexOf("F\n", source.indexOf("module Use")) + 1);
     expect(result?.options.map((option) => option.label)).toEqual(["First"]);
   });
 
-  it("offers module callees through the formal nui4 instance spelling", async () => {
-    const source = ["nui 4", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
+  it("offers module callees through the formal nui1 instance spelling", async () => {
+    const source = ["nui 1", "module First() {", "}", "instance Use = F", "module Forward() {", "}"].join("\n");
     const result = await completionFor(source, source.indexOf("F\n", source.indexOf("instance Use")) + 1);
     expect(result?.options.map((option) => option.label)).toEqual(["First"]);
   });
 
   it("offers unconsumed named labels and type-filters scalar, point, and line arguments", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "curve C = bezier(start: @P, end: @P)",
@@ -95,7 +95,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("offers builtin functions for scalar module arguments", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value: number) {",
       "}",
       "instance I = M(value: round(1))"
@@ -150,7 +150,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("offers hasValue and optional parameters only in their valid completion contexts", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  const outside: number = @",
       "  if (hasValue(@value)) {",
@@ -170,7 +170,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("uses nested builtin argument types for boolean module scalar arguments", async () => {
     const lastGood = [
-      "nui 4",
+      "nui 1",
       "module M(enabled: boolean) {",
       "}",
       "instance X = M(enabled: isClose(1, 2, 3))"
@@ -198,7 +198,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("keeps the outer numeric argument type after a nested numeric builtin call", async () => {
     const lastGood = [
-      "nui 4",
+      "nui 1",
       "module M(enabled: boolean) {",
       "}",
       "instance X = M(enabled: isClose(round(1, 2), 3))"
@@ -222,7 +222,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("preserves point Module argument endpoint completions", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "curve C = bezier(start: @P, end: @P)",
@@ -246,7 +246,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("forwards Module geometry parameters according to directional interfaces", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module PathConsumer(input: path) {",
       "}",
       "module LineConsumer(input: line) {",
@@ -268,7 +268,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters direct geometry candidates by strict line versus broad path interfaces", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "curve C = bezier(start: @P, end: @P)",
@@ -290,7 +290,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters qualified exported geometry candidates by the receiving interface", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "  export curve C = bezier(start: (0, 0), end: (10, 0))",
@@ -313,18 +313,18 @@ describe("module completion through the existing CodeMirror pipeline", () => {
   });
 
   it("offers path in Module signature type completion without adding geometry to scalar declarations", async () => {
-    const moduleSource = "nui 4\nmodule M(input: pa";
+    const moduleSource = "nui 1\nmodule M(input: pa";
     const moduleResult = await completionFor(moduleSource, moduleSource.length);
     expect(moduleResult?.options.map((option) => option.label)).toContain("path");
 
-    const scalarSource = "nui 4\nconst value: pa";
+    const scalarSource = "nui 1\nconst value: pa";
     const scalarResult = await completionFor(scalarSource, scalarSource.length);
     expect(scalarResult?.options.map((option) => option.label)).not.toContain("path");
   });
 
   it("offers module-body parameters and exports only for a qualified instance", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  export point Public = coordinate(x: @width, y: 0)",
       "  point Private = coordinate(x: @width, y: 0)",
@@ -341,7 +341,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters qualified scalar members by the scalar context and keeps geometry members separate", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const value: number = 1",
       "  export let label: string = \"\"",
@@ -367,7 +367,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters qualified module exports inside scalar arguments at the root and in nested module bodies", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export const value: number = 1",
       "  export const label: string = \"\"",
@@ -389,7 +389,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(member?.options.map((option) => option.label)).toEqual(["value"]);
 
     const nestedSource = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export const value: number = 1",
       "  export const label: string = \"\"",
@@ -410,7 +410,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters qualified geometry exports inside geometry module arguments", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export point P = coordinate(x: 0, y: 0)",
       "  export line L = segment(start: @P, end: @P)",
@@ -427,7 +427,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("completes a member on an in-progress root scalar reference", async () => {
     const lastGood = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const value: number = 1",
       "  export point P = coordinate(x: 0, y: 0)",
@@ -447,7 +447,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("uses the resolved lexical instance for qualified scalar completion in nested scopes", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M1() {",
       "  export const first: number = 1",
       "}",
@@ -472,7 +472,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("projects a multiline module call label completion through the logical statement map", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(width: number, optional: number = 0) {",
       "}",
       "instance I = M(",
@@ -487,14 +487,14 @@ describe("module completion through the existing CodeMirror pipeline", () => {
   });
 
   it("fails closed for module candidates while the semantic metadata is stale", async () => {
-    const source = ["nui 4", "module M() {", "}", "instance I = M()"].join("\n");
+    const source = ["nui 1", "module M() {", "}", "instance I = M()"].join("\n");
     const result = await completionFor(source, source.indexOf("M()", source.indexOf("module I")) + 1, false);
     expect(result?.options ?? []).toEqual([]);
   });
 
   it("keeps a mapped last-good module site completable during dirty authoring", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -509,7 +509,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("uses the shared DSL identifier grammar for Japanese module names, parameters, instances, and exports", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module 凸ノッチ(縫い代写し: number) {",
       "  export point 縫い代線 = coordinate(x: @縫い代写し, y: 0)",
       "}",
@@ -523,7 +523,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("unions Module candidates into typed initializers, template holes, and set RHS without leaking outer bindings", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
       "  const leaked: number = @outer",
@@ -554,7 +554,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("filters Module body scalar references by boolean, string, and choice parameter type", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(flag: boolean, label: string, side: choice(left, right)) {",
       "  const flagCopy: boolean = @flag",
       "  const labelCopy: string = @label",
@@ -574,7 +574,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
 
   it("completes dirty new Module calls and newly added arguments from last-good identities", async () => {
     const lastGood = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "module M(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), optional: number = 0) {",
       "}",
@@ -595,7 +595,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(callee?.options.map((option) => option.label)).not.toContain("Forward");
 
     const existingCall = [
-      "nui 4",
+      "nui 1",
       "module M(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), optional: number = 0) {",
       "}",
       "instance I = M(pointValue: (0, 0), optional: )"
@@ -614,7 +614,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(unsafe?.options ?? []).toEqual([]);
 
     const typedLastGood = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "module T(pointValue: point, lineValue: line, textValue: string, flagValue: boolean, sideValue: choice(left, right), numberOptional: number = 0, textOptional: string = \"\", flagOptional: boolean = false, sideOptional: choice(left, right) = left) {",
@@ -633,7 +633,7 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     }
 
     const nestedLastGood = [
-      "nui 4",
+      "nui 1",
       "module First() {",
       "}",
       "group G {",

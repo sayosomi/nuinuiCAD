@@ -160,7 +160,7 @@ afterEach(() => {
 
 describe("VS Code choice Quick Fix provider", () => {
   it("uses the file-scoped selector and offers one action per valid const choice", () => {
-    const document = documentFor("nui 4\nconst side: choice(left, right) = center\n");
+    const document = documentFor("nui 1\nconst side: choice(left, right) = center\n");
     mocks.textDocuments.push(document);
     const { actions } = actionsFor(document);
 
@@ -176,7 +176,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("matches a Choice diagnostic by source, code, and range even when its message differs", async () => {
-    const source = "nui 4\nconst side: choice(left, right) = center\n";
+    const source = "nui 1\nconst side: choice(left, right) = center\n";
     const document = documentFor(source, "/tmp/context-message.nui");
     mocks.textDocuments.push(document);
     const compilerDiagnostic = diagnosticFor(document);
@@ -197,13 +197,13 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("filters let recovery descriptors and prefers a single valid option", () => {
-    const letDocument = documentFor("nui 4\nlet side: choice(left, right) = center\n");
+    const letDocument = documentFor("nui 1\nlet side: choice(left, right) = center\n");
     mocks.textDocuments.push(letDocument);
     const letActions = actionsFor(letDocument).actions;
     expect(letActions).toHaveLength(2);
     expect(letActions.every((action) => !action.title.includes("set"))).toBe(true);
 
-    const singleDocument = documentFor("nui 4\nconst side: choice(left) = center\n");
+    const singleDocument = documentFor("nui 1\nconst side: choice(left) = center\n");
     mocks.textDocuments.push(singleDocument);
     const singleActions = actionsFor(singleDocument).actions;
     expect(singleActions).toHaveLength(1);
@@ -211,7 +211,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("offers the missing-declared-type skeleton without preferring it", async () => {
-    const source = "nui 4\nlet width = 10\n";
+    const source = "nui 1\nlet width = 10\n";
     const document = documentFor(source, "/tmp/missing-type.nui");
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
@@ -224,8 +224,8 @@ describe("VS Code choice Quick Fix provider", () => {
     const action = descriptor.action as Record<string, unknown>;
     expect(descriptor.id).toMatch(/^missing-declared-type:/);
     expect(action).toMatchObject({
-      from: "nui 4\nlet width".length,
-      to: "nui 4\nlet width".length,
+      from: "nui 1\nlet width".length,
+      to: "nui 1\nlet width".length,
       insert: ": ",
       expectedOldText: ""
     });
@@ -242,12 +242,12 @@ describe("VS Code choice Quick Fix provider", () => {
     });
     const insertion = action.from as number;
     expect(`${source.slice(0, insertion)}${edit.edits[0]?.newText}${source.slice(insertion)}`).toBe(
-      "nui 4\nlet width:  = 10\n"
+      "nui 1\nlet width:  = 10\n"
     );
   });
 
   it("offers a native category repair for a known construction mismatch", () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)\n";
     const document = documentFor(source, "/tmp/category-mismatch.nui");
     mocks.textDocuments.push(document);
     const diagnostic = diagnosticFor(document, "construction-category-mismatch");
@@ -261,7 +261,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("matches a category diagnostic by source, code, and range even when its message differs", () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)\n";
     const document = documentFor(source, "/tmp/category-context-message.nui");
     mocks.textDocuments.push(document);
     const compilerDiagnostic = diagnosticFor(document, "construction-category-mismatch");
@@ -279,7 +279,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("preserves canonical order and never prefers multiple category repairs", () => {
-    const source = "nui 4\narc P = offset(sources: [@A], distance: 2)\n";
+    const source = "nui 1\narc P = offset(sources: [@A], distance: 2)\n";
     const document = documentFor(source, "/tmp/category-multiple.nui");
     mocks.textDocuments.push(document);
     const diagnostic = diagnosticFor(document, "construction-category-mismatch");
@@ -293,7 +293,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("does not expose category repairs for wrong source or code", () => {
-    const document = documentFor("nui 4\npoint P = segment(start: @A, end: @B)\n", "/tmp/category-context.nui");
+    const document = documentFor("nui 1\npoint P = segment(start: @A, end: @B)\n", "/tmp/category-context.nui");
     mocks.textDocuments.push(document);
     const matching = diagnosticFor(document, "construction-category-mismatch");
 
@@ -309,7 +309,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("applies only the category token through the composed handler", async () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)\n";
     const document = documentFor(source, "/tmp/category-apply.nui");
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(
@@ -332,13 +332,13 @@ describe("VS Code choice Quick Fix provider", () => {
     const categoryFrom = source.indexOf("point");
     const categoryTo = categoryFrom + "point".length;
     expect(`${source.slice(0, categoryFrom)}${edit.edits[0]?.newText}${source.slice(categoryTo)}`).toBe(
-      "nui 4\nline P = segment(start: @A, end: @B)\n"
+      "nui 1\nline P = segment(start: @A, end: @B)\n"
     );
   });
 
   it("applies category repairs with the shared CRLF normalized/raw adapter", async () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "// 😀 前置",
       "point P = segment(start: @A, end: @B)"
     ].join("\n");
@@ -364,7 +364,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("fails closed for stale category payload state and non-current target categories", async () => {
-    const source = "nui 4\npoint P = segment(start: @A, end: @B)\n";
+    const source = "nui 1\npoint P = segment(start: @A, end: @B)\n";
 
     const versionDocument = documentFor(source, "/tmp/category-version.nui");
     mocks.textDocuments.push(versionDocument);
@@ -409,7 +409,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("rejects a stale missing-declared-type descriptor through the composed provider", async () => {
-    const source = "nui 4\nlet width = 10\n";
+    const source = "nui 1\nlet width = 10\n";
     const document = documentFor(source, "/tmp/missing-descriptor-payload.nui");
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
@@ -425,7 +425,7 @@ describe("VS Code choice Quick Fix provider", () => {
 
   it("routes the existing typo Quick Fix through the composed provider and apply handler", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @widht"
     ].join("\n");
@@ -462,7 +462,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("does not attach actions to unrelated, wrong-code, or unsupported diagnostics", () => {
-    const document = documentFor("nui 4\nconst side: choice(left, right) = center\n");
+    const document = documentFor("nui 1\nconst side: choice(left, right) = center\n");
     mocks.textDocuments.push(document);
     const unrelated = new vscode.Diagnostic(
       new vscode.Range(new vscode.Position(1, 0), new vscode.Position(1, 1)),
@@ -483,7 +483,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("does not expose the missing-type action for wrong source/code or unsupported documents", () => {
-    const document = documentFor("nui 4\nlet width = 10\n", "/tmp/missing-context.nui");
+    const document = documentFor("nui 1\nlet width = 10\n", "/tmp/missing-context.nui");
     mocks.textDocuments.push(document);
     const matching = diagnosticFor(document, "missing-declared-type");
 
@@ -503,8 +503,8 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it.each([
-    ["scalar-type-mismatch", "nui 4\nlet x: number = \"hello\"\nlet y: number = 1\n"],
-    ["unexpected-token", "nui 4\nlet x: number = 1 $\n"]
+    ["scalar-type-mismatch", "nui 1\nlet x: number = \"hello\"\nlet y: number = 1\n"],
+    ["unexpected-token", "nui 1\nlet x: number = 1 $\n"]
   ])("does not expose %s recovery descriptors as native actions", (code, source) => {
     const document = documentFor(source, `/tmp/${code}.nui`);
     mocks.textDocuments.push(document);
@@ -513,7 +513,7 @@ describe("VS Code choice Quick Fix provider", () => {
 
   it("does not repair an invalid choice on a set RHS in v1", () => {
     const document = documentFor([
-      "nui 4",
+      "nui 1",
       "let side: choice(left, right) = left",
       "set side = center"
     ].join("\n"));
@@ -533,7 +533,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("applies only the invalid literal through a WorkspaceEdit", async () => {
-    const source = "nui 4\nconst side: choice(left, right) = center\n";
+    const source = "nui 1\nconst side: choice(left, right) = center\n";
     const document = documentFor(source);
     mocks.textDocuments.push(document);
     const { actions, apply } = actionsFor(document);
@@ -552,7 +552,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("fails closed for version, raw-source, expected-text, semantic, and descriptor staleness", async () => {
-    const source = "nui 4\nconst side: choice(left, right) = center\n";
+    const source = "nui 1\nconst side: choice(left, right) = center\n";
 
     const versionDocument = documentFor(source);
     mocks.textDocuments.push(versionDocument);
@@ -598,7 +598,7 @@ describe("VS Code choice Quick Fix provider", () => {
   });
 
   it("fails closed for stale missing-declared-type payload state", async () => {
-    const source = "nui 4\nlet width = 10\n";
+    const source = "nui 1\nlet width = 10\n";
 
     const versionDocument = documentFor(source, "/tmp/missing-version.nui");
     mocks.textDocuments.push(versionDocument);
@@ -609,7 +609,7 @@ describe("VS Code choice Quick Fix provider", () => {
     const rawDocument = documentFor(source, "/tmp/missing-raw.nui");
     mocks.textDocuments.push(rawDocument);
     const rawCase = actionsFor(rawDocument, [diagnosticFor(rawDocument, "missing-declared-type")]);
-    rawDocument.setSourceText("nui 4\nlet width = 20\n");
+    rawDocument.setSourceText("nui 1\nlet width = 20\n");
     await rawCase.apply(payloadFor(rawCase.actions[0]!));
 
     const semanticDocument = documentFor(source, "/tmp/missing-semantic.nui");
@@ -637,13 +637,13 @@ describe("VS Code choice Quick Fix provider", () => {
 
   it("projects CRLF and UTF-16 ranges and only edits the payload URI", async () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "// 😀 前置",
       "const 前身頃: choice(left, right) = center"
     ].join("\n");
     const source = normalized.replace(/\n/g, "\r\n");
     const document = documentFor(source, "/tmp/crlf.nui");
-    const other = documentFor("nui 4\nconst other: choice(a, b) = c\n", "/tmp/other.nui");
+    const other = documentFor("nui 1\nconst other: choice(a, b) = c\n", "/tmp/other.nui");
     mocks.textDocuments.push(other, document);
     const { actions, apply } = actionsFor(document);
 

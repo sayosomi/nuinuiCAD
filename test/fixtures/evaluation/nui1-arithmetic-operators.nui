@@ -1,0 +1,36 @@
+nui 1
+
+const powerBasic: number = 2 ^ 3
+const remainderBasic: number = 5 % 3
+const powerRightAssociative: number = 2 ^ 3 ^ 2
+const powerUnaryPrecedence: number = -2 ^ 2
+const powerNegativeExponent: number = 2 ^ -2
+
+point Origin = coordinate(
+  x: 2 ^ 3,
+  y: 5 % 3,
+)
+
+group Pattern {
+  point B = coordinate(
+    x: 100,
+    y: 0,
+  )
+
+  point C = coordinate(
+    x: 100,
+    y: 50,
+  )
+
+  line AB = segment(
+    start: @Origin,
+    end: @B,
+  )
+
+  line BC = segment(
+    start: @B,
+    end: @C,
+  )
+}
+
+stop

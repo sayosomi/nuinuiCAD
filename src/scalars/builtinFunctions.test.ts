@@ -9,7 +9,7 @@ import {
 const definitionOf = (name: BuiltinFunctionName) =>
   BUILTIN_FUNCTION_DEFINITIONS.find((definition) => definition.name === name);
 
-describe("nui4 builtin function catalog", () => {
+describe("nui1 builtin function catalog", () => {
   it.each([
     ["distance", ["point", "point"]],
     ["angle", ["point", "point"]],

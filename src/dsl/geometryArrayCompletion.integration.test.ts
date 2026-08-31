@@ -27,7 +27,7 @@ const queryAt = (source: string, marker: string) => {
 const labels = (result: ReturnType<typeof queryDslCompletion>) => result?.candidates.map((candidate) => candidate.label) ?? [];
 
 const geometryBase = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "line L = segment(start: @A, end: @B)",
@@ -84,7 +84,7 @@ describe("geometry array expected-type completion", () => {
 
   it("offers Module array parameters inside local array declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Copy(paths: path[]) {",
       "  const local: path[] = @",
       "}",
@@ -94,7 +94,7 @@ describe("geometry array expected-type completion", () => {
 
   it("offers compatible exported arrays through a qualified instance reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Maker() {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",

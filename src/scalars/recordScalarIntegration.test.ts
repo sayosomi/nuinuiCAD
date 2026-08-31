@@ -5,7 +5,7 @@ import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { evaluateScalarProgram } from "./declarationEvaluator";
 
 const compileCanonical = (source: string) => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -25,7 +25,7 @@ const statementIndexOfElementType = (
 describe("SAY-128 record scalar integration", () => {
   it("lowers constructor fields once, reuses them through aliases, and preserves source program order", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "record Config(amount: number, label: string, enabled: boolean)",
       'const config: Config = Config(enabled: true, label: "ok", amount: 12)',
       "const alias: Config = @config",
@@ -82,7 +82,7 @@ describe("SAY-128 record scalar integration", () => {
 
   it("uses record scalar fields in property, condition, text, construction, layout, and output contexts", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "record Config(amount: number, label: string, enabled: boolean)",
       'const config: Config = Config(amount: 12, label: "ok", enabled: true)',
       "const alias: Config = @config",
@@ -154,9 +154,9 @@ describe("SAY-128 record scalar integration", () => {
     ["unknown field", "@config.missing"],
     ["chained record access", "@config.amount.more"]
   ])("rejects %s without falling through to geometry property resolution", (_label, expression) => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
     const result = compileCanonicalText(baseline, [
-      "nui 4",
+      "nui 1",
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       `const width: number = ${expression}`

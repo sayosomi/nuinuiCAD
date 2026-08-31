@@ -24,7 +24,7 @@ import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEva
 import type { EffectiveElementActivity } from "../model/elementActivity";
 
 /**
- * A scalar-program binding resolver for one compiled nui 4 document.
+ * A scalar-program binding resolver for one compiled nui 1 document.
  */
 export type ScalarBindingResolver = {
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
@@ -110,7 +110,7 @@ export const resolveDocumentGeometryTarget = (
 };
 
 /**
- * Builds a resolver for a compiled nui 4 scalar program.
+ * Builds a resolver for a compiled nui 1 scalar program.
  */
 export const createDocumentScalarBindingResolver = (
   program: ScalarProgram,

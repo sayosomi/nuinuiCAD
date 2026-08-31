@@ -147,7 +147,7 @@ describe("VS Code native nui Hover provider", () => {
 
   it("resolves a semantic reference first and anchors shared geometry to the exact identifier range", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -182,7 +182,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("encodes only the internal source-reference command and rejects stale navigation proof", () => {
-    const source = "nui 4\npoint Base = coordinate(x: 1, y: 2)";
+    const source = "nui 1\npoint Base = coordinate(x: 1, y: 2)";
     const document = documentFor(source);
     const from = source.indexOf("Base");
     const args: NuiHoverRevealSourceReferenceArgs = {
@@ -204,7 +204,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("does not start runtime evaluation outside a geometry semantic target", async () => {
-    const source = "nui 4\npoint A = coordinate(x: 1, y: 2)";
+    const source = "nui 1\npoint A = coordinate(x: 1, y: 2)";
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const evaluateCurrent = vi.fn();
@@ -224,7 +224,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("shows Geometry unavailable only for a still-current semantic target", async () => {
-    const source = "nui 4\npoint A = coordinate(x: 1, y: 2)";
+    const source = "nui 1\npoint A = coordinate(x: 1, y: 2)";
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiHoverProvider(
@@ -244,7 +244,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("returns no Hover when cancelled while a shared evaluation is in flight", async () => {
-    const source = "nui 4\npoint A = coordinate(x: 1, y: 2)";
+    const source = "nui 1\npoint A = coordinate(x: 1, y: 2)";
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const pending = deferred<NuiRuntimeEvaluationSnapshot | undefined>();
@@ -266,7 +266,7 @@ describe("VS Code native nui Hover provider", () => {
   });
 
   it("drops a completion when the TextDocument changes while evaluation is in flight", async () => {
-    const source = "nui 4\npoint A = coordinate(x: 1, y: 2)";
+    const source = "nui 1\npoint A = coordinate(x: 1, y: 2)";
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
     const pending = deferred<NuiRuntimeEvaluationSnapshot | undefined>();
@@ -281,7 +281,7 @@ describe("VS Code native nui Hover provider", () => {
       tokenFor()
     );
     const snapshot = runtimeSnapshotFor(session, source);
-    document.setSource("nui 4\npoint C = coordinate(x: 3, y: 4)");
+    document.setSource("nui 1\npoint C = coordinate(x: 3, y: 4)");
     pending.resolve(snapshot);
 
     expect(await result).toBeUndefined();
@@ -289,7 +289,7 @@ describe("VS Code native nui Hover provider", () => {
 
   it("keeps identifier ranges exact for CRLF and Japanese names", async () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "point 前身頃 = coordinate(x: 1, y: 2)",
       "point B = offset(from: @前身頃, dx: 1, dy: 0)"
     ].join("\n");

@@ -16,7 +16,7 @@ const sourceFor = (x: number) => dslTextForElements([
 ]);
 
 const sourceWithLine = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "point C = coordinate(x: 20, y: 0)",
@@ -257,8 +257,8 @@ describe("VS Code Canvas point-drag chronology", () => {
   it("fails closed when an authoritative source does not match the adjacent checkpoint", () => {
     useCadDocumentStore.getState().commitText(sourceFor(40), "editor");
 
-    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory("nui 4\n// host won", "undo")).toBe("reset");
-    expect(useCadDocumentStore.getState().sourceText).toBe("nui 4\n// host won");
+    expect(useCadDocumentStore.getState().reconcileAuthoritativeHistory("nui 1\n// host won", "undo")).toBe("reset");
+    expect(useCadDocumentStore.getState().sourceText).toBe("nui 1\n// host won");
     expect(useCadDocumentStore.getState().past).toEqual([]);
     expect(useCadDocumentStore.getState().future).toEqual([]);
     expect(useCadDocumentStore.getState().selectionPast).toEqual([]);

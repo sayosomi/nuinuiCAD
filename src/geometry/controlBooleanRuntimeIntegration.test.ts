@@ -1,4 +1,4 @@
-// End-to-end coverage for Task 25: compiles real nui 4 source through the
+// End-to-end coverage for Task 25: compiles real nui 1 source through the
 // production document pipeline, builds the elementId-keyed control-boolean
 // entries/condition map, && evaluates through evaluateElements - proving
 // the whole compile -> build -> resolve -> evaluate path works together for
@@ -14,7 +14,7 @@ import {
 } from "./controlBooleanRuntime";
 
 const compileCanonical = (source: string): LastGoodDslDocument => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
@@ -47,7 +47,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
     // A leading unrelated typed declaration is required for scalarAnalysis
     // (and therefore this compiler) to run at all in production wiring.
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const _unused: number = 0",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -63,7 +63,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("bare boolean binding reference condition selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let flag: boolean = false",
       "if (@flag) {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -79,7 +79,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("comparison condition (typed number binding) selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const n: number = 5",
       "if (@n > 10) {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -95,7 +95,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("resolves a geometry-property condition against earlier computed geometry", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -114,7 +114,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("logical  and  condition (typed boolean bindings) selects the correct branch", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let a: boolean = true",
       "let b: boolean = false",
       "if (@a  and  @b) {",
@@ -131,7 +131,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a poisoned typed condition disables both branches (matches legacy poison semantics)", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, state: disabled)",
@@ -151,7 +151,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a plain boolean condition (no typed declarations at all) is evaluated", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -166,7 +166,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 
   it("a typed condition inside a forGroup template resolves the same active branch on every generated iteration", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let flag: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -200,7 +200,7 @@ describe("Task 25 conditionalGroup.condition, end-to-end through the real compil
 describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler", () => {
   it("showGenerated: false (literal) never affects iteration count or generated rows", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -216,7 +216,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("showGenerated: false (bound to a typed boolean binding) never affects iteration count or generated rows", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let 表示: boolean = false",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -241,7 +241,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("showGenerated: true (bound) is reflected in forGroupEffectiveShowGeneratedIds without affecting rows", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let 表示: boolean = true",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -258,7 +258,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("an outer hidden loop removes every nested generated descendant from the draw mask", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "let outerShown: boolean = false",
       "let innerShown: boolean = true",
       "for i in range(from: 0, count: 2, step: 1, showGenerated: @outerShown) {",
@@ -284,7 +284,7 @@ describe("Task 25 forGroup.showGenerated, end-to-end through the real compiler",
 
   it("a poisoned showGenerated binding fails closed to hidden without affecting iteration/rows", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "point Z1 = coordinate(x: 0, y: 0)",
       "point Z2 = coordinate(x: 3, y: 4)",
       "line D = segment(start: @Z1, end: @Z2, state: disabled)",

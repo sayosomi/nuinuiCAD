@@ -14,7 +14,7 @@ const compileWithIds = (source: string) => {
 
 describe("module source-semantic rename analysis", () => {
   const source = [
-    "nui 4",
+    "nui 1",
     "module M(width: number) {",
     "  export point Public = coordinate(x: @width, y: 0)",
     "  point Private = coordinate(x: @width, y: 0)",
@@ -52,7 +52,7 @@ describe("module source-semantic rename analysis", () => {
 
   it("projects a module parameter collision to the conflicting declaration range", () => {
     const parameterSource = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number, length: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"
@@ -72,7 +72,7 @@ describe("module source-semantic rename analysis", () => {
 
   it("renames exported scalar declarations and all instance members without crossing segments", () => {
     const scalarSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const value: number = 1",
       "  export let label: string = \"\"",

@@ -15,7 +15,7 @@ const compileWithIds = (source: string) => {
 describe("CodeMirror geometry-array completion", () => {
   it("keeps the source marker while displaying a bare geometry label", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segment(start: @A, end: @B)",

@@ -4,7 +4,7 @@ import { parseDslSettingsStatement } from "./dslSettingsParser";
 const parse = (source: string, opensBlock = false) => parseDslSettingsStatement(source, { opensBlock });
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);
 
-describe("nui4 settings parser", () => {
+describe("nui1 settings parser", () => {
   it("parses every short-form settings statement", () => {
     expect(parse("nui 2").statement).toMatchObject({ kind: "version", value: "2", payloadSpans: { value: { start: 4, end: 5 } } });
     expect(parse("activeView 通常").statement).toMatchObject({ kind: "activeView", name: "通常" });
@@ -33,7 +33,7 @@ describe("nui4 settings parser", () => {
 
   it("keeps version values available without deciding supported versions", () => {
     expect(parse("nui 1").diagnostics).toEqual([]);
-    expect(parse("nui 4").statement?.value).toBe("4");
+    expect(parse("nui 1").statement?.value).toBe("1");
   });
 
   it("reports recoverable argument and statement diagnostics with spans", () => {

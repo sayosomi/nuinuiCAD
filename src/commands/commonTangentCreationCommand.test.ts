@@ -8,7 +8,7 @@ describe("common tangent creation command", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadUiStore.setState(initialCadUiState());
-    useCadDocumentStore.getState().commitText("nui 4", "test");
+    useCadDocumentStore.getState().commitText("nui 1", "test");
   });
 
   it("starts the shared command-line creation recipe from the palette command", () => {

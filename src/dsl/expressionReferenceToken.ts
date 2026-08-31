@@ -9,7 +9,7 @@
 //
 // Disambiguation is purely the presence of `.`: `@AB` is a binding
 // reference, `@AB.` is an element-property reference. `AB.length` (no
-// leading `@`) is an invalid nui 4 element-property reference && is kept
+// leading `@`) is an invalid nui 1 element-property reference && is kept
 // recognizable only to report the precise repair diagnostic.
 
 import { readExpressionReferenceHead } from "../scalars/expressionReferenceGrammar";
@@ -369,7 +369,7 @@ export const barePropertyReferenceIssues = (
       elementToken: match.elementToken,
       query: match.query,
       code: BARE_PROPERTY_REFERENCE_CODE,
-      message: `要素プロパティ参照は「@${match.elementToken}.${match.query}」と書いてください(nui 4)。`
+      message: `要素プロパティ参照は「@${match.elementToken}.${match.query}」と書いてください(nui 1)。`
     }));
 
 /**

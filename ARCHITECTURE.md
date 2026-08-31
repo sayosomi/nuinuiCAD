@@ -296,14 +296,14 @@ Primary:
 - `docs/dsl.md`
 
 `docs/dsl.md` は current implemented language documentation。Current
-saved-document language は nui4 only。
+saved-document language は nui1 only。
 
 Drawing Profile declarations are compiler-resolved source declarations in the
 ordinary source lexical namespace. Drawing Modifier `width`, `style`, `color`,
 and `state` contributions merge independently: the common modifier contribution
 is applied first, followed by the matching selected profile delta.
 
-Print layout source declarations are also owned by the nui4 parser/compiler
+Print layout source declarations are also owned by the nui1 parser/compiler
 facade: `layout` contains ordered direct `place` statements, while `print` and
 `svg` contain resolved output references and physical-unit settings. Their
 statement identities come from `statementReconciler`; lexical target/origin and

@@ -71,7 +71,7 @@ const snapshot = {
   preview: { kind: "noValidPreview" as const, result: null }
 } satisfies ModulePreviewSessionSnapshot;
 
-const source = "nui 4\nmodule Preview(width: number) {\n}\n";
+const source = "nui 1\nmodule Preview(width: number) {\n}\n";
 
 afterEach(() => {
   cleanup();

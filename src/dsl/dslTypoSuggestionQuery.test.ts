@@ -35,16 +35,16 @@ const labels = (source: string, code: string) => queryFor(source, code).result?.
 
 describe("queryDslTypoSuggestions", () => {
   it("reuses canonical keyword, type, construction, and construction-argument candidates", () => {
-    const keyword = queryFor("nui 4\npont P = coordinate(x: 0, y: 0)", "unknown-dsl-keyword").result;
+    const keyword = queryFor("nui 1\npont P = coordinate(x: 0, y: 0)", "unknown-dsl-keyword").result;
     expect(keyword?.targetKind).toBe("keyword");
     expect(keyword?.candidates.map((candidate) => candidate.label)).toContain("point");
 
-    const type = queryFor("nui 4\nlet value: numbr = 10", "unknown-type").result;
+    const type = queryFor("nui 1\nlet value: numbr = 10", "unknown-type").result;
     expect(type?.targetKind).toBe("type");
     expect(type?.candidates.map((candidate) => candidate.label)).toContain("number");
 
     const construction = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segmnt(start: @A, end: @B)"
@@ -52,7 +52,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(labels(construction, "unknown-construction")).toContain("segment");
 
     const argument = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segment(strat: @A, end: @B)"
@@ -60,7 +60,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(labels(argument, "unknown-construction-argument")).toContain("start");
 
     const mutation = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segment(start: @A, end: @B)",
@@ -70,14 +70,14 @@ describe("queryDslTypoSuggestions", () => {
   });
 
   it("reuses builtin callable and named-argument candidates", () => {
-    const callable = queryFor("nui 4\nconst value: number = roumd(12.3)", "unknown-function").result;
+    const callable = queryFor("nui 1\nconst value: number = roumd(12.3)", "unknown-function").result;
     expect(callable?.targetKind).toBe("builtinCallable");
     expect(callable?.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "builtin", label: "round", distance: 1 })
     ]));
 
     const namedArgument = queryFor(
-      "nui 4\nconst value: number = spreadAngle(lenght: 10, spread: 20)",
+      "nui 1\nconst value: number = spreadAngle(lenght: 10, spread: 20)",
       "unknown-function-argument"
     ).result;
     expect(namedArgument?.targetKind).toBe("builtinArgument");
@@ -88,7 +88,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("uses the completion-owned edit range inside an exact @binding diagnostic span", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const seamAllowance: number = 10",
       "const result: number = @seamAlowance"
     ].join("\n");
@@ -108,7 +108,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("filters threshold-eligible geometry suggestions through current kind, scope, and source order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "line Anchur = segment(start: @Anchor, end: @Anchor)",
       "group HiddenGroup {",
@@ -128,7 +128,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("reuses Module callee and argument candidates", () => {
     const calleeSource = [
-      "nui 4",
+      "nui 1",
       "module Pocket(width: number) {",
       "}",
       "instance Use = Pockte(width: 10)"
@@ -138,7 +138,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(callee?.candidates.map((candidate) => candidate.label)).toContain("Pocket");
 
     const argumentSource = [
-      "nui 4",
+      "nui 1",
       "module M(startPoint: point) {",
       "}",
       "point A = coordinate(x: 0, y: 0)",
@@ -151,17 +151,17 @@ describe("queryDslTypoSuggestions", () => {
 
   it("keeps forward, wrong-callable, already-used, and exclusive-group names out of candidates", () => {
     const forward = [
-      "nui 4",
+      "nui 1",
       "const use: number = @ltaerName",
       "const laterName: number = 10"
     ].join("\n");
     expect(labels(forward, "undefined-binding")).not.toContain("laterName");
 
-    const wrongCallable = "nui 4\npoint P = coordinate(statr: 0, y: 0)";
+    const wrongCallable = "nui 1\npoint P = coordinate(statr: 0, y: 0)";
     expect(labels(wrongCallable, "unknown-construction-argument")).not.toContain("start");
 
     const used = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line L = segment(start: @A, strat: @A, end: @B)"
@@ -169,7 +169,7 @@ describe("queryDslTypoSuggestions", () => {
     expect(labels(used, "unknown-construction-argument")).not.toContain("start");
 
     const exclusive = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point P = between(start: @A, end: @B, distance: 5, raito: 0.5)"
@@ -179,7 +179,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("returns every threshold-eligible candidate in deterministic distance then authority order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const alpha: number = 1",
       "const alphi: number = 2",
       "const result: number = @alhpa"
@@ -193,7 +193,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("returns an exact target with no candidates when no canonical name passes the threshold", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @zzzzzz"
     ].join("\n");
@@ -204,7 +204,7 @@ describe("queryDslTypoSuggestions", () => {
 
   it("fails closed for stale snapshots and non-spelling semantic failures", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @widht"
     ].join("\n");
@@ -224,7 +224,7 @@ describe("queryDslTypoSuggestions", () => {
     })).toBeNull();
 
     const forwardSource = [
-      "nui 4",
+      "nui 1",
       "const use: number = @later",
       "const later: number = 10"
     ].join("\n");
@@ -237,7 +237,7 @@ describe("queryDslTypoSuggestions", () => {
       semantic: { sourceRevision: SOURCE_REVISION, compiled: forwardCompiled }
     })).toBeNull();
 
-    const mismatchSource = "nui 4\npoint P = segment(start: @A, end: @B)";
+    const mismatchSource = "nui 1\npoint P = segment(start: @A, end: @B)";
     const mismatchCompiled = compileWithIds(mismatchSource);
     const mismatchDiagnostic = diagnosticsOf(mismatchCompiled).find(
       (diagnostic) => diagnostic.code === "construction-category-mismatch"

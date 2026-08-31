@@ -47,7 +47,7 @@ const planFor = (source: string, token: string, candidateName: string, occurrenc
 describe("queryDslGeometryReferenceRetargetTarget", () => {
   it("resolves a reference occurrence but never a definition, comment, or string", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "text Label = label(text: \"@A\", anchor: @A, size: 1)",
@@ -63,7 +63,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("uses semantic identity, excluding a same-name shadow and the declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "group Inner {",
       "  point A = coordinate(x: 10, y: 0)",
@@ -84,7 +84,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("retargets ordinary point references and leaves the declaration text untouched", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)"
@@ -105,7 +105,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("retargets path references and preserves a numeric property suffix", () => {
     const pathSource = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
       "line A = segment(start: @P, end: @Q)",
@@ -117,7 +117,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     if (pathResult.status === "ok") expect(pathResult.plan.proposedSource).toContain("sources: [@B]");
 
     const numericSource = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
       "line A = segment(start: @P, end: @Q)",
@@ -135,7 +135,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("qualifies a replacement when required and keeps same-scope replacements short", () => {
     const qualifiedSource = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -160,7 +160,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     }
 
     const sameScopeSource = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 20, y: 0)",
@@ -174,7 +174,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("retargets a qualified Module export through an existing instance alias", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  point Q = coordinate(x: 20, y: 0)",
@@ -195,7 +195,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("requires one candidate to be reachable and compatible at every occurrence", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "point Q = coordinate(x: 20, y: 0)",
       "line A = segment(start: @P, end: @Q)",
@@ -211,7 +211,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("rejects a candidate made unavailable by source order or scope", () => {
     const forwardSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)",
       "point B = coordinate(x: 20, y: 0)"
@@ -219,7 +219,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
     expect(targetAt(forwardSource, "@A")!.candidates.some((candidate) => candidate.name === "B")).toBe(false);
 
     const scopeSource = [
-      "nui 4",
+      "nui 1",
       "module M(a: point) {",
       "  point Use = offset(from: @a, dx: 1, dy: 0)",
       "}",
@@ -233,7 +233,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("excludes a disabled geometry candidate from current compiler availability", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0, state: disabled)",
       "point C = coordinate(x: 20, y: 0)",
@@ -248,7 +248,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("does not compile while enumerating candidates but verifies the final plan", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 20, y: 0)",
@@ -276,7 +276,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("retargets all references of a Module parameter in its body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(a: path, b: path) {",
       "  group One {",
       "    line First = offset(sources: [@a], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
@@ -298,7 +298,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("fails closed for stale source and failed proposed-source semantic verification", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)"
@@ -324,7 +324,7 @@ describe("queryDslGeometryReferenceRetargetTarget", () => {
 
   it("returns no applicable plan when there is no compatible candidate", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");

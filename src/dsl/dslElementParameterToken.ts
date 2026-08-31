@@ -3,7 +3,7 @@ import { expressionReferenceTokenEndingAt } from "./expressionReferenceToken";
 export type DslElementParameterTokenMatch = { from: number; to: number; elementToken: string; query: string };
 
 /**
- * Finds the `ElementName.query` (or nui 4 `@ElementName.query`) token ending
+ * Finds the `ElementName.query` (or nui 1 `@ElementName.query`) token ending
  * exactly at `pos` within `text`, restricted to [boundaryStart, pos).
  * `elementToken` never includes a leading `@` - the sigil is stripped by the
  * shared classifier, fixing the pre-Task-51 bug where `@AB.` reached this

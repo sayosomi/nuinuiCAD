@@ -51,7 +51,7 @@ const bases = (
 describe("referencePickCandidates source scope", () => {
   it("uses the shortest authored lexical path that resolves to the candidate", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "group G {",
@@ -69,7 +69,7 @@ describe("referencePickCandidates source scope", () => {
 
   it("projects a Source target onto each concrete parent instance for direct nested exports", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "  export line Out = segment(start: (0, 0), end: (10, 0))",
       "}",

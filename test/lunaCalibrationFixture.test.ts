@@ -19,7 +19,7 @@ const expectedLines = [
 const expectedNames = ["CAL_UNIQUE", "CAL_AMBIG_A", "CAL_AMBIG_B"] as const;
 
 describe("Luna MCP E2E calibration fixture", () => {
-  it("preserves the controlled nui4 compile/evaluate and identity oracle", async () => {
+  it("preserves the controlled nui1 compile/evaluate and identity oracle", async () => {
     const source = readFileSync(calibrationFixturePath, "utf8");
 
     for (const line of expectedLines) {

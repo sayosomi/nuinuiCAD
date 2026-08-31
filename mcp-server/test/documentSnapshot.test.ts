@@ -34,7 +34,7 @@ afterEach(async () => {
 describe("inspectNuiDocument", () => {
   it("returns a valid exact-current snapshot with compact declarations and elements", async () => {
     const filePath = await makeTempDocument([
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n"));
@@ -57,7 +57,7 @@ describe("inspectNuiDocument", () => {
 
   it("keeps element IDs stable while exact source identity is unchanged", async () => {
     const filePath = await makeTempDocument([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n"));
@@ -72,7 +72,7 @@ describe("inspectNuiDocument", () => {
 
   it("keeps warning snapshots semantically available", async () => {
     const filePath = await makeTempDocument([
-      "nui 4",
+      "nui 1",
       "point UsesMissing = offset(from: @Missing, dx: 1, dy: 0)"
     ].join("\n"));
 
@@ -88,7 +88,7 @@ describe("inspectNuiDocument", () => {
 
   it("fails closed on fatal current source instead of exposing last-good semantics", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "this is not valid nui syntax"
     ].join("\n");
@@ -104,7 +104,7 @@ describe("inspectNuiDocument", () => {
 
   it("projects CRLF diagnostic ranges onto LF-normalized zero-based offsets", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(required: number) {",
       "}",
       "instance Use = M()"
@@ -126,7 +126,7 @@ describe("inspectNuiDocument", () => {
 
   it("preserves structured related diagnostic information", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(required: number) {",
       "}",
       "instance Use = M()"
@@ -145,10 +145,10 @@ describe("inspectNuiDocument", () => {
   });
 
   it("changes source identity when file content changes between calls", async () => {
-    const filePath = await makeTempDocument("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    const filePath = await makeTempDocument("nui 1\npoint A = coordinate(x: 0, y: 0)");
     const first = await inspectNuiDocument(filePath);
 
-    await writeFile(filePath, "nui 4\npoint A = coordinate(x: 1, y: 0)", "utf8");
+    await writeFile(filePath, "nui 1\npoint A = coordinate(x: 1, y: 0)", "utf8");
     const second = await inspectNuiDocument(filePath);
 
     expect(second.sourceIdentity.hash).not.toBe(first.sourceIdentity.hash);
@@ -158,7 +158,7 @@ describe("inspectNuiDocument", () => {
     await expect(inspectNuiDocument("relative.nui")).rejects.toBeInstanceOf(DocumentInspectInputError);
     await expect(inspectNuiDocument(path.join(tmpdir(), "definitely-missing-nuinuicad-file.nui")))
       .rejects.toThrow(/does not exist/);
-    const otherFile = await makeTempDocument("nui 4", "sample.txt");
+    const otherFile = await makeTempDocument("nui 1", "sample.txt");
     await expect(inspectNuiDocument(otherFile)).rejects.toThrow(/only \.nui/);
   });
 });

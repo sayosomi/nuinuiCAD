@@ -312,7 +312,7 @@ afterEach(() => {
 describe("registerModulePreviewFeature", () => {
   it("keeps one panel per document and retargets it to the innermost current Module", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  point A = coordinate(x: 0, y: 0)",
       "  module Inner() {",
@@ -387,7 +387,7 @@ describe("registerModulePreviewFeature", () => {
 
   it("fails closed when the open target identity disappears instead of rebinding to its ancestor", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Inner() {",
       "    point B = coordinate(x: 1, y: 0)",
@@ -417,7 +417,7 @@ describe("registerModulePreviewFeature", () => {
     panel.webview.postMessage.mockClear();
 
     const nextSource = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
@@ -446,7 +446,7 @@ describe("registerModulePreviewFeature", () => {
 
   it("uses an exact-current context key only for the Source context menu", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -488,7 +488,7 @@ describe("registerModulePreviewFeature", () => {
 
   it("owns exact Preview Value focus, relays typed steps through setValue, restores selection, and consumes unsupported steps", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(width: number(step: 2, min: 0, max: 10)) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"
@@ -691,7 +691,7 @@ describe("registerModulePreviewFeature", () => {
 
   it("retains the exact live session projection, relays actions, and rejects stale source/disposal races", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  module Inner(width: number = @scale * 2) {",
       "    point P = coordinate(x: @width, y: 0)",
@@ -887,7 +887,7 @@ describe("registerModulePreviewFeature", () => {
 
   it("switches to existing live panels and restores only their retained exact projection", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"

@@ -37,7 +37,7 @@ const planFor = (
 describe("Bake structured failure results", () => {
   it("classifies unsupported text and image geometry kinds", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "text Memo = label(text: \"memo\", anchor: none, size: 3)"
     ].join("\n"));
     const memo = compiled.doc.document.elements.find((element) => element.name === "Memo")!;
@@ -88,7 +88,7 @@ describe("Bake structured failure results", () => {
 
   it("classifies evaluation failure before unevaluated or missing geometry", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
     const line = compiled.doc.document.elements.find((element) => element.name === "L")!;
@@ -117,7 +117,7 @@ describe("Bake structured failure results", () => {
 
   it("distinguishes unevaluated from geometry unavailable", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
     const line = compiled.doc.document.elements.find((element) => element.name === "L")!;
@@ -146,7 +146,7 @@ describe("Bake structured failure results", () => {
 
   it("classifies exactness failures separately from unsupported geometry", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point C = coordinate(x: 0, y: 0)",
       "arc A = arc(center: @C, radius: 10, start: 0, end: 90)",
       "reverse(target: @A)"
@@ -176,7 +176,7 @@ describe("Bake structured failure results", () => {
 
   it("keeps structured failures when skipped source comments are disabled", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "text Memo = label(text: \"memo\", anchor: none, size: 3)"
     ].join("\n"));
     const memo = compiled.doc.document.elements.find((element) => element.name === "Memo")!;
@@ -190,7 +190,7 @@ describe("Bake structured failure results", () => {
 
   it("counts successful targets instead of generated primitives and preserves source-order failures", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point M = coordinate(x: 5, y: 5)",
       "point B = coordinate(x: 10, y: 0)",
@@ -211,7 +211,7 @@ describe("Bake structured failure results", () => {
 
   it("does not report intentional hidden or disabled filtering as failures", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point Hidden = coordinate(x: 1, y: 2, state: hidden)",
       "point Disabled = coordinate(x: 3, y: 4, state: disabled)"
     ].join("\n"));

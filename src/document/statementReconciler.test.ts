@@ -82,14 +82,14 @@ const reconcileElements = (
 describe("statementReconciler 仕様表", () => {
   it("inherits opaque identities for renamed module definitions and instances across insertion", () => {
     const oldSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Inner = coordinate(x: 0, y: 0)",
       "}",
       "instance Instance = M()"
     ].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point Unrelated = coordinate(x: 10, y: 10)",
       "module Renamed() {",
       "  point Inner = coordinate(x: 0, y: 0)",
@@ -340,8 +340,8 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("コメントのみの行内編集はID変化0", () => {
-    const oldSource = ["nui 4", "point A = coordinate(x: 0, y: 0) // 旧コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
-    const newSource = ["nui 4", "point A = coordinate(x: 0, y: 0) // 新コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const oldSource = ["nui 1", "point A = coordinate(x: 0, y: 0) // 旧コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const newSource = ["nui 1", "point A = coordinate(x: 0, y: 0) // 新コメント", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     expect(idByName(next, "A")).toBe(idByName(old, "A"));
     expect(result.createdIds.size).toBe(0);
@@ -398,7 +398,7 @@ describe("statementReconciler 仕様表", () => {
   });
 
   it("旧文書が空なら全て新規ID", () => {
-    const oldSource = "nui 4";
+    const oldSource = "nui 1";
     const newSource = dslTextForElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "b", name: "B", type: "freePoint", activity: "visible", x: 1, y: 1 }
@@ -415,7 +415,7 @@ describe("statementReconciler 仕様表", () => {
 describe("statementReconciler 複数行statement(縦型call)", () => {
   it("引数行だけの編集は段階1の無変更扱いにならず、IDは継承される", () => {
     const oldSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -424,7 +424,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -446,7 +446,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
 
   it("複数行statementが完全不変なら段階1でID継承・変化なし", () => {
     const oldSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -455,7 +455,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -473,7 +473,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
 
   it("複数行statementと単一行statementの順序入れ替えでもID対応にずれや重複がない", () => {
     const oldSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -483,7 +483,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point C = coordinate(x: 2, y: 2)"
     ].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point C = coordinate(x: 2, y: 2)",
       "point B = coordinate(x: 1, y: 1)",
       "point A = coordinate(",
@@ -507,7 +507,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
 
   it("複数行statementのリネームは単一行と同じID継承規則の回帰(段階は断定しない)", () => {
     const oldSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -516,7 +516,7 @@ describe("statementReconciler 複数行statement(縦型call)", () => {
       "point B = coordinate(x: 1, y: 1)"
     ].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point Arenamed = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -580,8 +580,8 @@ describe("statementReconciler と typed declaration", () => {
   const declarationLines = () => Array.from({ length: 50 }, (_, index) => `const V${index}: number = ${index}`);
 
   it("declarations inherit opaque identities without entering elements", () => {
-    const oldSource = ["nui 4", ...declarationLines(), ...pointLines()].join("\n");
-    const newSource = ["nui 4", ...declarationLines(), "const extra: number = 999", ...pointLines()].join("\n");
+    const oldSource = ["nui 1", ...declarationLines(), ...pointLines()].join("\n");
+    const newSource = ["nui 1", ...declarationLines(), "const extra: number = 999", ...pointLines()].join("\n");
     const { result } = reconcileSources(oldSource, newSource);
     expect(result.inheritedCount).toBe(100);
     expect(result.createdIds.size).toBe(1);
@@ -589,9 +589,9 @@ describe("statementReconciler と typed declaration", () => {
   });
 
   it("a declaration positioned between two elements does not affect either element's identity", () => {
-    const oldSource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const oldSource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const newSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const between: string = \"x\"",
       "point B = coordinate(x: 1, y: 1)"
@@ -606,8 +606,8 @@ describe("statementReconciler と typed declaration", () => {
 
 describe("statementReconciler と set statement", () => {
   it("a set statement inherits an opaque identity across an unrelated edit", () => {
-    const oldSource = ["nui 4", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
-    const newSource = ["nui 4", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 1)"].join("\n");
+    const oldSource = ["nui 1", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const newSource = ["nui 1", "let x: number = 1", "set x = 2", "point A = coordinate(x: 0, y: 1)"].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     const oldSetIndex = old.statements.findIndex((statement) => statement.kind === "set");
     const newSetIndex = next.statements.findIndex((statement) => statement.kind === "set");
@@ -620,8 +620,8 @@ describe("statementReconciler と set statement", () => {
   });
 
   it("a newly-added set statement gets its own fresh identity, not a fabricated one", () => {
-    const oldSource = ["nui 4", "let x: number = 1"].join("\n");
-    const newSource = ["nui 4", "let x: number = 1", "set x = 2"].join("\n");
+    const oldSource = ["nui 1", "let x: number = 1"].join("\n");
+    const newSource = ["nui 1", "let x: number = 1", "set x = 2"].join("\n");
     const { next, result } = reconcileSources(oldSource, newSource);
     const newSetIndex = next.statements.findIndex((statement) => statement.kind === "set");
     expect(result.createdIds.has(newSetIndex)).toBe(true);
@@ -629,11 +629,11 @@ describe("statementReconciler と set statement", () => {
   });
 
   it("a set statement positioned between two elements does not affect either element's identity", () => {
-    const oldSource = ["nui 4", "let x: number = 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join(
+    const oldSource = ["nui 1", "let x: number = 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join(
       "\n"
     );
     const newSource = [
-      "nui 4",
+      "nui 1",
       "let x: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "set x = 2",
@@ -648,8 +648,8 @@ describe("statementReconciler と set statement", () => {
   it("changing a `set n` line into a `let n` declaration of the same name never inherits the set's identity", () => {
     // identityKindOf must distinguish "set" from "typedDeclaration" so a
     // rename-detection pass can never confuse the two kinds sharing a name.
-    const oldSource = ["nui 4", "let n: number = 1", "set n = 2"].join("\n");
-    const newSource = ["nui 4", "let n: number = 1", "let n: number = 3"].join("\n");
+    const oldSource = ["nui 1", "let n: number = 1", "set n = 2"].join("\n");
+    const newSource = ["nui 1", "let n: number = 1", "let n: number = 3"].join("\n");
     const { old, next, result } = reconcileSources(oldSource, newSource);
     const oldSetIndex = old.statements.findIndex((statement) => statement.kind === "set");
     const vanishedSetId = old.statementMap!.statementIdByStatementIndex!.get(oldSetIndex);

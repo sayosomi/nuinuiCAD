@@ -10,10 +10,10 @@ const errorsOf = (source: string) =>
 const assignedStatementIds = (source: string) =>
   new Map(parseDsl(source).statements.map((_, index) => [index, `test:${index}`]));
 
-describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
+describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
   it("accepts the acceptance-critical sigil form in a coordinate() numeric attribute", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "point C = coordinate(x: @AB.length, y: 0)"
     ].join("\n");
@@ -26,7 +26,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("flags a bare Element.property reference in a number attribute", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "point C = coordinate(x: AB.length, y: 0)"
     ].join("\n");
@@ -38,7 +38,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("rejects a bare reference in a conditional condition", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "if (AB.length > 0) {",
       "  point C = coordinate(x: 0, y: 0)",
@@ -50,7 +50,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("accepts the sigil form in a conditional condition", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "if (@AB.length > 0) {",
       "  point C = coordinate(x: 0, y: 0)",
@@ -62,7 +62,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("accepts a geometry property reference in a const number initializer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "const x: number = @AB.length"
     ].join("\n");
@@ -74,7 +74,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("accepts a geometry property reference in a let initializer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "let x: number = @AB.length"
     ].join("\n");
@@ -86,14 +86,14 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("accepts scoped geometry properties in const and let initializers", () => {
     const oneLevel = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",
       "const x: number = @G::AB.length"
     ].join("\n");
     const nested = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  group H {",
       "    line AB = segment(start: (0, 0), end: (10, 0))",
@@ -107,7 +107,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
   });
 
   it("accepts a scoped reference without a geometry property at the frontend boundary", () => {
-    const source = ["nui 4", "const x: number = @G::AB"].join("\n");
+    const source = ["nui 1", "const x: number = @G::AB"].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -115,7 +115,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
   });
 
   it("keeps unresolved scoped paths as precise geometry-property diagnostics", () => {
-    const source = ["nui 4", "const x: number = @G::Missing.length"].join("\n");
+    const source = ["nui 1", "const x: number = @G::Missing.length"].join("\n");
     const error = compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics.find(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -126,7 +126,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("accepts a geometry property reference in a number set RHS", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "let x: number = 0",
       "set x = @AB.length"
@@ -139,7 +139,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("compiles public choice geometry properties through declarations, equality, and set", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "const direction: choice(counterclockwise, clockwise) = @A.direction",
       "const isClockwise: boolean = @A.direction == clockwise",
@@ -156,7 +156,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("carries an exact non-arc choice geometry property into a compatible property binding", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
@@ -180,7 +180,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("rejects a choice geometry property in a number-only property context", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "point P = coordinate(x: @A.direction, y: 0)"
     ].join("\n");
@@ -189,7 +189,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
   });
 
   it("reports an unknown typed geometry property target at compile time", () => {
-    const source = ["nui 4", "const x: number = @Missing.length"].join("\n");
+    const source = ["nui 1", "const x: number = @Missing.length"].join("\n");
     const errors = compileDslDocument(source, { assignedStatementIds: new Map([[1, "test:x"]]) }).diagnostics.filter(
       (diagnostic) => diagnostic.severity === "error"
     );
@@ -198,7 +198,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("reports an unknown typed geometry property at compile time", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const x: number = @A.notAProperty"
     ].join("\n");
@@ -210,7 +210,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("does not offer a bare-form diagnostic for a typed initializer (the typed tokenizer's own diagnostic owns it)", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "const x: number = AB.length"
     ].join("\n");
@@ -228,7 +228,7 @@ describe("nui 4 bare element-property reference diagnostic (Task 51)", () => {
 
   it("returns, document: null when the bare-reference diagnostic fires (no silent evaluation)", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line AB = segment(start: (0, 0), end: (10, 0))",
       "point C = coordinate(x: AB.length, y: 0)"
     ].join("\n");

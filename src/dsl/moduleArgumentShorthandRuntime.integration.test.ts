@@ -15,7 +15,7 @@ const compileWithIds = (source: string) => {
 describe("Module same-name argument shorthand runtime parity", () => {
   it("evaluates shorthand through the same named parameter binding as the explicit form", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 7",
       "module Marker(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",

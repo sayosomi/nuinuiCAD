@@ -22,7 +22,7 @@ const sourceFor = (lines: string[]) => {
 };
 
 const simpleSource = (extra: string[] = []) => sourceFor([
-  "nui 4",
+  "nui 1",
   ...extra,
   "group G {",
   "  point A = coordinate(x: 0, y: 0)",
@@ -118,7 +118,7 @@ describe("SAY-64 output core", () => {
 
   it("fails output closed when the selected profile disables geometry", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier DisableInPrint {",
       "  for @Print {",
@@ -150,7 +150,7 @@ describe("SAY-64 output core", () => {
 
   it("fails output closed when a selected profile disables a geometry dependency", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier DisableInPrint {",
       "  for @Print {",
@@ -182,7 +182,7 @@ describe("SAY-64 output core", () => {
 
   it("uses mirror, scale, rotation, and translation in a stable transform order", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
@@ -203,7 +203,7 @@ describe("SAY-64 output core", () => {
 
   it("emits supported final geometry from alternate and derived constructions", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 10, y: 0)",
@@ -226,7 +226,7 @@ describe("SAY-64 output core", () => {
 
   it("emits a polyline as one ordered output drawable", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line Outline = polyline(points: [(0, 0), (10, 0), (10, 10)], closed: true)",
       "}",
@@ -245,7 +245,7 @@ describe("SAY-64 output core", () => {
 
   it("supports nested targets and repeated independent placements", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  group Inner {",
       "    point A = coordinate(x: 0, y: 0)",
@@ -267,7 +267,7 @@ describe("SAY-64 output core", () => {
 
   it("resolves layout and output numbers from compiled typed scalar runtime values", async () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "const unit: number = 2",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
@@ -284,7 +284,7 @@ describe("SAY-64 output core", () => {
 
   it("normalizes typed runtime placement angles for geometry and text output", async () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "const negative: number = -90",
       "const over: number = 450",
       "group G {",
@@ -334,7 +334,7 @@ describe("SAY-64 output core", () => {
 
   it("keeps a styled stroke physical across placement scales while transforming geometry", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "modifier Styled {",
       "  width: 1px,",
       "}",
@@ -369,7 +369,7 @@ describe("SAY-64 output core", () => {
 
   it("fails closed for an empty layout and inflates SVG bounds by margin", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "layout Empty {",
       "}",
       "svg S(layout: @Empty, margin: 5)"
@@ -394,7 +394,7 @@ describe("SAY-64 output core", () => {
 
     for (const testCase of cases) {
       const doc = sourceFor([
-        "nui 4",
+        "nui 1",
         "group G {",
         "  line Large = segment(start: (0, 0), end: (650, 500))",
         "}",
@@ -448,7 +448,7 @@ describe("SAY-64 output core", () => {
 
   it("emits unique matching labels, resolved centers, and rotated shrink-to-fit guides", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line Large = segment(start: (0, 0), end: (2500, 2500))",
       "}",
@@ -530,7 +530,7 @@ describe("SAY-64 output core", () => {
     const paperWidthMm = 297;
     const paperHeightMm = 420;
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line Large = segment(start: (0, 0), end: (2.3, 500))",
       "}",
@@ -583,7 +583,7 @@ describe("SAY-64 output core", () => {
 
   it("uses stroke-inclusive rendered bounds at the one-page threshold", () => {
     const exactThresholdDoc = (epsilonMm: number) => sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       `  line Large = segment(start: (0, 0), end: (${190 - PX_TO_MM + epsilonMm}, ${277 - PX_TO_MM + epsilonMm}))`,
       "}",
@@ -619,7 +619,7 @@ describe("SAY-64 output core", () => {
 
   it("emits no joining guides or labels when physical overlap is zero", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line Large = segment(start: (0, 0), end: (500, 500))",
       "}",
@@ -654,7 +654,7 @@ describe("SAY-64 output core", () => {
 
   it("uses one baseline-anchor text layout for Latin, Japanese, multiline, rotation, and mirroring", () => {
     const doc = sourceFor([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  text Label = label(text: \"AB\\n日本\", anchor: (0, 0), size: 4)",
       "}",

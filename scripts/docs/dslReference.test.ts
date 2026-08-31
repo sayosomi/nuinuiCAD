@@ -148,11 +148,11 @@ describe("English DSL reference examples", () => {
     const source = [
       "<!-- dsl-example: compile-success -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "```",
       "<!-- dsl-example: expected-diagnostic code=missing-declared-type -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "const x = 1",
       "```",
       "<!-- dsl-example: syntax-fragment -->",
@@ -160,7 +160,7 @@ describe("English DSL reference examples", () => {
       "point Name = construction(...)",
       "```",
       "```nui",
-      "nui 4",
+      "nui 1",
       "```",
     ].join("\n");
 
@@ -178,12 +178,12 @@ describe("English DSL reference examples", () => {
     const source = [
       "<!-- dsl-example: compile-success -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "```",
       "<!-- dsl-example: expected-diagnostic code=missing-declared-type -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "const x = 1",
       "```",
       "<!-- dsl-example: syntax-fragment -->",
@@ -199,7 +199,7 @@ describe("English DSL reference examples", () => {
     const warningExample = extractNuiExamples("fixture.md", [
       "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "modifier Unused {",
       "  state: visible,",
       "}",
@@ -210,7 +210,7 @@ describe("English DSL reference examples", () => {
     const warningAndUnrelatedError = extractNuiExamples("fixture.md", [
       "<!-- dsl-example: expected-diagnostic code=unused-drawing-modifier -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "modifier Unused {",
       "  state: visible,",
       "}",
@@ -224,7 +224,7 @@ describe("English DSL reference examples", () => {
     const expectedError = extractNuiExamples("fixture.md", [
       "<!-- dsl-example: expected-diagnostic code=missing-declared-type -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "const x = 1",
       "```",
     ].join("\n"));
@@ -253,11 +253,11 @@ describe("English DSL reference examples", () => {
   it("rejects an unclassified fence and a failed compile-success example", () => {
     const examples = extractNuiExamples("fixture.md", [
       "```nui",
-      "nui 4",
+      "nui 1",
       "```",
       "<!-- dsl-example: compile-success -->",
       "```nui",
-      "nui 4",
+      "nui 1",
       "const x = 1",
       "```",
     ].join("\n"));

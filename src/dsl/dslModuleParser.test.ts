@@ -11,7 +11,7 @@ const moduleDefinition = (statements: readonly DslStatement[]) =>
 describe("DSL module source AST", () => {
   it("parses a definition with scalar, geometry, choice, and raw defaults", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module 凸ノッチ(凸ノッチ高さ: number, 縫い線: line, 縫い代線: path, ノッチ位置: point, 反転: boolean = false, 種別: choice(通常, 反転) = 通常) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -37,7 +37,7 @@ describe("DSL module source AST", () => {
 
   it("parses multiline definitions and nested module blocks", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "module Outer(",
       "  A: number,",
       "  B: boolean = false,",
@@ -63,7 +63,7 @@ describe("DSL module source AST", () => {
 
   it("parses optional module parameter markers without including `?` in the name span", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value?: number, anchor?: point) {",
       "}"
     ].join("\n");
@@ -80,7 +80,7 @@ describe("DSL module source AST", () => {
   });
 
   it("rejects optional parameters with defaults", () => {
-    const parsed = parseDsl("nui 4\nmodule M(value?: number = 1) {\n}");
+    const parsed = parseDsl("nui 1\nmodule M(value?: number = 1) {\n}");
     expect(parsed.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "module-optional-default-conflict" })
     ]));
@@ -88,7 +88,7 @@ describe("DSL module source AST", () => {
 
   it("parses path as a real geometry interface and keeps geometry defaults invalid", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "module M(straight: line, broad: path = @Line) {",
       "}"
     ].join("\n"));
@@ -101,7 +101,7 @@ describe("DSL module source AST", () => {
     });
     expect(parsed.diagnostics).toEqual([]);
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "module M(straight: line, broad: path = @Line) {",
       "}"
     ].join("\n"), {
@@ -115,7 +115,7 @@ describe("DSL module source AST", () => {
 
   it("keeps module parameter and argument physical spans on multiline source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  A: number = @幅 * 2,",
       "  B: line",
@@ -146,7 +146,7 @@ describe("DSL module source AST", () => {
   });
 
   it("parses named-only module instances and preserves raw argument values", () => {
-    const source = "nui 4\ninstance ノッチ = 凸ノッチ(凸ノッチ高さ: @高さ, 縫い線: 縫い線, 縫い代線: 縫い代線, ノッチ位置: ノッチ位置, 反転: false)";
+    const source = "nui 1\ninstance ノッチ = 凸ノッチ(凸ノッチ高さ: @高さ, 縫い線: 縫い線, 縫い代線: 縫い代線, ノッチ位置: ノッチ位置, 反転: false)";
     const parsed = parseDsl(source);
     expect(parsed.diagnostics).toEqual([]);
     const instance = parsed.statements[1];
@@ -162,9 +162,9 @@ describe("DSL module source AST", () => {
     ]);
   });
 
-  it("parses the nui4 instance keyword into the existing module instance AST", () => {
+  it("parses the nui1 instance keyword into the existing module instance AST", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "module M(base: point, seam: number) {",
       "}",
       "instance foo = M(base: @A, seam: @seam,)",
@@ -183,8 +183,8 @@ describe("DSL module source AST", () => {
     ]);
   });
 
-  it.each(["visible", "hidden", "disabled"] as const)("parses nui4 instance state option: %s", (state) => {
-    const parsed = parseDsl(`nui 4\ninstance foo(state: ${state}) = M(value: 1)`);
+  it.each(["visible", "hidden", "disabled"] as const)("parses nui1 instance state option: %s", (state) => {
+    const parsed = parseDsl(`nui 1\ninstance foo(state: ${state}) = M(value: 1)`);
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[1]).toMatchObject({
       kind: "moduleInstance",
@@ -194,7 +194,7 @@ describe("DSL module source AST", () => {
   });
 
   it.each(["visible", "hidden", "disabled"] as const)("parses module instance state option: %s", (state) => {
-    const parsed = parseDsl(`nui 4\ninstance X(state: ${state}) = M(state: true)`);
+    const parsed = parseDsl(`nui 1\ninstance X(state: ${state}) = M(state: true)`);
     expect(parsed.diagnostics).toEqual([]);
     const instance = parsed.statements[1];
     expect(instance).toMatchObject({ kind: "moduleInstance", name: "X", moduleName: "M" });
@@ -213,13 +213,13 @@ describe("DSL module source AST", () => {
   });
 
   it("mentions path in invalid Module parameter type guidance", () => {
-    const diagnostic = errors("nui 4\nmodule M(input: unknown) {\n}").find((item) => item.message.includes("unknown"));
+    const diagnostic = errors("nui 1\nmodule M(input: unknown) {\n}").find((item) => item.message.includes("unknown"));
     expect(diagnostic?.message).toContain("point/line/path");
   });
 
   it("keeps a module parameter named state separate from the instance option", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "module M(state: boolean) {",
       "}",
       "instance X(state: hidden) = M(state: true)"
@@ -238,7 +238,7 @@ describe("DSL module source AST", () => {
 
   it("parses multiline instance options and projects logical and physical spans", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "instance X(",
       "  state: hidden",
       ") = M(",
@@ -270,7 +270,7 @@ describe("DSL module source AST", () => {
   });
 
   it("marks exported geometry without changing its geometry AST", () => {
-    const source = "nui 4\nexport line 先に縫う = transformCopy(baseLines: [AB], startPoint: A, endPoint: B)";
+    const source = "nui 1\nexport line 先に縫う = transformCopy(baseLines: [AB], startPoint: A, endPoint: B)";
     const parsed = parseDsl(source);
     expect(parsed.diagnostics).toEqual([]);
     const statement = parsed.statements[1];
@@ -315,13 +315,13 @@ describe("DSL module syntax diagnostics", () => {
     { source: "instance X = M(A: 1", label: "unclosed argument list", message: "module argument list の「(」が閉じられていません。", spanText: "(" },
     { source: "instance X = M(10)", label: "argument label", message: "module argument は名前付き引数で指定してください。", spanText: "10" },
     { source: "instance X = M(A:)", label: "argument value", message: "引数「A」の値がありません。", code: "missing-attribute-value", spanText: "" },
-    { source: "instance X(state: nope) = M()", label: "nui4 invalid instance state", message: "state は visible/hidden/disabled のいずれかで指定してください。", spanText: "nope" },
-    { source: "instance X(foo: hidden) = M()", label: "nui4 invalid instance option", message: "module instance option「foo」", spanText: "foo" },
+    { source: "instance X(state: nope) = M()", label: "nui1 invalid instance state", message: "state は visible/hidden/disabled のいずれかで指定してください。", spanText: "nope" },
+    { source: "instance X(foo: hidden) = M()", label: "nui1 invalid instance option", message: "module instance option「foo」", spanText: "foo" },
   ] as const;
 
   for (const testCase of diagnosticCases) {
     it(`reports ${testCase.label} with its own span`, () => {
-      const fullSource = `nui 4\n${testCase.source}`;
+      const fullSource = `nui 1\n${testCase.source}`;
       const diagnostic = errors(fullSource).find((item) =>
         item.message.includes(testCase.message) && (!testCase.code || item.code === testCase.code)
       );
@@ -340,9 +340,9 @@ describe("DSL module syntax diagnostics", () => {
     });
   }
 
-  it("requires commas for module parameters and arguments in nui 4", () => {
+  it("requires commas for module parameters and arguments in nui 1", () => {
     const parsed = parseDsl([
-      "nui 4",
+      "nui 1",
       "module M(A: number B: boolean) {",
       "}",
       "instance X = M(A: 1 B: false)"
@@ -375,18 +375,18 @@ describe("DSL module syntax diagnostics", () => {
     ] as const;
 
     for (const testCase of cases) {
-      const diagnostic = errors(`nui 4\n${testCase.source}`).find((item) => item.message.includes(testCase.message));
+      const diagnostic = errors(`nui 1\n${testCase.source}`).find((item) => item.message.includes(testCase.message));
       expect(diagnostic, testCase.source).toBeDefined();
     }
   });
 
   it("requires commas between instance options", () => {
-    const parsed = parseDsl("nui 4\ninstance X(state: hidden foo: visible) = M()");
+    const parsed = parseDsl("nui 1\ninstance X(state: hidden foo: visible) = M()");
     expect(parsed.diagnostics.filter((diagnostic) => diagnostic.code === "missing-argument-comma")).toHaveLength(1);
   });
 
   it("accepts export as a modifier on a typed scalar declaration", () => {
-    const source = "nui 4\nexport const length: number = 1";
+    const source = "nui 1\nexport const length: number = 1";
     const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 9 });
     expect(parsed.diagnostics).toEqual([]);
     const statement = parsed.statements[1];
@@ -404,7 +404,7 @@ describe("DSL module syntax diagnostics", () => {
 
   it("projects a multiline malformed diagnostic to the exact physical token", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  A: number",
       "  B: boolean",

@@ -43,7 +43,7 @@ describe("queryDslCompletion", () => {
     expect(labels(queryIncomplete("const value: cho"))).toEqual([
       "number", "string", "boolean", "choice", "point[]", "line[]", "path[]"
     ]);
-    expect(labels(queryIncomplete("nui 4\nmodule M(input: pa"))).toContain("path");
+    expect(labels(queryIncomplete("nui 1\nmodule M(input: pa"))).toContain("path");
     expect(labels(queryIncomplete("point P = co"))).toContain("coordinate");
     const lineConstructions = labels(queryIncomplete("line L = tran"));
     expect(lineConstructions).toContain("transformCopy");
@@ -60,7 +60,7 @@ describe("queryDslCompletion", () => {
 
   it("completes the next argument name after a comma in an incomplete call", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
       "  from: @A,",
@@ -76,7 +76,7 @@ describe("queryDslCompletion", () => {
   });
 
   it("uses the builtin argument owner, including spreadAngle's named arguments", () => {
-    const source = "nui 4\nconst value: number = spreadAngle(";
+    const source = "nui 1\nconst value: number = spreadAngle(";
     const result = queryIncomplete(source);
     expect(result?.category).toBe("typedInitializer");
     expect(labels(result)).toEqual(["length", "spread"]);
@@ -84,7 +84,7 @@ describe("queryDslCompletion", () => {
   });
 
   it("keeps construction and builtin completion active across a blank line", () => {
-    const construction = "nui 4\npoint P = coordinate(\n  \n)";
+    const construction = "nui 1\npoint P = coordinate(\n  \n)";
     const constructionPosition = construction.indexOf("  \n") + 2;
     const constructionResult = queryIncomplete(construction, constructionPosition);
     expect(constructionResult?.category).toBe("argument");
@@ -92,7 +92,7 @@ describe("queryDslCompletion", () => {
     expect(constructionResult && construction.slice(constructionResult.replacementRange.from, constructionResult.replacementRange.to)).toBe("");
     expect(constructionResult?.replacementRange.from).toBe(constructionPosition);
 
-    const builtin = "nui 4\nconst a: number = spreadAngle(\n  \n)";
+    const builtin = "nui 1\nconst a: number = spreadAngle(\n  \n)";
     const builtinPosition = builtin.indexOf("  \n") + 2;
     const builtinResult = queryIncomplete(builtin, builtinPosition);
     expect(builtinResult?.category).toBe("typedInitializer");
@@ -102,7 +102,7 @@ describe("queryDslCompletion", () => {
 
   it("keeps a later in-call argument out of the blank-line construction slot", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(",
       "",
       "y: 20",
@@ -119,7 +119,7 @@ describe("queryDslCompletion", () => {
 
   it("recovers tolerant Module labels only when the current callee keeps its identity", () => {
     const lastGoodSource = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  value: number,",
       "  optional?: number,",
@@ -162,7 +162,7 @@ describe("queryDslCompletion", () => {
 
   it("offers current-source Module labels on a cold-open incomplete call", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "",
       "module M(",
       "value: number,",
@@ -227,13 +227,13 @@ describe("queryDslCompletion", () => {
 
   it("uses current-source Module parameters instead of stale last-good labels", () => {
     const lastGoodSource = [
-      "nui 4",
+      "nui 1",
       "module M(old: number) {",
       "}",
       "instance Use = M(old: 1)"
     ].join("\n");
     const liveSource = [
-      "nui 4",
+      "nui 1",
       "module M(new: number) {",
       "}",
       "instance Use = M(",
@@ -258,7 +258,7 @@ describe("queryDslCompletion", () => {
 
   it("tracks current Module parameter additions and removals during tolerant recovery", () => {
     const lastGoodSource = [
-      "nui 4",
+      "nui 1",
       "module M(old: number) {",
       "}",
       "instance Use = M(old: 1)"
@@ -272,7 +272,7 @@ describe("queryDslCompletion", () => {
     const session = createLanguageAnalysisSession(lastGoodSource);
     for (const { signature, expected } of cases) {
       const liveSource = [
-        "nui 4",
+        "nui 1",
         `module M(${signature}) {`,
         "}",
         "instance Use = M(",
@@ -295,25 +295,25 @@ describe("queryDslCompletion", () => {
   });
 
   it("returns typed scalar syntax candidates for numeric, boolean, string, and choice expressions", () => {
-    const number = queryIncomplete("nui 4\nconst value: number = ");
+    const number = queryIncomplete("nui 1\nconst value: number = ");
     expect(labels(number)).toContain("abs");
     expect(labels(number)).toContain("pi");
     expect(number?.candidates.some((candidate) => candidate.kind === "builtin")).toBe(true);
 
-    const boolean = queryIncomplete("nui 4\nconst value: boolean = ");
+    const boolean = queryIncomplete("nui 1\nconst value: boolean = ");
     expect(labels(boolean)).toEqual(expect.arrayContaining(["true", "false"]));
     expect(labels(boolean)).not.toContain("0");
 
-    const string = queryIncomplete("nui 4\nconst value: string = ");
+    const string = queryIncomplete("nui 1\nconst value: string = ");
     expect(labels(string)).toContain('""');
 
-    const choice = queryIncomplete("nui 4\nconst value: choice(left, right) = ");
+    const choice = queryIncomplete("nui 1\nconst value: choice(left, right) = ");
     expect(labels(choice)).toEqual(expect.arrayContaining(["left", "right"]));
   });
 
   it("offers pi in a numeric construction field and Module scalar argument", () => {
     const construction = exactQuery(
-      "nui 4\npoint P = coordinate(x: @, y: 0)",
+      "nui 1\npoint P = coordinate(x: @, y: 0)",
       "coordinate(x: @",
       "coordinate(x: @".length
     );
@@ -322,7 +322,7 @@ describe("queryDslCompletion", () => {
     expect(construction?.candidates.find((candidate) => candidate.label === "pi")).toMatchObject({ kind: "literal" });
 
     const module = exactQuery(
-      "nui 4\nmodule M(value: number) {\n}\ninstance Use = M(value: )",
+      "nui 1\nmodule M(value: number) {\n}\ninstance Use = M(value: )",
       "instance Use = M(value: ",
       "instance Use = M(value: ".length
     );
@@ -332,7 +332,7 @@ describe("queryDslCompletion", () => {
   });
 
   it("returns visible typed bindings and keeps the @ marker outside the replacement range", () => {
-    const source = "nui 4\nconst width: number = 10\nconst value: number = @width";
+    const source = "nui 1\nconst width: number = 10\nconst value: number = @width";
     const result = exactQuery(source, "@width");
     expect(result?.category).toBe("typedInitializer");
     expect(labels(result)).toContain("width");
@@ -342,7 +342,7 @@ describe("queryDslCompletion", () => {
 
   it("returns typed builtins, numeric operators, and array/list references without filtering or truncation", () => {
     const points = Array.from({ length: 12 }, (_, index) => `point P${index} = coordinate(x: ${index}, y: 0)`);
-    const source = ["nui 4", ...points, "line L = segment(start: @P0, end: @P1)"].join("\n");
+    const source = ["nui 1", ...points, "line L = segment(start: @P0, end: @P1)"].join("\n");
     const result = exactQuery(source, "@P0");
     expect(result?.category).toBe("parameter");
     expect(labels(result).filter((label) => /^P\d+$/.test(label))).toHaveLength(12);
@@ -350,7 +350,7 @@ describe("queryDslCompletion", () => {
     expect(result?.candidates.some((candidate) => candidate.kind === "operator")).toBe(false);
 
     const listSource = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 0), end: (20, 0))",
       "line L = offset(sources: [@A], distance: 1, side: left)"
@@ -363,7 +363,7 @@ describe("queryDslCompletion", () => {
 
   it("uses source geometry semantics for @ references and . properties without runtime evaluation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: @A, end: @A)",
       "const value: number = @AB.length"
@@ -379,7 +379,7 @@ describe("queryDslCompletion", () => {
 
   it("offers only exactly assignable choice geometry properties", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
       "const direction: choice(counterclockwise, clockwise) = @A."
     ].join("\n");
@@ -393,7 +393,7 @@ describe("queryDslCompletion", () => {
 
   it("uses the same typed choice-property lane for another schema choice", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point D = between(start: @A, end: @B, ratio: 0.5)",
@@ -406,7 +406,7 @@ describe("queryDslCompletion", () => {
 
   it("resolves set RHS geometry properties using the target's exact type", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
       "let direction: choice(counterclockwise, clockwise) = clockwise",
       "set direction = @A."
@@ -425,7 +425,7 @@ describe("queryDslCompletion", () => {
 
   it("completes qualified members in the ordinary CAD namespace", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group 前身頃 {",
       "  point か = coordinate(x: 0, y: 0)",
       "}",
@@ -440,7 +440,7 @@ describe("queryDslCompletion", () => {
 
   it("filters ordinary CAD qualified members by the point reference parameter kind", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "  line L = segment(start: @P, end: @P)",
@@ -454,7 +454,7 @@ describe("queryDslCompletion", () => {
 
   it("filters ordinary CAD qualified members by the line reference parameter kind", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "  line L = segment(start: @P, end: @P)",
@@ -468,7 +468,7 @@ describe("queryDslCompletion", () => {
 
   it("uses the canonical typed-scalar geometry property vocabulary", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
       "const value: number = @Arc.ra"
     ].join("\n");
@@ -480,7 +480,7 @@ describe("queryDslCompletion", () => {
 
   it("returns choice literals and mutable set targets only", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let target: number = 1",
       "const fixed: number = 2",
       "set ta = @target"
@@ -491,7 +491,7 @@ describe("queryDslCompletion", () => {
     expect(labels(set)).not.toContain("fixed");
     expect(set?.candidates.every((candidate) => candidate.kind === "binding")).toBe(true);
 
-    const choiceSource = "nui 4\nline L = offset(sources: [A], distance: 1, side: le)";
+    const choiceSource = "nui 1\nline L = offset(sources: [A], distance: 1, side: le)";
     const choicePosition = choiceSource.indexOf("side: le") + "side: le".length;
     const choice = queryIncomplete(choiceSource, choicePosition);
     expect(choice?.category).toBe("parameter");
@@ -500,7 +500,7 @@ describe("queryDslCompletion", () => {
 
   it("returns template-hole scalar expressions and maps multiline ranges back to physical source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "text Label = label(text: \"width=${@width}\", anchor: (0, 0))"
     ].join("\n");
@@ -510,7 +510,7 @@ describe("queryDslCompletion", () => {
     expect(template && source.slice(template.replacementRange.from, template.replacementRange.to)).toBe("width");
 
     const multiline = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(",
       "  from: @A",
@@ -526,7 +526,7 @@ describe("queryDslCompletion", () => {
 
   it("preserves a specific Module template-hole context inside an enclosing construction call", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(width: number, caption: string) {",
       "  const local: number = 1",
@@ -552,7 +552,7 @@ describe("queryDslCompletion", () => {
 
   it("supports Module callee, argument labels, typed filtering, geometry interfaces, and qualified members", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 0, y: 0)",
       "line L = segment(start: @P, end: @P)",
       "module Producer() {",
@@ -590,7 +590,7 @@ describe("queryDslCompletion", () => {
 
   it("completes visible nominal record types, values, constructors, and fields", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       "record Other(x: number, label: string)",
       'const settings: Pair = Pair(x: 3, label: "root")',
@@ -626,7 +626,7 @@ describe("queryDslCompletion", () => {
 
   it("completes Module record parameters, guarded optional records, inline constructors, and exports", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       'const input: Pair = Pair(x: 1, label: "root")',
       "module Inner(input: Pair, optional?: Pair) {",
@@ -666,7 +666,7 @@ describe("queryDslCompletion", () => {
 
   it("applies the existing Module optional-presence proof to record fields", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       'const root: Pair = Pair(x: 1, label: "root")',
       "module Inner(required: Pair, optional?: Pair) {",
@@ -682,7 +682,7 @@ describe("queryDslCompletion", () => {
     ].join("\n");
 
     const unguardedSource = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       "module Inner(optional?: Pair) {",
       "  const unguarded: number = @optional.x",
@@ -708,7 +708,7 @@ describe("queryDslCompletion", () => {
 
   it("completes only compatible whole-record Module exports in a record declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       "record Other(x: number, label: string)",
       "module Inner(input: Pair) {",
@@ -727,7 +727,7 @@ describe("queryDslCompletion", () => {
 
   it("offers same-name record shorthand only for exact nominal matches", () => {
     const compatible = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "const input: Pair = Pair(x: 1)",
       "module Inner(input: Pair) {",
@@ -739,7 +739,7 @@ describe("queryDslCompletion", () => {
     expect(labels(compatibleResult)).toEqual(["@input", "input"]);
 
     const incompatible = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "record Other(x: number)",
       "const input: Other = Other(x: 1)",
@@ -754,7 +754,7 @@ describe("queryDslCompletion", () => {
 
   it("supports Japanese source identifiers and fails closed for stale semantic snapshots", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "line 身頃線 = segment(start: @前身頃, end: @前身頃)",
       "point 後身頃 = offset(from: @前身頃, dx: 1, dy: 0)"
@@ -762,9 +762,9 @@ describe("queryDslCompletion", () => {
     const japanese = exactQuery(source, "@前身頃");
     expect(labels(japanese)).toContain("前身頃");
 
-    const oldSource = "nui 4\nconst old: number = 1\nconst value: number = @old";
+    const oldSource = "nui 1\nconst old: number = 1\nconst value: number = @old";
     const oldCompiled = compileWithIds(oldSource, 3);
-    const liveSource = "nui 4\nconst renamed: number = 1\nconst value: number = @ren";
+    const liveSource = "nui 1\nconst renamed: number = 1\nconst value: number = @ren";
     const stale = queryDslCompletion({
       source: { normalizedSource: liveSource, sourceRevision: 4 },
       position: liveSource.length,
@@ -774,13 +774,13 @@ describe("queryDslCompletion", () => {
     expect(labels(stale)).not.toContain("old");
     expect(stale?.candidates.some((candidate) => candidate.kind === "binding")).toBe(false);
 
-    const syntax = queryIncomplete("nui 4\nconst value: number = ");
+    const syntax = queryIncomplete("nui 1\nconst value: number = ");
     expect(labels(syntax)).toContain("abs");
   });
 
   it("returns null for unsupported CRLF input while keeping absolute LF ranges host-neutral", () => {
     expect(queryDslCompletion({
-      source: { normalizedSource: "nui 4\r\npoi", sourceRevision: 1 },
+      source: { normalizedSource: "nui 1\r\npoi", sourceRevision: 1 },
       position: 9
     })).toBeNull();
   });

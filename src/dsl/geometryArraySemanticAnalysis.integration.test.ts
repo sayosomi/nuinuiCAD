@@ -12,7 +12,7 @@ const analyze = (source: string) => {
 describe("geometry array source semantic integration", () => {
   it("preserves order/duplicates and lifts line[] to path[] aliases", () => {
     const { parsed, namespace, analysis } = analyze([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: A, end: B)",
       "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
       "const straight: line[] = [@L, @L]",
@@ -37,7 +37,7 @@ describe("geometry array source semantic integration", () => {
 
   it("resolves module array parameters as read-only local aliases", () => {
     const { namespace, analysis } = analyze([
-      "nui 4",
+      "nui 1",
       "module M(edges: line[], anchors?: point[]) {",
       "  const paths: path[] = @edges",
       "  const points: point[] = @anchors",
@@ -58,7 +58,7 @@ describe("geometry array source semantic integration", () => {
 
   it("reports strict member mismatches, forward array aliases, and Module defaults", () => {
     const { namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "curve C = bezier(start: A, end: B, startAngle: 0, startLength: 30, endAngle: 0, endLength: 30)",
       "const badLine: line[] = [@C]",
       "const forward: path[] = @later",
@@ -76,7 +76,7 @@ describe("geometry array source semantic integration", () => {
 
   it("uses the existing coordinate-point and derived-point reference forms in point[] literals", () => {
     const ok = analyze([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "const points: point[] = [(1, 2), @L.start, @L.end]"
     ].join("\n"));
@@ -88,11 +88,11 @@ describe("geometry array source semantic integration", () => {
         .toEqual(["coordinate", "start", "end"]);
     }
 
-    const badCoordinate = analyze("nui 4\nconst paths: path[] = [(1, 2)]");
+    const badCoordinate = analyze("nui 1\nconst paths: path[] = [(1, 2)]");
     expect(badCoordinate.namespace.diagnostics).toContainEqual(expect.objectContaining({ code: "geometry-array-member-type-mismatch" }));
 
     const badDerived = analyze([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "const paths: path[] = [@L.start]"
     ].join("\n"));

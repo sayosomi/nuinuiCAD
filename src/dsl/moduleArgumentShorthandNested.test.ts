@@ -18,7 +18,7 @@ const applyEdits = (source: string, edits: readonly { from: number; to: number; 
     .reduce((text, edit) => `${text.slice(0, edit.from)}${edit.newText}${text.slice(edit.to)}`, source);
 
 const source = [
-  "nui 4",
+  "nui 1",
   "module Pocket(width: number) {",
   "}",
   "module Consumer(width: number) {",

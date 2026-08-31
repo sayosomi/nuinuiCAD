@@ -15,7 +15,7 @@ const compile = (source: string) => {
 describe("polyline DSL integration", () => {
   it("lowers a typed point[] in authored order without introducing a ParameterValueKind", () => {
     const result = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
@@ -42,7 +42,7 @@ describe("polyline DSL integration", () => {
 
   it("rejects a polyline from strict line[] while allowing it in path[]", () => {
     const result = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Outline = polyline(points: [@A, @B], closed: false)",
@@ -53,7 +53,7 @@ describe("polyline DSL integration", () => {
     expect(result.diagnostics.some((diagnostic) => diagnostic.message.includes("line[]"))).toBe(true);
 
     const valid = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Outline = polyline(points: [@A, @B], closed: false)",
@@ -65,7 +65,7 @@ describe("polyline DSL integration", () => {
 
   it("lowers inline coordinate members without dropping coincident segments", () => {
     const result = compile([
-      "nui 4",
+      "nui 1",
       "line Outline = polyline(points: [(0, 0), (0, 0), (3, 4)], closed: false)"
     ].join("\n"));
 

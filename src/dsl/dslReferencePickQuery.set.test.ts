@@ -21,7 +21,7 @@ const queryAt = (source: string, compiled: CompiledDslDocument, position: number
 describe("queryDslReferencePickTarget set RHS", () => {
   it("uses the resolved number let type and targets the complete numeric property operand", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -43,7 +43,7 @@ describe("queryDslReferencePickTarget set RHS", () => {
 
   it("fails closed when the resolved set target is not number", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let enabled: boolean = false",
       "set enabled = true"
     ].join("\n");

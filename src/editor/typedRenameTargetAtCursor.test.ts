@@ -51,35 +51,35 @@ const bindingIdOfDeclaration = (doc: CompiledDslDocument, statementIndex: number
 
 describe("typedRenameTargetBindingIdAtCursor", () => {
   it("resolves a cursor on a typed declaration's own name to its own binding", () => {
-    const source = ["nui 4", "const a: number = 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
     const nameOffset = cmDoc.line(2).from + "const ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, nameOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
   it("resolves a cursor on a non-reference initializer literal to the declaring binding itself", () => {
-    const source = ["nui 4", "const a: number = 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
     const literalOffset = cmDoc.line(2).from + "const a: number = ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, literalOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
   it("resolves a cursor on a reference inside another declaration's initializer to the referenced binding", () => {
-    const source = ["nui 4", "const a: number = 1", "let b: number = @a + 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1", "let b: number = @a + 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
     const refOffset = cmDoc.line(3).from + "let b: number = @".length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
   it("resolves a cursor on a set target name to the target binding", () => {
-    const source = ["nui 4", "let a: number = 1", "set a = 2"].join("\n");
+    const source = ["nui 1", "let a: number = 1", "set a = 2"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
     const targetOffset = cmDoc.line(3).from + "set ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, targetOffset)).toBe(bindingIdOfDeclaration(doc, 1));
   });
 
   it("resolves a cursor on a set RHS reference to the referenced binding", () => {
-    const source = ["nui 4", "let a: number = 1", "set a = @a + 1"].join("\n");
+    const source = ["nui 1", "let a: number = 1", "set a = @a + 1"].join("\n");
     const { doc, context, cmDoc } = contextFor(source);
     const refOffset = cmDoc.line(3).from + "set a = @".length;
     expect(typedRenameTargetBindingIdAtCursor(context, refOffset)).toBe(bindingIdOfDeclaration(doc, 1));
@@ -87,7 +87,7 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
 
   it("resolves a cursor on a property-binding reference to the referenced binding", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const side: choice(right, left) = left",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
@@ -101,7 +101,7 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
 
   it("resolves a cursor on a template-hole reference to the referenced binding", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'const label: string = "前身頃"',
       'text Label = label(text: "${@label}", anchor: none, size: 3)'
     ].join("\n");
@@ -111,14 +111,14 @@ describe("typedRenameTargetBindingIdAtCursor", () => {
   });
 
   it("returns null for a cursor on an ordinary CAD element line", () => {
-    const source = ["nui 4", "const a: number = 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const source = ["nui 1", "const a: number = 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const { context, cmDoc } = contextFor(source);
     const offset = cmDoc.line(3).from + "point ".length;
     expect(typedRenameTargetBindingIdAtCursor(context, offset)).toBeNull();
   });
 
   it("returns null for a cursor on the version header line, outside every tracked statement", () => {
-    const source = ["nui 4", "const a: number = 1"].join("\n");
+    const source = ["nui 1", "const a: number = 1"].join("\n");
     const { context } = contextFor(source);
     expect(typedRenameTargetBindingIdAtCursor(context, 0)).toBeNull();
   });

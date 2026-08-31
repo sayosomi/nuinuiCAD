@@ -14,7 +14,7 @@ const compile = (source: string) => {
 describe("moduleHierarchy", () => {
   it("uses runtime origin metadata to distinguish instance, private, and exported children", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Private = coordinate(x: 0, y: 0)",
       "  export line Public = segment(start: (0, 0), end: (10, 0))",

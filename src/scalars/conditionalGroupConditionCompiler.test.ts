@@ -30,7 +30,7 @@ const compileFor = (
   expect(parsed.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const statements = parsed.statements;
   const spans: DiagnosticSpanContext = { sourceMap: parsed.sourceMap, logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom };
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
   expect(compiled.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
   const elementIdByStatementIndex = compiled.elementIdsByStatementIndex ?? new Map();
   const stableStatementIdByIndex = new Map<number, string>(statements.map((_, index) => [index, `stable-${index}`]));
@@ -116,7 +116,7 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
     });
   });
 
-  it("accepts nui4 word operators and resolves an earlier geometry property", () => {
+  it("accepts nui1 word operators and resolves an earlier geometry property", () => {
     const compiled = compileFor([
       "const _unused: number = 0",
       "point A = coordinate(x: 0, y: 0)",
@@ -154,8 +154,8 @@ describe("compileConditionalGroupConditions: typed candidates compile to a boole
 describe("compileConditionalGroupConditions: every scalar AST uses boolean expected type", () => {
   it("wires the boolean expected-type check through the production document compiler without typed declarations", () => {
     const result = compileCanonicalText(
-      regenerateCanonicalFromModel(emptyDocument(), 4),
-      ["nui 4", "if (1) {", "}"].join("\n")
+      regenerateCanonicalFromModel(emptyDocument(), 1),
+      ["nui 1", "if (1) {", "}"].join("\n")
     );
     expect(result.status).toBe("fatal");
     expect(result.diagnostics.filter((diagnostic) => diagnostic.code === CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE)).toHaveLength(1);
