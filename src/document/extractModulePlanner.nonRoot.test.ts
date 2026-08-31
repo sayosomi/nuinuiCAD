@@ -51,6 +51,17 @@ const plan = (
   };
 };
 
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof plan>["result"]
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-non-root-transformed");
+  return transformed;
+};
+
 describe("planExtractModule checkpoint 10 non-root source scopes", () => {
   it("extracts a group-local declaration with scalar/geometry dependencies and rewrites its same-scope export", () => {
     const source = [
@@ -382,7 +393,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status === "rejected") expect("splices" in result).toBe(false);
   });
 
-  it("keeps record-valued Module-owned dependencies fail closed", () => {
+  it("parameterizes an outer Module record parameter through its field access", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -392,7 +403,17 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     ].join("\n");
 
     const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect("splices" in result).toBe(false);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["config", "Config", "@config"]
+    ]);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted(config__extract: Config) {",
+      "    const inside: number = @config__extract.amount + 1",
+      "  }",
+      "  instance Part = Extracted(config__extract: @config)"
+    ].join("\n"));
   });
 });

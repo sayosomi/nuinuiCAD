@@ -69,11 +69,15 @@ const planRootFor = (source: string) => {
   });
 };
 
-const expectRejectedWithoutPatch = (result: ReturnType<typeof planRootFor>, code: string) => {
-  expect(result.status).toBe("rejected");
-  if (result.status !== "rejected") return;
-  expect(result.code).toBe(code);
-  expect("splices" in result).toBe(false);
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof planRootFor>
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-for-transformed");
+  return transformed;
 };
 
 describe("planExtractModule checkpoint 7 recursive structural descendants", () => {
@@ -210,7 +214,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     expect(iterationReferenceCount(nextCompiled, nextForIndexes[1]!)).toBe(1);
   });
 
-  it("keeps selected-root validation local when a sibling structural root contains an unsupported record value", () => {
+  it("moves a selected root containing a valid structural record value", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -238,6 +242,9 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       moduleName: "Extracted",
       instanceName: "Part"
     });
-    expectRejectedWithoutPatch(result, "unsupported-statement");
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain("const unsupported: Config = @config");
   });
 });
