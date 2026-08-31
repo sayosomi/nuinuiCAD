@@ -1,8 +1,18 @@
 import * as vscode from "vscode";
 import {
-  coordinatePointConversionTargetEligibility
+  applyCoordinatePointConversionPlan,
+  coordinatePointConversionTargetEligibility,
+  planCoordinatePointConversion,
+  type CoordinatePointConversionPlan,
+  type CoordinatePointConversionSkip
 } from "../../src/commands/coordinatePointConversion";
-import type { CoordinatePointConversionSessionOrigin } from "../../src/commands/coordinatePointConversionSession";
+import {
+  coordinatePointConversionReferenceSuggestions,
+  startCoordinatePointConversionSession,
+  type CoordinatePointConversionSession,
+  type CoordinatePointConversionSessionOrigin
+} from "../../src/commands/coordinatePointConversionSession";
+import type { LineSplice } from "../../src/document/textPatch";
 import type { CanonicalDocumentValue } from "../../src/document/canonicalDocument";
 import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
@@ -41,6 +51,12 @@ export type CoordinatePointConversionFeatureHost = {
     document: vscode.TextDocument
   ) => CoordinatePointConversionCanvasEndpoint | null | Promise<CoordinatePointConversionCanvasEndpoint | null>;
   activeCanvasEndpoint: () => CoordinatePointConversionCanvasEndpoint | null;
+  applySourceLineSplices: (
+    editor: vscode.TextEditor,
+    expectedDocumentVersion: number,
+    expectedSourceText: string,
+    splices: readonly LineSplice[]
+  ) => Thenable<boolean> | Promise<boolean>;
   activeExplorerDocument: () => vscode.TextDocument | undefined;
   isSourceEditorActive?: () => boolean;
   refreshElementsTree?: () => void;
@@ -58,21 +74,37 @@ type SourceTargetResolution = {
   targetId: string;
   documentVersion: number;
   normalizedSource: string;
+  snapshot: NonNullable<Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>>;
 };
+
+type CoordinatePointConversionStartRequest = Extract<
+  import("../../src/vscode/protocol").ExtensionToVscodeMessage,
+  { type: "coordinatePointConversionStart" }
+>;
 
 type ActiveRequest = {
   editor: vscode.TextEditor;
   endpoint: CoordinatePointConversionCanvasEndpoint;
-  request: Extract<
-    import("../../src/vscode/protocol").ExtensionToVscodeMessage,
-    { type: "coordinatePointConversionStart" }
-  >;
+  request: CoordinatePointConversionStartRequest;
   selection: vscode.Selection;
   ownedCommitOperationId: number | null;
   ownedCommitSourceText: string | null;
   ownedCommitChangeObserved: boolean;
   disposable: vscode.Disposable;
 };
+
+type ActiveNativeRequest = {
+  editor: vscode.TextEditor;
+  request: CoordinatePointConversionStartRequest;
+  session: CoordinatePointConversionSession;
+  selection: vscode.Selection;
+  canvasEndpoint: CoordinatePointConversionCanvasEndpoint | null;
+};
+
+type CoordinatePointConversionQuickPickItem = vscode.QuickPickItem & (
+  | { kind: "base"; baseKey: string }
+  | { kind: "canvas" }
+);
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
@@ -81,6 +113,22 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
   Boolean(editor) && editor!.document.uri.scheme === "file" && editor!.document.fileName.endsWith(".nui");
 
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
+
+const positionEquals = (
+  left: vscode.Position,
+  right: vscode.Position
+): boolean => left.line === right.line && left.character === right.character;
+
+const selectionEquals = (
+  left: vscode.Selection,
+  right: vscode.Selection
+): boolean => positionEquals(left.start, right.start) && positionEquals(left.end, right.end);
+
+const elementIdsEqual = (left: readonly string[], right: readonly string[]): boolean => {
+  if (left.length !== right.length) return false;
+  const rightIds = new Set(right);
+  return new Set(left).size === rightIds.size && left.every((id) => rightIds.has(id));
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -151,7 +199,8 @@ const sourceTargetResolutionFor = async (
   return {
     targetId,
     documentVersion: document.version,
-    normalizedSource: source.normalizedSource
+    normalizedSource: source.normalizedSource,
+    snapshot
   };
 };
 
@@ -160,6 +209,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
   rustProcessOwner,
   ensureCanvas,
   activeCanvasEndpoint,
+  applySourceLineSplices,
   activeExplorerDocument,
   isSourceEditorActive,
   refreshElementsTree,
@@ -172,6 +222,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     )
   });
   let activeRequest: ActiveRequest | null = null;
+  let activeNativeRequest: ActiveNativeRequest | null = null;
   let disposed = false;
   let nextRequestId = 1;
   const explorerRangesByDocument = new Map<string, Set<number>>();
@@ -234,6 +285,70 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     return enabled;
   };
 
+  const nativeQuickPickItemsFor = (
+    session: CoordinatePointConversionSession
+  ): readonly CoordinatePointConversionQuickPickItem[] => [
+    {
+      label: "$(location) Pick base point on Canvas",
+      description: "Switch to visual base-point picking",
+      kind: "canvas"
+    },
+    ...coordinatePointConversionReferenceSuggestions(session).map((suggestion) => ({
+      label: suggestion.canonicalToken,
+      description: "Legal shared base point",
+      detail: `${suggestion.detail} · ${suggestion.searchAliases.join(", ")}`,
+      kind: "base" as const,
+      baseKey: suggestion.baseKey
+    }))
+  ];
+
+  const conversionResultFor = (
+    request: CoordinatePointConversionStartRequest,
+    status: "applied" | "noop" | "rejected",
+    plan: Pick<CoordinatePointConversionPlan, "classification" | "successfulTargetIds" | "successfulTargetCount" | "skippedTargets" | "skippedTargetCount">,
+    documentVersion: number
+  ) => ({
+    type: "coordinatePointConversionResult" as const,
+    requestId: request.requestId,
+    operationId: 0,
+    documentUri: request.documentUri,
+    documentVersion,
+    origin: request.origin,
+    mode: request.mode,
+    status,
+    classification: plan.classification,
+    successfulTargetIds: plan.successfulTargetIds,
+    successfulTargetCount: plan.successfulTargetCount,
+    skippedTargets: plan.skippedTargets,
+    skippedTargetCount: plan.skippedTargetCount
+  });
+
+  const rejectedResultFor = (
+    request: CoordinatePointConversionStartRequest,
+    reason: CoordinatePointConversionSkip["reason"],
+    documentVersion: number
+  ) => conversionResultFor(request, "rejected", {
+    classification: "all-skipped",
+    successfulTargetIds: [],
+    successfulTargetCount: 0,
+    skippedTargets: request.targetIds.map((targetId) => ({ targetId, reason })),
+    skippedTargetCount: request.targetIds.length
+  }, documentVersion);
+
+  const presentResult = async (result: ReturnType<typeof conversionResultFor>): Promise<void> => {
+    await presentCoordinatePointConversionResult(result, output?.(), {
+      showInformationMessage: (message) => vscode.window.showInformationMessage(message),
+      showWarningMessage: (message, action) => vscode.window.showWarningMessage(message, action),
+      showErrorMessage: (message, action) => vscode.window.showErrorMessage(message, action)
+    });
+  };
+
+  const cancelActiveRequest = (): void => {
+    activeNativeRequest = null;
+    activeRequest?.disposable.dispose();
+    activeRequest = null;
+  };
+
   const sendActiveRequest = (current: ActiveRequest): void => {
     if (activeRequest !== current || disposed || !isSupportedSourceEditor(current.editor)) return;
     if (
@@ -249,6 +364,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     const webviewDisposable = current.endpoint.panel.webview.onDidReceiveMessage((message: unknown) => {
       if (activeRequest !== current || typeof message !== "object" || message === null || !("type" in message)) return;
       if ((message as { type?: string }).type === "webviewReady") sendActiveRequest(current);
+      if ((message as { type?: string }).type === "webviewAuthoritativeDocumentReady") sendActiveRequest(current);
       if ((message as { type?: string }).type === "coordinatePointConversionResult") {
         const result = message as Extract<
           import("../../src/vscode/protocol").VscodeToExtensionMessage,
@@ -281,16 +397,11 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     sendActiveRequest(current);
   };
 
-  const start = async (mode: "xy" | "angle-distance", origin: CoordinatePointConversionSessionOrigin, targetIds: readonly string[], editor: vscode.TextEditor, endpoint: CoordinatePointConversionCanvasEndpoint): Promise<void> => {
-    const request = {
-      type: "coordinatePointConversionStart" as const,
-      requestId: nextRequestId++,
-      documentUri: documentKey(editor.document),
-      documentVersion: editor.document.version,
-      mode,
-      targetIds: [...targetIds],
-      origin
-    };
+  const startCanvasRequest = (
+    request: CoordinatePointConversionStartRequest,
+    editor: vscode.TextEditor,
+    endpoint: CoordinatePointConversionCanvasEndpoint
+  ): void => {
     const current: ActiveRequest = {
       editor,
       endpoint,
@@ -304,6 +415,248 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     activeRequest?.disposable.dispose();
     activeRequest = null;
     attachRequest(current);
+  };
+
+  const runtimeSnapshotFor = async (
+    editor: vscode.TextEditor,
+    session = languageAnalysisSessionFor(editor.document),
+    isCancelled?: () => boolean
+  ) => {
+    const document = editor.document;
+    const rawSource = document.getText();
+    if (session.getSource() !== rawSource) session.replaceSource(rawSource);
+    const source = {
+      normalizedSource: normalizedSourceFor(rawSource),
+      sourceRevision: session.getSourceRevision()
+    };
+    return runtimeEvaluation.evaluateCurrent({
+      documentKey: documentKey(document),
+      documentVersion: document.version,
+      source,
+      session,
+      isCancelled: () => isCancelled?.() === true || !vscode.workspace.textDocuments.some((candidate) =>
+        sameDocument(candidate, document) && candidate.version === document.version
+      )
+    });
+  };
+
+  const revalidateNativeRequest = async (
+    current: ActiveNativeRequest
+  ): Promise<
+    | { status: "valid"; snapshot: NonNullable<Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>>; session: CoordinatePointConversionSession }
+    | { status: "rejected"; reason: CoordinatePointConversionSkip["reason"] }
+  > => {
+    const { editor, request, session } = current;
+    const document = editor.document;
+    const stale = (message: string): { status: "rejected"; reason: CoordinatePointConversionSkip["reason"] } => ({
+      status: "rejected",
+      reason: { code: "revalidation-failed", message }
+    });
+    if (
+      !isSupportedSourceEditor(editor) ||
+      documentKey(document) !== request.documentUri ||
+      document.version !== request.documentVersion ||
+      document.getText() !== session.sourceText ||
+      !selectionEquals(editor.selection, current.selection)
+    ) return stale("現在の文書、Source、または選択が変化しました。コマンドをもう一度実行してください。");
+
+    if (request.origin === "canvas") {
+      const endpoint = activeCanvasEndpoint();
+      if (!endpoint || !sameDocument(endpoint.document, document) || !elementIdsEqual(endpoint.targetIds(), session.targetIds)) {
+        return stale("Canvasの変換対象選択が変化しました。コマンドをもう一度実行してください。");
+      }
+    }
+
+    const snapshot = await runtimeSnapshotFor(editor);
+    if (
+      !snapshot ||
+      snapshot.proof.documentVersion !== request.documentVersion ||
+      snapshot.proof.normalizedSource !== session.sourceText ||
+      snapshot.proof.sourceRevision !== session.sourceRevision
+    ) return stale("現在の文書または評価結果が古くなっています。コマンドをもう一度実行してください。");
+
+    const restarted = startCoordinatePointConversionSession({
+      requestId: request.requestId,
+      documentUri: request.documentUri,
+      documentVersion: request.documentVersion,
+      mode: request.mode,
+      origin: request.origin as CoordinatePointConversionSessionOrigin,
+      targetIds: request.targetIds,
+      snapshot: { document: canonicalDocumentFor(snapshot)!, evaluation: snapshot.evaluation }
+    });
+    return restarted.status === "started"
+      ? { status: "valid", snapshot, session: restarted.session }
+      : { status: "rejected", reason: restarted.reason };
+  };
+
+  const applyNativeBase = async (
+    current: ActiveNativeRequest,
+    baseKey: string
+  ): Promise<void> => {
+    const revalidated = await revalidateNativeRequest(current);
+    if (revalidated.status === "rejected") {
+      await presentResult(rejectedResultFor(current.request, revalidated.reason, current.editor.document.version));
+      return;
+    }
+    const base = revalidated.session.baseCandidates.find((candidate) => candidate.key === baseKey);
+    if (!base) {
+      const reason: CoordinatePointConversionSkip["reason"] = {
+        code: "base-not-candidate",
+        message: "選択した基準点は現在の合法な共有候補ではありません。コマンドをもう一度実行してください。"
+      };
+      await presentResult(rejectedResultFor(current.request, reason, current.editor.document.version));
+      return;
+    }
+
+    const snapshot = { document: canonicalDocumentFor(revalidated.snapshot)!, evaluation: revalidated.snapshot.evaluation };
+    const plan = planCoordinatePointConversion({
+      snapshot,
+      targetIds: revalidated.session.targetIds,
+      base,
+      mode: revalidated.session.mode
+    });
+    const applied = applyCoordinatePointConversionPlan(plan, snapshot);
+    if (applied.status === "rejected") {
+      await presentResult(conversionResultFor(current.request, "rejected", applied.plan, current.editor.document.version));
+      return;
+    }
+    if (applied.status === "noop") {
+      await presentResult(conversionResultFor(current.request, "noop", applied.plan, current.editor.document.version));
+      return;
+    }
+
+    const edited = await applySourceLineSplices(
+      current.editor,
+      current.request.documentVersion,
+      current.session.sourceText,
+      applied.plan.splices
+    );
+    if (!edited) {
+      await presentResult(conversionResultFor(current.request, "rejected", applied.plan, current.editor.document.version));
+      return;
+    }
+
+    const documentVersion = current.editor.document.version;
+    if (current.request.origin === "canvas" && current.canvasEndpoint) {
+      void current.canvasEndpoint.panel.webview.postMessage({
+        type: "coordinatePointConversionSelection",
+        requestId: current.request.requestId,
+        documentVersion,
+        successfulTargetIds: [...applied.plan.successfulTargetIds]
+      } satisfies import("../../src/vscode/protocol").ExtensionToVscodeMessage);
+    }
+    await presentResult(conversionResultFor(current.request, "applied", applied.plan, documentVersion));
+    if (current.request.origin === "source" || current.request.origin === "explorer") {
+      void vscode.window.showTextDocument(current.editor.document, {
+        preserveFocus: false,
+        preview: false,
+        selection: current.selection
+      });
+    }
+  };
+
+  const handoffToCanvasPick = async (current: ActiveNativeRequest): Promise<void> => {
+    const revalidated = await revalidateNativeRequest(current);
+    if (revalidated.status === "rejected") {
+      await presentResult(rejectedResultFor(current.request, revalidated.reason, current.editor.document.version));
+      return;
+    }
+
+    let endpoint = current.canvasEndpoint;
+    if (!endpoint) {
+      endpoint = await ensureCanvas(current.editor.document);
+      if (!endpoint || current.editor.document.version !== current.request.documentVersion ||
+          documentKey(current.editor.document) !== current.request.documentUri ||
+          current.editor.document.getText() !== current.session.sourceText ||
+          !selectionEquals(current.editor.selection, current.selection)) {
+        const reason: CoordinatePointConversionSkip["reason"] = {
+          code: "revalidation-failed",
+          message: "Canvasを開く前に現在の文書が変化しました。コマンドをもう一度実行してください。"
+        };
+        await presentResult(rejectedResultFor(current.request, reason, current.editor.document.version));
+        return;
+      }
+    }
+    if (!endpoint || !sameDocument(endpoint.document, current.editor.document)) return;
+    if (current.request.origin === "source" || current.request.origin === "explorer") {
+      try {
+        await vscode.window.showTextDocument(current.editor.document, {
+          preserveFocus: false,
+          preview: false,
+          selection: current.selection
+        });
+      } catch {
+        return;
+      }
+    }
+    endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
+    startCanvasRequest(current.request, current.editor, endpoint);
+  };
+
+  const startNative = async (
+    mode: "xy" | "angle-distance",
+    origin: CoordinatePointConversionSessionOrigin,
+    targetIds: readonly string[],
+    editor: vscode.TextEditor,
+    snapshot?: NonNullable<Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>>,
+    canvasEndpoint: CoordinatePointConversionCanvasEndpoint | null = null
+  ): Promise<void> => {
+    cancelActiveRequest();
+    const request: CoordinatePointConversionStartRequest = {
+      type: "coordinatePointConversionStart" as const,
+      requestId: nextRequestId++,
+      documentUri: documentKey(editor.document),
+      documentVersion: editor.document.version,
+      mode,
+      targetIds: [...targetIds],
+      origin
+    };
+    const currentSnapshot = snapshot ?? await runtimeSnapshotFor(editor);
+    const canonical = canonicalDocumentFor(currentSnapshot);
+    if (!currentSnapshot || !canonical || editor.document.version !== request.documentVersion) {
+      const reason: CoordinatePointConversionSkip["reason"] = {
+        code: "revalidation-failed",
+        message: "現在の文書または評価結果を取得できませんでした。コマンドをもう一度実行してください。"
+      };
+      await presentResult(rejectedResultFor(request, reason, editor.document.version));
+      return;
+    }
+    const started = startCoordinatePointConversionSession({
+      requestId: request.requestId,
+      documentUri: request.documentUri,
+      documentVersion: request.documentVersion,
+      mode,
+      origin,
+      targetIds,
+      snapshot: { document: canonical, evaluation: currentSnapshot.evaluation }
+    });
+    if (started.status === "rejected") {
+      await presentResult(rejectedResultFor(request, started.reason, editor.document.version));
+      return;
+    }
+    const native: ActiveNativeRequest = {
+      editor,
+      request,
+      session: started.session,
+      selection: editor.selection,
+      canvasEndpoint
+    };
+    activeNativeRequest = native;
+    const selected = await vscode.window.showQuickPick(nativeQuickPickItemsFor(started.session), {
+      placeHolder: mode === "xy" ? "Select a shared base point for XY offset" : "Select a shared base point for angle-distance offset",
+      matchOnDescription: true,
+      matchOnDetail: true
+    });
+    if (activeNativeRequest !== native) return;
+    activeNativeRequest = null;
+    if (!selected) return;
+    if (selected.kind === "canvas") {
+      activeNativeRequest = native;
+      await handoffToCanvasPick(native);
+      if (activeNativeRequest === native) activeNativeRequest = null;
+      return;
+    }
+    await applyNativeBase(native, selected.baseKey);
   };
 
   const convertFromSource = async (mode: "xy" | "angle-distance"): Promise<void> => {
@@ -320,20 +673,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       void vscode.window.showErrorMessage("nuinuiCAD: Source Editorのカーソル位置に変換できるcoordinate pointがありません。");
       return;
     }
-    const endpoint = await ensureCanvas(editor.document);
-    if (!endpoint || editor.document.version !== resolution.documentVersion) return;
-    try {
-      await vscode.window.showTextDocument(editor.document, {
-        viewColumn: editor.viewColumn,
-        preserveFocus: false,
-        preview: false,
-        selection: editor.selection
-      });
-    } catch {
-      return;
-    }
-    endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
-    await start(mode, "source", [resolution.targetId], editor, endpoint);
+    await startNative(mode, "source", [resolution.targetId], editor, resolution.snapshot);
   };
 
   const convertFromCanvas = (mode: "xy" | "angle-distance"): void => {
@@ -343,7 +683,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     if (targetIds.length === 0) return;
     const editor = vscode.window.visibleTextEditors.find((candidate) => sameDocument(candidate.document, endpoint.document));
     if (!editor) return;
-    void start(mode, "canvas", targetIds, editor, endpoint);
+    void startNative(mode, "canvas", targetIds, editor, undefined, endpoint);
   };
 
   const convertFromExplorer = async (mode: "xy" | "angle-distance", node?: NuiElementsTreeNode): Promise<void> => {
@@ -367,10 +707,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       : null;
     const targetId = target && snapshot ? snapshot.compiled.statementMap.elementIdByStatementIndex.get(target.sourceStatementIndex) : undefined;
     if (!snapshot || !canonical || !targetId || !coordinatePointConversionTargetEligibility({ document: canonical, evaluation: snapshot.evaluation }, targetId).eligible) return;
-    const endpoint = await ensureCanvas(document);
-    if (!endpoint || endpoint.document.version !== document.version) return;
-    endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
-    await start(mode, "explorer", [targetId], editor, endpoint);
+    await startNative(mode, "explorer", [targetId], editor, snapshot);
   };
 
   const explorerContextValueFor = (node: NuiElementsTreeNode): string | undefined => {
@@ -394,6 +731,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     if (activeRequest && (!editor || !sameDocument(editor.document, activeRequest.editor.document))) {
       activeRequest.disposable.dispose();
       activeRequest = null;
+    }
+    if (activeNativeRequest && (!editor || !sameDocument(editor.document, activeNativeRequest.editor.document))) {
+      activeNativeRequest = null;
     }
     void sourceTargetAvailable(editor);
   });
@@ -430,6 +770,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       activeRequest.disposable.dispose();
       activeRequest = null;
     }
+    if (activeNativeRequest && sameDocument(document, activeNativeRequest.editor.document)) {
+      activeNativeRequest = null;
+    }
     setSourceContext(false);
   };
 
@@ -442,6 +785,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     {
       dispose: () => {
         disposed = true;
+        activeNativeRequest = null;
         activeRequest?.disposable.dispose();
         activeRequest = null;
         runtimeEvaluation.dispose();

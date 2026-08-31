@@ -198,6 +198,38 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
+  it("applies native conversion success to exactly the reported Canvas targets", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const elements = useCadDocumentStore.getState().elements;
+    const first = elements.find((element) => element.name === "A")!;
+    const second = elements.find((element) => element.name === "B")!;
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(elements.map((element) => element.id)));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 3,
+          documentVersion: 7,
+          successfulTargetIds: [second.id]
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([second.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(second.id);
+    expect(useCadUiStore.getState().selectedElementIds).not.toContain(first.id);
+  });
+
   it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {
     const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
     const api = { postMessage: vi.fn() };

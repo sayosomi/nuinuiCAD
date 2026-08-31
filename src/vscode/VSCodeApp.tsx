@@ -913,6 +913,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           nextSourcePosition: pending.nextSourcePosition
         });
         return;
+      } else if (message.type === "coordinatePointConversionSelection") {
+        const current = currentAuthoritativeDocument(message.documentVersion);
+        if (!current || message.successfulTargetIds.length === 0) return;
+        if (replaceCanvasSelection(
+          message.successfulTargetIds,
+          message.successfulTargetIds.at(-1),
+          false,
+          "requested",
+          new Set(message.successfulTargetIds)
+        )) publishCanvasObservation(message.documentVersion);
+        return;
       } else if (message.type === "canvasThemeChanged") {
         if (Number.isInteger(message.generation)) refreshCanvasTheme(message.generation);
       } else if (message.type === "canvasRibbonConfiguration") {

@@ -433,6 +433,31 @@ const textEditForLineSplice = (
   };
 };
 
+const applySourceLineSplices = async (
+  editor: vscode.TextEditor,
+  expectedDocumentVersion: number,
+  expectedSourceText: string,
+  splices: readonly LineSplice[]
+): Promise<boolean> => {
+  const document = editor.document;
+  const sourceText = document.getText();
+  if (document.version !== expectedDocumentVersion || sourceText !== expectedSourceText) return false;
+  let edits: Array<{ range: vscode.Range; replacement: string }>;
+  try {
+    applyLineSplices(sourceText, splices);
+    edits = splices.map((splice) => textEditForLineSplice(document, sourceText, splice));
+  } catch {
+    return false;
+  }
+  try {
+    return await editor.edit((editBuilder) => {
+      for (const edit of edits) editBuilder.replace(edit.range, edit.replacement);
+    }, { undoStopBefore: true, undoStopAfter: true });
+  } catch {
+    return false;
+  }
+};
+
 const disposeSessionListeners = (session: WebviewSession): void => {
   for (const disposable of session.disposables.splice(0)) disposable.dispose();
 };
@@ -1624,6 +1649,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         }
       };
     },
+    applySourceLineSplices,
     activeExplorerDocument: () => activeNuiEditor()?.document,
     isSourceEditorActive: () => activeNuiTextEditorForCommand() !== undefined,
     refreshElementsTree: () => refreshElementsTree(),

@@ -103,18 +103,19 @@ All three surfaces reuse the one Extension Host Rust process owner and the share
 
 Coordinate point conversion is an explicit Source+Canvas command family with an
 Explorer item-context entry point. `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
-owns host target projection, exact-current runtime evaluation, Canvas session
-routing, and result presentation; `src/vscode/useVSCodeCoordinatePointConversionSession.ts`
-and `src/commands/coordinatePointConversionSession.ts` own the narrow one-base
-interaction state. Source, Canvas, and Explorer all send the same proof-carrying
-start request to the URI-matched Canvas. The Webview performs the shared
-candidate/search/visual-pick interaction and calls the existing
-`coordinatePointConversion.ts` planner/apply owner, then the Extension Host
-applies the resulting statement-level splices through the normal Canvas commit
-boundary. Canvas availability is projected from the attached observation's
-current eligible selection; Source and Explorer availability use the current
-document analysis/evaluation path. No cross-surface sticky target or alternate
-conversion semantics are introduced.
+owns the source/editor target projection, exact-current runtime evaluation,
+native QuickPick lifecycle, Canvas-session routing for the explicit visual
+path, and result presentation. `src/commands/coordinatePointConversionSession.ts`
+owns the captured target/base-candidate session, while
+`src/commands/coordinatePointConversion.ts` remains the sole eligibility,
+planning, math, and statement-splice authority. Source, Canvas, and Explorer
+capture the same proof-carrying request and use the Extension Host's native
+QuickPick for the primary legal shared-base interaction. Native apply performs
+one statement-level Source edit; Canvas-origin success sends only the successful
+target IDs through a narrow selection adapter. The existing Webview conversion
+and point-pick path remains an explicit Canvas visual-pick adapter, and only
+that choice may create or reveal Canvas for a Source-origin request. No
+cross-surface sticky target or alternate conversion semantics are introduced.
 
 Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
 `webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
@@ -907,17 +908,18 @@ without source mutation.
 Coordinate point conversion keeps its semantic session and target/base
 revalidation in `coordinatePointConversion.ts` and
 `coordinatePointConversionSession.ts`, while the Extension Host owns the
-document-scoped request lifecycle and terminal presentation. In the Webview,
-`CommandLineBar.tsx` is the shared conversion base-entry surface: it reuses the
-common searchable reference suggestions and command-line styling, and delegates
-Canvas picking through `CanvasHostAdapter` and the shared `DrawingCanvas` point
-pick path. `coordinatePointConversionPick.ts` is only the narrow adapter between
-that virtual pick target and the conversion session; it is not a second
-conversion evaluator or creation recipe. Source, Canvas, and Explorer all use
-the same host request and session flow. An owned conversion commit carries its
-request identity across the normal TextDocument change echo so the terminal
-result remains connected to exactly one active request; unrelated source
-changes, stale evaluation, panel disposal, or document close fail closed.
+document-scoped request lifecycle, native QuickPick primary interaction, source
+splices, and terminal presentation. The native picker reuses
+`coordinatePointConversionReferenceSuggestions` so canonical source reference
+names and paths remain the searchable candidate model. In the Webview,
+`CommandLineBar.tsx` and `coordinatePointConversionPick.ts` remain only for the
+explicit Canvas visual-pick adapter; the normal conversion path does not depend
+on CommandLineBar rendering. The visual adapter delegates Canvas picking through
+`CanvasHostAdapter` and the shared `DrawingCanvas` point-pick path. An owned
+visual conversion commit carries its request identity across the normal
+TextDocument change echo so the terminal result remains connected to exactly
+one active request; unrelated source changes, stale evaluation, panel disposal,
+or document close fail closed.
 
 The Webview keeps the last authoritative host source snapshot separately from
 its latest host version. Navigation is allowed only when that snapshot, the
