@@ -1,4 +1,4 @@
-nui 4
+nui 1
 let total: number = 0
 for i in range(from: 0, count: 3, step: 1) {
   set total = @total + 1

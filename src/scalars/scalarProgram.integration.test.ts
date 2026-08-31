@@ -4,7 +4,7 @@ import { emptyDocument } from "../dsl/dslDocumentTestUtils";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "../document/canonicalDocument";
 
 const compileCanonical = (source: string) => {
-  const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
+  const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
   const result = compileCanonicalText(baseline, source);
   expect(result.status).not.toBe("fatal");
   return result.doc;
@@ -13,7 +13,7 @@ const compileCanonical = (source: string) => {
 describe("compiled scalar program", () => {
   it("keeps typed declarations out of elements and preserves source order across nested scopes", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const outer: number = 2",
       "group G {",
       "  const inner: number = @outer + 1",
@@ -33,19 +33,19 @@ describe("compiled scalar program", () => {
   });
 
   it("inherits a reconciler-owned binding identity across an edit without deriving it from source", () => {
-    const baseline = regenerateCanonicalFromModel(emptyDocument(), 4);
-    const first = compileCanonicalText(baseline, "nui 4\nconst width: number = 12\npoint A = coordinate(x: 0, y: 0)");
+    const baseline = regenerateCanonicalFromModel(emptyDocument(), 1);
+    const first = compileCanonicalText(baseline, "nui 1\nconst width: number = 12\npoint A = coordinate(x: 0, y: 0)");
     expect(first.status).not.toBe("fatal");
     const bindingId = first.doc.scalarProgram!.statements[0].bindingId;
 
-    const edited = compileCanonicalText(first, "nui 4\nconst width: number = 24\npoint A = coordinate(x: 0, y: 0)");
+    const edited = compileCanonicalText(first, "nui 1\nconst width: number = 24\npoint A = coordinate(x: 0, y: 0)");
     expect(edited.status).not.toBe("fatal");
     expect(edited.doc.scalarProgram!.statements[0].bindingId).toBe(bindingId);
   });
 
   it("uses Task 13R eligibility to exclude invalid declarations and their dependents", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const broken: number = @missing",
       "const dependent: number = @broken + 1",
       "const valid: number = 3"
@@ -62,7 +62,7 @@ describe("compiled scalar program", () => {
 
   it("keeps stop geometry indexing while carrying an explicit source-order scalar limit", () => {
     const compiled = compileCanonical([
-      "nui 4",
+      "nui 1",
       "const before: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "stop",
@@ -79,13 +79,13 @@ describe("compiled scalar program", () => {
   });
 
   it("omits the optional program for a document with no typed declarations", () => {
-    const noTyped = compileDslDocument("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    const noTyped = compileDslDocument("nui 1\npoint A = coordinate(x: 0, y: 0)");
     expect(noTyped.document?.elements.map((element) => element.type)).toEqual(["freePoint"]);
     expect(noTyped.scalarProgram).toBeUndefined();
   });
 
   it("errors when typed identity is absent", () => {
-    const missingIdentity = compileDslDocument("nui 4\nconst width: number = 12");
+    const missingIdentity = compileDslDocument("nui 1\nconst width: number = 12");
     expect(missingIdentity.document).toBeNull();
     expect(missingIdentity.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "missing-stable-statement-identity", line: 2 })

@@ -66,7 +66,7 @@ const sourceForSelectionChronology = (x: number) => dslTextForElements([
 ]);
 
 const h3Source = [
-  "nui 4",
+  "nui 1",
   "point Left = coordinate(x: -50, y: 0)",
   "point Right = coordinate(x: 50, y: 0)",
   "line Guide = segment(start: @Left, end: @Right)"
@@ -269,7 +269,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("rolls back a rejected Canvas free-point commit to the exact Source and selection snapshot", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0, id: a)",
       "point B = coordinate(x: 20, y: 0, id: b)"
     ].join("\n");
@@ -356,7 +356,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("materializes an unnamed freePoint and defers selection until Canvas presents it", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
@@ -558,7 +558,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("keeps the creation selection contract through host Undo and Redo", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
@@ -793,7 +793,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("revalidates an Editor target, replaces selection through history, and focuses the viewport", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)"
     ].join("\n");
@@ -848,7 +848,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not acknowledge Canvas focus while the Webview document is unfocused", async () => {
     vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -872,7 +872,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("acknowledges pending Canvas focus on the Webview window focus event", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -902,7 +902,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not duplicate the Canvas focus acknowledgement on repeated window focus events", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -932,7 +932,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not duplicate the Canvas focus acknowledgement when focus re-enters synchronously", async () => {
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -971,7 +971,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not complete pending focus after a newer Canvas navigation request", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -1003,7 +1003,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not complete pending focus after an authoritative document change", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const changedSource = `${source}\n// authoritative change`;
@@ -1036,7 +1036,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
   it("does not complete pending focus after Canvas history handoff starts", async () => {
     const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -1071,7 +1071,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("fails closed for stale host navigation without changing selection", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const newerSource = `${source}\n// newer authoritative text`;
@@ -1102,7 +1102,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("rejects a Canvas-local source ahead of the host until its acknowledgement arrives", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const localSource = `${source}\n// Canvas-local edit`;
@@ -1164,7 +1164,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("blocks navigation while Canvas history is in flight", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
@@ -1198,7 +1198,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("reveals every runtime materialization of one module-body statement once", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
@@ -1251,9 +1251,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   it.each([
-    ["hidden", "nui 4\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
-    ["disabled", "nui 4\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
-    ["non-renderable", "nui 4\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
+    ["hidden", "nui 1\npoint A = coordinate(x: 0, y: 0, state: hidden)", "A", false],
+    ["disabled", "nui 1\npoint A = coordinate(x: 0, y: 0, state: disabled)", "A", false],
+    ["non-renderable", "nui 1\nmodule M() {\n  point P = coordinate(x: 0, y: 0)\n}\ninstance A = M()", "A", false]
   ] as const)("handles a %s primary without changing activity or viewport", async (_label, source, token, shouldSelect) => {
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -1298,7 +1298,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("does not use an ineligible Module instance for a target-scoped Bake sandbox", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Broken = coordinate(x: 0, y: 0, state: disabled)",
       "}",
@@ -1333,7 +1333,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("uses the resolved Source Bake target for a target-scoped sandbox", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
       "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
     ].join("\n");
@@ -1373,7 +1373,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("rejects a stale Source Bake sandbox without mutating the newer document", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
       "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
     ].join("\n");
@@ -1422,7 +1422,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("fails a concrete Module instance Reveal when only descendant bounds are available", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 80, y: 0)",
       "}",
@@ -1485,7 +1485,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
   it("keeps the existing selection and viewport when a Module instance has no own presentation", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Existing = coordinate(x: 0, y: 0)",
       "module M() {",
       "  point P = coordinate(x: 80, y: 0, state: hidden)",

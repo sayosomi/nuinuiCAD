@@ -13,7 +13,7 @@ import { selectionCommandDefinitions } from "./selectionCommandDefinitions";
 import { vscodeCanvasRibbonCommandIds } from "../vscode/vscodeCanvasRibbonCatalog";
 
 const directModuleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate(x: 1, y: 2)",
   "}",
@@ -23,7 +23,7 @@ const directModuleSource = [
 ].join("\n");
 
 const nestedModuleSource = [
-  "nui 4",
+  "nui 1",
   "module Inner() {",
   "  point P = coordinate(x: 1, y: 2)",
   "}",

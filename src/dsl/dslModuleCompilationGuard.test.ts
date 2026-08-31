@@ -23,7 +23,7 @@ const compileWithRootStableIds = (source: string) => {
 describe("module definition compilation guard", () => {
   it("keeps direct module-body geometry inert while retaining the AST", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
@@ -41,7 +41,7 @@ describe("module definition compilation guard", () => {
 
   it("materializes option-bearing module instances while keeping the definition source-only", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(state: boolean) {",
       "}",
       "instance X(state: hidden) = M(state: true)",
@@ -61,7 +61,7 @@ describe("module definition compilation guard", () => {
 
   it("keeps nested module groups and their descendants inert", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    point P = coordinate(x: 10, y: 20)",
@@ -77,7 +77,7 @@ describe("module definition compilation guard", () => {
 
   it("keeps module-body const/let out of scalar analysis but compiles outer declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const inner: number = 10",
       "  let innerMutable: number = 20",
@@ -96,7 +96,7 @@ describe("module definition compilation guard", () => {
   });
 
   it("keeps module AST and enclosing metadata available after compilation", () => {
-    const source = "nui 4\nmodule M() {\n  group G {\n    point P = coordinate(x: 10, y: 20)\n  }\n}";
+    const source = "nui 1\nmodule M() {\n  group G {\n    point P = coordinate(x: 10, y: 20)\n  }\n}";
     const { parsed, compiled } = compileWithStableIds(source);
     expect(compiled.statements.map((statement) => statement.kind)).toEqual([
       "version",
@@ -117,7 +117,7 @@ describe("module definition compilation guard", () => {
 
   it("does not let a module-body set mutate an outer binding or start set compilation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  set x = 20",
       "}",
@@ -134,7 +134,7 @@ describe("module definition compilation guard", () => {
 
   it("does not start document scalar or print-layout infrastructure for module-only statements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const inner: number = 10",
       "  set inner = 20",
@@ -150,7 +150,7 @@ describe("module definition compilation guard", () => {
 
   it("uses the first compilable stop and keeps module-body stop inert", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  stop",
       "}",
@@ -167,9 +167,9 @@ describe("module definition compilation guard", () => {
 
   it("does not apply module-body global settings or treat module nui as a duplicate header", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
-      "  nui 4",
+      "  nui 1",
       "  role inner (name: \"Inner\")",
       "  view hiddenView (default: false)",
       "  activeView hiddenView",
@@ -186,7 +186,7 @@ describe("module definition compilation guard", () => {
 
   it("does not leak module text-template or property-reference errors into runtime compilation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  text Hidden = label(text: \"{\", anchor: none)",
       "  point HiddenPoint = coordinate(x: Other.x, y: 0)",
@@ -201,7 +201,7 @@ describe("module definition compilation guard", () => {
 
   it("does not require stable IDs for excluded nested module statements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    const inner: number = 1",

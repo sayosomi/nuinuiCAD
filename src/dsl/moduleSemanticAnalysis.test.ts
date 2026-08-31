@@ -14,7 +14,7 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
 describe("module semantic analysis", () => {
   it("requires optional scalar presence proof and narrows a guarded branch", () => {
     const unguarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  const copy: number = @value",
       "}",
@@ -25,7 +25,7 @@ describe("module semantic analysis", () => {
     ]));
 
     const guarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (hasValue(@value)) {",
       "    const copy: number = @value",
@@ -41,7 +41,7 @@ describe("module semantic analysis", () => {
 
   it("supports hasValue flow for boolean operators without leaking facts", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (hasValue(@value) and @value > 0) {",
       "    const okay: number = @value",
@@ -61,7 +61,7 @@ describe("module semantic analysis", () => {
 
   it("does not narrow an unsafe compound AND false branch", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (not hasValue(@value) and false) {",
       "  } else {",
@@ -78,7 +78,7 @@ describe("module semantic analysis", () => {
 
   it("keeps direct negated hasValue guards narrowing the else branch", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (not hasValue(@value)) {",
       "  } else {",
@@ -93,7 +93,7 @@ describe("module semantic analysis", () => {
 
   it("keeps OR RHS short-circuit presence proof and rejects the unsafe direction", () => {
     const valid = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (not hasValue(@value) or @value > 0) {",
       "  }",
@@ -103,7 +103,7 @@ describe("module semantic analysis", () => {
     expect(valid.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const invalid = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (hasValue(@value) or @value > 0) {",
       "  }",
@@ -117,7 +117,7 @@ describe("module semantic analysis", () => {
 
   it("keeps AND RHS short-circuit presence proof valid", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (hasValue(@value) and @value > 0) {",
       "  }",
@@ -130,7 +130,7 @@ describe("module semantic analysis", () => {
 
   it("retains a presence fact shared by every compound OR true path", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  if (hasValue(@value) or hasValue(@value)) {",
       "    const okay: number = @value",
@@ -144,7 +144,7 @@ describe("module semantic analysis", () => {
 
   it("requires presence when forwarding an optional value to another module", () => {
     const guarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Inner(value?: number) {",
       "}",
       "module Outer(value?: number) {",
@@ -157,7 +157,7 @@ describe("module semantic analysis", () => {
     expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const unguarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Inner(value?: number) {",
       "}",
       "module Outer(value?: number) {",
@@ -172,7 +172,7 @@ describe("module semantic analysis", () => {
 
   it("applies the same proof rule to optional geometry properties", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 3, y: 4)",
       "module M(anchor?: point) {",
       "  if (hasValue(@anchor)) {",
@@ -184,7 +184,7 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const invalid = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(anchor?: point) {",
       "  const x: number = @anchor.x",
       "}",
@@ -197,7 +197,7 @@ describe("module semantic analysis", () => {
 
   it("allows hasValue in boolean defaults while rejecting direct optional default reads", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number, flag: boolean = hasValue(@value)) {",
       "}",
       "instance Use = M()"
@@ -209,7 +209,7 @@ describe("module semantic analysis", () => {
     });
 
     const invalid = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(value?: number, flag: boolean = @value) {",
       "}",
       "instance Use = M()"
@@ -221,7 +221,7 @@ describe("module semantic analysis", () => {
 
   it("records required, defaulted, and optional argument states in parameter order", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(required: number, fallback: number = 2, optional?: number) {",
       "}",
       "instance Use = M(required: 1)"
@@ -236,7 +236,7 @@ describe("module semantic analysis", () => {
 
   it("resolves exact nominal record arguments, shorthand, inline constructors, and nested exports", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number, label: string)",
       "record Other(x: number, label: string)",
       "const settings: Pair = Pair(x: 3, label: \"root\")",
@@ -307,7 +307,7 @@ describe("module semantic analysis", () => {
 
   it("shares optional record presence proof across whole and field access", () => {
     const guarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module M(settings?: Pair) {",
       "  if (hasValue(@settings)) {",
@@ -326,7 +326,7 @@ describe("module semantic analysis", () => {
     expect(guarded.moduleSemanticAnalysis!.definitions[0].recordValues[0]?.presenceParameterKeys).toEqual(["statement:test:2:0"]);
 
     const unguarded = compileWithIds([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module M(settings?: Pair) {",
       "  const copy: Pair = @settings",
@@ -345,7 +345,7 @@ describe("module semantic analysis", () => {
 
   it("keeps module geometry builtin operands separate from scalar references", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point P = coordinate(x: 3, y: 4)",
       "point O = coordinate(x: 0, y: 0)",
       "line Baseline = segment(start: (0, 0), end: (1, 0))",
@@ -370,7 +370,7 @@ describe("module semantic analysis", () => {
 
   it("keeps scalar and geometry parameter metadata separate from nominal record identity", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(width: number, anchor: point, label: string) {",
       "}",
       "instance Use = M(width: 10, anchor: (0, 0), label: \"ok\")"
@@ -394,7 +394,7 @@ describe("module semantic analysis", () => {
 
   it("typechecks derived point geometry builtin operands", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "point P = coordinate(x: 3, y: 4)",
       "module Example(baseline: line, p: point, delta: number) {",
@@ -413,7 +413,7 @@ describe("module semantic analysis", () => {
 
   it("resolves builtin calls through the shared scalar frontend and preserves their argument references", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(a: number, b: number) {",
       "  const value: number = max(@a, @b)",
       "  const check: boolean = isClose(@value, 10, 0.5)",
@@ -434,7 +434,7 @@ describe("module semantic analysis", () => {
 
   it("keeps unknown and arity diagnostics distinct in the module frontend", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const unknown: number = unknownFunction(1)",
       "  const wrong: number = abs()",
@@ -449,7 +449,7 @@ describe("module semantic analysis", () => {
 
   it("uses the common scalar parser for named syntax and remaps call-style diagnostics", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(a: number, b: number) {",
       "  const wrong: number = atan2(y: max(@a, 1), x: @b)",
       "}",
@@ -465,9 +465,9 @@ describe("module semantic analysis", () => {
     });
   });
 
-  it("uses the shared scalar frontend for nui4 word operators in a Module body", () => {
+  it("uses the shared scalar frontend for nui1 word operators in a Module body", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(a: boolean, b: boolean) {",
       "  const both: boolean = @a and not @b",
       "}",
@@ -486,7 +486,7 @@ describe("module semantic analysis", () => {
 
   it("resolves a callee by StatementIdentity and normalizes argument bindings by parameter order", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point InputPoint = coordinate(x: 0, y: 0)",
       "module M(width: number, anchor: point, label: string = \"ok\") {",
       "  const doubled: number = @width + @width",
@@ -529,7 +529,7 @@ describe("module semantic analysis", () => {
 
   it("registers exported typed declarations in the shared module member namespace", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  const privateValue: number = 1",
       "  export const result: number = @privateValue + 1",
@@ -549,7 +549,7 @@ describe("module semantic analysis", () => {
 
   it("checks scalar and geometry exports together for duplicate public member names", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  export const Output: number = 1",
       "  export point Output = coordinate(x: 0, y: 0)",
@@ -563,7 +563,7 @@ describe("module semantic analysis", () => {
 
   it("keeps definition-site document scalar defaults on the existing binding identity", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const documentWidth: number = 10",
       "module Outer() {",
       "  module Inner(width: number = @documentWidth) {",
@@ -582,11 +582,11 @@ describe("module semantic analysis", () => {
   });
 
   it("reports forward/non-module callees and does not fall through a shadowing declaration", () => {
-    const forward = compileWithIds(["nui 4", "instance Before = Later()", "module Later() {"] .concat(["}"]).join("\n"));
+    const forward = compileWithIds(["nui 1", "instance Before = Later()", "module Later() {"] .concat(["}"]).join("\n"));
     expect(forward.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "module-forward-callee" })]));
 
     const shadow = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Target() {",
       "}",
       "module Outer() {",
@@ -599,7 +599,7 @@ describe("module semantic analysis", () => {
 
   it("rejects geometry defaults, same-call bindings, outer captures, and recursive calls", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M(value: number, pointValue: point = @P) {",
       "  const local: number = @outer",
@@ -624,7 +624,7 @@ describe("module semantic analysis", () => {
 
   it("keeps forbidden global statements and nested module bodies out of the outer body analysis", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       '  role hidden (name: "hidden")',
       "  module Inner() {",
@@ -642,7 +642,7 @@ describe("module semantic analysis", () => {
 
   it("resolves source geometry in a module body without creating runtime IDs", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(anchor: point) {",
       "  export point Output = offset(from: @anchor, dx: 1, dy: 0)",
       "}",
@@ -662,7 +662,7 @@ describe("module semantic analysis", () => {
 
   it("accepts group and for constructions as module body statements", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G (roles: [seam]) {",
       "    for i in range(from: 0, count: 3) {",
@@ -677,7 +677,7 @@ describe("module semantic analysis", () => {
 
   it("resolves a visible outer module before a later inner declaration", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Target() {",
       "}",
       "group G {",
@@ -694,7 +694,7 @@ describe("module semantic analysis", () => {
 
   it("stops at a nearest visible wrong-kind declaration", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Target() {",
       "}",
       "group G {",
@@ -710,7 +710,7 @@ describe("module semantic analysis", () => {
 
   it("reports a collision between a parameter and a direct body declaration", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(x: number) {",
       "  const x: number = 1",
       "}"
@@ -720,7 +720,7 @@ describe("module semantic analysis", () => {
 
   it("allows a child scope declaration to shadow a module parameter", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(x: number) {",
       "  group G {",
       "    const x: number = 1",
@@ -739,7 +739,7 @@ describe("module semantic analysis", () => {
 
   it("extracts point and scalar captures from intermediates", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point OuterPoint = coordinate(x: 0, y: 0)",
       "const outer: number = 10",
       "module M() {",
@@ -759,7 +759,7 @@ describe("module semantic analysis", () => {
 
   it("keeps text template hole references as module semantic targets", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const outer: number = 10",
       "module M() {",
       "  text Label = label(text: \"width ${@outer}\", anchor: (0, 0))",
@@ -775,7 +775,7 @@ describe("module semantic analysis", () => {
 
   it("keeps a geometry parameter property as a source semantic target", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(lineA: line) {",
       "  const length: number = @lineA.length",
       "}"
@@ -797,7 +797,7 @@ describe("module semantic analysis", () => {
 
   it("keeps a module local geometry property as a source semantic target", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  const length: number = @A.length",
@@ -818,7 +818,7 @@ describe("module semantic analysis", () => {
 
   it("carries the concrete source geometry choice type through module scalar semantics", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "  const direction: choice(counterclockwise, clockwise) = @A.direction",
@@ -837,7 +837,7 @@ describe("module semantic analysis", () => {
 
   it("does not infer a concrete choice subtype for a generic module geometry parameter", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(base: line) {",
       "  const side: choice(right, left) = @base.side",
       "}"
@@ -851,7 +851,7 @@ describe("module semantic analysis", () => {
 
   it("uses the nearest group-local scalar for a nested module default", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Outer(x: number) {",
       "  group G {",
       "    const x: number = 20",
@@ -871,7 +871,7 @@ describe("module semantic analysis", () => {
 
   it("uses the nearest for iteration variable for a nested module default", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Outer(i: number) {",
       "  for i in range(from: 0, count: 3) {",
       "    module Inner(value: number = @i) {",
@@ -891,7 +891,7 @@ describe("module semantic analysis", () => {
 
   it("does not fall through to an outer binding for an own later or self parameter", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const later: number = 99",
       "module M(first: number = @later, later: number = @later) {",
       "}"
@@ -906,7 +906,7 @@ describe("module semantic analysis", () => {
 
   it("keeps coordinate point components as scalar semantic expressions", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(dx: number, base: line) {",
       "  line A = segment(start: (@dx, 0), end: (0, 0))",
       "  point B = offset(from: @base.start, dx: 10, dy: 0)",
@@ -945,7 +945,7 @@ describe("module semantic analysis", () => {
 
   it("projects ordinary root geometry references by StatementIdentity without starting Module runtime", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n"));
@@ -965,7 +965,7 @@ describe("module semantic analysis", () => {
 
   it("projects root parent references by source container StatementIdentity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "}",
       "point Child = coordinate(x: 0, y: 0, parent: @Front)"
@@ -991,7 +991,7 @@ describe("module semantic analysis", () => {
 
   it("projects root group, conditional, and for parent references without materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "}",
       "group Inner (parent: @Outer) {",
@@ -1026,7 +1026,7 @@ describe("module semantic analysis", () => {
 
   it("does not duplicate ordinary root geometry diagnostics in the source projection", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "point B = offset(from: @Missing, dx: 1, dy: 0)"
     ].join("\n"));
     const missing = compiled.diagnostics.filter((diagnostic) => diagnostic.message.includes("@Missing"));
@@ -1039,7 +1039,7 @@ describe("module semantic analysis", () => {
 
   it("honors allowCoordinate and preserves allowNone behavior from parameter definitions", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(dx: number) {",
       "  point Rejected = offset(from: (@dx, 0), dx: 5, dy: 5)",
       "  line Allowed = segment(start: (@dx, 0), end: (0, 0))",
@@ -1064,7 +1064,7 @@ describe("module semantic analysis", () => {
 
   it("distinguishes point, line endpoint, plain line, and derived point references", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(lineParam: line, pointParam: point) {",
       "  line Local = segment(start: (0, 0), end: (10, 0))",
       "  arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90)",
@@ -1091,7 +1091,7 @@ describe("module semantic analysis", () => {
 
   it("rejects known derived accessors that are invalid for the source geometry category", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  line L = segment(start: (0, 0), end: (10, 0))",
       "  point P = coordinate(x: 0, y: 0)",
@@ -1106,7 +1106,7 @@ describe("module semantic analysis", () => {
 
   it("rejects a line passed to a point position and preserves outer geometry capture", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line Outer = segment(start: (0, 0), end: (10, 0))",
       "module M(base: line) {",
       "  point A = offset(from: @base, dx: 10, dy: 0)",
@@ -1127,7 +1127,7 @@ describe("module semantic analysis", () => {
 
   it("uses the canonical numeric geometry property vocabulary for parameter and source geometry", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(p: point, l: line) {",
       "  const x: number = @p.x",
       "  const y: number = @p.y",
@@ -1151,7 +1151,7 @@ describe("module semantic analysis", () => {
 
   it("defers qualified module export geometry references with source identity and spans", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "}",
       "module M() {",
@@ -1190,7 +1190,7 @@ describe("module semantic analysis", () => {
 
   it("carries a choice type through a qualified exported concrete geometry", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
       "}",
@@ -1213,7 +1213,7 @@ describe("module semantic analysis", () => {
 
   it("keeps qualified export derived accessors in the deferred source target", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "}",
       "module M() {",
@@ -1236,7 +1236,7 @@ describe("module semantic analysis", () => {
 
   it("keeps text and image geometry properties source-semantic without a fake geometry kind", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  text T = label(text: \"ok\", anchor: (0, 0), size: 3)",
       "  image I = image(source: \"image.png\", origin: (0, 0))",
@@ -1261,7 +1261,7 @@ describe("module semantic analysis", () => {
 
   it("defers qualified export properties without guessing the exported geometry category", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "}",
       "module M() {",
@@ -1286,7 +1286,7 @@ describe("module semantic analysis", () => {
 
   it("applies the module owner boundary to qualified export geometry and properties", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Base() {",
       "  export line L = segment(start: (0, 0), end: (10, 0))",
       "}",
@@ -1309,7 +1309,7 @@ describe("module semantic analysis", () => {
 
   it("reports undefined, forward, and wrong-kind qualified module export instances", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module Child() {",
       "}",
       "module M() {",
@@ -1329,7 +1329,7 @@ describe("module semantic analysis", () => {
 
   it("resolves ordinary qualified source paths for module scalar and geometry consumers", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    const X: number = 1",
@@ -1356,7 +1356,7 @@ describe("module semantic analysis", () => {
 
   it("does not fall through an overlaid module parameter during qualified traversal", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -1377,7 +1377,7 @@ describe("module semantic analysis", () => {
 
   it("keeps qualified module paths fail-closed across scalar and geometry kinds", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    const X: number = 1",
@@ -1406,7 +1406,7 @@ describe("module semantic analysis", () => {
 
   it("does not traverse through an iteration overlay that shadows a qualified path", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -1429,7 +1429,7 @@ describe("module semantic analysis", () => {
 
   it("reports a qualified path first-segment forward reference without outer fallback", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Use = offset(from: @G::P, dx: 0, dy: 0)",
       "  group G {",
@@ -1451,7 +1451,7 @@ describe("module semantic analysis", () => {
 
   it("reports a qualified path nested-member forward after resolving its local container", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
@@ -1472,7 +1472,7 @@ describe("module semantic analysis", () => {
 
   it("rejects an ordinary qualified path that captures an outer module geometry", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -1490,7 +1490,7 @@ describe("module semantic analysis", () => {
 
   it("resolves a module scalar qualified geometry property through the source namespace", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    line L = segment(start: (0, 0), end: (10, 0))",
@@ -1517,7 +1517,7 @@ describe("module semantic analysis", () => {
 
   it("does not create runtime CadElements or runtime IDs for module body statements", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  const value: number = 1",

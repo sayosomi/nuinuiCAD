@@ -15,7 +15,7 @@ The common properties are:
 - `color`: a theme role such as `foreground`, or a literal `#RRGGBB`.
 
 Profile blocks accept these drawing properties only. The older combined
-`stroke` syntax is not part of `nui 4`. The normal drawing defaults are `1px`,
+`stroke` syntax is not part of `nui 1`. The normal drawing defaults are `1px`,
 `solid`, and `foreground` when no more-specific value overrides them.
 
 ## Inheritance and activity
@@ -34,7 +34,7 @@ and [Expressions](expressions.md).
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 profile Print
 modifier SeamLine {
   state: visible,

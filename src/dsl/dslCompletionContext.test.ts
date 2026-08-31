@@ -16,7 +16,7 @@ describe("dslCompletionContextAt", () => {
     expect(dslCompletionContextAt(line, at(line, "="))).toBeNull();
   });
 
-  it("recognizes the formal nui4 instance spelling for module call completion", () => {
+  it("recognizes the formal nui1 instance spelling for module call completion", () => {
     const line = "instance foo = Foo(ba";
     const keywordContext = dslCompletionContextAt("inst", 4);
     expect(keywordContext).toMatchObject({ kind: "keyword" });
@@ -352,7 +352,7 @@ describe("dslCompletionContextAt", () => {
       });
     });
 
-    describe("nui 4 sigil form @Element.property (Task 51)", () => {
+    describe("nui 1 sigil form @Element.property (Task 51)", () => {
       it("narrows @直線AB. to elementParameter with elementToken excluding the sigil (fixes the pre-migration @AB. leak)", () => {
         const line = "point P = offset(from: A, dx: @直線AB.st)";
         const context = dslCompletionContextAt(line, at(line, "@直線AB.st"));

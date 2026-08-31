@@ -6,7 +6,7 @@ const pointSource = (name = "A", x = 0) => dslTextForElements([
   { id: "point", name, type: "freePoint", activity: "visible", x, y: 0 }
 ]);
 
-const fatalSource = "nui 4\npoint Broken = coordinate(";
+const fatalSource = "nui 1\npoint Broken = coordinate(";
 
 describe("AutomationDocument", () => {
   it("initializes a valid fresh document from source", () => {
@@ -90,7 +90,7 @@ describe("AutomationDocument", () => {
 
   it("keeps typed binding identity through a declaration and reference rename", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const base: number = 10",
       "const result: number = @base"
     ].join("\n");
@@ -110,10 +110,10 @@ describe("AutomationDocument", () => {
   });
 
   it("updates the typed dependency graph for fatal current source", () => {
-    const document = AutomationDocument.fromSource("nui 4\nconst stable: number = 1");
+    const document = AutomationDocument.fromSource("nui 1\nconst stable: number = 1");
     const lastGoodGraph = document.getState().typedDependencyGraph;
     const fatal = [
-      "nui 4",
+      "nui 1",
       "const missing: number = @unknown",
       "set unknown = 1",
       "group G {",
@@ -133,7 +133,7 @@ describe("AutomationDocument", () => {
 
   it("uses the production Module semantic and materialization path", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group G {",
       "    point P = coordinate(x: 10, y: 20)",

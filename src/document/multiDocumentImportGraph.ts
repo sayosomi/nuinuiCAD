@@ -28,6 +28,7 @@ import {
   type MultiDocumentPublicApiDiagnostic
 } from "./multiDocumentPublicApi";
 import { reconcileStatements } from "./statementReconciler";
+import { isSupportedDslMajorVersion, NEW_DOCUMENT_DSL_MAJOR_VERSION } from "../dsl/dslVersion";
 
 export type SavedDependencyLoadFailureReason =
   | "root-unaddressable"
@@ -196,11 +197,12 @@ const payloadLocation = (
   }
 );
 
-const hasNui4Version = (parsed: ParseDslResult) => {
+const hasCurrentSupportedVersion = (parsed: ParseDslResult) => {
   const versions = parsed.statements.filter(
     (statement): statement is Extract<DslStatement, { kind: "version" }> => statement.kind === "version"
   );
-  return versions.length === 1 && versions[0]!.value === "4";
+  const major = versions.length === 1 ? Number(versions[0]!.value.trim()) : NaN;
+  return Number.isInteger(major) && isSupportedDslMajorVersion(major);
 };
 
 const statementIdsFor = (
@@ -268,7 +270,7 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     contributor({ source, parsed, statementIdByStatementIndex })
   );
   const syntaxValid =
-    hasNui4Version(parsed) &&
+    hasCurrentSupportedVersion(parsed) &&
     !parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
     !sourceLexicalNamespace.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 
@@ -434,7 +436,7 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
           edge.failureReason = "invalid-source";
           diagnostics.push({
             code: "import-invalid-source",
-            message: `import先「${directive.importPath}」は有効なnui 4 sourceではありません。`,
+            message: `import先「${directive.importPath}」は有効なnui ${NEW_DOCUMENT_DSL_MAJOR_VERSION} sourceではありません。`,
             location: directive.location
           });
           node.valid = false;

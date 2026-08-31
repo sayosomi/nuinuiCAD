@@ -41,7 +41,7 @@ const previewBindingStates = (
 describe("createModulePreviewSession", () => {
   it("restores expression text per exact Module definition and keeps last-good data across invalid input", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module A(width: number, doubled: number = @width * 2, note?: string) {",
       "  point PA = coordinate(x: @doubled, y: 0)",
       "}",
@@ -124,7 +124,7 @@ describe("createModulePreviewSession", () => {
 
   it("models nested ancestor contexts outer-to-inner and preserves caller-side expressions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer(scale: number) {",
       "  module Middle(offset: number) {",
       "    module Inner(width: number) {",
@@ -163,7 +163,7 @@ describe("createModulePreviewSession", () => {
 
   it("evaluates dependent defaults through the preview scalar runtime before making them explicit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Pocket(base: number, width: number = @base * 2) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"
@@ -192,7 +192,7 @@ describe("createModulePreviewSession", () => {
 
   it("fails closed when a default cannot be safely evaluated and rejects stale semantic snapshots", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Project(x: number = 1 / 0) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"

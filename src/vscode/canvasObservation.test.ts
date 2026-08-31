@@ -63,7 +63,7 @@ const snapshot = (input: {
 describe("canvasObservationSnapshot", () => {
   it("publishes Select Instance availability from the primary materialized Module body selection", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -94,7 +94,7 @@ describe("canvasObservationSnapshot", () => {
 
   it("follows the primary selection and fails closed for ordinary, instance, and stale materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -167,7 +167,7 @@ describe("canvasObservationSnapshot", () => {
 
   it("publishes ordinary selected runtime-element source ownership", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}"
@@ -201,7 +201,7 @@ describe("canvasObservationSnapshot", () => {
 
   it("publishes complete Module instance and body identity paths for repeated nested selections", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  group Body {",
       "    point P = coordinate(x: 1, y: 2)",

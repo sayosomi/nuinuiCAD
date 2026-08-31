@@ -45,7 +45,7 @@ const okEvaluation: ScalarEvaluation = { status: "ok", type: { kind: "number" },
 
 describe("runtimeScalarDiagnostics", () => {
   it("reports a declaration-level diagnostic for a binding with no property consumer", () => {
-    const source = ["nui 4", "const x: number = 1"].join("\n");
+    const source = ["nui 1", "const x: number = 1"].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "x");
     const diagnostics = runtimeScalarDiagnostics(
@@ -65,7 +65,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("reports at the exact property value span instead of the declaration when a live property consumer exists", () => {
-    const source = ['nui 4', 'const label: string = "A"', "text T = label(text: @label, anchor: none, size: 3)"].join("\n");
+    const source = ['nui 1', 'const label: string = "A"', "text T = label(text: @label, anchor: none, size: 3)"].join("\n");
     const compiled = compile(source);
     const bindingId = bindingIdFor(compiled, "label");
     const diagnostics = runtimeScalarDiagnostics(
@@ -85,7 +85,7 @@ describe("runtimeScalarDiagnostics", () => {
 
   it("reports at the exact numeric property consumer span instead of the declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const broken: number = 1",
       "point P = coordinate(x: @broken, y: 0)"
     ].join("\n");
@@ -106,7 +106,7 @@ describe("runtimeScalarDiagnostics", () => {
 
   it("reports one diagnostic per consumer, in source order, when multiple properties reference the same binding", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'const label: string = "A"',
       "text T1 = label(text: @label, anchor: none, size: 3)",
       "text T2 = label(text: @label, anchor: none, size: 3)"
@@ -122,7 +122,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("reports nothing for a binding whose final evaluation is ok", () => {
-    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const diagnostics = runtimeScalarDiagnostics(baseInput(compiled, new Map([[bindingId, okEvaluation]])));
     expect(diagnostics).toEqual([]);
@@ -133,7 +133,7 @@ describe("runtimeScalarDiagnostics", () => {
     ["stale evaluation", { isSourceDirty: false, isEvaluationStale: true }],
     ["both dirty and stale", { isSourceDirty: true, isEvaluationStale: true }]
   ])("returns nothing while %s, even though a fresh error would otherwise be reported", (_label, freshness) => {
-    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const diagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([[bindingId, errorEvaluation("poisoned-binding")]]), freshness)
@@ -142,7 +142,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("recovery: an error becomes ok on a later evaluation and leaves no stale diagnostic", () => {
-    const compiled = compile(["nui 4", "let x: number = 1", "set x = 2"].join("\n"));
+    const compiled = compile(["nui 1", "let x: number = 1", "set x = 2"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const poisoned = runtimeScalarDiagnostics(baseInput(compiled, new Map([[bindingId, errorEvaluation("poisoned-binding")]])));
     expect(poisoned).toHaveLength(1);
@@ -151,12 +151,12 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("returns nothing when computedScalarBindings is absent entirely", () => {
-    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     expect(runtimeScalarDiagnostics(baseInput(compiled, undefined))).toEqual([]);
   });
 
   it("skips (fail-closed) a bindingId that no longer resolves against the current statements, without mis-positioning", () => {
-    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     const diagnostics = runtimeScalarDiagnostics(
       baseInput(compiled, new Map([["binding:stale-removed" as BindingId, errorEvaluation("poisoned-binding")]]))
     );
@@ -164,7 +164,7 @@ describe("runtimeScalarDiagnostics", () => {
   });
 
   it("preserves geometry builtin runtime context as clone-safe structured data independent of localized wording", () => {
-    const compiled = compile(["nui 4", "const x: number = 1"].join("\n"));
+    const compiled = compile(["nui 1", "const x: number = 1"].join("\n"));
     const bindingId = bindingIdFor(compiled, "x");
     const evaluation: ScalarEvaluation = {
       status: "error",

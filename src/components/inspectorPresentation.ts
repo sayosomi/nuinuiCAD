@@ -73,7 +73,7 @@ const displayInspectorNumericValue = (
   // The element-id class excludes `.` && `@` (Task 51: an internal IR
   // element-property reference never carries `@`, && never spans past a
   // nested dot - see the identical fix in dslExpressionFormat.ts). The
-  // Inspector always shows the nui 4 sigil form for a property reference,
+  // Inspector always shows the nui 1 sigil form for a property reference,
   // matching the Source Editor's surface syntax (typed bindings such as
   // `@length` already display correctly since they are stored by name, not
   // by id, inside a legacy numeric expression - this replace never touches

@@ -54,7 +54,7 @@ const compiledWithStableIds = (source: string) => {
 describe("statementRangeIndex", () => {
   it("anchors an inline brace on the final row of a handwritten multiline header", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Multi (state: visible",
       ") {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -75,7 +75,7 @@ describe("statementRangeIndex", () => {
 
   it("adds a statement target for a handwritten multiline expression and leaves its close row visible", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A,",
@@ -98,7 +98,7 @@ describe("statementRangeIndex", () => {
 
   it("temporarily disables a multiline statement target when its opening row becomes dirty", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A",
@@ -119,7 +119,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("temporarily disables only a target whose structural anchor is dirty", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const group = result.document!.elements[0]!;
@@ -136,7 +136,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("maps an intact target through dirty interior line edits", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const group = result.document!.elements[0]!;
@@ -152,7 +152,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("maps runtime-ID ranges through dirty edits without consulting stale statement lines", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint = coordinate(x: 1, y: 1)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint = coordinate(x: 1, y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const unnamedId = result.document!.elements.find((element) => element.name === "")!.id;
@@ -166,7 +166,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("drops a wholly deleted statement instead of retaining a stale line identity", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointB = result.document!.elements.find((element) => element.name === "B")!;
@@ -178,7 +178,7 @@ describe("statementRangeIndex", () => {
   });
 
   it("keeps a statement identity when replacing a value at its final character", () => {
-    const source = "nui 4\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: @B, dx: 130, dy: 9)";
+    const source = "nui 1\npoint B = coordinate(x: 0, y: 0)\npoint A = offset(from: @B, dx: 130, dy: 9)";
     const result = compiled(source);
     const doc = Text.of(source.split("\n"));
     const pointA = result.document!.elements.find((element) => element.name === "A")!;
@@ -196,7 +196,7 @@ describe("statementRangeIndex", () => {
 
 describe("module definition fold range mapping", () => {
   const source = [
-    "nui 4",
+    "nui 1",
     "module M(a: number) {",
     "  let x: number = @a",
     "  point P = coordinate(x: @x, y: 0)",
@@ -236,7 +236,7 @@ describe("module definition fold range mapping", () => {
 
   it("maps parameter folds through interior edits and drops them on delimiter edits", () => {
     const multilineSource = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  a: number,",
       "  b: number",
@@ -267,7 +267,7 @@ describe("module definition fold range mapping", () => {
 });
 
 describe("typedDeclarationRangeIndex", () => {
-  const source = ["nui 4", "const flag: boolean = true"].join("\n");
+  const source = ["nui 1", "const flag: boolean = true"].join("\n");
 
   it("builds one entry keyed by the binding's stable BindingId, spanning the whole declaration line", () => {
     const result = compiledWithStableIds(source);
@@ -322,7 +322,7 @@ describe("typedDeclarationRangeIndex", () => {
   });
 
   it("returns an empty index when no statement identity was assigned (no typed declarations)", () => {
-    const noTypedSource = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationRangeIndex(doc, result.statementMap!).size).toBe(0);
@@ -331,7 +331,7 @@ describe("typedDeclarationRangeIndex", () => {
 
 describe("scopeBodyRangeIndex (Task 40)", () => {
   const nestedSource = [
-    "nui 4",
+    "nui 1",
     "let outer: number = 1",
     "if (true) {",
     "  for i in range(from: 0, count: 2) {",
@@ -365,7 +365,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
 
   it("keeps a sibling else branch's body separate from its then branch", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  let onlyThen: number = 1",
       "} else {",
@@ -421,7 +421,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
   });
 
   it("returns an empty index for a document with no nested scopes", () => {
-    const source = ["nui 4", "let a: number = 1"].join("\n");
+    const source = ["nui 1", "let a: number = 1"].join("\n");
     const result = compiledWithStableIds(source);
     const doc = Text.of(source.split("\n"));
     const index = createScopeBodyRangeIndex(doc, result.statementMap!, result.bindingAnalysis!.catalog.scopeIndex);
@@ -430,7 +430,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
 });
 
 describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
-  const source = ["nui 4", "const flag: boolean = true"].join("\n");
+  const source = ["nui 1", "const flag: boolean = true"].join("\n");
 
   it("splits a declaration into name/type/initializer sub-spans, each reading the right slice", () => {
     const result = compiledWithStableIds(source);
@@ -454,7 +454,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
     // reachable case where a `typedDeclaration` statement inside a successfully
     // compiled document has a null type span; only the multi-segment (continuation
     // line) fail-closed path below actually exercises `type`/`initializer` being null.
-    const brokenSource = ["nui 4", "let broken = 1"].join("\n");
+    const brokenSource = ["nui 1", "let broken = 1"].join("\n");
     const parsed = parseDsl(brokenSource);
     const assignedStatementIds = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]));
     const result = compileDslDocument(brokenSource, { assignedStatementIds });
@@ -474,7 +474,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
     const interiorEdit = ChangeSet.of({ from: initializer.to, insert: "  and  false" }, doc.length);
     expect(mapTypedDeclarationFieldRangeIndex(original, interiorEdit).get(bindingId)).toBeUndefined();
 
-    const wholeLineReplace = ChangeSet.of({ from: 0, to: doc.length, insert: "nui 4\nconst other: number = 1" }, doc.length);
+    const wholeLineReplace = ChangeSet.of({ from: 0, to: doc.length, insert: "nui 1\nconst other: number = 1" }, doc.length);
     expect(mapTypedDeclarationFieldRangeIndex(original, wholeLineReplace).get(bindingId)).toBeUndefined();
   });
 
@@ -497,7 +497,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   });
 
   it("leaves the initializer span null (fail-closed) when it spans a continuation line, while name/type stay resolvable", () => {
-    const multilineSource = ["nui 4", "let total: number = (", "  1 + 2", ")"].join("\n");
+    const multilineSource = ["nui 1", "let total: number = (", "  1 + 2", ")"].join("\n");
     const result = compiledWithStableIds(multilineSource);
     const doc = Text.of(multilineSource.split("\n"));
     const fields = createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements);
@@ -512,7 +512,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
   });
 
   it("returns no fields for a document with no typed declarations", () => {
-    const noTypedSource = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createTypedDeclarationFieldRangeIndex(doc, result.statementMap!, result.statements).size).toBe(0);
@@ -520,7 +520,7 @@ describe("typedDeclarationFieldRangeIndex (Task 43)", () => {
 });
 
 describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () => {
-  const source = ["nui 4", "let total: number = 0", "set total = @total + 1"].join("\n");
+  const source = ["nui 1", "let total: number = 0", "set total = @total + 1"].join("\n");
 
   it("resolves a set statement's whole-line range && cursor lookup", () => {
     const result = compiledWithStableIds(source);
@@ -614,7 +614,7 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
   });
 
   it("returns empty indices for a document with no set statements", () => {
-    const noSetSource = ["nui 4", "let a: number = 1"].join("\n");
+    const noSetSource = ["nui 1", "let a: number = 1"].join("\n");
     const result = compiledWithStableIds(noSetSource);
     const doc = Text.of(noSetSource.split("\n"));
     expect(createSetStatementRangeIndex(doc, result.statementMap!).size).toBe(0);
@@ -624,7 +624,7 @@ describe("setStatementRangeIndex / setStatementFieldRangeIndex (Task 43)", () =>
 
 describe("templateHoleRangeIndex (Task 43)", () => {
   const source = [
-    "nui 4",
+    "nui 1",
     'const ラベル: string = "前身頃"',
     'text T = label(text: "${@ラベル}を2枚カット", anchor: none, size: 3)'
   ].join("\n");
@@ -659,7 +659,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
 
   it("orders multiple holes in source order with independent outer/inner spans", () => {
     const multiHoleSource = [
-      "nui 4",
+      "nui 1",
       'const first: string = "A"',
       'const second: string = "B"',
       'text T = label(text: "${@first}-${@second}", anchor: none, size: 3)'
@@ -706,7 +706,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index for a document with no text templates", () => {
-    const noTemplateSource = ["nui 4", "let a: number = 1"].join("\n");
+    const noTemplateSource = ["nui 1", "let a: number = 1"].join("\n");
     const result = compiledWithStableIds(noTemplateSource);
     const doc = Text.of(noTemplateSource.split("\n"));
     const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
@@ -714,7 +714,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index for a legacy hole with no typed references, since it still carries real outer/inner spans", () => {
-    const legacySource = ["nui 4", 'text T = label(text: "sum {2+3}", anchor: none, size: 3)'].join("\n");
+    const legacySource = ["nui 1", 'text T = label(text: "sum {2+3}", anchor: none, size: 3)'].join("\n");
     const result = compiledWithStableIds(legacySource);
     const doc = Text.of(legacySource.split("\n"));
     const index = createTemplateHoleRangeIndex(doc, result.statementMap!, result.statements, result.textTemplates);
@@ -724,7 +724,7 @@ describe("templateHoleRangeIndex (Task 43)", () => {
 
 describe("propertyBindingRangeIndex (Task 43)", () => {
   const source = [
-    "nui 4",
+    "nui 1",
     "let flag: boolean = true",
     "point A = coordinate(x: 0, y: 0)",
     "point B = coordinate(x: 10, y: 0)",
@@ -780,7 +780,7 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
 
   it("only indexes bound (kind: \"binding\") occurrences, skipping literal property values", () => {
     const literalOnlySource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -793,7 +793,7 @@ describe("propertyBindingRangeIndex (Task 43)", () => {
   });
 
   it("returns an empty index when the document has no propertyBindings map at all", () => {
-    const noTypedSource = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const noTypedSource = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const result = compiled(noTypedSource);
     const doc = Text.of(noTypedSource.split("\n"));
     expect(createPropertyBindingRangeIndex(doc, result.statementMap!, result.statements, result.propertyBindings).size).toBe(0);

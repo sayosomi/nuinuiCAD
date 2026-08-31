@@ -6,7 +6,7 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point Dependency = coordinate(x: 0, y: 0, state: disabled)",
   "line Broken = segment(start: @Dependency, end: (10, 0), state: disabled)"
 ].join("\n");

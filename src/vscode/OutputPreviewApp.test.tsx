@@ -22,7 +22,7 @@ vi.mock("../output/outputCore", async () => {
 const api: VscodeWebviewApi = { postMessage: vi.fn() };
 
 const source = [
-  "nui 4",
+  "nui 1",
   "group G {",
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
@@ -43,7 +43,7 @@ const source = [
 const printSourceWithoutB = source.slice(0, source.indexOf("svg B("));
 const sourceWithThreeOutputs = `${source}\nsvg C(\n  layout: @L,\n  margin: 2,\n)`;
 const coldRevealSource = [
-  "nui 4",
+  "nui 1",
   "group G {",
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
@@ -275,7 +275,7 @@ describe("Output Preview application", () => {
 
   it("shows the default viewport status before pointer entry and tracks Y-up pointer coordinates", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
-    renderFixture("nui 4");
+    renderFixture("nui 1");
 
     const status = screen.getByRole("status", { name: "Output Preview status: ZOOM: 100%, X: —, Y: —" });
     const viewport = document.querySelector(".output-preview-viewport");
@@ -293,7 +293,7 @@ describe("Output Preview application", () => {
 
   it("updates the stored pointer anchor for wheel zoom and recomputes status after reset", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
-    renderFixture("nui 4");
+    renderFixture("nui 1");
     const viewport = document.querySelector(".output-preview-viewport");
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
@@ -326,7 +326,7 @@ describe("Output Preview application", () => {
     }
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => currentRect);
-    renderFixture("nui 4");
+    renderFixture("nui 1");
     const viewport = document.querySelector(".output-preview-viewport");
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     const status = screen.getByRole("status", { name: /Output Preview status:/ });
@@ -355,7 +355,7 @@ describe("Output Preview application", () => {
   it("keeps Reset available without a plan while Fit remains plan-dependent", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     const iconResolver = vi.spyOn(vscodeCanvasRibbonIcons, "resolveVscodeLucideIcon");
-    renderFixture("nui 4");
+    renderFixture("nui 1");
 
     const reset = screen.getByRole("button", { name: "Reset Output Preview View" });
     const fit = screen.getByRole("button", { name: "Fit Output Preview" });
@@ -404,7 +404,7 @@ describe("Output Preview application", () => {
 
   it("shows current-source errors instead of stale last-good output", () => {
     useCadDocumentStore.setState(initialCadDocumentState());
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(", "test");
 
     render(<OutputPreviewApp api={api} />);
 
@@ -412,7 +412,7 @@ describe("Output Preview application", () => {
   });
 
   it("offers fatal-source diagnostic navigation when the physical span is safe", async () => {
-    const brokenSource = "nui 4\npoint A = coordinate(";
+    const brokenSource = "nui 1\npoint A = coordinate(";
     useCadDocumentStore.setState(initialCadDocumentState());
     useCadDocumentStore.getState().commitText(brokenSource, "test");
     render(<OutputPreviewApp api={api} />);
@@ -573,7 +573,7 @@ describe("Output Preview application", () => {
     });
     expect(await screen.findByRole("button", { name: "Export PDF" })).toBeInTheDocument();
 
-    act(() => useCadDocumentStore.getState().commitText("nui 4\npoint Broken = coordinate(", "test"));
+    act(() => useCadDocumentStore.getState().commitText("nui 1\npoint Broken = coordinate(", "test"));
 
     await waitFor(() => expect(screen.queryByRole("button", { name: "Export PDF" })).toBeNull());
     expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
@@ -628,7 +628,7 @@ describe("Output Preview application", () => {
   });
 
   it("publishes a VS Code blank context without native Cut, Copy, and Paste items", () => {
-    renderFixture("nui 4");
+    renderFixture("nui 1");
     const viewport = document.querySelector(".output-preview-viewport");
     expect(viewport).not.toBeNull();
     expect(JSON.parse(viewport?.getAttribute("data-vscode-context") ?? "{}")).toEqual({
@@ -854,7 +854,7 @@ describe("Output Preview application", () => {
     fireEvent.change(screen.getByRole("combobox"), { target: { value: svgKey } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Export SVG" })).toBeInTheDocument());
 
-    act(() => useCadDocumentStore.getState().commitText("nui 4\npoint Broken = coordinate(", "test"));
+    act(() => useCadDocumentStore.getState().commitText("nui 1\npoint Broken = coordinate(", "test"));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
     act(() => useCadDocumentStore.getState().commitText(source, "test"));
@@ -1036,7 +1036,7 @@ describe("Output Preview application", () => {
 
   it("keeps the explicit target fit through cross-output Reveal and delayed ordinary evaluation", async () => {
     const crossOutputSource = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",

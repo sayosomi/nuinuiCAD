@@ -33,7 +33,7 @@ angles are degrees, and drawing widths are pixels.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 const allowance: number = 5
 const width: number(step: 0.5, min: 0, max: 20) = 5
 let angle: number = 90

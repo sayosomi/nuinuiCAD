@@ -6,7 +6,7 @@ import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationC
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
-const source = "nui 4\npoint A = coordinate(x: 0, y: 1)\n";
+const source = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
 const sourceSnapshot = { normalizedSource: source, sourceRevision: 1 };
 
 const deferred = <T>() => {

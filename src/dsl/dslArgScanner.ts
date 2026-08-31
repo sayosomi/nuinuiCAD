@@ -48,7 +48,7 @@ export type DslNestingScan = {
 
 /** A well-formed but currently-empty named value while the user is editing. */
 export const MISSING_ATTRIBUTE_VALUE_CODE = "missing-attribute-value";
-/** nui4 requires this token before every subsequent call argument. */
+/** nui1 requires this token before every subsequent call argument. */
 export const MISSING_ARGUMENT_COMMA_CODE = "missing-argument-comma";
 /** A comma introduced an empty argument other than an allowed trailing comma. */
 export const EMPTY_ARGUMENT_CODE = "empty-argument";

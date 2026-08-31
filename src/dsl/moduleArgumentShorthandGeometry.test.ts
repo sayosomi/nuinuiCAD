@@ -5,7 +5,7 @@ import { parseDslSnapshot } from "./dslParser";
 import { planDslRenameEditsResult } from "./dslRenameQuery";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point base = coordinate(x: 0, y: 0)",
   "module Marker(base: point) {",
   "  export point P = coordinate(x: @base.x, y: @base.y)",

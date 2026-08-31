@@ -20,10 +20,10 @@ const asLastGoodDocument = (compiled: ReturnType<typeof compileDslDocument>): La
   return compiled as LastGoodDslDocument;
 };
 
-describe("nui4 drawing modifier source model", () => {
+describe("nui1 drawing modifier source model", () => {
   it("stores Japanese definitions and all supported states", () => {
     const compiled = compileDslDocument(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 基本線 {",
       "  state: visible,",
       "}",
@@ -36,7 +36,7 @@ describe("nui4 drawing modifier source model", () => {
     ));
 
     expect(errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 基本線 {",
       "  state: visible,",
       "}",
@@ -56,7 +56,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("preserves ordered geometry and group modifier references", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 基本線 {",
       "  state: visible,",
       "}",
@@ -88,7 +88,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("diagnoses duplicate names, nested definitions, and undefined references", () => {
     const duplicate = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  state: visible,",
       "}",
@@ -99,7 +99,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(duplicate.some((item) => item.message.includes("重複"))).toBe(true);
 
     const nested = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "group G {",
       "  modifier A {",
       "    state: visible,",
@@ -109,7 +109,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(nested.some((item) => item.message.includes("トップレベル"))).toBe(true);
 
     const nestedModifier = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Outer {",
       "  modifier Inner {",
       "    state: visible,",
@@ -120,7 +120,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(nestedModifier.some((item) => item.message.includes("ネスト"))).toBe(true);
 
     const undefinedReference = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line L [未定義] = segment(start: @A, end: @A)"
     ));
@@ -129,7 +129,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("keeps undefined modifier diagnostics in Module documents", () => {
     const compiled = compileWithIds(sourceLines(
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point Internal = coordinate(x: 0, y: 0)",
       "}",
@@ -144,7 +144,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("warns once for a valid top-level Drawing Modifier with no source references", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Unused {",
       "  state: visible,",
       "}"
@@ -170,7 +170,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("does not warn for an ordinary geometry reference", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Used {",
       "  state: visible,",
       "}",
@@ -182,7 +182,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("does not warn for a group reference", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Used {",
       "  state: visible,",
       "}",
@@ -195,7 +195,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("counts a Module-body reference without an instance or materialized occurrence", () => {
     const compiled = compileWithIds(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Used {",
       "  state: visible,",
       "}",
@@ -209,7 +209,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("projects Module-aware unused modifier diagnostics from their final source statements", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier ModuleUsed {",
       "  state: visible,",
       "}",
@@ -241,7 +241,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("keeps an undefined reference distinct from an unrelated unused definition", () => {
     const compiled = compileDslDocument(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  state: visible,",
       "}",
@@ -260,7 +260,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("resolves valid modifier references against document-level definitions in Module documents", () => {
     const compiled = compileWithIds(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 基本線 {",
       "  state: visible,",
       "}",
@@ -277,7 +277,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("preserves resolved Drawing Profile identity through Module compilation and evaluation", () => {
     const compiled = asLastGoodDocument(compileWithIds(sourceLines(
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Guide {",
       "  width: 1px,",
@@ -325,7 +325,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("validates modifier references on geometry declarations inside Module bodies", () => {
     const compiled = compileWithIds(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 基本線 {",
       "  state: visible,",
       "}",
@@ -351,25 +351,25 @@ describe("nui4 drawing modifier source model", () => {
       ["invalid color", ["color: red,"], "color は foreground"]
     ] as const;
     for (const [, properties, message] of cases) {
-      const source = sourceLines("nui 4", "modifier A {", ...properties.map((property) => `  ${property}`), "}");
+      const source = sourceLines("nui 1", "modifier A {", ...properties.map((property) => `  ${property}`), "}");
       expect(errors(source).some((item) => item.message.includes(message))).toBe(true);
     }
 
     const onePerLine = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  state: hidden, color: red,",
       "}"
     ));
     expect(onePerLine.some((item) => item.message.includes("1行に1つ"))).toBe(true);
 
-    expect(errors("nui 4\nmodifier A").some((item) => item.message.includes("ブロックが必要"))).toBe(true);
-    expect(errors("nui 4\nmodifier A (state: hidden) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
+    expect(errors("nui 1\nmodifier A").some((item) => item.message.includes("ブロックが必要"))).toBe(true);
+    expect(errors("nui 1\nmodifier A (state: hidden) {").some((item) => item.message.includes("名前が不正"))).toBe(true);
   });
 
   it("compiles independent modifier properties and profile deltas", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "profile 印刷用",
       "modifier Basic {",
       "  width: 1px,",
@@ -416,7 +416,7 @@ describe("nui4 drawing modifier source model", () => {
   it("accepts every theme role and rejects malformed independent values", () => {
     const roles = ["foreground", "muted", "accent", "info", "warning", "error"];
     for (const [index, role] of roles.entries()) {
-      const source = sourceLines("nui 4", `modifier M${index} {`, `  color: ${role},`, "}");
+      const source = sourceLines("nui 1", `modifier M${index} {`, `  color: ${role},`, "}");
       expect(errors(source)).toEqual([]);
     }
     const invalidCases = [
@@ -429,27 +429,27 @@ describe("nui4 drawing modifier source model", () => {
       ["color: #gg3355,", "#RRGGBB"]
     ] as const;
     for (const [property, message] of invalidCases) {
-      const source = sourceLines("nui 4", "modifier Broken {", `  ${property}`, "}");
+      const source = sourceLines("nui 1", "modifier Broken {", `  ${property}`, "}");
       expect(errors(source).some((item) => item.message.includes(message))).toBe(true);
     }
   });
 
   it("rejects duplicate independent properties, old stroke syntax, and empty modifiers", () => {
     const duplicate = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier A {",
       "  width: 1px,",
       "  width: 2px,",
       "}"
     ));
     expect(duplicate.some((item) => item.message.includes("width プロパティは1つだけ"))).toBe(true);
-    expect(errors(sourceLines("nui 4", "modifier Old {", "  stroke: 1px solid foreground,", "}")).some((item) => item.message.includes("未知のプロパティ"))).toBe(true);
-    expect(errors(sourceLines("nui 4", "modifier Empty {", "}")).some((item) => item.message.includes("state / width / style / color"))).toBe(true);
+    expect(errors(sourceLines("nui 1", "modifier Old {", "  stroke: 1px solid foreground,", "}")).some((item) => item.message.includes("未知のプロパティ"))).toBe(true);
+    expect(errors(sourceLines("nui 1", "modifier Empty {", "}")).some((item) => item.message.includes("state / width / style / color"))).toBe(true);
   });
 
   it("resolves profile references by source order and reports profile collisions", () => {
     const forward = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  for @Print {",
       "    width: 0.5px,",
@@ -460,7 +460,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(forward.some((item) => item.message.includes("後で宣言"))).toBe(true);
 
     const undefinedProfile = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Guide {",
       "  for @SVG {",
@@ -471,7 +471,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(undefinedProfile.some((item) => item.message.includes("未定義の Drawing Profile"))).toBe(true);
 
     const duplicateOverride = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Guide {",
       "  for @Print {",
@@ -485,7 +485,7 @@ describe("nui4 drawing modifier source model", () => {
     expect(duplicateOverride.some((item) => item.message.includes("1つだけ指定"))).toBe(true);
 
     const collision = errors(sourceLines(
-      "nui 4",
+      "nui 1",
       "profile Print",
       "point Print = coordinate(x: 0, y: 0)"
     ));
@@ -494,7 +494,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("round-trips definitions and ordered references through canonical serialization", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier 元袖ぐり {",
       "  state: hidden,",
       "}",
@@ -518,7 +518,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("round-trips canonical Drawing Profile declarations and modifier deltas", () => {
     const source = sourceLines(
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Guide {",
       "  width: 1px,",
@@ -554,7 +554,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("serializes modifier properties in canonical order and lowercases fixed colors", () => {
     const compiled = compileDslDocument(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Combined {",
       "  color: #FF3355,",
       "  state: hidden,",
@@ -567,7 +567,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("serializes a property-only modifier in canonical source form", () => {
     const compiled = compileDslDocument(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  width: 1px,",
       "}"
@@ -579,7 +579,7 @@ describe("nui4 drawing modifier source model", () => {
 
   it("keeps property-only modifiers visible while preserving their style metadata", () => {
     const compiled = compileDslDocument(sourceLines(
-      "nui 4",
+      "nui 1",
       "modifier StrokeOnly {",
       "  style: dashed,",
       "}",
@@ -596,20 +596,20 @@ describe("nui4 drawing modifier source model", () => {
 
   it("keeps direct state while rejecting the removed element color argument", () => {
     const stateOnly = compileDslDocument(
-      "nui 4\npoint P = coordinate(x: 0, y: 0, state: hidden)"
+      "nui 1\npoint P = coordinate(x: 0, y: 0, state: hidden)"
     );
     expect(stateOnly.diagnostics.filter((item) => item.severity === "error")).toEqual([]);
     expect(stateOnly.document?.elements[0]).toMatchObject({ activity: "hidden" });
 
     const withColor = compileDslDocument(
-      "nui 4\npoint P = coordinate(x: 0, y: 0, color: pattern-black)"
+      "nui 1\npoint P = coordinate(x: 0, y: 0, color: pattern-black)"
     );
     expect(withColor.diagnostics.filter((item) => item.severity === "error")).toEqual([
       expect.objectContaining({ message: expect.stringContaining("引数「color」") })
     ]);
 
     const containerColor = compileDslDocument(
-      "nui 4\ngroup G (color: pattern-black) {\n}"
+      "nui 1\ngroup G (color: pattern-black) {\n}"
     );
     expect(containerColor.diagnostics.filter((item) => item.severity === "error")).toEqual([
       expect.objectContaining({ message: expect.stringContaining("引数「color」") })

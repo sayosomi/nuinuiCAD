@@ -218,7 +218,7 @@ describe("cadDocumentStore file state", () => {
 
   it("seeds every nested group collapsed on load, but never re-seeds on undo/redo", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  group Inner {",
       "    point A = coordinate(x: 0, y: 0)",
@@ -254,13 +254,13 @@ describe("cadDocumentStore file state", () => {
   });
 
   it("leaves a group created after load expanded", () => {
-    useCadDocumentStore.getState().replaceTextDocument("nui 4\npoint A = coordinate(x: 0, y: 0)", {
+    useCadDocumentStore.getState().replaceTextDocument("nui 1\npoint A = coordinate(x: 0, y: 0)", {
       currentFilePath: "/tmp/loaded.nui",
       dirtySinceSave: false
     });
 
     useCadDocumentStore.getState().commitText(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "group Fresh {", "}"].join("\n"),
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "group Fresh {", "}"].join("\n"),
       "test"
     );
 

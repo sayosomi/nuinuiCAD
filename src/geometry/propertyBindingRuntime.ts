@@ -1,5 +1,5 @@
 // Connects schema-typed property sources to resolved scalar values at
-// evaluation time through the single nui4 runtime route.
+// evaluation time through the single nui1 runtime route.
 //
 // This module never re-parses source && never re-resolves a binding name:
 // `buildPropertyBindingRuntimeEntries` only re-keys already-

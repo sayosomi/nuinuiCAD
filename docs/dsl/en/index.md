@@ -1,6 +1,6 @@
 # nuinuiCAD DSL Reference
 
-This is the user-facing reference for the implemented `nui 4` language used by
+This is the user-facing reference for the implemented `nui 1` language used by
 nuinuiCAD. It explains the source language, its deterministic evaluation model,
 and the geometry and output declarations that are currently available. The
 `.nui` source text is the canonical document representation.
@@ -9,7 +9,7 @@ and the geometry and output declarations that are currently available. The
 
 - Lengths and coordinates are expressed in millimetres. Drafting coordinates
   use Y-up: positive Y is upward.
-- The first meaningful statement is `nui 4`. Other nui major versions are not
+- The first meaningful statement is `nui 1`. Other nui major versions are not
   part of the implemented language.
 - Statements are evaluated in document order. A reference must point to an
   earlier, available declaration; the compiler reports dependency problems
@@ -49,7 +49,7 @@ surrounding explanations when the user-facing wording needs improvement.
 
 <!-- dsl-example: compile-success -->
 ```nui
-nui 4
+nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 100, y: 0)
 line AB = segment(start: @A, end: @B)

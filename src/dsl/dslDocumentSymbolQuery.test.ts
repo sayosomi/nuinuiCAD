@@ -25,7 +25,7 @@ const symbolNamed = (symbols: readonly DslDocumentSymbol[], name: string): DslDo
 describe("DSL document symbol query", () => {
   it("maps flat declarations to host-neutral kinds, details, and exact name ranges", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const fixed: number = 1",
       "let changing: number = 2",
       "profile Print",
@@ -60,7 +60,7 @@ describe("DSL document symbol query", () => {
 
   it("excludes modifier profile blocks, modifier properties, anonymous geometry, mutations, and settings", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Seam {",
       "  state: visible,",
@@ -88,7 +88,7 @@ describe("DSL document symbol query", () => {
 
   it("uses the matching closing brace for modifier ranges and excludes override rows", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Seam {",
       "  state: visible,",
       "  for @Print {",
@@ -108,7 +108,7 @@ describe("DSL document symbol query", () => {
 
   it("extends an unclosed modifier range to the current EOF", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Seam {",
       "  state: visible,",
     ].join("\n");
@@ -120,7 +120,7 @@ describe("DSL document symbol query", () => {
 
   it("never treats modifier profile `for @Profile` as an iteration namespace", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "profile Print",
       "modifier Seam {",
       "  for @Print {",
@@ -139,7 +139,7 @@ describe("DSL document symbol query", () => {
 
   it("builds module, group, for, and conditional branch hierarchy from enclosing metadata", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Panel() {",
       "  group Outer {",
       "    if (@condition) {",

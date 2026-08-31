@@ -6,7 +6,7 @@ import { parseScalarExpression } from "../scalars/expressionParser";
 describe("unified @ source-reference frontend", () => {
   it("accepts every ordinary geometry reference role through the shared syntax", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -20,7 +20,7 @@ describe("unified @ source-reference frontend", () => {
 
   it("rejects bare geometry references with an exact source span", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "line AB = segment(start: A, end: @A)"
     ].join("\n");
@@ -32,14 +32,14 @@ describe("unified @ source-reference frontend", () => {
 
   it("round-trips canonical geometry references with @", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)"
     ].join("\n");
     const compiled = compileDslDocument(source);
     expect(compiled.document).not.toBeNull();
-    const serialized = serializeDocumentToDsl(compiled.document!, 4);
+    const serialized = serializeDocumentToDsl(compiled.document!, 1);
     expect(serialized).toContain("start: @A");
     expect(serialized).toContain("end: @B");
     expect(compileDslDocument(serialized).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -47,7 +47,7 @@ describe("unified @ source-reference frontend", () => {
 
   it("keeps semantic completion labels bare but inserts the source marker", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",

@@ -149,7 +149,7 @@ export const generateShadowFromModel = (afterDoc: DslDocumentData, majorVersion:
   return { text, compiled: result.compiled };
 };
 
-const MINIMAL_SHADOW_TEXT = "nui 4";
+const MINIMAL_SHADOW_TEXT = "nui 1";
 
 // generateShadowFromModel の最終防衛版。予期しない parser/serializer/compiler
 // 失敗が初期化・ファイル読込・undo/redoを止めないよう、最小文書へ後退する。

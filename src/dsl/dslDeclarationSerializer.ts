@@ -10,7 +10,7 @@ import { serializeDslNumericType } from "./dslNumericTypeOptions";
 // is performed, because the declaration serializer does not parse the
 // initializer as an expression.
 //
-// This statement only exists in nui 4 - there is no v2 form - so no
+// This statement only exists in nui 1 - there is no v2 form - so no
 // majorVersion branching is needed here.
 
 const typeText = (type: ScalarType, numericTypeOptions?: Extract<DslStatement, { kind: "typedDeclaration" }>["numericTypeOptions"]): string => {

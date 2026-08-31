@@ -3,7 +3,7 @@
 // span consumers can all use without re-parsing, re-resolving, || re-scanning
 // raw source.
 //
-// Runs for every canonical `label(text: "...")` occurrence in a nui 4
+// Runs for every canonical `label(text: "...")` occurrence in a nui 1
 // document regardless of whether the document has any typed declaration at
 // all - brace/escape structure && numeric-vs-typed hole classification never
 // depend on `bindingAnalysis` being present. Only a hole that actually
@@ -204,7 +204,7 @@ export const analyzeTextTemplate = (
     raw: source.slice(hole.raw.contentSpan.start, hole.raw.contentSpan.end)
   });
 
-  // Numeric-expression holes are exactly where the nui 4 sigil requirement for
+  // Numeric-expression holes are exactly where the nui 1 sigil requirement for
   // element-property references applies. Checked once here (not by a
   // separate document-wide pass) since this is the only place the hole's
   // exact raw content span is already isolated.
@@ -419,7 +419,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
  * Scans every canonical `label(text: "...")` occurrence in the document -
  * `label` is the sole construction producing `CadElementType "text"`
  * (src/dsl/dslConstructions.ts). Runs whenever this is called at all
- * (callers gate on nui 4, not on typed declarations existing - see
+ * (callers gate on nui 1, not on typed declarations existing - see
  * dslDocument.ts): a document with zero typed declarations still gets full
  * brace/escape/numeric-vs-typed classification, just with `bindingAnalysis`
  * absent for every occurrence.

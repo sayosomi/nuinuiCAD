@@ -119,7 +119,7 @@ afterEach(() => {
 describe("native Quick Fix composition", () => {
   it("publishes the localized typo hint and routes typo actions through the existing internal command", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @widht"
     ].join("\n");
@@ -141,7 +141,7 @@ describe("native Quick Fix composition", () => {
   });
 
   it("leaves existing Choice Quick Fix behavior intact", () => {
-    const source = "nui 4\nconst side: choice(left, right) = center\n";
+    const source = "nui 1\nconst side: choice(left, right) = center\n";
     const document = documentFor(source, "/tmp/choice.nui");
     const session = createLanguageAnalysisSession(source);
     mocks.textDocuments.push(document);

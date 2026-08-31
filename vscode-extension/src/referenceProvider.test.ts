@@ -79,7 +79,7 @@ describe("VS Code native nui references provider", () => {
 
   it("returns usages only when includeDeclaration is false", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -94,7 +94,7 @@ describe("VS Code native nui references provider", () => {
 
   it("includes the declaration only when requested and supports declaration invocation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -113,7 +113,7 @@ describe("VS Code native nui references provider", () => {
 
   it("maps normalized semantic ranges back to CRLF TextDocument positions", () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
@@ -134,9 +134,9 @@ describe("VS Code native nui references provider", () => {
   });
 
   it("refreshes one URI-scoped session from the dirty TextDocument", () => {
-    const initial = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const initial = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const current = [
-      "nui 4",
+      "nui 1",
       "point B = coordinate(x: 0, y: 0)",
       "point C = offset(from: @B, dx: 1, dy: 0)"
     ].join("\n");
@@ -153,10 +153,10 @@ describe("VS Code native nui references provider", () => {
   });
 
   it("fails closed for unsupported extension, URI scheme, and no-result positions", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const unsupported = provide(source, source.indexOf("A") + 1, true, documentFor(source, "/tmp/pattern.txt"));
     const untitled = provide(source, source.indexOf("A") + 1, true, documentFor(source, "/tmp/pattern.nui", "untitled"));
-    const commentSource = "nui 4\n// @A";
+    const commentSource = "nui 1\n// @A";
     const noResult = provide(commentSource, commentSource.indexOf("@A") + 2, true);
 
     expect(unsupported).toEqual([]);

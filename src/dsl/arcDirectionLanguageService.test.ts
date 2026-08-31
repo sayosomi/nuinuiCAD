@@ -5,9 +5,9 @@ import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
 const snapshotFor = (source: string) => ({ normalizedSource: source, sourceRevision: 1 });
 
 const arcDirectionSource =
-  "nui 4\narc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: ";
+  "nui 1\narc A = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: ";
 
-describe("nui4 arc direction language service", () => {
+describe("nui1 arc direction language service", () => {
   it("offers counterclockwise and clockwise through parameter-value completion", () => {
     const result = queryDslCompletion({
       source: snapshotFor(arcDirectionSource),

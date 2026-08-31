@@ -1,0 +1,33 @@
+nui 1
+
+const segmentIndex: number = 0
+const direction: number = 90
+point Start = coordinate(x: 0, y: 0)
+point End = coordinate(x: 10, y: 0)
+curve Source = bezier(
+  start: @Start,
+  end: @End,
+  startAngle: 90,
+  startLength: 10,
+  endAngle: -90,
+  endLength: 10,
+)
+point Extreme = bezierExtremePoint(
+  source: @Source,
+  segmentIndex: @segmentIndex + 0,
+  direction: @direction + 360,
+)
+point Mid = coordinate(x: 5, y: 7.5)
+line Split = split(
+  source: @Source,
+  at: @Mid,
+)
+point SplitExtreme = bezierExtremePoint(
+  source: @Split,
+  segmentIndex: 0,
+  direction: @direction,
+)
+line Downstream = segment(
+  start: @Extreme,
+  end: @End,
+)

@@ -8,7 +8,7 @@ import {
 describe("command-line insertion anchors", () => {
   it("resolves a conditional group's anchor after its complete then/else structure", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -31,7 +31,7 @@ describe("command-line insertion anchors", () => {
 
   it("keeps a child anchor in its structural parent without consulting fold state", () => {
     const compiled = compileDslDocument([
-      "nui 4",
+      "nui 1",
       "group 外側 {",
       "  group 内側 {",
       "    point A = coordinate(x: 0, y: 0)",

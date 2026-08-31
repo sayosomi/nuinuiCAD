@@ -16,7 +16,7 @@ const diagnostic = (overrides: Partial<DslDiagnostic> = {}): DslDiagnostic => ({
 
 describe("VS Code compiler diagnostics adapter", () => {
   it("uses current-source production compiler errors", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: )\n";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: )\n";
     const document = AutomationDocument.fromSource(source);
 
     expect(compilerDiagnosticsForState(document.getSource(), document.getState())).toEqual([
@@ -34,7 +34,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("flows an unused Drawing Modifier warning through the production diagnostic adapter", () => {
-    const source = "nui 4\nmodifier Unused {\n  state: visible,\n}\n";
+    const source = "nui 1\nmodifier Unused {\n  state: visible,\n}\n";
     const document = AutomationDocument.fromSource(source);
 
     expect(compilerDiagnosticsForState(document.getSource(), document.getState())).toEqual([
@@ -52,7 +52,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("publishes non-gating bindingIssueDiagnostics after compiler diagnostics", () => {
-    const source = "nui 4\nconst x: number = 1\nconst x: number = 2\n";
+    const source = "nui 1\nconst x: number = 1\nconst x: number = 2\n";
     const state = AutomationDocument.fromSource(source).getState();
     const diagnostics = compilerDiagnosticsForState(source, state);
 
@@ -78,7 +78,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("uses a single exact physical span", () => {
-    expect(toCompilerDiagnostic("nui 4\npoint A", diagnostic({
+    expect(toCompilerDiagnostic("nui 1\npoint A", diagnostic({
       physicalSpan: { segments: [{ from: 6, to: 11 }], sourceRevision: 1 },
       exactSpanOnly: true
     }))).toMatchObject({
@@ -120,7 +120,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("projects normalized CRLF offsets without shifting later lines", () => {
-    const source = "nui 4\r\npoint 日本 = coordinate(x: 0, y: 1)\r\n";
+    const source = "nui 1\r\npoint 日本 = coordinate(x: 0, y: 1)\r\n";
     const normalized = source.replace(/\r\n/g, "\n");
     const from = normalized.indexOf("日本");
     expect(toCompilerDiagnostic(source, diagnostic({
@@ -132,7 +132,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("keeps UTF-16 character positions for Japanese identifiers", () => {
-    const source = "nui 4\nconst 日本: number = 1\n";
+    const source = "nui 1\nconst 日本: number = 1\n";
     const from = source.indexOf("日本");
     expect(toCompilerDiagnostic(source, diagnostic({
       physicalSpan: { segments: [{ from, to: from + 2 }], sourceRevision: 1 },
@@ -154,7 +154,7 @@ describe("VS Code compiler diagnostics adapter", () => {
   });
 
   it("projects related ranges with CRLF/UTF-16 semantics and drops only invalid related entries", () => {
-    const source = "nui 4\r\n😀required\r\n";
+    const source = "nui 1\r\n😀required\r\n";
     const normalized = source.replace(/\r\n/g, "\n");
     const from = normalized.indexOf("required");
     const projected = toCompilerDiagnostic(source, diagnostic({

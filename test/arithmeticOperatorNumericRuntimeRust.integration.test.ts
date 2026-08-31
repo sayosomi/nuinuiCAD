@@ -12,7 +12,7 @@ import {
 describe("arithmetic operator numeric runtime Rust parity", () => {
   it("retains an empty scalar program for ref-free typed module expressions", () => {
     const fixture = fixtureFromSource([
-      "nui 4",
+      "nui 1",
       "module Example() {",
       "  point P = coordinate(x: 2 ^ 3, y: 5 % 3)",
       "}",
@@ -42,7 +42,7 @@ describe("arithmetic operator numeric runtime Rust parity", () => {
 
   it("carries typed ^ / % ASTs through both numeric runtime payloads", () => {
     const fixture = fixtureFromSource([
-      "nui 4",
+      "nui 1",
       "point Pow = coordinate(x: 2 ^ 3, y: 0)",
       "point Remainder = coordinate(x: 5 % 3, y: 0)",
       "point PowChain = coordinate(x: 2 ^ 3 ^ 2, y: 0)",

@@ -1,4 +1,5 @@
 import { scanDslSource } from "../dsl/dslTokens";
+import { isSupportedDslMajorVersion } from "../dsl/dslVersion";
 
 const versionFromRawSource = (source: string): number | null => {
   const lines = scanDslSource(source.replace(/^\uFEFF/, "")).lines;
@@ -16,8 +17,9 @@ const versionFromRawSource = (source: string): number | null => {
  */
 export const nuiMajorVersionFromRawSource = (source: string) => versionFromRawSource(source);
 
-/** Returns every header other than `nui 4` for fail-closed file opening. */
+/** Returns every header other than a centrally supported major for fail-closed file opening. */
 export const unsupportedNuiMajorVersion = (source: string) => {
   const major = nuiMajorVersionFromRawSource(source);
-  return major === 4 ? null : major ?? "missing";
+  if (major === null) return "missing";
+  return isSupportedDslMajorVersion(major) ? null : major;
 };

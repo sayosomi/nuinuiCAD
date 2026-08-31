@@ -8,7 +8,7 @@ import type { CadElement, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 
 const sourceFor = (kind: "external" | "internal", side: "left" | "right") => [
-  "nui 4",
+  "nui 1",
   "point C1 = coordinate(x: 0, y: 0)",
   "point C2 = coordinate(x: 60, y: 0)",
   "arc A = arc(center: @C1, radius: 20, start: 40, end: 80)",
@@ -76,7 +76,7 @@ describe("commonTangent", () => {
 
   it("accepts arc/through/corner outputs rather than authored arc type only", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point O = coordinate(x: 0, y: 0)",
       "point A1 = coordinate(x: 80, y: 0)",
       "point A2 = coordinate(x: 60, y: 20)",

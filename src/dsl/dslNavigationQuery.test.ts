@@ -34,7 +34,7 @@ const targetFor = (source: string, token: string, offset = 0) => {
 describe("DSL Canvas navigation queries", () => {
   it("resolves named and unnamed runtimes to exact identifier/keyword spans", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Named = coordinate(x: 0, y: 0)",
       "point = coordinate(x: 1, y: 1)"
     ].join("\n");
@@ -65,7 +65,7 @@ describe("DSL Canvas navigation queries", () => {
 
   it("maps an instance to its call site and repeated module bodies to one authored definition", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
@@ -99,7 +99,7 @@ describe("DSL Canvas navigation queries", () => {
 
   it("targets nested module bodies without attributing them to the enclosing module", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  point InnerPoint = coordinate(x: 1, y: 1)",
       "}",
@@ -116,7 +116,7 @@ describe("DSL Canvas navigation queries", () => {
 
   it("uses only exact authored statement fragments and fails closed for non-runtime/stale/unsafe input", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "// comment",
       "point Base = coordinate(x: 0, y: 0)",
       "let value: number = 1",
@@ -157,7 +157,7 @@ describe("DSL Canvas navigation queries", () => {
     ["inverted segment offset", () => ({ sourceRevision: 0, segments: [{ from: 8, to: 8 }] }), 0]
   ] as const)("fails closed for %s", (_label, physicalSpanFor, revisionDelta) => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @Base, dx: 1, dy: 0)"
     ].join("\n");
@@ -182,7 +182,7 @@ describe("DSL Canvas navigation queries", () => {
   });
 
   it("matches only real physical code segments in a multi-segment statement", () => {
-    const source = "nui 4\npoint Base = coordinate(x: 0, /* gap */ y: 0)";
+    const source = "nui 1\npoint Base = coordinate(x: 0, /* gap */ y: 0)";
     const compiled = compiledFor(source);
     const snapshot = snapshotFor(compiled);
     const statement = compiled.statements.find((candidate) => candidate.name === "Base")!;

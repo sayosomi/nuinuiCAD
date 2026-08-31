@@ -15,7 +15,7 @@ import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
 const baseline = [
-  "nui 4",
+  "nui 1",
   "",
   "point A = coordinate(",
   "  x: 0,",
@@ -34,7 +34,7 @@ const baseline = [
 ].join("\n");
 
 const errorfulWithoutA = [
-  "nui 4",
+  "nui 1",
   "",
   "point B = coordinate(",
   "  x: 60,",

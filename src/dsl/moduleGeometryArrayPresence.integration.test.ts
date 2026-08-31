@@ -16,7 +16,7 @@ const errorsOf = (compiled: ReturnType<typeof compileWithIds>) =>
 describe("module geometry array presence", () => {
   it("allows an optional path[] consumer after hasValue proves presence", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "module M(paths?: path[]) {",
       "  if (hasValue(@paths)) {",
@@ -32,7 +32,7 @@ describe("module geometry array presence", () => {
 
   it("rejects an optional path[] consumer without a presence guard", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "module M(paths?: path[]) {",
       "  line Copy = offset(sources: @paths, distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
       "}"

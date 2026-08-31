@@ -10,7 +10,7 @@ import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnaly
 
 describe("bindingIssuesToDiagnostics", () => {
   it("converts a declaration-origin duplicate-binding with an exact nameSpan for each duplicate", () => {
-    const fixture = typedDeclarationAnalysisFor(["nui 4", "const x: number = 1", "const x: number = 2"].join("\n"));
+    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "const x: number = 2"].join("\n"));
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(2);
     for (const diagnostic of diagnostics) {
@@ -26,7 +26,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts undefined-binding at the exact reference token", () => {
-    const source = ["nui 4", "const x: number = @missing"].join("\n");
+    const source = ["nui 1", "const x: number = @missing"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(1);
@@ -43,7 +43,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts self-initialization at the exact self-reference token", () => {
-    const source = ["nui 4", "const x: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = @x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(1);
@@ -54,7 +54,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts forward-binding-reference at the exact reference token", () => {
-    const source = ["nui 4", "const x: number = @y", "const y: number = 1"].join("\n");
+    const source = ["nui 1", "const x: number = @y", "const y: number = 1"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics).toHaveLength(1);
@@ -65,7 +65,7 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("converts binding-cycle for every cycle member with the shared cycle message", () => {
-    const source = ["nui 4", "const x: number = @y", "const y: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = @y", "const y: number = @x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     const cycleDiagnostics = diagnostics.filter((diagnostic) => diagnostic.code === "binding-cycle");
@@ -87,7 +87,7 @@ describe("bindingIssuesToDiagnostics", () => {
     // from that same scope can't pick either one, so it resolves as a
     // second, reference-origin "duplicate" - ambiguous by construction, so
     // there is no single correct declaration to jump to.
-    const source = ["nui 4", "const x: number = 1", "const x: number = 2", "const y: number = @x"].join("\n");
+    const source = ["nui 1", "const x: number = 1", "const x: number = 2", "const y: number = @x"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const referenceDuplicate = fixture.bindingAnalysis.issues.find(
       (issue) => issue.code === "duplicate-binding" && issue.origin.kind === "reference"
@@ -102,14 +102,14 @@ describe("bindingIssuesToDiagnostics", () => {
   });
 
   it("preserves bindingAnalysis.issues' own deterministic order (never re-sorted)", () => {
-    const source = ["nui 4", "const a: number = @missing", "const b: number = @missing2"].join("\n");
+    const source = ["nui 1", "const a: number = @missing", "const b: number = @missing2"].join("\n");
     const fixture = typedDeclarationAnalysisFor(source);
     const diagnostics = bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans);
     expect(diagnostics.map((diagnostic) => diagnostic.bindingId)).toEqual(fixture.bindingAnalysis.issues.map((issue) => issue.bindingId));
   });
 
   it("produces no diagnostics for a document with no BindingIssue at all", () => {
-    const fixture = typedDeclarationAnalysisFor(["nui 4", "const x: number = 1", "let y: number = @x + 1"].join("\n"));
+    const fixture = typedDeclarationAnalysisFor(["nui 1", "const x: number = 1", "let y: number = @x + 1"].join("\n"));
     expect(bindingIssuesToDiagnostics(fixture.bindingAnalysis, fixture.statements, fixture.spans)).toEqual([]);
   });
 });

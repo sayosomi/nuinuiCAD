@@ -25,7 +25,7 @@ const positionAt = (source: string, token: string, occurrence = 0) => {
 };
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "line L = segment(start: @A, end: @B)",

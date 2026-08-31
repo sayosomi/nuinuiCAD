@@ -129,7 +129,7 @@ export const parseDslImportStatement = (logicalText: string): DslImportParseResu
   if (alias === null) {
     diagnostics.push({
       code: "invalid-import-alias",
-      message: "import alias が不正です。通常の nui4 name を指定してください。",
+      message: "import alias が不正です。通常の nui1 name を指定してください。",
       span: { start: aliasTerm.start, end: aliasTerm.end }
     });
   }

@@ -440,7 +440,7 @@ describe("DSL typed declarations", () => {
 
   it("supports line and block comments without allowing comment delimiters to alter blocks", () => {
     const parsed = parseDsl([
-      "nui 4 // header",
+      "nui 1 // header",
       "group A {",
       "  /* } { ( [ ] ) // ignored */",
       "  point P = coordinate(x: 0, y: 0) /* inline ) ] */ // trailing",
@@ -451,9 +451,9 @@ describe("DSL typed declarations", () => {
   });
 
   it("fails closed for an unterminated block comment and does not treat old hash comments as comments", () => {
-    const unterminated = parseDsl("nui 4\n/* not closed");
+    const unterminated = parseDsl("nui 1\n/* not closed");
     expect(unterminated.diagnostics.some((item) => item.message.includes("ブロックコメントが閉じられていません"))).toBe(true);
-    const oldComment = parseDsl("# old comment\nnui 4");
+    const oldComment = parseDsl("# old comment\nnui 1");
     expect(oldComment.diagnostics.length).toBeGreaterThan(0);
     expect(oldComment.statements.some((statement) => statement.kind === "version")).toBe(true);
   });
@@ -579,15 +579,15 @@ describe("DSL parser duplicate names", () => {
 });
 
 describe("DSL parser compatibility", () => {
-  it("requires top-level commas for nui 4 calls while preserving nui 2 input", () => {
-    const strict = parseDsl(["nui 4", "point C = between(start: @A end: @B ratio: 0.5)"].join("\n"));
+  it("requires top-level commas for nui 1 calls while preserving nui 2 input", () => {
+    const strict = parseDsl(["nui 1", "point C = between(start: @A end: @B ratio: 0.5)"].join("\n"));
     expect(strict.diagnostics.filter((item) => item.code === "missing-argument-comma")).toHaveLength(2);
     const end = strict.diagnostics.find((item) => item.message.includes("end"));
     expect(end?.physicalSpan?.segments).toEqual([{ from: 34, to: 37 }]);
 
-    const commaDelimited = parseDsl("nui 4\nfor i in range(from: 0, count: 3) {\n}");
+    const commaDelimited = parseDsl("nui 1\nfor i in range(from: 0, count: 3) {\n}");
     expect(commaDelimited.diagnostics).toEqual([]);
-    const legacy = parseDsl("nui 4\nfor Loop (i, from: 0, count: 3) {\n}");
+    const legacy = parseDsl("nui 1\nfor Loop (i, from: 0, count: 3) {\n}");
     expect(legacy.diagnostics.some((item) => item.severity === "error")).toBe(true);
   });
 

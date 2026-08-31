@@ -106,7 +106,7 @@ describe("VS Code document symbol provider", () => {
       "  }",
       "}"
     ].join("\n");
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const provider = createNuiDocumentSymbolProvider(() => session);
     const symbols = (provider as unknown as TestDocumentSymbolProvider).provideDocumentSymbols(
       documentFor(source)
@@ -123,7 +123,7 @@ describe("VS Code document symbol provider", () => {
 
   it("synchronizes unsaved CRLF source and converts normalized ranges through the shared adapter", () => {
     const source = "point A = coordinate(x: 0, y: 0)\r\n";
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const provider = createNuiDocumentSymbolProvider(() => session);
     const symbols = (provider as unknown as TestDocumentSymbolProvider).provideDocumentSymbols(documentFor(source));
 
@@ -137,19 +137,19 @@ describe("VS Code document symbol provider", () => {
   });
 
   it("fails closed for unsupported, non-nui, and stale documents", () => {
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const sessionForDocument = vi.fn(() => session);
     const provider = createNuiDocumentSymbolProvider(sessionForDocument);
     const provide = (document: TestDocument) =>
       (provider as unknown as TestDocumentSymbolProvider).provideDocumentSymbols(document);
 
-    expect(provide(documentFor("nui 4\n", "/tmp/pattern.txt"))).toEqual([]);
-    expect(provide(documentFor("nui 4\n", "/tmp/pattern.nui", "untitled"))).toEqual([]);
+    expect(provide(documentFor("nui 1\n", "/tmp/pattern.txt"))).toEqual([]);
+    expect(provide(documentFor("nui 1\n", "/tmp/pattern.nui", "untitled"))).toEqual([]);
     expect(sessionForDocument).not.toHaveBeenCalled();
   });
 
   it("fails closed when the exact source structure snapshot is stale", () => {
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     session.documentSymbolSyntaxSnapshot = vi.fn(() => undefined);
     const provider = createNuiDocumentSymbolProvider(() => session);
 

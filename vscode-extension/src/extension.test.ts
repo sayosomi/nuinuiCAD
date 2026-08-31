@@ -356,7 +356,7 @@ const disposable = () => ({ dispose: vi.fn() });
 const documentFor = (
   fileName = "/tmp/pattern.nui",
   uri = `file://${fileName}`,
-  initialSource = "nui 4\n"
+  initialSource = "nui 1\n"
 ): TestDocument => {
   let sourceText = initialSource;
   const lineStartsFor = (): number[] => {
@@ -410,7 +410,7 @@ const documentFor = (
 };
 
 const h3Source = [
-  "nui 4",
+  "nui 1",
   "point Left = coordinate(x: -50, y: 0)",
   "point Right = coordinate(x: 50, y: 0)",
   "line Guide = segment(start: @Left, end: @Right)"
@@ -806,7 +806,7 @@ describe("VS Code production document lifecycle", () => {
 
   it("publishes Module diagnostic related information through the current document URI", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(required: number) {",
       "}",
       "instance Use = M()"
@@ -838,7 +838,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("aggregates exact-current runtime diagnostics after compiler diagnostics", async () => {
-    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const source = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
     const document = documentFor("/tmp/runtime-diagnostics.nui", "file:///tmp/runtime-diagnostics.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -864,7 +864,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("ignores stale and non-current-session runtime diagnostic publications", async () => {
-    const source = "nui 4\nconst x: number = 1\n";
+    const source = "nui 1\nconst x: number = 1\n";
     const document = documentFor("/tmp/runtime-stale.nui", "file:///tmp/runtime-stale.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -897,7 +897,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("clears runtime diagnostics synchronously on source change", async () => {
-    const source = "nui 4\nconst x: number = 1\n";
+    const source = "nui 1\nconst x: number = 1\n";
     const document = documentFor("/tmp/runtime-change.nui", "file:///tmp/runtime-change.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -910,7 +910,7 @@ describe("VS Code production document lifecycle", () => {
       diagnostics: [runtimeDiagnosticFor("runtime-before-change")]
     });
 
-    document.setSourceText("nui 4\nconst y: number = 2\n");
+    document.setSourceText("nui 1\nconst y: number = 2\n");
     document.version += 1;
     emitDocumentChange(document);
 
@@ -919,7 +919,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("treats a current empty runtime publication as clearing only the runtime layer", async () => {
-    const source = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+    const source = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
     const document = documentFor("/tmp/runtime-empty.nui", "file:///tmp/runtime-empty.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -947,7 +947,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("retains runtime diagnostics across Canvas close but clears them on document close", async () => {
-    const source = "nui 4\nconst x: number = 1\n";
+    const source = "nui 1\nconst x: number = 1\n";
     const document = documentFor("/tmp/runtime-close.nui", "file:///tmp/runtime-close.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -976,7 +976,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("preserves exactSpanOnly fail-closed projection for runtime diagnostics", async () => {
-    const source = "nui 4\nconst x: number = 1\n";
+    const source = "nui 1\nconst x: number = 1\n";
     const document = documentFor("/tmp/runtime-span.nui", "file:///tmp/runtime-span.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -1234,12 +1234,12 @@ describe("VS Code production document lifecycle", () => {
       normalizedSourceOffset: expect.any(Number)
     }));
 
-    document.setSourceText("nui 4\n// changed\n");
+    document.setSourceText("nui 1\n// changed\n");
     document.version += 1;
     emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
-      sourceText: "nui 4\n// changed\n",
+      sourceText: "nui 1\n// changed\n",
       documentVersion: document.version
     }));
   });
@@ -1413,7 +1413,7 @@ describe("VS Code production document lifecycle", () => {
     });
 
     document.version += 1;
-    document.setSourceText("nui 4\n// changed\n");
+    document.setSourceText("nui 1\n// changed\n");
     emitDocumentChange(document);
     resolveDialog({ scheme: "file", fsPath: "/tmp/stale.pdf", toString: () => "file:///tmp/stale.pdf" });
     await exportRequest;
@@ -1438,7 +1438,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("routes a current Output Preview place commit through one native WorkspaceEdit", async () => {
-    const source = "nui 4\nvalue: 10\n";
+    const source = "nui 1\nvalue: 10\n";
     const document = documentFor("/tmp/place.nui", "file:///tmp/place.nui", source);
     const editor = editorFor(document);
     setup(false, editor);
@@ -1668,7 +1668,7 @@ describe("VS Code production document lifecycle", () => {
 
   it("routes Bake through Source after switching from Canvas while the Canvas remains visible", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 0)",
       "point Derived = between(",
@@ -1704,7 +1704,7 @@ describe("VS Code production document lifecycle", () => {
 
   it("routes Case K through Source when Palette focus leaves a stale Canvas tab input", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  state: visible,",
       "}",
@@ -1770,7 +1770,7 @@ describe("VS Code production document lifecycle", () => {
       if (command === "setContext") return;
       expect(command).toBe(direction);
       document.version = 2;
-      document.setSourceText(`nui 4\n// native ${direction}\n`);
+      document.setSourceText(`nui 1\n// native ${direction}\n`);
       emitDocumentChange(document);
     });
 
@@ -1810,7 +1810,7 @@ describe("VS Code production document lifecycle", () => {
       if (command === "setContext") return;
       expect(command).toBe(direction);
       document.version = 2;
-      document.setSourceText(`nui 4\n// native ${direction}\n`);
+      document.setSourceText(`nui 1\n// native ${direction}\n`);
     });
 
     await messageHandlerFor(panel)({
@@ -1842,7 +1842,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("completes changed Canvas history before releasing a deferred free-point invocation", async () => {
-    const document = documentFor("/tmp/history-free-point.nui", "file:///tmp/history-free-point.nui", "nui 4\n");
+    const document = documentFor("/tmp/history-free-point.nui", "file:///tmp/history-free-point.nui", "nui 1\n");
     const editor = editorFor(document);
     setup(false, editor);
     document.languageId = "nui";
@@ -1855,7 +1855,7 @@ describe("VS Code production document lifecycle", () => {
       if (command === "setContext") return;
       if (command === "undo") {
         document.version = 2;
-        document.setSourceText("nui 4\n// undone\n");
+        document.setSourceText("nui 1\n// undone\n");
         emitDocumentChange(document);
       }
     });
@@ -2126,7 +2126,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.title).toBe("b.nui — nuinuiCAD");
 
     documentA.version = 2;
-    documentA.setSourceText("nui 4\nA changed\n");
+    documentA.setSourceText("nui 1\nA changed\n");
     emitDocumentChange(documentA);
 
     expect(mocks.panels).toHaveLength(2);
@@ -2225,12 +2225,12 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.dispose).not.toHaveBeenCalled();
 
     documentB.version = 2;
-    documentB.setSourceText("nui 4\n// panel B change\n");
+    documentB.setSourceText("nui 1\n// panel B change\n");
     emitDocumentChange(documentB);
 
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "commitText",
-      sourceText: "nui 4\n// panel B change\n",
+      sourceText: "nui 1\n// panel B change\n",
       documentVersion: 2
     }));
   });
@@ -2279,7 +2279,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = mocks.panels[0]!;
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n// webview change\n",
+      sourceText: "nui 1\n// webview change\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -2300,13 +2300,13 @@ describe("VS Code production document lifecycle", () => {
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "replaceTextDocument", documentVersion: 1 }));
 
     document.version = 2;
-    document.setSourceText("nui 4\n// changed\n");
+    document.setSourceText("nui 1\n// changed\n");
     emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
   });
 
   it("retains an immediate Canvas free-point invocation until the changed document is authoritative again", async () => {
-    const document = documentFor("/tmp/free-point-sync.nui", "file:///tmp/free-point-sync.nui", "nui 4\n");
+    const document = documentFor("/tmp/free-point-sync.nui", "file:///tmp/free-point-sync.nui", "nui 1\n");
     const editor = editorFor(document);
     setup(false, editor);
     document.languageId = "nui";
@@ -2328,7 +2328,7 @@ describe("VS Code production document lifecycle", () => {
       } | undefined;
     expect(firstRequest).toBeDefined();
 
-    const committedSource = "nui 4\n// free point\n";
+    const committedSource = "nui 1\n// free point\n";
     editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
       callback(editor.editBuilder);
       document.version = 2;
@@ -2372,7 +2372,7 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("serializes Canvas free-point invocations through the authoritative session boundary", async () => {
-    const document = documentFor("/tmp/free-point-queue.nui", "file:///tmp/free-point-queue.nui", "nui 4\n");
+    const document = documentFor("/tmp/free-point-queue.nui", "file:///tmp/free-point-queue.nui", "nui 1\n");
     const editor = editorFor(document);
     setup(false, editor, [document]);
     document.languageId = "nui";
@@ -2407,7 +2407,7 @@ describe("VS Code production document lifecycle", () => {
     const firstRequest = freePointMessages()[0]!;
     expect(firstRequest.pointer).toEqual({ x: 12, y: -8 });
 
-    const committedSource = "nui 4\n// free point A\n";
+    const committedSource = "nui 1\n// free point A\n";
     editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
       callback(editor.editBuilder);
       document.version = 2;
@@ -2624,7 +2624,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB.dispose).not.toHaveBeenCalled();
 
     documentA.version = 4;
-    documentA.setSourceText("nui 4\n// reopened\n");
+    documentA.setSourceText("nui 1\n// reopened\n");
     mocks.activeTextEditor = editorA;
     mocks.visibleTextEditors = [editorA];
     mocks.textDocuments = [documentA, documentB];
@@ -2635,7 +2635,7 @@ describe("VS Code production document lifecycle", () => {
     expect(reopened).not.toBe(panelA);
     expect(reopened.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n// reopened\n",
+      sourceText: "nui 1\n// reopened\n",
       documentVersion: 4
     });
   });
@@ -2647,7 +2647,7 @@ describe("VS Code production document lifecycle", () => {
 
     (panelA.dispose as unknown as () => void)();
     editor.document.version = 6;
-    editor.document.setSourceText("nui 4\n// panel reopened\n");
+    editor.document.setSourceText("nui 1\n// panel reopened\n");
     const panelB = openPanelFor(editor);
     await messageHandlerFor(panelB)({ type: "webviewReady" });
 
@@ -2655,7 +2655,7 @@ describe("VS Code production document lifecycle", () => {
     expect(panelB).not.toBe(panelA);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n// panel reopened\n",
+      sourceText: "nui 1\n// panel reopened\n",
       documentVersion: 6
     });
   });
@@ -2665,10 +2665,10 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor();
     const document = mocks.activeTextEditor!.document;
     document.version = 2;
-    document.setSourceText("nui 4\n// authoritative\n");
+    document.setSourceText("nui 1\n// authoritative\n");
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n// stale\n",
+      sourceText: "nui 1\n// stale\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -2676,20 +2676,20 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.activeTextEditor!.edit).not.toHaveBeenCalled();
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "replaceTextDocument",
-      sourceText: "nui 4\n// authoritative\n",
+      sourceText: "nui 1\n// authoritative\n",
       documentVersion: 2
     });
   });
 
   it("applies a valid model patch as one snapshot-coordinate edit transaction", async () => {
-    const source = "nui 4\nA\nB\n";
+    const source = "nui 1\nA\nB\n";
     const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", source);
     const editor = editorFor(document);
     setup(false, editor);
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\nA changed\nB\n",
+      sourceText: "nui 1\nA changed\nB\n",
       expectedDocumentVersion: 1,
       mutationKind: "model-patch",
       splices: [{ startLine: 2, endLine: 2, replacementLines: ["A changed"] }]
@@ -2702,13 +2702,13 @@ describe("VS Code production document lifecycle", () => {
   });
 
   it("fails closed when a model patch source does not match its LineSplices", async () => {
-    const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", "nui 4\nA\n");
+    const document = documentFor("/tmp/pattern.nui", "file:///tmp/pattern.nui", "nui 1\nA\n");
     const editor = editorFor(document);
     setup(false, editor);
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\nnot the patch result\n",
+      sourceText: "nui 1\nnot the patch result\n",
       expectedDocumentVersion: 1,
       mutationKind: "model-patch",
       splices: [{ startLine: 2, endLine: 2, replacementLines: ["A changed"] }]
@@ -2725,7 +2725,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n// reset\n",
+      sourceText: "nui 1\n// reset\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -2740,7 +2740,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n// reset\n",
+      sourceText: "nui 1\n// reset\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
@@ -2754,21 +2754,21 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({
       type: "canvasCommit",
-      sourceText: "nui 4\n// committed\n",
+      sourceText: "nui 1\n// committed\n",
       expectedDocumentVersion: 1,
       mutationKind: "reset"
     });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "commitText" }));
 
     editor.document.version = 2;
-    editor.document.setSourceText("nui 4\n// committed\n");
+    editor.document.setSourceText("nui 1\n// committed\n");
     emitDocumentChange(editor.document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
   });
 
   it("does not forward non-content TextDocument changes during a Canvas commit", async () => {
-    const preDrag = "nui 4\n// pre-drag\n";
-    const postDrag = "nui 4\n// post-drag\n";
+    const preDrag = "nui 1\n// pre-drag\n";
+    const postDrag = "nui 1\n// post-drag\n";
     const document = documentFor("/tmp/drag.nui", "file:///tmp/drag.nui", preDrag);
     const editor = editorFor(document);
     setup(false, editor);
@@ -2803,7 +2803,7 @@ describe("VS Code production document lifecycle", () => {
 describe("VS Code explicit Canvas navigation lifecycle", () => {
   const prepareNavigation = async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/navigation-focus.nui", "file:///tmp/navigation-focus.nui", source);
@@ -2826,7 +2826,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
     .filter((message) => message?.type === "focusCanvas");
 
   it("does not open Canvas when the source cursor has no runtime target", () => {
-    const source = "nui 4\n// comment only";
+    const source = "nui 1\n// comment only";
     const document = documentFor("/tmp/no-target.nui", "file:///tmp/no-target.nui", source);
     const editor = editorFor(document);
     editor.selection.active = { line: 1, character: 3 };
@@ -2838,7 +2838,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
   });
 
   it("reports source analysis unavailable for a fatal exact-current source without opening Canvas", () => {
-    const source = "nui 4\npoint Broken = coordinate(";
+    const source = "nui 1\npoint Broken = coordinate(";
     const document = documentFor("/tmp/reveal-fatal.nui", "file:///tmp/reveal-fatal.nui", source);
     const editor = editorFor(document);
     editor.selection.active = { line: 1, character: 8 };
@@ -2854,7 +2854,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("waits for authoritative Webview hydration and latest request wins", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/reveal.nui", "file:///tmp/reveal.nui", source);
@@ -3075,11 +3075,11 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("keeps Reveal and Canvas-to-Source navigation isolated per document session", async () => {
     const sourceA = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const sourceB = [
-      "nui 4",
+      "nui 1",
       "point B = coordinate(x: 10, y: 0)"
     ].join("\n");
     const documentA = documentFor("/tmp/a.nui", "file:///tmp/a.nui", sourceA);
@@ -3132,7 +3132,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("does not transfer focus for stale or no-target navigation results", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/navigation-stale.nui", "file:///tmp/navigation-stale.nui", source);
@@ -3193,7 +3193,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("blocks navigation during Canvas history and its handoff context", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/navigation-history.nui", "file:///tmp/navigation-history.nui", source);
@@ -3244,7 +3244,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("establishes the main-thread Rename caret through showTextDocument for named Canvas navigation", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(",
       "  x: 0,",
       "  y: 0",
@@ -3338,7 +3338,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
   it("keeps unnamed Canvas keyword navigation exact without adding Rename support", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point = coordinate(x: 0, y: 0)"
     ].join("\n");
     const document = documentFor("/tmp/go-to-unnamed-source.nui", "file:///tmp/go-to-unnamed-source.nui", source);
@@ -3388,7 +3388,7 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 });
 
 describe("VS Code compiler diagnostics lifecycle", () => {
-  const invalidSource = "nui 4\npoint A = coordinate(x: 0, y: )\n";
+  const invalidSource = "nui 1\npoint A = coordinate(x: 0, y: )\n";
 
   const collectionFor = (): TestDiagnosticCollection => mocks.diagnosticCollections[0]!;
 
@@ -3412,7 +3412,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
 
   it("publishes invalid choice literals for typed declarations", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "let width: number = 10",
       "let mode: choice(front, back) = side"
     ].join("\n");
@@ -3454,14 +3454,14 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     const document = documentFor(
       "/tmp/changed.nui",
       "file:///tmp/changed.nui",
-      "nui 4\nconst x: number = 1\nconst x: number = 2\n"
+      "nui 1\nconst x: number = 1\nconst x: number = 2\n"
     );
     setup(false, null, [document]);
     const collection = collectionFor();
     const initialCallCount = collection.set.mock.calls.length;
 
     document.version = 2;
-    document.setSourceText("nui 4\npoint A = coordinate(x: 0, y: 1)\n");
+    document.setSourceText("nui 1\npoint A = coordinate(x: 0, y: 1)\n");
     emitDocumentChange(document);
 
     expect(initialCallCount).toBe(1);
@@ -3479,7 +3479,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(collection.delete).not.toHaveBeenCalledWith(documentB.uri);
 
     documentB.version = 2;
-    documentB.setSourceText("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+    documentB.setSourceText("nui 1\npoint B = coordinate(x: 0, y: 1)\n");
     emitDocumentChange(documentB);
     expect(collection.set).toHaveBeenLastCalledWith(documentB.uri, []);
   });
@@ -3500,7 +3500,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
   });
 
   it("does not publish when the document version changes during compilation", () => {
-    const document = documentFor("/tmp/stale.nui", "file:///tmp/stale.nui", "nui 4\n");
+    const document = documentFor("/tmp/stale.nui", "file:///tmp/stale.nui", "nui 1\n");
     setup(false, null, [document]);
     const collection = collectionFor();
     const initialCallCount = collection.set.mock.calls.length;
@@ -3514,7 +3514,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
   });
 
   it("does not publish an old session after close and same-URI reopen", () => {
-    const document = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", "nui 4\n");
+    const document = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", "nui 1\n");
     setup(false, null, [document]);
     const collection = collectionFor();
     const reopened = documentFor("/tmp/reopen.nui", "file:///tmp/reopen.nui", invalidSource);
@@ -3535,7 +3535,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
 
 describe("VS Code Canvas theme warning lifecycle", () => {
   const sourceFor = (color: string): string => [
-    "nui 4",
+    "nui 1",
     "modifier Guide {",
     `  color: ${color},`,
     "}"
@@ -3709,7 +3709,7 @@ describe("VS Code native completion lifecycle", () => {
     const document = documentFor(
       "/tmp/completion.nui",
       "file:///tmp/completion.nui",
-      "nui 4\nconst value: number = ab"
+      "nui 1\nconst value: number = ab"
     );
     const fromSource = vi.spyOn(AutomationDocument, "fromSource");
     setup(false, null, [document]);
@@ -3727,7 +3727,7 @@ describe("VS Code native completion lifecycle", () => {
   });
 
   it("works for an open document without creating Canvas", () => {
-    const document = documentFor("/tmp/no-canvas.nui", "file:///tmp/no-canvas.nui", "nui 4\npoint P = co");
+    const document = documentFor("/tmp/no-canvas.nui", "file:///tmp/no-canvas.nui", "nui 1\npoint P = co");
     setup(false, null, [document]);
     const registration = mocks.completionRegistrations[0]!;
     const provider = registration.provider as {
@@ -3819,7 +3819,7 @@ describe("VS Code native fixed-color lifecycle", () => {
   });
 
   it("refreshes one current registration as Canvas theme availability changes", async () => {
-    const source = ["nui 4", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
@@ -3858,7 +3858,7 @@ describe("VS Code native definition lifecycle", () => {
 
   it("shares the diagnostic session for definition lookup without Canvas or Rust", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -3900,7 +3900,7 @@ describe("VS Code native rename lifecycle", () => {
 
   it("shares the URI-scoped analysis session without Canvas or Rust", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -4099,7 +4099,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
 describe("SAY-81 Module instance Reveal feedback", () => {
   it("treats a resolved Module instance as selectable even when viewport pan has no bounds", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0, state: hidden)",
       "}",

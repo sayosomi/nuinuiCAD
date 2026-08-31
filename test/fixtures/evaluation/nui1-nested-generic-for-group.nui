@@ -1,0 +1,7 @@
+nui 1
+// Active nui1 evaluation fixture.
+for i in range(from: 0, count: 2, step: 1) {
+  for j in range(from: 0, count: 3, step: 1) {
+    point P = coordinate(x: @i, y: @j)
+  }
+}

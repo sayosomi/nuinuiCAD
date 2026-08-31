@@ -15,7 +15,7 @@ import {
   resolveParameterTargetAt,
   resolveParameterValueSpan,
 } from "./dslParameterSpans";
-import { nui4CanonicalElementStatements, type Nui4CanonicalElementStatement } from "./__fixtures__/nui4CanonicalStatements";
+import { nui1CanonicalElementStatements, type Nui1CanonicalElementStatement } from "./__fixtures__/nui1CanonicalStatements";
 
 const refs: CadElement[] = [
   { id: "A", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },
@@ -30,12 +30,12 @@ const resolvers = (elements: CadElement[]): DslApplyArgsResolvers => ({
   nameContext: createElementNameContext([...refs, ...elements]), visibilityRoles: [{ id: "seam", name: "縫い代" }], createIntermediateId: createDefaultIntermediateId,
 });
 
-const isContainerElementType = (elementType: Nui4CanonicalElementStatement["elementType"]) =>
+const isContainerElementType = (elementType: Nui1CanonicalElementStatement["elementType"]) =>
   elementType === "group" || elementType === "conditionalGroup" || elementType === "forGroup";
 
 /** Parses+applies canonical text the same way the production compiler eventually will (C1), so
  * span resolution is always checked against the element the text actually produces. */
-const applyFixtureText = (fixture: Nui4CanonicalElementStatement, text: string) => {
+const applyFixtureText = (fixture: Nui1CanonicalElementStatement, text: string) => {
   const parsed = parseDslCallStatement(text, { opensBlock: isContainerElementType(fixture.elementType) });
   expect(parsed.diagnostics, text).toEqual([]);
   const statement = parsed.statement!;
@@ -59,7 +59,7 @@ const specialArgNames = new Set(["steps", "id", "roles", "parent", "branch", "in
 const universalArgNames = new Set(["state"]);
 
 /**
- * Two parameterKeys are never written to nui 4 text directly, by construction
+ * Two parameterKeys are never written to nui 1 text directly, by construction
  * of the P1 registry && P5 serializer (not a gap in P9): `placementMode` has
  * no arg at all; the inactive distance/ratio side is omitted by
  * `shouldSerializeConstructionArg`. Both are fixed/asserted in dedicated
@@ -89,7 +89,7 @@ const expectedArgText = (text: string, outer: { start: number; end: number }, pa
  *  - every parameterKey resolves iff its arg is present in the text (this is the
  *    "minimal: present resolves, omitted defaults are null" requirement).
  */
-const checkFixtureSpans = (fixture: Nui4CanonicalElementStatement, text: string) => {
+const checkFixtureSpans = (fixture: Nui1CanonicalElementStatement, text: string) => {
   const { element, statement } = applyFixtureText(fixture, text);
   const present = new Set(Object.keys(statement.payloadSpans));
 
@@ -131,16 +131,16 @@ const checkFixtureSpans = (fixture: Nui4CanonicalElementStatement, text: string)
   }
 };
 
-describe("DSL nui 4 P9 parameter value span resolution", () => {
+describe("DSL nui 1 P9 parameter value span resolution", () => {
   describe("全27要素型の populated/minimal 網羅", () => {
-    for (const fixture of nui4CanonicalElementStatements) {
+    for (const fixture of nui1CanonicalElementStatements) {
       it(`resolves ${fixture.key} (populated)`, () => checkFixtureSpans(fixture, fixture.populated));
       it(`resolves ${fixture.key} (minimal)`, () => checkFixtureSpans(fixture, fixture.minimal));
     }
   });
 
   it("resolves the element name span for every fixture with a name", () => {
-    for (const fixture of nui4CanonicalElementStatements) {
+    for (const fixture of nui1CanonicalElementStatements) {
       // A bare mutation statement (edge/extend/move/mirrorMove/reverse) has
       // no `<category> <name> =` head at all - its compiled name is always
       // "", so there is no name span to resolve.
@@ -158,7 +158,7 @@ describe("DSL nui 4 P9 parameter value span resolution", () => {
   });
 
   it("resolves bezierCurve intermediate records with content matching P5's own serialization", () => {
-    const fixture = nui4CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
+    const fixture = nui1CanonicalElementStatements.find((item) => item.key === "bezierCurve")!;
     const { element } = applyFixtureText(fixture, fixture.populated);
     const bezier = element as Extract<CadElement, { type: "bezierCurve" }>;
     const dslRefs = documentDslRefs([...refs, element]);
@@ -179,7 +179,7 @@ describe("DSL nui 4 P9 parameter value span resolution", () => {
 
   describe("placementMode・非アクティブ側・測定variableのscope(DSL上に直接表現されない)", () => {
     it("fixes placementMode to null and resolves only the active distance/ratio side", () => {
-      for (const fixture of nui4CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
+      for (const fixture of nui1CanonicalElementStatements.filter((item) => item.key === "divisionPoint" || item.key === "lineDivisionPoint")) {
         for (const text of [fixture.populated, fixture.minimal]) {
           const { element } = applyFixtureText(fixture, text);
           const mode = (element as { placement: { kind: "distance" | "ratio" } }).placement.kind;

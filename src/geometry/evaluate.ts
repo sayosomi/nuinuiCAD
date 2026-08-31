@@ -126,7 +126,7 @@ export type EvaluateElementsOptions = {
    * Task 27's elementId-keyed compiled TextTemplateAst (already re-keyed by
    * textTemplateRuntime.ts's buildTextTemplateEntriesByElementId - never
    * built here). Unlike every entry above, this does NOT require
-   * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 4
+   * `scalarProgram`: Task 26's compileTextTemplates runs for every nui 1
    * document regardless of typed declarations, so an all-numeric-hole
    * template can be present with no scalarProgram at all.
    */
@@ -189,7 +189,7 @@ export const evaluateElements = (
     );
   }
   // textTemplateEntriesByElementId deliberately has no such guard: Task 26's
-  // compileTextTemplates runs for every nui 4 document regardless of typed
+  // compileTextTemplates runs for every nui 1 document regardless of typed
   // declarations, so it can be non-empty with an all-numeric-hole template
   // && no scalarProgram at all - see EvaluateElementsOptions's doc comment.
 

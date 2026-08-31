@@ -27,7 +27,7 @@ const targetAtPoint = (source: string, compiled: CompiledDslDocument, sourceRevi
 describe("Module Preview state freshness", () => {
   it("retains last-good data across fresh source revisions only while exact Module identity survives", () => {
     const validSource = [
-      "nui 4",
+      "nui 1",
       "module M(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}"

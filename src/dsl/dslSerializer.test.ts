@@ -4,7 +4,7 @@ import { documentDslRefs, serializeElementsToDsl } from "./dslSerializer";
 import { serializeElementStatementLogical } from "./dslSerializeElement";
 
 // 決定論的なIDを明示して要素を組み立て、フラット出力のバイト列を固定する。
-// serializer共通化後も、正規化された nui4 の `@` 参照を安定して出力する
+// serializer共通化後も、正規化された nui1 の `@` 参照を安定して出力する
 // 回帰テスト。
 const buildElements = () => {
   const result = compileDslToElements(

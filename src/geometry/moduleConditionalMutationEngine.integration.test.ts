@@ -7,7 +7,7 @@ import type { RustEvaluationTransport } from "./rustEvaluationRunner";
 import { useEvaluationEngine } from "./useEvaluationEngine";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point Outside = coordinate(x: 0, y: 0)",
   "module M() {",
   "  let value: number = 0",
@@ -26,7 +26,7 @@ afterEach(() => {
 describe("Module conditional mutation evaluation engine", () => {
   it("forwards qualified Module conditional owners into the Rust payload", async () => {
     vi.stubEnv("VITE_EVALUATION_ENGINE", "rust");
-    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
     expect(compiled.status).toBe("valid");
     const document = compiled.doc;
     const owners = document.moduleConditionalOwnerStatementIdByElementId;

@@ -55,7 +55,7 @@ const expectRejectedWithoutPatch = (result: ReturnType<typeof planGroup>, code: 
 describe("planExtractModule checkpoint 4 plain groups", () => {
   it("moves a complete plain group intact, preserves layout, and parameterizes an outer scalar", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "group Pocket {",
       "  const first: number = @width + 1",
@@ -76,7 +76,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     ]);
     expect(result.exports).toEqual([]);
     expect(applyLineSplices(source, result.splices)).toBe([
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "module Extracted(width: number) {",
       "  group Pocket {",
@@ -94,7 +94,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
 
   it("keeps nested scalar, geometry, and geometry-array references internal to the moved group subtree", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "group Pocket {",
       "  point Local = offset(from: @Base, dx: 1, dy: 0)",
@@ -120,7 +120,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
 
   it("fails closed when a geometry declaration nested inside the selected group is referenced from outside", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Pocket {",
       "  point Inside = coordinate(x: 0, y: 0)",
       "}",
@@ -132,7 +132,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
 
   it("recursively accepts mixed conditional and nested-for descendants under a plain group", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const flag: boolean = true",
       "const start: number = 1",
       "const count: number = 2",
@@ -176,7 +176,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
 
   it("keeps a let/set pair inside the group but rejects a write crossing the Extract boundary", () => {
     const internalSource = [
-      "nui 4",
+      "nui 1",
       "group Pocket {",
       "  let total: number = 0",
       "  set total = @total + 1",
@@ -187,7 +187,7 @@ describe("planExtractModule checkpoint 4 plain groups", () => {
     if (internal.status === "planned") expect(internal.dependencies).toEqual([]);
 
     const crossingSource = [
-      "nui 4",
+      "nui 1",
       "let total: number = 0",
       "group Pocket {",
       "  set total = @total + 1",

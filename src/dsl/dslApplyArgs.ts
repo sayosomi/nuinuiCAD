@@ -196,7 +196,7 @@ const roleIdFor = (roles: readonly VisibilityRole[], token: string) => {
 };
 
 /**
- * Applies already-scanned nui 4 arguments without parsing statements || assigning
+ * Applies already-scanned nui 1 arguments without parsing statements || assigning
  * document ownership. `metadata` is deliberately returned for the C1 compiler
  * skeleton to handle IDs && explicit parent/branch fallback rules.
  */

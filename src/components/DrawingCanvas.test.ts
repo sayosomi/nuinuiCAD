@@ -2221,7 +2221,7 @@ describe("DrawingCanvas point dragging", () => {
   });
 
   it("finishes a released dirty click only after the matching evaluation arrives", async () => {
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)", "test");
     const beforeRevision = useCadDocumentStore.getState().compiledDocumentRevision;
     const staleEvaluation = referenceEvaluationState(beforeRevision);
     const canvasFocusRef = createRef<HTMLDivElement>();
@@ -2237,7 +2237,7 @@ describe("DrawingCanvas point dragging", () => {
       hasPendingText: () => true,
       isComposing: () => false,
       flush: () => {
-        useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 1, y: 0)\npoint B = coordinate(x: 100, y: 0)", "editor");
+        useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 1, y: 0)\npoint B = coordinate(x: 100, y: 0)", "editor");
         return "flushed";
       }
     });
@@ -2446,7 +2446,7 @@ describe("DrawingCanvas benchmark drag hooks", () => {
 
 describe("DrawingCanvas pending pointer intents", () => {
   // World (0, 0) renders at screen (250, 200) with the 500x400 test viewport.
-  const twoPointText = "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)";
+  const twoPointText = "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 100, y: 0)";
   const twoPointFlushText = `${twoPointText}\npoint C = coordinate(x: 0, y: 60)`;
 
   let unregisterSession: (() => void) | null = null;
@@ -2574,8 +2574,8 @@ describe("DrawingCanvas pending pointer intents", () => {
 
   it("drags the point grabbed at the press position, not the element under the drop position", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({
-      initialText: "nui 4\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)",
-      flushText: "nui 4\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)\npoint R = coordinate(x: 0, y: 60)"
+      initialText: "nui 1\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)",
+      flushText: "nui 1\npoint P = coordinate(x: 0, y: 0)\npoint Q = coordinate(x: 50, y: 0)\npoint R = coordinate(x: 0, y: 60)"
     });
 
     fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
@@ -2730,7 +2730,7 @@ describe("DrawingCanvas pending pointer intents", () => {
   it("cancels when the pressed target was deleted by the flushed document", async () => {
     const { viewport, deliverEvaluationState } = renderPendingCanvas({
       initialText: twoPointText,
-      flushText: "nui 4\npoint A = coordinate(x: 0, y: 0)"
+      flushText: "nui 1\npoint A = coordinate(x: 0, y: 0)"
     });
     const bId = idByName("B");
 

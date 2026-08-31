@@ -63,7 +63,7 @@ const sessionFor = (initialSource: string) => {
 describe("VS Code Elements tree provider", () => {
   it("projects the exact-current Document Symbols hierarchy and source order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Outer {",
       "  point First = coordinate(x: 0, y: 0)",
       "  if (@condition) {",
@@ -74,7 +74,7 @@ describe("VS Code Elements tree provider", () => {
       "  point Last = coordinate(x: 2, y: 2)",
       "}"
     ].join("\n");
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const provider = createNuiElementsTreeProvider(
       () => documentFor(source) as never,
       () => session
@@ -99,23 +99,23 @@ describe("VS Code Elements tree provider", () => {
   });
 
   it("fails closed for unsupported and stale source instead of showing last-good structure", () => {
-    const session = sessionFor("nui 4\n");
+    const session = sessionFor("nui 1\n");
     const unsupported = createNuiElementsTreeProvider(
-      () => documentFor("nui 4\npoint A = coordinate(x: 0, y: 0)", "/tmp/pattern.txt") as never,
+      () => documentFor("nui 1\npoint A = coordinate(x: 0, y: 0)", "/tmp/pattern.txt") as never,
       () => session
     );
     expect(unsupported.getChildren()).toEqual([]);
 
     session.documentSymbolSyntaxSnapshot = vi.fn(() => undefined);
     const stale = createNuiElementsTreeProvider(
-      () => documentFor("nui 4\npoint A = coordinate(x: 0, y: 0)") as never,
+      () => documentFor("nui 1\npoint A = coordinate(x: 0, y: 0)") as never,
       () => session
     );
     expect(stale.getChildren()).toEqual([]);
   });
 
   it("fires a root refresh without adding row commands or runtime presentation", () => {
-    const provider = createNuiElementsTreeProvider(() => undefined, () => sessionFor("nui 4\n"));
+    const provider = createNuiElementsTreeProvider(() => undefined, () => sessionFor("nui 1\n"));
     const listener = vi.fn();
     const disposable = provider.onDidChangeTreeData!(listener);
 

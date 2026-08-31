@@ -10,7 +10,7 @@ import { collectInitializerOccurrences, collectSiteBatchOccurrences } from "./ty
 // TypedDependencyKind edge kinds in one document, plus `set` targets (which
 // Task 36 does not model as an edge kind at all, so it is checked directly).
 const source = [
-  "nui 4",
+  "nui 1",
   "const base: number = 1",
   "let derived: number = @base",
   "let counter: number = 0",
@@ -87,7 +87,7 @@ describe("typed rename occurrence coverage against Task 36's dependency graph", 
 
   it("uses BindingCatalog statement identity for Module-aware initializer sites", () => {
     const moduleSource = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + 5",
       "module Measure(input: number) {",

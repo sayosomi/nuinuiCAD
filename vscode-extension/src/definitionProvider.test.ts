@@ -75,7 +75,7 @@ const definitionFor = (source: string, line: number, character: number, document
 describe("VS Code native nui definition provider", () => {
   it("projects a modifier reference to its exact quoted declaration token", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'modifier "Guide Line" {',
       "  state: visible,",
       "}",
@@ -100,7 +100,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("projects an exact reference and declaration into one same-document DefinitionLink", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -127,7 +127,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("keeps UTF-16 ranges exact for CRLF, Japanese identifiers, and an earlier surrogate pair", () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(x: 0, y: 0)",
       "point 使用 = offset(from: @前身頃, dx: 1, dy: 0)"
@@ -156,7 +156,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("follows typed binding shadowing through the semantic identity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const value: number = 1",
       "group Inner {",
       "  const value: number = 2",
@@ -175,7 +175,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("projects a qualified reference to the resolved Module export declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -199,7 +199,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("projects a Module callee to its declaration", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number) {",
       "}",
       "instance Call = Measure(width: 10)"
@@ -217,7 +217,7 @@ describe("VS Code native nui definition provider", () => {
 
   it("returns undefined for unresolved and ambiguous references", () => {
     const unresolved = [
-      "nui 4",
+      "nui 1",
       "point B = offset(from: @Missing, dx: 1, dy: 0)"
     ].join("\n");
     const unresolvedLine = unresolved.split("\n")[1]!;
@@ -228,7 +228,7 @@ describe("VS Code native nui definition provider", () => {
     )).toBeUndefined();
 
     const ambiguous = [
-      "nui 4",
+      "nui 1",
       "group One {",
       "  point Same = coordinate(x: 0, y: 0)",
       "}",
@@ -247,11 +247,11 @@ describe("VS Code native nui definition provider", () => {
 
   it("does not jump to a last-good declaration after the current source becomes fatal", () => {
     const initialSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
-    const fatalSource = "nui 4\npoint B = offset(from: @A, dx: 1, dy: 0";
+    const fatalSource = "nui 1\npoint B = offset(from: @A, dx: 1, dy: 0";
     const session = createLanguageAnalysisSession(initialSource);
     session.replaceSource(fatalSource);
     const provider = createNuiDefinitionProvider(() => session);
@@ -266,9 +266,9 @@ describe("VS Code native nui definition provider", () => {
   });
 
   it("synchronizes the session from the current TextDocument before querying", () => {
-    const initialSource = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const initialSource = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const currentSource = [
-      "nui 4",
+      "nui 1",
       "point B = coordinate(x: 0, y: 0)",
       "point C = offset(from: @B, dx: 1, dy: 0)"
     ].join("\n");
@@ -291,7 +291,7 @@ describe("VS Code native nui definition provider", () => {
   });
 
   it("returns no definition for declarations and unsupported documents", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const declaration = definitionFor(source, 1, "point ".length + 1);
     const unsupported = definitionFor(
       source,

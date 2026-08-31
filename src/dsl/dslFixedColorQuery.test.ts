@@ -19,7 +19,7 @@ const query = (source: string, revision = 1) => queryDslFixedColors({
 describe("DSL fixed-color query", () => {
   it("returns exact modifier fixed-color ranges and normalized RGB values", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  width: 1.5px,",
       "  style: dotted,",
@@ -47,7 +47,7 @@ describe("DSL fixed-color query", () => {
 
   it("fails closed for stale source semantics and incomplete fixed-color authoring", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  color: #123456",
       "}"
@@ -62,7 +62,7 @@ describe("DSL fixed-color query", () => {
 
   it("keeps exact fixed colors available from the current partial source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  color: #123456",
       "}",

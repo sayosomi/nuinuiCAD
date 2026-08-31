@@ -22,7 +22,7 @@ const rangeText = (source: string, range: { from: number; to: number } | null) =
 describe("SAY-108 output place projection", () => {
   it("projects transformed origin, authored properties, placed geometry, and exact source targets", async () => {
     const doc = compileSource([
-      "nui 4",
+      "nui 1",
       "const dx: number = 30",
       "group G {",
       "  point A = coordinate(x: 5, y: 5)",
@@ -61,7 +61,7 @@ describe("SAY-108 output place projection", () => {
 
   it("keeps reference/expression-driven at non-draggable while preserving individual definition targets", async () => {
     const doc = compileSource([
-      "nui 4",
+      "nui 1",
       "const x: number = 10",
       "const y: number = 20",
       "group G {",
@@ -118,7 +118,7 @@ describe("SAY-108 output place projection", () => {
 
   it("does not invent omitted place properties", async () => {
     const doc = compileSource([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  line AB = segment(start: (0, 0), end: (10, 0))",
       "}",

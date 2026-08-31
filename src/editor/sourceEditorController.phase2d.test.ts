@@ -594,7 +594,7 @@ describe("SourceEditorController structural shortcuts", () => {
 
   it("moves a collapsed element as one unit from its visible closing row with Option+Arrow", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "point Before = coordinate(x: 0, y: 0)",
       "group G {",
       "  point Child = coordinate(x: 1, y: 1)",

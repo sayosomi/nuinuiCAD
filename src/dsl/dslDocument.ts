@@ -88,7 +88,7 @@ export {
   type DslMajorVersion
 } from "./dslVersion";
 
-// `nui 4` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
+// `nui 1` 文書全体のcompile / serializeファサード。`.nui` のsourceTextを唯一の
 // 正として扱い、ここではテキストと構造化データの往復だけを担う。
 
 export type DslDocumentData = {
@@ -238,7 +238,7 @@ export type CompiledDslDocument = {
   /**
    * Task 26 compiled `label(text: ...)` templates, keyed by
    * propertyBindingOccurrenceKey(statementIndex, "text"). Present for every
-   * nui 4 document with a canonical text occurrence, independent of whether
+   * nui 1 document with a canonical text occurrence, independent of whether
    * the document has any typed declaration at all - unlike propertyBindings/
    * conditionalGroupConditions above, this does not gate on `scalarAnalysis`.
    */
@@ -750,7 +750,7 @@ const validateVersionStatements = (
   const firstStatement = statements[0];
 
   if (!firstStatement) {
-    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 4` が必要です。"));
+    diagnostics.push(versionDiagnostic(1, "文書が空です。先頭に `nui 1` が必要です。"));
   } else if (firstStatement.kind !== "version") {
     diagnostics.push(versionDiagnostic(firstStatement.line, "文書の先頭は `nui <バージョン>` である必要があります。"));
   } else {
@@ -1578,7 +1578,7 @@ export const compileDslDocument = (
     : [];
 
   // Task 22: property binding compile/typecheck. Only meaningful once typed
-  // declarations exist to reference (nui4 + at least one binding) - a
+  // declarations exist to reference (nui1 + at least one binding) - a
   // document with none can never contain a valid `@name` property source.
   const propertyBindingCompilation = scalarAnalysis
     ? compilePropertyBindings({
@@ -1618,7 +1618,7 @@ export const compileDslDocument = (
     : undefined;
   // Task 26: text template brace/escape/hole analysis for every canonical
   // `label(text: ...)` occurrence. Unlike the two compilers above, this does
-  // NOT gate on `scalarAnalysis` - a nui4 document with zero typed
+  // NOT gate on `scalarAnalysis` - a nui1 document with zero typed
   // declarations still needs its text templates scanned for escape/brace
   // structure (only reference resolution itself needs a binding catalog,
   // && gracefully has none here).

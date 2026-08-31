@@ -7,7 +7,7 @@ import {
 import { outputPreviewManualE2eSource } from "./outputPreviewManualFixture";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "group G {",
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",
@@ -19,7 +19,7 @@ const source = [
 ].join("\n");
 
 const multilineOutputSource = [
-  "nui 4",
+  "nui 1",
   "group G {",
   "  line AB = segment(start: (0, 0), end: (10, 0))",
   "}",

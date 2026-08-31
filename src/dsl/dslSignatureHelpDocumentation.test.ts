@@ -3,7 +3,7 @@ import { createLanguageAnalysisSession } from "../../vscode-extension/src/langua
 import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "/// @ja",
   "/// ポケットを作る。",
   "/// @en",

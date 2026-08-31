@@ -29,7 +29,7 @@ const expression = (source: string) => {
 describe("record scalar lowering planner", () => {
   it("creates hidden constructor field bindings in record declaration order", () => {
     const { parsed, sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, right: string)",
       'const pair: Pair = Pair(right: "R", left: 1)'
     ].join("\n"));
@@ -72,7 +72,7 @@ describe("record scalar lowering planner", () => {
 
   it("reuses constructor-owned backing slots for exact-type record aliases", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, right: string)",
       'const origin: Pair = Pair(left: 10, right: "base")',
       "const alias: Pair = @origin",
@@ -95,7 +95,7 @@ describe("record scalar lowering planner", () => {
 
   it("reuses externally supplied field backing for a qualified Module record alias", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, right: string)",
       'const origin: Pair = Pair(left: 10, right: "base")',
       "const alias: Pair = @Source::output"
@@ -120,7 +120,7 @@ describe("record scalar lowering planner", () => {
 
   it("does not synthesize storage for an incompatible or incomplete external record alias", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, right: string)",
       'const mismatch: Pair = @Source::wrong',
       'const incomplete: Pair = @Source::partial'
@@ -143,7 +143,7 @@ describe("record scalar lowering planner", () => {
 
   it("keeps constructor storage identity distinct across record values", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "const first: Pair = Pair(x: 1)",
       "const second: Pair = Pair(x: 2)"
@@ -159,7 +159,7 @@ describe("record scalar lowering planner", () => {
 
   it("prepares a record field as an ordinary typed scalar reference while preserving field identity and spans", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, label: string)",
       'const pair: Pair = Pair(left: 10, label: "base")',
       'const after: string = "unused"'
@@ -203,7 +203,7 @@ describe("record scalar lowering planner", () => {
 
   it("leaves geometry dotted properties on the existing geometry owner", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "record Pair(x: number)",
       "const pair: Pair = Pair(x: 1)"
@@ -227,7 +227,7 @@ describe("record scalar lowering planner", () => {
 
   it("claims unknown record fields and fails them without falling through to geometry resolution", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "const pair: Pair = Pair(x: 1)",
       "const after: number = 0"
@@ -251,7 +251,7 @@ describe("record scalar lowering planner", () => {
 
   it("leaves Module-parameter alias storage to the Module runtime owner", () => {
     const { sourceNamespace, records } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const copy: Pair = @input",

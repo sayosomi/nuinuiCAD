@@ -8,9 +8,9 @@ const sourceSnapshotFor = (source: string, sourceRevision: number) => ({
   sourceRevision
 });
 
-const validSource = "nui 4\npoint A = coordinate(x: 0, y: 1)\n";
-const fatalSource = "nui 4\npoint A = coordinate(";
-const warningSource = "nui 4\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
+const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
+const fatalSource = "nui 1\npoint A = coordinate(";
+const warningSource = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
 
 describe("VS Code document-scoped language analysis session", () => {
   it("uses one AutomationDocument lifecycle for diagnostics and completion", () => {
@@ -23,13 +23,13 @@ describe("VS Code document-scoped language analysis session", () => {
     session.valueStepSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.referencesSemanticSnapshot(sourceSnapshotFor(validSource, 1));
     session.renameSemanticSnapshot(sourceSnapshotFor(validSource, 1));
-    session.replaceSource("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+    session.replaceSource("nui 1\npoint B = coordinate(x: 0, y: 1)\n");
     session.getDiagnostics();
-    session.completionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
-    session.definitionSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
-    session.valueStepSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
-    session.referencesSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
-    session.renameSemanticSnapshot(sourceSnapshotFor("nui 4\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.completionSemanticSnapshot(sourceSnapshotFor("nui 1\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.definitionSemanticSnapshot(sourceSnapshotFor("nui 1\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.valueStepSemanticSnapshot(sourceSnapshotFor("nui 1\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.referencesSemanticSnapshot(sourceSnapshotFor("nui 1\npoint B = coordinate(x: 0, y: 1)\n", 2));
+    session.renameSemanticSnapshot(sourceSnapshotFor("nui 1\npoint B = coordinate(x: 0, y: 1)\n", 2));
 
     expect(fromSource).toHaveBeenCalledTimes(1);
     fromSource.mockRestore();
@@ -78,7 +78,7 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(session.acceptRuntimeDiagnostics(5, { type: "runtimeDiagnosticsPublication", documentVersion: 4, diagnostics: [] })).toBe(false);
     expect(session.runtimeDiagnosticsSnapshotFor(5)?.diagnostics).toBe(diagnostics);
 
-    session.replaceSource("nui 4\npoint B = coordinate(x: 0, y: 1)\n");
+    session.replaceSource("nui 1\npoint B = coordinate(x: 0, y: 1)\n");
 
     expect(session.runtimeDiagnosticsSnapshotFor(5)).toBeNull();
   });
@@ -138,7 +138,7 @@ describe("VS Code document-scoped language analysis session", () => {
   });
 
   it("publishes the production unused Drawing Modifier warning in the language session", () => {
-    const source = "nui 4\nmodifier Unused {\n  state: visible,\n}\n";
+    const source = "nui 1\nmodifier Unused {\n  state: visible,\n}\n";
     const session = createLanguageAnalysisSession(source);
 
     expect(session.getDiagnostics()).toEqual([
@@ -174,7 +174,7 @@ describe("VS Code document-scoped language analysis session", () => {
     const session = createLanguageAnalysisSession(validSource);
 
     expect(session.foldingSyntaxSnapshot(sourceSnapshotFor(
-      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      "nui 1\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();
     expect(session.foldingSyntaxSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
@@ -191,12 +191,12 @@ describe("VS Code document-scoped language analysis session", () => {
       sourceMap: expect.objectContaining({ source: validSource, sourceRevision: 1 })
     });
     expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
-    expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor("nui 4\npoint Other = coordinate(x: 0, y: 1)\n", 1))).toBeUndefined();
+    expect(session.documentSymbolSyntaxSnapshot(sourceSnapshotFor("nui 1\npoint Other = coordinate(x: 0, y: 1)\n", 1))).toBeUndefined();
   });
 
   it("does not leak last-good document symbol statements after a fatal edit", () => {
-    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
-    const currentSource = "nui 4\npoint Current = coordinate(";
+    const session = createLanguageAnalysisSession("nui 1\nconst old: number = 1\n");
+    const currentSource = "nui 1\npoint Current = coordinate(";
     session.replaceSource(currentSource);
 
     const snapshot = session.documentSymbolSyntaxSnapshot(sourceSnapshotFor(currentSource, 2));
@@ -217,9 +217,9 @@ describe("VS Code document-scoped language analysis session", () => {
   });
 
   it("keeps document symbols on the exact current revision after repairing and refailing", () => {
-    const initialSource = "nui 4\nconst old: number = 1\n";
-    const firstFatalSource = "nui 4\npoint First = coordinate(";
-    const repairedSource = "nui 4\npoint Repaired = coordinate(x: 0, y: 0)\n";
+    const initialSource = "nui 1\nconst old: number = 1\n";
+    const firstFatalSource = "nui 1\npoint First = coordinate(";
+    const repairedSource = "nui 1\npoint Repaired = coordinate(x: 0, y: 0)\n";
     const laterFatalSource = `${repairedSource}group Scratch {\npoint live = coordinate(x: 1, y: 1)\n`;
     const session = createLanguageAnalysisSession(initialSource);
 
@@ -280,8 +280,8 @@ describe("VS Code document-scoped language analysis session", () => {
   });
 
   it("returns current parse-only folding data for fatal source without last-good fallback", () => {
-    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
-    const currentSource = "nui 4\npoint A = coordinate(";
+    const session = createLanguageAnalysisSession("nui 1\nconst old: number = 1\n");
+    const currentSource = "nui 1\npoint A = coordinate(";
     session.replaceSource(currentSource);
 
     const snapshot = session.foldingSyntaxSnapshot(sourceSnapshotFor(currentSource, 2));
@@ -297,9 +297,9 @@ describe("VS Code document-scoped language analysis session", () => {
   });
 
   it("uses exact current partial semantics for fatal source without leaking last-good data", () => {
-    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\nconst value: number = @old");
+    const session = createLanguageAnalysisSession("nui 1\nconst old: number = 1\nconst value: number = @old");
     expect(session.completionSemanticSnapshot(sourceSnapshotFor(
-      "nui 4\nconst old: number = 1\nconst value: number = @old",
+      "nui 1\nconst old: number = 1\nconst value: number = @old",
       1
     ))).toBeDefined();
 
@@ -355,11 +355,11 @@ describe("VS Code document-scoped language analysis session", () => {
     const session = createLanguageAnalysisSession(validSource);
 
     expect(session.completionSemanticSnapshot(sourceSnapshotFor(
-      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      "nui 1\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();
     expect(session.definitionSemanticSnapshot(sourceSnapshotFor(
-      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      "nui 1\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();
   });
@@ -389,7 +389,7 @@ describe("VS Code document-scoped language analysis session", () => {
       })
     });
     expect(session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(
-      "nui 4\npoint Other = coordinate(x: 0, y: 1)\n",
+      "nui 1\npoint Other = coordinate(x: 0, y: 1)\n",
       1
     ))).toBeUndefined();
     expect(session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(validSource, 2))).toBeUndefined();
@@ -398,7 +398,7 @@ describe("VS Code document-scoped language analysis session", () => {
   it("invalidates the old choice Quick Fix snapshot after replaceSource", () => {
     const session = createLanguageAnalysisSession(validSource);
     const oldSnapshot = sourceSnapshotFor(validSource, 1);
-    const nextSource = "nui 4\npoint B = coordinate(x: 0, y: 1)\n";
+    const nextSource = "nui 1\npoint B = coordinate(x: 0, y: 1)\n";
 
     session.replaceSource(nextSource);
 
@@ -407,7 +407,7 @@ describe("VS Code document-scoped language analysis session", () => {
   });
 
   it("does not fall back to last-good compiled data for fatal choice Quick Fix source", () => {
-    const session = createLanguageAnalysisSession("nui 4\nconst old: number = 1\n");
+    const session = createLanguageAnalysisSession("nui 1\nconst old: number = 1\n");
     session.replaceSource(fatalSource);
 
     const snapshot = session.choiceQuickFixSemanticSnapshot(sourceSnapshotFor(fatalSource, 2));

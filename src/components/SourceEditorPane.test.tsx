@@ -16,7 +16,7 @@ describe("SourceEditorPane", () => {
   });
 
   it("mounts as an independent surface and applies a model patch without resetting the full document", () => {
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)", "test");
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);
     const changed = useCadDocumentStore.getState().elements.map((element) =>
@@ -27,13 +27,13 @@ describe("SourceEditorPane", () => {
     });
 
     expect(ref.current?.getText()).toBe(
-      "nui 4\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  state: disabled,\n)\npoint B = coordinate(x: 1, y: 1)"
+      "nui 1\npoint A = coordinate(\n  x: 0,\n  y: 0,\n  state: disabled,\n)\npoint B = coordinate(x: 1, y: 1)"
     );
     screen.unmount();
   });
 
   it("rejects external model mutations during composition and leaves no stale preview", () => {
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)", "test");
     const ref = createRef<SourceEditorHandle>();
     const screen = render(<SourceEditorPane ref={ref} />);
     const content = screen.container.querySelector(".cm-content");
@@ -47,19 +47,19 @@ describe("SourceEditorPane", () => {
     act(() => {
       result = useCadDocumentStore.getState().commitDocumentChange({ elements: changed });
     });
-    expect(ref.current?.getText()).toBe("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    expect(ref.current?.getText()).toBe("nui 1\npoint A = coordinate(x: 0, y: 0)");
     expect(result).toEqual({ status: "rejected", reason: "composition" });
     expect(useCadDocumentStore.getState().previewElements).toBeNull();
 
     fireEvent.compositionEnd(content!);
-    expect(ref.current?.getText()).toBe("nui 4\npoint A = coordinate(x: 0, y: 0)");
+    expect(ref.current?.getText()).toBe("nui 1\npoint A = coordinate(x: 0, y: 0)");
     screen.unmount();
   });
 
   it("unsubscribes on destroy", () => {
     const screen = render(<SourceEditorPane />);
     screen.unmount();
-    expect(() => useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)", "test")).not.toThrow();
+    expect(() => useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)", "test")).not.toThrow();
   });
 
   it("shows the current document file state in the header", () => {
@@ -103,7 +103,7 @@ describe("SourceEditorPane", () => {
   });
 
   it("dispatches selected element commands from the docked command ribbon", () => {
-    useCadDocumentStore.getState().commitText("nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)", "test");
+    useCadDocumentStore.getState().commitText("nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)", "test");
     const elements = useCadDocumentStore.getState().elements;
     const target = elements.find((element) => element.name === "A");
     expect(target).toBeDefined();

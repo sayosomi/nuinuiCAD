@@ -72,7 +72,7 @@ export interface ScalarReferenceNode {
   readonly name: string;
 }
 
-/** A nui 4 `@Element.property` reference.  Resolution to a stable element
+/** A nui 1 `@Element.property` reference.  Resolution to a stable element
  * identity happens with the compiled document, not in the syntax parser. */
 export interface ScalarGeometryPropertyReferenceNode {
   readonly kind: "geometryProperty";

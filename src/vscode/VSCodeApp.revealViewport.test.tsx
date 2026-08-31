@@ -80,7 +80,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
 
   it("refits and centers ordinary geometry even when it was already visible", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 100, y: 50)",
       "line AB = segment(start: @A, end: @B)"
@@ -125,7 +125,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
 
   it("fails a group Reveal even when aggregate descendant bounds are available", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point P = coordinate(x: 0, y: 0)",
       "  point Q = coordinate(x: 100, y: 50)",
@@ -182,7 +182,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
 
   it("fails a concrete Module instance Reveal when only aggregate descendant bounds are available", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 0, y: 0)",
       "  point Q = coordinate(x: 100, y: 50)",
@@ -240,7 +240,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
 
   it("keeps the viewport and selection unchanged when a Module instance has no own presentation", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 80, y: 0)",
       "}",

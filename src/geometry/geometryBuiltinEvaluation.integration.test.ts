@@ -6,7 +6,7 @@ import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 
 const compile = (source: string): LastGoodDslDocument => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
@@ -36,7 +36,7 @@ const pointCoordinates = (compiled: LastGoodDslDocument, evaluation: EvaluationR
 describe("geometry measurement builtins through the production TS scalar path", () => {
   it("evaluates distance, angle, lineDistance, and lineAngle before downstream point construction", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",
       "point U = coordinate(x: 0, y: 1)",
@@ -65,7 +65,7 @@ describe("geometry measurement builtins through the production TS scalar path", 
 
   it("keeps geometry builtin declarations working when linear mutation evaluation is selected", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "let unrelated: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 3, y: 4)",

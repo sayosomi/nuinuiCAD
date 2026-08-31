@@ -1,0 +1,16 @@
+nui 1
+// Active nui1 evaluation fixture.
+let printVisible: boolean = true
+let printHidden: boolean = false
+group Visible {
+  point A = coordinate(x: 0, y: 0)
+}
+group Hidden (state: hidden) {
+  point B = coordinate(x: 10, y: 0)
+}
+group Disabled (state: disabled) {
+  point C = coordinate(x: 20, y: 0)
+}
+group NotPrinted {
+  point D = coordinate(x: 30, y: 0)
+}

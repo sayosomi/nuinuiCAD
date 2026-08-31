@@ -12,7 +12,7 @@ const analyze = (source: string) => {
 describe("record nominal semantic analysis", () => {
   it("derives nominal record/field/value identities and preserves declaration field order", () => {
     const { parsed, records, namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(left: number, right: string)",
       'const pair: Pair = Pair(right: "R", left: 1)'
     ].join("\n"));
@@ -41,7 +41,7 @@ describe("record nominal semantic analysis", () => {
 
   it("is non-hoisted for record type and constructor names", () => {
     const { namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "const before: Later = Later(value: 1)",
       "record Later(value: number)"
     ].join("\n"));
@@ -54,7 +54,7 @@ describe("record nominal semantic analysis", () => {
 
   it("validates constructor named arguments and nominal constructor type", () => {
     const { namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record A(x: number, y: string)",
       "record B(x: number)",
       "const bad: A = B(x: 1, x: 2, extra: 3)"
@@ -71,7 +71,7 @@ describe("record nominal semantic analysis", () => {
 
   it("accepts same-type whole-record references and rejects cross-nominal aliases", () => {
     const { records, namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record A(x: number)",
       "record B(x: number)",
       "const a: A = A(x: 1)",
@@ -89,7 +89,7 @@ describe("record nominal semantic analysis", () => {
 
   it("rejects record let/set and keeps whole records out of the scalar lexical catalog", () => {
     const { namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "let pair: Pair = Pair(x: 1)",
       "set pair = Pair(x: 2)"
@@ -103,7 +103,7 @@ describe("record nominal semantic analysis", () => {
 
   it("assigns Module record parameter identity and permits same-type whole-record parameter references", () => {
     const { records, namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const copy: Pair = @input",
@@ -127,7 +127,7 @@ describe("record nominal semantic analysis", () => {
 
   it("lets a visible local declaration shadow a record Module parameter", () => {
     const { records, namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const input: number = 1",
@@ -146,7 +146,7 @@ describe("record nominal semantic analysis", () => {
 
   it("uses a record Module parameter before a later local shadow becomes visible", () => {
     const { records, namespace } = analyze([
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Copy(input: Pair) {",
       "  const copy: Pair = @input",

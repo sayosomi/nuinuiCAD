@@ -34,7 +34,7 @@ const elementByName = (document: DslDocumentData, name: string): CadElement => {
 
 describe("snapshotToDslData", () => {
   it("DSLDocumentDataフィールドだけを写す", () => {
-    const document = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const document = compileOrThrow(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const dslData = snapshotToDslData(document);
     expect(dslData.elements).toBe(document.elements);
     expect(dslData).toEqual(document);
@@ -44,10 +44,10 @@ describe("snapshotToDslData", () => {
 describe("zipAssignedElementIds", () => {
   it("要素文数と要素配列の個数が一致すれば位置対応でIDを組む", () => {
     const document = compileOrThrow(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
     );
     const parsed = compileDslDocument(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
     );
     const assigned = zipAssignedElementIds(parsed.statements, document.elements);
     expect(assigned).not.toBeNull();
@@ -56,9 +56,9 @@ describe("zipAssignedElementIds", () => {
 
   it("個数不一致は null を返す(黙ってzipを続行しない)", () => {
     const document = compileOrThrow(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
     );
-    const parsed = compileDslDocument(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const parsed = compileDslDocument(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const assigned = zipAssignedElementIds(parsed.statements, document.elements);
     expect(assigned).toBeNull();
   });
@@ -67,9 +67,9 @@ describe("zipAssignedElementIds", () => {
 describe("generateShadowFromModel / advanceShadow 基本往復", () => {
   it("モデルから全体再生成した影はモデルと意味的に等価", () => {
     const document = compileOrThrow(
-      ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
+      ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n")
     );
-    const shadow = generateShadowFromModel(document, 4);
+    const shadow = generateShadowFromModel(document, 1);
     expect(shadow.compiled.document).not.toBeNull();
     expectSemanticallyEqualDocuments(shadow.compiled.document!, document);
     // zip不変条件: コンパイル後の要素ID列がモデルの要素ID列と一致する。
@@ -77,7 +77,7 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
   });
 
   it("1コミット分の行パッチはモデルIDをそのまま影に引き継ぐ", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const prev = seedShadow(source);
     const before = prev.compiled.document!;
     const afterDoc: DslDocumentData = {
@@ -86,7 +86,7 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
         element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
       )
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document).not.toBeNull();
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("state: disabled");
@@ -108,8 +108,8 @@ describe("generateShadowFromModel / advanceShadow 基本往復", () => {
         sourceElementsByStatementIndex: new Map()
       }
     };
-    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
-    const next = advanceShadow(prev, afterDoc, 4);
+    const afterDoc = compileOrThrow(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document).not.toBeNull();
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
   });
@@ -122,26 +122,26 @@ describe("advanceShadow 自己修復", () => {
     // 矛盾していると applyLineSplices が「行範囲が文書外」で例外を投げる
     // (textPatch.ts の防御的チェック)。advanceShadow はこれを吸収し、
     // 全体再生成へフォールバックしなければならない。
-    const prevSource = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
+    const prevSource = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point B = coordinate(x: 1, y: 1)"].join("\n");
     const prevCompiled = compileDslDocument(prevSource);
-    const prev: ShadowState = { text: "nui 4", compiled: prevCompiled };
+    const prev: ShadowState = { text: "nui 1", compiled: prevCompiled };
     const afterDoc = compileOrThrow(
       [
-        "nui 4",
+        "nui 1",
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 1, y: 1)",
         "point C = coordinate(x: 2, y: 2)"
       ].join("\n")
     );
     const onSelfHeal = vi.fn();
-    const next = advanceShadow(prev, afterDoc, 4, { onSelfHeal });
+    const next = advanceShadow(prev, afterDoc, 1, { onSelfHeal });
     expect(next.compiled.document).not.toBeNull();
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(onSelfHeal).toHaveBeenCalled();
   });
 
   it("dangling referenceを含む更新でも自己修復へ後退せず影を進める", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     const prev = seedShadow(source);
     const danglingElement: CadElement = {
       id: "dangling",
@@ -157,7 +157,7 @@ describe("advanceShadow 自己修復", () => {
       elements: [...prev.compiled.document!.elements, danglingElement]
     };
     const onSelfHeal = vi.fn();
-    const next = advanceShadow(prev, afterDoc, 4, { onSelfHeal });
+    const next = advanceShadow(prev, afterDoc, 1, { onSelfHeal });
     expect(next.compiled.document).not.toBeNull();
     expect(next.text).toContain("does-not-exist");
     expect(next.compiled.diagnostics).toEqual(expect.arrayContaining([
@@ -189,9 +189,9 @@ describe("safeGenerateShadowFromModel", () => {
       evaluationLimitIndex: 1
     };
     const onFailure = vi.fn();
-    const shadow = safeGenerateShadowFromModel(afterDoc, 4, onFailure);
+    const shadow = safeGenerateShadowFromModel(afterDoc, 1, onFailure);
     expect(shadow.compiled.document).not.toBeNull();
-    expect(shadow.text).not.toBe("nui 4");
+    expect(shadow.text).not.toBe("nui 1");
     expect(shadow.text).toContain("does-not-exist");
     expect(shadow.compiled.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining("does-not-exist") })
@@ -200,9 +200,9 @@ describe("safeGenerateShadowFromModel", () => {
   });
 
   it("正常な文書では例外なくgenerateShadowFromModelと同じ結果になる", () => {
-    const afterDoc = compileOrThrow(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"));
+    const afterDoc = compileOrThrow(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"));
     const onFailure = vi.fn();
-    const shadow = safeGenerateShadowFromModel(afterDoc, 4, onFailure);
+    const shadow = safeGenerateShadowFromModel(afterDoc, 1, onFailure);
     expect(onFailure).not.toHaveBeenCalled();
     expect(shadow.compiled.document).not.toBeNull();
     expectSemanticallyEqualDocuments(shadow.compiled.document!, afterDoc);
@@ -212,7 +212,7 @@ describe("safeGenerateShadowFromModel", () => {
 describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名要素・非連続parent)", () => {
   it("group入れ子内の属性編集は同一IDのまま反映される", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "  point B = coordinate(x: 1, y: 1)",
@@ -226,7 +226,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
         element.name === "B" ? ({ ...element, activity: "disabled" } as CadElement) : element
       )
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("group G {");
     expect(next.text).toContain("state: disabled");
@@ -234,7 +234,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
 
   it("if/elseブロックへの挿入は同一IDのまま反映される", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point T = coordinate(x: 0, y: 0)",
       "} else {",
@@ -244,7 +244,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
     const prev = seedShadow(source);
     const before = prev.compiled.document!;
     const conditional = elementByName(before, "分岐");
-    const inserted = compileOrThrow("nui 4\npoint N = coordinate(x: 9, y: 9)").elements[0];
+    const inserted = compileOrThrow("nui 1\npoint N = coordinate(x: 9, y: 9)").elements[0];
     const afterDoc: DslDocumentData = {
       ...before,
       elements: [
@@ -252,7 +252,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
         { ...inserted, parentGroupId: conditional.id, conditionalBranch: "else" } as CadElement
       ]
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("point N = coordinate(");
     expect(next.text).toContain("x: 9");
@@ -262,7 +262,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
 
   it("forブロック本体の編集は同一IDのまま反映される", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 3, step: 1) {",
       "  point P = coordinate(x: @i * 10, y: 0)",
       "}"
@@ -275,13 +275,13 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
         element.name === "P" ? ({ ...element, activity: "disabled" } as CadElement) : element
       )
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("for i in range(");
   });
 
   it("無名要素の挿入・属性編集は同一IDのまま反映される", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)", "point = coordinate(x: 5, y: 5)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)", "point = coordinate(x: 5, y: 5)"].join("\n");
     const prev = seedShadow(source);
     const before = prev.compiled.document!;
     const afterDoc: DslDocumentData = {
@@ -290,7 +290,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
         element.name === "" ? ({ ...element, x: 6, y: 6 } as CadElement) : element
       )
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("point = coordinate(");
     expect(next.text).toContain("x: 6");
@@ -298,18 +298,18 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
   });
 
   it("非連続な親子順序(parent=フォールバック)を保ったまま編集を反映する", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join(
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}", "point C = coordinate(x: 2, y: 2)"].join(
       "\n"
     );
     const prev = seedShadow(source);
     const before = prev.compiled.document!;
     const group = elementByName(before, "G");
-    const inserted = compileOrThrow("nui 4\npoint B = coordinate(x: 1, y: 1)").elements[0];
+    const inserted = compileOrThrow("nui 1\npoint B = coordinate(x: 1, y: 1)").elements[0];
     const afterDoc: DslDocumentData = {
       ...before,
       elements: [...before.elements, { ...inserted, parentGroupId: group.id } as CadElement]
     };
-    const next = advanceShadow(prev, afterDoc, 4);
+    const next = advanceShadow(prev, afterDoc, 1);
     expect(next.compiled.document!.elements.map((e) => e.id)).toEqual(afterDoc.elements.map((e) => e.id));
     expect(next.text).toContain("parent: @G");
   });

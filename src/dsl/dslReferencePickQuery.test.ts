@@ -29,7 +29,7 @@ const sliceRange = (source: string, result: ReturnType<typeof queryDslReferenceP
 describe("queryDslReferencePickTarget", () => {
   it("classifies construction point, endpoint, broad path, and reference-list targets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -72,7 +72,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("returns a zero-width insertion range for a known empty geometry value", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(from: , dx: 0, dy: 0)"
     ].join("\n");
@@ -90,7 +90,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("uses exact Module point, line, and path parameter interfaces", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -118,7 +118,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("uses geometry builtin registry metadata for active arguments", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -140,7 +140,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("replaces a numeric operand with a broad geometry base", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(from: @A, dx: 20, dy: 0)"
     ].join("\n");
@@ -160,7 +160,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("targets the complete existing numeric property operand at every reference token", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -189,7 +189,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("accepts canonical Arc and indexed Bezier numeric properties", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "point C = coordinate(x: 10, y: 10)",
@@ -222,7 +222,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("supports empty numeric operands in calls, typed declarations, and coordinate parameters", () => {
     const emptySource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point P = offset(from: @A, dx: , dy: 0)"
     ].join("\n");
@@ -235,7 +235,7 @@ describe("queryDslReferencePickTarget", () => {
     });
 
     const declarationSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -263,7 +263,7 @@ describe("queryDslReferencePickTarget", () => {
 
   it("fails closed for an unsupported numeric property occurrence", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -276,24 +276,24 @@ describe("queryDslReferencePickTarget", () => {
 
   it("fails closed for an unlabeled call slot, non-geometry value, and operator position", () => {
     const ambiguousSource = [
-      "nui 4",
+      "nui 1",
       "point P = offset(, dx: 10, dy: 0)"
     ].join("\n");
     const ambiguousCompiled = compileWithIds(ambiguousSource);
     const ambiguousPosition = ambiguousSource.indexOf("offset(") + "offset(".length;
     expect(queryAt(ambiguousSource, ambiguousCompiled, ambiguousPosition)).toBeNull();
 
-    const textSource = "nui 4\ntext Label = label(text: \"hello\", anchor: (0, 0), size: 12)";
+    const textSource = "nui 1\ntext Label = label(text: \"hello\", anchor: (0, 0), size: 12)";
     const textCompiled = compileWithIds(textSource);
     expect(queryAt(textSource, textCompiled, textSource.indexOf("hello") + 2)).toBeNull();
 
-    const operatorSource = "nui 4\nconst width: number = 20 + 30";
+    const operatorSource = "nui 1\nconst width: number = 20 + 30";
     const operatorCompiled = compileWithIds(operatorSource);
     expect(queryAt(operatorSource, operatorCompiled, operatorSource.indexOf("+"))).toBeNull();
   });
 
   it("fails closed when semantic revision or semantic source is stale", () => {
-    const source = "nui 4\nconst width: number = 20";
+    const source = "nui 1\nconst width: number = 20";
     const compiled = compileWithIds(source, 17);
     const position = source.lastIndexOf("20") + 1;
 

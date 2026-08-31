@@ -75,19 +75,19 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
         element.name === "FP0" ? ({ ...element, parentGroupId: groupId } as typeof element) : element
       )
     };
-    const invalidCompile = compileDslDocument(serializeDocumentToDsl(invalidModel, 4));
+    const invalidCompile = compileDslDocument(serializeDocumentToDsl(invalidModel, 1));
     expect(invalidCompile.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "numeric-binding-unresolved" })
     ]));
 
     const reparent = applyRandomOp(documentBeforeReparent, { kind: "reparent", a: 384, b: 0 });
-    const reparsed = compileDslDocument(serializeDocumentToDsl(reparent.document, 4));
+    const reparsed = compileDslDocument(serializeDocumentToDsl(reparent.document, 1));
     expect(reparsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(reparent.document.elements.find((element) => element.name === "FP0")?.parentGroupId).toBe(forGroupId);
 
     const ordinaryReparent = applyRandomOp(documentBeforeReparent, { kind: "reparent", a: 0, b: 0 });
     const ordinaryTarget = ordinaryReparent.document.elements.find((element) => element.name === "P1");
-    const ordinaryReparsed = compileDslDocument(serializeDocumentToDsl(ordinaryReparent.document, 4));
+    const ordinaryReparsed = compileDslDocument(serializeDocumentToDsl(ordinaryReparent.document, 1));
     expect(ordinaryTarget?.parentGroupId).toBe(groupId);
     expect(ordinaryReparent.description).toContain("reparent P1 into G0");
     expect(ordinaryReparsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -135,8 +135,8 @@ describe("cadDocumentStore 影テキスト: ランダム操作プロパティテ
 
         const finalState = useCadDocumentStore.getState();
         expect(finalState.doc.document).not.toBeNull();
-        expect(serializeDocumentToDsl(finalState.doc.document, 4)).toBe(
-          serializeDocumentToDsl(finalState.doc.document, 4)
+        expect(serializeDocumentToDsl(finalState.doc.document, 1)).toBe(
+          serializeDocumentToDsl(finalState.doc.document, 1)
         );
         for (const noiseLine of generated.noiseLines) {
           expect(finalState.sourceText).toContain(noiseLine);

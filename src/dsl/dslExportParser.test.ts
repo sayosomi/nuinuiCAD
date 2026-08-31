@@ -54,7 +54,7 @@ describe("DSL exported geometry parser", () => {
 
   it("parses only a direct top-level export module as public", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "export module Public(width: number = 40) {",
       "}",
       "module Private() {",

@@ -29,7 +29,7 @@ const namedUnder = (compiled: ReturnType<typeof compileWithIds>, name: string, p
 describe("module geometry array runtime", () => {
   it("lowers literal line[] arguments at existing path-list consumers with order and duplicates", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module M(paths: path[]) {",
@@ -48,7 +48,7 @@ describe("module geometry array runtime", () => {
 
   it("preserves line[] to path[] through local aliases and nested Module pass-through", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module Inner(paths: path[]) {",
@@ -73,7 +73,7 @@ describe("module geometry array runtime", () => {
 
   it("resolves exported arrays through qualified instance references without flattening source semantics", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "module Producer(paths: line[]) {",
@@ -101,7 +101,7 @@ describe("module geometry array runtime", () => {
 
   it("accepts coordinate and derived point members in inline point[] arguments", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "module M(points: point[]) {",
       "}",
@@ -114,7 +114,7 @@ describe("module geometry array runtime", () => {
 
   it("passes named point[] values into polyline construction in module instances", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "line R = segment(start: (10, 0), end: (10, 10))",
       "const vertices: point[] = [@L.start, @L.end, @R.end]",
@@ -133,7 +133,7 @@ describe("module geometry array runtime", () => {
 
   it("checks array argument assignability directionally", () => {
     const compiled = compileWithIds([
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "arc Arc = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
       "const strict: line[] = [@A]",

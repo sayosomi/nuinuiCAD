@@ -23,7 +23,7 @@ const queryAt = (source: string, token: string, offset = 1, sourceRevision = 11)
 describe("queryDslCanvasRevealSourceTarget", () => {
   it("prefers an ordinary geometry reference over its statement owner", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -40,7 +40,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
   it("does not treat a typed scalar reference as a geometry semantic target", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const dx: number = 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: @dx, dy: 0)"
@@ -54,7 +54,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
   it("keeps a module geometry parameter semantic identity for later materialization", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Shift(input: point) {",
       "  point Out = offset(from: @input, dx: 1, dy: 0)",
       "}",
@@ -75,7 +75,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
   it("uses the whole qualified module export reference as the semantic hit area", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  export point Public = coordinate(x: 0, y: 0)",
       "}",
@@ -98,7 +98,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
   it("recognizes geometry properties and keeps the base geometry target", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line L = segment(start: (0, 0), end: (10, 0))",
       "const width: number = @L.length"
     ].join("\n");
@@ -114,7 +114,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
 
   it("keeps multiline in-progress punctuation, indentation, and comments inside the owner envelope", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  // choose source",
@@ -140,7 +140,7 @@ describe("queryDslCanvasRevealSourceTarget", () => {
   });
 
   it("fails closed for a stale revision or same-revision source mismatch", () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const compiled = compileWithIds(source, 4);
 
     expect(queryDslCanvasRevealSourceTarget({

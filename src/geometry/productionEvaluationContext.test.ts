@@ -5,13 +5,13 @@ import type { EvaluateElementsOptions } from "./evaluate";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const compile = (source: string): LastGoodDslDocument => {
-  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 4), source);
+  const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
   if (result.status === "fatal") throw new Error(JSON.stringify(result.diagnostics));
   return result.doc;
 };
 
 const standardPropertiesSource = [
-  "nui 4",
+  "nui 1",
   "const side: choice(right, left) = left",
   "const enabled: boolean = true",
   "const mirrored: boolean = true",
@@ -29,7 +29,7 @@ const standardPropertiesSource = [
 ].join("\n");
 
 const numericReferenceSource = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 30, y: 40)",
   "point C = coordinate(x: 60, y: 0)",
@@ -42,7 +42,7 @@ const numericReferenceSource = [
 ].join("\n");
 
 const controlMutationSource = [
-  "nui 4",
+  "nui 1",
   "let flag: boolean = true",
   "let total: number = 0",
   "let show: boolean = false",
@@ -65,7 +65,7 @@ const controlMutationSource = [
 ].join("\n");
 
 const declarationsTemplatesSource = [
-  "nui 4",
+  "nui 1",
   "const length: number = 12.3456",
   "const label: string = \"前身頃\"",
   "const printed: boolean = true",
@@ -78,7 +78,7 @@ const declarationsTemplatesSource = [
 ].join("\n");
 
 const moduleScalarSource = [
-  "nui 4",
+  "nui 1",
   "module M(value: number, side: choice(right, left), label: string) {",
   "  point A = coordinate(x: 0, y: 0)",
   "  point B = coordinate(x: 10, y: 0)",
@@ -105,7 +105,7 @@ const entryKeys = (compiled: LastGoodDslDocument, entries: readonly { elementId:
 
 describe("buildEvaluationOptions", () => {
   it("lowers a plain compiled document without taking ownership of runtime elements", () => {
-    const compiled = compile(["nui 4", "point A = coordinate(x: 1, y: 2)"].join("\n"));
+    const compiled = compile(["nui 1", "point A = coordinate(x: 1, y: 2)"].join("\n"));
     const options = optionsFor(compiled, undefined);
 
     expect(options.evaluationLimitIndex).toBeUndefined();
@@ -115,7 +115,7 @@ describe("buildEvaluationOptions", () => {
 
   it("lowers compiled document-level drawing modifier definitions", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "modifier Hide {",
       "  state: hidden,",
       "}",
@@ -168,7 +168,7 @@ describe("buildEvaluationOptions", () => {
     expect(scalarOptions.textPropertyBindingEntries?.length).toBeGreaterThan(0);
 
     const controlCompiled = compile([
-      "nui 4",
+      "nui 1",
       "module M(show: boolean) {",
       "  for i in range(from: 0, count: 2, step: 1, showGenerated: @show) {",
       "    point P = coordinate(x: i, y: 0)",
@@ -180,7 +180,7 @@ describe("buildEvaluationOptions", () => {
     expect(controlOptions.controlBooleanEntries?.length).toBeGreaterThan(0);
 
     const textCompiled = compile([
-      "nui 4",
+      "nui 1",
       "module M(value: number) {",
       "  text T = label(text: \"${@value}\", anchor: none, size: 3)",
       "}",
@@ -192,7 +192,7 @@ describe("buildEvaluationOptions", () => {
 
   it("merges source and Module materialized metadata for properties, numbers, controls, text, and owners", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "let flag: boolean = true",
       "let total: number = 0",
       "if (@flag) {",
@@ -234,7 +234,7 @@ describe("buildEvaluationOptions", () => {
 
   it("keeps all-numeric text templates when scalarProgram is absent", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "text T = label(text: \"cost ${12.5} yen\", anchor: none, size: 3)"
     ].join("\n"));
     const options = optionsFor(compiled);
@@ -245,7 +245,7 @@ describe("buildEvaluationOptions", () => {
 
   it("uses the caller's evaluation limit without falling back to the compiled document", () => {
     const compiled = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "stop",
       "point B = coordinate(x: 3, y: 4)"

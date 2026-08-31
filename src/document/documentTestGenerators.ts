@@ -36,7 +36,7 @@ export type GeneratedDoc = {
 
 export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc => {
   const sections: string[][] = [];
-  sections.push(["nui 4"]);
+  sections.push(["nui 1"]);
   sections.push([
     'role seam (name: "縫い代")',
     "view 通常 (default: true, seam: false)",
@@ -53,7 +53,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("point Ref0 = offset(from: @P0, dx: 5, dy: 5)");
   }
   if (params.withContinuation) {
-    // nui 4の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。
+    // nui 1の縦型call(未閉`(`による複数物理行statement)を1つ混ぜる。
     // common state引数を使い、旧Document Paletteには依存しない。
     elementLines.push("point PC = coordinate(");
     elementLines.push("  x: 5,");
@@ -201,7 +201,7 @@ const CONTAINER_TYPES = new Set(["group", "conditionalGroup", "forGroup"]);
 const isContainer = (element: CadElement) => CONTAINER_TYPES.has(element.type);
 
 const isCanonicalDocumentCompilable = (document: DslDocumentData): boolean => {
-  const compiled = compileDslDocument(serializeDocumentToDsl(document, 4));
+  const compiled = compileDslDocument(serializeDocumentToDsl(document, 1));
   return compiled.document !== null && !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 };
 
@@ -225,7 +225,7 @@ let generatedNameCounter = 0;
 
 const makeFreePoint = (name: string, x: number, y: number): CadElement => {
   const statement = name ? `point ${name} = coordinate(x: ${x}, y: ${y})` : `point = coordinate(x: ${x}, y: ${y})`;
-  const compiled = compileDslDocument(`nui 4\n${statement}`);
+  const compiled = compileDslDocument(`nui 1\n${statement}`);
   expect(compiled.document, "generator fragment must compile").not.toBeNull();
   return compiled.document!.elements[0];
 };
@@ -259,7 +259,7 @@ export const applyRandomOp = (document: DslDocumentData, op: RandomOp): AppliedO
   const plainGroups = document.elements.filter((element) => element.type === "group");
 
   const fallbackUpdate = (): AppliedOp => {
-    // nui4's canonical if/for headers have no serialized common-attribute
+    // nui1's canonical if/for headers have no serialized common-attribute
     // slots. Keep the property generator focused on elements whose activity
     // can round-trip through the final syntax.
     const target = pick(document.elements.filter((element) => !["conditionalGroup", "forGroup"].includes(element.type)), op.a);

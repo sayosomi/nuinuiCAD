@@ -61,7 +61,7 @@ describe("formatNumericValueForDsl", () => {
     expect(roundTrip("p10.x + 1")).toBe("p10.x + 1");
   });
 
-  it("emits the nui4 sigil for a measurement property reference", () => {
+  it("emits the nui1 sigil for a measurement property reference", () => {
     expect(
       formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements)
     ).toBe("@AB.length + 20");
@@ -73,7 +73,7 @@ describe("formatNumericValueForDsl", () => {
     ).toBe("@AB.startPoint.x");
   });
 
-  it("round-trips the nui 4 sigil form through normalize", () => {
+  it("round-trips the nui 1 sigil form through normalize", () => {
     const asV4 = formatNumericValueForDsl({ kind: "expression", expression: "l1.length + 20" }, elements);
     expect(normalizeNumericExpressionInput(asV4, elements)).toBe("l1.length + 20");
   });

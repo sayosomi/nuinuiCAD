@@ -80,7 +80,7 @@ const geometryTargetIds = (expression: TypedScalarExpression): string[] => {
 describe("planInlineModule Checkpoint 1", () => {
   it("inlines a parameterless local instance as a same-named group and preserves source layout", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  /// Anchor documentation",
       "  // keep this body note",
@@ -108,7 +108,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
     const next = applyLineSplices(source, result.splices);
     expect(next).toBe([
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  /// Anchor documentation",
       "  // keep this body note",
@@ -130,7 +130,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("skips hidden and disabled instances by default and preserves included activity", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point Anchor = coordinate(x: 0, y: 0)",
       "}",
@@ -160,7 +160,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("deduplicates targets and reports in deterministic authored order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point Anchor = coordinate(x: 0, y: 0)",
       "}",
@@ -188,7 +188,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("rejects stale source snapshots before constructing a mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -208,7 +208,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("rejects a candidate compile failure without returning an applicable mutation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -238,7 +238,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("rejects an atomic target batch when one target has an unsafe geometry rewrite", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
       "module Safe(anchor: point) {",
       "  point P = offset(from: @anchor, dx: 1, dy: 0)",
@@ -261,7 +261,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("rejects invalid local authored identities and never guesses materialized or stale targets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -281,7 +281,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("returns a structured skip for non-local document-qualified targets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -304,7 +304,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers required supplied scalar parameters in callee order and preserves authored types", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Scalars(width: number(max: 200, step: 5, min: 0), label: string, enabled: boolean, side: choice(right, left)) {",
       "  point P = coordinate(x: @width, y: 0)",
       "  const bodyLabel: string = @label",
@@ -367,7 +367,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers defaulted scalar parameters in parameter order and remaps earlier defaults to generated consts", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Defaults(width: number, depth: number = @width + 5) {",
       "  point P = coordinate(x: @width, y: @depth)",
       "}",
@@ -418,7 +418,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("specializes optional presence independently for multiple targets and lowers only supplied values", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Presence(value?: number, enabled: boolean = hasValue(@value)) {",
       "  const present: boolean = hasValue(@value)",
       "  point P = coordinate(x: 0, y: 0)",
@@ -445,7 +445,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("uses validated presence metadata instead of a boolean placeholder in the semantic AST", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Presence(value?: number) {",
       "  const present: boolean = hasValue(@value)",
       "}",
@@ -496,7 +496,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("proves references eliminated by a false guarded body expression", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value?: number) {",
       "  const positive: boolean = hasValue(@value) and @value > 0",
       "}",
@@ -516,7 +516,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("proves references eliminated by a false guarded default initializer", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(value?: number, enabled: number, positive: boolean = hasValue(@value) and @enabled > 0) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -537,7 +537,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("supports optional number, string, boolean, and choice parameters", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Scalars(n?: number, text?: string, flag?: boolean, side?: choice(right, left)) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}",
@@ -562,7 +562,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("partially simplifies presence conditions while preserving the dynamic operand owner", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Conditional(value?: number, enabled: boolean) {",
       "  if (hasValue(@value) and @enabled) {",
       "    point P = coordinate(x: 0, y: 0)",
@@ -609,7 +609,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lifts the branch selected by negated optional presence and remaps supplied references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Conditional(value?: number) {",
       "  if (not hasValue(@value)) {",
       "    point Missing = coordinate(x: 0, y: 0)",
@@ -655,7 +655,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("comments omitted branch source only when the policy enables it", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Conditional(value?: number) {",
       "  if (hasValue(@value)) {",
       "    point P = coordinate(x: @value, y: 0)",
@@ -692,7 +692,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("comments the complete omitted else branch, including its closing brace", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Conditional(value?: number) {",
       "  if (hasValue(@value)) {",
       "    point Kept = coordinate(x: 0, y: 0)",
@@ -720,7 +720,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("specializes hasValue inside a text-template scalar hole", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Label(value?: number) {",
       "  text Label = label(text: \"present=${hasValue(@value)}\", anchor: none, size: 3)",
       "}",
@@ -740,7 +740,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("rejects an omitted optional reference that could otherwise capture an outer same-name binding", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const value: number = 99",
       "module Unsafe(value?: number) {",
       "  point P = coordinate(x: @value, y: 0)",
@@ -787,7 +787,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("treats explicit and SAY-12 shorthand bindings equivalently and preserves safe same-name references", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 50",
       "module Box(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
@@ -842,7 +842,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("canonicalizes only a moved cross-parameter reference captured by an earlier generated const", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const a: number = 50",
       "module Pair(a: number, b: number) {",
       "  point P = coordinate(x: @a, y: @b)",
@@ -915,7 +915,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("keeps default parameter remapping local for multiple instances of one Module", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Defaults(width: number, depth: number = @width + 5) {",
       "  point P = coordinate(x: @width, y: @depth)",
       "}",
@@ -1019,7 +1019,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("does not rewrite a caller expression whose owner remains valid after moving", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const base: number = 50",
       "module Box(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
@@ -1036,7 +1036,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("supports a singular point parameter without a geometry alias const", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Box(anchor: point) {",
       "  point P = offset(from: @anchor, dx: 1, dy: 0)",
@@ -1066,7 +1066,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers a required record parameter from an inline constructor as one typed local", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Box(settings: Pair) {",
       "  point P = coordinate(x: @settings.x, y: 0)",
@@ -1095,7 +1095,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers a required record parameter from an ordinary source record value", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "const sourcePair: Pair = Pair(x: 1)",
       "module Box(settings: Pair) {",
@@ -1113,7 +1113,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves a caller Module record parameter and local record source through Inline", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Outer(input: Pair) {",
       "  const local: Pair = Pair(x: 2)",
@@ -1137,7 +1137,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("keeps record, scalar, and geometry-array locals in authored parameter order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "point Anchor = coordinate(x: 0, y: 0)",
       "module Mixed(width: number, settings: Pair, points: point[]) {",
@@ -1162,7 +1162,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("uses normal presence specialization for optional record parameters", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Conditional(settings?: Pair) {",
       "  if (hasValue(@settings)) {",
@@ -1187,7 +1187,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("fails closed for a tampered nominal record owner", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Box(settings: Pair) {",
       "  point P = coordinate(x: @settings.x, y: 0)",
@@ -1225,7 +1225,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers a compatible qualified Module record export as one whole-record local", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "module Provider() {",
       "  export const output: Pair = Pair(x: 3)",
@@ -1285,7 +1285,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("composes a qualified record export with scalar, singular geometry, and array lowering", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Pair(x: number)",
       "point Anchor = coordinate(x: 1, y: 2)",
       "point A = coordinate(x: 3, y: 4)",
@@ -1356,7 +1356,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("substitutes repeated direct uses of one singular geometry parameter independently", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Box(anchor: point) {",
       "  line L = segment(start: @anchor, end: @anchor)",
@@ -1373,7 +1373,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves nested groups as ordinary copied structure", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp() {",
       "  group Inner {",
       "    point P = coordinate(x: 0, y: 0)",
@@ -1405,7 +1405,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves nested group owners while lowering an outer geometry parameter", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Outside = coordinate(x: 10, y: 0)",
       "module M(anchor: point) {",
       "  group G {",
@@ -1482,7 +1482,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves conditional branch ownership inside nested groups and loops", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(flag: boolean) {",
       "  group G {",
       "    for i in range(from: 0, count: 2) {",
@@ -1542,7 +1542,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves nested-loop iteration owners with same-name shadowing", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  for i in range(from: 0, count: 2) {",
       "    point Outer = coordinate(x: @i, y: 0)",
@@ -1595,7 +1595,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("keeps a copied nested Module's parameter, local, export, and callee identities", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Outer() {",
       "  module Inner(p: number) {",
       "    const q: number = @p + 1",
@@ -1677,7 +1677,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("inlines a selected local Module instance at its enclosing Module scope", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  export point P = coordinate(x: 1, y: 0)",
       "}",
@@ -1741,7 +1741,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("composes scalar, singular geometry, and geometry-array lowering inside nested structure", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Anchor = coordinate(x: 1, y: 2)",
       "point A = coordinate(x: 3, y: 4)",
       "module M(width: number, anchor: point, points: point[]) {",
@@ -1765,7 +1765,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves external instance-member resolution to the generated group member", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Stamp(width: number) {",
       "  export point Anchor = coordinate(x: @width, y: 0)",
       "}",
@@ -1821,7 +1821,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("fails closed when the supplied semantic callee is deliberately made to drift from authored source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module First() {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
@@ -1866,7 +1866,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("substitutes geometry builtin operands with exact caller targets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Origin = coordinate(x: 0, y: 0)",
       "point P = coordinate(x: 3, y: 4)",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
@@ -1899,7 +1899,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("substitutes a line geometry property without evaluating it", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Measure(lineA: line) {",
       "  const length: number = @lineA.length",
@@ -1923,7 +1923,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("canonicalizes only a substituted geometry reference captured by a copied local", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module M(anchor: point) {",
       "  point Input = coordinate(x: 9, y: 9)",
@@ -1943,7 +1943,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("specializes supplied optional geometry presence and substitutes its body use", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module Optional(anchor?: point) {",
       "  if (hasValue(@anchor)) {",
@@ -1964,7 +1964,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("removes omitted optional geometry only through guarded-source provenance", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module Optional(anchor?: point) {",
       "  if (hasValue(@anchor)) {",
@@ -1993,7 +1993,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("preserves a coordinate geometry argument in a supported direct geometry role", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(anchor: point) {",
       "  point P = offset(from: @anchor, dx: 1, dy: 0)",
       "}",
@@ -2012,7 +2012,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("fails closed when a coordinate argument would need an unsynthesized property source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(anchor: point) {",
       "  const x: number = @anchor.x",
       "}",
@@ -2025,7 +2025,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("keeps public path parameters path-typed while using the broad line runtime source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "arc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)",
       "module M(path: path) {",
       "  point P = onLine(from: @path.end, ratio: 0.5)",
@@ -2045,7 +2045,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("lowers mixed scalar and singular geometry parameters independently", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module Mixed(width: number, anchor: point) {",
       "  point P = offset(from: @anchor, dx: @width, dy: 0)",
@@ -2064,7 +2064,7 @@ describe("planInlineModule Checkpoint 1", () => {
 
   it("keeps two instances of one Module geometry-local to their own caller targets", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point FirstInput = coordinate(x: 1, y: 0)",
       "point SecondInput = coordinate(x: 2, y: 0)",
       "module M(anchor: point) {",
@@ -2090,7 +2090,7 @@ describe("planInlineModule Checkpoint 1", () => {
 describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
   it("lowers a required point[] literal to one exact typed local const", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "module Outline(points: point[]) {",
@@ -2111,7 +2111,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("preserves a required line[] source-array reference and its authored type", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const sourceLines: line[] = [@A]",
       "module Outline(lines: line[]) {",
@@ -2131,7 +2131,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("preserves line[] to path[] covariance through the existing array semantics", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "const lines: line[] = [@A]",
       "module Outline(paths: path[]) {",
@@ -2149,7 +2149,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("preserves a whole geometry-array export through an earlier Module instance", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Producer() {",
       "  line Edge = segment(start: (0, 0), end: (10, 0))",
       "  export const exportedPaths: path[] = [@Edge]",
@@ -2207,7 +2207,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("specializes supplied optional geometry-array presence and emits one local const", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module Optional(points?: point[]) {",
       "  if (hasValue(@points)) {",
@@ -2230,7 +2230,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("omits an optional geometry-array const and prunes its unreachable body reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Optional(points?: point[]) {",
       "  if (hasValue(@points)) {",
       "    line P = polyline(points: @points, closed: false)",
@@ -2260,7 +2260,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("canonicalizes only a capture-changing source-array reference", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 1, y: 2)",
       "const points: point[] = [@A]",
       "module M(points: point[]) {",
@@ -2279,7 +2279,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("fails closed when candidate geometry-array ownership cannot be proven", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Input = coordinate(x: 1, y: 2)",
       "module M(points: point[]) {",
       "  point Input = coordinate(x: 9, y: 9)",
@@ -2309,7 +2309,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("lowers mixed scalar, singular geometry, and geometry-array parameters in callee order", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Anchor = coordinate(x: 1, y: 2)",
       "point A = coordinate(x: 3, y: 4)",
       "module Mixed(width: number, anchor: point, points: point[]) {",
@@ -2332,7 +2332,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("keeps geometry-array locals and caller sources target-local for multiple instances", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point FirstPoint = coordinate(x: 1, y: 0)",
       "point SecondPoint = coordinate(x: 2, y: 0)",
       "module M(points: point[]) {",
@@ -2356,7 +2356,7 @@ describe("planInlineModule Checkpoint 5 geometry-array parameters", () => {
 
   it("proves generated array locals and copied body references through semantic owners", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "module M(points: point[]) {",
       "  line P = polyline(points: @points, closed: false)",

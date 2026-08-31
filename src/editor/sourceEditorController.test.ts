@@ -45,7 +45,7 @@ const numericValueSource = () => dslTextForElements([
 ]);
 
 const moduleSource = [
-  "nui 4",
+  "nui 1",
   "module M() {",
   "  point P = coordinate(x: 1, y: 2)",
   "}",
@@ -54,7 +54,7 @@ const moduleSource = [
 ].join("\n");
 
 const moduleDefinitionFoldSource = [
-  "nui 4",
+  "nui 1",
   "module M(a: number) {",
   "  let x: number = @a",
   "  point P = coordinate(x: @x, y: 0)",
@@ -176,7 +176,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("places a creation-return cursor after a group's complete closing structure", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point A = coordinate(x: 0, y: 0)",
       "} else {",
@@ -208,7 +208,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("uses the mapped statement end when an uncommitted deletion makes closeBraceLine stale", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "// 上方の未commit行",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
@@ -237,7 +237,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("rejects an invalid mapped range without changing selection or focus", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
@@ -307,7 +307,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("does not move the creation-return cursor during composition, then moves after compositionend", () => {
     useCadDocumentStore.getState().commitText([
-      "nui 4",
+      "nui 1",
       "group G {",
       "  point A = coordinate(x: 0, y: 0)",
       "}"
@@ -786,7 +786,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("keeps Canvas multiple selection as one cursor plus secondary line decoration", () => {
     useCadDocumentStore.getState().commitText(
-      "nui 4\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)",
+      "nui 1\npoint A = coordinate(x: 0, y: 0)\npoint B = coordinate(x: 1, y: 1)",
       "test"
     );
     publishTestCanvasSelectionEligibility();
@@ -889,7 +889,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("leaves a group written during the session expanded while its body is filled in", () => {
-    useCadDocumentStore.getState().commitText(["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
+    useCadDocumentStore.getState().commitText(["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n"), "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
     const internals = controller as unknown as ControllerInternals;
@@ -923,7 +923,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("unfolds an invalidated dirty target instead of retaining a stale brace row", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
@@ -979,7 +979,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds and unfolds every currently valid conditional target", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
@@ -1010,7 +1010,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds a multiline statement from its opening line while keeping its closing row visible", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A,",
@@ -1041,7 +1041,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("expands only the statement target when jumping to a parameter inside a folded multiline statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A,",
@@ -1088,7 +1088,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("renders a fold gutter marker for an initially expanded multiline statement", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(",
       "  from: @A",
@@ -1126,7 +1126,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("consumes gutter clicks on lines without a fold target", () => {
-    const source = ["nui 4", "point A = coordinate(x: 0, y: 0)"].join("\n");
+    const source = ["nui 1", "point A = coordinate(x: 0, y: 0)"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     const parent = document.createElement("div");
     const controller = new SourceEditorController(parent);
@@ -1146,7 +1146,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("applies Fold All and Unfold All as a single store update", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
@@ -1190,7 +1190,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("unfolds via a placeholder click through the app fold state", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
@@ -1211,7 +1211,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("keeps a child statement fold independent of its parent group fold", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "group G {",
       "  point B = offset(",
@@ -1255,7 +1255,7 @@ describe("SourceEditorController commit and history boundaries", () => {
   });
 
   it("restores fold state after a dirty anchor edit is undone and recommitted", () => {
-    const source = ["nui 4", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
+    const source = ["nui 1", "group G {", "  point A = coordinate(x: 0, y: 0)", "}"].join("\n");
     useCadDocumentStore.getState().commitText(source, "test");
     collapseGroupsAsLoadedDocument();
     const parent = document.createElement("div");
@@ -1293,7 +1293,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("drives fold and unfold-all through the real keymap", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "if (true) {",
       "  point Then = coordinate(x: 0, y: 0)",
       "} else {",
@@ -1385,7 +1385,7 @@ describe("SourceEditorController commit and history boundaries", () => {
 
   it("folds a multiline parameter list independently from the module body", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module M(",
       "  a: number,",
       "  b: number",

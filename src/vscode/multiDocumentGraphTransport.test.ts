@@ -39,7 +39,7 @@ describe("VS Code multi-document graph transport", () => {
       kind: "root-current",
       documentId: documentIdFromHost("file:///workspace/main.nui"),
       normalizedSource: [
-        "nui 4",
+        "nui 1",
         "import \"./library.nui\" as library",
         "export @library::Pocket"
       ].join("\n"),
@@ -48,7 +48,7 @@ describe("VS Code multi-document graph transport", () => {
     const dependency: DependencySavedSourceSnapshot = {
       kind: "dependency-saved",
       documentId: documentIdFromHost("file:///workspace/library.nui"),
-      normalizedSource: ["nui 4", "module Pocket() {", "}"].join("\n"),
+      normalizedSource: ["nui 1", "module Pocket() {", "}"].join("\n"),
       savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:library")
     };
     const loader: MultiDocumentSavedSourceLoader = {

@@ -48,7 +48,7 @@ describe("record definition parser", () => {
 
   it("projects multiline record name/field/type spans back to exact physical source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Measurements(",
       "  bust: number,",
       "  note: string",
@@ -72,7 +72,7 @@ describe("record definition parser", () => {
 
   it("keeps named record annotations separate from ScalarType in const and Module parameters", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "record Measurements(bust: number)",
       "const m: Measurements = Measurements(bust: 90)",
       "module Draft(input: Measurements) {",

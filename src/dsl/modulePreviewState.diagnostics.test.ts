@@ -6,7 +6,7 @@ import { queryModulePreviewTarget } from "./modulePreviewTarget";
 
 const pairFixture = () => {
   const source = [
-    "nui 4",
+    "nui 1",
     "module Pair(a: number, b: number) {",
     "  point P = coordinate(x: @a, y: @b)",
     "}"

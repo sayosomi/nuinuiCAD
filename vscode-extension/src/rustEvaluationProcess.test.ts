@@ -21,7 +21,7 @@ describe("RustEvaluationProcess lifecycle", () => {
       spawnProcess: vi.fn(() => child) as unknown as typeof import("node:child_process").spawn,
       onTerminated
     });
-    const request = process.request({ document: "nui 4" });
+    const request = process.request({ document: "nui 1" });
 
     child.emit("exit", 1, "SIGTERM");
     await expect(request).rejects.toThrow("evaluation_stdio exited");

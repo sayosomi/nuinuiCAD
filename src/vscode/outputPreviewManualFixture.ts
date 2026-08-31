@@ -4,7 +4,7 @@
  * statement indexes and the source map's logical-line projection.
  */
 export const outputPreviewManualE2eSource = [
-  "nui 4",
+  "nui 1",
   "",
   "let scale: number = 1",
   "let overlap: number = 5",

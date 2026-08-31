@@ -31,7 +31,7 @@ vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
 }));
 
 const baseline = [
-  "nui 4",
+  "nui 1",
   "",
   "point A = coordinate(",
   "  x: 0,",
@@ -50,7 +50,7 @@ const baseline = [
 ].join("\n");
 
 const errorfulWithoutA = [
-  "nui 4",
+  "nui 1",
   "",
   "point B = coordinate(",
   "  x: 60,",
@@ -64,7 +64,7 @@ const errorfulWithoutA = [
 ].join("\n");
 
 const validWithoutA = [
-  "nui 4",
+  "nui 1",
   "",
   "point B = coordinate(",
   "  x: 60,",

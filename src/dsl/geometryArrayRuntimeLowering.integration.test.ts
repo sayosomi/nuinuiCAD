@@ -13,7 +13,7 @@ const compile = (source: string) => {
 describe("geometry array runtime lowering", () => {
   it("lowers named line[] and path[] values only at existing line-list consumers", () => {
     const result = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
@@ -36,7 +36,7 @@ describe("geometry array runtime lowering", () => {
 
   it("keeps point[] out of broad line-list consumers", () => {
     const result = compile([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "const points: point[] = [@A]",
       "line Offset = offset(sources: @points, distance: 1, side: left, closed: false)"

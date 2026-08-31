@@ -20,7 +20,7 @@ const runtimeNames = (source: string) => {
 describe("module materialization", () => {
   it("keeps a module definition inert without an instance", () => {
     const compiled = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}"
@@ -32,7 +32,7 @@ describe("module materialization", () => {
 
   it("emits a container and body in source execution order with private name resolution", () => {
     const compiled = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "  point Q = offset(from: @P, dx: 1, dy: 2)",
@@ -56,7 +56,7 @@ describe("module materialization", () => {
 
   it("derives non-colliding IDs and origin mappings for repeated and nested instances", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Inner() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -101,7 +101,7 @@ describe("module materialization", () => {
 
   it("preserves a materialized subtree when reconciliation carries statement identities", () => {
     const beforeSource = [
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 10, y: 20)",
       "}",
@@ -134,7 +134,7 @@ describe("module materialization", () => {
 
   it("treats a module call as one stop atomic unit", () => {
     const callBeforeStop = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -145,7 +145,7 @@ describe("module materialization", () => {
     expect(callBeforeStop.document!.evaluationLimitIndex).toBe(2);
 
     const callAfterStop = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -158,7 +158,7 @@ describe("module materialization", () => {
 
   it("maps outer and inner source containers to runtime parents without changing group semantics", () => {
     const compiled = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M() {",
       "  group Inner {",
       "    point P = coordinate(x: 1, y: 2)",
@@ -183,7 +183,7 @@ describe("module materialization", () => {
 
   it("inherits hidden and disabled module instance activity through the generic container path", () => {
     const compiled = runtimeNames([
-      "nui 4",
+      "nui 1",
       "module M(state: boolean = true) {",
       "  point P = coordinate(x: 1, y: 2)",
       "}",
@@ -205,7 +205,7 @@ describe("module materialization", () => {
 
   it("preserves ordinary source order and stop behavior when no module is present", () => {
     const compiled = runtimeNames([
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 1)",
       "stop",

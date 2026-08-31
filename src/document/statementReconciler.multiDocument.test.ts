@@ -7,7 +7,7 @@ const linesOf = (source: string) => source.split("\n");
 describe("statement reconciler multi-document identities", () => {
   it("allocates and preserves import and file re-export identities", () => {
     const originalSource = [
-      "nui 4",
+      "nui 1",
       "import \"./library.nui\" as library",
       "export @library::Pocket"
     ].join("\n");
@@ -29,7 +29,7 @@ describe("statement reconciler multi-document identities", () => {
     expect(first.assignedIds.get(reExportIndex)).toMatch(/^statement:fileReExport:/);
 
     const editedSource = [
-      "nui 4",
+      "nui 1",
       "const marker: number = 0",
       "import \"./library.nui\" as library",
       "export @library::Pocket"

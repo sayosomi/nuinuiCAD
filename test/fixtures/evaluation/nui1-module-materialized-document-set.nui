@@ -1,0 +1,12 @@
+nui 1
+// Active nui1 evaluation fixture.
+let value: number = 0
+point Before = coordinate(x: @value, y: 0)
+set value = 10
+module M() {
+  point P = coordinate(x: 10, y: 20)
+  point Q = offset(from: @P, dx: 1, dy: 2)
+}
+instance A = M()
+set value = 20
+point After = coordinate(x: @value, y: 0)

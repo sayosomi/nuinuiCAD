@@ -37,7 +37,7 @@ const profileFor = (bindingCount: number): Profile => {
   const { source } = buildPureTypedBindingSource(bindingCount);
   const parsed = parseDsl(source);
   if (parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
-    throw new Error("pure nui 4 binding profile fixture must parse without diagnostics");
+    throw new Error("pure nui 1 binding profile fixture must parse without diagnostics");
   }
   const stableStatementIdByIndex = new Map(
     Array.from({ length: bindingCount }, (_, index) => [index + 1, `task50:profile:${index}`])
@@ -60,7 +60,7 @@ const profileFor = (bindingCount: number): Profile => {
       mode: "document",
       preparsed: parsed,
       assignedElementIds: stableStatementIdByIndex,
-      majorVersion: 4
+      majorVersion: 1
     }));
     const scopeIndex = time("scope", () => buildLexicalScopeIndexFromStatements(parsed.statements, stableStatementIdByIndex));
     const adapter = time("adapter", () => buildDslBindingAdapterSeeds({
@@ -135,7 +135,7 @@ const profileFor = (bindingCount: number): Profile => {
   return profile;
 };
 
-describeProfile("pure nui 4 binding analysis stage profile", () => {
+describeProfile("pure nui 1 binding analysis stage profile", () => {
   it("records stage medians and exact analysis call counts", () => {
     const small = profileFor(SMALL_SIZE);
     const large = profileFor(LARGE_SIZE);

@@ -109,7 +109,7 @@ const editsAt = (
 describe("VS Code native nui rename provider", () => {
   it("projects modifier declaration and reference edits as one WorkspaceEdit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       'modifier "Guide Line" {',
       "  state: visible,",
       "}",
@@ -126,7 +126,7 @@ describe("VS Code native nui rename provider", () => {
   it("uses the file-scoped selector and rejects unsupported documents", () => {
     expect(nuiRenameSelector).toEqual({ language: "nui", scheme: "file" });
 
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const unsupportedCase = providerFor(source, documentFor(source, "/tmp/pattern.txt"));
     const untitledCase = providerFor(source, documentFor(source, "/tmp/pattern.nui", "untitled"));
 
@@ -136,7 +136,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("prepares declaration and reference renames with exact identifier ranges", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @Base, dx: 1, dy: 0)"
     ].join("\n");
@@ -163,7 +163,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("keeps @, ::, dot, and property names outside rename ranges", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "group Front {",
       "  point Shoulder = coordinate(x: 0, y: 0)",
       "}",
@@ -188,7 +188,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("projects every Task 7 edit into one same-document WorkspaceEdit", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point Base = coordinate(",
       "  x: 0,",
       "  y: 0,",
@@ -221,7 +221,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("projects Module parameter declaration, references, and call labels", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -241,7 +241,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("keeps UTF-16 ranges exact for CRLF, Japanese identifiers, and an earlier surrogate pair", () => {
     const normalized = [
-      "nui 4",
+      "nui 1",
       "// 😀",
       "point 前身頃 = coordinate(",
       "  x: 0,",
@@ -288,9 +288,9 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("synchronizes an existing session from the current unsaved TextDocument", () => {
-    const initialSource = "nui 4\npoint Old = coordinate(x: 0, y: 0)";
+    const initialSource = "nui 1\npoint Old = coordinate(x: 0, y: 0)";
     const currentSource = [
-      "nui 4",
+      "nui 1",
       "point Current = coordinate(x: 0, y: 0)",
       "point Use = offset(from: @Current, dx: 1, dy: 0)"
     ].join("\n");
@@ -304,8 +304,8 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("explains semantic rename rejections and fails closed for unavailable renames", () => {
-    const valid = "nui 4\npoint A = coordinate(x: 0, y: 0)";
-    const fatalDocument = documentFor("nui 4\npoint A = coordinate(x: 0, y: ");
+    const valid = "nui 1\npoint A = coordinate(x: 0, y: 0)";
+    const fatalDocument = documentFor("nui 1\npoint A = coordinate(x: 0, y: ");
     const fatalSession = createLanguageAnalysisSession(valid);
     fatalSession.replaceSource(fatalDocument.getText());
     const fatalProvider = createNuiRenameProvider(() => fatalSession);
@@ -317,7 +317,7 @@ describe("VS Code native nui rename provider", () => {
     );
 
     const collisionSource = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + 5"
     ].join("\n");
@@ -336,7 +336,7 @@ describe("VS Code native nui rename provider", () => {
     )).toThrow("名前は空にできません。");
 
     const captureSource = [
-      "nui 4",
+      "nui 1",
       "const outer: number = 1",
       "group G {",
       "  const inner: number = 2",
@@ -352,7 +352,7 @@ describe("VS Code native nui rename provider", () => {
     )).toThrow("「outer」の参照先が変わるため、リネームできません。");
 
     const moduleCollisionSource = [
-      "nui 4",
+      "nui 1",
       "module Measure(width: number, length: number) {",
       "  point P = coordinate(x: @width, y: 0)",
       "}",
@@ -367,7 +367,7 @@ describe("VS Code native nui rename provider", () => {
     )).toThrow("「length」は2行目に既に存在します。");
 
     const elementCollisionSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 1, y: 0)"
     ].join("\n");
@@ -385,7 +385,7 @@ describe("VS Code native nui rename provider", () => {
     })).toBe("「result」はこのスコープに既に存在します。");
 
     const iterationSource = [
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 1) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
@@ -405,7 +405,7 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("rejects a stale document and a plan whose expected source text is not exact", () => {
-    const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)\npoint Use = offset(from: @Base, dx: 1, dy: 0)";
+    const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)\npoint Use = offset(from: @Base, dx: 1, dy: 0)";
     const staleDocument = documentFor(source);
     const stale = providerFor(source, staleDocument);
     let reads = 0;
@@ -447,7 +447,7 @@ describe("VS Code native nui rename provider", () => {
 
   it("renames ordinary and typed source targets in a mixed Module document", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "const result: number = @width + 5",
       "point 前身頃 = coordinate(x: 0, y: 0)",
@@ -475,7 +475,7 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("does not expose unexpected core errors from prepareRename", () => {
-    const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)";
     const { document, provider } = providerFor(source);
     const querySpy = vi.spyOn(renameQuery, "queryDslRenameTarget").mockImplementation(() => {
       throw new Error("bindingResolution: internal invariant");
@@ -493,7 +493,7 @@ describe("VS Code native nui rename provider", () => {
   });
 
   it("does not expose unexpected core errors from provideRenameEdits", () => {
-    const source = "nui 4\npoint Base = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)";
     const { document, provider } = providerFor(source);
     const planSpy = vi.spyOn(renameQuery, "planDslRenameEditsResult").mockImplementation(() => {
       throw new Error("bindingResolution: internal invariant");

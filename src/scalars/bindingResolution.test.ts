@@ -13,7 +13,7 @@ const catalogFor = (source: string) => {
   expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   const stableStatementIdByIndex = new Map(parsed.statements.map((_, index) => [index, `stable-${index}`]));
   const scopeIndex = buildLexicalScopeIndex(parsed.statements, (index) => stableStatementIdByIndex.get(index)!);
-  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 4 });
+  const compiled = compileDslToElements(source, { elements: [], mode: "document", majorVersion: 1 });
   expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   const adapter = buildDslBindingAdapterSeeds({
     statements: parsed.statements,
@@ -29,9 +29,9 @@ const catalogFor = (source: string) => {
   });
 };
 
-describe("nui 4 binding resolution", () => {
+describe("nui 1 binding resolution", () => {
   it("resolves an earlier typed declaration and reports a later declaration as forward", () => {
-    const catalog = catalogFor(["nui 4", "const earlier: number = 1", "const later: number = 2"].join("\n"));
+    const catalog = catalogFor(["nui 1", "const earlier: number = 1", "const later: number = 2"].join("\n"));
     expect(resolveBindingReferenceForTests(catalog, "earlier", { scopeId: "root", statementIndex: 2 }))
       .toMatchObject({ kind: "resolved", binding: { name: "earlier", kind: "typed" } });
     expect(resolveBindingReferenceForTests(catalog, "later", { scopeId: "root", statementIndex: 1 }))
@@ -40,7 +40,7 @@ describe("nui 4 binding resolution", () => {
 
   it("keeps the forGroup iteration slot in its lexical scope", () => {
     const catalog = catalogFor([
-      "nui 4",
+      "nui 1",
       "for i in range(from: 0, count: 2) {",
       "  const step: number = @i",
       "}"
@@ -50,7 +50,7 @@ describe("nui 4 binding resolution", () => {
   });
 
   it("accepts rooted source lookup but rejects a stale lookup during virtual rename", () => {
-    const catalog = catalogFor(["nui 4", "const width: number = 50", "const later: number = 1"].join("\n"));
+    const catalog = catalogFor(["nui 1", "const width: number = 50", "const later: number = 1"].join("\n"));
     const rootBinding = catalog.bindings.find((binding) =>
       binding.kind === "typed" && binding.name === "width" && binding.statementIndex === 1
     );

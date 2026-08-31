@@ -18,7 +18,7 @@ const warningMessages = (source: string) =>
     .map((item) => item.message);
 
 const sourceWithAllDanglingKinds = [
-  "nui 4",
+  "nui 1",
   "view Draft (default: true, ghost: false)",
   'activeView "Missing View"',
   "point A = coordinate(x: 0, y: 0)",
@@ -63,7 +63,7 @@ describe("dangling reference diagnostics and retention", () => {
 
   it("preserves all dangling semantics across compile -> serialize -> recompile", () => {
     const first = compileRecoverable(sourceWithAllDanglingKinds);
-    const serialized = serializeDocumentToDsl(first.document!, 4);
+    const serialized = serializeDocumentToDsl(first.document!, 1);
     const second = compileRecoverable(serialized);
 
     expect(serialized).toContain('@"Outer group"::"Missing shape#1".pivot');
@@ -72,7 +72,7 @@ describe("dangling reference diagnostics and retention", () => {
     expect(serialized).toContain('@"Missing.Line".end');
     expect(serialized).toContain('baseLines: [@MissingLine, @"Missing line 2", @"Outer group"::"Missing#line"]');
     expect(serialized).not.toContain('"Outer group::Missing');
-    expect(serializeDocumentToDsl(second.document!, 4)).toBe(serialized);
+    expect(serializeDocumentToDsl(second.document!, 1)).toBe(serialized);
     expect(second.document!.activeVisibilityProfileId).toBe("Missing View");
   });
 
@@ -96,7 +96,7 @@ describe("dangling reference diagnostics and retention", () => {
 
 describe("dangling automatic recovery and evaluation", () => {
   const dangling = [
-    "nui 4",
+    "nui 1",
     "point UsesMissing = offset(from: @Missing, dx: 1, dy: 0)",
     "point Downstream = offset(from: @UsesMissing, dx: 1, dy: 0)"
   ].join("\n");
@@ -110,7 +110,7 @@ describe("dangling automatic recovery and evaluation", () => {
       expect.objectContaining({ missingDependencyId: usesMissingId })
     ]));
 
-    const repaired = dangling.replace("nui 4", "nui 4\npoint Missing = coordinate(x: 0, y: 0)");
+    const repaired = dangling.replace("nui 1", "nui 1\npoint Missing = coordinate(x: 0, y: 0)");
     const after = compileRecoverable(repaired);
     const targetId = after.document!.elements.find((element) => element.name === "Missing")!.id;
     const usesMissing = after.document!.elements.find((element) => element.name === "UsesMissing") as Extract<CadElement, { type: "offsetPoint" }>;
@@ -120,26 +120,26 @@ describe("dangling automatic recovery and evaluation", () => {
   });
 
   it("recovers after renaming an existing target", () => {
-    const before = compileRecoverable(`nui 4\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
-    expect(warningMessages(`nui 4\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`))
+    const before = compileRecoverable(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
+    expect(warningMessages(`nui 1\npoint Old = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`))
       .toEqual(expect.arrayContaining([expect.stringContaining("Missing")]));
     expect(evaluateElements(before.document!.elements).errors).not.toEqual([]);
 
-    const after = compileRecoverable(`nui 4\npoint Missing = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
+    const after = compileRecoverable(`nui 1\npoint Missing = coordinate(x: 0, y: 0)\npoint User = offset(from: @Missing, dx: 1, dy: 0)`);
     expect(after.diagnostics).toEqual([]);
     expect(evaluateElements(after.document!.elements).errors).toEqual([]);
   });
 
   it("resolves a qualified target with quoted special segments after it is added", () => {
     const before = compileRecoverable(
-      'nui 4\npoint User = offset(from: @"Outer group"::"Target#point", dx: 1, dy: 0)'
+      'nui 1\npoint User = offset(from: @"Outer group"::"Target#point", dx: 1, dy: 0)'
     );
     expect(before.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ severity: "warning", message: expect.stringContaining('"Outer group"::"Target#point"') })
     ]));
 
     const after = compileRecoverable([
-      "nui 4",
+      "nui 1",
       'group "Outer group" {',
       '  point "Target#point" = coordinate(x: 0, y: 0)',
       "}",

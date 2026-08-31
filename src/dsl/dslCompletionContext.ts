@@ -93,7 +93,7 @@ export const dslGeometryReferenceKindForParameter = (
  * arms of one token shape (split purely on the presence of `.`), not two
  * independently-matching grammars - see expressionReferenceToken.ts.
  *
- * Property references always use the sigilled nui4 spelling.
+ * Property references always use the sigilled nui1 spelling.
  */
 const numberFieldCompletionContext = (
   code: string,

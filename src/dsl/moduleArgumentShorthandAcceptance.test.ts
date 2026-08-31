@@ -41,7 +41,7 @@ const completionLabels = (source: string) => {
 describe("Module same-name shorthand acceptance coverage", () => {
   it("uses normal semantic diagnostics for unknown and duplicate shorthand-derived labels", () => {
     const unknown = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const other: number = 1",
       "module M(width: number) {",
       "}",
@@ -50,7 +50,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
     expect(errorCodes(unknown)).toContain("module-unknown-argument");
 
     const duplicate = compileWithIds([
-      "nui 4",
+      "nui 1",
       "const width: number = 1",
       "module M(width: number) {",
       "}",
@@ -61,7 +61,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
 
   it("allows required, defaulted, and optional parameters to be explicitly supplied by shorthand", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const required: number = 1",
       "const defaulted: number = 2",
       "const optional: number = 3",
@@ -83,7 +83,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
 
   it("keeps shorthand value type diagnostics equivalent to the explicit named form", () => {
     const prefix = [
-      "nui 4",
+      "nui 1",
       'const width: string = "wrong"',
       "module M(width: number) {",
       "}"
@@ -96,7 +96,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
 
   it("includes shorthand in caller-value References as well as parameter-oriented References", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "module M(width: number) {",
       "  const copy: number = @width",
@@ -116,7 +116,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
 
   it("offers shorthand for compatible defaulted scalar and optional geometry parameters, but not unavailable values", () => {
     const available = [
-      "nui 4",
+      "nui 1",
       "const width: number = 10",
       "point origin = coordinate(x: 0, y: 0)",
       "module M(width: number = 5, origin?: point) {",
@@ -129,7 +129,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
     expect(labels.indexOf("@origin")).toBeLessThan(labels.indexOf("origin"));
 
     const unavailable = [
-      "nui 4",
+      "nui 1",
       "module M(width: number = 5) {",
       "}",
       "instance X = M()",
@@ -142,7 +142,7 @@ describe("Module same-name shorthand acceptance coverage", () => {
 
   it("materializes geometry shorthand identically to the explicit named form", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point origin = coordinate(x: 4, y: 5)",
       "module Marker(origin: point) {",
       "  point P = coordinate(x: @origin.x, y: @origin.y)",

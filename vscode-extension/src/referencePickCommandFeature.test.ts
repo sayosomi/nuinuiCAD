@@ -98,7 +98,7 @@ import {
 } from "./referencePickCommandFeature";
 
 const source = [
-  "nui 4",
+  "nui 1",
   "point A = coordinate(x: 0, y: 0)",
   "point B = coordinate(x: 10, y: 0)",
   "point P = offset(from: @A, dx: 0, dy: 0)"
@@ -204,7 +204,7 @@ beforeEach(() => {
 describe("registerVscodeReferencePickFeature", () => {
   it("keeps the Reference Pick context enabled across a complete existing numeric-property occurrence", async () => {
     const numericSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",

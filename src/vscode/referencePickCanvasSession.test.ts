@@ -94,7 +94,7 @@ const startSession = ({
 describe("VS Code Canvas reference pick session bridge", () => {
   it("matches document/version proof across independent Host and Webview compiler sessions", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Straight = segment(start: @A, end: @B)",
@@ -155,7 +155,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("revalidates restored draft references against the current candidates", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Straight = segment(start: @A, end: @B)",
@@ -200,7 +200,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("seeds a multiple draft, toggles candidates, and confirms without mutating Source", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "line A = segment(start: (0, 0), end: (10, 0))",
       "line B = segment(start: (0, 10), end: (10, 10))",
       "line C = segment(start: (0, 20), end: (10, 20))",
@@ -237,7 +237,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("moves from numeric geometry selection to a property chooser and explicit confirmation", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -283,7 +283,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("keeps every numeric geometry candidate and exposes its actual computed properties", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -302,7 +302,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("rejects numeric confirmations and allowlists with unsupported geometry-property pairs", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -331,7 +331,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("retargets an existing numeric property through the property chooser", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",

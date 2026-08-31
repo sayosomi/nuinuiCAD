@@ -449,7 +449,7 @@ export type CadElement =
 export type CadElementType = CadElement["type"];
 export type CadElementCategory = "group" | "container" | "point" | "line" | "modification";
 
-/** Runtime-only elements do not have a nui 4 source construction yet. */
+/** Runtime-only elements do not have a nui 1 source construction yet. */
 export const runtimeOnlyElementTypes = new Set<CadElementType>(["moduleInstance"]);
 
 export type ComputedPoint = {

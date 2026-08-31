@@ -49,7 +49,7 @@ afterEach(async () => {
 describe("headless MCP semantic document queries", () => {
   it("projects Definition ranges from the shared exact-current query", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\n");
@@ -74,7 +74,7 @@ describe("headless MCP semantic document queries", () => {
   });
 
   it("returns explicit no-result for a valid snapshot position without a semantic target", async () => {
-    const source = "nui 4\npoint A = coordinate(x: 0, y: 0)";
+    const source = "nui 1\npoint A = coordinate(x: 0, y: 0)";
     const filePath = await makeTempDocument(source);
 
     const result = await queryNuiDocumentDefinition(filePath, 1);
@@ -86,7 +86,7 @@ describe("headless MCP semantic document queries", () => {
 
   it("fails closed with explicit unavailable status for fatal current source", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "this is not valid nui syntax"
     ].join("\n");
@@ -107,7 +107,7 @@ describe("headless MCP semantic document queries", () => {
 
   it("preserves shared References source order and exact ranges", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)",
       "point C = offset(from: @A, dx: 2, dy: 0)"
@@ -136,7 +136,7 @@ describe("headless MCP semantic document queries", () => {
 
   it("keeps CRLF source coherent through normalized UTF-16 offsets", async () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = offset(from: @A, dx: 1, dy: 0)"
     ].join("\r\n");

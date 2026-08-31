@@ -16,7 +16,7 @@ const rootSource = (id: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",
   documentId: documentIdFromHost(id),
   normalizedSource: [
-    "nui 4",
+    "nui 1",
     "import \"./shared.nui\" as shared"
   ].join("\n"),
   sourceRevision: 1
@@ -26,7 +26,7 @@ const sharedSource: DependencySavedSourceSnapshot = {
   kind: "dependency-saved",
   documentId: documentIdFromHost("shared"),
   normalizedSource: [
-    "nui 4",
+    "nui 1",
     "export module Pocket() {",
     "}"
   ].join("\n"),

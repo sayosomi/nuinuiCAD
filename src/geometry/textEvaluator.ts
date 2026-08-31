@@ -22,7 +22,7 @@ export const evaluateTextElement = (
   );
   if (fontSize === undefined) return true;
 
-  // Source-authored nui 4 text interpolation is compiled before evaluation.
+  // Source-authored nui 1 text interpolation is compiled before evaluation.
   // A raw element without that compiled entry is literal text; it is never
   // interpreted through the removed document-variable expression lane.
   const text = context.textTemplate

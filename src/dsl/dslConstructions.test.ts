@@ -56,7 +56,7 @@ const sampleForSpec = (category: string, construction: string) => {
   return { ...sampleFor(spec.elementType), ...spec.preset } as CadElement;
 };
 
-describe("DSL nui 4 construction registry", () => {
+describe("DSL nui 1 construction registry", () => {
   it("maps every CadElementType to a construction and resolves every call by category", () => {
     const coveredTypes = new Set<CadElementType>();
 
@@ -135,7 +135,7 @@ describe("DSL nui 4 construction registry", () => {
   });
 });
 
-describe("DSL nui 4 settings registry", () => {
+describe("DSL nui 1 settings registry", () => {
   it("defines the specified settings arguments and positional slots", () => {
     expect(settingsSpecFor("color")).toBeNull();
     expect(settingsSpecFor("role")?.args.map((arg) => arg.arg)).toEqual(["name"]);

@@ -140,7 +140,7 @@ describe("evaluateElements", () => {
 
   it("uses the normal modifier resolver for module-materialized elements", () => {
     const source = [
-      "nui 4",
+      "nui 1",
       "modifier Guide {",
       "  width: 1.5px,",
       "  style: dashed,",
@@ -924,7 +924,7 @@ describe("evaluateElements", () => {
   });
 
   it("shadows an outer iteration binding when a nested for group reuses its variable name", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(from: 100, count: 2, step: 100) {
   for i in range(from: 1, count: 2, step: 1) {
     point P = coordinate(x: @i, y: 0)
@@ -1129,7 +1129,7 @@ for i in range(from: 100, count: 2, step: 100) {
   });
 
   it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   for j in range(from: 0, count: 2, step: 1) {
@@ -1165,7 +1165,7 @@ for i in range(from: 0, count: 2, step: 1) {
     // format ("id@forGroupId:iterationIndex") and the derived-point-anchor
     // reference format ("id:pointKey"), which affects distance()/angle()'s
     // point arguments regardless of ancestor scope (see completion report).
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
 for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
@@ -1195,7 +1195,7 @@ for i in range(from: 0, count: 2, step: 1) {
   });
 
   it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @A.x + 10, y: 0)
@@ -1216,7 +1216,7 @@ for i in range(from: 0, count: 2, step: 1) {
     // delimiter collision: A and B are both same-invocation generated
     // points, so distance()/angle() must resolve them by their full
     // generated id, not by splitting on the first colon.
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
@@ -1234,7 +1234,7 @@ for i in range(from: 0, count: 2, step: 1) {
   });
 
   it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 for i in range(from: 0, count: 2, step: 1) {
   point A = coordinate(x: @i, y: 0)
   for j in range(from: 0, count: 2, step: 1) {
@@ -1260,7 +1260,7 @@ for i in range(from: 0, count: 2, step: 1) {
   });
 
   it("still resolves distance()/angle() for an ordinary non-generated point argument", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 3, y: 4)
 point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
@@ -1270,7 +1270,7 @@ point Q = coordinate(x: distance(P, R), y: angle(P, R))`);
   });
 
   it("still resolves distance() for a derived-point argument on an ordinary non-generated line", () => {
-    const { result, elementId } = compileAndEvaluate(`nui 4
+    const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 0)
 point R = coordinate(x: 10, y: 0)
 line PR = segment(start: @P, end: @R)
