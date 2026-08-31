@@ -27,7 +27,9 @@ export type GeometryAlias =
 export type InstanceContext = {
   path: readonly string[];
   instanceStatementId: string;
+  instanceDocumentId?: import("../document/multiDocumentPrimitives").DocumentId;
   definitionStatementId: string;
+  definitionDocumentId?: import("../document/multiDocumentPrimitives").DocumentId;
   definition: ModuleDefinitionSemantic;
   aliases: ReadonlyMap<number, GeometryAlias>;
 };
@@ -181,10 +183,20 @@ export const sourceAliasForTarget = (
   materialization: ModuleMaterialization,
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>
 ): GeometryAlias | undefined => {
+  const childContextFor = (statementId: string, documentId?: import("../document/multiDocumentPrimitives").DocumentId) =>
+    [...contextsByPath.values()].find((context) =>
+      context.path.length === currentPath.length + 1 &&
+      currentPath.every((part, index) => context.path[index] === part) &&
+      context.instanceStatementId === statementId &&
+      (documentId === undefined || context.instanceDocumentId === documentId)
+    );
   if (target.kind === "parameter") {
     for (let index = currentPath.length; index >= 0; index -= 1) {
       const context = contextsByPath.get(pathKey(currentPath.slice(0, index)));
-      if (context?.definitionStatementId === target.definitionStatementId) return context.aliases.get(target.parameterIndex);
+      if (context?.definitionStatementId === target.definitionStatementId &&
+          (!target.definitionIdentity || context.definitionDocumentId === target.definitionIdentity.documentId)) {
+        return context.aliases.get(target.parameterIndex);
+      }
     }
     return undefined;
   }
@@ -193,11 +205,18 @@ export const sourceAliasForTarget = (
     for (let index = currentPath.length; index > 0; index -= 1) {
       const candidatePath = currentPath.slice(0, index);
       const context = contextsByPath.get(pathKey(candidatePath));
-      if (context?.definition.bodyStatements.some((body) => body.statementId === target.statementId)) {
+      if (context?.definition.bodyStatements.some((body) => body.statementId === target.statementId) &&
+          (!target.identity || context.definitionDocumentId === target.identity.documentId)) {
         ownerPath = candidatePath;
         break;
       }
     }
+    const rootDocumentIds = new Set(
+      [...contextsByPath.values()]
+        .filter((context) => context.path.length === 1)
+        .map((context) => context.instanceDocumentId)
+    );
+    if (!ownerPath.length && target.identity && !rootDocumentIds.has(target.identity.documentId)) return undefined;
     const entry = ownerPath.length
       ? runtimeEntryForBody(materialization, ownerPath, target.statementId)
       : materialization.elementIdBySourceStatementIndex.get(target.statementIndex)
@@ -208,8 +227,8 @@ export const sourceAliasForTarget = (
       ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) }
       : { kind: "line", elementId: entry.runtimeElementId };
   }
-  const childPath = [...currentPath, target.instanceStatementId];
-  return exportsByPath.get(pathKey(childPath))?.get(target.exportName)?.alias;
+  const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
+  return child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
 };
 
 export const lowerReference = (

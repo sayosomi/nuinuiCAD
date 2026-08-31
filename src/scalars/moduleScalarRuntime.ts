@@ -2,6 +2,7 @@ import { encodeIdentityTuple } from "../document/identityTuple";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import type { DslStatement } from "../dsl/dslTypes";
+import type { DocumentId, DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleBodyStatementSemantic,
@@ -51,9 +52,11 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
+import type { ModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import { planRecordScalarLowering, recordScalarBindingIdFor, recordScalarDeclarationVersionIdFor } from "./recordScalarLowering";
+import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -104,6 +107,8 @@ type InstanceContext = {
   key: string;
   path: readonly string[];
   instance: ModuleInstanceSemantic;
+  instanceDocumentId?: import("../document/multiDocumentPrimitives").DocumentId;
+  definitionDocumentId?: import("../document/multiDocumentPrimitives").DocumentId;
   definition: ModuleDefinitionSemantic;
   parentKey: string | null;
   scopeId: string;
@@ -126,6 +131,40 @@ const scalarTypeOf = (type: ModuleDefinitionSemantic["parameters"][number]["type
     : null;
 
 const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
+
+type ForeignSourceScalars = {
+  documentId: import("../document/multiDocumentPrimitives").DocumentId;
+  analysis: TypedDeclarationAnalysis;
+  program: ScalarProgram;
+  bindingIdByLocalId: ReadonlyMap<BindingId, BindingId>;
+};
+
+const foreignDocumentBindingId = (documentId: string, bindingId: BindingId) =>
+  `module-document-binding:${encodeIdentityTuple([documentId, bindingId])}`;
+
+const remapTypedExpressionBindingIds = (
+  expression: TypedScalarExpression,
+  bindingIdByLocalId: ReadonlyMap<BindingId, BindingId>
+): TypedScalarExpression => {
+  switch (expression.kind) {
+    case "reference":
+      return { ...expression, bindingId: expression.bindingId ? bindingIdByLocalId.get(expression.bindingId) ?? null : null };
+    case "unary": return { ...expression, operand: remapTypedExpressionBindingIds(expression.operand, bindingIdByLocalId) };
+    case "binary": return {
+      ...expression,
+      left: remapTypedExpressionBindingIds(expression.left, bindingIdByLocalId),
+      right: remapTypedExpressionBindingIds(expression.right, bindingIdByLocalId)
+    };
+    case "group": return { ...expression, expression: remapTypedExpressionBindingIds(expression.expression, bindingIdByLocalId) };
+    case "call": return {
+      ...expression,
+      args: expression.args.map((argument) => argument.kind === "scalar"
+        ? { ...argument, expression: remapTypedExpressionBindingIds(argument.expression, bindingIdByLocalId) }
+        : argument)
+    };
+    default: return expression;
+  }
+};
 
 export const moduleScalarBindingIdFor = (
   path: readonly string[],
@@ -205,6 +244,23 @@ const recordFieldBindingIdForSemanticTarget = ({
         ? recordFieldBindingIdForSemanticTarget({ target: local.target, field, path, definition, instance, moduleSemanticAnalysis, sourceNamespace, rootRecordPlan, visited })
         : undefined;
     }
+    const parentLocal = parentContext?.definition.recordValues.find((value) => value.value.statementId === target.statementId);
+    if (parentLocal) {
+      if (parentLocal.value.constructor) return moduleRecordScalarBindingIdFor(parentContext!.path, target.statementId, field);
+      return parentLocal.target
+        ? recordFieldBindingIdForSemanticTarget({
+            target: parentLocal.target,
+            field,
+            path: parentContext!.path,
+            definition: parentContext!.definition,
+            instance: parentContext!.instance,
+            moduleSemanticAnalysis,
+            sourceNamespace,
+            rootRecordPlan,
+            visited
+          })
+        : undefined;
+    }
     return rootRecordPlan?.fieldBindingIdsByValueStatementId.get(target.statementId)?.get(field.fieldIndex)
       ?? recordScalarBindingIdFor(target.statementId, field);
   }
@@ -264,55 +320,83 @@ export const moduleRecordExportFieldBindingIdFor = ({
   moduleSemanticAnalysis,
   sourceNamespace,
   instanceStatementId,
+  instanceIdentity,
   exportName,
   exportedStatementId,
-  field
+  field,
+  moduleRuntimeContext
 }: {
   moduleSemanticAnalysis: ModuleSemanticAnalysis;
   sourceNamespace: SourceLexicalNamespaceIndex;
   instanceStatementId: StatementIdentity;
+  instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   exportName: string;
   exportedStatementId: StatementIdentity;
   field: RecordFieldIdentity;
+  moduleRuntimeContext?: ModuleRuntimeContext;
 }): BindingId | undefined => {
-  const instance = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
-  const definition = instance?.callee && moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const instance = moduleRuntimeContext?.instanceFor(instanceIdentity)
+    ?? moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
+  const definition = instance?.callee
+    ? moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+      ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+    : undefined;
   const exported = definition?.exports.find((candidate) =>
     candidate.kind === "record" && candidate.name === exportName && candidate.exportedStatementId === exportedStatementId
   );
   if (!instance || !definition || exported?.kind !== "record") return undefined;
-  const rootRecordPlan = sourceNamespace.recordSemanticAnalysis
-    ? planRecordScalarLowering({ analysis: sourceNamespace.recordSemanticAnalysis, sourceNamespace })
+  const definitionSourceNamespace = moduleRuntimeContext?.documentFor(
+    definition.documentId ?? instance.callee?.definitionIdentity?.documentId
+  )?.sourceLexicalNamespace ?? sourceNamespace;
+  const definitionAnalysis = moduleRuntimeContext?.analysisFor(
+    definition.documentId ?? instance.callee?.definitionIdentity?.documentId
+  ) ?? moduleSemanticAnalysis;
+  const instancePath = moduleRuntimeContext
+    ? moduleRuntimeContext.runtimePathForInstance([], instance)
+    : [instance.statementId];
+  const rootRecordPlan = definitionSourceNamespace.recordSemanticAnalysis
+    ? planRecordScalarLowering({ analysis: definitionSourceNamespace.recordSemanticAnalysis, sourceNamespace: definitionSourceNamespace })
     : undefined;
   return recordFieldBindingIdForSemanticTarget({
     target: exported.backingTarget,
     field,
-    path: [instance.statementId],
+    path: instancePath,
     definition,
     instance,
-    moduleSemanticAnalysis,
-    sourceNamespace,
+    moduleSemanticAnalysis: definitionAnalysis,
+    sourceNamespace: definitionSourceNamespace,
     rootRecordPlan
   });
 };
 
 export const moduleScalarExportBindingSeeds = (
   moduleSemanticAnalysis: ModuleSemanticAnalysis,
-  sourceNamespace: SourceLexicalNamespaceIndex
+  sourceNamespace: SourceLexicalNamespaceIndex,
+  moduleRuntimeContext?: ModuleRuntimeContext
 ): readonly BindingSeed[] => {
   const seenBindingIds = new Set<BindingId>();
   return moduleSemanticAnalysis.instances
     .filter((instance) => instance.callerModuleDefinitionStatementId === null && instance.callee)
     .flatMap((instance) => {
-    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee!.definitionStatementId);
+    const definition = moduleRuntimeContext?.definitionFor(instance.callee!.definitionIdentity)
+      ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee!.definitionStatementId);
     if (!definition) return [];
     const effectiveScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(instance.statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;
-    const rootRecordPlan = sourceNamespace.recordSemanticAnalysis
-      ? planRecordScalarLowering({ analysis: sourceNamespace.recordSemanticAnalysis, sourceNamespace })
+    const definitionSourceNamespace = moduleRuntimeContext?.documentFor(
+      definition.documentId ?? instance.callee!.definitionIdentity?.documentId
+    )?.sourceLexicalNamespace ?? sourceNamespace;
+    const definitionAnalysis = moduleRuntimeContext?.analysisFor(
+      definition.documentId ?? instance.callee!.definitionIdentity?.documentId
+    ) ?? moduleSemanticAnalysis;
+    const instancePath = moduleRuntimeContext
+      ? moduleRuntimeContext.runtimePathForInstance([], instance)
+      : [instance.statementId];
+    const rootRecordPlan = definitionSourceNamespace.recordSemanticAnalysis
+      ? planRecordScalarLowering({ analysis: definitionSourceNamespace.recordSemanticAnalysis, sourceNamespace: definitionSourceNamespace })
       : undefined;
     return definition.exports.flatMap((exported) => exported.kind === "scalar"
       ? [{
-          id: moduleScalarBindingIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          id: moduleScalarBindingIdFor(instancePath, definition.statementId, exported.exportedStatementId),
           kind: "typed" as const,
           name: `${instance.name}::${exported.name}`,
           nameSpan: null,
@@ -322,7 +406,7 @@ export const moduleScalarExportBindingSeeds = (
           visibility: { kind: "typed" as const, scopeId: effectiveScopeId },
           mutability: exported.bindingKind,
           declaredType: exported.declaredType,
-          declarationVersionId: moduleScalarDeclarationVersionIdFor([instance.statementId], definition.statementId, exported.exportedStatementId),
+          declarationVersionId: moduleScalarDeclarationVersionIdFor(instancePath, definition.statementId, exported.exportedStatementId),
           resolutionMode: "preResolvedOnly" as const
         }]
       : exported.kind === "record"
@@ -330,11 +414,11 @@ export const moduleScalarExportBindingSeeds = (
             const id = recordFieldBindingIdForSemanticTarget({
               target: exported.backingTarget,
               field: field.identity,
-              path: [instance.statementId],
+              path: instancePath,
               definition,
               instance,
-              moduleSemanticAnalysis,
-              sourceNamespace,
+              moduleSemanticAnalysis: definitionAnalysis,
+              sourceNamespace: definitionSourceNamespace,
               rootRecordPlan
             });
             if (!id) return [];
@@ -351,7 +435,7 @@ export const moduleScalarExportBindingSeeds = (
               declaredType: field.type,
               declarationVersionId: id.startsWith("record-field-binding:")
                 ? recordScalarDeclarationVersionIdFor(exported.exportedStatementId, field.identity)
-                : moduleRecordScalarDeclarationVersionIdFor([instance.statementId], exported.exportedStatementId, field.identity),
+                : moduleRecordScalarDeclarationVersionIdFor(instancePath, exported.exportedStatementId, field.identity),
               resolutionMode: "preResolvedOnly" as const
             }];
           })
@@ -441,13 +525,17 @@ const lowerRecordPropertyAst = (
 const materializeHasValueAst = (
   ast: ModuleScalarExpressionSemantic["ast"],
   semantic: ModuleScalarExpressionSemantic,
-  hasValueForParameter: (definitionStatementId: string, parameterIndex: number) => boolean
+  hasValueForParameter: (definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId) => boolean
 ): ModuleScalarExpressionSemantic["ast"] => {
   const intrinsic = ast.kind === "call" && ast.name === "hasValue"
     ? semantic.hasValueParameters.find((entry) => entry.span.start === ast.span.start)
     : undefined;
   if (intrinsic) {
-    return { kind: "booleanLiteral", span: ast.span, value: hasValueForParameter(intrinsic.definitionStatementId, intrinsic.parameterIndex) };
+    return {
+      kind: "booleanLiteral",
+      span: ast.span,
+      value: hasValueForParameter(intrinsic.definitionStatementId, intrinsic.parameterIndex, intrinsic.definitionIdentity?.documentId)
+    };
   }
   switch (ast.kind) {
     case "unary": return { ...ast, operand: materializeHasValueAst(ast.operand, semantic, hasValueForParameter) };
@@ -508,7 +596,7 @@ const lowerExpression = (
   catalogBindings: ReadonlyMap<BindingId, Binding>,
   geometryPropertyForTarget?: (target: ModuleGeometryPropertySourceTarget) => ModuleGeometryPropertyRuntimeTarget | undefined,
   geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined,
-  hasValueForParameter: (definitionStatementId: string, parameterIndex: number) => boolean = () => false
+  hasValueForParameter: (definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId) => boolean = () => false
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const runtimeAst = materializeHasValueAst(lowerRecordPropertyAst(semantic.ast, semantic), semantic, hasValueForParameter);
   const references = semanticReferencesUsedByAst(semantic, runtimeAst);
@@ -706,7 +794,7 @@ const elementForBody = (
   const entry = materialization.executionStatements.find((candidate) =>
     candidate.origin?.kind === "moduleBody" &&
     candidate.origin.sourceStatementId === sourceStatementId &&
-    pathKey(candidate.instancePath) === pathKey(path)
+    pathKey(candidate.runtimeInstancePath ?? candidate.instancePath) === pathKey(path)
   );
   return entry ? { elementId: entry.runtimeElementId, statement: entry.statement } : undefined;
 };
@@ -715,7 +803,7 @@ const instanceElement = (
   materialization: ModuleMaterialization,
   path: readonly string[]
 ): ElementId | undefined => materialization.executionStatements.find((entry) =>
-  entry.origin?.kind === "moduleInstance" && pathKey(entry.instancePath) === pathKey(path)
+  entry.origin?.kind === "moduleInstance" && pathKey(entry.runtimeInstancePath ?? entry.instancePath) === pathKey(path)
 )?.runtimeElementId;
 
 const propertySourceFor = (
@@ -761,6 +849,7 @@ export const compileModuleScalarRuntime = ({
   sourceScopeIndex,
   sourceNamespace,
   moduleGeometryRuntime,
+  moduleRuntimeContext,
   drawingModifiers
 }: {
   statements: readonly DslStatement[];
@@ -778,6 +867,8 @@ export const compileModuleScalarRuntime = ({
   sourceNamespace?: SourceLexicalNamespaceIndex;
   /** Task 7 stable geometry target lowering; no runtime name lookup. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
+  /** Exact graph/semantic owner for imported module source execution. */
+  moduleRuntimeContext?: ModuleRuntimeContext;
   drawingModifiers?: readonly DrawingModifierDefinition[];
 }): ModuleScalarRuntimeCompilation => {
   const include = includeStatement ?? ((_statement, index) => isCompilableDslStatement(statements, index));
@@ -808,16 +899,78 @@ export const compileModuleScalarRuntime = ({
 
   const contextsByKey = new Map<string, InstanceContext>();
   const allBindingInfos: BindingInfo[] = [];
-  const runtimeContextForSourceInstance = (current: InstanceContext | null, instanceStatementId: string): InstanceContext | undefined => {
-    const target = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
+  const foreignSourceScalars = new Map<import("../document/multiDocumentPrimitives").DocumentId, ForeignSourceScalars>();
+  if (moduleRuntimeContext) {
+    for (const document of moduleRuntimeContext.documentsById.values()) {
+      if (document.documentId === moduleRuntimeContext.rootDocumentId) continue;
+      const compilation = analyzeTypedDeclarations({
+        statements: document.statements,
+        stableStatementIdByIndex: document.statementIdByStatementIndex,
+        reconciledContainers: { elementIdByStatementIndex: new Map(), elements: [] },
+        spans: {
+          sourceMap: moduleRuntimeContext.graph.nodes.get(document.documentId)!.artifact.parsed.sourceMap,
+          logicalStatementByRangeFrom: moduleRuntimeContext.graph.nodes.get(document.documentId)!.artifact.parsed.logicalStatementByRangeFrom
+        },
+        includeStatement: (_statement, statementIndex) => isCompilableDslStatement(document.statements, statementIndex),
+        sourceNamespace: document.sourceLexicalNamespace
+      });
+      if (!compilation.analysis) continue;
+      const bindingIdByLocalId = new Map<BindingId, BindingId>();
+      for (const binding of compilation.analysis.bindingAnalysis.catalog.bindings) {
+        if (binding.kind !== "typed") continue;
+        bindingIdByLocalId.set(binding.id, foreignDocumentBindingId(String(document.documentId), binding.id));
+      }
+      foreignSourceScalars.set(document.documentId, {
+        documentId: document.documentId,
+        analysis: compilation.analysis,
+        program: lowerScalarProgram(compilation.analysis),
+        bindingIdByLocalId
+      });
+    }
+  }
+  for (const foreign of foreignSourceScalars.values()) {
+    for (const binding of foreign.analysis.bindingAnalysis.catalog.bindings) {
+      if (binding.kind !== "typed" || !binding.declaredType || foreign.bindingIdByLocalId.get(binding.id) === undefined) continue;
+      const id = foreign.bindingIdByLocalId.get(binding.id)!;
+      const scopeId = baseScopeIndex.rootScopeId;
+      allBindingInfos.push({
+        id,
+        declarationVersionId: `module-document-declaration:${encodeIdentityTuple([String(foreign.documentId), binding.id])}`,
+        name: binding.name,
+        type: binding.declaredType,
+        bindingKind: binding.mutability === "let" ? "let" : "const",
+        scopeId,
+        sourceScopeId: binding.effectiveScopeId,
+        contextKey: scopeId,
+        statementId: moduleRuntimeContext?.documentFor(foreign.documentId)?.statementIdByStatementIndex.get(binding.statementIndex) ?? binding.id,
+        statementIndex: binding.statementIndex
+      });
+    }
+  }
+  const runtimeContextForSourceInstance = (
+    current: InstanceContext | null,
+    instanceStatementId: string,
+    instanceDocumentId?: import("../document/multiDocumentPrimitives").DocumentId
+  ): InstanceContext | undefined => {
+    const target = moduleRuntimeContext?.instanceFor(instanceDocumentId ? {
+      documentId: instanceDocumentId,
+      localIdentity: instanceStatementId
+    } : undefined) ?? moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
     if (!target) return undefined;
     if (target.callerModuleDefinitionStatementId === null) {
-      return contextsByKey.get(pathKey([instanceStatementId]));
+      const path = moduleRuntimeContext
+        ? moduleRuntimeContext.runtimePathForInstance([], target)
+        : [instanceStatementId];
+      return contextsByKey.get(pathKey(path));
     }
     let owner: InstanceContext | undefined = current ?? undefined;
     while (owner) {
-      if (owner.definition.statementId === target.callerModuleDefinitionStatementId) {
-        return contextsByKey.get(pathKey([...owner.path, instanceStatementId]));
+      if (owner.definition.statementId === target.callerModuleDefinitionStatementId &&
+          (!target.identity || owner.definitionDocumentId === target.identity.documentId)) {
+        const path = moduleRuntimeContext
+          ? moduleRuntimeContext.runtimePathForInstance(owner.path, target)
+          : [...owner.path, instanceStatementId];
+        return contextsByKey.get(pathKey(path));
       }
       owner = owner.parentKey ? contextsByKey.get(owner.parentKey) : undefined;
     }
@@ -854,7 +1007,7 @@ export const compileModuleScalarRuntime = ({
         .find((candidate) => candidate.definition.statementId === target.definitionStatementId)
         ?.recordParameters.get(target.parameterIndex)?.get(field.fieldIndex)?.id;
     }
-    const child = runtimeContextForSourceInstance(current, target.instanceStatementId);
+    const child = runtimeContextForSourceInstance(current, target.instanceStatementId, target.instanceIdentity?.documentId);
     const exported = child?.definition.exports.find((candidate) =>
       candidate.kind === "record" && candidate.name === target.exportName && candidate.exportedStatementId === target.exportedStatementId
     );
@@ -868,12 +1021,18 @@ export const compileModuleScalarRuntime = ({
   };
   const registerInstance = (instance: ModuleInstanceSemantic, parentPath: readonly string[], parentKey: string | null): InstanceContext | undefined => {
     if (!instance.callee) return undefined;
-    const path = [...parentPath, instance.statementId];
+    const path = moduleRuntimeContext
+      ? moduleRuntimeContext.runtimePathForInstance(parentPath, instance)
+      : [...parentPath, instance.statementId];
     const key = pathKey(path);
     const existing = contextsByKey.get(key);
     if (existing) return existing;
-    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+    const instanceDocumentId = instance.identity?.documentId ?? instance.documentId ?? moduleRuntimeContext?.rootDocumentId;
+    const definition = moduleRuntimeContext
+      ? moduleRuntimeContext.definitionFor(instance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+      : moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
     if (!definition) return undefined;
+    const definitionDocumentId = definition.identity?.documentId ?? definition.documentId ?? instance.callee.definitionIdentity?.documentId ?? moduleRuntimeContext?.rootDocumentId;
     const bodyScopeId = definition.bodyScopeId;
     const scopeId = moduleScopeIdFor(path, bodyScopeId);
     const parameters = new Map<number, BindingInfo>();
@@ -881,8 +1040,12 @@ export const compileModuleScalarRuntime = ({
     const iterations = new Map<string, BindingInfo>();
     const recordValues = new Map<string, ReadonlyMap<number, { id: BindingId }>>();
     const recordParameters = new Map<number, ReadonlyMap<number, { id: BindingId }>>();
-    const context = { key, path, instance, definition, parentKey, scopeId, bodyScopeId, parameters, locals, iterations, recordValues, recordParameters } as InstanceContext;
+    const context = { key, path, instance, instanceDocumentId, definitionDocumentId, definition, parentKey, scopeId, bodyScopeId, parameters, locals, iterations, recordValues, recordParameters } as InstanceContext;
     contextsByKey.set(key, context);
+    const definitionDocument = moduleRuntimeContext?.documentFor(definitionDocumentId);
+    const definitionStatements = definitionDocument?.statements ?? statements;
+    const definitionSourceNamespace = definitionDocument?.sourceLexicalNamespace ?? sourceNamespace;
+    const definitionSourceScopeIndex = definitionDocument?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
     for (const parameter of definition.parameters) {
       const parameterBinding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (parameter.optional && parameterBinding?.state === "optionalOmitted") continue;
@@ -905,13 +1068,13 @@ export const compileModuleScalarRuntime = ({
       allBindingInfos.push(info);
     }
     for (const parameter of definition.parameters) {
-      const recordParameter = sourceNamespace?.recordSemanticAnalysis?.moduleParameters.find((candidate) =>
+      const recordParameter = definitionSourceNamespace?.recordSemanticAnalysis?.moduleParameters.find((candidate) =>
         candidate.definitionStatementId === definition.statementId && candidate.parameterIndex === parameter.parameterIndex
       );
       if (!recordParameter?.typeIdentity) continue;
       const parameterBinding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (!parameterBinding || parameterBinding.state === "optionalOmitted" || parameterBinding.value?.kind !== "record") continue;
-      const recordDefinition = sourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordParameter.typeIdentity);
+      const recordDefinition = definitionSourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordParameter.typeIdentity);
       if (!recordDefinition) continue;
       const fieldBindings = new Map<number, { id: BindingId }>();
       if (parameterBinding.value.reference.target) {
@@ -953,8 +1116,8 @@ export const compileModuleScalarRuntime = ({
         name: local.name,
         type: local.type,
         bindingKind: local.bindingKind,
-        sourceScopeId: sourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId,
-        scopeId: moduleScopeIdFor(path, sourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId),
+        sourceScopeId: definitionSourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId,
+        scopeId: moduleScopeIdFor(path, definitionSourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId),
         contextKey: key,
         statementId: local.statementId,
         statementIndex: local.statementIndex
@@ -964,7 +1127,7 @@ export const compileModuleScalarRuntime = ({
     }
     for (const recordValue of definition.recordValues) {
       if (!recordValue.value.typeIdentity || !recordValue.target) continue;
-      const recordDefinition = sourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordValue.value.typeIdentity);
+      const recordDefinition = definitionSourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordValue.value.typeIdentity);
       if (!recordDefinition) continue;
       const fieldBindings = new Map<number, { id: BindingId }>();
       if (recordValue.value.constructor) {
@@ -976,8 +1139,8 @@ export const compileModuleScalarRuntime = ({
             name: `${recordValue.value.name}.${field.fieldName}`,
             type: field.expectedType,
             bindingKind: "const",
-            scopeId: moduleScopeIdFor(path, sourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId),
-            sourceScopeId: sourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId,
+            scopeId: moduleScopeIdFor(path, definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId),
+            sourceScopeId: definitionSourceScopeIndex?.scopeOfStatement.get(recordValue.value.statementIndex) ?? bodyScopeId,
             contextKey: key,
             statementId: recordValue.value.statementId,
             statementIndex: recordValue.value.statementIndex
@@ -995,10 +1158,10 @@ export const compileModuleScalarRuntime = ({
     }
     for (const body of definition.bodyStatements) {
       if (body.statementKind !== "element") continue;
-      const statement = statements[body.statementIndex];
+      const statement = definitionStatements[body.statementIndex];
       if (statement?.kind !== "element" || statement.type !== "forGroup") continue;
-      const sourceScopeId = sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? bodyScopeId;
-      const sourceSlot = sourceScopeIndex?.forGroupIterationSlots.get(`for:${body.statementId}`);
+      const sourceScopeId = definitionSourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? bodyScopeId;
+      const sourceSlot = definitionSourceScopeIndex?.forGroupIterationSlots.get(`for:${body.statementId}`);
       iterations.set(body.statementId, {
         id: moduleIterationIdFor(path, body.statementId),
         declarationVersionId: moduleIterationIdFor(path, body.statementId),
@@ -1014,7 +1177,7 @@ export const compileModuleScalarRuntime = ({
     }
     for (const body of definition.bodyStatements) {
       if (body.statementKind !== "moduleInstance") continue;
-      const nested = moduleSemanticAnalysis.instancesByStatementId.get(body.statementId);
+      const nested = (moduleRuntimeContext?.analysisFor(definitionDocumentId) ?? moduleSemanticAnalysis).instancesByStatementId.get(body.statementId);
       if (nested) registerInstance(nested, path, key);
     }
     return context;
@@ -1036,14 +1199,19 @@ export const compileModuleScalarRuntime = ({
   );
 
   const bindingInfoById = new Map(allBindingInfos.map((info) => [info.id, info] as const));
+  const runtimeBindingIdForDocumentTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "documentBinding" }>): BindingId => {
+    const documentId = target.identity?.documentId;
+    if (!documentId || documentId === moduleRuntimeContext?.rootDocumentId) return target.bindingId;
+    return foreignSourceScalars.get(documentId)?.bindingIdByLocalId.get(target.bindingId) ?? target.bindingId;
+  };
   const bindingInfoForTarget = (target: ModuleScalarSourceTarget, current: InstanceContext): BindingInfo | undefined => {
-    if (target.kind === "documentBinding") return bindingInfoById.get(target.bindingId);
+    if (target.kind === "documentBinding") return bindingInfoById.get(runtimeBindingIdForDocumentTarget(target));
     if (target.kind === "recordField") {
       const bindingId = recordFieldBindingIdForTarget(target.record, target.field, current);
       return bindingId ? bindingInfoById.get(bindingId) : undefined;
     }
     if (target.kind === "deferredModuleScalarExport") {
-      const child = runtimeContextForSourceInstance(current, target.instanceStatementId);
+      const child = runtimeContextForSourceInstance(current, target.instanceStatementId, target.instanceIdentity?.documentId);
       const exported = child?.definition.exports.find((candidate) => candidate.name === target.exportName);
       return exported?.kind === "scalar" && exported.exportedStatementId === target.exportedStatementId
         ? child?.locals.get(exported.exportedStatementId)
@@ -1056,24 +1224,28 @@ export const compileModuleScalarRuntime = ({
       cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
     }
     if (target.kind === "parameter") {
-      return contextCandidates.find((candidate) => candidate.definition.statementId === target.definitionStatementId)
+      return contextCandidates.find((candidate) => candidate.definition.statementId === target.definitionStatementId &&
+        (!target.definitionIdentity || candidate.definitionDocumentId === target.definitionIdentity.documentId))
         ?.parameters.get(target.parameterIndex);
     }
     if (target.kind === "moduleLocal") {
-      return contextCandidates.find((candidate) => candidate.locals.has(target.statementId))
+      return contextCandidates.find((candidate) => candidate.locals.has(target.statementId) &&
+        (!target.identity || candidate.definitionDocumentId === target.identity.documentId))
         ?.locals.get(target.statementId);
     }
     if (target.kind === "iteration") {
-      return contextCandidates.find((candidate) => candidate.iterations.has(target.statementId))
+      return contextCandidates.find((candidate) => candidate.iterations.has(target.statementId) &&
+        (!target.identity || candidate.definitionDocumentId === target.identity.documentId))
         ?.iterations.get(target.statementId);
     }
     return undefined;
   };
 
-  const hasValueForParameter = (current: InstanceContext, definitionStatementId: string, parameterIndex: number): boolean => {
+  const hasValueForParameter = (current: InstanceContext, definitionStatementId: string, parameterIndex: number, definitionDocumentId?: DocumentId): boolean => {
     let cursor: InstanceContext | undefined = current;
     while (cursor) {
-      if (cursor.definition.statementId === definitionStatementId) {
+      if (cursor.definition.statementId === definitionStatementId &&
+        (!definitionDocumentId || cursor.definitionDocumentId === definitionDocumentId)) {
         return cursor.instance.parameterBindings.find((binding) => binding.parameterIndex === parameterIndex)?.state === "optionalSupplied";
       }
       cursor = cursor.parentKey ? contextsByKey.get(cursor.parentKey) : undefined;
@@ -1126,6 +1298,19 @@ export const compileModuleScalarRuntime = ({
     if (event.kind === "element") elementOrderById.set(event.elementId, order);
   };
 
+  const emittedForeignDocumentBindings = new Set<import("../document/multiDocumentPrimitives").DocumentId>();
+  const emitForeignDocumentBindings = (documentId: import("../document/multiDocumentPrimitives").DocumentId | undefined) => {
+    if (!documentId || emittedForeignDocumentBindings.has(documentId)) return;
+    const foreign = foreignSourceScalars.get(documentId);
+    if (!foreign) return;
+    emittedForeignDocumentBindings.add(documentId);
+    for (const binding of foreign.analysis.bindingAnalysis.catalog.bindings) {
+      if (binding.kind !== "typed") continue;
+      const runtimeId = foreign.bindingIdByLocalId.get(binding.id);
+      if (runtimeId) pushEvent({ kind: "binding", bindingId: runtimeId });
+    }
+  };
+
   const bodyRuntimeEntry = (context: InstanceContext, body: ModuleBodyStatementSemantic) =>
     elementForBody(moduleMaterialization, context.path, body.statementId);
 
@@ -1135,6 +1320,7 @@ export const compileModuleScalarRuntime = ({
       scopeExitOrderById.set(context.scopeId, start);
       return;
     }
+    emitForeignDocumentBindings(context.definitionDocumentId);
     const runtimeId = instanceElement(moduleMaterialization, context.path);
     if (runtimeId) pushEvent({ kind: "element", elementId: runtimeId }, context.instance.statementIndex);
     for (const parameter of context.definition.parameters) {
@@ -1171,7 +1357,10 @@ export const compileModuleScalarRuntime = ({
         const versionId = setVersionIdFor(context, body.statementId);
         pushEvent({ kind: "set", versionId }, body.statementIndex);
       } else if (body.statementKind === "moduleInstance") {
-        const nested = contextsByKey.get(pathKey([...context.path, body.statementId]));
+        const nestedPath = moduleRuntimeContext
+          ? moduleRuntimeContext.runtimePathForInstance(context.path, (moduleRuntimeContext.analysisFor(context.definitionDocumentId) ?? moduleSemanticAnalysis).instancesByStatementId.get(body.statementId)!)
+          : [...context.path, body.statementId];
+        const nested = contextsByKey.get(pathKey(nestedPath));
         if (nested) emitInstance(nested);
       } else {
         const runtime = bodyRuntimeEntry(context, body);
@@ -1181,8 +1370,9 @@ export const compileModuleScalarRuntime = ({
     emitRecordValuesThrough(Number.MAX_SAFE_INTEGER);
     const contextEnd = Math.max(start, events.length);
     const sourceScopeIds = new Set<string>([context.bodyScopeId]);
+    const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
     for (const body of context.definition.bodyStatements) {
-      sourceScopeIds.add(sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
+      sourceScopeIds.add(definitionScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
     }
     for (const sourceScopeId of sourceScopeIds) {
       scopeExitOrderById.set(moduleScopeIdFor(context.path, sourceScopeId), contextEnd);
@@ -1230,7 +1420,7 @@ export const compileModuleScalarRuntime = ({
 
   for (const entry of moduleMaterialization.executionStatements) {
     if (entry.runtimeIdentity) {
-      const context = contextsByKey.get(pathKey(entry.instancePath));
+      const context = contextsByKey.get(pathKey(entry.runtimeInstancePath ?? entry.instancePath));
       const body = entry.runtimeIdentity.kind === "moduleBody"
         ? context?.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId)
         : undefined;
@@ -1317,6 +1507,34 @@ export const compileModuleScalarRuntime = ({
       : {})
   });
   const bindingsById = combinedCatalog.bindingsById;
+  const remapForeignResolution = (
+    resolution: BindingResolution,
+    foreign: ForeignSourceScalars
+  ): BindingResolution => {
+    const remap = (bindingId: BindingId) => foreign.bindingIdByLocalId.get(bindingId) ?? bindingId;
+    switch (resolution.kind) {
+      case "resolved": {
+        const binding = bindingsById.get(remap(resolution.binding.id));
+        return binding ? { kind: "resolved", binding } : {
+          kind: "undefined",
+          name: resolution.binding.name,
+          scopeId: "module-runtime-foreign",
+          statementIndex: resolution.binding.statementIndex
+        };
+      }
+      case "forward": return { ...resolution, bindingIds: resolution.bindingIds.map(remap) };
+      case "self": return { ...resolution, bindingId: remap(resolution.bindingId) };
+      case "duplicate": return { ...resolution, bindingIds: resolution.bindingIds.map(remap) };
+      default: return resolution;
+    }
+  };
+  const foreignReferences = [...foreignSourceScalars.values()].flatMap((foreign) =>
+    foreign.analysis.bindingAnalysis.initializerReferences.map((reference) => ({
+      ...reference,
+      fromBindingId: foreign.bindingIdByLocalId.get(reference.fromBindingId) ?? reference.fromBindingId,
+      resolution: remapForeignResolution(reference.resolution, foreign)
+    }))
+  );
   const documentIterationBindingForTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "iteration" }>) =>
     baseCatalog.bindings.find((binding) =>
       binding.kind === "iteration" &&
@@ -1324,7 +1542,7 @@ export const compileModuleScalarRuntime = ({
       binding.name === target.name
     );
   const resolvedBindingForContext = (target: ModuleScalarSourceTarget, context: InstanceContext): Binding | undefined => {
-    if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
+    if (target.kind === "documentBinding") return bindingsById.get(runtimeBindingIdForDocumentTarget(target));
     const info = bindingInfoForTarget(target, context);
     if (info) return bindingsById.get(info.id);
     if (target.kind === "recordField") {
@@ -1413,7 +1631,7 @@ export const compileModuleScalarRuntime = ({
       bindingsById,
       (target) => resolvedGeometryPropertyForContext(target, context),
       (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-      (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
+      (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
     );
     moduleInitializers.set(ownerBindingId, lowered.expression);
     for (const reference of lowered.references) moduleReferences.push({ ...reference, fromBindingId: ownerBindingId });
@@ -1490,7 +1708,7 @@ export const compileModuleScalarRuntime = ({
         bindingsById,
         (target) => resolvedGeometryPropertyForContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-        (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
+        (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
       );
       for (const reference of lowered.references) {
         if (reference.resolution.kind !== "resolved" || reference.resolution.binding.kind !== "typed" || !reference.span) continue;
@@ -1526,7 +1744,7 @@ export const compileModuleScalarRuntime = ({
     for (const body of context.definition.bodyStatements) {
       if (!moduleBodyStatementIsReachable(context, body)) continue;
       if (body.statementKind === "set") {
-        const statement = statements[body.statementIndex];
+        const statement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[body.statementIndex] ?? statements[body.statementIndex];
         const info = body.scalarTarget?.kind === "moduleLocal" ? bindingInfoForTarget(body.scalarTarget, context) : undefined;
         const semantic = body.scalarExpressions[0]?.expression;
         const order = eventOrderByVersionId.get(setVersionIdFor(context, body.statementId));
@@ -1537,7 +1755,7 @@ export const compileModuleScalarRuntime = ({
             bindingsById,
             (target) => resolvedGeometryPropertyForContext(target, context),
             (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-            (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
+            (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
           );
           moduleSets.push({
             statementId: body.statementId,
@@ -1545,7 +1763,7 @@ export const compileModuleScalarRuntime = ({
             sourceOrder: order,
             scopeId: moduleScopeIdFor(
               context.path,
-              sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId
+              moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(body.statementIndex) ?? sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId
             ),
             targetBindingId: info.id,
             targetName: statement.name,
@@ -1568,7 +1786,7 @@ export const compileModuleScalarRuntime = ({
           bindingsById,
           (target) => resolvedGeometryPropertyForContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
-          (definitionStatementId, parameterIndex) => hasValueForParameter(context, definitionStatementId, parameterIndex)
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
         );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
           materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
@@ -1608,13 +1826,19 @@ export const compileModuleScalarRuntime = ({
   }
 
   const documentReferences = (documentBindingAnalysis?.initializerReferences ?? []).map((reference) => remapDocumentReference(reference, bindingsById));
-  const combinedReferences = [...documentReferences, ...moduleReferences];
+  const combinedReferences = [...documentReferences, ...foreignReferences, ...moduleReferences];
   const combinedAnalysis = analyzeBindings({
     catalog: combinedCatalog,
     initializerReferences: combinedReferences,
     unavailableBindingIds: disabledBindingIds
   });
   const initializers = new Map<BindingId, TypedScalarExpression>();
+  for (const foreign of foreignSourceScalars.values()) {
+    for (const statement of foreign.program.statements) {
+      const bindingId = foreign.bindingIdByLocalId.get(statement.bindingId);
+      if (bindingId) initializers.set(bindingId, remapTypedExpressionBindingIds(statement.declaration.initializer, foreign.bindingIdByLocalId));
+    }
+  }
   const rootGeometryPropertyFor = (target: ModuleGeometryPropertySourceTarget): ModuleGeometryPropertyRuntimeTarget | undefined => {
     if (!moduleGeometryRuntime) return undefined;
     const lowered = moduleGeometryRuntime.resolvePropertyTarget(
@@ -1627,7 +1851,7 @@ export const compileModuleScalarRuntime = ({
     return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
   };
   const rootBindingForTarget = (target: ModuleScalarSourceTarget, statementIndex: number): Binding | undefined => {
-    if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
+    if (target.kind === "documentBinding") return bindingsById.get(runtimeBindingIdForDocumentTarget(target));
     if (target.kind === "recordField") {
       const record = target.record;
       const bindingId = record.kind === "deferredModuleRecordExport" && sourceNamespace
@@ -1635,9 +1859,11 @@ export const compileModuleScalarRuntime = ({
             moduleSemanticAnalysis,
             sourceNamespace,
             instanceStatementId: record.instanceStatementId,
+            instanceIdentity: record.instanceIdentity,
             exportName: record.exportName,
             exportedStatementId: record.exportedStatementId,
-            field: target.field
+            field: target.field,
+            moduleRuntimeContext
           })
         : record.kind === "recordValue"
           ? (() => {
@@ -1666,10 +1892,16 @@ export const compileModuleScalarRuntime = ({
       return bindingId ? bindingsById.get(bindingId) : undefined;
     }
     if (target.kind === "deferredModuleScalarExport") {
-      const instance = moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
-      const definitionStatementId = instance?.callee?.definitionStatementId;
+      const context = moduleRuntimeContext
+        ? runtimeContextForSourceInstance(null, target.instanceStatementId, target.instanceIdentity?.documentId)
+        : undefined;
+      const instance = context?.instance ?? moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+      const definition = context?.definition ?? (instance?.callee
+        ? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+        : undefined);
+      const definitionStatementId = definition?.statementId;
       return definitionStatementId
-        ? bindingsById.get(moduleScalarBindingIdFor([target.instanceStatementId], definitionStatementId, target.exportedStatementId))
+        ? bindingsById.get(moduleScalarBindingIdFor(context?.path ?? [target.instanceStatementId], definitionStatementId, target.exportedStatementId))
         : undefined;
     }
     return undefined;
@@ -1722,7 +1954,8 @@ export const compileModuleScalarRuntime = ({
     ? buildBindingControlMetadata(sourceScopeIndex, stableStatementIdByIndex, sourceOrderByStatementIndex)
     : new Map<string, BindingControlMetadata>();
   const sourceScopeOfInstance = (context: InstanceContext) =>
-    sourceScopeIndex?.scopeOfStatement.get(context.instance.statementIndex);
+    moduleRuntimeContext?.documentFor(context.instanceDocumentId)?.sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(context.instance.statementIndex)
+      ?? sourceScopeIndex?.scopeOfStatement.get(context.instance.statementIndex);
   const qualifyOwner = (
     owner: BindingControlOwner,
     path: readonly string[],
@@ -1777,8 +2010,9 @@ export const compileModuleScalarRuntime = ({
   for (const context of contextsByKey.values()) {
     if (!contextIsReachable(context)) continue;
     const relevantScopeIds = new Set<string>([context.bodyScopeId]);
+    const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
     for (const body of context.definition.bodyStatements) {
-      relevantScopeIds.add(sourceScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
+      relevantScopeIds.add(definitionScopeIndex?.scopeOfStatement.get(body.statementIndex) ?? context.bodyScopeId);
     }
     for (const sourceScopeId of relevantScopeIds) {
       controlByScopeId.set(moduleScopeIdFor(context.path, sourceScopeId), controlForContextScope(context, sourceScopeId));
@@ -1798,7 +2032,7 @@ export const compileModuleScalarRuntime = ({
       const runtime = bodyRuntimeEntry(context, body);
       if (!runtime) continue;
       const sourceOwnerId = body.statementId;
-      const sourceStatement = statements[body.statementIndex];
+      const sourceStatement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[body.statementIndex] ?? statements[body.statementIndex];
       const sourceOwnerKind = sourceStatement?.kind === "element" ? sourceStatement.type : null;
       if (sourceOwnerKind !== "conditionalGroup" && sourceOwnerKind !== "forGroup") continue;
       const qualifiedOwnerId = moduleOwnerIdFor(context.path, sourceOwnerId);
@@ -1825,7 +2059,7 @@ export const compileModuleScalarRuntime = ({
     if (!entry.runtimeIdentity) {
       throw new Error(`moduleScalarRuntime: missing scalar execution position for root element ${entry.runtimeElementId}`);
     }
-    const context = contextsByKey.get(pathKey(entry.instancePath));
+    const context = contextsByKey.get(pathKey(entry.runtimeInstancePath ?? entry.instancePath));
     const body = entry.runtimeIdentity.kind === "moduleBody"
       ? context?.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId)
       : undefined;

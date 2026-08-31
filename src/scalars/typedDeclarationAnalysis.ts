@@ -263,6 +263,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindings,
   additionalBindingResolver,
   additionalGeometryResolver,
+  additionalGeometryPropertyResolver,
   additionalInitializers,
   prepareScalarExpression,
   additionalRecordPropertyResolver,
@@ -288,6 +289,10 @@ export const analyzeTypedDeclarations = ({
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./recordScalarLowering").AdditionalRecordScalarPropertyResolution | null;
+  additionalGeometryPropertyResolver?: (input: {
+    statementIndex: number;
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): TypedDeclarationAnalysisCompilation => {
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
@@ -596,6 +601,9 @@ export const analyzeTypedDeclarations = ({
       {
         currentElement: { parentGroupId: ownerContainerId ?? undefined },
         nameContext,
+        additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
+          ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: binding.statementIndex, node })
+          : undefined,
         skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
           ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
           : undefined

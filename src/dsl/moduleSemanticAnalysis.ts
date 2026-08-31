@@ -495,7 +495,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               name: externalTarget.name,
               definitionIdentity: externalTarget.identity,
               definitionDocumentId: externalTarget.identity.documentId,
-              definitionLocation: externalTarget.declaration
+              definitionLocation: externalTarget.declaration,
+              definition: externalTarget.definition
             }
           : null,
         lookup
@@ -1047,6 +1048,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     | { kind: "private"; exportedStatementIndex: number }
     | null => {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
+    const externalDefinition = instance?.callee?.definition;
+    if (externalDefinition) {
+      const exported = externalDefinition.exports.find((candidate) => candidate.name === qualified.exportName);
+      if (exported?.kind === "scalar") {
+        return {
+          kind: "scalar",
+          exportedStatementId: exported.exportedStatementId,
+          exportedStatementIndex: exported.exportedStatementIndex,
+          declaredType: exported.declaredType
+        };
+      }
+      return exported ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex } : null;
+    }
     const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
     const exported = definition?.bodyStatementIndexes
       .map((statementIndex) => ({ statementIndex, statement: statements[statementIndex] }))
@@ -1227,6 +1241,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     | { kind: "other" }
     | null {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
+    const externalDefinition = instance?.callee?.definition;
+    if (externalDefinition) {
+      const exported = externalDefinition.exports.find((candidate) => candidate.name === qualified.exportName);
+      return exported?.kind === "record"
+        ? {
+            kind: "record",
+            exportedStatementId: exported.exportedStatementId,
+            exportedStatementIndex: exported.exportedStatementIndex,
+            typeIdentity: exported.typeIdentity,
+            definition: exported.definition
+          }
+        : exported ? { kind: "other" } : null;
+    }
     const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
     const value = definition?.bodyStatementIndexes
       .map((statementIndex) => ({ statementIndex, statement: statements[statementIndex] }))
