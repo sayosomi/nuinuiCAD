@@ -4,6 +4,7 @@ import {
   type DslSignatureHelpDocumentation,
   type DslSignatureHelpParameter,
   type DslSignatureHelpQueryResult,
+  type DslSignatureHelpSemanticSnapshot,
   type DslSignatureHelpSignature
 } from "../../src/dsl/dslSignatureHelpQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";

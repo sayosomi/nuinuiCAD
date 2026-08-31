@@ -407,4 +407,121 @@ describe("VS Code multi-document host lifecycle", () => {
 
     host.dispose();
   });
+
+  it("re-proves dirty dependency navigation or fails closed without leaking saved ranges", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n");
+    const savedLibrary = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(savedLibrary));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    mocks.findFiles.mockResolvedValue([
+      root.uri,
+      vscode.Uri.file(libraryPath) as unknown as TestUri
+    ]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(2);
+    });
+
+    const savedLibraryDocument = documentFor(libraryPath, savedLibrary, { version: 1 });
+    mocks.textDocuments.push(savedLibraryDocument);
+    mocks.openListeners[0]?.(savedLibraryDocument);
+    await vi.waitFor(async () => {
+      expect(latestCurrentGraphFor(savedLibraryDocument.uri.toString())?.nodes).toHaveLength(1);
+      expect(await host.languageSemanticSnapshotFor(savedLibraryDocument)).not.toBeNull();
+    });
+
+    const shiftedDirtyLibrary = [
+      "nui 1",
+      "// shifted dirty declaration",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    const shiftedDirtyDocument = documentFor(libraryPath, shiftedDirtyLibrary, { version: 2, dirty: true });
+    mocks.textDocuments = [root, shiftedDirtyDocument];
+    mocks.changeListeners[0]?.({ document: shiftedDirtyDocument });
+
+    const callLine = rootSource.split("\n")[2]!;
+    const callPosition = new vscode.Position(2, callLine.indexOf("Panel") + 2);
+    await vi.waitFor(async () => {
+      expect(await host.languageSemanticSnapshotFor(shiftedDirtyDocument)).not.toBeNull();
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const completion = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot
+      });
+      const signature = queryDslSignatureHelp({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Panel(") + "lib::Panel(".length,
+        semantic: snapshot
+      });
+      expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+      expect(signature?.signatures[0]?.name).toBe("Panel");
+
+      const definition = await host.provideDefinition(root, callPosition);
+      expect(definition.handled).toBe(true);
+      expect(definition.value?.[0]?.targetUri.toString()).toBe(`file://${libraryPath}`);
+      expect(definition.value?.[0]?.targetSelectionRange.start.line).toBe(2);
+
+      const references = await host.provideReferences(root, callPosition, true);
+      expect(references.handled).toBe(true);
+      const dirtyLocations = references.value?.filter((location) => location.uri.toString() === `file://${libraryPath}`);
+      expect(dirtyLocations).toHaveLength(1);
+      expect(dirtyLocations?.[0]?.range.start.line).toBe(2);
+    });
+
+    const unprovedDirtyLibrary = [
+      "nui 1",
+      "export module Other() {",
+      "}"
+    ].join("\n");
+    const unprovedDirtyDocument = documentFor(libraryPath, unprovedDirtyLibrary, { version: 3, dirty: true });
+    mocks.textDocuments = [root, unprovedDirtyDocument];
+    mocks.changeListeners[0]?.({ document: unprovedDirtyDocument });
+
+    await vi.waitFor(async () => {
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const completion = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot
+      });
+      const signature = queryDslSignatureHelp({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Panel(") + "lib::Panel(".length,
+        semantic: snapshot
+      });
+      expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+      expect(signature?.signatures[0]?.name).toBe("Panel");
+
+      const definition = await host.provideDefinition(root, callPosition);
+      expect(definition.handled).toBe(true);
+      expect(definition.value).toBeUndefined();
+
+      const references = await host.provideReferences(root, callPosition, true);
+      expect(references.handled).toBe(true);
+      expect(references.value).toEqual([]);
+
+      const rename = await host.provideRenameEdits(root, callPosition, "Renamed");
+      expect(rename.handled).toBe(true);
+      expect(rename.value).toBeUndefined();
+    });
+
+    host.dispose();
+  });
 });

@@ -13,6 +13,7 @@ import {
   SavedDocumentArtifactCache,
   analyzeMultiDocumentSource,
   buildMultiDocumentImportGraph,
+  type MultiDocumentGraphNode,
   type MultiDocumentDeclarationContributor,
   type MultiDocumentImportGraph,
   type MultiDocumentSavedSourceLoader
@@ -42,6 +43,7 @@ import {
 } from "../../src/document/multiDocumentPrimitives";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
+import { reconcileStatements } from "../../src/document/statementReconciler";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 
@@ -157,6 +159,28 @@ const sourceSnapshotMatchesIdentity = (
   identity: DocumentSourceIdentity
 ): boolean => sourceIdentityKey(source) === sourceIdentityKey(identity);
 
+const currentModulePublicOwnershipMatches = (
+  expectedNode: MultiDocumentGraphNode<unknown>,
+  currentNode: MultiDocumentGraphNode<unknown> | undefined
+): boolean => {
+  if (!currentNode || !expectedNode.publicApi.valid || !currentNode.publicApi.valid) return false;
+  const entries = (node: MultiDocumentGraphNode<unknown>) =>
+    [...node.publicApi.publicEntriesByName.values()]
+      .sort((left, right) =>
+        identityKey(left.identity).localeCompare(identityKey(right.identity)) ||
+        left.name.localeCompare(right.name)
+      );
+  const expectedEntries = entries(expectedNode);
+  const currentEntries = entries(currentNode);
+  return expectedEntries.length === currentEntries.length && expectedEntries.every((expected, index) => {
+    const current = currentEntries[index];
+    return current !== undefined &&
+      sameIdentity(expected.identity, current.identity) &&
+      expected.family === current.family &&
+      expected.name === current.name;
+  });
+};
+
 const positionAtNormalizedOffset = (source: string, offset: number): vscode.Position => {
   const clamped = Math.max(0, Math.min(offset, source.length));
   let line = 0;
@@ -223,16 +247,20 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     this.subscriptions.push(
       vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedDocument(document)) return;
+        const documentId = this.documentIdForUri(document.uri);
+        this.invalidateSemanticIndexesContaining(documentId, documentId);
         void this.activateRoot(document).then(() =>
-          this.refreshRootsContaining(this.documentIdForUri(document.uri))
+          this.refreshRootsContaining(documentId)
         );
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!supportedDocument(event.document)) return;
         const changedId = this.documentIdForUri(event.document.uri);
         this.syncSession(event.document, changedId);
-        void this.activateRoot(event.document);
-        void this.refreshRootsContaining(changedId, changedId);
+        this.invalidateSemanticIndexesContaining(changedId, changedId);
+        void this.activateRoot(event.document).then(() =>
+          this.refreshRootsContaining(changedId, changedId)
+        );
       }),
       vscode.workspace.onDidSaveTextDocument((document) => {
         if (!supportedDocument(document)) return;
@@ -394,7 +422,12 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
 
     const reverse = query.selected.publicIdentity
       ? await this.discoverReverseImporters(query.index, query.selected.occurrence.identity)
-      : { discovery: undefined, indexes: [] as const };
+      : {
+          discovery: undefined,
+          indexes: [] as const,
+          graphs: [] as const,
+          compiledByDocument: new Map<DocumentId, CompiledDslDocument>()
+        };
     if (query.selected.publicIdentity && reverse.discovery?.status !== "complete") {
       return { handled: true, value: undefined };
     }
@@ -651,8 +684,13 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       normalizedSource,
       sourceRevision: root.sourceRevision
     });
-    const existingRootStatementIds = this.statementIdsForExactSource(state.documentId, normalizedSource);
-    const rootStatementIds = existingRootStatementIds ?? semantic?.compiled.statementMap?.statementIdByStatementIndex;
+    const semanticCompiled = semantic?.compiled;
+    const rootStatementIds = semanticCompiled
+      ? this.options.semanticRootCompiler
+        ? this.statementIdsForCurrentSource(state.documentId, normalizedSource, semanticCompiled)
+        : this.statementIdsForExactSource(state.documentId, normalizedSource) ??
+          semanticCompiled.statementMap?.statementIdByStatementIndex
+      : undefined;
     const result = await this.coordinator.rebuild({
       root,
       loader: this.savedLoader,
@@ -723,7 +761,14 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       if (rootView?.source.documentId === documentId) continue;
       const document = this.openDocumentFor(documentId);
       if (!document) continue;
-      if (documentId !== graph.rootDocumentId && (!document.isDirty || this.options.semanticRootCompiler)) continue;
+      if (documentId !== graph.rootDocumentId) {
+        if (!document.isDirty) continue;
+        if (this.options.semanticRootCompiler) {
+          const view = this.currentDirtyDependencyView(document, graph.nodes.get(documentId));
+          views.push(view);
+          continue;
+        }
+      }
       const session = this.syncSession(document, documentId);
       const source: RootCurrentSourceSnapshot = {
         kind: "root-current",
@@ -735,15 +780,57 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSource: source.normalizedSource,
         sourceRevision: source.sourceRevision
       });
-      views.push(semantic
+      const semanticCompiled = semantic?.compiled;
+      views.push(semanticCompiled
         ? this.semanticViewFor(
             source,
-            semantic.compiled,
+            semanticCompiled,
             !session.getDiagnostics().some((diagnostic) => diagnostic.severity === "error")
           )
         : { source, valid: false, occurrences: [] });
     }
     return buildMultiDocumentSemanticOccurrenceIndex({ graph, documentViews: views });
+  }
+
+  private currentDirtyDependencyView(
+    document: vscode.TextDocument,
+    expectedNode: MultiDocumentGraphNode<unknown> | undefined
+  ): MultiDocumentSemanticDocumentView {
+    const documentId = this.documentIdForUri(document.uri);
+    const session = this.syncSession(document, documentId);
+    const source: RootCurrentSourceSnapshot = {
+      kind: "root-current",
+      documentId,
+      normalizedSource: normalizedSourceFor(document.getText()),
+      sourceRevision: session.getSourceRevision()
+    };
+    const state = this.rootByDocumentId.get(documentId);
+    const graph = state?.graph;
+    const compiled = state?.compiled;
+    const exact = Boolean(
+      state &&
+      !state.pending &&
+      state.documentId === documentId &&
+      state.documentUri === document.uri.toString() &&
+      state.documentVersion === document.version &&
+      graph?.valid &&
+      graph.rootDocumentId === documentId &&
+      graph.rootSource.kind === "root-current" &&
+      graph.rootSource.normalizedSource === source.normalizedSource &&
+      graph.rootSource.sourceRevision === source.sourceRevision &&
+      compiled &&
+      compiled.spans.sourceMap.source === source.normalizedSource &&
+      compiled.spans.sourceMap.sourceRevision === source.sourceRevision &&
+      expectedNode &&
+      currentModulePublicOwnershipMatches(expectedNode, graph!.nodes.get(documentId)) &&
+      (!this.options.semanticRootCompiler || (
+        compiled.moduleRuntimeContext?.graph === graph &&
+        compiled.moduleRuntimeContext.rootDocumentId === documentId
+      ))
+    );
+    return exact
+      ? this.semanticViewFor(source, compiled!)
+      : { source, valid: false, occurrences: [] };
   }
 
   private async discoverReverseImporters(
@@ -829,8 +916,13 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSource,
         sourceRevision: root.sourceRevision
       });
-      const existingRootStatementIds = this.statementIdsForExactSource(documentId, normalizedSource);
-      const rootStatementIds = existingRootStatementIds ?? semantic?.compiled.statementMap?.statementIdByStatementIndex;
+      const semanticCompiled = semantic?.compiled;
+      const rootStatementIds = semanticCompiled
+        ? this.options.semanticRootCompiler
+          ? this.statementIdsForCurrentSource(documentId, normalizedSource, semanticCompiled)
+          : this.statementIdsForExactSource(documentId, normalizedSource) ??
+            semanticCompiled.statementMap?.statementIdByStatementIndex
+        : undefined;
       const graph = await buildMultiDocumentImportGraph({
         root,
         loader: this.savedLoader,
@@ -918,6 +1010,34 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     return undefined;
   }
 
+  private statementIdsForCurrentSource(
+    documentId: DocumentId,
+    normalizedSource: string,
+    currentCompiled: CompiledDslDocument
+  ): ReadonlyMap<number, string> | undefined {
+    const exact = this.statementIdsForExactSource(documentId, normalizedSource);
+    if (exact) return exact;
+    const state = this.rootByDocumentId.get(documentId);
+    const previousGraph = state?.graph;
+    const previousNode = previousGraph?.rootDocumentId === documentId
+      ? previousGraph.nodes.get(documentId)
+      : undefined;
+    const currentIds = currentCompiled.statementMap?.statementIdByStatementIndex;
+    if (!previousNode || previousNode.artifact.source.kind !== "root-current" || !currentIds) return currentIds;
+    try {
+      return reconcileStatements({
+        oldStatements: previousNode.artifact.parsed.statements,
+        oldLines: previousNode.artifact.source.normalizedSource.split("\n"),
+        oldElementIds: new Map(),
+        oldStatementIds: previousNode.artifact.statementIdByStatementIndex,
+        newStatements: currentCompiled.statements,
+        newLines: currentCompiled.sourceLines
+      }).assignedIds;
+    } catch {
+      return undefined;
+    }
+  }
+
   private openDocumentFor(documentId: DocumentId): vscode.TextDocument | undefined {
     return vscode.workspace.textDocuments.find((document) =>
       supportedDocument(document) && this.documentIdForUri(document.uri) === documentId
@@ -999,6 +1119,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   }
 
   private async refreshRootsContaining(documentId: DocumentId, exclude?: DocumentId): Promise<void> {
+    this.invalidateSemanticIndexesContaining(documentId, exclude);
     const documents: vscode.TextDocument[] = [];
     for (const [rootId, state] of this.rootByDocumentId) {
       if (rootId === exclude || rootId === documentId || !state.graph?.nodes.has(documentId)) continue;
@@ -1011,6 +1132,13 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         state.documentVersion = -1;
         await this.activateRoot(document);
       }
+    }
+  }
+
+  private invalidateSemanticIndexesContaining(documentId: DocumentId, exclude?: DocumentId): void {
+    for (const [rootId, state] of this.rootByDocumentId) {
+      if (rootId === exclude || !state.graph?.nodes.has(documentId)) continue;
+      state.index = null;
     }
   }
 }

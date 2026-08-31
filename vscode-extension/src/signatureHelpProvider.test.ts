@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const vscodeMocks = vi.hoisted(() => ({
+  multiDocumentHost: null as { languageSemanticSnapshotFor: ReturnType<typeof vi.fn> } | null
+}));
 
 vi.mock("vscode", () => {
   class Position {
@@ -27,8 +31,23 @@ vi.mock("vscode", () => {
 // @ts-expect-error Vitest's runtime supports the virtual-module options used here.
 }, { virtual: true });
 
+vi.mock("./multiDocumentHost", () => ({
+  activeVscodeMultiDocumentHost: () => vscodeMocks.multiDocumentHost
+}));
+
 import * as vscode from "vscode";
+import { compileDslDocument } from "../../src/dsl/dslDocument";
 import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
+import { createModuleRuntimeContext } from "../../src/dsl/moduleRuntimeContext";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  moduleDeclarationContributor
+} from "../../src/document/multiDocumentModuleSemantics";
+import { buildMultiDocumentImportGraph } from "../../src/document/multiDocumentImportGraph";
+import {
+  documentIdFromHost,
+  savedSourceFingerprintFromHost
+} from "../../src/document/multiDocumentPrimitives";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiSignatureHelpProvider,
@@ -77,7 +96,92 @@ const helpForAt = (
   ) as vscode.SignatureHelp | undefined;
 };
 
+const importedModuleSnapshotFor = async (source: string, librarySource: string) => {
+  const library = {
+    kind: "dependency-saved" as const,
+    documentId: documentIdFromHost("provider-signature-library"),
+    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:provider-signature-library"),
+    normalizedSource: librarySource
+  };
+  const root = {
+    kind: "root-current" as const,
+    documentId: documentIdFromHost("provider-signature-root"),
+    normalizedSource: source,
+    sourceRevision: 1
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    loader: {
+      loadSavedDependency: async () => ({ status: "loaded" as const, snapshot: library })
+    },
+    declarationContributors: [moduleDeclarationContributor]
+  });
+  const analysis = analyzeMultiDocumentModuleSemantics(graph);
+  const context = createModuleRuntimeContext(graph, analysis);
+  const rootNode = graph.nodes.get(root.documentId)!;
+  const compiled = compileDslDocument(source, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: root.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext: context
+  });
+  return { sourceRevision: 1, sourceText: source, compiled };
+};
+
+afterEach(() => {
+  vscodeMocks.multiDocumentHost = null;
+});
+
 describe("VS Code native nui Signature Help provider", () => {
+  it("routes imported Module parameter metadata through the native provider", async () => {
+    const source = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel(value: 1)"
+    ].join("\n");
+    const snapshot = await importedModuleSnapshotFor(source, [
+      "nui 1",
+      "export module Panel(value: number, side?: choice(left, right)) {",
+      "}"
+    ].join("\n"));
+    const host = {
+      languageSemanticSnapshotFor: vi.fn(async () => snapshot)
+    };
+    vscodeMocks.multiDocumentHost = host;
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiSignatureHelpProvider(() => session);
+    const document = documentFor(source);
+    const help = await provider.provideSignatureHelp(
+      document as vscode.TextDocument,
+      new vscode.Position(2, source.split("\n")[2]!.indexOf("value: ") + "value: ".length),
+      undefined as never,
+      undefined as never
+    ) as vscode.SignatureHelp | undefined;
+
+    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledWith(document);
+    expect(help?.signatures[0]?.label).toContain("Panel(value: number, side?: choice(left, right) [left / right])");
+    expect(help?.activeParameter).toBe(0);
+  });
+
+  it("keeps the established local Signature Help path when the host snapshot is unavailable", async () => {
+    const source = "nui 1\nmodule M(value: number) {\n}\ninstance use = M(value: 1)";
+    const host = {
+      languageSemanticSnapshotFor: vi.fn(async () => null)
+    };
+    vscodeMocks.multiDocumentHost = host;
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiSignatureHelpProvider(() => session);
+    const help = await provider.provideSignatureHelp(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(3, source.split("\n")[3]!.indexOf("value: ") + "value: ".length),
+      undefined as never,
+      undefined as never
+    ) as vscode.SignatureHelp | undefined;
+
+    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledOnce();
+    expect(help?.signatures[0]?.label).toContain("M(value: number)");
+  });
+
   it("uses the file-scoped selector and requested trigger characters", () => {
     expect(nuiSignatureHelpSelector).toEqual({ language: "nui", scheme: "file" });
     expect(nuiSignatureHelpTriggerCharacters).toEqual(["(", ",", ":"]);
