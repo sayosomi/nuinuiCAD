@@ -49,6 +49,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { compileModuleScalarRuntime, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
@@ -264,6 +265,8 @@ export type CompiledDslDocument = {
   sourceSemanticAnalysis?: ModuleSemanticAnalysis;
   /** Task 3 source-only module semantic result; never contains runtime geometry || instance IDs. */
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
+  /** Exact graph/semantic owner used by imported module runtime products. */
+  moduleRuntimeContext?: ModuleRuntimeContext;
   /** Task 5 runtime expansion && source-origin mapping; never persisted as source. */
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-owned Module geometry lowering for exact current runtime consumers. */
@@ -301,6 +304,8 @@ export type CompileDslDocumentOptions = {
   /** 同じsourceを事前parseした結果。指定時はdocument compile内の再parseを省く。 */
   preparsed?: ParseDslResult;
   sourceRevision?: SourceRevision;
+  /** Optional exact multi-document graph/semantic context for this root. */
+  moduleRuntimeContext?: ModuleRuntimeContext;
 };
 
 const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
@@ -798,7 +803,7 @@ const validateSourceOutputPlacement = (): DslDiagnostic[] => [];
 const attrValueOf = (statement: DslStatement, key: string) =>
   statement.attrs.find((item) => item.key === key)?.value;
 
-const buildStatementMap = (
+export const buildStatementMap = (
   statements: DslStatement[],
   lastLine: number,
   elementIdByStatementIndex: Map<number, ElementId>,
@@ -1180,6 +1185,19 @@ export const compileDslDocument = (
   const sourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
+  const moduleRuntimeContext = (() => {
+    const candidate = options.moduleRuntimeContext;
+    if (!candidate?.valid || !stableStatementIdByIndex || !sourceLexicalNamespace) return undefined;
+    const root = candidate.documentFor(candidate.rootDocumentId);
+    if (!root || root.source.kind !== "root-current" ||
+        root.source.normalizedSource !== normalized ||
+        root.source.sourceRevision !== parsed.sourceRevision ||
+        root.statements.length !== parsed.statements.length) return undefined;
+    for (const [statementIndex, statementId] of root.statementIdByStatementIndex) {
+      if (stableStatementIdByIndex.get(statementIndex) !== statementId) return undefined;
+    }
+    return candidate;
+  })();
   if (sourceLexicalNamespace && stableStatementIdByIndex) {
     // The first compile establishes reconciler-owned element identities &&
     // structural metadata. Re-run the same compiler with the source
@@ -1281,7 +1299,7 @@ export const compileDslDocument = (
           ] as const)
       )
     : undefined;
-  const sourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
+  const locallyAnalyzedSourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
     ? analyzeModuleSemantics({
         statements: parsed.statements,
         stableStatementIdByIndex,
@@ -1291,6 +1309,7 @@ export const compileDslDocument = (
         documentScalarBindings
       })
     : undefined;
+  const sourceSemanticCompilation = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId) ?? locallyAnalyzedSourceSemanticCompilation;
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Keep Module runtime/lowering paths gated by the
   // existing hasModuleStatements condition below.
@@ -1298,7 +1317,8 @@ export const compileDslDocument = (
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
-      sourceLexicalNamespace
+      sourceLexicalNamespace,
+      moduleRuntimeContext
     );
     // Runtime-owned Module export bindings are not document scalar
     // declarations. Do not add them to the fallback document catalog once
@@ -1308,16 +1328,21 @@ export const compileDslDocument = (
     const usableExportBindingSeeds = moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error")
       ? []
       : exportBindingSeeds;
-    const hasRootGeometryBuiltinOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
-      .some((site) => site.expression.geometryBuiltinArguments.length > 0);
-    if (usableExportBindingSeeds.length > 0 || hasRootGeometryBuiltinOccurrences) {
+    const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
+      .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
+        property.target?.kind === "deferredModuleExportProperty"
+      ));
+    if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
         if (path.segments.length !== 2) return null;
         const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]!);
         if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
         const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
-        const definition = instance?.callee && moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId);
+        const definition = instance?.callee
+          ? moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+            ?? moduleSemanticCompilation.definitionsByStatementId.get(instance.callee.definitionStatementId)
+          : undefined;
         const exported = definition?.exports.find((entry) => entry.name === path.segments[1]) ?? null;
         return instance && definition ? { instance, definition, exported } : null;
       };
@@ -1356,9 +1381,11 @@ export const compileDslDocument = (
             moduleSemanticAnalysis: moduleSemanticCompilation,
             sourceNamespace: sourceLexicalNamespace,
             instanceStatementId: resolved.instance.statementId,
+            instanceIdentity: resolved.instance.identity,
             exportName: path.segments[1],
             exportedStatementId: resolved.exported.exportedStatementId,
-            field: field.identity
+            field: field.identity,
+            moduleRuntimeContext
           });
           return bindingId && seedById.has(bindingId) ? { kind: "resolved", bindingId } : {
             kind: "blocked",
@@ -1370,7 +1397,8 @@ export const compileDslDocument = (
         const exported = resolved?.exported;
         if (!resolved || !exported || exported.kind !== "scalar") {
           const privateMember = !resolved?.definition.exports.some((entry) => entry.name === path.segments[1]) && resolved?.definition.bodyStatements.some((body) =>
-            parsed.statements[body.statementIndex]?.name === path.segments[1]
+              (moduleRuntimeContext?.documentFor(resolved.definition.documentId ?? resolved.instance.callee?.definitionIdentity?.documentId)?.statements[body.statementIndex]
+                ?? parsed.statements[body.statementIndex])?.name === path.segments[1]
           );
           return {
             kind: "blocked",
@@ -1379,8 +1407,11 @@ export const compileDslDocument = (
             statementId: instanceLookup.declaration.statementId
           };
         }
+        const instancePath = moduleRuntimeContext
+          ? moduleRuntimeContext.runtimePathForInstance([], resolved.instance)
+          : [resolved.instance.statementId];
         const bindingId = moduleScalarBindingIdFor(
-          [resolved.instance.statementId],
+          instancePath,
           resolved.definition.statementId,
           exported.exportedStatementId
         );
@@ -1415,9 +1446,11 @@ export const compileDslDocument = (
               moduleSemanticAnalysis: moduleSemanticCompilation,
               sourceNamespace: sourceLexicalNamespace,
               instanceStatementId: resolved.instance.statementId,
+              instanceIdentity: resolved.instance.identity,
               exportName: resolved.exported.name,
               exportedStatementId: resolved.exported.exportedStatementId,
-              field: field.identity
+              field: field.identity,
+              moduleRuntimeContext
             });
             if (!bindingId || !seedById.has(bindingId)) return null;
             fieldBindingIdsByFieldIndex.set(field.fieldIndex, bindingId);
@@ -1444,6 +1477,21 @@ export const compileDslDocument = (
             ...(lookup?.kind === "resolved"
               ? { dependency: { bindingId: lookup.bindingId, name: `${node.elementName}.${node.property}`, span: node.span } }
               : {})
+          };
+        },
+        additionalGeometryPropertyResolver: ({ statementIndex, node }) => {
+          const statementId = stableStatementIdByIndex.get(statementIndex);
+          const site = statementId
+            ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
+            : undefined;
+          const property = site?.expression.geometryProperties.find((candidate) => candidate.span.start === node.span.start);
+          const target = property?.target;
+          if (!property?.type || target?.kind !== "deferredModuleExportProperty") return null;
+          return {
+            elementId: target.instanceStatementId,
+            property: target.property,
+            targetSourceOrder: target.instanceStatementIndex,
+            type: property.type
           };
         },
         additionalGeometryResolver: ({ statementIndex, node, expectedGeometryType }) => {
@@ -1501,6 +1549,7 @@ export const compileDslDocument = (
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
       },
       moduleSemanticAnalysis: moduleSemanticCompilation,
+      moduleRuntimeContext,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
     });
   }
@@ -1529,6 +1578,7 @@ export const compileDslDocument = (
       sourceScopeIndex: sourceLexicalNamespace?.scopeIndex,
       sourceNamespace: sourceLexicalNamespace,
       moduleGeometryRuntime: compiled.moduleGeometryRuntime,
+      moduleRuntimeContext,
       drawingModifiers: compiled.modifiers
     });
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
@@ -1843,6 +1893,7 @@ export const compileDslDocument = (
     ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
     ...(sourceSemanticCompilation && !moduleSemanticCompilation ? { sourceSemanticAnalysis: sourceSemanticCompilation } : {}),
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
+    ...(moduleRuntimeContext ? { moduleRuntimeContext } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
     ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId

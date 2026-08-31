@@ -9,6 +9,13 @@ import type {
   ModuleSemanticAnalysis
 } from "./moduleSemanticTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
+import type {
+  DocumentId,
+  DocumentQualifiedSemanticIdentity,
+  DocumentQualifiedSourceLocation,
+  DocumentSourceIdentity
+} from "../document/multiDocumentPrimitives";
+import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { CadElementType, ConditionalBranch, ElementId } from "../types/geometry";
 
 /** Runtime identity carried by a lowered module element. */
@@ -27,6 +34,16 @@ export type ModuleOrigin = {
   moduleDefinitionStatementId: StatementIdentity;
   callerModuleDefinitionStatementId: StatementIdentity | null;
   instancePath: readonly StatementIdentity[];
+  /** Present only for graph-backed materialization; proves the exact source owner. */
+  sourceDocumentId?: DocumentId;
+  sourceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  source?: DocumentSourceIdentity;
+  sourceLocation?: DocumentQualifiedSourceLocation;
+  moduleDefinitionDocumentId?: DocumentId;
+  moduleDefinitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  callerModuleDefinitionDocumentId?: DocumentId | null;
+  callerModuleDefinitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity> | null;
+  runtimeInstancePath?: readonly string[];
 };
 
 export type MaterializedExecutionStatement = {
@@ -42,6 +59,8 @@ export type MaterializedExecutionStatement = {
   /** Root source statement whose runtime subtree is one stop atomic unit. */
   executionUnitStatementIndex: number;
   instancePath: readonly StatementIdentity[];
+  /** Runtime-qualified path; absent for ordinary/single-document entries. */
+  runtimeInstancePath?: readonly string[];
   runtimeIdentity?: MaterializedRuntimeIdentity;
   origin?: ModuleOrigin;
 };
@@ -80,6 +99,7 @@ type MaterializationInput = {
   stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>;
   assignedElementIds: ReadonlyMap<number, ElementId>;
   moduleSemanticAnalysis: ModuleSemanticAnalysis;
+  moduleRuntimeContext?: ModuleRuntimeContext;
 };
 
 type ParentRuntime = {
@@ -188,7 +208,8 @@ export const materializeModuleExecution = ({
   statements,
   stableStatementIdByIndex,
   assignedElementIds,
-  moduleSemanticAnalysis
+  moduleSemanticAnalysis,
+  moduleRuntimeContext
 }: MaterializationInput): ModuleMaterialization => {
   const runtimeIdByRootSourceIndex = new Map<number, ElementId>();
   const elementIdBySourceStatementIndex = new Map<number, ElementId>();
@@ -209,7 +230,10 @@ export const materializeModuleExecution = ({
     const statementId = requireStatementIdentity(stableStatementIdByIndex, statementIndex);
     const instance = moduleSemanticAnalysis.instancesByStatementId.get(statementId);
     if (!instance?.callee) continue;
-    const id = materializedRuntimeElementId("moduleInstance", [statementId]);
+    const runtimePath = moduleRuntimeContext
+      ? moduleRuntimeContext.runtimePathForInstance([], instance)
+      : [statementId];
+    const id = materializedRuntimeElementId("moduleInstance", runtimePath);
     runtimeIdByRootSourceIndex.set(statementIndex, id);
     rootInstanceBySourceIndex.set(statementIndex, instance);
   }
@@ -224,19 +248,32 @@ export const materializeModuleExecution = ({
     instance: ModuleInstanceSemantic,
     parent: ParentRuntime,
     parentInstancePath: readonly StatementIdentity[],
+    parentRuntimePath: readonly string[],
     executionUnitStatementIndex: number
   ): ElementId => {
     if (!instance.callee) throw new Error("moduleMaterialization: cannot emit an unresolved module instance");
     const instancePath = [...parentInstancePath, instance.statementId];
-    const runtimeIdentity = runtimeIdentityOf("moduleInstance", instancePath);
-    const runtimeElementId = materializedRuntimeElementId("moduleInstance", instancePath);
-    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+    const runtimeInstancePath = moduleRuntimeContext
+      ? moduleRuntimeContext.runtimePathForInstance(parentRuntimePath, instance)
+      : instancePath;
+    const runtimeIdentity = runtimeIdentityOf("moduleInstance", runtimeInstancePath);
+    const runtimeElementId = materializedRuntimeElementId("moduleInstance", runtimeInstancePath);
+    const definition = moduleRuntimeContext
+      ? moduleRuntimeContext.definitionFor(instance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+      : moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
     if (!definition) {
       throw new Error(`moduleMaterialization: missing definition ${instance.callee.definitionStatementId}`);
     }
+    const instanceDocument = moduleRuntimeContext?.documentFor(
+      instance.documentId ?? moduleRuntimeContext.rootDocumentId
+    );
+    const instanceStatement = instanceDocument?.statements[instance.statementIndex] ?? statements[instance.statementIndex];
+    if (!instanceStatement) {
+      throw new Error(`moduleMaterialization: missing instance statement ${instance.statementId}`);
+    }
 
     executionStatements.push({
-      statement: statements[instance.statementIndex],
+      statement: instanceStatement,
       sourceStatementId: instance.statementId,
       sourceStatementIndex: instance.statementIndex,
       runtimeElementId,
@@ -251,9 +288,31 @@ export const materializeModuleExecution = ({
         sourceStatementIndex: instance.statementIndex,
         moduleDefinitionStatementId: instance.callee.definitionStatementId,
         callerModuleDefinitionStatementId: instance.callerModuleDefinitionStatementId,
-        instancePath
+        instancePath,
+        ...(moduleRuntimeContext ? {
+          sourceDocumentId: instance.documentId ?? moduleRuntimeContext.rootDocumentId,
+          sourceIdentity: instance.identity ?? {
+            documentId: instance.documentId ?? moduleRuntimeContext.rootDocumentId,
+            localIdentity: instance.statementId
+          },
+          source: instanceDocument?.sourceIdentity,
+          sourceLocation: (() => {
+            return instanceDocument && instanceStatement
+              ? { source: instanceDocument.sourceIdentity, range: instanceStatement.documentRange }
+              : undefined;
+          })(),
+          moduleDefinitionDocumentId: instance.callee.definitionIdentity?.documentId ?? instance.callee.definitionDocumentId ?? moduleRuntimeContext.rootDocumentId,
+          moduleDefinitionIdentity: instance.callee.definitionIdentity ?? {
+            documentId: instance.callee.definitionDocumentId ?? moduleRuntimeContext.rootDocumentId,
+            localIdentity: instance.callee.definitionStatementId
+          },
+          callerModuleDefinitionDocumentId: instance.callerModuleDefinitionIdentity?.documentId ?? null,
+          callerModuleDefinitionIdentity: instance.callerModuleDefinitionIdentity ?? null,
+          runtimeInstancePath
+        } : {})
       },
       sourceBlockChild: parent.sourceBlockChild,
+      runtimeInstancePath,
       ...(parent.branch ? { conditionalBranch: parent.branch } : {})
     });
     originByRuntimeElementId.set(runtimeElementId, executionStatements.at(-1)!.origin!);
@@ -262,20 +321,24 @@ export const materializeModuleExecution = ({
 
     const localRuntimeIdBySourceIndex = new Map<number, ElementId>();
     for (const body of definition.bodyStatements) {
-      const statement = statements[body.statementIndex];
+      const definitionDocument = moduleRuntimeContext?.documentFor(definition.documentId ?? instance.callee.definitionIdentity?.documentId);
+      const definitionStatements = definitionDocument?.statements ?? statements;
+      const statement = definitionStatements[body.statementIndex];
       if (!statement || statement.kind === "moduleDefinition") continue;
 
       if (statement.kind === "moduleInstance") {
-        const nested = moduleSemanticAnalysis.instancesByStatementId.get(body.statementId);
+        const nested = definitionDocument
+          ? definitionDocument.moduleSemanticAnalysis.instancesByStatementId.get(body.statementId)
+          : moduleSemanticAnalysis.instancesByStatementId.get(body.statementId);
         if (!nested?.callee) continue;
         const nestedParent = parentForBodyStatement(
-          statements,
+          definitionStatements,
           statement,
           definition.statementIndex,
           localRuntimeIdBySourceIndex,
           runtimeElementId
         );
-        const nestedId = emitInstance(nested, nestedParent, instancePath, executionUnitStatementIndex);
+        const nestedId = emitInstance(nested, nestedParent, instancePath, runtimeInstancePath, executionUnitStatementIndex);
         localRuntimeIdBySourceIndex.set(body.statementIndex, nestedId);
         continue;
       }
@@ -283,11 +346,11 @@ export const materializeModuleExecution = ({
       if (!isElementDslStatement(statement)) continue;
       const type = runtimeElementTypeOf(statement);
       if (!type) continue;
-      const bodyPath = [...instancePath, body.statementId];
-      const bodyIdentity = runtimeIdentityOf("moduleBody", bodyPath);
-      const bodyRuntimeElementId = materializedRuntimeElementId("moduleBody", bodyPath);
+      const runtimeBodyPath = [...runtimeInstancePath, body.statementId];
+      const bodyIdentity = runtimeIdentityOf("moduleBody", runtimeBodyPath);
+      const bodyRuntimeElementId = materializedRuntimeElementId("moduleBody", runtimeBodyPath);
       const bodyParent = parentForBodyStatement(
-        statements,
+        definitionStatements,
         statement,
         definition.statementIndex,
         localRuntimeIdBySourceIndex,
@@ -299,8 +362,27 @@ export const materializeModuleExecution = ({
         sourceStatementIndex: body.statementIndex,
         moduleDefinitionStatementId: definition.statementId,
         callerModuleDefinitionStatementId: instance.callerModuleDefinitionStatementId,
-        instancePath
+        instancePath,
+        runtimeInstancePath
       };
+      const bodySourceDocument = definitionDocument;
+      if (moduleRuntimeContext && bodySourceDocument) {
+        bodyOrigin.sourceDocumentId = bodySourceDocument.documentId;
+        bodyOrigin.sourceIdentity = body.identity ?? {
+          documentId: bodySourceDocument.documentId,
+          localIdentity: body.statementId
+        };
+        bodyOrigin.source = bodySourceDocument.sourceIdentity;
+        const bodyStatement = bodySourceDocument.statements[body.statementIndex];
+        if (bodyStatement) bodyOrigin.sourceLocation = { source: bodySourceDocument.sourceIdentity, range: bodyStatement.documentRange };
+        bodyOrigin.moduleDefinitionDocumentId = definition.documentId ?? bodySourceDocument.documentId;
+        bodyOrigin.moduleDefinitionIdentity = definition.identity ?? {
+          documentId: definition.documentId ?? bodySourceDocument.documentId,
+          localIdentity: definition.statementId
+        };
+        bodyOrigin.callerModuleDefinitionDocumentId = instance.callerModuleDefinitionIdentity?.documentId ?? null;
+        bodyOrigin.callerModuleDefinitionIdentity = instance.callerModuleDefinitionIdentity ?? null;
+      }
       executionStatements.push({
         statement,
         sourceStatementId: body.statementId,
@@ -312,6 +394,7 @@ export const materializeModuleExecution = ({
         sourceBlockChild: bodyParent.sourceBlockChild,
         executionUnitStatementIndex,
         instancePath,
+        runtimeInstancePath,
         runtimeIdentity: bodyIdentity,
         origin: bodyOrigin
       });
@@ -334,6 +417,7 @@ export const materializeModuleExecution = ({
       emitInstance(
         rootInstance,
         parentForRootStatement(statements, statement, runtimeIdByRootSourceIndex),
+        [],
         [],
         statementIndex
       );
@@ -379,13 +463,13 @@ export const materializeModuleExecution = ({
     instanceBaseGeometrySnapshots: executionStatements
       .filter((entry) => entry.type === "moduleInstance")
       .map((entry, entryIndex) => {
-        const path = entry.instancePath;
+        const path = entry.runtimeIdentity?.path ?? entry.instancePath;
         const materializedDescendants = executionStatements
           .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
           .filter(({ candidate }) =>
             candidate.runtimeElementId !== entry.runtimeElementId &&
-            candidate.instancePath.length >= path.length &&
-            path.every((identity, index) => candidate.instancePath[index] === identity)
+            (candidate.runtimeIdentity?.path ?? candidate.runtimeInstancePath ?? candidate.instancePath).length >= path.length &&
+            path.every((identity, index) => (candidate.runtimeIdentity?.path ?? candidate.runtimeInstancePath ?? candidate.instancePath)[index] === identity)
           );
         const descendants = materializedDescendants.filter(({ candidate }) =>
           !elementTypesWithoutOwnDrawableGeometry.has(candidate.type) &&

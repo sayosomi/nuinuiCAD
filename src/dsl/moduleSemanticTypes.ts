@@ -367,6 +367,8 @@ export type ResolvedModuleCallee = {
   definitionIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
   definitionDocumentId?: DocumentId;
   definitionLocation?: DocumentQualifiedSourceLocation;
+  /** Exact defining-document semantic object for graph-backed callers. */
+  definition?: ModuleDefinitionSemantic;
 };
 
 export type ExternalModuleSemanticTarget = {
@@ -376,6 +378,8 @@ export type ExternalModuleSemanticTarget = {
   definitionStatementIndex: number;
   name: string;
   parameters: readonly ResolvedModuleParameter[];
+  /** Exact defining-document semantic object; never a cloned source model. */
+  definition?: ModuleDefinitionSemantic;
 };
 
 export type ModuleDefinitionSemantic = {

@@ -166,7 +166,8 @@ export const analyzeMultiDocumentModuleSemantics = (
         definitionStatementId: definition.statementId,
         definitionStatementIndex: definition.statementIndex,
         name: definition.name,
-        parameters: definition.parameters
+        parameters: definition.parameters,
+        definition
       };
     };
     const analysis = analyzeModuleSemantics({

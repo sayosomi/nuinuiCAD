@@ -20,6 +20,11 @@ export type GeometryPropertyResolutionIssue = {
 export type TypedGeometryPropertyResolutionContext = {
   currentElement?: Pick<CadElement, "parentGroupId">;
   nameContext?: ElementNameContext;
+  /** Closed frontend hook for geometry values not represented in the current
+   * document's CadElement list, such as a document-qualified Module export. */
+  additionalGeometryPropertyResolver?: (input: {
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => ScalarExpressionResolvedGeometryProperty | null;
   /** Source-order position of the expression owner. Geometry reads must point
    * strictly earlier in document order. */
   currentSourceOrder?: number;
@@ -74,6 +79,11 @@ export const resolveGeometryPropertyMetadata = (
   const visit = (node: ScalarExpressionAst): void => {
     if (node.kind === "geometryProperty") {
       if (context?.skipPropertySpanStarts?.has(node.span.start)) return;
+      const additional = context?.additionalGeometryPropertyResolver?.({ node });
+      if (additional) {
+        geometryPropertyReferences.set(node.span.start, additional);
+        return;
+      }
       const reference = normalizedReference(
         node.elementName,
         node.property,

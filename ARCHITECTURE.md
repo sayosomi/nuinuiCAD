@@ -484,6 +484,7 @@ Representative owners:
 
 - `src/dsl/moduleSemantic*`
 - `src/dsl/moduleMaterialization*`
+- `src/dsl/moduleRuntimeContext.ts`
 - `src/scalars/moduleScalarRuntime.ts`
 
 既存 Module semantic resolution / materialization / runtime infrastructure を
@@ -492,6 +493,18 @@ Representative owners:
 resolver はその narrow adapter boundary である。Second Module runtime / resolver
 を作らない。Materialized Module children を source representation として
 flatten しない。
+
+`moduleRuntimeContext.ts` は、同じ `MultiDocumentImportGraph` と
+`MultiDocumentModuleSemanticAnalysis` から、各 `DocumentId` の exact parsed
+statements、source lexical namespace、Module analysis、source identity を既存の
+materialization / scalar / geometry runtime へ渡す narrow adapter である。Module
+call の引数は caller document、definition body/default/local/record/nested call は
+defining document から読み、必要な場合だけ document-qualified runtime path を
+使う。Materialized origin は document-qualified statement identity、exact source
+identity、source range を保持し、`sourceOwnership` はこの証明が一致しない場合に
+fail closed する。Import source を連結したり、runtime 用に別の parser / resolver を
+複製したりしない。生成された materialized/scalar/geometry runtime output は、既存の
+production evaluator input としてそのまま評価される。
 
 ### TypeScript evaluation
 

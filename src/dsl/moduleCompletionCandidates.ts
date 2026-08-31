@@ -7,16 +7,19 @@ import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import { scalarExpressionCompletionContextAt } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import type { DslModuleParameterType } from "./dslTypes";
-import type {
-  ModuleDefinitionSemantic,
-  ModuleGeometryPropertySourceTarget,
-  ModuleGeometrySourceTarget,
-  ModuleInstanceSemantic,
-  ModuleScalarSourceTarget
+import {
+  moduleSemanticIdentityKey,
+  type ModuleDefinitionSemantic,
+  type ModuleGeometryPropertySourceTarget,
+  type ModuleGeometrySourceTarget,
+  type ModuleInstanceSemantic,
+  type ModuleScalarSourceTarget,
+  type ResolvedModuleExport
 } from "./moduleSemanticTypes";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import { formatDslReferencePath, parseDslSourceReference } from "./dslReferenceTokens";
+import { qualifySemanticIdentity } from "../document/multiDocumentPrimitives";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -238,15 +241,14 @@ export const moduleQualifiedRecordFieldCompletions = (
   const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
   const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(resolved.lookup.declaration.statementId);
-  const definition = instance?.callee
-    ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
-    : null;
-  const exported = definition?.exports.find((entry) => entry.kind === "record" && entry.name === exportName);
+  const definition = definitionForInstance(compiled, instance ?? null);
+  if (!definition) return [];
+  const exported = definition.exports.find((entry) => entry.kind === "record" && entry.name === exportName);
   return exported?.kind === "record"
     ? exported.definition.fields.map((field) => ({
         kind: "property" as const,
         label: field.name,
-        identity: `${field.identity.recordStatementId}:${field.fieldIndex}`
+        identity: `${exportIdentityForCandidate(compiled, definition, exported)}:${field.fieldIndex}`
       }))
     : [];
 };
@@ -290,6 +292,61 @@ const currentModuleDefinition = (compiled: CompiledDslDocument, statementIndex: 
 
 const currentInstance = (compiled: CompiledDslDocument, statementIndex: number): ModuleInstanceSemantic | null =>
   compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.statementIndex === statementIndex) ?? null;
+
+const definitionForInstance = (
+  compiled: CompiledDslDocument,
+  instance: ModuleInstanceSemantic | null
+): ModuleDefinitionSemantic | null => {
+  const callee = instance?.callee;
+  if (!callee) return null;
+  return callee.definition ??
+    (callee.definitionIdentity ? compiled.moduleRuntimeContext?.definitionFor(callee.definitionIdentity) : undefined) ??
+    compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(callee.definitionStatementId) ??
+    null;
+};
+
+const definitionDocumentStatements = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic
+) => compiled.moduleRuntimeContext?.documentFor(
+  definition.identity?.documentId ?? definition.documentId
+)?.statements ?? compiled.statements;
+
+const definitionDocumentGeometryArrayAnalysis = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic
+) => {
+  const documentId = definition.identity?.documentId ?? definition.documentId;
+  if (compiled.moduleRuntimeContext) {
+    return compiled.moduleRuntimeContext.documentFor(documentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis ?? null;
+  }
+  return compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis ?? null;
+};
+
+const isImportedDefinition = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic
+) => Boolean(
+  definition.identity &&
+  compiled.moduleRuntimeContext &&
+  definition.identity.documentId !== compiled.moduleRuntimeContext.rootDocumentId
+);
+
+const exportIdentityForCandidate = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic,
+  entry: ResolvedModuleExport
+) => isImportedDefinition(compiled, definition) && entry.exportedIdentity
+  ? moduleSemanticIdentityKey(entry.exportedIdentity)
+  : entry.exportedStatementId;
+
+const geometryArrayIdentityForCandidate = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic,
+  statementId: string
+) => isImportedDefinition(compiled, definition) && definition.identity
+  ? moduleSemanticIdentityKey(qualifySemanticIdentity(definition.identity.documentId, statementId))
+  : statementId;
 
 const lexicalInput = (compiled: CompiledDslDocument, owner: ModuleDefinitionSemantic | null) => {
   const namespace = compiled.sourceLexicalNamespace;
@@ -606,18 +663,60 @@ const geometryArrayCandidates = (
   ? geometryArrayMemberCompletions(compiled, statementIndex, context.expectedType, request)
   : geometryArrayReferenceCompletions(compiled, statementIndex, context.expectedType, request);
 
+const importedModuleCalleeCompletions = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  request: ModuleCompletionRequest,
+  input: ReturnType<typeof lexicalInput>
+): ModuleCompletionCandidate[] => {
+  const source = request.liveStatementText;
+  const position = request.logicalCursorPosition;
+  const runtime = compiled.moduleRuntimeContext;
+  if (!source || position === undefined || !runtime?.valid || !input) return [];
+  const equals = source.indexOf("=");
+  if (equals < 0 || position <= equals) return [];
+  const typedCallee = source.slice(equals + 1, position).trim();
+  const separator = typedCallee.indexOf("::");
+  if (separator <= 0 || typedCallee.slice(separator + 2).includes("::")) return [];
+  const alias = typedCallee.slice(0, separator).replace(/^@/, "").trim();
+  if (!alias) return [];
+
+  const lookup = resolveModuleLexicalDeclaration(input, statementIndex, alias, {
+    scopeId: request.scopeId,
+    sourceOrderIndex: request.sourceOrderIndex
+  });
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "import") return [];
+
+  const importer = runtime.graph.nodes.get(runtime.rootDocumentId);
+  const edge = importer?.imports.find((candidate) =>
+    candidate.importIdentity.localIdentity === lookup.declaration.statementId &&
+    candidate.status === "resolved" &&
+    candidate.targetDocumentId
+  );
+  const target = edge?.targetDocumentId ? runtime.graph.nodes.get(edge.targetDocumentId) : undefined;
+  if (!target?.valid || !target.publicApi.valid) return [];
+  return [...target.publicApi.publicEntriesByName.values()]
+    .filter((entry) => entry.family === "module")
+    .map((entry) => ({
+      kind: "module" as const,
+      label: entry.name,
+      identity: moduleSemanticIdentityKey(entry.identity)
+    }));
+};
+
 const moduleCalleeCompletions = (compiled: CompiledDslDocument, statementIndex: number, request: ModuleCompletionRequest): ModuleCompletionCandidate[] => {
   const namespace = compiled.sourceLexicalNamespace;
   const owner = currentModuleDefinition(compiled, statementIndex, request.scopeId);
   const input = lexicalInput(compiled, owner);
   if (!namespace || !input) return [];
-  return namespace.allDeclarations
+  const local = namespace.allDeclarations
     .filter((declaration) => declaration.kind === "moduleDefinition" && declaration.statementIndex < (request.sourceOrderIndex ?? statementIndex))
     .filter((declaration) => {
       const lookup = resolveModuleLexicalDeclaration(input, statementIndex, declaration.name, { scopeId: request.scopeId, sourceOrderIndex: request.sourceOrderIndex });
       return lookup.kind === "resolved" && lookup.declaration.statementId === declaration.statementId;
     })
     .map((declaration) => ({ kind: "module" as const, label: declaration.name, identity: declaration.statementId }));
+  return [...local, ...importedModuleCalleeCompletions(compiled, statementIndex, request, input)];
 };
 
 const liveArguments = (request: ModuleCompletionRequest) => {
@@ -699,7 +798,7 @@ const moduleArgumentLabels = (compiled: CompiledDslDocument, statementIndex: num
   if (!parameters) {
     const instance = currentInstance(compiled, statementIndex);
     if (!instance?.callee || statement?.kind !== "moduleInstance") return [];
-    const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+    const definition = definitionForInstance(compiled, instance);
     if (!definition) return [];
     parameters = definition.parameters;
   }
@@ -739,7 +838,7 @@ const moduleArgumentParameterSlot = (
   request: ModuleCompletionRequest
 ): ModuleArgumentParameterSlot | null => {
   const instance = currentInstance(compiled, statementIndex);
-  const definition = instance?.callee && compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const definition = definitionForInstance(compiled, instance);
   if (!definition) return null;
   const liveArgument = liveArguments(request)?.[argumentIndex];
   if (request.currentDefinitionParameters) {
@@ -979,21 +1078,22 @@ const qualifiedGeometryArrayMemberCompletions = (
   expected: GeometryArrayType
 ): ModuleCompletionCandidate[] => {
   const result: ModuleCompletionCandidate[] = [];
+  const statements = definitionDocumentStatements(compiled, definition);
   for (const entry of definition.exports) {
     if (entry.kind !== "geometry") continue;
-    const actual = moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]);
+    const actual = moduleGeometryInterfaceTypeOfElement(statements[entry.exportedStatementIndex]);
     if (expected.elementType === "point") {
-      if (actual === "point") result.push({ kind: "geometry", label: entry.name, identity: entry.name });
+      if (actual === "point") result.push({ kind: "geometry", label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) });
       else if (actual === "line" || actual === "path") {
         result.push(
-{ kind: "geometry", label: `${entry.name}.start`, identity: `${entry.name}:start` },
-{ kind: "geometry", label: `${entry.name}.end`, identity: `${entry.name}:end` }
+          { kind: "geometry", label: `${entry.name}.start`, identity: `${exportIdentityForCandidate(compiled, definition, entry)}:start` },
+          { kind: "geometry", label: `${entry.name}.end`, identity: `${exportIdentityForCandidate(compiled, definition, entry)}:end` }
         );
       }
       continue;
     }
     if (isModuleGeometryInterfaceAssignable(actual, expected.elementType)) {
-      result.push({ kind: "geometry", label: entry.name, identity: entry.name });
+      result.push({ kind: "geometry", label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) });
     }
   }
   return result;
@@ -1004,10 +1104,14 @@ const qualifiedGeometryArrayReferenceCompletions = (
   definition: ModuleDefinitionSemantic,
   expected: GeometryArrayType
 ): ModuleCompletionCandidate[] =>
-  (compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values ?? [])
+  (definitionDocumentGeometryArrayAnalysis(compiled, definition)?.values ?? [])
     .filter((value) => value.ownerModuleDefinitionStatementIndex === definition.statementIndex && value.exported)
     .filter((value) => isGeometryArrayTypeAssignable(value.type, expected))
-    .map((value) => ({ kind: "binding" as const, label: value.name, identity: value.statementId }));
+    .map((value) => ({
+      kind: "binding" as const,
+      label: value.name,
+      identity: geometryArrayIdentityForCandidate(compiled, definition, value.statementId)
+    }));
 
 const sourceQualifiedGeometryArrayCompletions = (
   compiled: CompiledDslDocument,
@@ -1024,6 +1128,15 @@ const sourceQualifiedGeometryArrayCompletions = (
     request.sourceOrderIndex
   );
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  if (compiled.moduleSemanticAnalysis) {
+    const instance = currentInstance(compiled, resolved.lookup.declaration.statementIndex);
+    const definition = definitionForInstance(compiled, instance);
+    if (!definition) return [];
+    return context.mode === "arrayReference"
+      ? qualifiedGeometryArrayReferenceCompletions(compiled, definition, context.expectedType)
+      : qualifiedGeometryArrayMemberCompletions(compiled, definition, context.expectedType);
+  }
+
   const instanceStatement = compiled.statements[resolved.lookup.declaration.statementIndex];
   const input = lexicalInput(compiled, null);
   if (instanceStatement?.kind !== "moduleInstance" || !input) return [];
@@ -1081,7 +1194,7 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
   })();
   if (!instanceStatementId) return [];
   const instance = analysis.instancesByStatementId.get(instanceStatementId);
-  const definition = instance?.callee && analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const definition = definitionForInstance(compiled, instance ?? null);
   if (!definition) return [];
   const arrayContext = geometryArrayContextForRequest(compiled, statementIndex, request);
   if (arrayContext) {
@@ -1093,19 +1206,20 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "record" }> => entry.kind === "record")
       .filter((entry) => entry.typeIdentity === request.expectedRecordTypeIdentity)
-      .map((entry) => ({ kind: "record" as const, label: entry.name, identity: entry.exportedStatementId }));
+      .map((entry) => ({ kind: "record" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
   }
   if (request.argumentIndex !== undefined) {
     const parameterType = moduleArgumentParameterType(compiled, statementIndex, request.argumentIndex, request);
     const geometryInterfaceType = moduleGeometryInterfaceTypeOf(parameterType);
     if (geometryInterfaceType) {
+      const statements = definitionDocumentStatements(compiled, definition);
       return definition.exports
         .filter((entry): entry is Extract<typeof entry, { kind: "geometry" }> => entry.kind === "geometry")
         .filter((entry) => isModuleGeometryInterfaceAssignable(
-          moduleGeometryInterfaceTypeOfElement(compiled.statements[entry.exportedStatementIndex]),
+          moduleGeometryInterfaceTypeOfElement(statements[entry.exportedStatementIndex]),
           geometryInterfaceType
         ))
-        .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));
+        .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
     }
     const expected = scalarTypeOf(parameterType);
     const recordTypeIdentity = moduleArgumentParameterSlot(compiled, statementIndex, request.argumentIndex, request)?.recordTypeIdentity;
@@ -1113,13 +1227,13 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
       return definition.exports
         .filter((entry): entry is Extract<typeof entry, { kind: "record" }> => entry.kind === "record")
         .filter((entry) => entry.typeIdentity === recordTypeIdentity)
-        .map((entry) => ({ kind: "record" as const, label: entry.name, identity: entry.exportedStatementId }));
+        .map((entry) => ({ kind: "record" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
     }
     if (!expected) return [];
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
       .filter((entry) => isScalarTypeAssignable(entry.declaredType, expected))
-      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: entry.name }));
+      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
   }
   const scalarContext = context?.memberKind === "scalar" || (!context && request.expectedScalarType !== null && request.expectedScalarType !== undefined);
   if (scalarContext) {
@@ -1127,11 +1241,11 @@ const qualifiedMemberCompletions = (compiled: CompiledDslDocument, statementInde
     return definition.exports
       .filter((entry): entry is Extract<typeof entry, { kind: "scalar" }> => entry.kind === "scalar")
       .filter((entry) => !expected || isScalarTypeAssignable(entry.declaredType, expected))
-      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: entry.name }));
+      .map((entry) => ({ kind: "binding" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
   }
   return definition.exports
     .filter((entry) => entry.kind === "geometry")
-    .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: entry.name }));
+    .map((entry) => ({ kind: "geometry" as const, label: entry.name, identity: exportIdentityForCandidate(compiled, definition, entry) }));
 };
 
 /** Module candidates are source-semantic. Last-good identities are accepted

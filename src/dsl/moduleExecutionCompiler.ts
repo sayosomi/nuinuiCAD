@@ -118,11 +118,11 @@ export const compileMaterializedExecution = ({
   const scopeKeyOf = (entry: MaterializedExecutionStatement) => {
     // Root module instances are opaque containers in the caller namespace.
     // Their body children belong only to the instance-local scope below.
-    if (entry.instancePath.length === 0 || (
+    if ((entry.runtimeInstancePath ?? entry.instancePath).length === 0 || (
       entry.origin?.kind === "moduleInstance" &&
       entry.origin.callerModuleDefinitionStatementId === null
     )) return "root";
-    return `instance:${JSON.stringify(entry.instancePath)}`;
+    return `instance:${JSON.stringify(entry.runtimeInstancePath ?? entry.instancePath)}`;
   };
   const entryScopeKeys = executionStatements.map(scopeKeyOf);
   const entriesByScope = new Map<string, MaterializedExecutionStatement[]>();
