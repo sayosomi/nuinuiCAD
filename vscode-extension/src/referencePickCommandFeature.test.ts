@@ -202,6 +202,32 @@ beforeEach(() => {
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it("projects the Reference Pick context for a final empty Module geometry argument without a trailing comma", async () => {
+    const moduleSource = [
+      "nui 1",
+      "module M(broad: path) {",
+      "}",
+      "instance X = M(broad: )"
+    ].join("\n");
+    const position = moduleSource.lastIndexOf("broad: ") + "broad: ".length;
+    const editor = createEditorForSource(moduleSource, position);
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(moduleSource);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      VSCODE_REFERENCE_PICK_CONTEXT_KEY,
+      true
+    );
+
+    feature.dispose();
+  });
+
   it("keeps the Reference Pick context enabled across a complete existing numeric-property occurrence", async () => {
     const numericSource = [
       "nui 1",

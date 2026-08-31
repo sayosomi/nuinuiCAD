@@ -26,6 +26,7 @@ import {
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
+import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
 import {
   isNumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
@@ -399,23 +400,27 @@ const builtinExpectation = (
 const moduleParameterType = (
   compiled: CompiledDslDocument,
   statementIndex: number,
+  call: DslCallAuthoringContext,
   argument: ActiveCallArgument
 ): DslModuleParameterType | null => {
   const key = argument.scanned?.key;
   if (!key) return null;
-  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.statementIndex === statementIndex);
-  const definition = instance?.callee
-    ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
-    : null;
-  return definition?.parameters.find((parameter) => parameter.name === key)?.type ?? null;
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return null;
+  const lookup = resolveSourceLexicalDeclaration(namespace, statementIndex, call.callee.name);
+  if (lookup.kind !== "resolved" || lookup.declaration.kind !== "moduleDefinition") return null;
+  const definition = compiled.statements[lookup.declaration.statementIndex];
+  if (definition?.kind !== "moduleDefinition") return null;
+  return definition.parameters.find((parameter) => parameter.name === key)?.type ?? null;
 };
 
 const moduleExpectation = (
   compiled: CompiledDslDocument,
   statementIndex: number,
+  call: DslCallAuthoringContext,
   argument: ActiveCallArgument
 ): PickExpectation | "number" | null => {
-  const type = moduleParameterType(compiled, statementIndex, argument);
+  const type = moduleParameterType(compiled, statementIndex, call, argument);
   const geometry = moduleGeometryInterfaceTypeOf(type);
   if (geometry) return { expectedGeometryInterface: geometry, role: "geometry", multiplicity: "single" };
   return type?.kind === "number" ? "number" : null;
@@ -439,7 +444,7 @@ const targetForCall = (
         return parameter ? expectationForParameter(parameter) : null;
       })()
     : call.kind === "module"
-      ? moduleExpectation(compiled, anchor.statementIndex, argument)
+      ? moduleExpectation(compiled, anchor.statementIndex, call, argument)
       : builtinExpectation(call, argument);
   if (!expectation) return null;
 
