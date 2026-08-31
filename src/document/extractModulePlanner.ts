@@ -11,7 +11,10 @@ import {
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
 } from "../dsl/moduleGeometryInterfaces";
-import { geometryArrayTypeOfTypedDeclaration } from "../dsl/geometryArraySourceAnnotations";
+import {
+  geometryArrayTypeOfModuleParameter,
+  geometryArrayTypeOfTypedDeclaration
+} from "../dsl/geometryArraySourceAnnotations";
 import type { GeometryArrayType } from "../dsl/geometryArrayTypes";
 import { exactPhysicalSpan } from "../dsl/dslDiagnosticSpan";
 import { parseDslSnapshot } from "../dsl/dslParser";
@@ -354,6 +357,100 @@ const numericOptionsForStatement = (
     ? statement.numericTypeOptions
     : undefined;
 
+const moduleParameterDependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null => {
+  if (identity.kind !== "module" || identity.target.kind !== "moduleParameter") return null;
+  const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(
+    identity.target.slot.definitionStatementId
+  );
+  const parameter = definition?.parameters[identity.target.slot.parameterIndex];
+  const definitionStatement = definition ? compiled.statements[definition.statementIndex] : undefined;
+  const sourceParameter = definitionStatement?.kind === "moduleDefinition"
+    ? definitionStatement.parameters[identity.target.slot.parameterIndex]
+    : undefined;
+  if (
+    !definition ||
+    !parameter ||
+    !sourceParameter ||
+    parameter.definitionStatementId !== identity.target.slot.definitionStatementId ||
+    sourceParameter.recordTypeReference
+  ) return null;
+
+  const arrayType = geometryArrayTypeOfModuleParameter(sourceParameter);
+  const type = arrayType ?? parameter.type;
+  if (!type) return null;
+  const declarations = declarationRangesFor(index, identity);
+  if (declarations.length !== 1) return null;
+  return {
+    name: parameter.name,
+    type,
+    numericTypeOptions: parameter.numericTypeOptions,
+    declarationFrom: declarations[0]!.from
+  };
+};
+
+const moduleSourceDependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null => {
+  if (identity.kind !== "module" || identity.target.kind !== "moduleSource") return null;
+  const statementIndex = statementIndexForId(compiled, identity.target.statementId);
+  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+  const declarations = declarationRangesFor(index, identity);
+  if (statementIndex === undefined || !statement || declarations.length !== 1) return null;
+
+  if (statement.kind === "typedDeclaration") {
+    const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
+    if (arrayType) {
+      return {
+        name: statement.name,
+        type: arrayType,
+        declarationFrom: declarations[0]!.from
+      };
+    }
+    if (!statement.declaredType || statement.recordTypeReference) return null;
+    return {
+      name: statement.name,
+      type: statement.declaredType,
+      numericTypeOptions: numericOptionsForStatement(statement),
+      declarationFrom: declarations[0]!.from
+    };
+  }
+
+  const interfaceType = moduleGeometryInterfaceTypeOfElement(statement);
+  return statement.kind === "element" && interfaceType
+    ? {
+        name: statement.name,
+        type: moduleGeometryParameterType(interfaceType),
+        declarationFrom: declarations[0]!.from
+      }
+    : null;
+};
+
+const moduleIterationDependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null => {
+  if (identity.kind !== "module" || identity.target.kind !== "moduleIteration") return null;
+  const statementIndex = statementIndexForId(compiled, identity.target.statementId);
+  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+  const slot = compiled.sourceLexicalNamespace?.scopeIndex.forGroupIterationSlots.get(
+    `for:${identity.target.statementId}`
+  );
+  if (!statement || statement.kind !== "element" || statement.type !== "forGroup" || !slot?.name || !slot.nameSpan) return null;
+  const physical = exactPhysicalSpan(compiled.spans, statement, slot.nameSpan);
+  if (physical?.segments.length !== 1) return null;
+  return {
+    name: slot.name,
+    type: { kind: "number" },
+    declarationFrom: physical.segments[0]!.from
+  };
+};
+
 const scalarDependencyDescriptor = (
   compiled: CompiledDslDocument,
   index: DslSemanticOccurrenceIndex,
@@ -449,7 +546,6 @@ const geometryArrayStatementForIdentity = (
     !arrayType ||
     !semantic ||
     semantic.statementIndex !== statementIndex ||
-    semantic.ownerModuleDefinitionStatementIndex !== null ||
     semantic.type.elementType !== arrayType.elementType
   ) {
     return null;
@@ -478,6 +574,9 @@ const dependencyDescriptor = (
   index: DslSemanticOccurrenceIndex,
   identity: DslSemanticIdentity
 ): DependencyDescriptor | null =>
+  moduleParameterDependencyDescriptor(compiled, index, identity) ??
+  moduleSourceDependencyDescriptor(compiled, index, identity) ??
+  moduleIterationDependencyDescriptor(compiled, identity) ??
   scalarDependencyDescriptor(compiled, index, identity) ??
   geometryDependencyDescriptor(compiled, index, identity) ??
   geometryArrayDependencyDescriptor(compiled, index, identity);
@@ -492,6 +591,8 @@ const directSelectedScalarStatement = (
     statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
   } else if (identity.kind === "module" && identity.target.kind === "documentBinding") {
     statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.target.bindingId)?.statementIndex;
+  } else if (identity.kind === "module" && identity.target.kind === "moduleSource") {
+    statementIndex = statementIndexForId(compiled, identity.target.statementId);
   }
   if (statementIndex === undefined || !selectedIndexes.has(statementIndex)) return null;
 
@@ -507,8 +608,11 @@ const directSelectedGeometryStatement = (
   identity: DslSemanticIdentity,
   selectedIndexes: ReadonlySet<number>
 ): DirectGeometryStatement | null => {
-  if (identity.kind !== "element") return null;
-  const statementIndex = compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex;
+  const statementIndex = identity.kind === "element"
+    ? compiled.statementMap?.byElementId.get(identity.elementId)?.statementIndex
+    : identity.kind === "module" && identity.target.kind === "moduleSource"
+      ? statementIndexForId(compiled, identity.target.statementId)
+      : undefined;
   if (statementIndex === undefined || !selectedIndexes.has(statementIndex)) return null;
   const statement = compiled.statements[statementIndex];
   const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
@@ -616,15 +720,25 @@ const validateMutationBoundaries = (
   selectedFrom: number,
   selectedTo: number
 ): ExtractModuleRejection | null => {
+  const setTargetIndexes = new Map<number, number>();
   for (const [setStatementIndex, set] of compiled.setStatements ?? []) {
     const targetIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(set.targetBindingId)?.statementIndex;
+    if (targetIndex !== undefined) setTargetIndexes.set(setStatementIndex, targetIndex);
+  }
+  for (const body of [...(compiled.moduleSemanticAnalysis?.definitions ?? [])].flatMap((definition) => definition.bodyStatements)) {
+    if (body.statementKind !== "set" || body.scalarTarget?.kind !== "moduleLocal") continue;
+    const targetIndex = statementIndexForId(compiled, body.scalarTarget.statementId);
+    if (targetIndex !== undefined) setTargetIndexes.set(body.statementIndex, targetIndex);
+  }
+
+  for (const [setStatementIndex, targetIndex] of setTargetIndexes) {
     if (targetIndex === undefined) continue;
     const setInside = statementInsideOffsets(compiled.statements[setStatementIndex], selectedFrom, selectedTo);
     const targetInside = statementInsideOffsets(compiled.statements[targetIndex], selectedFrom, selectedTo);
     if (setInside !== targetInside) {
       return reject(
         "cross-boundary-mutation",
-        `set ${set.targetName} は Extract 境界をまたいで mutable binding を書き換えるため移動できません。`,
+        `set ${compiled.statements[setStatementIndex]?.name ?? "target"} は Extract 境界をまたいで mutable binding を書き換えるため移動できません。`,
         { statementIndex: setStatementIndex }
       );
     }
@@ -861,6 +975,22 @@ const moduleDefinitionOwnerIndex = (
   return null;
 };
 
+const moduleDefinitionForOwnedStatement = (
+  compiled: CompiledDslDocument,
+  statementIndex: number
+) => {
+  const ownerIndex = moduleDefinitionOwnerIndex(compiled, statementIndex);
+  if (ownerIndex === null) return null;
+  const statementId = statementIdForIndex(compiled, statementIndex);
+  const ownerStatementId = statementIdForIndex(compiled, ownerIndex);
+  const definition = ownerStatementId
+    ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(ownerStatementId)
+    : undefined;
+  return definition && definition.statementIndex === ownerIndex && statementId && definition.bodyStatementIds.includes(statementId)
+    ? definition
+    : null;
+};
+
 const moduleIdentityOwnedByMovedSubtree = (
   compiled: CompiledDslDocument,
   identity: DslSemanticIdentity,
@@ -917,20 +1047,51 @@ const geometryArrayArgumentOccurrences = (
       const parsed = parseDslSourceReference(argument.value);
       if (parsed.kind !== "valid" || parsed.reference.property) continue;
       const lookup = resolveSourceLexicalPath(namespace, entry.statementIndex, parsed.reference.path);
-      if (
-        lookup.kind !== "resolved" ||
-        lookup.declaration.kind !== "typedDeclaration" ||
-        lookup.declaration.statement.kind !== "typedDeclaration"
-      ) continue;
-      const arrayType = geometryArrayTypeOfTypedDeclaration(lookup.declaration.statement);
-      if (!arrayType || arrayType.elementType !== parameter.type.elementType) continue;
+      let identity: DslSemanticIdentity | null = null;
+      const callerParameterIndex = parsed.reference.path.segments.length === 1 && instance.callerModuleDefinitionStatementId
+        ? (() => {
+            const callerDefinition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(
+              instance.callerModuleDefinitionStatementId
+            );
+            const callerStatement = callerDefinition ? compiled.statements[callerDefinition.statementIndex] : undefined;
+            return callerStatement?.kind === "moduleDefinition"
+              ? callerStatement.parameters.findIndex((candidate) => {
+                  if (candidate.name !== parsed.reference.path.segments[0]) return false;
+                  const arrayType = geometryArrayTypeOfModuleParameter(candidate);
+                  return arrayType?.elementType === parameter.type.elementType;
+                })
+              : -1;
+          })()
+        : -1;
+      if (callerParameterIndex >= 0 && instance.callerModuleDefinitionStatementId) {
+        identity = {
+          kind: "module",
+          target: {
+            kind: "moduleParameter",
+            slot: {
+              definitionStatementId: instance.callerModuleDefinitionStatementId,
+              parameterIndex: callerParameterIndex
+            }
+          }
+        };
+      } else if (
+        lookup.kind === "resolved" &&
+        lookup.declaration.kind === "typedDeclaration" &&
+        lookup.declaration.statement.kind === "typedDeclaration"
+      ) {
+        const arrayType = geometryArrayTypeOfTypedDeclaration(lookup.declaration.statement);
+        if (arrayType?.elementType === parameter.type.elementType) {
+          identity = { kind: "module", target: { kind: "moduleSource", statementId: lookup.declaration.statementId } };
+        }
+      }
+      if (!identity) continue;
       const pathFrom = physical.from + parsed.reference.pathRange.start;
       const pathTo = physical.from + parsed.reference.pathRange.end;
       occurrences.push({
         from: pathFrom,
         to: pathTo,
         kind: "reference",
-        identity: { kind: "module", target: { kind: "moduleSource", statementId: lookup.declaration.statementId } }
+        identity
       });
     }
   }
@@ -1008,6 +1169,18 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     });
   }
 
+  const firstModuleOwnerIndex = moduleDefinitionOwnerIndex(compiled, first.statementIndex);
+  const containingModuleDefinition = firstModuleOwnerIndex === null
+    ? null
+    : moduleDefinitionForOwnedStatement(compiled, first.statementIndex);
+  if (firstModuleOwnerIndex !== null && !containingModuleDefinition) {
+    return reject(
+      "unresolved-semantic-identity",
+      "既存 Module definition の exact semantic identity と body ownership を取得できません。",
+      { statementId: first.statementId, statementIndex: first.statementIndex }
+    );
+  }
+
   for (const entry of ordered) {
     const scope = namespace.scopeIndex.scopeOfStatement.get(entry.statementIndex);
     if (scope !== firstScope || !sameEnclosing(entry.statement.enclosing, first.statement.enclosing)) {
@@ -1017,15 +1190,23 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         { statementId: entry.statementId, statementIndex: entry.statementIndex }
       );
     }
-  }
-  for (const entry of ordered) {
-    if (moduleDefinitionOwnerIndex(compiled, entry.statementIndex) !== null) {
+    const ownerIndex = moduleDefinitionOwnerIndex(compiled, entry.statementIndex);
+    if (ownerIndex !== firstModuleOwnerIndex) {
       return reject(
-        "unsupported-statement",
-        "Checkpoint 10 は既存 Module definition に所有されない source lexical scope の statement だけを Extract します。",
+        "cross-scope-target",
+        "Extract Module の対象は同じ containing Module definition に所有される sibling statement に限定されます。",
         { statementId: entry.statementId, statementIndex: entry.statementIndex }
       );
     }
+    if (ownerIndex !== null && !moduleDefinitionForOwnedStatement(compiled, entry.statementIndex)) {
+      return reject(
+        "unresolved-semantic-identity",
+        "既存 Module definition の body ownership と authored statement identity を証明できません。",
+        { statementId: entry.statementId, statementIndex: entry.statementIndex }
+      );
+    }
+  }
+  for (const entry of ordered) {
     const rejection = checkpointStatementRejection(entry.statement, entry.statementId, entry.statementIndex);
     if (rejection) return rejection;
   }
@@ -1547,6 +1728,157 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   }
 
   const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
+  const generatedModuleStatement = nextCompiled.statements[generatedModule.statementIndex];
+  const generatedInstanceStatement = nextCompiled.statements[generatedInstance.statementIndex];
+  const generatedModuleSemantic = nextCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(generatedModule.statementId);
+  const generatedInstanceSemantic = nextCompiled.moduleSemanticAnalysis?.instancesByStatementId.get(generatedInstance.statementId);
+  if (
+    generatedModuleStatement?.kind !== "moduleDefinition" ||
+    generatedInstanceStatement?.kind !== "moduleInstance" ||
+    !generatedModuleSemantic ||
+    !generatedInstanceSemantic ||
+    generatedModuleSemantic.declarationScopeId !== firstScope ||
+    generatedInstanceSemantic.callerModuleDefinitionStatementId !== (containingModuleDefinition?.statementId ?? null) ||
+    generatedInstanceSemantic.calleeResolution !== "resolved" ||
+    generatedInstanceSemantic.callee?.definitionStatementId !== generatedModule.statementId
+  ) {
+    return reject("unsafe-rewrite", "生成した nested Module と instance の lexical ownership を証明できません。");
+  }
+
+  if (generatedModuleStatement.parameters.length !== dependencies.length) {
+    return reject("unsafe-rewrite", "生成した nested Module の parameter interface が計画内容と一致しません。");
+  }
+  const nextMovedEntries = movedEntries.flatMap((entry) => {
+    const statementIndex = nextCompiled.statementMap?.statementIndexByStatementId?.get(entry.statementId);
+    const statement = statementIndex === undefined ? undefined : nextCompiled.statements[statementIndex];
+    return statementIndex === undefined || !statement
+      ? []
+      : [{ statementId: entry.statementId, statementIndex, statement }];
+  });
+  const nextArrayArgumentOccurrences = geometryArrayArgumentOccurrences(nextCompiled, [
+    ...nextMovedEntries,
+    { statementId: generatedInstance.statementId, statementIndex: generatedInstance.statementIndex, statement: generatedInstanceStatement }
+  ]);
+  const nextReferenceOccurrences = [...nextOccurrenceIndex.occurrences, ...nextArrayArgumentOccurrences];
+  const nextReferenceOwnerKey = (occurrence: DslSemanticOccurrence) => semanticOwnerKey(nextCompiled, occurrence.identity);
+  const candidateArrayArgumentOwnerMatches = (
+    planned: { occurrences: readonly DslSemanticOccurrence[] },
+    dependency: ExtractModuleDependency
+  ): boolean => {
+    if (dependency.type?.kind !== "geometryArray") return false;
+    const identity = planned.occurrences[0]?.identity;
+    if (identity?.kind !== "module") return false;
+    if (identity.target.kind === "moduleParameter") {
+      const definition = nextCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(
+        identity.target.slot.definitionStatementId
+      );
+      const parameter = definition?.parameters[identity.target.slot.parameterIndex];
+      const statement = definition ? nextCompiled.statements[definition.statementIndex] : undefined;
+      const sourceParameter = statement?.kind === "moduleDefinition"
+        ? statement.parameters[identity.target.slot.parameterIndex]
+        : undefined;
+      const arrayType = sourceParameter ? geometryArrayTypeOfModuleParameter(sourceParameter) ?? parameter?.type : undefined;
+      return Boolean(
+        definition &&
+        parameter?.name === dependency.name &&
+        arrayType?.kind === "geometryArray" &&
+        arrayType.elementType === dependency.type.elementType
+      );
+    }
+    if (identity.target.kind !== "moduleSource") return false;
+    const statementIndex = statementIndexForId(nextCompiled, identity.target.statementId);
+    const statement = statementIndex === undefined ? undefined : nextCompiled.statements[statementIndex];
+    const arrayType = statement?.kind === "typedDeclaration"
+      ? geometryArrayTypeOfTypedDeclaration(statement)
+      : nextCompiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.get(
+          identity.target.statementId
+        )?.type;
+    return Boolean(
+      statement &&
+      arrayType?.kind === "geometryArray" &&
+      arrayType.elementType === dependency.type.elementType
+    );
+  };
+  for (const [dependencyIndex, dependency] of dependencies.entries()) {
+    const planned = dependencyByIdentity.get(dependency.identityKey);
+    const generatedParameter = generatedModuleSemantic.parameters[dependencyIndex];
+    const sourceParameter = generatedModuleStatement.parameters[dependencyIndex];
+    const generatedType = sourceParameter
+      ? geometryArrayTypeOfModuleParameter(sourceParameter) ?? generatedParameter?.type
+      : undefined;
+    if (
+      !planned ||
+      !generatedParameter ||
+      !sourceParameter ||
+      sourceParameter.name !== dependency.name ||
+      !generatedType ||
+      moduleParameterTypeText(generatedType, generatedParameter.numericTypeOptions) !== dependency.typeText
+    ) {
+      return reject("unsafe-rewrite", "生成した nested Module parameter が元の semantic dependency と一致しません。");
+    }
+
+    const argument = generatedInstanceStatement.arguments[dependencyIndex];
+    const binding = generatedInstanceSemantic.parameterBindings.find((candidate) =>
+      candidate.parameterIndex === dependencyIndex
+    );
+    if (
+      !argument ||
+      argument.label !== dependency.name ||
+      argument.value.trim() !== dependency.argumentSource.trim() ||
+      !binding ||
+      binding.argumentIndex !== dependencyIndex
+    ) {
+      return reject("unsafe-rewrite", "生成した Module instance argument が元の authored dependency source と一致しません。");
+    }
+
+    const expectedOwnerKey = semanticOwnerKey(compiled, planned.occurrences[0]!.identity);
+    const argumentOwnerMatches = dependency.type?.kind === "geometryArray"
+      ? nextArrayArgumentOccurrences.some((occurrence) =>
+          occurrence.from >= generatedInstanceStatement.documentRange.from &&
+          occurrence.to <= generatedInstanceStatement.documentRange.to &&
+          nextReferenceOwnerKey(occurrence) === expectedOwnerKey
+        )
+        || candidateArrayArgumentOwnerMatches(planned, dependency)
+      : nextReferenceOccurrences.some((occurrence) =>
+          occurrence.kind === "reference" &&
+          occurrence.from >= generatedInstanceStatement.documentRange.from &&
+          occurrence.to <= generatedInstanceStatement.documentRange.to &&
+          nextReferenceOwnerKey(occurrence) === expectedOwnerKey
+        );
+    if (!argumentOwnerMatches) {
+      return reject("unsafe-rewrite", "生成した Module instance argument が元の semantic owner へ解決されません。");
+    }
+  }
+
+  for (const [identityKey, planned] of dependencyByIdentity) {
+    const dependencyIndex = dependencies.findIndex((dependency) => dependency.identityKey === identityKey);
+    const generatedParameter = generatedModuleSemantic.parameters[dependencyIndex];
+    const expectedOwnerKey = semanticOwnerKey(nextCompiled, {
+      kind: "module",
+      target: {
+        kind: "moduleParameter",
+        slot: {
+          definitionStatementId: generatedModule.statementId,
+          parameterIndex: dependencyIndex
+        }
+      }
+    });
+    const movedReferenceCount = nextReferenceOccurrences.filter((occurrence) =>
+      occurrence.kind === "reference" &&
+      movedEntries.some((entry) => {
+        const nextIndex = nextCompiled.statementMap?.statementIndexByStatementId?.get(entry.statementId);
+        const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+        return Boolean(nextStatement &&
+          occurrence.from >= nextStatement.documentRange.from &&
+          occurrence.to <= nextStatement.documentRange.to);
+      }) &&
+      nextReferenceOwnerKey(occurrence) === expectedOwnerKey
+    ).length;
+    if (!generatedParameter || movedReferenceCount !== planned.occurrences.length) {
+      return reject("unsafe-rewrite", "移動した subtree の dependency reference が generated parameter identity へ解決されません。");
+    }
+  }
+
   for (const [ownerStatementId, expectedCount] of movedIterationReferences) {
     const nextReferenceCount = nextOccurrenceIndex.occurrences.filter((occurrence) =>
       occurrence.kind === "reference" &&
@@ -1563,11 +1895,12 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
 
-  // Checkpoint 8 recursively accepts complete Module descendants under the
+  // Checkpoint 8 recursively accepts complete Module descendants and the
   // previously proven direct/root value, plain-group, conditional, forGroup,
-  // and moduleDefinition proof. Module-owned identities stay internal to the
-  // moved subtree, while external Module callees are checked above. Records,
-  // imports, non-root targets, and host integration remain fail closed.
+  // and containing-Module ownership proofs. Module-owned values cross the
+  // boundary only through proven non-record parameters; external Module
+  // callees are checked above. Records, imports, and host integration remain
+  // fail closed.
   // Outside-resolution comparison stays the final guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
