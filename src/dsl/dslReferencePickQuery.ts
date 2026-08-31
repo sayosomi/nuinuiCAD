@@ -121,6 +121,19 @@ const exactPositionAt = (source: SourceSnapshot, position: number): ExactPositio
   if (statementIndex < 0) return null;
   const statement = map.statements[statementIndex]!;
   const logicalPosition = physicalToLogicalOffset(map, statement, position) ?? (() => {
+    for (let index = 0, logicalStart = 0; index < statement.segments.length - 1; index += 1) {
+      const current = statement.segments[index]!;
+      const next = statement.segments[index + 1]!;
+      const gap = source.normalizedSource.slice(current.to, position);
+      if (
+        position > current.to &&
+        position < next.from &&
+        gap.length > 0 &&
+        !gap.includes("\n") &&
+        gap.trim().length === 0
+      ) return logicalStart + current.to - current.from;
+      logicalStart += current.to - current.from + 1;
+    }
     const lastSegment = statement.segments.at(-1);
     if (!lastSegment || position < lastSegment.to || position > statement.range.to) return null;
     return source.normalizedSource.slice(lastSegment.to, position).trim().length === 0
