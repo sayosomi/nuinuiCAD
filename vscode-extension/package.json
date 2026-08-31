@@ -629,18 +629,28 @@
       "editor/context": [
         {
           "command": "nuinuiCAD.revealInCanvas",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget",
+          "group": "navigation@1"
+        },
+        {
+          "command": "nuinuiCAD.openCanvas",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInCanvasSourceTarget",
           "group": "navigation@1"
         },
         {
           "command": "nuinuiCAD.revealInOutputPreview",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget",
+          "group": "navigation@2"
+        },
+        {
+          "command": "nuinuiCAD.openOutputPreview",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInOutputPreviewSourceTarget",
           "group": "navigation@2"
         },
         {
           "command": "nuinuiCAD.openModulePreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
