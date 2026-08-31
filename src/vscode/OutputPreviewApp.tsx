@@ -64,6 +64,7 @@ import { VSCODE_CANVAS_RIBBON_ICON_SIZE } from "./vscodeCanvasRibbonConfig";
 import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
+import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
 
 type OutputPreviewEvaluationState = {
   outputKey: string | null;
@@ -116,6 +117,10 @@ const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
+const outputPreviewPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
+  const target = event.target;
+  return !(target instanceof Element && target.closest(".output-preview-place-popover"));
+};
 const dragPlanIdentityForCandidate = (
   candidate: OutputPreviewCandidate | null
 ): OutputPreviewPlaceDragPlanIdentity | null => candidate ? {
@@ -271,6 +276,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const workspaceRef = useRef<HTMLElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanState | null>(null);
+  const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const latestHostDocumentVersionRef = useRef<number | null>(null);
   const outputPreviewPlaceCommitPendingRef = useRef<number | null>(null);
   const pendingOpenRef = useRef<{ normalizedSourceOffset: number | null } | null>(null);
@@ -286,6 +292,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const pendingRevealResponseRef = useRef<VscodeOutputPreviewRevealResult | null>(null);
   const preserveViewportForSelectionRef = useRef<string | null>(null);
   const rustTransport = useMemo(() => new VscodeRustTransport(api.postMessage), [api]);
+
+  const markReactPointerEvent = (event: React.PointerEvent): void => {
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
+  };
 
   const pointerWorldPoint = useMemo(
     () => pointerClientPosition
@@ -788,6 +798,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
     if (event.button !== 1) return;
     event.preventDefault();
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
@@ -796,6 +807,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     const pan = panRef.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
@@ -808,9 +820,29 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   };
 
   const stopPan = (event: React.PointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
     setPointerClientPosition({ clientX: event.clientX, clientY: event.clientY });
     if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
   };
+
+  const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
+    setPointerClientPosition(null);
+  };
+
+  useNativePointerBoundaryFallback({
+    targetRef: viewportRef,
+    handlers: {
+      pointerdown: handlePointerDown,
+      pointermove: handlePointerMove,
+      pointerup: stopPan,
+      pointercancel: stopPan,
+      lostpointercapture: stopPan,
+      pointerleave: handlePointerLeave
+    },
+    reactHandledEvents: reactHandledPointerEvents,
+    shouldFallback: outputPreviewPointerBoundaryFallbackShouldRun
+  });
 
   const navigateToSourceRange = (range: { from: number; to: number } | null) => {
     const documentVersion = latestHostDocumentVersionRef.current;
@@ -1130,7 +1162,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         onPointerUp={stopPan}
         onPointerCancel={stopPan}
         onLostPointerCapture={stopPan}
-        onPointerLeave={() => setPointerClientPosition(null)}
+        onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >
         {previewError ? (

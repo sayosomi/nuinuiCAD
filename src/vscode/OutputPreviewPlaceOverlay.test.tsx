@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
+import type { OutputPreviewPlaceDragProof } from "./outputPreviewPlaceDrag";
 import { OutputPreviewPlaceOverlay } from "./OutputPreviewPlaceOverlay";
 
 const sourceText = `${".".repeat(80)}group`;
@@ -106,6 +107,49 @@ describe("OutputPreviewPlaceOverlay", () => {
 
     expect(onViewportPointerDown).toHaveBeenCalledOnce();
     expect(onBeginDrag).not.toHaveBeenCalled();
+  });
+
+  it("starts a primary handle drag through the native boundary when React delegation is interrupted", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+    const onBeginDrag = vi.fn(() => ({
+      x: { literal: 10 },
+      y: { literal: 20 }
+    }) as OutputPreviewPlaceDragProof);
+
+    try {
+      render(
+        <OutputPreviewPlaceOverlay
+          projections={[projection({ placeId: "a", groupName: "Front" })]}
+          sourceText={sourceText}
+          viewportSize={{ width: 400, height: 300 }}
+          viewport={{ panX: 0, panY: 0, zoom: 1 }}
+          onNavigate={vi.fn()}
+          onHighlightPlaceIdChange={vi.fn()}
+          onBeginDrag={onBeginDrag}
+        />,
+        { container }
+      );
+      const handle = screen.getByRole("button", { name: "Place Front" });
+      await act(async () => {
+        fireEvent.pointerDown(handle, {
+          button: 0,
+          buttons: 1,
+          pointerId: 7,
+          clientX: 100,
+          clientY: 100
+        });
+        await Promise.resolve();
+      });
+      expect(onBeginDrag).toHaveBeenCalledOnce();
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      cleanup();
+      container.remove();
+    }
   });
 
   it("skips the picker for a single handle hit", () => {
