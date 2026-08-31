@@ -110,6 +110,7 @@ const elementNamed = (compiled: ReturnType<typeof compileWithIds>, name: string)
 
 const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
   expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  expect((compiled.bindingIssueDiagnostics ?? []).filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   expect(compiled.document).not.toBeNull();
 };
 
@@ -566,6 +567,91 @@ describe("module scalar runtime integration", () => {
         argument.kind !== "geometryReference" || argument.target?.statementId.startsWith("module-runtime:") || compiled.document!.elements.some((element) => element.id === argument.target?.statementId)
       )).toBe(true);
     }
+  });
+
+  it("composes a required Module record parameter field with its resolved root binding", () => {
+    const compiled = compileWithIds([
+      "nui 4",
+      "record Config(amount: number)",
+      "const config: Config = Config(amount: 12)",
+      "module Extracted(config: Config) {",
+      "const inside: number = @config.amount + 1",
+      "}",
+      "instance Part = Extracted(config: @config)"
+    ].join("\n"), "say252-required");
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect((compiled.bindingIssueDiagnostics ?? []).filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const fieldBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "config.amount"
+    );
+    const insideBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "inside"
+    );
+    expect(fieldBinding).toBeDefined();
+    expect(insideBinding).toBeDefined();
+    expect(compiled.bindingAnalysis!.initializerReferences).toEqual([
+      expect.objectContaining({
+        fromBindingId: insideBinding?.id,
+        name: "config.amount",
+        resolution: expect.objectContaining({
+          kind: "resolved",
+          binding: expect.objectContaining({ id: fieldBinding?.id })
+        })
+      })
+    ]);
+    expect(compiled.scalarProgram!.statements.find((statement) => statement.bindingId === insideBinding?.id)?.declaration.initializer).toMatchObject({
+      kind: "binary",
+      left: { kind: "reference", name: "config.amount", bindingId: fieldBinding?.id }
+    });
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(insideBinding!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 13 }
+    });
+  });
+
+  it("retains genuine Module record and scalar binding errors", () => {
+    const unknownField = compileWithIds([
+      "nui 4",
+      "record Config(amount: number)",
+      "module Extracted(config: Config) {",
+      "const inside: number = @config.missing",
+      "}",
+      "instance Part = Extracted(config: Config(amount: 12))"
+    ].join("\n"), "say252-unknown");
+    expect(unknownField.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-record-field-unknown" })
+    ]));
+    expect(unknownField.bindingIssueDiagnostics ?? []).toEqual([]);
+
+    const unguardedOptional = compileWithIds([
+      "nui 4",
+      "record Config(amount: number)",
+      "module Extracted(config?: Config) {",
+      "const inside: number = @config.amount",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"), "say252-optional");
+    expect(unguardedOptional.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+    expect(unguardedOptional.bindingIssueDiagnostics ?? []).toEqual([]);
+
+    const undefinedScalar = compileWithIds([
+      "nui 4",
+      "module Extracted() {",
+      "const inside: number = @missing",
+      "}",
+      "instance Part = Extracted()",
+      "const outside: number = @alsoMissing"
+    ].join("\n"), "say252-undefined");
+    expect(undefinedScalar.bindingIssueDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "undefined-binding" })
+    ]));
   });
 
   it("materializes Module-local record fields per instance in record declaration order", () => {

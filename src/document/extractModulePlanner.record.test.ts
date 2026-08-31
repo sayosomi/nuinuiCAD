@@ -101,7 +101,7 @@ const withOuterRecordParameterIdentity = (
 };
 
 describe("planExtractModule record-valued interfaces", () => {
-  it("fails closed for a root record dependency whose generated body uses field access", () => {
+  it("parameterizes a root record dependency used through generated Module field access", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -110,8 +110,18 @@ describe("planExtractModule record-valued interfaces", () => {
     ].join("\n");
     const result = plan(source, ["inside"]);
 
-    expectRejectedWithoutPatch(result, "unsafe-rewrite");
-    if (result.status === "rejected") expect(result.message).toContain("config.amount");
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["config", "Config", "@config"]
+    ]);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted(config: Config) {",
+      "  const inside: number = @config.amount + 1",
+      "}",
+      "instance Part = Extracted(config: @config)"
+    ].join("\n"));
   });
 
   it("parameterizes an outer Module-local record value through its field access", () => {
