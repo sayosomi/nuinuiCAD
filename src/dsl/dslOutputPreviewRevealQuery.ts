@@ -1,5 +1,5 @@
 import type { ElementId } from "../types/geometry";
-import { isGroupElement } from "../model/groups";
+import { groupStateByElementId, isGroupElement } from "../model/groups";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import type { CompiledDslDocument } from "./dslDocument";
 import {
@@ -86,6 +86,11 @@ export type DslOutputPreviewRevealRuntimeProjectionInput = {
   >;
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
   elements: readonly import("../types/geometry").CadElement[];
+};
+
+export type DslOutputPreviewRevealStructuralAvailabilityInput = {
+  target: DslOutputPreviewRevealSourceTarget;
+  compiled: CompiledDslDocument;
 };
 
 const elementForId = (compiled: CompiledDslDocument, elementId: ElementId) =>
@@ -279,6 +284,140 @@ export const projectDslOutputPreviewRevealRuntimeTarget = ({
           runtimeElementIds
         }
       };
+};
+
+const currentStatementIs = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  kind: DslOutputPreviewRevealSourceTarget["kind"]
+): boolean => {
+  const statement = compiled.statements[statementIndex];
+  if (!statement || statement.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return false;
+  if (kind === "output") return statement.kind === "print" || statement.kind === "svg";
+  if (kind === "geometry") return statement.kind === "element" || statement.kind === "moduleInstance";
+  return statement.kind === kind;
+};
+
+const outputOwnedLayoutIds = (
+  document: NonNullable<CompiledDslDocument["document"]>
+): ReadonlySet<string> => {
+  const layoutIds = new Set(document.layouts.map((layout) => layout.id));
+  return new Set(
+    [...document.printOutputs, ...document.svgOutputs]
+      .map((output) => output.layoutId)
+      .filter((layoutId) => layoutIds.has(layoutId))
+  );
+};
+
+const currentElementTarget = (
+  compiled: CompiledDslDocument,
+  target: Extract<DslOutputPreviewRevealSourceTarget, { kind: "group" | "geometry" }>
+): boolean => {
+  const element = elementForId(compiled, target.elementId);
+  const statement = compiled.statements[target.sourceStatementIndex];
+  if (!statement || statement.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return false;
+  if (!element) return false;
+  if (target.kind === "group" ? !isGroupElement(element) : isGroupElement(element)) return false;
+  if (compiled.statementMap?.elementIdByStatementIndex.get(target.sourceStatementIndex) !== target.elementId) return false;
+  return compiled.statementMap.byElementId.get(target.elementId)?.statementIndex === target.sourceStatementIndex;
+};
+
+const currentSemanticTarget = (
+  compiled: CompiledDslDocument,
+  target: Extract<DslOutputPreviewRevealSourceTarget, { kind: "semantic" }>
+): boolean => {
+  const statement = compiled.statements[target.semantic.sourceStatementIndex];
+  if (!statement || statement.sourceRevision !== compiled.spans.sourceMap.sourceRevision) return false;
+  if (target.ownerSourceStatementIndex !== null && !currentStatementIs(
+    compiled,
+    target.ownerSourceStatementIndex,
+    "group"
+  ) && !currentStatementIs(compiled, target.ownerSourceStatementIndex, "geometry")) return false;
+  return true;
+};
+
+const currentPlacementTarget = (
+  compiled: CompiledDslDocument,
+  target: Extract<DslOutputPreviewRevealSourceTarget, { kind: "place" }>,
+  outputLayoutIds: ReadonlySet<string>
+): boolean => {
+  if (!currentStatementIs(compiled, target.sourceStatementIndex, "place")) return false;
+  if (compiled.statementMap?.statementIdByStatementIndex?.get(target.sourceStatementIndex) !== target.placementId) return false;
+  const placementRef = placementRefForStatement(compiled, target.sourceStatementIndex);
+  if (
+    !placementRef ||
+    placementRef.layoutId !== target.layoutId ||
+    placementRef.placementIndex !== target.placementIndex ||
+    !outputLayoutIds.has(target.layoutId)
+  ) return false;
+  const layout = compiled.document?.layouts.find((candidate) => candidate.id === target.layoutId);
+  const placement = layout?.placements[target.placementIndex];
+  return placement?.id === target.placementId;
+};
+
+/**
+ * Project the exact current Source target to structural Output ownership for
+ * menu availability. This intentionally does not evaluate geometry or apply
+ * any host presentation state; command execution remains responsible for
+ * drawable/runtime checks and final reveal success.
+ */
+export const isDslOutputPreviewRevealSourceTargetStructurallyAvailable = ({
+  target,
+  compiled
+}: DslOutputPreviewRevealStructuralAvailabilityInput): boolean => {
+  const document = compiled.document;
+  if (!document || !compiled.statementMap) return false;
+
+  const outputLayoutIds = outputOwnedLayoutIds(document);
+  if (target.kind === "output") {
+    if (!currentStatementIs(compiled, target.sourceStatementIndex, "output")) return false;
+    const outputId = outputIdForStatement(compiled, target.sourceStatementIndex, target.outputKind);
+    if (outputId !== target.outputId) return false;
+    return target.outputKind === "print"
+      ? document.printOutputs.some((output) => output.id === target.outputId)
+      : document.svgOutputs.some((output) => output.id === target.outputId);
+  }
+
+  if (target.kind === "layout") {
+    if (!currentStatementIs(compiled, target.sourceStatementIndex, "layout")) return false;
+    return layoutIdForStatement(compiled, target.sourceStatementIndex) === target.layoutId &&
+      outputLayoutIds.has(target.layoutId);
+  }
+
+  if (target.kind === "place") return currentPlacementTarget(compiled, target, outputLayoutIds);
+
+  if (target.kind === "group" || target.kind === "geometry") {
+    if (!currentElementTarget(compiled, target)) return false;
+  } else if (!currentSemanticTarget(compiled, target)) {
+    return false;
+  }
+
+  const elements = document.elements;
+  const projection = projectDslOutputPreviewRevealRuntimeTarget({
+    target,
+    compiled,
+    moduleGeometryRuntime: compiled.moduleGeometryRuntime,
+    elements
+  });
+  if (projection.status === "failed") return false;
+
+  const elementsById = new Map(elements.map((element) => [element.id, element]));
+  const placedGroupIds = new Set<ElementId>();
+  for (const layout of document.layouts) {
+    if (!outputLayoutIds.has(layout.id)) continue;
+    for (const placement of layout.placements) {
+      const group = elementsById.get(placement.groupId);
+      if (group && isGroupElement(group)) placedGroupIds.add(group.id);
+    }
+  }
+  if (placedGroupIds.size === 0) return false;
+
+  const groupStates = groupStateByElementId(elements);
+  return projection.target.runtimeElementIds.some((elementId) => {
+    const state = groupStates.get(elementId);
+    return placedGroupIds.has(elementId) ||
+      (state?.ancestorGroupIds ?? []).some((ancestorId) => placedGroupIds.has(ancestorId));
+  });
 };
 
 const sourceFailureFromCanvas = (
