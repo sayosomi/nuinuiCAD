@@ -78,22 +78,15 @@ export const planVscodeReferencePickSourceEdit = ({
       numericProperty.reference.pointKey !== undefined ||
       !isNumericComputedGeometryProperty(numericProperty.property)
     ) return null;
-    if (
-      target.numericProperty.kind === "fixedProperty" &&
-      target.numericProperty.property !== numericProperty.property
-    ) return null;
     const allowedCandidate = allowedNumericCandidates?.find((candidate) =>
       referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(numericProperty.reference)
     );
     if (!allowedCandidate || !allowedCandidate.properties.includes(numericProperty.property)) return null;
-    const replacement = target.numericProperty.kind === "fixedProperty"
-      ? referencePickSourceForReference(numericProperty.reference)
-      : `${referencePickSourceForReference(numericProperty.reference)}.${numericProperty.property}`;
-    const suffixLength = (target.activationRange ?? target.range).to - target.range.to;
+    const replacement = `${referencePickSourceForReference(numericProperty.reference)}.${numericProperty.property}`;
     return {
       range: { ...target.range },
       replacement,
-      caretNormalizedOffset: target.range.from + replacement.length + suffixLength
+      caretNormalizedOffset: target.range.from + replacement.length
     };
   }
   if (numericProperty) return null;

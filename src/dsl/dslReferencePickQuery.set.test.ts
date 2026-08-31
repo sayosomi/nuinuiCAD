@@ -19,7 +19,7 @@ const queryAt = (source: string, compiled: CompiledDslDocument, position: number
   });
 
 describe("queryDslReferencePickTarget set RHS", () => {
-  it("uses the resolved number let type and preserves an existing property suffix", () => {
+  it("uses the resolved number let type and targets the complete numeric property operand", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -35,10 +35,10 @@ describe("queryDslReferencePickTarget set RHS", () => {
     expect(result).toMatchObject({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
-      multiplicity: "single"
+      multiplicity: "single",
+      numericProperty: { kind: "propertySelectionRequired" }
     });
-    expect(result && source.slice(result.range.from, result.range.to)).toBe("@Base");
-    expect(result && source.slice(result.range.to, result.range.to + ".length".length)).toBe(".length");
+    expect(result && source.slice(result.range.from, result.range.to)).toBe("@Base.length");
   });
 
   it("fails closed when the resolved set target is not number", () => {

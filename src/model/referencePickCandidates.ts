@@ -2,7 +2,6 @@ import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
   numericComputedGeometryPropertiesFor,
-  numericComputedGeometrySupportsProperty,
   type NumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
 import {
@@ -296,10 +295,6 @@ export const referencePickCandidates = ({
       if (!numericGeometry) continue;
       const properties = numericComputedGeometryPropertiesFor(numericGeometry);
       if (properties.length === 0) continue;
-      if (
-        target.numericProperty?.kind === "fixedProperty" &&
-        !numericComputedGeometrySupportsProperty(numericGeometry, target.numericProperty.property)
-      ) continue;
       candidates.push({
         elementId: element.id,
         actualGeometryInterface,
