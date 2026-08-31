@@ -24,6 +24,8 @@ export type VscodeCanvasObservationIssueSummary = {
 export type VscodeCanvasObservationSnapshot = {
   documentVersion: number;
   selectedElementIds: readonly string[];
+  /** Selected ordinary coordinate points that can be converted in the current evaluation. */
+  coordinatePointConversionTargetIds?: readonly string[];
   canvasCanSelectInstance: boolean;
   /** Source ownership used by agent-facing adapters to project runtime IDs into stable snapshot IDs. */
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];

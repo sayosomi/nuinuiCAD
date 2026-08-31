@@ -3,12 +3,16 @@ import type { NuiDocumentSymbolSessionFor } from "./documentSymbolProvider";
 import {
   createNuiElementsTreeProvider,
   NUI_ELEMENTS_VIEW_ID,
-  type NuiElementsDocumentFor
+  type NuiElementsDocumentFor,
+  type NuiElementsTreeItemContextValueFor,
+  type NuiElementsTreeProvider
 } from "./elementsTreeProvider";
 
 export type NuiElementsTreeFeatureHost = {
   activeNuiDocument: NuiElementsDocumentFor;
   languageAnalysisSessionFor: NuiDocumentSymbolSessionFor;
+  treeItemContextValueFor?: NuiElementsTreeItemContextValueFor;
+  onProviderReady?: (provider: NuiElementsTreeProvider) => void;
 };
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
@@ -21,9 +25,17 @@ const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): bo
  * active supported document and the existing language-analysis session lookup.
  */
 export const registerNuiElementsTreeFeature = (
-  { activeNuiDocument, languageAnalysisSessionFor }: NuiElementsTreeFeatureHost
+  {
+    activeNuiDocument,
+    languageAnalysisSessionFor,
+    treeItemContextValueFor,
+    onProviderReady
+  }: NuiElementsTreeFeatureHost
 ): vscode.Disposable => {
-  const provider = createNuiElementsTreeProvider(activeNuiDocument, languageAnalysisSessionFor);
+  const provider = treeItemContextValueFor
+    ? createNuiElementsTreeProvider(activeNuiDocument, languageAnalysisSessionFor, treeItemContextValueFor)
+    : createNuiElementsTreeProvider(activeNuiDocument, languageAnalysisSessionFor);
+  onProviderReady?.(provider);
   const registration = vscode.window.registerTreeDataProvider?.(
     NUI_ELEMENTS_VIEW_ID,
     provider

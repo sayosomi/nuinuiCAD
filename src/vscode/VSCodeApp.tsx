@@ -360,6 +360,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersion,
         selectedElementId: uiState.selectedElementId,
         selectedElementIds: uiState.selectedElementIds,
+        document: {
+          sourceText: current.state.sourceText,
+          doc: current.state.doc,
+          docText: current.state.docText,
+          diagnostics: current.state.diagnostics,
+          bindingIssueDiagnostics: current.state.bindingIssueDiagnostics,
+          typedDependencyGraph: current.state.typedDependencyGraph
+        },
         elements: current.state.elements,
         moduleMaterialization: current.state.doc.moduleMaterialization,
         selectionSubject: uiState.selectionSubject,
@@ -1221,6 +1229,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         }}
         onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
         currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
+        currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}
+        postCanvasCommit={postCanvasCommit}
         postCanonicalSourceText={(sourceText) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;

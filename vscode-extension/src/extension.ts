@@ -57,6 +57,11 @@ import {
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
 import { registerNuiElementsTreeFeature } from "./elementsTreeFeature";
+import {
+  registerVscodeCoordinatePointConversionFeature,
+  type CoordinatePointConversionCanvasEndpoint,
+  type VscodeCoordinatePointConversionFeature
+} from "./coordinatePointConversionCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
   outputPreviewRevealSourceTargetForEditor,
@@ -106,6 +111,7 @@ import {
   type RevealInCanvasPresentationOutcome
 } from "./revealInCanvasPresentation";
 import { registerVscodeObservationFeature } from "./vscodeObservationFeature";
+import { vscodeObservationState } from "./vscodeObservationState";
 import type { VscodeObservationHostDocument } from "./vscodeObservationState";
 import {
   createCanvasThemeWarningFeature,
@@ -455,12 +461,24 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let nextBakeRequestId = 1;
   let refreshNativeColorProvider: () => void = () => undefined;
   let canvasFreePointAtPointerFeature: VscodeCanvasFreePointAtPointerFeature | null = null;
+  let coordinatePointConversionExplorerContextValueFor: (node: import("./elementsTreeProvider").NuiElementsTreeNode) => string | undefined = () => undefined;
+  let refreshElementsTree = (): void => undefined;
+  let coordinatePointConversionOutputChannel: vscode.OutputChannel | null = null;
+  let handleCoordinatePointConversionDocumentChange = (): void => undefined;
+  let handleCoordinatePointConversionDocumentClose = (): void => undefined;
 
   const bakeOutputChannelFor = (): vscode.OutputChannel => {
     if (bakeOutputChannel) return bakeOutputChannel;
     bakeOutputChannel = vscode.window.createOutputChannel("nuinuiCAD Bake");
     context.subscriptions.push(bakeOutputChannel);
     return bakeOutputChannel;
+  };
+
+  const coordinatePointConversionOutputChannelFor = (): vscode.OutputChannel => {
+    if (coordinatePointConversionOutputChannel) return coordinatePointConversionOutputChannel;
+    coordinatePointConversionOutputChannel = vscode.window.createOutputChannel("nuinuiCAD Coordinate Conversion");
+    context.subscriptions.push(coordinatePointConversionOutputChannel);
+    return coordinatePointConversionOutputChannel;
   };
 
   const handleRustEvaluationRequest = async (
@@ -801,6 +819,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       const key = documentKey(event.document);
       languageAnalysisSessions.get(key)?.clearRuntimeDiagnostics();
       observationFeature.invalidateDocumentRuntime(key);
+      handleCoordinatePointConversionDocumentChange(event.document);
     }
     publishCompilerDiagnostics(event.document);
   });
@@ -810,6 +829,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     languageAnalysisSessions.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
     observationFeature.removeDocument(key);
+    handleCoordinatePointConversionDocumentClose(document);
   });
   const disposeCompilerDiagnosticSessions = {
     dispose: () => languageAnalysisSessions.clear()
@@ -867,7 +887,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   refreshColorProvider();
   const elementsTreeFeature = registerNuiElementsTreeFeature({
     activeNuiDocument: () => activeNuiEditor()?.document,
-    languageAnalysisSessionFor
+    languageAnalysisSessionFor,
+    treeItemContextValueFor: (node) => coordinatePointConversionExplorerContextValueFor(node),
+    onProviderReady: (provider) => {
+      refreshElementsTree = () => provider.refresh();
+    }
   });
   context.subscriptions.push(
     compilerDiagnosticCollection,
@@ -1546,6 +1570,56 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return session;
   };
 
+  const coordinatePointConversionFeature: VscodeCoordinatePointConversionFeature = registerVscodeCoordinatePointConversionFeature({
+    languageAnalysisSessionFor,
+    rustProcessOwner,
+    ensureCanvas: (document): CoordinatePointConversionCanvasEndpoint | null => {
+      const key = documentKey(document);
+      let session = sessions.get(key, "canvas");
+      if (canvasHistoryHandoffSession !== null || (session && session.inFlightCanvasHistory !== null)) return null;
+      if (!session) session = createCanvasPanel(document, true);
+      if (!session || !sameDocument(session.document, document)) return null;
+      const matchingSession = session;
+      return {
+        document: matchingSession.document,
+        panel: matchingSession.panel,
+        isAuthoritativeReady: () =>
+          canvasHistoryHandoffSession === null &&
+          sessions.get(key, "canvas") === matchingSession &&
+          matchingSession.webviewReady &&
+          matchingSession.authoritativeDocumentVersion === matchingSession.document.version &&
+          matchingSession.inFlightCanvasHistory === null,
+        targetIds: () => []
+      };
+    },
+    activeCanvasEndpoint: (): CoordinatePointConversionCanvasEndpoint | null => {
+      const session = canvasSessionForCommand();
+      if (!session || !session.webviewReady || !isOpenDocument(session.document) ||
+          sessions.get(session.documentUri, "canvas") !== session) return null;
+      return {
+        document: session.document,
+        panel: session.panel,
+        isAuthoritativeReady: () =>
+          sessions.get(session.documentUri, "canvas") === session &&
+          session.webviewReady &&
+          session.authoritativeDocumentVersion === session.document.version &&
+          session.inFlightCanvasHistory === null,
+        targetIds: () => {
+          const observation = vscodeObservationState.cachedSnapshot();
+          const document = observation.documents.find((candidate) => candidate.documentUri === session.documentUri);
+          return document?.canvas?.selectedElementIds ?? [];
+        }
+      };
+    },
+    activeExplorerDocument: () => activeNuiEditor()?.document,
+    isSourceEditorActive: () => activeNuiTextEditorForCommand() !== undefined,
+    refreshElementsTree: () => refreshElementsTree(),
+    output: () => coordinatePointConversionOutputChannelFor()
+  });
+  coordinatePointConversionExplorerContextValueFor = coordinatePointConversionFeature.explorerContextValueFor;
+  handleCoordinatePointConversionDocumentChange = coordinatePointConversionFeature.handleDocumentChange;
+  handleCoordinatePointConversionDocumentClose = coordinatePointConversionFeature.handleDocumentClose;
+
   const referencePickFeature = registerVscodeReferencePickFeature({
     languageAnalysisSessionFor,
     ensureCanvas: (document): VscodeReferencePickCanvasEndpoint | null => {
@@ -1871,6 +1945,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
     command,
     outputPreviewFeature,
+    coordinatePointConversionFeature,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     referencePickFeature,

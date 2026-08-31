@@ -39,6 +39,7 @@ import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
+import { VSCodeCoordinatePointConversionOverlay } from "./VSCodeCoordinatePointConversionOverlay";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
@@ -47,6 +48,12 @@ import {
   useVSCodeReferencePickSession,
   type VscodeReferencePickAuthorityFor
 } from "./useVSCodeReferencePickSession";
+import {
+  useVSCodeCoordinatePointConversionSession,
+  type VscodeCoordinatePointConversionAuthority,
+  type VscodeCoordinatePointConversionCurrentContext
+} from "./useVSCodeCoordinatePointConversionSession";
+import { coordinatePointConversionTargetEligibility } from "../commands/coordinatePointConversion";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 
 type VSCodeDrawingCanvasProps = {
@@ -54,6 +61,7 @@ type VSCodeDrawingCanvasProps = {
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (sourceText: string) => void;
+  postCanvasCommit?: (operationId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
   canvasRibbonRibbons?: VscodeCanvasRibbon[];
@@ -61,7 +69,12 @@ type VSCodeDrawingCanvasProps = {
   onEditCanvasRibbon?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
+  currentCoordinatePointConversionAuthorityFor?: (
+    expectedDocumentVersion: number
+  ) => VscodeCoordinatePointConversionAuthority | null;
 };
+
+const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
 const mutationWasApplied = (value: unknown): boolean =>
   typeof value === "object" && value !== null && "status" in value && value.status === "applied";
@@ -72,13 +85,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     evaluationState,
     canvasFocusRef,
     postCanonicalSourceText,
+    postCanvasCommit,
     postCanvasPointerPosition,
     canvasTheme = LEGACY_CANVAS_THEME,
     canvasRibbonRibbons = [],
     onCanvasRibbonPositionCommit,
     onEditCanvasRibbon,
     measureCanvasTextWidth,
-    currentReferencePickAuthorityFor
+    currentReferencePickAuthorityFor,
+    currentCoordinatePointConversionAuthorityFor
   }, ref) {
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const elements = useCadDocumentStore(effectiveElements);
@@ -217,6 +232,69 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       currentContextFor: currentReferencePickContext,
       currentReferencePickAuthorityFor
     });
+    const currentCoordinatePointConversionContext = useCallback((): VscodeCoordinatePointConversionCurrentContext | null => {
+      const state = useCadDocumentStore.getState();
+      if (
+        state.previewElements !== null ||
+        effectiveElements(state) !== elements ||
+        state.compiledDocumentRevision !== compiledDocumentRevision ||
+        state.sourceText !== sourceText ||
+        state.currentSourceRevision !== currentSourceRevision
+      ) return null;
+      const compiled = state.doc;
+      const normalizedSource = normalizedSourceFor(state.sourceText);
+      if (
+        compiled.spans.sourceMap.source !== normalizedSource ||
+        compiled.spans.sourceMap.sourceRevision !== state.currentSourceRevision ||
+        state.docText !== state.sourceText
+      ) return null;
+      return {
+        document: {
+          sourceText: state.sourceText,
+          doc: state.doc,
+          docText: state.docText,
+          diagnostics: state.diagnostics,
+          bindingIssueDiagnostics: state.bindingIssueDiagnostics,
+          typedDependencyGraph: state.typedDependencyGraph
+        },
+        source: {
+          normalizedSource,
+          sourceRevision: state.currentSourceRevision
+        },
+        evaluation: canvasPresentation.renderEvaluation,
+        evaluationIsCurrent: evaluationStateIsCurrentFor(
+          canvasPresentation.renderEvaluationState,
+          state.compiledDocumentRevision
+        )
+      };
+    }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, currentSourceRevision, elements, sourceText]);
+    const {
+      session: coordinatePointConversionSession,
+      setQuery: setCoordinatePointConversionQuery,
+      selectBase: selectCoordinatePointConversionBase,
+      confirm: confirmCoordinatePointConversion,
+      cancel: cancelCoordinatePointConversion
+    } = useVSCodeCoordinatePointConversionSession({
+      api: vscodeWebviewApi(),
+      currentContextFor: currentCoordinatePointConversionContext,
+      currentAuthorityFor: currentCoordinatePointConversionAuthorityFor ?? currentReferencePickAuthorityFor,
+      postCanvasCommit: postCanvasCommit ?? (() => undefined)
+    });
+    const hasCoordinatePointConversionTarget = useMemo(() => {
+      if (!evaluationStateIsCurrentFor(canvasPresentation.renderEvaluationState, compiledDocumentRevision)) return false;
+      const state = useCadDocumentStore.getState();
+      return selectedElementIds.some((elementId) => coordinatePointConversionTargetEligibility({
+        document: {
+          sourceText: state.sourceText,
+          doc: state.doc,
+          docText: state.docText,
+          diagnostics: state.diagnostics,
+          bindingIssueDiagnostics: state.bindingIssueDiagnostics,
+          typedDependencyGraph: state.typedDependencyGraph
+        },
+        evaluation: canvasPresentation.renderEvaluation
+      }, elementId).eligible);
+    }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, selectedElementIds]);
 
     const ribbonCommandContext = useMemo(() => ({
       hasSelection: selectedElementIds.length > 0,
@@ -332,7 +410,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeNumericReferencePickTarget,
       activeLinePickTarget,
       commandLineSession,
-      canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0),
+      canvasContextMenuData: vscodeCanvasContextDataFor("blank", selectedElementIds.length > 0, undefined, false, hasCoordinatePointConversionTarget),
       publishCanvasPointerPosition: postCanvasPointerPosition,
       publishCanvasContextMenu: ({ kind, pointer }) => {
         const viewport = canvasFocusRef.current;
@@ -348,7 +426,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
           kind,
           currentSelection.selectedElementIds.length > 0,
           pointer,
-          canSelectInstance
+          canSelectInstance,
+          hasCoordinatePointConversionTarget
         );
       },
       flushSourceEditorOnCanvasPointerDown: () => "clean",
@@ -424,6 +503,19 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
               onCancel={cancelReferencePick}
             />
           ) : null}
+          {coordinatePointConversionSession ? (
+            <VSCodeCoordinatePointConversionOverlay
+              canvasFocusRef={canvasFocusRef}
+              viewportSize={viewportSize}
+              canvasViewport={canvasViewport}
+              canvasTheme={canvasTheme}
+              session={coordinatePointConversionSession}
+              onQuery={setCoordinatePointConversionQuery}
+              onSelectBase={selectCoordinatePointConversionBase}
+              onConfirm={confirmCoordinatePointConversion}
+              onCancel={cancelCoordinatePointConversion}
+            />
+          ) : null}
           <VSCodeCanvasRibbonOverlay
             canvasFocusRef={canvasFocusRef}
             canvasViewport={canvasViewport}
@@ -467,7 +559,13 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       confirmReferencePick,
       cancelReferencePick,
       postCanvasPointerPosition,
-      postCanonicalSourceText
+      postCanonicalSourceText,
+      coordinatePointConversionSession,
+      setCoordinatePointConversionQuery,
+      selectCoordinatePointConversionBase,
+      confirmCoordinatePointConversion,
+      cancelCoordinatePointConversion,
+      hasCoordinatePointConversionTarget
     ]);
 
     useImperativeHandle(ref, () => ({
