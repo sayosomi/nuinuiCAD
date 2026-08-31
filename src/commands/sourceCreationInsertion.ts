@@ -148,7 +148,7 @@ const sourceInsertionAttemptForCreation = ({
         insertion: {
           sourceRevision: cursor.sourceRevision,
           insertionTarget: target,
-          sourceInsertionLine: info.range.endLine + 1
+          sourceInsertionLine: Math.max(info.range.endLine, info.endLine) + 1
         }
       };
     }
