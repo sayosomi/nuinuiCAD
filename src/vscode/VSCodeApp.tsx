@@ -282,14 +282,18 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, []);
 
   const currentReferencePickAuthorityFor = useCallback((expectedDocumentVersion: number) => {
-    const current = currentAuthoritativeDocument(expectedDocumentVersion);
-    return current
+    const state = useCadDocumentStore.getState();
+    const normalizedSource = normalizedSourceFor(state.sourceText);
+    const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
+    return latestHostDocumentVersionRef.current === expectedDocumentVersion &&
+      authoritative?.documentVersion === expectedDocumentVersion &&
+      authoritative.normalizedSource === normalizedSource
       ? {
           documentVersion: expectedDocumentVersion,
-          normalizedSource: current.source.normalizedSource
+          normalizedSource
         }
       : null;
-  }, [currentAuthoritativeDocument]);
+  }, []);
 
   const tryApplyPendingCanvasFreePointSelection = useCallback(() => {
     const pending = pendingCanvasFreePointSelectionRef.current;

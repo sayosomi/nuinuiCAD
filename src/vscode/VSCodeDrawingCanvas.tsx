@@ -14,6 +14,7 @@ import {
   evaluationStateIsCurrentFor,
   type EvaluationEngineState
 } from "../geometry/useEvaluationEngine";
+import { compileCanonicalText } from "../document/canonicalDocument";
 import {
   effectiveCompiledDocument,
   effectiveElements,
@@ -82,6 +83,9 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
     const elements = useCadDocumentStore(effectiveElements);
     const canonicalElements = useCadDocumentStore((state) => state.elements);
+    const compiledDocument = useCadDocumentStore(effectiveCompiledDocument);
+    const sourceText = useCadDocumentStore((state) => state.sourceText);
+    const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
     const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
     const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
     const visibilityProfiles = useCadDocumentStore((state) => state.visibilityProfiles);
@@ -116,6 +120,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const currentCanvasPresentation = useMemo(() => ({
       elements,
       canonicalElements,
+      compiledDocument,
       evaluationLimitIndex,
       visibilityProfiles,
       activeVisibilityProfileId,
@@ -123,6 +128,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     }), [
       activeVisibilityProfileId,
       canonicalElements,
+      compiledDocument,
       elements,
       evaluationLimitIndex,
       moduleSemanticContext,
@@ -145,14 +151,39 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       const state = useCadDocumentStore.getState();
       if (
         effectiveElements(state) !== elements ||
-        state.compiledDocumentRevision !== compiledDocumentRevision
+        state.compiledDocumentRevision !== compiledDocumentRevision ||
+        state.sourceText !== sourceText ||
+        state.currentSourceRevision !== currentSourceRevision
       ) return null;
-      const compiled = effectiveCompiledDocument(state);
       const normalizedSource = state.sourceText.replace(/\r\n/g, "\n");
+      const effectiveCompiled = effectiveCompiledDocument(state);
+      const compiled = effectiveCompiled.spans.sourceMap.source === normalizedSource
+        ? effectiveCompiled
+        : compileCanonicalText(
+            { ...state, sourceText: state.docText },
+            state.sourceText
+          ).currentCompiled;
       if (
         compiled.spans.sourceMap.source !== normalizedSource ||
-        compiled.spans.sourceMap.sourceRevision !== state.doc.statementMap.sourceRevision
+        compiled.spans.sourceMap.sourceRevision !== state.currentSourceRevision
       ) return null;
+      const evaluationIsCurrent = evaluationStateIsCurrentFor(
+        canvasPresentation.renderEvaluationState,
+        state.compiledDocumentRevision
+      );
+      const canvasSnapshot = !evaluationIsCurrent &&
+        canvasPresentation.isPinned &&
+        canvasPresentation.hasCoherentSnapshot &&
+        canvasPresentation.compiledDocument
+        ? {
+            source: {
+              normalizedSource: canvasPresentation.compiledDocument.spans.sourceMap.source,
+              sourceRevision: canvasPresentation.compiledDocument.spans.sourceMap.sourceRevision
+            },
+            compiled: canvasPresentation.compiledDocument,
+            evaluation: canvasPresentation.renderEvaluation
+          }
+        : undefined;
       return {
         source: {
           normalizedSource,
@@ -160,16 +191,19 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         },
         compiled,
         evaluation: canvasPresentation.renderEvaluation,
-        evaluationIsCurrent: evaluationStateIsCurrentFor(
-          canvasPresentation.renderEvaluationState,
-          state.compiledDocumentRevision
-        )
+        evaluationIsCurrent,
+        ...(canvasSnapshot ? { canvasSnapshot } : {})
       };
     }, [
       canvasPresentation.renderEvaluation,
       canvasPresentation.renderEvaluationState,
+      canvasPresentation.hasCoherentSnapshot,
+      canvasPresentation.isPinned,
+      canvasPresentation.compiledDocument,
       compiledDocumentRevision,
-      elements
+      elements,
+      sourceText,
+      currentSourceRevision
     ]);
     const {
       session: referencePickSession,
