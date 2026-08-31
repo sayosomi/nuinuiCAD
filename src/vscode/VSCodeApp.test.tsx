@@ -65,6 +65,15 @@ const sourceForSelectionChronology = (x: number) => dslTextForElements([
   { id: "b", name: "B", type: "freePoint", activity: "visible", x: x + 10, y: 0 }
 ]);
 
+const h3Source = [
+  "nui 4",
+  "point Left = coordinate(x: -50, y: 0)",
+  "point Right = coordinate(x: 50, y: 0)",
+  "line Guide = segment(start: @Left, end: @Right)"
+].join("\n");
+
+const h3GuideSourcePosition = { line: 3, character: "line ".length };
+
 const publishAllCurrentElementsAsPresented = () => {
   const elements = useCadDocumentStore.getState().elements;
   useCadUiStore.getState().setCanvasSelectionEligibility(
@@ -418,6 +427,133 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
     expect(useCadUiStore.getState().selectedElementId).toBe(locallyInserted.id);
     expect(useCadUiStore.getState().selectedElementIds).toEqual([locallyInserted.id]);
+  });
+
+  it.each([
+    ["commitText -> commitResult", "commitText-first"],
+    ["commitResult -> commitText", "commitResult-first"]
+  ] as const)("creates two consecutive unnamed free points through the real H3 source path (%s)", async (_label, ordering) => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    const requestedPointers: Array<{ x: number; y: number }> = [];
+    const send = async (data: unknown) => {
+      if (typeof data === "object" && data !== null && (data as { type?: string }).type === "canvasFreePointAtPointer") {
+        requestedPointers.push((data as { pointer: { x: number; y: number } }).pointer);
+      }
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data }));
+      });
+    };
+    const messagesOfType = (type: string) => api.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === type);
+    const presentCanvasElements = async () => {
+      await act(async () => {
+        publishAllCurrentElementsAsPresented();
+      });
+    };
+    const canvasCommitFor = (requestId: number) => messagesOfType("canvasCommit")
+      .find((message) => message.operationId === requestId) as {
+        sourceText: string;
+        expectedDocumentVersion: number;
+      } | undefined;
+    const completeCommit = async (commit: {
+      sourceText: string;
+      expectedDocumentVersion: number;
+    }, requestId: number, documentVersion: number) => {
+      const commitText = {
+        type: "commitText" as const,
+        sourceText: commit.sourceText,
+        documentVersion,
+        reason: "edit" as const
+      };
+      const commitResult = {
+        type: "canvasCommitResult" as const,
+        operationId: requestId,
+        status: "accepted" as const,
+        documentVersion
+      };
+      if (ordering === "commitText-first") {
+        await send(commitText);
+        await send(commitResult);
+      } else {
+        await send(commitResult);
+        await send(commitText);
+      }
+    };
+
+    await send({ type: "replaceTextDocument", sourceText: h3Source, documentVersion: 1 });
+    await presentCanvasElements();
+
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 221,
+      documentVersion: 1,
+      pointer: { x: 12.5, y: -8 },
+      sourcePosition: h3GuideSourcePosition
+    });
+    const firstCommit = canvasCommitFor(221);
+    expect(firstCommit).toBeDefined();
+    expect(firstCommit?.sourceText).toContain("line Guide = segment(start: @Left, end: @Right)");
+    expect(firstCommit?.sourceText).toContain("point = coordinate(\n  x: 12.5,\n  y: -8,\n)");
+    expect(firstCommit?.sourceText.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")).toBeGreaterThan(
+      firstCommit?.sourceText.indexOf("line Guide = segment(start: @Left, end: @Right)") ?? -1
+    );
+
+    await completeCommit(firstCommit!, 221, 2);
+    const firstResult = messagesOfType("canvasFreePointAtPointerResult")
+      .find((message) => message.requestId === 221) as {
+        status: string;
+        documentVersion: number;
+        nextSourcePosition?: { line: number; character: number };
+      } | undefined;
+    expect(firstResult).toMatchObject({ status: "applied", documentVersion: 2 });
+    expect(firstResult?.nextSourcePosition).toBeDefined();
+
+    await send({
+      type: "canvasFreePointAtPointer",
+      requestId: 222,
+      documentVersion: 2,
+      pointer: { x: 91, y: -37 },
+      sourcePosition: firstResult!.nextSourcePosition!
+    });
+    const secondCommit = canvasCommitFor(222);
+    expect(secondCommit).toBeDefined();
+    expect(secondCommit?.sourceText).toContain("point = coordinate(\n  x: 91,\n  y: -37,\n)");
+    expect(secondCommit?.sourceText.indexOf("point = coordinate(\n  x: 91,\n  y: -37,\n)")).toBeGreaterThan(
+      secondCommit?.sourceText.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)") ?? -1
+    );
+
+    await completeCommit(secondCommit!, 222, 3);
+    await presentCanvasElements();
+
+    const finalSource = useCadDocumentStore.getState().sourceText;
+    const pointDeclarations = finalSource.match(/^point(?: [A-Za-z_][A-Za-z0-9_]*)? = coordinate\(/gm) ?? [];
+    expect(pointDeclarations).toHaveLength(4);
+    expect(finalSource.indexOf("line Guide = segment(start: @Left, end: @Right)")).toBeLessThan(
+      finalSource.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")
+    );
+    expect(finalSource.indexOf("point = coordinate(\n  x: 12.5,\n  y: -8,\n)")).toBeLessThan(
+      finalSource.indexOf("point = coordinate(\n  x: 91,\n  y: -37,\n)")
+    );
+    expect(requestedPointers).toEqual([
+      { x: 12.5, y: -8 },
+      { x: 91, y: -37 }
+    ]);
+    expect(messagesOfType("canvasCommit").map((message) => message.sourceText)).toEqual([
+      firstCommit!.sourceText,
+      secondCommit!.sourceText
+    ]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(
+      useCadDocumentStore.getState().elements.find((element) =>
+        element.type === "freePoint" && element.name === "" && element.x === 91 && element.y === -37
+      )?.id
+    );
+    expect(messagesOfType("canvasFreePointAtPointerResult")).toEqual([
+      expect.objectContaining({ requestId: 221, status: "applied" }),
+      expect.objectContaining({ requestId: 222, status: "applied" })
+    ]);
   });
 
   it("keeps the creation selection contract through host Undo and Redo", async () => {

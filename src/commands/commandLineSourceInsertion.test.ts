@@ -32,6 +32,38 @@ describe("command-line source insertion", () => {
     });
   });
 
+  it("keeps an element-statement cursor after a multiline unnamed declaration", () => {
+    const result = compiled([
+      "nui 4",
+      "point Left = coordinate(x: -50, y: 0)",
+      "point Right = coordinate(x: 50, y: 0)",
+      "line Guide = segment(start: @Left, end: @Right)",
+      "point = coordinate(",
+      "  x: 12.5,",
+      "  y: -8,",
+      ")"
+    ]);
+    const unnamedPoint = result.document!.elements.find((element) => element.name === "")!;
+    const info = result.statementMap!.byElementId.get(unnamedPoint.id)!;
+
+    expect(info.endLine).toBe(8);
+    expect(info.range.endLine).toBe(5);
+    expect(sourceInsertionForCreation({
+      cursor: {
+        sourceRevision: result.statementMap!.sourceRevision,
+        line: 5,
+        lineCount: result.sourceLines.length,
+        elementId: unnamedPoint.id
+      },
+      elements: result.document!.elements,
+      statementMap: result.statementMap!
+    })).toEqual({
+      sourceRevision: result.statementMap!.sourceRevision,
+      insertionTarget: { insertionIndex: result.document!.elements.length },
+      sourceInsertionLine: 9
+    });
+  });
+
   it("inserts a comment-line cursor inside its enclosing group", () => {
     const result = compiled([
       "nui 4",
