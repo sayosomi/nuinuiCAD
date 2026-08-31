@@ -25,6 +25,8 @@ import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import { mutationWriteParameterKeysFor } from "../dsl/moduleMutationOwnership";
+import type { ModuleRecordSourceTarget, ResolvedModuleRecordExport } from "../dsl/moduleSemanticTypes";
+import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import type { ScalarType } from "../scalars/types";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
@@ -110,9 +112,17 @@ type AbsoluteReplacement = { from: number; to: number; text: string };
 
 type DependencyDescriptor = {
   name: string;
-  type: ExtractModuleParameterType;
+  type: ExtractModuleParameterType | null;
+  typeText: string;
+  recordTypeIdentity?: string;
   numericTypeOptions?: DslNumericTypeOptions;
   declarationFrom: number;
+};
+
+type RecordFieldDependencyProof = {
+  baseOccurrence: DslSemanticOccurrence;
+  fieldOccurrence: DslSemanticOccurrence;
+  field: RecordFieldIdentity;
 };
 
 type SourcePathRange = {
@@ -344,6 +354,31 @@ const moduleParameterTypeText = (
   return scalarTypeText(type, numericTypeOptions);
 };
 
+const exactAuthoredTypeText = (
+  compiled: CompiledDslDocument,
+  statement: DslStatement,
+  span: { start: number; end: number } | null | undefined
+): string | null => {
+  if (!span) return null;
+  const physical = exactPhysicalSpan(compiled.spans, statement, span);
+  if (physical?.segments.length !== 1) return null;
+  const segment = physical.segments[0];
+  return segment ? compiled.spans.sourceMap.source.slice(segment.from, segment.to) : null;
+};
+
+const recordExportForStatement = (
+  compiled: CompiledDslDocument,
+  statementId: StatementIdentity
+): ResolvedModuleRecordExport | null => {
+  const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
+  const exports = analysis?.definitions.flatMap((definition) =>
+    definition.exports.filter((entry): entry is ResolvedModuleRecordExport =>
+      entry.kind === "record" && entry.exportedStatementId === statementId
+    )
+  ) ?? [];
+  return exports.length === 1 ? exports[0]! : null;
+};
+
 const moduleGeometryParameterType = (type: ModuleGeometryInterfaceType): DslModuleParameterType => {
   if (type === "point") return { kind: "point" };
   if (type === "line") return { kind: "line" };
@@ -375,18 +410,30 @@ const moduleParameterDependencyDescriptor = (
     !definition ||
     !parameter ||
     !sourceParameter ||
-    parameter.definitionStatementId !== identity.target.slot.definitionStatementId ||
-    sourceParameter.recordTypeReference
+    parameter.definitionStatementId !== identity.target.slot.definitionStatementId
   ) return null;
+
+  const declarations = declarationRangesFor(index, identity);
+  if (declarations.length !== 1) return null;
+  if (sourceParameter.recordTypeReference) {
+    const typeText = exactAuthoredTypeText(compiled, definitionStatement!, sourceParameter.typeSpan);
+    if (!typeText || !parameter.recordTypeIdentity) return null;
+    return {
+      name: parameter.name,
+      type: null,
+      typeText,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      declarationFrom: declarations[0]!.from
+    };
+  }
 
   const arrayType = geometryArrayTypeOfModuleParameter(sourceParameter);
   const type = arrayType ?? parameter.type;
   if (!type) return null;
-  const declarations = declarationRangesFor(index, identity);
-  if (declarations.length !== 1) return null;
   return {
     name: parameter.name,
     type,
+    typeText: moduleParameterTypeText(type, parameter.numericTypeOptions),
     numericTypeOptions: parameter.numericTypeOptions,
     declarationFrom: declarations[0]!.from
   };
@@ -398,24 +445,43 @@ const moduleSourceDependencyDescriptor = (
   identity: DslSemanticIdentity
 ): DependencyDescriptor | null => {
   if (identity.kind !== "module" || identity.target.kind !== "moduleSource") return null;
-  const statementIndex = statementIndexForId(compiled, identity.target.statementId);
+  const statementId = identity.target.statementId;
+  const statementIndex = statementIndexForId(compiled, statementId);
   const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
   const declarations = declarationRangesFor(index, identity);
-  if (statementIndex === undefined || !statement || declarations.length !== 1) return null;
+  if (statementIndex === undefined || !statement || declarations.length > 1) return null;
 
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
+    if (!statement.recordTypeReference && declarations.length !== 1) return null;
     if (arrayType) {
       return {
         name: statement.name,
         type: arrayType,
+        typeText: moduleParameterTypeText(arrayType),
         declarationFrom: declarations[0]!.from
       };
     }
-    if (!statement.declaredType || statement.recordTypeReference) return null;
+    if (statement.recordTypeReference) {
+      const recordValue = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(statementId);
+      const exported = recordExportForStatement(compiled, statementId);
+      const typeIdentity = recordValue?.typeIdentity;
+      const typeText = exactAuthoredTypeText(compiled, statement, statement.payloadSpans.type);
+      const declarationFrom = declarations[0]?.from ?? exactPhysicalSpan(compiled.spans, statement, statement.nameSpan ?? statement.keywordSpan)?.segments[0]?.from;
+      if (!typeIdentity || !typeText || !declarationFrom || !exported || exported.typeIdentity !== typeIdentity) return null;
+      return {
+        name: statement.name,
+        type: null,
+        typeText,
+        recordTypeIdentity: typeIdentity,
+        declarationFrom
+      };
+    }
+    if (!statement.declaredType) return null;
     return {
       name: statement.name,
       type: statement.declaredType,
+      typeText: moduleParameterTypeText(statement.declaredType, numericOptionsForStatement(statement)),
       numericTypeOptions: numericOptionsForStatement(statement),
       declarationFrom: declarations[0]!.from
     };
@@ -426,6 +492,38 @@ const moduleSourceDependencyDescriptor = (
     ? {
         name: statement.name,
         type: moduleGeometryParameterType(interfaceType),
+        typeText: moduleParameterTypeText(moduleGeometryParameterType(interfaceType)),
+        declarationFrom: declarations[0]!.from
+      }
+    : null;
+};
+
+const recordValueDependencyDescriptor = (
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  identity: DslSemanticIdentity
+): DependencyDescriptor | null => {
+  if (identity.kind !== "recordValue") return null;
+  const value = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(identity.statementId);
+  const statementIndex = value?.statementIndex;
+  const statement = statementIndex === undefined ? undefined : compiled.statements[statementIndex];
+  const declarations = declarationRangesFor(index, identity);
+  if (
+    !value ||
+    statementIndex === undefined ||
+    statement?.kind !== "typedDeclaration" ||
+    !statement.recordTypeReference ||
+    !value.typeIdentity ||
+    value.statementId !== identity.statementId ||
+    declarations.length !== 1
+  ) return null;
+  const typeText = exactAuthoredTypeText(compiled, statement, statement.payloadSpans.type);
+  return typeText
+    ? {
+        name: statement.name,
+        type: null,
+        typeText,
+        recordTypeIdentity: value.typeIdentity,
         declarationFrom: declarations[0]!.from
       }
     : null;
@@ -447,6 +545,7 @@ const moduleIterationDependencyDescriptor = (
   return {
     name: slot.name,
     type: { kind: "number" },
+    typeText: "number",
     declarationFrom: physical.segments[0]!.from
   };
 };
@@ -467,6 +566,7 @@ const scalarDependencyDescriptor = (
       return {
         name: binding.name,
         type: { kind: "number" },
+        typeText: "number",
         declarationFrom: physical.segments[0]!.from
       };
     }
@@ -485,6 +585,7 @@ const scalarDependencyDescriptor = (
     return {
       name: binding.name,
       type: binding.declaredType,
+      typeText: moduleParameterTypeText(binding.declaredType, numericOptionsForStatement(statement)),
       numericTypeOptions: numericOptionsForStatement(statement),
       declarationFrom: declarations[0]!.from
     };
@@ -519,6 +620,7 @@ const geometryDependencyDescriptor = (
   return {
     name: statement.name,
     type: moduleGeometryParameterType(interfaceType),
+    typeText: moduleParameterTypeText(moduleGeometryParameterType(interfaceType)),
     declarationFrom: declarations[0]!.from
   };
 };
@@ -565,6 +667,7 @@ const geometryArrayDependencyDescriptor = (
   return {
     name: direct.statement.name,
     type: direct.arrayType,
+    typeText: moduleParameterTypeText(direct.arrayType),
     declarationFrom: declarations[0]!.from
   };
 };
@@ -576,10 +679,63 @@ const dependencyDescriptor = (
 ): DependencyDescriptor | null =>
   moduleParameterDependencyDescriptor(compiled, index, identity) ??
   moduleSourceDependencyDescriptor(compiled, index, identity) ??
+  recordValueDependencyDescriptor(compiled, index, identity) ??
   moduleIterationDependencyDescriptor(compiled, identity) ??
   scalarDependencyDescriptor(compiled, index, identity) ??
   geometryDependencyDescriptor(compiled, index, identity) ??
   geometryArrayDependencyDescriptor(compiled, index, identity);
+
+const recordFieldBaseOccurrenceFor = (
+  source: string,
+  compiled: CompiledDslDocument,
+  index: DslSemanticOccurrenceIndex,
+  fieldOccurrence: DslSemanticOccurrence
+): { kind: "resolved"; proof: RecordFieldDependencyProof; descriptor: DependencyDescriptor } | { kind: "notField" } | { kind: "invalid" } => {
+  if (fieldOccurrence.identity.kind !== "recordField") return { kind: "notField" };
+  if (source[fieldOccurrence.from - 1] !== ".") return { kind: "notField" };
+  const statement = compiled.statements.find((candidate) =>
+    candidate.documentRange.from <= fieldOccurrence.from && candidate.documentRange.to >= fieldOccurrence.to
+  );
+  const candidates = index.occurrences.filter((candidate) =>
+    candidate.kind === "reference" &&
+    candidate.to + 1 === fieldOccurrence.from &&
+    source[candidate.to] === "." &&
+    statement !== undefined &&
+    candidate.from >= statement.documentRange.from &&
+    candidate.to <= statement.documentRange.to
+  );
+  if (candidates.length !== 1) return { kind: "invalid" };
+  const baseOccurrence = candidates[0]!;
+  const descriptor = dependencyDescriptor(compiled, index, baseOccurrence.identity);
+  if (!descriptor?.recordTypeIdentity || descriptor.recordTypeIdentity !== fieldOccurrence.identity.field.recordStatementId) {
+    return { kind: "invalid" };
+  }
+  return {
+    kind: "resolved",
+    proof: { baseOccurrence, fieldOccurrence, field: fieldOccurrence.identity.field },
+    descriptor
+  };
+};
+
+const recordSourceTargetIdentity = (target: ModuleRecordSourceTarget): DslSemanticIdentity => {
+  if (target.kind === "recordValue") return { kind: "recordValue", statementId: target.statementId };
+  if (target.kind === "recordParameter") {
+    return {
+      kind: "module",
+      target: {
+        kind: "moduleParameter",
+        slot: {
+          definitionStatementId: target.definitionStatementId,
+          parameterIndex: target.parameterIndex
+        }
+      }
+    };
+  }
+  return {
+    kind: "module",
+    target: { kind: "moduleSource", statementId: target.exportedStatementId }
+  };
+};
 
 const directSelectedScalarStatement = (
   compiled: CompiledDslDocument,
@@ -589,6 +745,8 @@ const directSelectedScalarStatement = (
   let statementIndex: number | undefined;
   if (identity.kind === "typed") {
     statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId)?.statementIndex;
+  } else if (identity.kind === "recordValue") {
+    statementIndex = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(identity.statementId)?.statementIndex;
   } else if (identity.kind === "module" && identity.target.kind === "documentBinding") {
     statementIndex = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.target.bindingId)?.statementIndex;
   } else if (identity.kind === "module" && identity.target.kind === "moduleSource") {
@@ -856,10 +1014,17 @@ const valueStatementRejection = (
     : "structural descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-    if (!arrayType && (!statement.declaredType || statement.recordTypeReference)) {
+    if (statement.recordTypeReference && context === "structural-descendant") {
       return reject(
         "unsupported-statement",
-        `${where} declaration「${statement.name}」は Checkpoint 7 の scalar / geometry-array scope 外です。`,
+        `${where} declaration「${statement.name}」の record value は structural Extract subtree の対象外です。`,
+        { statementId, statementIndex }
+      );
+    }
+    if (!arrayType && !statement.declaredType && !statement.recordTypeReference) {
+      return reject(
+        "unsupported-statement",
+        `${where} declaration「${statement.name}」は Checkpoint 7 の scalar / geometry-array / record scope 外です。`,
         { statementId, statementIndex }
       );
     }
@@ -910,16 +1075,6 @@ const checkpointStatementRejection = (
       { statementId, statementIndex }
     );
   }
-  if (statement.kind === "moduleDefinition") {
-    const recordParameter = statement.parameters.find((parameter) => parameter.recordTypeReference);
-    if (recordParameter) {
-      return reject(
-        "unsupported-statement",
-        `module definition「${statement.name}」のrecord-valued parameter「${recordParameter.name}」は Extract Module の対象外です。`,
-        { statementId, statementIndex }
-      );
-    }
-  }
   if (
     statement.kind === "group" ||
     isConditionalGroupStatement(statement) ||
@@ -936,16 +1091,6 @@ const checkpointStructuralDescendantRejection = (
   statementIndex: number,
   insideModuleDefinition: boolean
 ): ExtractModuleRejection | null => {
-  if (statement.kind === "moduleDefinition") {
-    const recordParameter = statement.parameters.find((parameter) => parameter.recordTypeReference);
-    if (recordParameter) {
-      return reject(
-        "unsupported-statement",
-        `module definition「${statement.name}」のrecord-valued parameter「${recordParameter.name}」は Extract Module の対象外です。`,
-        { statementId, statementIndex }
-      );
-    }
-  }
   if (
     statement.kind === "group" ||
     isConditionalGroupStatement(statement) ||
@@ -996,6 +1141,10 @@ const moduleIdentityOwnedByMovedSubtree = (
   identity: DslSemanticIdentity,
   movedIndexes: ReadonlySet<number>
 ): boolean => {
+  if (identity.kind === "recordValue") {
+    const statementIndex = statementIndexForId(compiled, identity.statementId);
+    return statementIndex !== undefined && movedIndexes.has(statementIndex);
+  }
   if (identity.kind === "typed") {
     const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(identity.bindingId);
     return binding !== undefined && movedIndexes.has(binding.statementIndex);
@@ -1095,6 +1244,7 @@ const geometryArrayArgumentOccurrences = (
       });
     }
   }
+
   return occurrences;
 };
 
@@ -1337,17 +1487,6 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         { statementId: instance.statementId, statementIndex: instance.statementIndex }
       );
     }
-    const calleeStatement = compiled.statements[instance.callee.definitionStatementIndex];
-    if (
-      calleeStatement?.kind === "moduleDefinition" &&
-      calleeStatement.parameters.some((parameter) => parameter.recordTypeReference)
-    ) {
-      return reject(
-        "unsupported-statement",
-        `module instance「${instance.name}」のrecord-valued Module interface は Extract Module の対象外です。`,
-        { statementId: instance.statementId, statementIndex: instance.statementIndex }
-      );
-    }
     if (!movedIndexSet.has(instance.callee.definitionStatementIndex)) {
       movedExternalModuleCallees.push({
         instanceStatementId: instance.statementId,
@@ -1359,13 +1498,39 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     descriptor: DependencyDescriptor;
     occurrences: DslSemanticOccurrence[];
     argumentSource: string;
+    recordFieldProofs: RecordFieldDependencyProof[];
+    sourceOwnerKey: string;
   }>();
   const movedIterationReferences = new Map<StatementIdentity, number>();
 
   for (const occurrence of selectedReferences) {
+    if (occurrence.identity.kind === "recordType") continue;
+    if (
+      occurrence.kind === "reference" &&
+      source[occurrence.to] === "."
+    ) {
+      const ownerDescriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
+      if (ownerDescriptor?.recordTypeIdentity) continue;
+    }
+    let dependencyIdentity: DslSemanticIdentity = occurrence.identity;
+    let dependencyOccurrence = occurrence;
+    let recordFieldProof: RecordFieldDependencyProof | null = null;
+    if (occurrence.identity.kind === "recordField") {
+      const resolved = recordFieldBaseOccurrenceFor(source, compiled, occurrenceIndex, occurrence);
+      if (resolved.kind === "notField") continue;
+      if (resolved.kind === "invalid") {
+        return reject(
+          "unrepresentable-dependency",
+          "record field reference の whole-record source と nominal owner を一意に証明できません。"
+        );
+      }
+      dependencyIdentity = resolved.proof.baseOccurrence.identity;
+      dependencyOccurrence = resolved.proof.baseOccurrence;
+      recordFieldProof = resolved.proof;
+    }
     const containingModuleInstance = moduleInstanceContainingOccurrence(occurrence, movedEntries);
-    if (occurrence.identity.kind === "module") {
-      const target = occurrence.identity.target;
+    if (dependencyIdentity.kind === "module") {
+      const target = dependencyIdentity.target;
       const externalCallee = containingModuleInstance
         ? movedExternalModuleCallees.find((candidate) => candidate.instanceStatementId === containingModuleInstance.statementId)
         : undefined;
@@ -1391,7 +1556,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         continue;
       }
     }
-    const iterationOwnerStatementId = movedIterationBinding(compiled, occurrence.identity, movedIndexSet);
+    const iterationOwnerStatementId = movedIterationBinding(compiled, dependencyIdentity, movedIndexSet);
     if (iterationOwnerStatementId) {
       movedIterationReferences.set(
         iterationOwnerStatementId,
@@ -1400,14 +1565,14 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       continue;
     }
 
-    if (moduleIdentityOwnedByMovedSubtree(compiled, occurrence.identity, movedIndexSet)) continue;
+    if (moduleIdentityOwnedByMovedSubtree(compiled, dependencyIdentity, movedIndexSet)) continue;
 
-    const declarationRanges = declarationRangesFor(occurrenceIndex, occurrence.identity);
+    const declarationRanges = declarationRangesFor(occurrenceIndex, dependencyIdentity);
     let descriptor: DependencyDescriptor | null;
     if (declarationRanges.length === 1) {
       const declaration = declarationRanges[0]!;
       if (declaration.from >= selectedFrom && declaration.to <= selectedTo) {
-        if (!directSelectedValueStatement(compiled, occurrence.identity, movedIndexSet)) {
+        if (!directSelectedValueStatement(compiled, dependencyIdentity, movedIndexSet)) {
           return reject(
             "unrepresentable-dependency",
             "選択範囲内の reference が Checkpoint 7 の moved scalar / single-geometry / geometry-array owner として証明できません。"
@@ -1415,11 +1580,11 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         }
         continue;
       }
-      descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
+      descriptor = dependencyDescriptor(compiled, occurrenceIndex, dependencyIdentity);
     } else {
       // Iteration slots are compiler-owned Binding Catalog declarations but
       // intentionally have no declaration occurrence in the editor index.
-      descriptor = dependencyDescriptor(compiled, occurrenceIndex, occurrence.identity);
+      descriptor = dependencyDescriptor(compiled, occurrenceIndex, dependencyIdentity);
     }
     if (!descriptor) {
       return reject(
@@ -1430,15 +1595,20 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       );
     }
 
-    const key = dslSemanticIdentityKey(occurrence.identity);
-    const path = sourcePathRangeForOccurrence(source, occurrenceIndex.occurrences, occurrence);
+    const key = dslSemanticIdentityKey(dependencyIdentity);
+    const path = sourcePathRangeForOccurrence(source, occurrenceIndex.occurrences, dependencyOccurrence);
     const current = dependencyByIdentity.get(key);
-    if (current) current.occurrences.push(occurrence);
+    if (current) {
+      current.occurrences.push(dependencyOccurrence);
+      if (recordFieldProof) current.recordFieldProofs.push(recordFieldProof);
+    }
     else {
       dependencyByIdentity.set(key, {
         descriptor,
-        occurrences: [occurrence],
-        argumentSource: source.slice(path.argumentFrom, path.to)
+        occurrences: [dependencyOccurrence],
+        argumentSource: source.slice(path.argumentFrom, path.to),
+        recordFieldProofs: recordFieldProof ? [recordFieldProof] : [],
+        sourceOwnerKey: semanticOwnerKey(compiled, dependencyIdentity)
       });
     }
   }
@@ -1448,7 +1618,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       identityKey,
       name: value.descriptor.name,
       type: value.descriptor.type,
-      typeText: moduleParameterTypeText(value.descriptor.type, value.descriptor.numericTypeOptions),
+      typeText: value.descriptor.typeText,
+      ...(value.descriptor.recordTypeIdentity ? { recordTypeIdentity: value.descriptor.recordTypeIdentity } : {}),
       argumentSource: value.argumentSource,
       declarationFrom: value.descriptor.declarationFrom
     }))
@@ -1490,14 +1661,37 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
   }
 
+  const generatedParameterNameByIdentity = new Map<string, string>();
+  const occupiedGeneratedNames = new Set(selectedDeclarationNames);
+  for (const name of namespace.declarationsByScopeAndName.get(firstScope)?.keys() ?? []) occupiedGeneratedNames.add(name);
+  for (const dependency of dependencies) {
+    let generatedName = dependency.name;
+    if (dependency.recordTypeIdentity && firstModuleOwnerIndex !== null) {
+      generatedName = `${dependency.name}__extract`;
+      let suffix = 2;
+      while (occupiedGeneratedNames.has(generatedName)) {
+        generatedName = `${dependency.name}__extract${suffix}`;
+        suffix += 1;
+      }
+    }
+    occupiedGeneratedNames.add(generatedName);
+    generatedParameterNameByIdentity.set(dependency.identityKey, generatedName);
+  }
+
   const internalReplacements: AbsoluteReplacement[] = [];
   for (const dependency of dependencyByIdentity.values()) {
+    const generatedName = generatedParameterNameByIdentity.get(
+      dslSemanticIdentityKey(dependency.occurrences[0]!.identity)
+    );
+    if (!generatedName) {
+      return reject("unsafe-rewrite", "generated record parameter name を dependency identity へ結び付けられません。");
+    }
     for (const occurrence of dependency.occurrences) {
       const path = sourcePathRangeForOccurrence(source, occurrenceIndex.occurrences, occurrence);
       internalReplacements.push({
         from: path.rewriteFrom,
         to: path.to,
-        text: formatDslName(dependency.descriptor.name)
+        text: formatDslName(generatedName)
       });
     }
   }
@@ -1517,7 +1711,27 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       dslSemanticIdentityKey(reference.identity) === identityKey &&
       (reference.from < selectedFrom || reference.to > selectedTo)
     );
-    if (outsideReferences.length === 0) continue;
+    const isRecordValue = declarationOccurrence.identity.kind === "recordValue";
+    const outsideRecordFieldBases = isRecordValue
+      ? references.flatMap((reference) => {
+          if (
+            reference.identity.kind !== "recordField" ||
+            reference.from >= selectedFrom && reference.to <= selectedTo
+          ) return [];
+          const resolved = recordFieldBaseOccurrenceFor(source, compiled, occurrenceIndex, reference);
+          if (resolved.kind === "invalid") return [];
+          return resolved.kind === "resolved" &&
+            dslSemanticIdentityKey(resolved.proof.baseOccurrence.identity) === identityKey
+            ? [resolved.proof.baseOccurrence]
+            : [];
+        })
+      : [];
+    const recordOutsideReferences = [...outsideReferences, ...outsideRecordFieldBases]
+      .filter((reference, index, all) => all.findIndex((candidate) =>
+        candidate.from === reference.from && candidate.to === reference.to &&
+        dslSemanticIdentityKey(candidate.identity) === dslSemanticIdentityKey(reference.identity)
+      ) === index);
+    if (recordOutsideReferences.length === 0) continue;
 
     // Keep export eligibility tied to the explicitly selected direct siblings.
     // A declaration nested under a moved structural subtree may move internally,
@@ -1533,12 +1747,23 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     const { statement, statementIndex, statementId } = direct;
     if (statement.kind === "typedDeclaration") {
       const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-      if ((!arrayType && (!statement.declaredType || statement.recordTypeReference)) || !statement.name) {
+      if (!statement.name || (!arrayType && !statement.declaredType && !statement.recordTypeReference)) {
         return reject(
           "unrepresentable-export",
-          `statement「${statement.name || statement.kind}」は Checkpoint 7 の direct scalar / geometry-array export で表現できません。`,
+          `statement「${statement.name || statement.kind}」は Checkpoint 7 の direct scalar / geometry-array / record export で表現できません。`,
           { statementId, statementIndex }
         );
+      }
+      if (statement.recordTypeReference) {
+        const recordValue = namespace.recordSemanticAnalysis?.valuesByStatementId.get(statementId);
+        const typeText = exactAuthoredTypeText(compiled, statement, statement.payloadSpans.type);
+        if (!recordValue?.typeIdentity || !typeText) {
+          return reject(
+            "unrepresentable-export",
+            `record statement「${statement.name}」の nominal type identity と authored type source を証明できません。`,
+            { statementId, statementIndex }
+          );
+        }
       }
     } else if (!moduleGeometryInterfaceTypeOfElement(statement) || !statement.name) {
       return reject(
@@ -1557,10 +1782,13 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     }
     internalReplacements.push({ from: insertion, to: insertion, text: "export " });
 
-    for (const reference of outsideReferences) {
+    for (const reference of recordOutsideReferences) {
+      const path = isRecordValue
+        ? sourcePathRangeForOccurrence(source, occurrenceIndex.occurrences, reference)
+        : { rewriteFrom: reference.from, to: reference.to };
       outsideReplacements.push({
-        from: reference.from,
-        to: reference.to,
+        from: path.rewriteFrom,
+        to: path.to,
         text: `${formatDslName(instanceName)}::${formatDslName(statement.name)}`
       });
     }
@@ -1579,10 +1807,10 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   );
   const outerIndent = firstRawLine.match(/^\s*/)?.[0] ?? "";
   const parameterText = dependencies
-    .map((dependency) => `${formatDslName(dependency.name)}: ${dependency.typeText}`)
+    .map((dependency) => `${formatDslName(generatedParameterNameByIdentity.get(dependency.identityKey) ?? dependency.name)}: ${dependency.typeText}`)
     .join(", ");
   const argumentText = dependencies
-    .map((dependency) => `${formatDslName(dependency.name)}: ${dependency.argumentSource}`)
+    .map((dependency) => `${formatDslName(generatedParameterNameByIdentity.get(dependency.identityKey) ?? dependency.name)}: ${dependency.argumentSource}`)
     .join(", ");
   const bodyLines = selectedText
     .split("\n")
@@ -1635,13 +1863,37 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     assignedStatementIds: reconciled.assignedIds
   });
 
-  if (!nextCompiled.statementMap || !nextCompiled.sourceLexicalNamespace || !cleanCompile(nextCompiled)) {
+  const nextOccurrenceIndex = nextCompiled.statementMap && nextCompiled.sourceLexicalNamespace
+    ? createDslSemanticOccurrenceIndex(nextCompiled)
+    : null;
+  const candidateRecordBindingIssuesOnly = Boolean(
+    nextOccurrenceIndex &&
+    (nextCompiled.bindingIssueDiagnostics ?? []).every((diagnostic) =>
+      diagnostic.code === "undefined-binding" &&
+      diagnostic.physicalSpan?.segments.length === 1 &&
+      nextOccurrenceIndex.occurrences.some((occurrence) =>
+        occurrence.kind === "reference" &&
+        occurrence.identity.kind === "recordField" &&
+        occurrence.from < diagnostic.physicalSpan!.segments[0]!.to &&
+        diagnostic.physicalSpan!.segments[0]!.from < occurrence.to
+      )
+    )
+  );
+  if (
+    !nextCompiled.statementMap ||
+    !nextCompiled.sourceLexicalNamespace ||
+    nextCompiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+    (!candidateRecordBindingIssuesOnly && (nextCompiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error"))
+  ) {
     const firstError = [...nextCompiled.diagnostics, ...(nextCompiled.bindingIssueDiagnostics ?? [])]
       .find((diagnostic) => diagnostic.severity === "error");
     return reject(
       "unsafe-rewrite",
       firstError?.message ?? "Extract 後の source semantics を安全にコンパイルできません。"
     );
+  }
+  if (!nextOccurrenceIndex) {
+    return reject("unsafe-rewrite", "Extract 後の semantic occurrence index を再構成できません。");
   }
 
   const movedIds = new Set<StatementIdentity>(movedEntries.map((entry) => entry.statementId));
@@ -1656,6 +1908,68 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       return reject("identity-loss", "Extract 後に authored statement identity を保持できませんでした。", {
         statementId: entry.statementId
       });
+    }
+  }
+
+  for (const entry of movedEntries) {
+    if (entry.statement.kind !== "typedDeclaration" || !entry.statement.recordTypeReference) continue;
+    const beforeValue = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(entry.statementId);
+    const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
+    const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+    const nextValue = nextCompiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(entry.statementId);
+    if (
+      !beforeValue?.typeIdentity ||
+      nextStatement?.kind !== "typedDeclaration" ||
+      !nextStatement.recordTypeReference ||
+      nextValue?.typeIdentity !== beforeValue.typeIdentity ||
+      exactAuthoredTypeText(compiled, entry.statement, entry.statement.payloadSpans.type) !==
+        exactAuthoredTypeText(nextCompiled, nextStatement, nextStatement.payloadSpans.type)
+    ) {
+      return reject("unsafe-rewrite", "moved record value の nominal type identity が変化しました。", {
+        statementId: entry.statementId,
+        statementIndex: entry.statementIndex
+      });
+    }
+  }
+
+  for (const entry of movedEntries) {
+    if (entry.statement.kind !== "moduleDefinition") continue;
+    const beforeDefinition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(entry.statementId);
+    const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
+    const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+    const nextDefinition = nextCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(entry.statementId);
+    if (!beforeDefinition || nextStatement?.kind !== "moduleDefinition" || !nextDefinition ||
+      beforeDefinition.parameters.length !== nextDefinition.parameters.length ||
+      nextStatement.parameters.length !== entry.statement.parameters.length) {
+      return reject("unsafe-rewrite", "moved Module definition の semantic interface を再検証できません。", {
+        statementId: entry.statementId,
+        statementIndex: entry.statementIndex
+      });
+    }
+    for (const [parameterIndex, beforeParameter] of beforeDefinition.parameters.entries()) {
+      const beforeSource = entry.statement.parameters[parameterIndex];
+      const nextParameter = nextDefinition.parameters[parameterIndex];
+      const nextSource = nextStatement.parameters[parameterIndex];
+      if (!beforeSource || !nextParameter || !nextSource) {
+        return reject("unsafe-rewrite", "moved Module definition の parameter mapping を再検証できません。", {
+          statementId: entry.statementId,
+          statementIndex: entry.statementIndex
+        });
+      }
+      const beforeRecord = beforeSource.recordTypeReference !== null && beforeSource.recordTypeReference !== undefined;
+      const nextRecord = nextSource.recordTypeReference !== null && nextSource.recordTypeReference !== undefined;
+      if (beforeRecord !== nextRecord || (beforeRecord && (
+        !beforeParameter.recordTypeIdentity ||
+        !nextParameter.recordTypeIdentity ||
+        nextParameter.recordTypeIdentity !== beforeParameter.recordTypeIdentity ||
+        exactAuthoredTypeText(compiled, entry.statement, beforeSource.typeSpan) !==
+          exactAuthoredTypeText(nextCompiled, nextStatement, nextSource.typeSpan)
+      ))) {
+        return reject("unsafe-rewrite", "moved Module definition の record parameter nominal identity が変化しました。", {
+          statementId: entry.statementId,
+          statementIndex: entry.statementIndex
+        });
+      }
     }
   }
 
@@ -1711,6 +2025,58 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
         { statementId: movedExternalModuleCallee.instanceStatementId }
       );
     }
+    const beforeInstance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(
+      movedExternalModuleCallee.instanceStatementId
+    );
+    const beforeDefinition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(
+      movedExternalModuleCallee.definitionStatementId
+    );
+    const afterDefinition = nextCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(
+      movedExternalModuleCallee.definitionStatementId
+    );
+    if (!beforeInstance || !beforeDefinition || !afterDefinition ||
+      beforeDefinition.parameters.length !== afterDefinition.parameters.length) {
+      return reject("unsafe-rewrite", "moved module instance の external Module interface を再検証できません。", {
+        statementId: movedExternalModuleCallee.instanceStatementId
+      });
+    }
+    const beforeDefinitionStatement = compiled.statements[beforeDefinition.statementIndex];
+    for (const beforeParameter of beforeDefinition.parameters) {
+      const beforeSourceParameter = beforeDefinitionStatement?.kind === "moduleDefinition"
+        ? beforeDefinitionStatement.parameters[beforeParameter.parameterIndex]
+        : undefined;
+      if (!beforeSourceParameter?.recordTypeReference) continue;
+      if (!beforeParameter.recordTypeIdentity) {
+        return reject("unsafe-rewrite", "moved module instance の external Module record interface に nominal identity がありません。", {
+          statementId: movedExternalModuleCallee.instanceStatementId
+        });
+      }
+      const beforeBinding = beforeInstance.parameterBindings.find((binding) =>
+        binding.parameterIndex === beforeParameter.parameterIndex
+      );
+      const afterBinding = nextInstance.parameterBindings.find((binding) =>
+        binding.parameterIndex === beforeParameter.parameterIndex
+      );
+      const afterParameter = afterDefinition.parameters[beforeParameter.parameterIndex];
+      const afterRecordBinding = afterBinding?.value?.kind === "record" ? afterBinding.value : null;
+      if (
+        !beforeBinding ||
+        !afterBinding ||
+        !afterParameter ||
+        afterParameter.recordTypeIdentity !== beforeParameter.recordTypeIdentity ||
+        beforeBinding.state !== afterBinding.state ||
+        (beforeBinding.value?.kind === "record" && (
+          afterRecordBinding === null ||
+          afterRecordBinding.reference.resolution !== "resolved" ||
+          afterRecordBinding.reference.typeIdentity !== beforeParameter.recordTypeIdentity ||
+          (afterRecordBinding.reference.target === null && afterRecordBinding.reference.constructor === null)
+        ))
+      ) {
+        return reject("unsafe-rewrite", "moved module instance の record argument semantic binding が変化しました。", {
+          statementId: movedExternalModuleCallee.instanceStatementId
+        });
+      }
+    }
   }
 
   const generatedModule = nextCompiled.sourceLexicalNamespace.allDeclarations.find((declaration) =>
@@ -1727,7 +2093,6 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("unsafe-rewrite", "生成した Module / instance を target lexical scope で再解決できません。");
   }
 
-  const nextOccurrenceIndex = createDslSemanticOccurrenceIndex(nextCompiled);
   const generatedModuleStatement = nextCompiled.statements[generatedModule.statementIndex];
   const generatedInstanceStatement = nextCompiled.statements[generatedInstance.statementIndex];
   const generatedModuleSemantic = nextCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(generatedModule.statementId);
@@ -1748,6 +2113,28 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   if (generatedModuleStatement.parameters.length !== dependencies.length) {
     return reject("unsafe-rewrite", "生成した nested Module の parameter interface が計画内容と一致しません。");
   }
+  for (const exported of exports) {
+    const originalStatement = compiled.statements[exported.statementIndex];
+    if (originalStatement?.kind !== "typedDeclaration" || !originalStatement.recordTypeReference) continue;
+    const originalValue = namespace.recordSemanticAnalysis?.valuesByStatementId.get(exported.statementId);
+    const generatedExport = generatedModuleSemantic.exports.find((candidate) =>
+      candidate.kind === "record" &&
+      candidate.name === exported.name &&
+      candidate.exportedStatementId === exported.statementId
+    );
+    if (
+      !originalValue?.typeIdentity ||
+      !generatedExport ||
+      generatedExport.kind !== "record" ||
+      generatedExport.ownerModuleDefinitionStatementId !== generatedModule.statementId ||
+      generatedExport.typeIdentity !== originalValue.typeIdentity
+    ) {
+      return reject("unsafe-rewrite", "generated record export の Module semantic identity が元の nominal record と一致しません.", {
+        statementId: exported.statementId,
+        statementIndex: exported.statementIndex
+      });
+    }
+  }
   const nextMovedEntries = movedEntries.flatMap((entry) => {
     const statementIndex = nextCompiled.statementMap?.statementIndexByStatementId?.get(entry.statementId);
     const statement = statementIndex === undefined ? undefined : nextCompiled.statements[statementIndex];
@@ -1761,6 +2148,8 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   ]);
   const nextReferenceOccurrences = [...nextOccurrenceIndex.occurrences, ...nextArrayArgumentOccurrences];
   const nextReferenceOwnerKey = (occurrence: DslSemanticOccurrence) => semanticOwnerKey(nextCompiled, occurrence.identity);
+  const characterBeforeOccurrence = (occurrence: DslSemanticOccurrence): string =>
+    nextCompiled.spans.sourceMap.source.slice(Math.max(0, occurrence.from - 1), occurrence.from);
   const candidateArrayArgumentOwnerMatches = (
     planned: { occurrences: readonly DslSemanticOccurrence[] },
     dependency: ExtractModuleDependency
@@ -1803,17 +2192,26 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     const planned = dependencyByIdentity.get(dependency.identityKey);
     const generatedParameter = generatedModuleSemantic.parameters[dependencyIndex];
     const sourceParameter = generatedModuleStatement.parameters[dependencyIndex];
+    const recordDependency = dependency.type === null && dependency.recordTypeIdentity !== undefined;
+    const generatedParameterName = generatedParameterNameByIdentity.get(dependency.identityKey);
     const generatedType = sourceParameter
       ? geometryArrayTypeOfModuleParameter(sourceParameter) ?? generatedParameter?.type
       : undefined;
-    if (
-      !planned ||
-      !generatedParameter ||
-      !sourceParameter ||
-      sourceParameter.name !== dependency.name ||
-      !generatedType ||
-      moduleParameterTypeText(generatedType, generatedParameter.numericTypeOptions) !== dependency.typeText
-    ) {
+    const generatedRecordTypeText = sourceParameter?.recordTypeReference
+      ? exactAuthoredTypeText(nextCompiled, generatedModuleStatement, sourceParameter.typeSpan)
+      : null;
+    const parameterMatches = recordDependency
+      ? Boolean(
+          sourceParameter?.recordTypeReference &&
+          generatedParameter?.type === null &&
+          generatedParameter.recordTypeIdentity === dependency.recordTypeIdentity &&
+          generatedRecordTypeText === dependency.typeText
+        )
+      : Boolean(
+          generatedType &&
+          moduleParameterTypeText(generatedType, generatedParameter?.numericTypeOptions) === dependency.typeText
+        );
+    if (!planned || !generatedParameter || !sourceParameter || !generatedParameterName || sourceParameter.name !== generatedParameterName || !parameterMatches) {
       return reject("unsafe-rewrite", "生成した nested Module parameter が元の semantic dependency と一致しません。");
     }
 
@@ -1823,7 +2221,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     );
     if (
       !argument ||
-      argument.label !== dependency.name ||
+      argument.label !== generatedParameterName ||
       argument.value.trim() !== dependency.argumentSource.trim() ||
       !binding ||
       binding.argumentIndex !== dependencyIndex
@@ -1831,8 +2229,24 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       return reject("unsafe-rewrite", "生成した Module instance argument が元の authored dependency source と一致しません。");
     }
 
-    const expectedOwnerKey = semanticOwnerKey(compiled, planned.occurrences[0]!.identity);
-    const argumentOwnerMatches = dependency.type?.kind === "geometryArray"
+    const expectedOwnerKey = planned.sourceOwnerKey;
+    const recordArgument = recordDependency && binding?.value?.kind === "record"
+      ? binding.value.reference
+      : null;
+    const recordArgumentTargetIdentity = recordArgument?.target
+      ? recordSourceTargetIdentity(recordArgument.target)
+      : null;
+    const recordArgumentMatches = recordDependency && recordArgument
+      ? recordArgument.resolution === "resolved" &&
+        recordArgument.source.trim() === dependency.argumentSource.trim() &&
+        recordArgument.typeIdentity === dependency.recordTypeIdentity &&
+        (recordArgument.target?.typeIdentity ?? recordArgument.constructor?.targetTypeIdentity) === dependency.recordTypeIdentity &&
+        recordArgumentTargetIdentity !== null &&
+        semanticOwnerKey(nextCompiled, recordArgumentTargetIdentity) === expectedOwnerKey
+      : false;
+    const argumentOwnerMatches = recordDependency
+      ? recordArgumentMatches
+      : dependency.type?.kind === "geometryArray"
       ? nextArrayArgumentOccurrences.some((occurrence) =>
           occurrence.from >= generatedInstanceStatement.documentRange.from &&
           occurrence.to <= generatedInstanceStatement.documentRange.to &&
@@ -1849,6 +2263,33 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       return reject("unsafe-rewrite", "生成した Module instance argument が元の semantic owner へ解決されません。");
     }
   }
+
+  const candidateRecordFieldCount = (
+    planned: { recordFieldProofs: readonly RecordFieldDependencyProof[] },
+    expectedOwnerKey: string
+  ): number => nextReferenceOccurrences.filter((occurrence) => {
+    if (
+      occurrence.kind !== "reference" ||
+      occurrence.identity.kind !== "recordField" ||
+      characterBeforeOccurrence(occurrence) !== "."
+    ) return false;
+    const field = occurrence.identity.field;
+    if (!planned.recordFieldProofs.some((proof) =>
+      proof.field.recordStatementId === field.recordStatementId &&
+      proof.field.fieldIndex === field.fieldIndex
+    )) return false;
+    const baseCandidates = nextReferenceOccurrences.filter((candidate) =>
+      candidate.kind === "reference" &&
+      candidate.to + 1 === occurrence.from &&
+      nextCompiled.spans.sourceMap.source[candidate.to] === "." &&
+      expectedOwnerKey === nextReferenceOwnerKey(candidate)
+    );
+    return baseCandidates.length === 1 && movedEntries.some((entry) => {
+      const nextIndex = nextCompiled.statementMap?.statementIndexByStatementId?.get(entry.statementId);
+      const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
+      return Boolean(nextStatement && occurrence.from >= nextStatement.documentRange.from && occurrence.to <= nextStatement.documentRange.to);
+    });
+  }).length;
 
   for (const [identityKey, planned] of dependencyByIdentity) {
     const dependencyIndex = dependencies.findIndex((dependency) => dependency.identityKey === identityKey);
@@ -1874,7 +2315,15 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
       }) &&
       nextReferenceOwnerKey(occurrence) === expectedOwnerKey
     ).length;
-    if (!generatedParameter || movedReferenceCount !== planned.occurrences.length) {
+    const dependency = dependencies[dependencyIndex];
+    const movedRecordFieldCount = dependency?.recordTypeIdentity
+      ? candidateRecordFieldCount(planned, expectedOwnerKey)
+      : 0;
+    if (
+      !generatedParameter ||
+      movedReferenceCount !== planned.occurrences.length ||
+      movedRecordFieldCount !== planned.recordFieldProofs.length
+    ) {
       return reject("unsafe-rewrite", "移動した subtree の dependency reference が generated parameter identity へ解決されません。");
     }
   }
@@ -1898,18 +2347,31 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   // Checkpoint 8 recursively accepts complete Module descendants and the
   // previously proven direct/root value, plain-group, conditional, forGroup,
   // and containing-Module ownership proofs. Module-owned values cross the
-  // boundary only through proven non-record parameters; external Module
-  // callees are checked above. Records, imports, and host integration remain
-  // fail closed.
+  // boundary through proven scalar, geometry, array, or record parameters;
+  // external Module callees are checked above. Imports and host integration
+  // remain fail closed.
   // Outside-resolution comparison stays the final guard.
   const oldSequences = sourceReferenceSequencesByStatementId(compiled, occurrenceIndex, movedIds);
   const nextSequences = sourceReferenceSequencesByStatementId(nextCompiled, nextOccurrenceIndex, movedIds);
+  const recordExportIdentityTransitions = new Set(
+    exports.flatMap((entry) => {
+      const statement = compiled.statements[entry.statementIndex];
+      return statement?.kind === "typedDeclaration" && statement.recordTypeReference
+        ? [`${entry.identityKey}\u0000${dslSemanticIdentityKey({
+            kind: "module",
+            target: { kind: "moduleSource", statementId: entry.statementId }
+          })}`]
+        : [];
+    })
+  );
+  const sameOutsideIdentity = (before: string, after: string): boolean =>
+    before === after || recordExportIdentityTransitions.has(`${before}\u0000${after}`);
   for (const [statementId, identities] of oldSequences) {
     const after = nextSequences.get(statementId);
     if (
       !after ||
       identities.length !== after.length ||
-      identities.some((identity, index) => identity !== after[index])
+      identities.some((identity, index) => !sameOutsideIdentity(identity, after[index]!))
     ) {
       return reject(
         "unsafe-rewrite",

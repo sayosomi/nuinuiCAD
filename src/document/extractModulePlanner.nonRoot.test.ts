@@ -382,7 +382,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     if (result.status === "rejected") expect("splices" in result).toBe(false);
   });
 
-  it("keeps record-valued Module-owned dependencies fail closed", () => {
+  it("parameterizes an outer Module record parameter through its field access", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
@@ -392,7 +392,16 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
     ].join("\n");
 
     const { result } = plan(source, (compiled) => [statementIndexNamed(compiled, "inside")]);
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect("splices" in result).toBe(false);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies.map((dependency) => [dependency.name, dependency.typeText, dependency.argumentSource])).toEqual([
+      ["config", "Config", "@config"]
+    ]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted(config__extract: Config) {",
+      "    const inside: number = @config__extract.amount + 1",
+      "  }",
+      "  instance Part = Extracted(config__extract: @config)"
+    ].join("\n"));
   });
 });

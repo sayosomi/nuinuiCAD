@@ -248,14 +248,24 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expectRejectedWithoutPatch(planAt(source, 1, { instanceName: "Child" }).result, "name-collision");
   });
 
-  it("keeps record-valued Module interfaces rejected", () => {
+  it("accepts a moved Module definition with a record-valued parameter", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
       "module M(config: Config) {",
       "}"
     ].join("\n");
-    expectRejectedWithoutPatch(planAt(source, 2).result, "unsupported-statement");
+    const { result } = planAt(source, 2);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies).toEqual([]);
+    expect(applyLineSplices(source, result.splices)).toContain([
+      "module Extracted() {",
+      "  module M(config: Config) {",
+      "  }",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"));
   });
 
   it("extracts a direct nested Module target inside an existing Module", () => {
