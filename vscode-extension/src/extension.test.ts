@@ -2895,6 +2895,11 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor(command)?.(document.uri);
 
     await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    expect(mocks.showQuickPick.mock.calls[0]?.[1]).toMatchObject({
+      placeHolder: mode === "xy" ? "Select a shared base point for XY offset" : "Select a shared base point for angle-distance offset",
+      matchOnDescription: true,
+      matchOnDetail: true
+    });
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(editor.edit).toHaveBeenCalledTimes(1);
     expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
