@@ -4,14 +4,15 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedOffsetLine,
+  ComputedPolyline,
   ComputedPoint,
   EvaluationResult
 } from "../types/geometry";
 import {
   computedNumericReferenceValue,
   computedPathsForGeometry,
-  numericReferenceCandidates,
-  parameterPathsForElement
+  numericReferenceCandidates
 } from "./numericReferencePaths";
 import {
   computedReferencePathValue,
@@ -130,7 +131,7 @@ const evaluation: EvaluationResult = {
 };
 
 describe("numericReferencePaths", () => {
-  it("enumerates canonical properties only when the shared computed accessor provides them", () => {
+  it("enumerates canonical properties from the resolved geometry family", () => {
     const arcProperties = numericComputedGeometryPropertiesFor(arcGeometry);
     expect(arcProperties).toEqual(expect.arrayContaining([
       "length",
@@ -146,10 +147,9 @@ describe("numericReferencePaths", () => {
     expect(numericComputedGeometrySupportsProperty(arcGeometry, "startHandleLength")).toBe(false);
 
     const curveProperties = numericComputedGeometryPropertiesFor(curveGeometry);
-    expect(curveProperties).toContain("intermediatePoints[1].x");
-    expect(curveProperties).toContain("intermediatePoints[1].y");
-    expect(curveProperties).not.toContain("intermediatePoints[2].x");
-    expect(numericComputedGeometrySupportsProperty(curveGeometry, "intermediatePoints[1].x")).toBe(true);
+    expect(curveProperties).not.toContain("intermediatePoints[1].x");
+    expect(curveProperties).not.toContain("intermediatePoints[1].y");
+    expect(numericComputedGeometrySupportsProperty(curveGeometry, "intermediatePoints[1].x")).toBe(false);
     expect(numericComputedGeometrySupportsProperty(curveGeometry, "intermediatePoints[2].x")).toBe(false);
   });
 
@@ -164,12 +164,159 @@ describe("numericReferencePaths", () => {
   });
 
   it("resolves Bezier handle and intermediate point reference values", () => {
-    expect(computedNumericReferenceValue(curveGeometry, "startHandleAngleDeg")).toBe(15);
+    expect(computedNumericReferenceValue(curveGeometry, "startHandleAngleDeg")).toBe(0);
     expect(computedNumericReferenceValue(curveGeometry, "startHandleLength")).toBe(20);
-    expect(computedNumericReferenceValue(curveGeometry, "endHandleAngleDeg")).toBe(165);
-    expect(computedNumericReferenceValue(curveGeometry, "endHandleLength")).toBe(25);
+    expect(computedNumericReferenceValue(curveGeometry, "endHandleAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(curveGeometry, "endHandleLength")).toBe(20);
     expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].x")).toBe(40);
     expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].y")).toBe(10);
+  });
+
+  it("uses endpoint-to-interior direction semantics for every path family", () => {
+    expect(computedNumericReferenceValue(arcGeometry, "startAngleDeg")).toBe(90);
+    expect(computedNumericReferenceValue(arcGeometry, "endAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(arcGeometry, "startRadiusAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(arcGeometry, "endRadiusAngleDeg")).toBe(90);
+    const fullTurn = {
+      ...arcGeometry,
+      end: point("arc:end", 10, 0),
+      endAngleDeg: 360,
+      sweepAngleDeg: 360
+    };
+    expect(computedNumericReferenceValue(fullTurn, "startRadiusAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(fullTurn, "endRadiusAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(fullTurn, "sweepAngleDeg")).toBe(360);
+    expect(computedNumericReferenceValue(fullTurn, "startAngleDeg")).toBe(90);
+    expect(computedNumericReferenceValue(fullTurn, "endAngleDeg")).toBe(270);
+    expect(computedNumericReferenceValue(curveGeometry, "startAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(curveGeometry, "endAngleDeg")).toBe(180);
+
+    const polyline: ComputedPolyline = {
+      kind: "polyline",
+      elementId: "closed",
+      name: "閉じた折れ線",
+      segments: [
+        { kind: "line", start: point("p0", 0, 0), end: point("p0", 0, 0), length: 0 },
+        { kind: "line", start: point("p0", 0, 0), end: point("p1", 0, 1), length: 1 },
+        { kind: "line", start: point("p1", 0, 1), end: point("p2", 1, 1), length: 1 },
+        { kind: "line", start: point("p2", 1, 1), end: point("p0", 0, 0), length: Math.SQRT2 }
+      ],
+      closed: true,
+      start: point("p0", 0, 0),
+      end: point("p0", 0, 0),
+      length: 2 + Math.SQRT2,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null
+    };
+    expect(computedNumericReferenceValue(polyline, "startAngleDeg")).toBe(90);
+    expect(computedNumericReferenceValue(polyline, "endAngleDeg")).toBe(45);
+
+    const offset: ComputedOffsetLine = {
+      kind: "offsetLine",
+      elementId: "mutated",
+      name: "変形線",
+      baseLineIds: ["line-ab"],
+      start: point("mutated:start", 0, 0),
+      end: point("mutated:end", 0, 5),
+      segments: [{
+        kind: "line",
+        start: point("mutated:start", 0, 0),
+        end: point("mutated:end", 0, 5),
+        length: 5
+      }],
+      closed: false,
+      length: 5,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    };
+    expect(computedNumericReferenceValue(offset, "startAngleDeg")).toBe(90);
+    expect(computedNumericReferenceValue(offset, "endAngleDeg")).toBe(270);
+  });
+
+  it("derives Bezier endpoint and handle values from actual controls", () => {
+    const degenerate: ComputedBezierCurve = {
+      kind: "bezierCurve",
+      elementId: "degenerate",
+      name: "退化曲線",
+      startPointId: null,
+      endPointId: null,
+      intermediatePointIds: [],
+      segments: [
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point("s0", 0, 0),
+          control1: { x: 0, y: 0 },
+          control2: { x: 0, y: 0 },
+          end: point("s1", 0, 0)
+        },
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point("s1", 0, 0),
+          control1: { x: 0, y: 0 },
+          control2: { x: 1, y: 1 },
+          end: point("s2", 2, 2)
+        },
+        {
+          startPointId: null,
+          endPointId: null,
+          start: point("s2", 2, 2),
+          control1: { x: 2, y: 2 },
+          control2: { x: 2, y: 2 },
+          end: point("s3", 2, 2)
+        }
+      ],
+      length: 2 * Math.SQRT2,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null,
+      startHandleAngleDeg: 0,
+      startHandleLength: 0,
+      endHandleAngleDeg: 0,
+      endHandleLength: 0
+    };
+    expect(computedNumericReferenceValue(degenerate, "startAngleDeg")).toBe(45);
+    expect(computedNumericReferenceValue(degenerate, "endAngleDeg")).toBe(225);
+    expect(computedNumericReferenceValue(degenerate, "startHandleAngleDeg")).toBeUndefined();
+    expect(computedNumericReferenceValue(degenerate, "startHandleLength")).toBe(0);
+    expect(computedNumericReferenceValue(degenerate, "endHandleAngleDeg")).toBeUndefined();
+    expect(computedNumericReferenceValue(degenerate, "endHandleLength")).toBe(0);
+  });
+
+  it("keeps statically supported paths visible when runtime direction is undefined", () => {
+    const lineElement: CadElement = {
+      id: "zero-line",
+      name: "ゼロ線",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 0, y: 0 }
+    };
+    const zeroLine: ComputedGeometry = {
+      kind: "line",
+      elementId: "zero-line",
+      name: "ゼロ線",
+      startPointId: null,
+      endPointId: null,
+      start: point("z0", 0, 0),
+      end: point("z1", 0, 0),
+      length: 0,
+      startAngleDeg: null,
+      endAngleDeg: null,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null
+    };
+    const candidates = numericReferenceCandidates({
+      elements: [lineElement],
+      evaluation: {
+        computedGeometry: new Map([["zero-line", zeroLine]]),
+        errors: [],
+        warnings: []
+      }
+    });
+    expect(candidates.find((candidate) => candidate.expression === "zero-line.startAngleDeg")).toMatchObject({
+      valueLabel: ""
+    });
   });
 
   it("offers Bezier handle and intermediate point paths as insert candidates", () => {
@@ -189,12 +336,9 @@ describe("numericReferencePaths", () => {
     expect(expressions).toContain("curve.intermediatePoints[1].y");
   });
 
-  it("exports computedPathsForGeometry/parameterPathsForElement matching what numericReferenceCandidates already uses internally (regression for the export-only change)", () => {
+  it("exports the canonical computed paths used by numericReferenceCandidates", () => {
     expect(computedPathsForGeometry(curveGeometry)).toEqual(
       expect.arrayContaining(["length", "startHandleAngleDeg", "startHandleLength", "endHandleAngleDeg", "endHandleLength"])
-    );
-    expect(parameterPathsForElement(elements[2])).toEqual(
-      expect.arrayContaining(["params.dx", "params.dy"])
     );
   });
 

@@ -1,10 +1,11 @@
 // Resolves typed-scalar geometry reads once, while the compiled element names
 // && source order are still available. Runtimes consume only this stable IR.
-import {
-  isKnownNumericComputedGeometryProperty,
-  normalizeNumericExpressionInput
-} from "../geometry/numericExpressions";
+import { normalizeNumericExpressionInput } from "../geometry/numericExpressions";
 import { tokenize } from "../geometry/numericExpressionParser";
+import {
+  numericGeometryPropertySupportedByStaticTarget,
+  numericGeometryStaticTargetForElementInDocument
+} from "../geometry/numericGeometryProperties";
 import { createElementNameContext, resolveElementName } from "../model/elementNames";
 import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -106,7 +107,12 @@ export const resolveGeometryPropertyMetadata = (
         return resolved.status === "resolved" ? resolved.element : undefined;
       })();
       const targetElementId = targetElement?.id ?? reference.elementId;
-      const type = isKnownNumericComputedGeometryProperty(reference.property)
+      const type = numericGeometryPropertySupportedByStaticTarget(
+        targetElement
+          ? numericGeometryStaticTargetForElementInDocument(targetElement, elements)
+          : null,
+        reference.property
+      )
         ? { kind: "number" as const }
         : choiceGeometryPropertyTypeFor(targetElement, reference.property);
       if (!type) {

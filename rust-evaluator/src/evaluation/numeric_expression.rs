@@ -227,79 +227,124 @@ fn point_axis_value(value: Option<&Value>, axis: &str) -> Option<f64> {
     value?.get(axis)?.as_f64()
 }
 
+const GEOMETRY_EPSILON: f64 = 1e-9;
+
+fn point_coordinates(value: Option<&Value>) -> Option<(f64, f64)> {
+    let value = value?;
+    Some((value.get("x")?.as_f64()?, value.get("y")?.as_f64()?))
+}
+
+fn direction_angle(from: Option<&Value>, to: Option<&Value>) -> Option<f64> {
+    let (from_x, from_y) = point_coordinates(from)?;
+    let (to_x, to_y) = point_coordinates(to)?;
+    let dx = to_x - from_x;
+    let dy = to_y - from_y;
+    if dx.hypot(dy) <= GEOMETRY_EPSILON {
+        return None;
+    }
+    Some(normalize_degrees(dy.atan2(dx).to_degrees()))
+}
+
+fn reverse_direction(angle: Option<f64>) -> Option<f64> {
+    angle.map(|value| normalize_degrees(value + 180.0))
+}
+
+fn bezier_start_forward_direction(segment: &Value) -> Option<f64> {
+    direction_angle(segment.get("start"), segment.get("control1"))
+        .or_else(|| direction_angle(segment.get("start"), segment.get("control2")))
+        .or_else(|| direction_angle(segment.get("start"), segment.get("end")))
+}
+
+fn bezier_end_forward_direction(segment: &Value) -> Option<f64> {
+    direction_angle(segment.get("control2"), segment.get("end"))
+        .or_else(|| direction_angle(segment.get("control1"), segment.get("end")))
+        .or_else(|| direction_angle(segment.get("start"), segment.get("end")))
+}
+
+fn first_segment_direction<F>(segments: &[Value], direction: F) -> Option<f64>
+where
+    F: Fn(&Value) -> Option<f64>,
+{
+    segments.iter().find_map(direction)
+}
+
+fn last_interior_direction<F>(segments: &[Value], direction: F) -> Option<f64>
+where
+    F: Fn(&Value) -> Option<f64>,
+{
+    segments
+        .iter()
+        .rev()
+        .find_map(|segment| reverse_direction(direction(segment)))
+}
+
+fn arc_endpoint_directions(geometry: &Value) -> (Option<f64>, Option<f64>) {
+    let radius = geometry
+        .get("radius")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let sweep = geometry
+        .get("sweepAngleDeg")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    if radius.abs() <= GEOMETRY_EPSILON || sweep.abs() <= GEOMETRY_EPSILON {
+        return (None, None);
+    }
+    let offset = if sweep >= 0.0 { 90.0 } else { -90.0 };
+    let start = direction_angle(geometry.get("center"), geometry.get("start"))
+        .map(|angle| normalize_degrees(angle + offset));
+    let end = direction_angle(geometry.get("center"), geometry.get("end"))
+        .map(|angle| normalize_degrees(angle + offset + 180.0));
+    (start, end)
+}
+
+fn offset_segment_start_direction(segment: &Value) -> Option<f64> {
+    match segment.get("kind").and_then(Value::as_str) {
+        Some("line") => direction_angle(segment.get("start"), segment.get("end")),
+        Some("bezier") => bezier_start_forward_direction(segment),
+        Some("arc") => {
+            let radius = segment.get("radius").and_then(Value::as_f64)?;
+            let sweep = segment.get("sweepAngleDeg").and_then(Value::as_f64)?;
+            if radius.abs() <= GEOMETRY_EPSILON || sweep.abs() <= GEOMETRY_EPSILON {
+                return None;
+            }
+            let offset = if sweep >= 0.0 { 90.0 } else { -90.0 };
+            Some(normalize_degrees(
+                direction_angle(segment.get("center"), segment.get("start"))? + offset,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn offset_segment_end_forward_direction(segment: &Value) -> Option<f64> {
+    match segment.get("kind").and_then(Value::as_str) {
+        Some("line") => direction_angle(segment.get("start"), segment.get("end")),
+        Some("bezier") => bezier_end_forward_direction(segment),
+        Some("arc") => {
+            let radius = segment.get("radius").and_then(Value::as_f64)?;
+            let sweep = segment.get("sweepAngleDeg").and_then(Value::as_f64)?;
+            if radius.abs() <= GEOMETRY_EPSILON || sweep.abs() <= GEOMETRY_EPSILON {
+                return None;
+            }
+            let offset = if sweep >= 0.0 { 90.0 } else { -90.0 };
+            Some(normalize_degrees(
+                direction_angle(segment.get("center"), segment.get("end"))? + offset,
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// The sole canonical computed-geometry property accessor. Typed scalar
 /// evaluation calls this too; neither evaluator owns a second property map.
 pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Option<f64> {
-    match geometry.get("kind")?.as_str()? {
-        "point" => point_axis_value(Some(geometry), property),
-        "line" => match property {
-            "length"
-            | "startAngleDeg"
-            | "endAngleDeg"
-            | "startTangentAngleDeg"
-            | "endTangentAngleDeg" => geometry.get(property)?.as_f64(),
-            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
-            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
-            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
-            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
-            _ => None,
-        },
-        "polyline" => match property {
-            "length" | "startTangentAngleDeg" | "endTangentAngleDeg" => {
-                geometry.get(property)?.as_f64()
-            }
-            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
-            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
-            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
-            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
-            _ => None,
-        },
-        "arcLine" => match property {
-            "length"
-            | "radius"
-            | "startAngleDeg"
-            | "endAngleDeg"
-            | "sweepAngleDeg"
-            | "startTangentAngleDeg"
-            | "endTangentAngleDeg" => geometry.get(property)?.as_f64(),
-            "centerPoint.x" => point_axis_value(geometry.get("center"), "x"),
-            "centerPoint.y" => point_axis_value(geometry.get("center"), "y"),
-            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
-            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
-            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
-            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
-            _ => None,
-        },
-        "bezierCurve" => {
-            let segments = geometry.get("segments")?.as_array()?;
-            let first = segments.first();
-            let last = segments.last();
-            match property {
-                "length"
-                | "startTangentAngleDeg"
-                | "endTangentAngleDeg"
-                | "startHandleAngleDeg"
-                | "startHandleLength"
-                | "endHandleAngleDeg"
-                | "endHandleLength" => geometry.get(property)?.as_f64(),
-                "startPoint.x" => point_axis_value(first?.get("start"), "x"),
-                "startPoint.y" => point_axis_value(first?.get("start"), "y"),
-                "endPoint.x" => point_axis_value(last?.get("end"), "x"),
-                "endPoint.y" => point_axis_value(last?.get("end"), "y"),
-                _ => intermediate_point_value(segments, property),
-            }
-        }
-        "offsetLine" => match property {
-            "length" | "startTangentAngleDeg" | "endTangentAngleDeg" => {
-                geometry.get(property)?.as_f64()
-            }
-            "startPoint.x" => point_axis_value(geometry.get("start"), "x"),
-            "startPoint.y" => point_axis_value(geometry.get("start"), "y"),
-            "endPoint.x" => point_axis_value(geometry.get("end"), "x"),
-            "endPoint.y" => point_axis_value(geometry.get("end"), "y"),
-            _ => None,
-        },
-        "image" => match property {
+    let kind = geometry.get("kind")?.as_str()?;
+    if kind == "point" {
+        return point_axis_value(Some(geometry), property);
+    }
+    if kind == "image" {
+        return match property {
             "originPoint.x" => point_axis_value(geometry.get("origin"), "x"),
             "originPoint.y" => point_axis_value(geometry.get("origin"), "y"),
             "widthMm" | "heightMm" | "scale" | "angleDeg" | "naturalWidthPx"
@@ -307,14 +352,118 @@ pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Opti
                 geometry.get(property)?.as_f64()
             }
             _ => None,
-        },
-        "text" => match property {
+        };
+    }
+    if kind == "text" {
+        return match property {
             "anchorPoint.x" => point_axis_value(geometry.get("anchor"), "x"),
             "anchorPoint.y" => point_axis_value(geometry.get("anchor"), "y"),
             "fontSize" => geometry.get("fontSize")?.as_f64(),
             _ => None,
+        };
+    }
+
+    let (start, end) = if kind == "bezierCurve" {
+        let segments = geometry.get("segments").and_then(Value::as_array);
+        (
+            segments
+                .and_then(|segments| segments.first())
+                .and_then(|segment| segment.get("start")),
+            segments
+                .and_then(|segments| segments.last())
+                .and_then(|segment| segment.get("end")),
+        )
+    } else {
+        (geometry.get("start"), geometry.get("end"))
+    };
+    match property {
+        "startPoint.x" => point_axis_value(start, "x"),
+        "startPoint.y" => point_axis_value(start, "y"),
+        "endPoint.x" => point_axis_value(end, "x"),
+        "endPoint.y" => point_axis_value(end, "y"),
+        _ => match kind {
+            "line" => {
+                let direction = direction_angle(start, end);
+                match property {
+                    "length" => geometry.get("length")?.as_f64(),
+                    "startAngleDeg" => direction,
+                    "endAngleDeg" => reverse_direction(direction),
+                    _ => None,
+                }
+            }
+            "polyline" => {
+                let segments = geometry.get("segments")?.as_array()?;
+                let start_direction = first_segment_direction(segments, |segment| {
+                    direction_angle(segment.get("start"), segment.get("end"))
+                });
+                let end_direction = last_interior_direction(segments, |segment| {
+                    direction_angle(segment.get("start"), segment.get("end"))
+                });
+                match property {
+                    "length" => geometry.get("length")?.as_f64(),
+                    "startAngleDeg" => start_direction,
+                    "endAngleDeg" => end_direction,
+                    _ => None,
+                }
+            }
+            "arcLine" => {
+                let (start_direction, end_direction) = arc_endpoint_directions(geometry);
+                match property {
+                    "length" => geometry.get("length")?.as_f64(),
+                    "radius" => geometry.get("radius")?.as_f64(),
+                    "sweepAngleDeg" => geometry.get("sweepAngleDeg")?.as_f64(),
+                    "startAngleDeg" => start_direction,
+                    "endAngleDeg" => end_direction,
+                    "startRadiusAngleDeg" => direction_angle(geometry.get("center"), start),
+                    "endRadiusAngleDeg" => direction_angle(geometry.get("center"), end),
+                    "centerPoint.x" => point_axis_value(geometry.get("center"), "x"),
+                    "centerPoint.y" => point_axis_value(geometry.get("center"), "y"),
+                    _ => None,
+                }
+            }
+            "bezierCurve" => {
+                let segments = geometry.get("segments")?.as_array()?;
+                let first = segments.first();
+                let last = segments.last();
+                let start_direction =
+                    first_segment_direction(segments, bezier_start_forward_direction);
+                let end_direction = last_interior_direction(segments, bezier_end_forward_direction);
+                match property {
+                    "length" => geometry.get("length")?.as_f64(),
+                    "startAngleDeg" => start_direction,
+                    "endAngleDeg" => end_direction,
+                    "startHandleAngleDeg" => {
+                        direction_angle(first?.get("start"), first?.get("control1"))
+                    }
+                    "startHandleLength" => {
+                        let (start_x, start_y) = point_coordinates(first?.get("start"))?;
+                        let (control_x, control_y) = point_coordinates(first?.get("control1"))?;
+                        Some((control_x - start_x).hypot(control_y - start_y))
+                    }
+                    "endHandleAngleDeg" => direction_angle(last?.get("control2"), last?.get("end")),
+                    "endHandleLength" => {
+                        let (control_x, control_y) = point_coordinates(last?.get("control2"))?;
+                        let (end_x, end_y) = point_coordinates(last?.get("end"))?;
+                        Some((end_x - control_x).hypot(end_y - control_y))
+                    }
+                    _ => intermediate_point_value(segments, property),
+                }
+            }
+            "offsetLine" => {
+                let segments = geometry.get("segments")?.as_array()?;
+                let start_direction =
+                    first_segment_direction(segments, offset_segment_start_direction);
+                let end_direction =
+                    last_interior_direction(segments, offset_segment_end_forward_direction);
+                match property {
+                    "length" => geometry.get("length")?.as_f64(),
+                    "startAngleDeg" => start_direction,
+                    "endAngleDeg" => end_direction,
+                    _ => None,
+                }
+            }
+            _ => None,
         },
-        _ => None,
     }
 }
 
@@ -790,5 +939,117 @@ impl<'a> Parser<'a> {
         let token = self.tokens.get(self.index).cloned();
         self.index += 1;
         token
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::computed_reference_value;
+    use serde_json::json;
+
+    #[test]
+    fn exposes_canonical_endpoint_and_radial_angles() {
+        let line = json!({
+            "kind": "line",
+            "start": {"x": 0.0, "y": 0.0},
+            "end": {"x": 10.0, "y": 0.0},
+            "length": 10.0
+        });
+        assert_eq!(computed_reference_value(&line, "startAngleDeg"), Some(0.0));
+        assert_eq!(computed_reference_value(&line, "endAngleDeg"), Some(180.0));
+        assert_eq!(
+            computed_reference_value(&line, "startTangentAngleDeg"),
+            None
+        );
+
+        let arc = json!({
+            "kind": "arcLine",
+            "center": {"x": 0.0, "y": 0.0},
+            "start": {"x": 10.0, "y": 0.0},
+            "end": {"x": 0.0, "y": 10.0},
+            "radius": 10.0,
+            "startAngleDeg": 0.0,
+            "endAngleDeg": 90.0,
+            "sweepAngleDeg": 90.0,
+            "length": 15.0
+        });
+        assert_eq!(computed_reference_value(&arc, "startAngleDeg"), Some(90.0));
+        assert_eq!(computed_reference_value(&arc, "endAngleDeg"), Some(0.0));
+        assert_eq!(
+            computed_reference_value(&arc, "startRadiusAngleDeg"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&arc, "endRadiusAngleDeg"),
+            Some(90.0)
+        );
+        assert_eq!(computed_reference_value(&arc, "sweepAngleDeg"), Some(90.0));
+    }
+
+    #[test]
+    fn skips_degenerate_polyline_and_bezier_material() {
+        let polyline = json!({
+            "kind": "polyline",
+            "segments": [
+                {"kind": "line", "start": {"x": 0.0, "y": 0.0}, "end": {"x": 0.0, "y": 0.0}},
+                {"kind": "line", "start": {"x": 0.0, "y": 0.0}, "end": {"x": 0.0, "y": 1.0}},
+                {"kind": "line", "start": {"x": 0.0, "y": 1.0}, "end": {"x": 0.0, "y": 0.0}}
+            ],
+            "length": 2.0
+        });
+        assert_eq!(
+            computed_reference_value(&polyline, "startAngleDeg"),
+            Some(90.0)
+        );
+        assert_eq!(
+            computed_reference_value(&polyline, "endAngleDeg"),
+            Some(90.0)
+        );
+
+        let bezier = json!({
+            "kind": "bezierCurve",
+            "segments": [
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 0.0, "y": 0.0},
+                    "control2": {"x": 0.0, "y": 0.0},
+                    "end": {"x": 0.0, "y": 0.0}
+                },
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 0.0, "y": 0.0},
+                    "control2": {"x": 1.0, "y": 1.0},
+                    "end": {"x": 2.0, "y": 2.0}
+                },
+                {
+                    "start": {"x": 2.0, "y": 2.0},
+                    "control1": {"x": 2.0, "y": 2.0},
+                    "control2": {"x": 2.0, "y": 2.0},
+                    "end": {"x": 2.0, "y": 2.0}
+                }
+            ],
+            "length": 2.82842712474619
+        });
+        assert_eq!(
+            computed_reference_value(&bezier, "startAngleDeg"),
+            Some(45.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "endAngleDeg"),
+            Some(225.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "startHandleLength"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "startHandleAngleDeg"),
+            None
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "endHandleLength"),
+            Some(0.0)
+        );
+        assert_eq!(computed_reference_value(&bezier, "endHandleAngleDeg"), None);
     }
 }

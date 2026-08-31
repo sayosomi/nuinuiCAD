@@ -1625,10 +1625,10 @@ describe("DrawingCanvas point dragging", () => {
     });
 
     expect(getByRole("menu", { name: "数値参照候補" })).toBeInTheDocument();
-    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始接線角度/ }));
+    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始点からパス内部への角度/ }));
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
-      x: { kind: "expression", expression: "line-ab.startTangentAngleDeg" }
+      x: { kind: "expression", expression: "line-ab.startAngleDeg" }
     });
   });
 
@@ -1660,10 +1660,10 @@ describe("DrawingCanvas point dragging", () => {
       pointerId: 1
     });
 
-    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始接線角度/ }));
+    fireEvent.click(getByRole("menuitem", { name: /直線AB.*始点からパス内部への角度/ }));
     expect(useCadStore.getState().activeNumericReferencePickTarget).toBeNull();
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
-      x: { kind: "expression", expression: "10 + line-ab.startTangentAngleDeg" }
+      x: { kind: "expression", expression: "10 + line-ab.startAngleDeg" }
     });
   });
 

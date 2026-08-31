@@ -58,7 +58,11 @@ import { isScalarTypeAssignable } from "../scalars/scalarAssignability";
 import type { ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "../scalars/setCompletionCandidates";
-import { NUMERIC_COMPUTED_GEOMETRY_PROPERTIES } from "../geometry/numericExpressions";
+import {
+  numericGeometryPropertiesForStaticTarget,
+  numericGeometryStaticTargetForConstruction,
+  numericGeometryStaticTargetForElementInDocument
+} from "../geometry/numericGeometryProperties";
 import { isLineLikeElement, isPointElement } from "../model/pointAnchors";
 import type { CadElement } from "../types/geometry";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -463,10 +467,21 @@ const sourceGeometryPropertyCandidates = (
   if (!namespace || statementIndex < 0) return [];
   const lookup = resolveSourceLexicalPath(namespace, statementIndex, parseDslReferenceToken(elementToken));
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "geometry") return [];
+  if (lookup.declaration.statement.kind !== "element") return [];
   const elementType = dslStatementElementType(lookup.declaration.statement);
   if (!elementType) return [];
   if (expectedType?.kind === "number") {
-    return NUMERIC_COMPUTED_GEOMETRY_PROPERTIES.map((label) => ({
+    const element = compiled.sourceElementsByStatementIndex.get(lookup.declaration.statementIndex);
+    const target = element
+      ? numericGeometryStaticTargetForElementInDocument(
+          element,
+          [...compiled.sourceElementsByStatementIndex.values()]
+        )
+      : numericGeometryStaticTargetForConstruction(
+          lookup.declaration.statement.category,
+          lookup.declaration.statement.construction
+        );
+    return numericGeometryPropertiesForStaticTarget(target).map((label) => ({
       kind: "property" as const,
       label,
       identity: `${lookup.declaration.statementId}:${label}`

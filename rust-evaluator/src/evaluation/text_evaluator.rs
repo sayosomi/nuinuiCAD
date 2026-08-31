@@ -19,18 +19,11 @@ pub(crate) fn text_number(value: f64) -> String {
 }
 
 fn property_key(value: &str) -> &str {
-    match value {
-        "長さ" => "length",
-        "始角度" => "startAngleDeg",
-        "終角度" => "endAngleDeg",
-        "始点接線角度" => "startTangentAngleDeg",
-        "終点接線角度" => "endTangentAngleDeg",
-        "始点ハンドル角度" => "startHandleAngleDeg",
-        "始点ハンドル長" => "startHandleLength",
-        "終点ハンドル角度" => "endHandleAngleDeg",
-        "終点ハンドル長" => "endHandleLength",
-        _ => value,
-    }
+    // Public property aliases are presentation-only. Text-template numeric
+    // references arrive at the same canonical English input boundary as
+    // source expressions; only the measurement function aliases are handled
+    // by the numeric-expression tokenizer.
+    value
 }
 
 /// Maps each `.`-separated segment of a property path through `property_key`

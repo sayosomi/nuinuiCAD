@@ -1,17 +1,25 @@
 import { createDependencyIndex } from "../model/dependencies";
-import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { getParameterValue } from "../parameters/parameterAccess";
 import {
   runtimeOnlyElementTypes,
   type CadElement,
   type ComputedGeometry,
-  type ComputedPoint,
   type ElementId,
   type EvaluationResult,
   type NumericValue,
   type PointAnchor
 } from "../types/geometry";
-import { evaluateNumericValue, isNumericExpression } from "./numericExpressions";
+import {
+  computedReferencePathValue,
+  evaluateNumericValue,
+  isNumericExpression
+} from "./numericExpressions";
+import {
+  numericGeometryPropertiesForStaticTarget,
+  numericGeometryStaticTargetForComputedGeometry,
+  numericGeometryStaticTargetForElementInDocument,
+  type NumericGeometryStaticTarget
+} from "./numericGeometryProperties";
 import {
   isSemanticGeometryCandidateAllowed,
   sourceReferenceForElement,
@@ -65,97 +73,10 @@ const concreteExpression = (element: CadElement, path: string, context: ResolveC
   }) ?? `${element.id}.${path}`}`;
 const displayExpression = (element: CadElement, path: string) => `${element.name}.${path}`;
 
-const pointPathValue = (point: ComputedPoint | null | undefined, path: string) => {
-  if (!point) return undefined;
-  if (path === "x") return point.x;
-  if (path === "y") return point.y;
-  return undefined;
-};
-
 export const computedNumericReferenceValue = (
   geometry: ComputedGeometry | undefined,
   path: string
-): number | undefined => {
-  if (!geometry) return undefined;
-  if (geometry.kind === "point") return pointPathValue(geometry, path);
-
-  if (geometry.kind === "line") {
-    if (path === "length") return geometry.length;
-    if (path === "startAngleDeg") return geometry.startAngleDeg ?? undefined;
-    if (path === "endAngleDeg") return geometry.endAngleDeg ?? undefined;
-    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
-    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
-    if (path.startsWith("startPoint.")) return pointPathValue(geometry.start, path.slice("startPoint.".length));
-    if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
-  }
-
-  if (geometry.kind === "arcLine") {
-    if (path === "length") return geometry.length;
-    if (path === "radius") return geometry.radius;
-    if (path === "startAngleDeg") return geometry.startAngleDeg;
-    if (path === "endAngleDeg") return geometry.endAngleDeg;
-    if (path === "sweepAngleDeg") return geometry.sweepAngleDeg;
-    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg;
-    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg;
-    if (path.startsWith("centerPoint.")) return pointPathValue(geometry.center, path.slice("centerPoint.".length));
-    if (path.startsWith("startPoint.")) return pointPathValue(geometry.start, path.slice("startPoint.".length));
-    if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
-  }
-
-  if (geometry.kind === "bezierCurve") {
-    const start = geometry.segments[0]?.start;
-    const end = geometry.segments.at(-1)?.end;
-    if (path === "length") return geometry.length;
-    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
-    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
-    if (path === "startHandleAngleDeg") return geometry.startHandleAngleDeg;
-    if (path === "startHandleLength") return geometry.startHandleLength;
-    if (path === "endHandleAngleDeg") return geometry.endHandleAngleDeg;
-    if (path === "endHandleLength") return geometry.endHandleLength;
-    if (path.startsWith("startPoint.")) return pointPathValue(start, path.slice("startPoint.".length));
-    if (path.startsWith("endPoint.")) return pointPathValue(end, path.slice("endPoint.".length));
-    const intermediateMatch = path.match(/^intermediatePoints\[(\d+)\]\.(x|y)$/);
-    if (intermediateMatch) {
-      const point = geometry.segments[Number(intermediateMatch[1]) - 1]?.end;
-      return pointPathValue(point, intermediateMatch[2]);
-    }
-  }
-
-  if (geometry.kind === "offsetLine") {
-    if (path === "length") return geometry.length;
-    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
-    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
-    if (path.startsWith("startPoint.")) return pointPathValue(geometry.start, path.slice("startPoint.".length));
-    if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
-  }
-
-  if (geometry.kind === "polyline") {
-    if (path === "length") return geometry.length;
-    if (path === "startTangentAngleDeg") return geometry.startTangentAngleDeg ?? undefined;
-    if (path === "endTangentAngleDeg") return geometry.endTangentAngleDeg ?? undefined;
-    if (path.startsWith("startPoint.")) return pointPathValue(geometry.start, path.slice("startPoint.".length));
-    if (path.startsWith("endPoint.")) return pointPathValue(geometry.end, path.slice("endPoint.".length));
-  }
-
-  if (geometry.kind === "image") {
-    if (path === "widthMm") return geometry.widthMm;
-    if (path === "heightMm") return geometry.heightMm;
-    if (path === "scale") return geometry.scale;
-    if (path === "angleDeg") return geometry.angleDeg;
-    if (path === "naturalWidthPx") return geometry.naturalWidthPx;
-    if (path === "naturalHeightPx") return geometry.naturalHeightPx;
-    if (path === "sourceDpi") return geometry.sourceDpi;
-    if (path === "targetPixelsPerMm") return geometry.targetPixelsPerMm;
-    if (path.startsWith("originPoint.")) return pointPathValue(geometry.origin, path.slice("originPoint.".length));
-  }
-
-  if (geometry.kind === "text") {
-    if (path === "fontSize") return geometry.fontSize;
-    if (path.startsWith("anchorPoint.")) return pointPathValue(geometry.anchor, path.slice("anchorPoint.".length));
-  }
-
-  return undefined;
-};
+): number | undefined => computedReferencePathValue(geometry, path);
 
 const evaluateNumericParameter = (value: NumericValue, context: ResolveContext) => {
   const elementsById = new Map(context.elements.map((element) => [element.id, element]));
@@ -211,77 +132,12 @@ export const numericReferenceValueForPath = (
     : computedNumericReferenceValue(context.evaluation.computedGeometry.get(element.id), path);
 };
 
-export const computedPathsForGeometry = (geometry: ComputedGeometry | undefined) => {
-  if (!geometry) return [];
-  if (geometry.kind === "point") return ["x", "y"];
-  if (geometry.kind === "line") {
-    return [
-      "length",
-      "startPoint.x",
-      "startPoint.y",
-      "endPoint.x",
-      "endPoint.y",
-      "startAngleDeg",
-      "endAngleDeg",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
-    ];
-  }
-  if (geometry.kind === "arcLine") {
-    return [
-      "length",
-      "radius",
-      "centerPoint.x",
-      "centerPoint.y",
-      "startPoint.x",
-      "startPoint.y",
-      "endPoint.x",
-      "endPoint.y",
-      "startAngleDeg",
-      "endAngleDeg",
-      "sweepAngleDeg",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
-    ];
-  }
-  if (geometry.kind === "bezierCurve") {
-    return [
-      "length",
-      "startPoint.x",
-      "startPoint.y",
-      "endPoint.x",
-      "endPoint.y",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg",
-      "startHandleAngleDeg",
-      "startHandleLength",
-      "endHandleAngleDeg",
-      "endHandleLength",
-      ...geometry.segments.slice(0, -1).flatMap((_, index) => [
-        `intermediatePoints[${index + 1}].x`,
-        `intermediatePoints[${index + 1}].y`
-      ])
-    ];
-  }
-  if (geometry.kind === "offsetLine") {
-    return ["length", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-  if (geometry.kind === "polyline") {
-    return ["length", "startPoint.x", "startPoint.y", "endPoint.x", "endPoint.y", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-  if (geometry.kind === "image") {
-    return ["originPoint.x", "originPoint.y", "widthMm", "heightMm", "scale", "angleDeg", "naturalWidthPx", "naturalHeightPx", "sourceDpi", "targetPixelsPerMm"];
-  }
-  if (geometry.kind === "text") return ["anchorPoint.x", "anchorPoint.y", "fontSize"];
-  return [];
-};
-
-export const parameterPathsForElement = (element: CadElement) =>
-  getParameterDefinitions(element).flatMap((definition) => {
-    if (definition.kind === "number") return [`params.${definition.key}`];
-    if (definition.kind === "reference") return [`params.${definition.key}.x`, `params.${definition.key}.y`];
-    return [];
-  });
+export const computedPathsForGeometry = (
+  geometry: ComputedGeometry | undefined,
+  staticTarget?: NumericGeometryStaticTarget | null
+) => numericGeometryPropertiesForStaticTarget(
+  staticTarget === undefined ? numericGeometryStaticTargetForComputedGeometry(geometry) : staticTarget
+);
 
 const candidateForPath = ({
   element,
@@ -301,7 +157,6 @@ const candidateForPath = ({
   displayPrefix?: string;
 }): NumericReferenceCandidate | null => {
   const value = numericReferenceValueForPath(element, path, context);
-  if (value === undefined) return null;
   const expression = concreteExpression(element, path, context);
   const shown = displayPrefix ? `${displayPrefix}.${path}` : displayExpression(element, path);
   return {
@@ -312,7 +167,7 @@ const candidateForPath = ({
     displayExpression: shown,
     label: shown,
     detail: element.name,
-    valueLabel: formatValue(value, path),
+    valueLabel: value === undefined ? "" : formatValue(value, path),
     insertable,
     disabledReason
   };
@@ -341,8 +196,10 @@ const candidatesForElement = ({
     }))
     ? []
     : [
-        ...computedPathsForGeometry(context.evaluation.computedGeometry.get(element.id)),
-        ...parameterPathsForElement(element)
+        ...computedPathsForGeometry(
+          context.evaluation.computedGeometry.get(element.id),
+          numericGeometryStaticTargetForElementInDocument(element, context.elements)
+        )
       ]),
 ].flatMap((path) => {
   const candidate = candidateForPath({
@@ -366,19 +223,20 @@ export const numericReferenceCandidates = (context: ResolveContext & { query?: s
 
   if (currentElement) {
     candidates.push(
-      ...parameterPathsForElement(currentElement)
-        .filter((path) => path !== `params.${context.currentParameterKey}`)
-        .flatMap((path) => {
-          const candidate = candidateForPath({
-            element: currentElement,
-            path,
-            relation: "self",
-            context,
-            insertable: true,
-            displayPrefix: "self"
-          });
-          return candidate ? [candidate] : [];
-        })
+      ...computedPathsForGeometry(
+        context.evaluation.computedGeometry.get(currentElement.id),
+        numericGeometryStaticTargetForElementInDocument(currentElement, context.elements)
+      ).flatMap((path) => {
+        const candidate = candidateForPath({
+          element: currentElement,
+          path,
+          relation: "self",
+          context,
+          insertable: true,
+          displayPrefix: "self"
+        });
+        return candidate ? [candidate] : [];
+      })
     );
 
     for (const [index, parentId] of (dependencyIndex.parentIdsByElementId.get(currentElement.id) ?? []).entries()) {

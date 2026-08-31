@@ -282,7 +282,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       "  group 縫い代 {",
       "    group 縫い代写し {",
       "      line 脇コピー = segment(start: (0, 0), end: (5, 0))",
-      "      const 角度: number = @後ろ身頃::先に縫う.endTangentAngleDeg - @脇コピー.endTangentAngleDeg",
+      "      const 角度: number = @後ろ身頃::先に縫う.endAngleDeg - @脇コピー.endAngleDeg",
       "    }",
       "  }",
       "}"
@@ -302,14 +302,14 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       {
         elementName: "後ろ身頃::先に縫う",
         elementId: first?.id,
-        property: "endTangentAngleDeg",
+        property: "endAngleDeg",
         targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "先に縫う"),
         type: { kind: "number" }
       },
       {
         elementName: "脇コピー",
         elementId: second?.id,
-        property: "endTangentAngleDeg",
+        property: "endAngleDeg",
         targetSourceOrder: fixture.statements.findIndex((statement) => statement.kind === "element" && statement.name === "脇コピー"),
         type: { kind: "number" }
       }

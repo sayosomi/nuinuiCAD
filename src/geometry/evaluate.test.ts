@@ -5030,7 +5030,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
 
     const point = result.computedGeometry.get("c");
     expect(result.errors).toHaveLength(0);
-    expect(point).toMatchObject({ kind: "point", x: 10 + Math.PI * 10, y: 40 });
+    expect(point).toMatchObject({ kind: "point", x: 10 + Math.PI * 10, y: 30 });
   });
 
   it("evaluates a three-point arc line by fitting a circle && trimming by angles", () => {
@@ -5145,7 +5145,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.errors).toHaveLength(0);
     expect(arc).toMatchObject({ kind: "arcLine", sweepAngleDeg: 90 });
     if (arc?.kind !== "arcLine") throw new Error("Expected an arc line");
-    expect(point).toMatchObject({ kind: "point", x: 20 + Math.PI * 10, y: 30 });
+    expect(point).toMatchObject({ kind: "point", x: 20 + Math.PI * 10, y: 300 });
   });
 
   it("reports a three-point arc dependency that appears too late", () => {
@@ -5276,8 +5276,8 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
-  it("normalizes displayed Japanese line measurement references before evaluation", () => {
-    const expression = normalizeNumericExpressionInput("直線AB.長さ + 10", validElements);
+  it("keeps canonical line measurement references unchanged before evaluation", () => {
+    const expression = normalizeNumericExpressionInput("直線AB.length + 10", validElements);
     const result = evaluateElements([
       ...validElements,
       {

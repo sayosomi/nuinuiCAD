@@ -102,14 +102,14 @@ describe("normalizeNumericExpressionInput", () => {
     ];
 
     expect(normalizeNumericExpressionInput("脇線.長さ", elements, elements[2])).toBe(
-      "front-line.length"
+      "front-line.長さ"
     );
     expect(normalizeNumericExpressionInput("後身頃::脇線.長さ", elements, elements[2])).toBe(
-      "back-line.length"
+      "back-line.長さ"
     );
   });
 
-  it("normalizes Japanese curve length references", () => {
+  it("does not accept Japanese geometry-property aliases", () => {
     const elements: CadElement[] = [
       {
         id: "curve-ac",
@@ -127,13 +127,13 @@ describe("normalizeNumericExpressionInput", () => {
     ];
 
     expect(normalizeNumericExpressionInput("曲線AC.長さ + 5", elements)).toBe(
-      "curve-ac.length + 5"
+      "curve-ac.長さ + 5"
     );
     expect(normalizeNumericExpressionInput("曲線AC.長さ > 0", elements)).toBe(
-      "curve-ac.length > 0"
+      "curve-ac.長さ > 0"
     );
     expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100  or  曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.length >= 100  or  curve-ac.length == 0"
+      "curve-ac.長さ >= 100  or  curve-ac.長さ == 0"
     );
   });
 
@@ -195,7 +195,7 @@ describe("normalizeNumericExpressionInput", () => {
     );
   });
 
-  it("normalizes the nui 1 sigil form of a Japanese-label element property reference", () => {
+  it("keeps Japanese-label properties unchanged in the nui 1 sigil form", () => {
     const elements: CadElement[] = [
       {
         id: "curve-ac",
@@ -212,9 +212,9 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.length + 5");
+    expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.長さ + 5");
     expect(normalizeNumericExpressionInput("@曲線AC.長さ >= 100  or  @曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.length >= 100  or  curve-ac.length == 0"
+      "curve-ac.長さ >= 100  or  curve-ac.長さ == 0"
     );
   });
 
@@ -278,7 +278,7 @@ describe("normalizeNumericExpressionInput", () => {
     expect(normalizeNumericExpressionInput("@CD.length", elements)).toBe("line-cd.length");
   });
 
-  it("normalizes a self-referencing Japanese property label on a measurable element type", () => {
+  it("keeps a self-referencing Japanese property label out of source aliases", () => {
     const curve: CadElement = {
       id: "curve-ac",
       name: "曲線AC",
@@ -293,12 +293,11 @@ describe("normalizeNumericExpressionInput", () => {
       endHandleLength: 20
     };
 
-    // The measurable-element (Japanese-label) sigil loop -
-    // not just the generic nameTokens loop exercised by the freePoint cases
-    // above - must also fall through for a self-reference.
+    // Presentation labels are not accepted source aliases, including on a
+    // self-reference.
     expect(
       normalizeNumericExpressionInput("@曲線AC.長さ", [curve], curve)
-    ).toBe("curve-ac.length");
+    ).toBe("curve-ac.長さ");
   });
 
   it("falls through to the element-property arm for a self-referencing multi-segment property path", () => {

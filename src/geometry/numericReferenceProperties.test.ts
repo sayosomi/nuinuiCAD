@@ -19,6 +19,7 @@ import {
   numericReferencePropertiesForElement,
   numericReferencePropertiesForGeometry
 } from "./numericReferenceProperties";
+import { numericGeometryStaticTargetForModuleInterface } from "./numericGeometryProperties";
 
 const point = (id: string, x = 0, y = 0): ComputedPoint => ({
   kind: "point",
@@ -123,20 +124,22 @@ describe("numericReferenceProperties", () => {
   it("lists computed geometry reference properties by geometry kind", () => {
     expect(numericReferencePropertiesForGeometry(line)).toEqual([
       "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
+      "startAngleDeg",
+      "endAngleDeg"
     ]);
     expect(numericReferencePropertiesForGeometry(arc)).toEqual([
       "length",
       "startAngleDeg",
       "endAngleDeg",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
+      "radius",
+      "sweepAngleDeg",
+      "startRadiusAngleDeg",
+      "endRadiusAngleDeg"
     ]);
     expect(numericReferencePropertiesForGeometry(curve)).toEqual([
       "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg",
+      "startAngleDeg",
+      "endAngleDeg",
       "startHandleAngleDeg",
       "startHandleLength",
       "endHandleAngleDeg",
@@ -144,25 +147,25 @@ describe("numericReferenceProperties", () => {
     ]);
     expect(numericReferencePropertiesForGeometry(offsetLine)).toEqual([
       "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
+      "startAngleDeg",
+      "endAngleDeg"
     ]);
     expect(numericReferencePropertiesForGeometry(polyline)).toEqual([
       "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg"
+      "startAngleDeg",
+      "endAngleDeg"
     ]);
   });
 
   it("lists static element reference properties where element type is enough", () => {
     const cases: Array<[CadElement, readonly string[]]> = [
-      [{ ...baseElement, type: "line", startPoint: { mode: "coordinate", x: 0, y: 0 }, endPoint: { mode: "coordinate", x: 10, y: 0 } }, ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"]],
-      [{ ...baseElement, type: "arcLine", centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 10, startAngleDeg: 0, endAngleDeg: 90 }, ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"]],
-      [{ ...baseElement, type: "bezierCurve", startPoint: { mode: "coordinate", x: 0, y: 0 }, startHandleAngleDeg: 0, startHandleLength: 10, intermediatePoints: [], endPoint: { mode: "coordinate", x: 10, y: 0 }, endHandleAngleDeg: 180, endHandleLength: 10 }, ["length", "startTangentAngleDeg", "endTangentAngleDeg", "startHandleAngleDeg", "startHandleLength", "endHandleAngleDeg", "endHandleLength"]],
-      [{ ...baseElement, type: "offsetLine", baseLineIds: ["line"], offset: 10, side: "right", closed: false }, ["length", "startTangentAngleDeg", "endTangentAngleDeg"]],
-      [{ ...baseElement, type: "copyLine", startPoint: { mode: "coordinate", x: 0, y: 0 }, endPoint: { mode: "coordinate", x: 10, y: 0 }, scale: 1, angleDeg: 0, mirrorX: false, baseLineIds: ["line"] }, ["length", "startTangentAngleDeg", "endTangentAngleDeg"]],
-      [{ ...baseElement, type: "symmetricCopyLine", axisPoint1: { mode: "coordinate", x: 0, y: 0 }, axisPoint2: { mode: "coordinate", x: 0, y: 10 }, baseLineIds: ["line"] }, ["length", "startTangentAngleDeg", "endTangentAngleDeg"]],
-      [{ ...baseElement, type: "splitLine", baseLineId: "line", splitPoint: { mode: "coordinate", x: 5, y: 0 } }, []]
+      [{ ...baseElement, type: "line", startPoint: { mode: "coordinate", x: 0, y: 0 }, endPoint: { mode: "coordinate", x: 10, y: 0 } }, ["length", "startAngleDeg", "endAngleDeg"]],
+      [{ ...baseElement, type: "arcLine", centerPoint: { mode: "coordinate", x: 0, y: 0 }, radius: 10, startAngleDeg: 0, endAngleDeg: 90 }, ["length", "startAngleDeg", "endAngleDeg", "radius", "sweepAngleDeg", "startRadiusAngleDeg", "endRadiusAngleDeg"]],
+      [{ ...baseElement, type: "bezierCurve", startPoint: { mode: "coordinate", x: 0, y: 0 }, startHandleAngleDeg: 0, startHandleLength: 10, intermediatePoints: [], endPoint: { mode: "coordinate", x: 10, y: 0 }, endHandleAngleDeg: 180, endHandleLength: 10 }, ["length", "startAngleDeg", "endAngleDeg", "startHandleAngleDeg", "startHandleLength", "endHandleAngleDeg", "endHandleLength"]],
+      [{ ...baseElement, type: "offsetLine", baseLineIds: ["line"], offset: 10, side: "right", closed: false }, ["length", "startAngleDeg", "endAngleDeg"]],
+      [{ ...baseElement, type: "copyLine", startPoint: { mode: "coordinate", x: 0, y: 0 }, endPoint: { mode: "coordinate", x: 10, y: 0 }, scale: 1, angleDeg: 0, mirrorX: false, baseLineIds: ["line"] }, ["length", "startAngleDeg", "endAngleDeg"]],
+      [{ ...baseElement, type: "symmetricCopyLine", axisPoint1: { mode: "coordinate", x: 0, y: 0 }, axisPoint2: { mode: "coordinate", x: 0, y: 10 }, baseLineIds: ["line"] }, ["length", "startAngleDeg", "endAngleDeg"]],
+      [{ ...baseElement, type: "splitLine", baseLineId: "line", splitPoint: { mode: "coordinate", x: 5, y: 0 } }, ["length", "startAngleDeg", "endAngleDeg"]]
     ];
 
     for (const [element, expected] of cases) {
@@ -173,16 +176,25 @@ describe("numericReferenceProperties", () => {
   it("rejects unsupported properties for a computed geometry kind", () => {
     expect(numericReferenceGeometrySupportsProperty(curve, "startHandleLength")).toBe(true);
     expect(numericReferenceGeometrySupportsProperty(line, "startHandleLength")).toBe(false);
-    expect(numericReferenceGeometrySupportsProperty(offsetLine, "startAngleDeg")).toBe(false);
+    expect(numericReferenceGeometrySupportsProperty(offsetLine, "startAngleDeg")).toBe(true);
+  });
+
+  it("uses an explicit static Module target for Canvas-style geometry candidates", () => {
+    expect(numericReferencePropertiesForGeometry(
+      arc,
+      numericGeometryStaticTargetForModuleInterface("path")
+    )).toEqual(["length", "startAngleDeg", "endAngleDeg"]);
   });
 
   it("keeps the keyboard-pick cycle broad enough for every supported measurement", () => {
     expect(numericReferencePickProperties).toEqual([
       "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg",
       "startAngleDeg",
       "endAngleDeg",
+      "radius",
+      "sweepAngleDeg",
+      "startRadiusAngleDeg",
+      "endRadiusAngleDeg",
       "startHandleAngleDeg",
       "startHandleLength",
       "endHandleAngleDeg",
@@ -191,7 +203,7 @@ describe("numericReferenceProperties", () => {
   });
 
   it("starts an angle-shaped target parameter on an angle measurement instead of length", () => {
-    expect(initialNumericReferencePickProperty(angleNumericParameterStepLevels)).toBe("startTangentAngleDeg");
+    expect(initialNumericReferencePickProperty(angleNumericParameterStepLevels)).toBe("startAngleDeg");
   });
 
   it("keeps length as the default for non-angle target parameters", () => {

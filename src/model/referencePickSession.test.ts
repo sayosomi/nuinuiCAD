@@ -44,7 +44,7 @@ describe("referencePickSession", () => {
     });
     expect(confirmReferencePickSession(initial)).toBe(initial);
 
-    const first = selectReferencePickNumericGeometry(initial, hover("line-a", "LineA"), ["length", "startTangentAngleDeg"]);
+    const first = selectReferencePickNumericGeometry(initial, hover("line-a", "LineA"), ["length", "startAngleDeg"]);
     expect(first.draftReferences).toEqual([]);
     expect(first.numericProperty?.stage).toBe("propertySelection");
     expect(confirmReferencePickSession(first)).toBe(first);

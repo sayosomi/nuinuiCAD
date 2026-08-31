@@ -425,14 +425,14 @@ export const hitTestLineMeasurementCandidates = ({
       if (item.start) {
         const startDistance = Math.sqrt(squaredDistance(screen, item.start));
         if (startDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
-          candidates.push({ line: item.line, property: "startTangentAngleDeg" });
+          candidates.push({ line: item.line, property: "startAngleDeg" });
           continue;
         }
       }
       if (item.end) {
         const endDistance = Math.sqrt(squaredDistance(screen, item.end));
         if (endDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
-          candidates.push({ line: item.line, property: "endTangentAngleDeg" });
+          candidates.push({ line: item.line, property: "endAngleDeg" });
         }
       }
       continue;
@@ -442,12 +442,12 @@ export const hitTestLineMeasurementCandidates = ({
     const endDistance = Math.sqrt(squaredDistance(screen, item.end));
 
     if (startDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
-      candidates.push({ line: item.line, property: "startTangentAngleDeg" });
+      candidates.push({ line: item.line, property: "startAngleDeg" });
       continue;
     }
 
     if (endDistance <= LINE_ENDPOINT_MEASUREMENT_RADIUS_PX) {
-      candidates.push({ line: item.line, property: "endTangentAngleDeg" });
+      candidates.push({ line: item.line, property: "endAngleDeg" });
       continue;
     }
 

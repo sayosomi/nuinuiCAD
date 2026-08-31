@@ -106,7 +106,7 @@ describe("command-line pick routing", () => {
     expect(startCommandLineNumericReferencePick()).toBe(true);
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
       parameterKey: "angleDeg",
-      property: "startTangentAngleDeg"
+      property: "startAngleDeg"
     });
     applyPickedNumericReference({ numericReferenceExpression: `${line.id}.length` });
 
