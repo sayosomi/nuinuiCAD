@@ -156,7 +156,7 @@ const startWithCanvasSnapshot = (
 describe("VS Code Canvas reference pick session bridge", () => {
   it("uses coherent Canvas candidates for zero-width numeric targets while keeping the current Source target", () => {
     const declarationSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -176,7 +176,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(declaration.session?.target.sourceAnchor.sourceRevision).toBe(CANVAS_REVISION);
 
     const coordinateSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
@@ -195,7 +195,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("preserves strict and broad Module candidate semantics from the pinned Canvas snapshot", () => {
     const currentSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 20, y: 0)",
       "line Straight = segment(start: @A, end: @B)",
@@ -220,7 +220,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
 
   it("fails closed when the Canvas snapshot cannot be reconciled or is stale", () => {
     const currentSource = [
-      "nui 4",
+      "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
