@@ -158,7 +158,7 @@ describe("queryDslReferencePickTarget", () => {
     expect(sliceRange(source, result)).toBe("20");
   });
 
-  it("preserves an existing numeric property suffix by replacing only its geometry base", () => {
+  it("targets the complete existing numeric property operand at every reference token", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -175,16 +175,15 @@ describe("queryDslReferencePickTarget", () => {
       role: "numericPropertyBase",
       multiplicity: "single"
     });
-    expect(sliceRange(source, result)).toBe("@Base");
-    expect(source.slice(result!.range.to, result!.range.to + ".length".length)).toBe(".length");
+    expect(sliceRange(source, result)).toBe("@Base.length");
     expect(result?.activationRange).toEqual({ from: baseFrom, to: baseFrom + "@Base.length".length });
-    expect(result?.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+    expect(result?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
 
     for (const offset of [baseFrom + 2, baseFrom + "@Base".length, baseFrom + "@Base.".length + 2]) {
       const equivalent = queryAt(source, compiled, offset);
       expect(equivalent?.range).toEqual(result?.range);
       expect(equivalent?.activationRange).toEqual(result?.activationRange);
-      expect(equivalent?.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+      expect(equivalent?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
     }
   });
 
@@ -200,25 +199,28 @@ describe("queryDslReferencePickTarget", () => {
       "point Q = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
     ].join("\n");
     const compiled = compileWithIds(source);
-    const cases = [
-      ["@Arc.radius", "radius"],
-      ["@Arc.sweepAngleDeg", "sweepAngleDeg"],
-      ["@Curve.intermediatePoints[1].x", "intermediatePoints[1].x"]
-    ] as const;
+    const cases = ["@Arc.radius", "@Arc.sweepAngleDeg", "@Curve.intermediatePoints[1].x"] as const;
 
-    for (const [reference, property] of cases) {
+    for (const reference of cases) {
       const from = source.indexOf(reference);
       const result = queryAt(source, compiled, from + reference.indexOf(".") + 2);
       expect(result).toMatchObject({
         role: "numericPropertyBase",
-        numericProperty: { kind: "fixedProperty", property },
-        range: { from, to: from + reference.indexOf(".") }
+        numericProperty: { kind: "propertySelectionRequired" },
+        range: { from, to: from + reference.length }
       });
       expect(result?.activationRange).toEqual({ from, to: from + reference.length });
+      if (reference === "@Arc.radius") {
+        for (const offset of [from + 2, from + "@Arc".length, from + "@Arc.".length + 2]) {
+          const equivalent = queryAt(source, compiled, offset);
+          expect(equivalent?.range).toEqual({ from, to: from + reference.length });
+          expect(equivalent?.numericProperty).toEqual({ kind: "propertySelectionRequired" });
+        }
+      }
     }
   });
 
-  it("supports empty numeric operands and typed number declarations", () => {
+  it("supports empty numeric operands in calls, typed declarations, and coordinate parameters", () => {
     const emptySource = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -232,14 +234,29 @@ describe("queryDslReferencePickTarget", () => {
       numericProperty: { kind: "propertySelectionRequired" }
     });
 
-    const declarationSource = "nui 4\nconst width: number = 20";
+    const declarationSource = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const X: number = ",
+      "point P = coordinate(x: 0, y: )"
+    ].join("\n");
     const declarationCompiled = compileWithIds(declarationSource);
-    const numberFrom = declarationSource.lastIndexOf("20");
-    const declaration = queryAt(declarationSource, declarationCompiled, numberFrom + 1);
+    const declarationPosition = declarationSource.indexOf("const X: number = ") + "const X: number = ".length;
+    const declaration = queryAt(declarationSource, declarationCompiled, declarationPosition);
     expect(declaration).toMatchObject({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
-      range: { from: numberFrom, to: numberFrom + 2 },
+      range: { from: declarationPosition, to: declarationPosition },
+      numericProperty: { kind: "propertySelectionRequired" }
+    });
+
+    const coordinatePosition = declarationSource.indexOf("y: )") + "y: ".length;
+    expect(queryAt(declarationSource, declarationCompiled, coordinatePosition)).toMatchObject({
+      expectedGeometryInterface: "path",
+      role: "numericPropertyBase",
+      range: { from: coordinatePosition, to: coordinatePosition },
       numericProperty: { kind: "propertySelectionRequired" }
     });
   });

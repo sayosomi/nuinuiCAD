@@ -31,7 +31,7 @@ const fixture = (source: string, fragment: string) => {
 };
 
 describe("planVscodeReferencePickSourceEdit", () => {
-  it("revalidates the exact target and preserves a numeric property suffix", () => {
+  it("revalidates the exact target and replaces a complete numeric property operand", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -56,8 +56,13 @@ describe("planVscodeReferencePickSourceEdit", () => {
     });
 
     expect(plan).not.toBeNull();
+    expect(plan?.range).toEqual({
+      from: source.indexOf("@Base.length"),
+      to: source.indexOf("@Base.length") + "@Base.length".length
+    });
     const next = source.slice(0, plan!.range.from) + plan!.replacement + source.slice(plan!.range.to);
     expect(next).toContain("dx: @Other.length");
+    expect(next).not.toContain("@Base.length");
     expect(plan?.caretNormalizedOffset).toBe(plan!.range.from + "@Other.length".length);
   });
 
@@ -144,7 +149,57 @@ describe("planVscodeReferencePickSourceEdit", () => {
       .toContain("dx: @Base.length");
   });
 
-  it("rejects forged, unsupported, and fixed-property-mismatched numeric results", () => {
+  it("inserts complete numeric property expressions for empty declaration and coordinate operands", () => {
+    const source = [
+      "nui 4",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "const X: number = ",
+      "point P = coordinate(x: 0, y: )"
+    ].join("\n");
+    const compiled = compile(source);
+    const numericCandidate = { reference: { base: "Base" }, properties: ["length"] as const };
+
+    const planFor = (position: number) => {
+      const target = queryDslReferencePickTarget({
+        source: { normalizedSource: source, sourceRevision: REVISION },
+        position,
+        semantic: { sourceRevision: REVISION, sourceText: source, compiled }
+      });
+      if (!target) throw new Error(`missing empty target at ${position}`);
+      const proof = referencePickTargetProofFor(source, target);
+      if (!proof) throw new Error(`missing empty proof at ${position}`);
+      return planVscodeReferencePickSourceEdit({
+        source: { normalizedSource: source, sourceRevision: REVISION },
+        compiled,
+        normalizedSourceOffset: position,
+        targetProof: proof,
+        references: [],
+        allowedCandidateReferences: [{ base: "Base" }],
+        numericProperty: { reference: numericCandidate.reference, property: "length" },
+        allowedNumericCandidates: [numericCandidate]
+      });
+    };
+
+    const declarationPosition = source.indexOf("const X: number = ") + "const X: number = ".length;
+    const declarationPlan = planFor(declarationPosition);
+    expect(declarationPlan).toMatchObject({
+      range: { from: declarationPosition, to: declarationPosition },
+      replacement: "@Base.length",
+      caretNormalizedOffset: declarationPosition + "@Base.length".length
+    });
+
+    const coordinatePosition = source.indexOf("y: )") + "y: ".length;
+    const coordinatePlan = planFor(coordinatePosition);
+    expect(coordinatePlan).toMatchObject({
+      range: { from: coordinatePosition, to: coordinatePosition },
+      replacement: "@Base.length",
+      caretNormalizedOffset: coordinatePosition + "@Base.length".length
+    });
+  });
+
+  it("rejects forged and unsupported numeric results", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",

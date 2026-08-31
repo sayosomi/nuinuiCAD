@@ -27,8 +27,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
 import {
-  isNumericComputedGeometryProperty,
-  type NumericComputedGeometryProperty
+  isNumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
 
 export type DslReferencePickRange = { from: number; to: number };
@@ -37,9 +36,7 @@ export type DslReferencePickRole = "geometry" | "endpoint" | "numericPropertyBas
 
 export type DslReferencePickMultiplicity = "single" | "multiple";
 
-export type DslReferencePickNumericPropertyTarget =
-  | { kind: "propertySelectionRequired" }
-  | { kind: "fixedProperty"; property: NumericComputedGeometryProperty };
+export type DslReferencePickNumericPropertyTarget = { kind: "propertySelectionRequired" };
 
 export type DslReferencePickSourceAnchor = {
   sourceRevision: SourceRevision;
@@ -122,7 +119,13 @@ const exactPositionAt = (source: SourceSnapshot, position: number): ExactPositio
   );
   if (statementIndex < 0) return null;
   const statement = map.statements[statementIndex]!;
-  const logicalPosition = physicalToLogicalOffset(map, statement, position);
+  const logicalPosition = physicalToLogicalOffset(map, statement, position) ?? (() => {
+    const lastSegment = statement.segments.at(-1);
+    if (!lastSegment || position < lastSegment.to || position > statement.range.to) return null;
+    return source.normalizedSource.slice(lastSegment.to, position).trim().length === 0
+      ? statement.logicalText.length
+      : null;
+  })();
   return logicalPosition === null ? null : { map, statement, statementIndex, logicalPosition };
 };
 
@@ -303,13 +306,11 @@ const numericOperandTarget = (
 
   if (token?.kind === "geometryProperty") {
     if (!isNumericComputedGeometryProperty(token.property)) return null;
-    const baseRange = { start: token.span.start, end: token.elementNameSpan.end };
-    return logicalPosition >= baseRange.start && logicalPosition <= token.span.end
+    return logicalPosition >= token.span.start && logicalPosition <= token.span.end
       ? {
           expectation,
-          range: baseRange,
-          activationRange: token.span,
-          numericProperty: { kind: "fixedProperty", property: token.property }
+          range: token.span,
+          numericProperty: { kind: "propertySelectionRequired" }
         }
       : null;
   }

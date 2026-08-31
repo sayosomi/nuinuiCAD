@@ -64,7 +64,7 @@ describe("reference pick VS Code protocol proof", () => {
     )).toBe(false);
   });
 
-  it("proves the complete numeric occurrence separately from its editable base", () => {
+  it("proves the complete numeric property operand as its editable range", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
@@ -76,14 +76,14 @@ describe("reference pick VS Code protocol proof", () => {
     const proof = referencePickTargetProofFor(source, target)!;
 
     expect(proof.range).toEqual({ from: target.range.from, to: target.range.to });
-    expect(source.slice(proof.range.from, proof.range.to)).toBe("@Base");
+    expect(source.slice(proof.range.from, proof.range.to)).toBe("@Base.length");
     expect(source.slice(proof.activationRange.from, proof.activationRange.to)).toBe("@Base.length");
-    expect(proof.numericProperty).toEqual({ kind: "fixedProperty", property: "length" });
+    expect(proof.numericProperty).toEqual({ kind: "propertySelectionRequired" });
     expect(referencePickTargetMatchesProof(source, target, proof)).toBe(true);
     expect(referencePickTargetMatchesProof(source.replace("length", "endAngleDeg"), target, proof)).toBe(false);
     expect(referencePickTargetMatchesProof(source, target, {
       ...proof,
-      numericProperty: { kind: "fixedProperty", property: "endAngleDeg" }
+      numericProperty: null
     })).toBe(false);
   });
 

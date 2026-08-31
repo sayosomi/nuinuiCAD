@@ -129,12 +129,7 @@ const validRange = (
 const sameNumericPropertyTarget = (
   left: DslReferencePickTarget["numericProperty"] | null | undefined,
   right: VscodeReferencePickTargetProof["numericProperty"] | null | undefined
-): boolean => {
-  if (!left || !right || left.kind !== right.kind) return left === right;
-  return left.kind === "fixedProperty" && right.kind === "fixedProperty"
-    ? left.property === right.property
-    : true;
-};
+): boolean => (left?.kind ?? null) === (right?.kind ?? null);
 
 export const referencePickTargetProofFor = (
   normalizedSource: string,
@@ -145,8 +140,7 @@ export const referencePickTargetProofFor = (
   const numericProperty = target.numericProperty ?? null;
   if (!validRange(normalizedSource, target.range) || !validRange(normalizedSource, activationRange)) return null;
   if (
-    (target.role === "numericPropertyBase" && !numericProperty) ||
-    (numericProperty?.kind === "fixedProperty" && !isNumericComputedGeometryProperty(numericProperty.property))
+    target.role === "numericPropertyBase" && !numericProperty
   ) return null;
   return {
     sourceAnchor: {

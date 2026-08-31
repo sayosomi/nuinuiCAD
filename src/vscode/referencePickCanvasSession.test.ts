@@ -281,22 +281,23 @@ describe("VS Code Canvas reference pick session bridge", () => {
     });
   });
 
-  it("filters fixed numeric-property candidates by the actual computed geometry", () => {
+  it("keeps every numeric geometry candidate and exposes its actual computed properties", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "line Straight = segment(start: @A, end: @B)",
-      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
-      "point P = offset(from: @A, dx: @Straight.startHandleLength, dy: 0)"
+      "line Base = segment(start: @A, end: @B)",
+      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
+      "point P = offset(from: @A, dx: @Arc.radius, dy: 0)"
     ].join("\n");
-    const setupResult = setup(source, "@Straight.startHandleLength");
+    const setupResult = setup(source, "@Arc.radius");
     const started = startSession({ source, ...setupResult });
     if (!started.session || started.result.status !== "started") throw new Error("session did not start");
-    const references = started.session.candidates.flatMap((candidate) => candidate.options.map((option) => option.reference.base));
-    expect(references).not.toContain("Straight");
-    expect(references).toContain("Curve");
-    expect(started.result.numericCandidates?.every((candidate) => candidate.properties.includes("startHandleLength"))).toBe(true);
+    const base = started.result.numericCandidates?.find((candidate) => candidate.reference.base === "Base");
+    const arc = started.result.numericCandidates?.find((candidate) => candidate.reference.base === "Arc");
+    expect(base?.properties).toContain("length");
+    expect(base?.properties).not.toContain("radius");
+    expect(arc?.properties).toContain("radius");
   });
 
   it("rejects numeric confirmations and allowlists with unsupported geometry-property pairs", () => {
@@ -328,30 +329,31 @@ describe("VS Code Canvas reference pick session bridge", () => {
     })).toBe(false);
   });
 
-  it("retargets an existing numeric property immediately without opening a chooser", () => {
+  it("retargets an existing numeric property through the property chooser", () => {
     const source = [
       "nui 4",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
       "line Base = segment(start: @A, end: @B)",
-      "line Other = segment(start: @A, end: @B)",
-      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+      "arc Arc = arc(center: @A, radius: 10, start: 0, end: 90)",
+      "point P = offset(from: @A, dx: @Arc.radius, dy: 0)"
     ].join("\n");
-    const setupResult = setup(source, "@Base.length");
+    const setupResult = setup(source, "@Arc.radius");
     const started = startSession({ source, ...setupResult });
     if (!started.session) throw new Error("session did not start");
-    const other = started.session.candidates.find((candidate) => candidate.options.some((option) => option.reference.base === "Other"));
-    const option = other?.options.find((entry) => entry.kind === "numericProperty");
-    if (!other || !option || option.kind !== "numericProperty") throw new Error("fixed candidate missing");
-    const selected = selectVscodeReferencePickCanvasDraft(
+    const base = started.session.candidates.find((candidate) => candidate.options.some((option) => option.reference.base === "Base"));
+    const option = base?.options.find((entry) => entry.kind === "numericProperty");
+    if (!base || !option || option.kind !== "numericProperty") throw new Error("numeric candidate missing");
+    let selected = selectVscodeReferencePickCanvasDraft(
       started.session,
-      referencePickHoverForCanvasOption(other, option)
+      referencePickHoverForCanvasOption(base, option)
     );
-    expect(selected.draft.numericProperty?.stage).toBe("draft");
-    expect(selected.draft.numericProperty?.draft?.property).toBe("length");
+    expect(selected.draft.numericProperty?.stage).toBe("propertySelection");
+    expect(selected.draft.numericProperty?.draft).toBeNull();
+    selected = selectVscodeReferencePickCanvasNumericProperty(selected, "length");
     expect(confirmVscodeReferencePickCanvasSession(selected).result).toMatchObject({
       resultKind: "numericProperty",
-      reference: { base: "Other" },
+      reference: { base: "Base" },
       property: "length"
     });
   });

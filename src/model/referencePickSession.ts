@@ -110,24 +110,6 @@ export const selectReferencePickNumericGeometry = (
 ): ReferencePickSession => {
   const numeric = numericPropertySessionFor(session);
   if (session.status !== "active" || !numeric) return session;
-  if (numeric.target.kind === "fixedProperty") {
-    if (!properties.includes(numeric.target.property)) return session;
-    return {
-      ...session,
-      hover: selection,
-      numericProperty: {
-        ...numeric,
-        stage: "draft",
-        selectedGeometry: selection,
-        properties,
-        draft: {
-          candidateElementId: selection.candidateElementId,
-          reference: selection.reference,
-          property: numeric.target.property
-        }
-      }
-    };
-  }
   return {
     ...session,
     hover: selection,
@@ -176,8 +158,7 @@ export const seedReferencePickNumericPropertyDraft = (
   if (
     session.status !== "active" ||
     !numeric ||
-    !properties.includes(selection.property) ||
-    (numeric.target.kind === "fixedProperty" && numeric.target.property !== selection.property)
+    !properties.includes(selection.property)
   ) return session;
   const hover: ReferencePickHover = {
     candidateElementId: selection.candidateElementId,

@@ -182,8 +182,6 @@ export const startVscodeReferencePickCanvasSession = ({
       !target.numericProperty ||
       !matchingNumericCandidate ||
       !matchingNumericCandidateElement ||
-      (target.numericProperty.kind === "fixedProperty" &&
-        target.numericProperty.property !== initialNumericDraft.property) ||
       !isCanonicalReferencePickReference(initialNumericDraft.reference)
     ) return { session: null, result: rejected("rejected") };
   }
@@ -333,9 +331,7 @@ export const referencePickCanvasResultMatchesSession = (
       option?.kind === "numericProperty" &&
       option.properties.includes(result.property) &&
       isCanonicalReferencePickReference(result.reference) &&
-      result.reference.pointKey === undefined &&
-      (session.target.numericProperty?.kind !== "fixedProperty" ||
-        session.target.numericProperty.property === result.property)
+      result.reference.pointKey === undefined
     );
   }
   return session.target.role !== "numericPropertyBase";

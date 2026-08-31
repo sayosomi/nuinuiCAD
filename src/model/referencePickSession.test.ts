@@ -60,16 +60,16 @@ describe("referencePickSession", () => {
     expect(confirmedReferencePickResult(confirmReferencePickSession(drafted))).toBeNull();
   });
 
-  it("keeps a fixed numeric property and creates the final draft on geometry selection", () => {
+  it("always requires numeric property selection after geometry selection", () => {
     const initial = startReferencePickSession({
       expectedGeometryInterface: "path",
       role: "numericPropertyBase",
       multiplicity: "single",
-      numericProperty: { kind: "fixedProperty", property: "length" }
+      numericProperty: { kind: "propertySelectionRequired" }
     });
     const selected = selectReferencePickNumericGeometry(initial, hover("line-b", "LineB"), ["length"]);
-    expect(selected.numericProperty?.stage).toBe("draft");
-    expect(selected.numericProperty?.draft?.property).toBe("length");
+    expect(selected.numericProperty?.stage).toBe("propertySelection");
+    expect(selected.numericProperty?.draft).toBeNull();
   });
 
   it("seeds, adds, removes, and deduplicates a multiple-value draft by authored reference", () => {
