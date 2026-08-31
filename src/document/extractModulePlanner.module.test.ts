@@ -53,6 +53,17 @@ const expectRejectedWithoutPatch = (result: ReturnType<typeof planAt>["result"],
   expect("splices" in result).toBe(false);
 };
 
+const expectCleanTransformedSource = (
+  source: string,
+  result: ReturnType<typeof planAt>["result"]
+): string => {
+  expect(result.status).toBe("planned");
+  if (result.status !== "planned") return source;
+  const transformed = applyLineSplices(source, result.splices);
+  compileCurrent(transformed, "extract-module-transformed");
+  return transformed;
+};
+
 describe("planExtractModule checkpoint 8 Module structures", () => {
   it("extracts a complete root module definition without leaking its parameters or public interface", () => {
     const source = [
@@ -248,14 +259,25 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
     expectRejectedWithoutPatch(planAt(source, 1, { instanceName: "Child" }).result, "name-collision");
   });
 
-  it("keeps record-valued Module interfaces rejected", () => {
+  it("accepts a moved Module definition with a record-valued parameter", () => {
     const source = [
       "nui 4",
       "record Config(amount: number)",
       "module M(config: Config) {",
       "}"
     ].join("\n");
-    expectRejectedWithoutPatch(planAt(source, 2).result, "unsupported-statement");
+    const { result } = planAt(source, 2);
+    expect(result.status).toBe("planned");
+    if (result.status !== "planned") return;
+    expect(result.dependencies).toEqual([]);
+    const transformed = expectCleanTransformedSource(source, result);
+    expect(transformed).toContain([
+      "module Extracted() {",
+      "  module M(config: Config) {",
+      "  }",
+      "}",
+      "instance Part = Extracted()"
+    ].join("\n"));
   });
 
   it("extracts a direct nested Module target inside an existing Module", () => {
