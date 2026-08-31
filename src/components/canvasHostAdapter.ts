@@ -23,6 +23,7 @@ import type { SelectionSnapshot } from "../state/cadDocumentStore";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
+import type { PickCandidate } from "../model/pickCandidates";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -135,6 +136,10 @@ export type CanvasHostAdapter = {
     pickedPointAnchor: PointAnchor;
     pickedPointSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
+  /** Optional host filter layered over the shared point-pick candidates. */
+  filterPointPickCandidates?: (candidates: PickCandidate[]) => PickCandidate[];
+  /** Cancels a host-owned Canvas pick flow while Canvas has focus. */
+  cancelCanvasPickOperation?: () => unknown;
   toggleCanvasPointNames?: () => unknown;
   toggleCanvasGeometryNames?: () => unknown;
   toggleCanvasPoints: () => unknown;

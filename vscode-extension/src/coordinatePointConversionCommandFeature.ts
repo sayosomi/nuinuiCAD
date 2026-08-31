@@ -49,6 +49,7 @@ export type CoordinatePointConversionFeatureHost = {
 
 export type VscodeCoordinatePointConversionFeature = vscode.Disposable & {
   explorerContextValueFor: (node: NuiElementsTreeNode) => string | undefined;
+  handleCommitStart: (document: vscode.TextDocument, requestId: number, operationId: number, sourceText?: string) => void;
   handleDocumentChange: (document: vscode.TextDocument) => void;
   handleDocumentClose: (document: vscode.TextDocument) => void;
 };
@@ -67,6 +68,9 @@ type ActiveRequest = {
     { type: "coordinatePointConversionStart" }
   >;
   selection: vscode.Selection;
+  ownedCommitOperationId: number | null;
+  ownedCommitSourceText: string | null;
+  ownedCommitChangeObserved: boolean;
   disposable: vscode.Disposable;
 };
 
@@ -231,6 +235,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
           { type: "coordinatePointConversionResult" }
         >;
         if (result.requestId !== current.request.requestId || result.documentUri !== current.request.documentUri) return;
+        if (current.ownedCommitOperationId !== null && result.operationId !== current.ownedCommitOperationId) return;
         void presentCoordinatePointConversionResult(result, output?.(), {
           showInformationMessage: (message) => vscode.window.showInformationMessage(message),
           showWarningMessage: (message, action) => vscode.window.showWarningMessage(message, action),
@@ -271,6 +276,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       endpoint,
       request,
       selection: editor.selection,
+      ownedCommitOperationId: null,
+      ownedCommitSourceText: null,
+      ownedCommitChangeObserved: false,
       disposable: { dispose: () => undefined }
     };
     activeRequest?.disposable.dispose();
@@ -352,12 +360,12 @@ export const registerVscodeCoordinatePointConversionFeature = ({
 
   const commands = [
     vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_XY_COMMAND_ID, (node?: NuiElementsTreeNode) => {
-      if (node) void convertFromExplorer("xy");
+      if (node) void convertFromExplorer("xy", node);
       else if (activeCanvasEndpoint()) convertFromCanvas("xy");
       else void convertFromSource("xy");
     }),
     vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_ANGLE_DISTANCE_COMMAND_ID, (node?: NuiElementsTreeNode) => {
-      if (node) void convertFromExplorer("angle-distance");
+      if (node) void convertFromExplorer("angle-distance", node);
       else if (activeCanvasEndpoint()) convertFromCanvas("angle-distance");
       else void convertFromSource("angle-distance");
     })
@@ -375,8 +383,19 @@ export const registerVscodeCoordinatePointConversionFeature = ({
   const handleDocumentChange = (document: vscode.TextDocument): void => {
     runtimeEvaluation.invalidateDocument(documentKey(document));
     if (activeRequest && sameDocument(document, activeRequest.editor.document)) {
-      activeRequest.disposable.dispose();
-      activeRequest = null;
+      if (activeRequest.ownedCommitOperationId === null) {
+        activeRequest.disposable.dispose();
+        activeRequest = null;
+      } else if (
+        activeRequest.ownedCommitChangeObserved ||
+        (activeRequest.ownedCommitSourceText !== null &&
+          normalizedSourceFor(document.getText()) !== activeRequest.ownedCommitSourceText)
+      ) {
+        activeRequest.disposable.dispose();
+        activeRequest = null;
+      } else {
+        activeRequest.ownedCommitChangeObserved = true;
+      }
     }
     if (sameDocument(document, vscode.window.activeTextEditor?.document ?? document) && (isSourceEditorActive?.() ?? true)) {
       void sourceTargetAvailable(vscode.window.activeTextEditor);
@@ -411,6 +430,13 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     }
   ) as VscodeCoordinatePointConversionFeature;
   disposable.explorerContextValueFor = explorerContextValueFor;
+  disposable.handleCommitStart = (document, requestId, operationId, sourceText) => {
+    if (!activeRequest || !sameDocument(document, activeRequest.editor.document)) return;
+    if (activeRequest.request.requestId !== requestId) return;
+    activeRequest.ownedCommitOperationId = operationId;
+    activeRequest.ownedCommitSourceText = sourceText ?? null;
+    activeRequest.ownedCommitChangeObserved = false;
+  };
   disposable.handleDocumentChange = handleDocumentChange;
   disposable.handleDocumentClose = handleDocumentClose;
   return disposable;

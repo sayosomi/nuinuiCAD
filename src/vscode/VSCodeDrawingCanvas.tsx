@@ -39,7 +39,7 @@ import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
-import { VSCodeCoordinatePointConversionOverlay } from "./VSCodeCoordinatePointConversionOverlay";
+import { CommandLineBar } from "../components/CommandLineBar";
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type { CommandRibbonPresentationCommandItem } from "../components/CommandRibbonView";
 import { LEGACY_CANVAS_THEME, type CanvasTheme } from "../components/canvasTheme";
@@ -54,6 +54,10 @@ import {
   type VscodeCoordinatePointConversionCurrentContext
 } from "./useVSCodeCoordinatePointConversionSession";
 import { coordinatePointConversionTargetEligibility } from "../commands/coordinatePointConversion";
+import {
+  coordinatePointConversionBaseKeyForPick,
+  isCoordinatePointConversionPickTarget
+} from "./coordinatePointConversionPick";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 
 type VSCodeDrawingCanvasProps = {
@@ -61,7 +65,7 @@ type VSCodeDrawingCanvasProps = {
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   postCanonicalSourceText: (sourceText: string) => void;
-  postCanvasCommit?: (operationId?: number) => void;
+  postCanvasCommit?: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
   canvasRibbonRibbons?: VscodeCanvasRibbon[];
@@ -272,6 +276,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       session: coordinatePointConversionSession,
       setQuery: setCoordinatePointConversionQuery,
       selectBase: selectCoordinatePointConversionBase,
+      startPick: startCoordinatePointConversionPick,
       confirm: confirmCoordinatePointConversion,
       cancel: cancelCoordinatePointConversion
     } = useVSCodeCoordinatePointConversionSession({
@@ -471,7 +476,36 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       }),
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),
-      applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
+      applyPickedPoint: (action) => {
+        const currentTarget = useCadUiStore.getState().activePointPickTarget;
+        if (coordinatePointConversionSession && isCoordinatePointConversionPickTarget(currentTarget)) {
+          const baseKey = coordinatePointConversionBaseKeyForPick({
+            session: coordinatePointConversionSession,
+            anchor: action.pickedPointAnchor,
+            ...(action.pickedPointSourceReference
+              ? { sourceReference: action.pickedPointSourceReference }
+              : {})
+          });
+          if (baseKey) selectCoordinatePointConversionBase(baseKey);
+          return;
+        }
+        return dispatchCommand("applyPickedPoint", action);
+      },
+      filterPointPickCandidates: coordinatePointConversionSession &&
+        isCoordinatePointConversionPickTarget(activePointPickTarget)
+        ? (candidates) => candidates
+            .map((candidate) => ({
+              ...candidate,
+              options: candidate.options.filter((option) => option.kind === "point" &&
+                coordinatePointConversionBaseKeyForPick({
+                  session: coordinatePointConversionSession,
+                  anchor: option.anchor,
+                  ...(option.sourceReference ? { sourceReference: option.sourceReference } : {})
+                }) !== null)
+            }))
+            .filter((candidate) => candidate.options.length > 0)
+        : undefined,
+      cancelCanvasPickOperation: coordinatePointConversionSession ? cancelCoordinatePointConversion : undefined,
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),
@@ -504,16 +538,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
             />
           ) : null}
           {coordinatePointConversionSession ? (
-            <VSCodeCoordinatePointConversionOverlay
-              canvasFocusRef={canvasFocusRef}
-              viewportSize={viewportSize}
-              canvasViewport={canvasViewport}
-              canvasTheme={canvasTheme}
-              session={coordinatePointConversionSession}
-              onQuery={setCoordinatePointConversionQuery}
-              onSelectBase={selectCoordinatePointConversionBase}
-              onConfirm={confirmCoordinatePointConversion}
-              onCancel={cancelCoordinatePointConversion}
+            <CommandLineBar
+              coordinatePointConversion={{
+                session: coordinatePointConversionSession,
+                onQuery: setCoordinatePointConversionQuery,
+                onSelectBase: selectCoordinatePointConversionBase,
+                onStartPick: startCoordinatePointConversionPick,
+                onConfirm: confirmCoordinatePointConversion,
+                onCancel: cancelCoordinatePointConversion
+              }}
             />
           ) : null}
           <VSCodeCanvasRibbonOverlay
@@ -563,6 +596,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       coordinatePointConversionSession,
       setCoordinatePointConversionQuery,
       selectCoordinatePointConversionBase,
+      startCoordinatePointConversionPick,
       confirmCoordinatePointConversion,
       cancelCoordinatePointConversion,
       hasCoordinatePointConversionTarget

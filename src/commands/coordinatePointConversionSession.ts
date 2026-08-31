@@ -8,6 +8,8 @@ import {
   type CoordinatePointConversionTarget
 } from "./coordinatePointConversion";
 import { sourceReferenceText } from "../model/moduleSemanticCandidateBoundary";
+import { pickRefKey, type PickRef } from "../model/pickReferences";
+import type { ReferenceSuggestion } from "../model/referenceSuggestions";
 import type { ElementId } from "../types/geometry";
 
 export type CoordinatePointConversionSessionOrigin = "source" | "canvas" | "explorer";
@@ -213,3 +215,45 @@ export const coordinatePointConversionBaseForInput = (
     return normalizedToken === normalizedInput || normalizedToken.replace(/^@/, "") === normalizedInput.replace(/^@/, "");
   }) ?? null;
 };
+
+/** Adapts conversion-owned bases to the shared searchable reference surface. */
+export type CoordinatePointConversionReferenceSuggestion = ReferenceSuggestion & {
+  baseKey: string;
+};
+
+export const coordinatePointConversionReferenceSuggestions = (
+  session: CoordinatePointConversionSession
+): CoordinatePointConversionReferenceSuggestion[] => session.baseCandidates.flatMap((candidate) => {
+  const reference = session.targetIds
+    .map((targetId) => candidate.referencesByTargetId.get(targetId))
+    .find((value) => value !== undefined);
+  const canonicalToken = sourceReferenceText(reference ?? null);
+  if (!canonicalToken || candidate.anchor.mode === "coordinate") return [];
+  const pickRef: PickRef = candidate.anchor.mode === "reference"
+    ? {
+        kind: "point:reference",
+        candidateElementId: candidate.sourceElementId,
+        pointId: candidate.anchor.pointId
+      }
+    : {
+        kind: "point:derived",
+        candidateElementId: candidate.sourceElementId,
+        elementId: candidate.anchor.elementId,
+        pointKey: candidate.anchor.pointKey
+      };
+  return [{
+    baseKey: candidate.key,
+    pickRef,
+    referenceElementId: candidate.sourceElementId,
+    pickRefKey: pickRefKey(pickRef),
+    displayLabel: canonicalToken,
+    canonicalToken,
+    searchAliases: [
+      canonicalToken,
+      canonicalToken.replace(/^@/, ""),
+      candidate.key,
+      candidate.sourceElementId
+    ].filter((value) => value.length > 0),
+    detail: `${candidate.point.x}, ${candidate.point.y} mm`
+  }];
+});

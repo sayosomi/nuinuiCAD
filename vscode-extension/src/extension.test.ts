@@ -108,6 +108,7 @@ const mocks = vi.hoisted(() => ({
   showWarningMessage: vi.fn(),
   showInformationMessage: vi.fn(),
   showSaveDialog: vi.fn(),
+  createOutputChannel: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
   applyEdit: vi.fn(),
@@ -225,6 +226,7 @@ vi.mock("vscode", () => {
       showWarningMessage: mocks.showWarningMessage,
       showInformationMessage: mocks.showInformationMessage,
       showSaveDialog: mocks.showSaveDialog,
+      createOutputChannel: mocks.createOutputChannel,
       showTextDocument: mocks.showTextDocument,
       tabGroups: {
         get activeTabGroup() {
@@ -503,6 +505,12 @@ const setup = (
     return disposable();
   });
   mocks.createWebviewPanel.mockImplementation(() => panelFor());
+  mocks.createOutputChannel.mockImplementation(() => ({
+    clear: vi.fn(),
+    appendLine: vi.fn(),
+    show: vi.fn(),
+    dispose: vi.fn()
+  }));
   mocks.onDidChangeActiveTextEditor.mockImplementation((listener: (editor?: TestEditor) => void) => {
     mocks.activeEditorListeners.push(listener);
     return disposable();
@@ -757,6 +765,7 @@ afterEach(() => {
   mocks.showWarningMessage.mockReset();
   mocks.showInformationMessage.mockReset();
   mocks.showSaveDialog.mockReset();
+  mocks.createOutputChannel.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
   mocks.applyEdit.mockReset();
@@ -2797,6 +2806,127 @@ describe("VS Code production document lifecycle", () => {
         reason: "edit"
       }]
     ]);
+  });
+
+  it.each([
+    ["nuinuiCAD.convertPointToXYOffset", "xy"],
+    ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
+  ] as const)("passes the exact Explorer node to the %s conversion start", async (command, mode) => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/explorer-conversion.nui", "file:///tmp/explorer-conversion.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    panel.webview.postMessage.mockClear();
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+
+    commandHandlerFor(command)?.({
+      symbol: {
+        name: "Target",
+        detail: "point",
+        kind: "object",
+        range: {
+          from: source.indexOf("point Target"),
+          to: source.indexOf("point Target") + "point Target = coordinate(x: 10, y: 5)".length
+        },
+        selectionRange: {
+          from: source.indexOf("Target"),
+          to: source.indexOf("Target") + "Target".length
+        },
+        children: []
+      }
+    });
+
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      mode,
+      targetIds: [expect.any(String)]
+    })));
+  });
+
+  it("keeps an owned conversion commit alive across its document change and presents one terminal result", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-lifecycle.nui", "file:///tmp/conversion-lifecycle.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart"
+    })));
+    const startRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "coordinatePointConversionStart") as {
+        requestId: number;
+        documentUri: string;
+        mode: "xy";
+        targetIds: readonly string[];
+      };
+
+    const committedSource = `${source}\n// converted\n`;
+    editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+      callback(editor.editBuilder);
+      document.version = 2;
+      document.setSourceText(committedSource);
+      emitDocumentChange(document);
+      return true;
+    });
+    const canvasMessageHandler = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as
+      (message: unknown) => Promise<void>;
+    await canvasMessageHandler({
+      type: "canvasCommit",
+      sourceText: committedSource,
+      expectedDocumentVersion: 1,
+      mutationKind: "reset",
+      operationId: 77,
+      coordinatePointConversionRequestId: startRequest.requestId
+    });
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommitResult",
+      operationId: 77,
+      status: "accepted",
+      documentVersion: 2
+    });
+
+    mocks.showTextDocument.mockClear();
+    mocks.showInformationMessage.mockClear();
+    const terminalResult = {
+      type: "coordinatePointConversionResult" as const,
+      requestId: startRequest.requestId,
+      operationId: 77,
+      documentUri: startRequest.documentUri,
+      documentVersion: 2,
+      origin: "source" as const,
+      mode: "xy" as const,
+      status: "applied" as const,
+      classification: "all-success" as const,
+      successfulTargetIds: startRequest.targetIds,
+      successfulTargetCount: startRequest.targetIds.length,
+      skippedTargets: [],
+      skippedTargetCount: 0
+    };
+    await messageHandlerFor(panel)(terminalResult);
+    await messageHandlerFor(panel)(terminalResult);
+
+    expect(mocks.showInformationMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
   });
 });
 

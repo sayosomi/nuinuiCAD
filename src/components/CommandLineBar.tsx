@@ -58,6 +58,12 @@ import {
   commandLineDuplicateNameMessage,
   validateCommandLineElementName
 } from "../commands/commandLineNameValidation";
+import {
+  coordinatePointConversionBaseForInput,
+  coordinatePointConversionReferenceSuggestions,
+  type CoordinatePointConversionReferenceSuggestion,
+  type CoordinatePointConversionSession
+} from "../commands/coordinatePointConversionSession";
 
 type CommandLineBarProps = {
   commandContext?: CommandContext;
@@ -70,9 +76,19 @@ type CommandLineBarProps = {
    * that don't model evaluation freshness keep their prior behavior; the
    * production VS Code Webview caller always supplies it explicitly. */
   evaluationIsCurrent?: boolean;
+  coordinatePointConversion?: CoordinatePointConversionCommandLineProps;
 };
 
-export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent = true }: CommandLineBarProps) => {
+export type CoordinatePointConversionCommandLineProps = {
+  session: CoordinatePointConversionSession;
+  onQuery: (query: string) => void;
+  onSelectBase: (key: string) => void;
+  onStartPick: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
+const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent = true }: CommandLineBarProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
@@ -710,3 +726,133 @@ export const CommandLineBar = ({ commandContext, evaluation, evaluationIsCurrent
     </form>
   );
 };
+
+const CoordinatePointConversionCommandLineBar = ({
+  session,
+  onQuery,
+  onSelectBase,
+  onStartPick,
+  onConfirm,
+  onCancel
+}: CoordinatePointConversionCommandLineProps) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const suggestions = useMemo<CoordinatePointConversionReferenceSuggestion[]>(
+    () => rankedReferenceSuggestions(
+      coordinatePointConversionReferenceSuggestions(session),
+      session.query,
+      8
+    ) as CoordinatePointConversionReferenceSuggestion[],
+    [session]
+  );
+  const selectedSuggestionIndex = suggestions.length === 0
+    ? 0
+    : Math.min(activeSuggestionIndex, suggestions.length - 1);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [session.requestId]);
+
+  const baseForCurrentInput = () => {
+    const direct = coordinatePointConversionBaseForInput(session, session.query);
+    if (direct) return direct.key;
+    return suggestions[selectedSuggestionIndex]
+      ? suggestions[selectedSuggestionIndex].baseKey
+      : null;
+  };
+
+  const confirmCurrentInput = () => {
+    const baseKey = baseForCurrentInput();
+    if (!baseKey) return;
+    onSelectBase(baseKey);
+    onConfirm();
+  };
+
+  return (
+    <form
+      className="command-line-bar"
+      data-coordinate-point-conversion-bar="true"
+      aria-label={session.mode === "xy" ? "Convert Point to XY Offset" : "Convert Point to Angle-Distance Offset"}
+      onSubmit={(event) => {
+        event.preventDefault();
+        confirmCurrentInput();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          onCancel();
+          return;
+        }
+        if (event.key === "ArrowDown" && suggestions.length > 0) {
+          event.preventDefault();
+          setActiveSuggestionIndex((index) => (index + 1) % suggestions.length);
+          return;
+        }
+        if (event.key === "ArrowUp" && suggestions.length > 0) {
+          event.preventDefault();
+          setActiveSuggestionIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+        }
+      }}
+    >
+      <div className="command-line-bar-meta">
+        <span className="command-line-bar-title">
+          {session.mode === "xy" ? "Convert Point to XY Offset" : "Convert Point to Angle-Distance Offset"}
+        </span>
+        <span className="command-line-bar-status" aria-live="polite">
+          {session.targets.length} target{session.targets.length === 1 ? "" : "s"} · choose one shared base point
+        </span>
+      </div>
+      <div className="command-line-bar-entry">
+        <label htmlFor="coordinate-point-conversion-input">Base reference</label>
+        <div className="command-line-bar-entry-row">
+          <div className="command-line-bar-input-wrap">
+            <input
+              id="coordinate-point-conversion-input"
+              ref={inputRef}
+              value={session.query}
+              placeholder="Base reference, e.g. @Base"
+              aria-label="Coordinate conversion base reference"
+              onChange={(event) => {
+                setActiveSuggestionIndex(0);
+                onQuery(event.target.value);
+              }}
+            />
+            {suggestions.length > 0 ? (
+              <ul className="command-line-suggestions" role="listbox" aria-label="Coordinate conversion base suggestions">
+                {suggestions.map((suggestion, index) => (
+                  <li key={suggestion.pickRefKey}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={index === selectedSuggestionIndex}
+                      className={index === selectedSuggestionIndex ? "active-suggestion" : undefined}
+                      onMouseEnter={() => setActiveSuggestionIndex(index)}
+                      onClick={() => {
+                        onSelectBase(suggestion.baseKey);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <span>{suggestion.displayLabel}</span>
+                      <small>{suggestion.detail}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <div className="command-line-bar-actions">
+            <button type="button" onClick={onStartPick}>Canvasで選択</button>
+            <button className="command-line-bar-confirm" type="submit">適用（Enter）</button>
+            <button type="button" onClick={onCancel}>キャンセル（Esc）</button>
+          </div>
+        </div>
+      </div>
+      {session.error ? <p className="command-line-bar-error" role="alert">{session.error.message}</p> : null}
+    </form>
+  );
+};
+
+export const CommandLineBar = (props: CommandLineBarProps) => props.coordinatePointConversion
+  ? <CoordinatePointConversionCommandLineBar {...props.coordinatePointConversion} />
+  : <CreationCommandLineBar {...props} />;

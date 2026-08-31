@@ -464,6 +464,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let coordinatePointConversionExplorerContextValueFor: (node: import("./elementsTreeProvider").NuiElementsTreeNode) => string | undefined = () => undefined;
   let refreshElementsTree = (): void => undefined;
   let coordinatePointConversionOutputChannel: vscode.OutputChannel | null = null;
+  let handleCoordinatePointConversionCommitStart: (
+    document: vscode.TextDocument,
+    requestId: number,
+    operationId: number
+  ) => void = () => undefined;
   let handleCoordinatePointConversionDocumentChange = (): void => undefined;
   let handleCoordinatePointConversionDocumentClose = (): void => undefined;
 
@@ -1158,8 +1163,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
         return;
       }
     }
-    if (message.operationId !== undefined) {
+    if (message.operationId !== undefined && message.coordinatePointConversionRequestId === undefined) {
       canvasFreePointAtPointerFeature?.markCanvasEdit(message.operationId);
+    }
+    if (message.coordinatePointConversionRequestId !== undefined && message.operationId !== undefined) {
+      handleCoordinatePointConversionCommitStart(
+        session.document,
+        message.coordinatePointConversionRequestId,
+        message.operationId,
+        normalizedSourceFor(message.sourceText)
+      );
     }
     let editResult: Thenable<boolean>;
     try {
@@ -1607,7 +1620,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         targetIds: () => {
           const observation = vscodeObservationState.cachedSnapshot();
           const document = observation.documents.find((candidate) => candidate.documentUri === session.documentUri);
-          return document?.canvas?.selectedElementIds ?? [];
+          return document?.canvas?.coordinatePointConversionTargetIds ?? [];
         }
       };
     },
@@ -1617,6 +1630,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     output: () => coordinatePointConversionOutputChannelFor()
   });
   coordinatePointConversionExplorerContextValueFor = coordinatePointConversionFeature.explorerContextValueFor;
+  handleCoordinatePointConversionCommitStart = coordinatePointConversionFeature.handleCommitStart;
   handleCoordinatePointConversionDocumentChange = coordinatePointConversionFeature.handleDocumentChange;
   handleCoordinatePointConversionDocumentClose = coordinatePointConversionFeature.handleDocumentClose;
 

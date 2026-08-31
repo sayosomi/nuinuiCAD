@@ -243,7 +243,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pumpCanvasHistory();
   }, [pumpCanvasHistory]);
 
-  const postCanvasCommit = useCallback((operationId?: number) => {
+  const postCanvasCommit = useCallback((operationId?: number, coordinatePointConversionRequestId?: number) => {
     if (benchmarkConfig) return;
     const expectedDocumentVersion = latestHostDocumentVersionRef.current;
     if (expectedDocumentVersion === null) return;
@@ -255,6 +255,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       expectedDocumentVersion,
       mutationKind,
       ...(operationId === undefined ? {} : { operationId }),
+      ...(coordinatePointConversionRequestId === undefined ? {} : { coordinatePointConversionRequestId }),
       ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
     });
   }, [api, benchmarkConfig]);

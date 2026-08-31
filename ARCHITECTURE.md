@@ -794,7 +794,8 @@ Primary:
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
-- `src/vscode/VSCodeCoordinatePointConversionOverlay.tsx`
+- `src/components/CommandLineBar.tsx`
+- `src/vscode/coordinatePointConversionPick.ts`
 - `src/vscode/ModulePreviewApp.tsx`
 - `src/vscode/modulePreviewLifecycle.ts`
 - `src/vscode/modulePreviewEvaluation.ts`
@@ -889,6 +890,21 @@ Done/Enter, and Esc UI using the established Canvas bottom-right transient hint
 and Canvas theme variables. Source changes, document close, stale proof/version,
 panel disposal, stale responses, or invalidated targets cancel or fail closed
 without source mutation.
+
+Coordinate point conversion keeps its semantic session and target/base
+revalidation in `coordinatePointConversion.ts` and
+`coordinatePointConversionSession.ts`, while the Extension Host owns the
+document-scoped request lifecycle and terminal presentation. In the Webview,
+`CommandLineBar.tsx` is the shared conversion base-entry surface: it reuses the
+common searchable reference suggestions and command-line styling, and delegates
+Canvas picking through `CanvasHostAdapter` and the shared `DrawingCanvas` point
+pick path. `coordinatePointConversionPick.ts` is only the narrow adapter between
+that virtual pick target and the conversion session; it is not a second
+conversion evaluator or creation recipe. Source, Canvas, and Explorer all use
+the same host request and session flow. An owned conversion commit carries its
+request identity across the normal TextDocument change echo so the terminal
+result remains connected to exactly one active request; unrelated source
+changes, stale evaluation, panel disposal, or document close fail closed.
 
 The Webview keeps the last authoritative host source snapshot separately from
 its latest host version. Navigation is allowed only when that snapshot, the

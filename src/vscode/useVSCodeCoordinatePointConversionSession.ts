@@ -20,6 +20,10 @@ import type { EvaluationResult } from "../types/geometry";
 import type { ExtensionToVscodeMessage, VscodeWebviewApi } from "./protocol";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import {
+  coordinatePointConversionPickTarget,
+  isCoordinatePointConversionPickTarget
+} from "./coordinatePointConversionPick";
 
 export type VscodeCoordinatePointConversionCurrentContext = {
   document: CanonicalDocumentValue;
@@ -71,7 +75,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeCoordinatePointConversionCurrentContext | null;
   currentAuthorityFor: (documentVersion: number) => VscodeCoordinatePointConversionAuthority | null;
-  postCanvasCommit: (operationId?: number) => void;
+  postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
 }) => {
   const [session, setSession] = useState<CoordinatePointConversionSession | null>(null);
   const sessionRef = useRef<CoordinatePointConversionSession | null>(null);
@@ -143,6 +147,28 @@ export const useVSCodeCoordinatePointConversionSession = ({
     const pending = pendingStartRef.current;
     if (pending) tryStart(pending);
   }, [currentAuthorityFor, currentContextFor, replaceSession, session, tryStart]);
+
+  useEffect(() => {
+    if (session) {
+      useCadUiStore.getState().setActivePointPickTarget(coordinatePointConversionPickTarget());
+      useCadUiStore.setState({
+        activeNumericReferencePickTarget: null,
+        activeLinePickTarget: null,
+        activePickCursor: null
+      });
+    } else {
+      const ui = useCadUiStore.getState();
+      if (isCoordinatePointConversionPickTarget(ui.activePointPickTarget)) {
+        useCadUiStore.setState({ activePointPickTarget: null, activePickCursor: null });
+      }
+    }
+    return () => {
+      const ui = useCadUiStore.getState();
+      if (isCoordinatePointConversionPickTarget(ui.activePointPickTarget)) {
+        useCadUiStore.setState({ activePointPickTarget: null, activePickCursor: null });
+      }
+    };
+  }, [session]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<ExtensionToVscodeMessage>) => {
@@ -283,10 +309,15 @@ export const useVSCodeCoordinatePointConversionSession = ({
     }
     pendingOperationRef.current = { operationId, session: currentSession, plan: applied.plan };
     replaceSession(null);
-    postCanvasCommit(operationId);
+    postCanvasCommit(operationId, currentSession.requestId);
   }, [api, currentAuthorityFor, currentContextFor, postCanvasCommit, replaceSession]);
 
   const cancel = useCallback(() => replaceSession(null), [replaceSession]);
 
-  return { session, setQuery, selectBase, confirm, cancel };
+  const startPick = useCallback(() => {
+    if (!sessionRef.current) return;
+    useCadUiStore.getState().setActivePointPickTarget(coordinatePointConversionPickTarget());
+  }, []);
+
+  return { session, setQuery, selectBase, startPick, confirm, cancel };
 };

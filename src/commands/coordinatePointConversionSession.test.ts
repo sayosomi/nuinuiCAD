@@ -98,6 +98,29 @@ describe("coordinate point conversion session", () => {
     expect(coordinatePointConversionSelectedBase(selected)).toEqual(base);
   });
 
+  it("keeps a selected non-target coordinate point available as the legal base", () => {
+    const document = compile([
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 3, y: 4)"
+    ].join("\n"));
+    const result = startCoordinatePointConversionSession({
+      requestId: 8,
+      documentUri: "file:///tmp/pattern.nui",
+      documentVersion: 9,
+      mode: "xy",
+      origin: "canvas",
+      targetIds: [elementId(document, "Target")],
+      snapshot: snapshotFor(document)
+    });
+
+    expect(result.status).toBe("started");
+    if (result.status !== "started") return;
+    expect(result.session.baseCandidates.some((candidate) =>
+      candidate.sourceElementId === elementId(document, "Base")
+    )).toBe(true);
+  });
+
   it("rejects an empty or wholly ineligible target set before opening the session", () => {
     const document = compile([
       "nui 1",

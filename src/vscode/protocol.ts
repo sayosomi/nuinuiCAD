@@ -214,6 +214,7 @@ export type VscodeToExtensionMessage =
       mutationKind: "model-patch" | "reset";
       splices?: readonly LineSplice[];
       operationId?: number;
+      coordinatePointConversionRequestId?: number;
     }
   | {
       type: "coordinatePointConversionResult";
