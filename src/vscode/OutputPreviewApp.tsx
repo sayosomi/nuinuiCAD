@@ -39,6 +39,7 @@ import {
 import {
   DEFAULT_OUTPUT_PREVIEW_VIEWPORT,
   fitOutputPreviewViewport,
+  fitOutputPreviewRevealViewport,
   outputPreviewFitBoundsFor,
   outputPreviewScreenToWorld,
   outputPreviewWorldToScreen,
@@ -259,6 +260,10 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [selectedOutputKey, setSelectedOutputKey] = useState<string | null>(null);
   const [viewport, setViewport] = useState<OutputPreviewViewport>(DEFAULT_OUTPUT_PREVIEW_VIEWPORT);
   const [viewportSize, setViewportSize] = useState<OutputPreviewViewportSize>({ width: 0, height: 0 });
+  const latestViewportSizeRef = useRef(viewportSize);
+  useLayoutEffect(() => {
+    latestViewportSizeRef.current = viewportSize;
+  }, [viewportSize]);
   const [viewportClientOrigin, setViewportClientOrigin] = useState<OutputPreviewViewportClientOrigin>({ left: 0, top: 0 });
   const [pointerClientPosition, setPointerClientPosition] = useState<OutputPreviewClientPoint | null>(null);
   const [evaluationState, setEvaluationState] = useState<OutputPreviewEvaluationState>({
@@ -334,6 +339,14 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setViewport(fitOutputPreviewViewport(bounds, viewportSize));
     return true;
   }, [viewportSize]);
+
+  const applyRevealViewportFit = useCallback((drawables: readonly OutputDrawable[]): void => {
+    setViewport((current) => fitOutputPreviewRevealViewport(
+      drawables,
+      latestViewportSizeRef.current,
+      current
+    ) ?? current);
+  }, []);
 
   const updateSelectedOutputKey = useCallback((nextKey: string | null, preserveViewport = false) => {
     if (selectedOutputKeyRef.current === nextKey) return;
@@ -636,6 +649,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
 
       preserveViewportForSelectionRef.current = resolved.outputKey;
+      applyRevealViewportFit(resolved.highlightedDrawables);
       if (selectedOutputKeyRef.current !== resolved.outputKey) updateSelectedOutputKey(resolved.outputKey, true);
       setEvaluationState({
         outputKey: resolved.outputKey,
@@ -683,7 +697,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         reason: "evaluation-failed"
       });
     });
-  }, [evaluateOutputPlanWithRust, updateSelectedOutputKey]);
+  }, [applyRevealViewportFit, evaluateOutputPlanWithRust, updateSelectedOutputKey]);
 
   useLayoutEffect(() => {
     const response = pendingRevealResponseRef.current;
@@ -691,6 +705,16 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     pendingRevealResponseRef.current = null;
     api.postMessage(response);
   }, [api, revealState]);
+
+  useLayoutEffect(() => {
+    if (
+      !sourceIsCurrent ||
+      revealState.status !== "resolved" ||
+      revealState.sourceRevision !== currentSourceRevision ||
+      revealState.outputKey !== selectedOutputKey
+    ) return;
+    applyRevealViewportFit(revealState.highlightedDrawables);
+  }, [applyRevealViewportFit, currentSourceRevision, revealState, selectedOutputKey, sourceIsCurrent, viewportSize]);
 
   useEffect(() => {
     if (!sourceIsCurrent || placeDragPreview) return;

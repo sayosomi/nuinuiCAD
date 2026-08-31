@@ -982,7 +982,7 @@ describe("Output Preview application", () => {
     expect(outputPreviewDiagnosticSourceRangeFor("abc\ndef", 3, diagnostic(undefined, { kind: "binding", bindingId: "binding" }))).toBeNull();
   });
 
-  it("keeps a selected containing Output selected and installs its highlight", async () => {
+  it("keeps a selected containing Output selected, installs its highlight, and refits visible geometry", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
     renderFixture();
@@ -1006,6 +1006,7 @@ describe("Output Preview application", () => {
     }));
     expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("print", "A"));
     expect(screen.getByLabelText("Output preview").querySelectorAll('[data-output-preview-layer="reveal-highlight"]')).toHaveLength(1);
+    expect(screen.getByRole("status", { name: /Output Preview status:/ })).toHaveTextContent("ZOOM2000%");
   });
 
   it("keeps a no-containing target distinct from stale and evaluation failures", async () => {
@@ -1033,7 +1034,7 @@ describe("Output Preview application", () => {
     }));
   });
 
-  it("keeps the viewport unchanged through cross-output Reveal and delayed ordinary evaluation", async () => {
+  it("keeps the explicit target fit through cross-output Reveal and delayed ordinary evaluation", async () => {
     const crossOutputSource = [
       "nui 4",
       "group G {",
@@ -1064,8 +1065,6 @@ describe("Output Preview application", () => {
     const viewport = document.querySelector(".output-preview-viewport");
     if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
     fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
-    const beforeStatus = screen.getByRole("status", { name: /Output Preview status:/ }).textContent;
-    const beforeGeometryPath = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d");
     const initialEvaluationCallCount = mocks.evaluateOutputPlan.mock.calls.length;
 
     const pending: Array<{
@@ -1111,6 +1110,10 @@ describe("Output Preview application", () => {
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue(outputKeyFor("svg", "B")));
     await waitFor(() => expect(pending).toHaveLength(3));
 
+    const revealStatus = screen.getByRole("status", { name: /Output Preview status:/ }).textContent;
+    const revealGeometryPath = screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d");
+    expect(revealStatus).toContain("ZOOM2000%");
+
     const ordinaryEvaluation = pending[2];
     if (!ordinaryEvaluation) throw new Error("missing delayed selected-output evaluation");
     await act(async () => {
@@ -1119,8 +1122,8 @@ describe("Output Preview application", () => {
       await Promise.resolve();
     });
     expect(mocks.evaluateOutputPlan).toHaveBeenCalledTimes(initialEvaluationCallCount + pending.length);
-    expect(screen.getByRole("status", { name: /Output Preview status:/ }).textContent).toBe(beforeStatus);
-    expect(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d")).toBe(beforeGeometryPath);
+    expect(screen.getByRole("status", { name: /Output Preview status:/ }).textContent).toBe(revealStatus);
+    expect(screen.getByLabelText("Output preview").querySelector('[data-output-preview-layer="geometry"]')?.getAttribute("d")).toBe(revealGeometryPath);
   });
 
   it("removes explicit Reveal highlights when Open Output Preview selects another Output", async () => {

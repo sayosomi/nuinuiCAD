@@ -1,5 +1,6 @@
+import { fitCanvasViewportToBounds, CANVAS_FIT_PADDING_PX } from "../geometry/canvasViewportFit";
+import { outputDrawableBounds, type OutputBounds, type OutputDrawable, type OutputPlan } from "../output/outputCore";
 import { MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM } from "../state/cadUiStore";
-import type { OutputBounds, OutputPlan } from "../output/outputCore";
 
 export type OutputPreviewViewport = {
   panX: number;
@@ -114,4 +115,77 @@ export const fitOutputPreviewViewport = (
     panX: -centerX * zoom,
     panY: centerY * zoom
   };
+};
+
+const outputPreviewRevealBoundsFor = (
+  drawables: readonly OutputDrawable[]
+): OutputPreviewFitBounds | null => {
+  if (drawables.length === 0) return null;
+
+  let bounds: OutputPreviewFitBounds | null = null;
+  for (const drawable of drawables) {
+    const drawableBounds = outputDrawableBounds(drawable);
+    if (
+      ![
+        drawableBounds.minX,
+        drawableBounds.minY,
+        drawableBounds.maxX,
+        drawableBounds.maxY,
+        drawableBounds.width,
+        drawableBounds.height
+      ].every(Number.isFinite) ||
+      drawableBounds.minX > drawableBounds.maxX ||
+      drawableBounds.minY > drawableBounds.maxY ||
+      drawableBounds.width < 0 ||
+      drawableBounds.height < 0
+    ) return null;
+
+    if (!bounds) {
+      bounds = {
+        minX: drawableBounds.minX,
+        minY: drawableBounds.minY,
+        maxX: drawableBounds.maxX,
+        maxY: drawableBounds.maxY
+      };
+      continue;
+    }
+    bounds = {
+      minX: Math.min(bounds.minX, drawableBounds.minX),
+      minY: Math.min(bounds.minY, drawableBounds.minY),
+      maxX: Math.max(bounds.maxX, drawableBounds.maxX),
+      maxY: Math.max(bounds.maxY, drawableBounds.maxY)
+    };
+  }
+  return bounds;
+};
+
+/** Fits every drawable occurrence selected by an explicit Output Preview Reveal. */
+export const fitOutputPreviewRevealViewport = (
+  drawables: readonly OutputDrawable[],
+  size: OutputPreviewViewportSize,
+  currentViewport: OutputPreviewViewport
+): OutputPreviewViewport | null => {
+  if (
+    ![
+      currentViewport.panX,
+      currentViewport.panY,
+      currentViewport.zoom
+    ].every(Number.isFinite) ||
+    currentViewport.zoom <= 0
+  ) return null;
+
+  const bounds = outputPreviewRevealBoundsFor(drawables);
+  if (!bounds) return null;
+
+  const fitted = fitCanvasViewportToBounds({
+    bounds,
+    size,
+    currentZoom: currentViewport.zoom,
+    paddingPx: CANVAS_FIT_PADDING_PX,
+    maxZoom: MAX_CANVAS_ZOOM
+  });
+  const isPointLike = bounds.minX === bounds.maxX && bounds.minY === bounds.maxY;
+  return isPointLike && fitted !== null && fitted.zoom !== currentViewport.zoom
+    ? null
+    : fitted;
 };
