@@ -774,6 +774,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "replaceTextDocument") {
         if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
+        const current = useCadDocumentStore.getState();
+        if (
+          latestHostDocumentVersionRef.current === message.documentVersion &&
+          current.sourceText === message.sourceText &&
+          current.docText === message.sourceText
+        ) {
+          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          return;
+        }
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
@@ -788,6 +797,15 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "commitText") {
         if (latestHostDocumentVersionRef.current !== null && message.documentVersion < latestHostDocumentVersionRef.current) return;
+        const current = useCadDocumentStore.getState();
+        if (
+          latestHostDocumentVersionRef.current === message.documentVersion &&
+          current.sourceText === message.sourceText &&
+          current.docText === message.sourceText
+        ) {
+          api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
+          return;
+        }
         latestHostDocumentVersionRef.current = message.documentVersion;
         outputPreviewPlaceCommitPendingRef.current = null;
         setPlaceDragPreview(null);
