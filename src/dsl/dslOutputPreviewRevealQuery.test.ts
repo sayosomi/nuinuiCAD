@@ -6,6 +6,7 @@ import type { MaterializedExecutionStatement, ModuleMaterialization } from "./mo
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import type { ModuleSemanticAnalysis, ModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 import {
+  isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
   projectDslOutputPreviewRevealRuntimeTarget,
   queryDslOutputPreviewRevealSourceTarget
 } from "./dslOutputPreviewRevealQuery";
@@ -25,6 +26,23 @@ const positionOf = (source: string, token: string, offset = 1) => {
   const position = source.indexOf(token);
   if (position < 0) throw new Error(`missing token ${token}`);
   return position + offset;
+};
+
+const targetAt = (
+  source: string,
+  compiled: ReturnType<typeof compileFreshCanonicalText>["currentCompiled"],
+  snapshot: { normalizedSource: string; sourceRevision: number },
+  token: string,
+  offset = 1
+) => {
+  if (!compiled) throw new Error("missing compiled document");
+  const result = queryDslOutputPreviewRevealSourceTarget({
+    source: snapshot,
+    compiled,
+    position: positionOf(source, token, offset)
+  });
+  if (result.status === "failed") throw new Error(`missing target: ${result.reason}`);
+  return result.target;
 };
 
 describe("queryDslOutputPreviewRevealSourceTarget", () => {
@@ -100,6 +118,94 @@ describe("queryDslOutputPreviewRevealSourceTarget", () => {
       status: "resolved",
       target: { kind: "semantic", semantic: { kind: "geometry-property" } }
     });
+  });
+
+  it("projects structural availability from current authored output ownership", () => {
+    const { source, compiled, snapshot } = compileSource([
+      "nui 1",
+      "group G {",
+      "  line A = segment(start: (0, 0), end: (10, 0))",
+      "  line B = segment(start: @A.start, end: @A.end)",
+      "  group N {",
+      "    point P = coordinate(x: 1, y: 1)",
+      "  }",
+      "}",
+      "group U {",
+      "  point X = coordinate(x: 2, y: 2)",
+      "  point Y = offset(from: @X, dx: 1, dy: 0)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "layout Unused {",
+      "  place @U(at: (0, 0))",
+      "}",
+      "print P(layout: @L, paper: a4, orientation: portrait, overlap: 0)",
+      "svg S(layout: @L, margin: 0)"
+    ]);
+    const available = (token: string, offset = 1) => isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+      target: targetAt(source, compiled, snapshot, token, offset),
+      compiled: compiled!
+    });
+
+    expect(available("print P")).toBe(true);
+    expect(available("svg S")).toBe(true);
+    expect(available("layout L")).toBe(true);
+    expect(available("layout Unused")).toBe(false);
+    expect(available("place @G", 2)).toBe(true);
+    expect(available("place @U", 2)).toBe(false);
+    expect(available("group G")).toBe(true);
+    expect(available("line A")).toBe(true);
+    expect(available("group N")).toBe(true);
+    expect(available("point P")).toBe(true);
+    expect(available("group U")).toBe(false);
+    expect(available("point X")).toBe(false);
+    expect(available("@A.start")).toBe(true);
+    expect(available("@X")).toBe(false);
+
+    const placeTarget = targetAt(source, compiled, snapshot, "place @G", 2);
+    if (placeTarget.kind !== "place") throw new Error("expected a place target");
+    expect(isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+      compiled: compiled!,
+      target: { ...placeTarget, placementId: `${placeTarget.placementId}-stale` }
+    })).toBe(false);
+    expect(isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+      compiled: compiled!,
+      target: { ...placeTarget, placementIndex: 1 }
+    })).toBe(false);
+  });
+
+  it("accepts repeated Module runtime projections when one projected target is inside a placed group", () => {
+    const { source, compiled, snapshot } = compileSource([
+      "nui 1",
+      "point Input = coordinate(x: 0, y: 0)",
+      "module M(input: point) {",
+      "  point Output = offset(from: @input, dx: 1, dy: 0)",
+      "  point Derived = offset(from: @Output, dx: 1, dy: 0)",
+      "}",
+      "group Placed {",
+      "  instance First = M(input: @Input)",
+      "  instance Second = M(input: @Input)",
+      "}",
+      "layout L {",
+      "  place @Placed(at: (0, 0))",
+      "}",
+      "print P(layout: @L, paper: a4, orientation: portrait, overlap: 0)"
+    ]);
+    const result = queryDslOutputPreviewRevealSourceTarget({
+      source: snapshot,
+      compiled: compiled!,
+      position: positionOf(source, "@Output")
+    });
+
+    expect(result.status).toBe("resolved");
+    if (result.status === "resolved") {
+      expect(result.target.kind).toBe("semantic");
+      expect(isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+        compiled: compiled!,
+        target: result.target
+      })).toBe(true);
+    }
   });
 });
 
