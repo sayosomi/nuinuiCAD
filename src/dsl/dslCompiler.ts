@@ -741,13 +741,15 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       statements: parsed.statements,
       stableStatementIdByIndex: context.stableStatementIdByIndex,
       assignedElementIds: context.assignedElementIds ?? new Map(),
-      moduleSemanticAnalysis: context.moduleSemanticAnalysis
+      moduleSemanticAnalysis: context.moduleSemanticAnalysis,
+      moduleRuntimeContext: context.moduleRuntimeContext
     });
     const moduleGeometryRuntime = buildModuleGeometryRuntime({
       statements: parsed.statements,
       stableStatementIdByIndex: context.stableStatementIdByIndex,
       moduleSemanticAnalysis: context.moduleSemanticAnalysis,
-      moduleMaterialization
+      moduleMaterialization,
+      moduleRuntimeContext: context.moduleRuntimeContext
     });
     diagnostics.push(...moduleGeometryRuntime.diagnostics);
     return {

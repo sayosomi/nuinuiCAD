@@ -30,6 +30,7 @@ import {
   type InstanceContext,
   type ModuleGeometryPropertyRuntimeTarget
 } from "./moduleGeometryRuntimeLowering";
+import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 
 export type { ModuleGeometryPropertyRuntimeTarget };
 
@@ -62,12 +63,14 @@ export const buildModuleGeometryRuntime = ({
   statements,
   stableStatementIdByIndex,
   moduleSemanticAnalysis,
-  moduleMaterialization
+  moduleMaterialization,
+  moduleRuntimeContext
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   moduleSemanticAnalysis: ModuleSemanticAnalysis;
   moduleMaterialization: ModuleMaterialization;
+  moduleRuntimeContext?: ModuleRuntimeContext;
 }): ModuleGeometryRuntimeCompilation => {
   const diagnostics: DslDiagnostic[] = [];
   const contextsByPath = new Map<string, InstanceContext>();
@@ -83,19 +86,26 @@ export const buildModuleGeometryRuntime = ({
       : { kind: "line", elementId: entry.runtimeElementId };
   };
 
-  const register = (instanceStatementId: string, parentPath: readonly string[]): InstanceContext | undefined => {
-    const path = [...parentPath, instanceStatementId];
+  const register = (instance: import("./moduleSemanticTypes").ModuleInstanceSemantic, parentPath: readonly string[]): InstanceContext | undefined => {
+    const path = moduleRuntimeContext
+      ? moduleRuntimeContext.runtimePathForInstance(parentPath, instance)
+      : [...parentPath, instance.statementId];
     const key = pathKey(path);
     const existing = contextsByPath.get(key);
     if (existing) return existing;
-    const instance = moduleSemanticAnalysis.instancesByStatementId.get(instanceStatementId);
     if (!instance?.callee) return undefined;
-    const definition = moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+    const instanceDocumentId = instance.identity?.documentId ?? instance.documentId ?? moduleRuntimeContext?.rootDocumentId;
+    const definition = moduleRuntimeContext
+      ? moduleRuntimeContext.definitionFor(instance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+      : moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
     if (!definition) return undefined;
+    const definitionDocumentId = definition.identity?.documentId ?? definition.documentId ?? instance.callee.definitionIdentity?.documentId ?? moduleRuntimeContext?.rootDocumentId;
     const context: InstanceContext = {
       path,
-      instanceStatementId,
+      instanceStatementId: instance.statementId,
+      instanceDocumentId,
       definitionStatementId: definition.statementId,
+      definitionDocumentId,
       definition,
       aliases: new Map()
     };
@@ -111,19 +121,21 @@ export const buildModuleGeometryRuntime = ({
       if (!moduleRuntimeGeometryKindOf(parameter.type)) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (binding?.value?.kind !== "geometry") continue;
-      const instanceStatement = statements[instance.statementIndex];
+      const instanceStatement = moduleRuntimeContext?.documentFor(instanceDocumentId)?.statements[instance.statementIndex] ?? statements[instance.statementIndex];
       const alias = lowerReference(binding.value.reference, parentPath, instanceStatement, contextsByPath, moduleMaterialization, exportsByPath);
       if (alias) (context.aliases as Map<number, GeometryAlias>).set(parameter.parameterIndex, alias);
     }
     for (const body of definition.bodyStatements) {
       if (body.statementKind !== "moduleInstance") continue;
-      register(body.statementId, path);
+      const definitionAnalysis = moduleRuntimeContext?.analysisFor(definitionDocumentId) ?? moduleSemanticAnalysis;
+      const nested = definitionAnalysis.instancesByStatementId.get(body.statementId);
+      if (nested) register(nested, path);
     }
     return context;
   };
 
   for (const instance of moduleSemanticAnalysis.instances) {
-    if (instance.callerModuleDefinitionStatementId === null) register(instance.statementId, []);
+    if (instance.callerModuleDefinitionStatementId === null) register(instance, []);
   }
 
   const geometryArrayRuntime = buildModuleGeometryArrayRuntime({
@@ -132,7 +144,8 @@ export const buildModuleGeometryRuntime = ({
     moduleSemanticAnalysis,
     moduleMaterialization,
     contextsByPath,
-    exportsByPath
+    exportsByPath,
+    moduleRuntimeContext
   });
   diagnostics.push(...geometryArrayRuntime.diagnostics);
 
@@ -148,20 +161,44 @@ export const buildModuleGeometryRuntime = ({
     target: Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }>,
     currentPath: readonly string[]
   ) => {
-    const definition = definitionForInstance(target.instanceStatementId);
-    const entry = exportsByPath.get(pathKey([...currentPath, target.instanceStatementId]))?.get(target.exportName);
-    const diagnostic = diagnosticForExport(statement, target, definition, statements, entry);
+    const targetInstance = moduleRuntimeContext?.instanceFor(target.instanceIdentity) ?? moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+    const definition = targetInstance?.callee
+      ? moduleRuntimeContext?.definitionFor(targetInstance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(targetInstance.callee.definitionStatementId)
+      : definitionForInstance(target.instanceStatementId);
+    const child = [...contextsByPath.values()].find((candidate) =>
+      candidate.path.length === currentPath.length + 1 &&
+      currentPath.every((part, index) => candidate.path[index] === part) &&
+      candidate.instanceStatementId === target.instanceStatementId &&
+      (!target.instanceIdentity || candidate.instanceDocumentId === target.instanceIdentity.documentId)
+    );
+    const entry = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName) : undefined;
+    const targetStatements = definition?.documentId
+      ? moduleRuntimeContext?.documentFor(definition.documentId)?.statements ?? statements
+      : statements;
+    const diagnostic = diagnosticForExport(statement, target, definition, targetStatements, entry);
     if (diagnostic) diagnostics.push(diagnostic);
   };
 
   const validateDeferredNamespace = (
     statement: DslStatement,
-    target: { instanceStatementId: string; exportName: string; memberSpan: { start: number; end: number } },
+    target: Extract<ModuleGeometryPropertySourceTarget, { kind: "deferredModuleExportProperty" }>,
     currentPath: readonly string[]
   ) => {
-    const definition = definitionForInstance(target.instanceStatementId);
-    const entry = exportsByPath.get(pathKey([...currentPath, target.instanceStatementId]))?.get(target.exportName);
-    const diagnostic = diagnosticForExportNamespace(statement, target, definition, statements, entry);
+    const targetInstance = moduleRuntimeContext?.instanceFor(target.instanceIdentity) ?? moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+    const definition = targetInstance?.callee
+      ? moduleRuntimeContext?.definitionFor(targetInstance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(targetInstance.callee.definitionStatementId)
+      : definitionForInstance(target.instanceStatementId);
+    const child = [...contextsByPath.values()].find((candidate) =>
+      candidate.path.length === currentPath.length + 1 &&
+      currentPath.every((part, index) => candidate.path[index] === part) &&
+      candidate.instanceStatementId === target.instanceStatementId &&
+      (!target.instanceIdentity || candidate.instanceDocumentId === target.instanceIdentity.documentId)
+    );
+    const entry = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName) : undefined;
+    const targetStatements = definition?.documentId
+      ? moduleRuntimeContext?.documentFor(definition.documentId)?.statements ?? statements
+      : statements;
+    const diagnostic = diagnosticForExportNamespace(statement, target, definition, targetStatements, entry);
     if (diagnostic) diagnostics.push(diagnostic);
   };
 
@@ -174,21 +211,29 @@ export const buildModuleGeometryRuntime = ({
   // Ownership belongs to the module definition, not to a particular
   // materialized instance. Apply this once even when a definition is not yet
   // instantiated; repeated calls must not duplicate the same source error.
-  for (const definition of moduleSemanticAnalysis.definitions) {
+  const mutationDefinitions = moduleRuntimeContext
+    ? [...moduleRuntimeContext.documentsById.values()].flatMap((document) => document.moduleSemanticAnalysis.definitions)
+    : moduleSemanticAnalysis.definitions;
+  for (const definition of mutationDefinitions) {
     for (const body of definition.bodyStatements) {
-      const statement = statements[body.statementIndex];
+      const statement = moduleRuntimeContext?.documentFor(definition.documentId)?.statements[body.statementIndex] ?? statements[body.statementIndex];
       if (statement) diagnostics.push(...moduleMutationOwnershipDiagnostics(statement, body));
     }
   }
 
   for (const context of contextsByPath.values()) {
-    const instance = moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
+    const instance = moduleRuntimeContext?.instanceFor({
+      documentId: context.instanceDocumentId!,
+      localIdentity: context.instanceStatementId
+    }) ?? moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
     if (!instance) continue;
+    const instanceStatements = moduleRuntimeContext?.documentFor(context.instanceDocumentId)?.statements ?? statements;
     for (const binding of instance.parameterBindings) {
-      if (binding.value?.kind === "geometry") validateReference(statements[instance.statementIndex], binding.value.reference, context.path.slice(0, -1));
+      if (binding.value?.kind === "geometry") validateReference(instanceStatements[instance.statementIndex], binding.value.reference, context.path.slice(0, -1));
     }
+    const definitionStatements = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements ?? statements;
     for (const body of context.definition.bodyStatements) {
-      const statement = statements[body.statementIndex];
+      const statement = definitionStatements[body.statementIndex];
       if (!statement) continue;
       for (const site of body.geometryReferences) validateReference(statement, site.reference, context.path);
       for (const site of body.scalarExpressions) {
@@ -203,7 +248,7 @@ export const buildModuleGeometryRuntime = ({
 
   const entrySites = (entry: MaterializedExecutionStatement): readonly ModuleGeometryReferenceSite[] => {
     const definition = entry.origin?.moduleDefinitionStatementId
-      ? moduleSemanticAnalysis.definitionsByStatementId.get(entry.origin.moduleDefinitionStatementId)
+      ? moduleRuntimeContext?.definitionFor(entry.origin.moduleDefinitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(entry.origin.moduleDefinitionStatementId)
       : undefined;
     const body = definition?.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId);
     return body?.geometryReferences ?? moduleSemanticAnalysis.rootGeometryReferencesByStatementId.get(entry.sourceStatementId) ?? [];
@@ -214,7 +259,7 @@ export const buildModuleGeometryRuntime = ({
     const baseResolver = resolverForBody({
       statement: entry.statement,
       sites,
-      currentPath: entry.instancePath,
+      currentPath: entry.runtimeInstancePath ?? entry.instancePath,
       contextsByPath,
       materialization: moduleMaterialization,
       exportsByPath
@@ -224,12 +269,12 @@ export const buildModuleGeometryRuntime = ({
       resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
         token,
         entry.sourceStatementIndex,
-        entry.instancePath
+        entry.runtimeInstancePath ?? entry.instancePath
       ),
       resolvePointReferenceList: (token) => geometryArrayRuntime.resolvePointReferenceList(
         token,
         entry.sourceStatementIndex,
-        entry.instancePath
+        entry.runtimeInstancePath ?? entry.instancePath
       )
     });
   }

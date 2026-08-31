@@ -25,6 +25,7 @@ import {
 } from "./moduleGeometryInterfaces";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryReferenceSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
@@ -162,7 +163,8 @@ export const buildModuleGeometryArrayRuntime = ({
   moduleSemanticAnalysis,
   moduleMaterialization,
   contextsByPath,
-  exportsByPath
+  exportsByPath,
+  moduleRuntimeContext
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -170,9 +172,46 @@ export const buildModuleGeometryArrayRuntime = ({
   moduleMaterialization: ModuleMaterialization;
   contextsByPath: ReadonlyMap<string, InstanceContext>;
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
+  moduleRuntimeContext?: ModuleRuntimeContext;
 }): ModuleGeometryArrayRuntimeCompilation => {
-  const sourceNamespace: SourceLexicalNamespaceIndex = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
-  const analysis = sourceNamespace.geometryArraySemanticAnalysis;
+  type RuntimeSource = {
+    documentId: string;
+    statements: readonly DslStatement[];
+    stableStatementIdByIndex: ReadonlyMap<number, string>;
+    sourceNamespace: SourceLexicalNamespaceIndex;
+    moduleSemanticAnalysis: ModuleSemanticAnalysis;
+    analysis: GeometryArraySemanticAnalysis | null;
+  };
+  const rootSource: RuntimeSource = {
+    documentId: moduleRuntimeContext?.rootDocumentId ?? "root",
+    statements,
+    stableStatementIdByIndex,
+    sourceNamespace: moduleRuntimeContext?.documentFor(moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace
+      ?? buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex),
+    moduleSemanticAnalysis,
+    analysis: null
+  };
+  rootSource.analysis = rootSource.sourceNamespace.geometryArraySemanticAnalysis;
+  const sourceForDocument = (documentId: string | undefined): RuntimeSource => {
+    if (!moduleRuntimeContext || !documentId || documentId === moduleRuntimeContext.rootDocumentId) return rootSource;
+    const document = moduleRuntimeContext.documentFor(documentId as import("../document/multiDocumentPrimitives").DocumentId);
+    if (!document) return rootSource;
+    return {
+      documentId: document.documentId,
+      statements: document.statements,
+      stableStatementIdByIndex: document.statementIdByStatementIndex,
+      sourceNamespace: document.sourceLexicalNamespace,
+      moduleSemanticAnalysis: document.moduleSemanticAnalysis,
+      analysis: document.sourceLexicalNamespace.geometryArraySemanticAnalysis
+    };
+  };
+  const sourceForPath = (path: readonly string[]): RuntimeSource => {
+    for (let length = path.length; length > 0; length -= 1) {
+      const context = contextsByPath.get(pathKey(path.slice(0, length)));
+      if (context?.definitionDocumentId) return sourceForDocument(context.definitionDocumentId);
+    }
+    return rootSource;
+  };
   const diagnostics: DslDiagnostic[] = [];
   const diagnosticKeys = new Set<string>();
 
@@ -184,7 +223,9 @@ export const buildModuleGeometryArrayRuntime = ({
     diagnostics.push(diagnostic);
   };
 
-  if (!analysis) {
+  const hasForeignArrayAnalysis = Boolean(moduleRuntimeContext && [...moduleRuntimeContext.documentsById.values()]
+    .some((document) => document.documentId !== moduleRuntimeContext.rootDocumentId && document.sourceLexicalNamespace.geometryArraySemanticAnalysis));
+  if (!rootSource.analysis && !hasForeignArrayAnalysis) {
     return {
       diagnostics,
       resolveLineReferenceList: () => null,
@@ -192,18 +233,23 @@ export const buildModuleGeometryArrayRuntime = ({
       acceptsDeferredLineListExport: () => false
     };
   }
-  const arrayAnalysis: GeometryArraySemanticAnalysis = analysis;
-
-  const definitionIdByIndex = new Map(moduleSemanticAnalysis.definitions.map((definition) => [definition.statementIndex, definition.statementId] as const));
-  const arrayExportsByDefinition = new Map<string, Map<string, GeometryArrayValueSemantic>>();
-  for (const value of arrayAnalysis.values) {
-    if (!value.exported || value.ownerModuleDefinitionStatementIndex === null) continue;
-    const definitionId = definitionIdByIndex.get(value.ownerModuleDefinitionStatementIndex);
-    if (!definitionId) continue;
-    const exports = arrayExportsByDefinition.get(definitionId) ?? new Map<string, GeometryArrayValueSemantic>();
-    exports.set(value.name, value);
-    arrayExportsByDefinition.set(definitionId, exports);
-  }
+  const arrayExportsByDocument = new Map<string, Map<string, Map<string, GeometryArrayValueSemantic>>>();
+  const arrayExportsForSource = (source: RuntimeSource) => {
+    const existing = arrayExportsByDocument.get(source.documentId);
+    if (existing) return existing;
+    const exportsByDefinition = new Map<string, Map<string, GeometryArrayValueSemantic>>();
+    const definitionIdByIndex = new Map(source.moduleSemanticAnalysis.definitions.map((definition) => [definition.statementIndex, definition.statementId] as const));
+    for (const value of source.analysis?.values ?? []) {
+      if (!value.exported || value.ownerModuleDefinitionStatementIndex === null) continue;
+      const definitionId = definitionIdByIndex.get(value.ownerModuleDefinitionStatementIndex);
+      if (!definitionId) continue;
+      const exports = exportsByDefinition.get(definitionId) ?? new Map<string, GeometryArrayValueSemantic>();
+      exports.set(value.name, value);
+      exportsByDefinition.set(definitionId, exports);
+    }
+    arrayExportsByDocument.set(source.documentId, exportsByDefinition);
+    return exportsByDefinition;
+  };
 
   const contextForDefinition = (currentPath: readonly string[], definitionStatementId: string): InstanceContext | null => {
     for (let length = currentPath.length; length > 0; length -= 1) {
@@ -213,15 +259,22 @@ export const buildModuleGeometryArrayRuntime = ({
     return null;
   };
 
+  const childContextFor = (currentPath: readonly string[], instanceStatementId: string) => [...contextsByPath.values()].find((context) =>
+    context.path.length === currentPath.length + 1 &&
+    currentPath.every((part, index) => context.path[index] === part) &&
+    context.instanceStatementId === instanceStatementId
+  );
+
   const arrayExportSemantic = (currentPath: readonly string[], instanceStatementId: string, exportName: string) => {
-    const childPath = [...currentPath, instanceStatementId];
-    const childContext = contextsByPath.get(pathKey(childPath));
+    const childContext = childContextFor(currentPath, instanceStatementId);
     if (!childContext) return null;
-    const exported = arrayExportsByDefinition.get(childContext.definitionStatementId)?.get(exportName) ?? null;
+    const childPath = childContext.path;
+    const childSource = sourceForDocument(childContext.definitionDocumentId);
+    const exported = arrayExportsForSource(childSource).get(childContext.definitionStatementId)?.get(exportName) ?? null;
     return exported ? { childPath, childContext, exported } : null;
   };
 
-  const singularTargetFor = (target: GeometryArraySourceTarget) => {
+  const singularTargetFor = (target: GeometryArraySourceTarget, currentPath: readonly string[]) => {
     if (target.kind === "moduleParameter") {
       return {
         kind: "parameter" as const,
@@ -231,7 +284,7 @@ export const buildModuleGeometryArrayRuntime = ({
       };
     }
     if (target.kind !== "geometry") return null;
-    const statement = statements[target.statementIndex];
+    const statement = sourceForPath(currentPath).statements[target.statementIndex];
     if (statement?.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return null;
     return {
       kind: "sourceGeometry" as const,
@@ -270,14 +323,16 @@ export const buildModuleGeometryArrayRuntime = ({
     if (!context) return null;
     const key = cacheKey(context.path, parameterValueId(definitionStatementId, parameterIndex));
     if (parameterValueCache.has(key)) return parameterValueCache.get(key) ?? null;
-    const instance = moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
+    const instanceSource = sourceForDocument(context.instanceDocumentId);
+    const definitionSource = sourceForPath(context.path);
+    const instance = instanceSource.moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
     const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
-    const parameter = arrayAnalysis.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
+    const parameter = definitionSource.analysis?.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
     if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "optionalOmitted" || binding.state === "requiredOmitted") {
       parameterValueCache.set(key, null);
       return null;
     }
-    const statement = statements[instance.statementIndex];
+    const statement = instanceSource.statements[instance.statementIndex];
     if (statement?.kind !== "moduleInstance") {
       parameterValueCache.set(key, null);
       return null;
@@ -343,9 +398,9 @@ export const buildModuleGeometryArrayRuntime = ({
           continue;
         }
 
-        const ownerIndex = moduleOwnerIndexOf(statements, instance.statementIndex);
+        const ownerIndex = moduleOwnerIndexOf(instanceSource.statements, instance.statementIndex);
         if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {
-          const owner = statements[ownerIndex];
+          const owner = instanceSource.statements[ownerIndex];
           if (owner?.kind === "moduleDefinition") {
             const parameterIndexInOwner = owner.parameters.findIndex((candidate) => candidate.name === path.segments[0]);
             if (parameterIndexInOwner >= 0) {
@@ -356,7 +411,7 @@ export const buildModuleGeometryArrayRuntime = ({
                 continue;
               }
               const interfaceType = moduleGeometryInterfaceTypeOf(ownerParameter.type);
-              const ownerDefinitionId = stableStatementIdByIndex.get(ownerIndex);
+              const ownerDefinitionId = instanceSource.stableStatementIdByIndex.get(ownerIndex);
               if (interfaceType && ownerDefinitionId) {
                 if (pointKey && ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey))) {
                   addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`));
@@ -386,7 +441,7 @@ export const buildModuleGeometryArrayRuntime = ({
           }
         }
 
-        const lookup = resolveSourceLexicalPath(sourceNamespace, instance.statementIndex, path);
+        const lookup = resolveSourceLexicalPath(instanceSource.sourceNamespace, instance.statementIndex, path);
         if (lookup.kind === "resolved") {
           const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
           if (!interfaceType) {
@@ -421,13 +476,13 @@ export const buildModuleGeometryArrayRuntime = ({
           continue;
         }
         if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
-          const childPath = [...callerPath, lookup.declaration.statementId];
-          const exportEntry = exportsByPath.get(pathKey(childPath))?.get(path.segments[1]!);
+          const child = childContextFor(callerPath, lookup.declaration.statementId);
+          const exportEntry = child ? exportsByPath.get(pathKey(child.path))?.get(path.segments[1]!) : undefined;
           if (!exportEntry) {
             addDiagnostic(runtimeDiagnostic(statement, span, "module-undefined-export", `module export「${path.segments[1]}」が見つかりません。`));
             continue;
           }
-          const exportedStatement = statements[exportEntry.exported.exportedStatementIndex];
+          const exportedStatement = sourceForPath(callerPath).statements[exportEntry.exported.exportedStatementIndex];
           const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
           if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
@@ -476,7 +531,7 @@ export const buildModuleGeometryArrayRuntime = ({
             ...(coordinateAnchor(member.target.source) ? { anchor: coordinateAnchor(member.target.source)! } : {})
           };
         }
-        const target = singularTargetFor(member.target);
+        const target = singularTargetFor(member.target, currentPath);
         const alias = target
           ? aliasWithPointKey(
             sourceAliasForTarget(target, currentPath, contextsByPath, moduleMaterialization, exportsByPath),
@@ -494,13 +549,19 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
-    const targetSemantic = arrayAnalysis.valuesByStatementId.get(semantic.value.targetValueId);
+    const currentSource = sourceForPath(currentPath);
+    const currentAnalysis = currentSource.analysis;
+    if (!currentAnalysis) {
+      sourceValueCache.set(key, null);
+      return null;
+    }
+    const targetSemantic = currentAnalysis.valuesByStatementId.get(semantic.value.targetValueId);
     if (targetSemantic) {
       if (
         semantic.ownerModuleDefinitionStatementIndex !== null &&
         targetSemantic.ownerModuleDefinitionStatementIndex !== semantic.ownerModuleDefinitionStatementIndex
       ) {
-        const statement = statements[semantic.statementIndex];
+        const statement = currentSource.statements[semantic.statementIndex];
         if (statement) addDiagnostic(runtimeDiagnostic(statement, semantic.value.sourceSpan, "module-array-outer-capture", "module body から outer geometry array を暗黙 capture できません。"));
         sourceValueCache.set(key, null);
         return null;
@@ -511,7 +572,7 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
-    const parameter = parameterSlotFromValueId(arrayAnalysis, semantic.value.targetValueId);
+    const parameter = parameterSlotFromValueId(currentAnalysis, semantic.value.targetValueId);
     if (parameter) {
       const parameterValue = lowerParameter(currentPath, parameter.definitionStatementId, parameter.parameterIndex, nextVisited);
       const value = parameterValue ? { type: semantic.type, members: parameterValue.members } : null;
@@ -522,7 +583,7 @@ export const buildModuleGeometryArrayRuntime = ({
     const deferred = parseGeometryArrayDeferredModuleExportId(semantic.value.targetValueId);
     if (deferred) {
       const resolved = lowerArrayExport(currentPath, deferred.instanceStatementId, deferred.exportName, nextVisited);
-      const statement = statements[semantic.statementIndex];
+      const statement = currentSource.statements[semantic.statementIndex];
       if (!resolved.actualType) {
         if (statement) addDiagnostic(runtimeDiagnostic(statement, semantic.value.sourceSpan, "module-undefined-export", `module geometry array export「${deferred.exportName}」が見つかりません。`));
         sourceValueCache.set(key, null);
@@ -550,10 +611,11 @@ export const buildModuleGeometryArrayRuntime = ({
   ): RuntimeResult {
     const path = referencePath(source);
     if (!path || path.segments.length === 0) return { value: null, actualType: null };
-    const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+    const runtimeSource = sourceForPath(currentPath);
+    const ownerIndex = moduleOwnerIndexOf(runtimeSource.statements, statementIndex);
     if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {
-      const owner = statements[ownerIndex];
-      const definitionId = stableStatementIdByIndex.get(ownerIndex);
+      const owner = runtimeSource.statements[ownerIndex];
+      const definitionId = runtimeSource.stableStatementIdByIndex.get(ownerIndex);
       if (owner?.kind === "moduleDefinition" && definitionId) {
         const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === path.segments[0]);
         if (parameterIndex >= 0) {
@@ -568,9 +630,9 @@ export const buildModuleGeometryArrayRuntime = ({
       }
     }
 
-    const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+    const lookup = resolveSourceLexicalPath(runtimeSource.sourceNamespace, statementIndex, path);
     if (lookup.kind === "resolved") {
-      const semantic = arrayAnalysis.valuesByStatementIndex.get(lookup.declaration.statementIndex);
+      const semantic = runtimeSource.analysis?.valuesByStatementIndex.get(lookup.declaration.statementIndex);
       return semantic
         ? { value: lowerSemantic(semantic, currentPath, visited), actualType: semantic.type }
         : { value: null, actualType: null };
@@ -586,13 +648,16 @@ export const buildModuleGeometryArrayRuntime = ({
   // source diagnostics independent from whether a particular list consumer
   // happens to execute.
   for (const context of contextsByPath.values()) {
-    const parameters = arrayAnalysis.moduleParameters.filter((parameter) => parameter.definitionStatementId === context.definitionStatementId);
+    const contextSource = sourceForPath(context.path);
+    const contextAnalysis = contextSource.analysis;
+    if (!contextAnalysis) continue;
+    const parameters = contextAnalysis.moduleParameters.filter((parameter) => parameter.definitionStatementId === context.definitionStatementId);
     for (const parameter of parameters) lowerParameter(context.path, parameter.definitionStatementId, parameter.parameterIndex, new Set());
-    for (const semantic of arrayAnalysis.values) {
+    for (const semantic of contextAnalysis.values) {
       if (semantic.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) lowerSemantic(semantic, context.path, new Set());
     }
   }
-  for (const semantic of arrayAnalysis.values) {
+  for (const semantic of rootSource.analysis?.values ?? []) {
     if (semantic.ownerModuleDefinitionStatementIndex === null) lowerSemantic(semantic, [], new Set());
   }
 
@@ -634,11 +699,12 @@ export const buildModuleGeometryArrayRuntime = ({
       if (!path || path.segments.length === 0) return null;
       const sourceReference = parsedSourceReference(member.text);
       const pointKey = sourceReference?.property ?? null;
-      const ownerIndex = moduleOwnerIndexOf(statements, statementIndex);
+      const runtimeSource = sourceForPath(currentPath);
+      const ownerIndex = moduleOwnerIndexOf(runtimeSource.statements, statementIndex);
       let alias: GeometryAlias | null = null;
       if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {
-        const owner = statements[ownerIndex];
-        const definitionId = stableStatementIdByIndex.get(ownerIndex);
+        const owner = runtimeSource.statements[ownerIndex];
+        const definitionId = runtimeSource.stableStatementIdByIndex.get(ownerIndex);
         if (owner?.kind === "moduleDefinition" && definitionId) {
           const parameterIndex = owner.parameters.findIndex((parameter) => parameter.name === path.segments[0]);
           if (parameterIndex >= 0 && !geometryArrayTypeOfModuleParameter(owner.parameters[parameterIndex]!)) {
@@ -656,7 +722,7 @@ export const buildModuleGeometryArrayRuntime = ({
         }
       }
       if (!alias) {
-        const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
+        const lookup = resolveSourceLexicalPath(runtimeSource.sourceNamespace, statementIndex, path);
         if (lookup.kind === "resolved") {
           const sourceStatement = lookup.declaration.statement;
           const interfaceType = moduleGeometryInterfaceTypeOfElement(sourceStatement);
@@ -673,8 +739,8 @@ export const buildModuleGeometryArrayRuntime = ({
             }
           }
         } else if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2) {
-          const childPath = [...currentPath, lookup.declaration.statementId];
-          const exportEntry = exportsByPath.get(pathKey(childPath))?.get(path.segments[1]!);
+          const child = childContextFor(currentPath, lookup.declaration.statementId);
+          const exportEntry = child ? exportsByPath.get(pathKey(child.path))?.get(path.segments[1]!) : undefined;
           if (exportEntry) alias = aliasWithPointKey(exportEntry.alias, pointKey);
         }
       }

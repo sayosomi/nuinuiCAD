@@ -16,6 +16,7 @@ import type {
 import type { DocumentRange, DslPhysicalSpan, LogicalStatement, LogicalStatementSourceMap, SourceRevision } from "./logicalStatementSourceMap";
 import type { DslMajorVersion } from "./dslVersion";
 import type { ModuleMaterialization } from "./moduleMaterialization";
+import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ScalarType } from "../scalars/types";
@@ -363,6 +364,8 @@ export type CompileDslContext = {
   assignedElementIds?: ReadonlyMap<number, ElementId>;
   /** Task 5 materialization input; only the document facade supplies this. */
   moduleSemanticAnalysis?: ModuleSemanticAnalysis;
+  /** Exact graph/semantic owner for imported module runtime execution. */
+  moduleRuntimeContext?: ModuleRuntimeContext;
   /** Reconciler-owned source identities used to derive materialized runtime IDs. */
   stableStatementIdByIndex?: ReadonlyMap<number, string>;
   /** Canonical source namespace used by the second document compile pass.
