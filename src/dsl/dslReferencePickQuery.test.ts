@@ -116,6 +116,39 @@ describe("queryDslReferencePickTarget", () => {
     }
   });
 
+  it("recognizes final empty labeled Module geometry arguments with or without a trailing comma", () => {
+    const source = [
+      "nui 1",
+      "module M(broad: path) {",
+      "}",
+      "instance X = M(broad: )"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const noCommaPosition = source.lastIndexOf("broad: ") + "broad: ".length;
+
+    expect(queryAt(source, compiled, noCommaPosition)).toMatchObject({
+      expectedGeometryInterface: "path",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: noCommaPosition, to: noCommaPosition }
+    });
+
+    const commaSource = source.replace("broad: )", "broad: ,)");
+    const commaCompiled = compileWithIds(commaSource);
+    const commaPosition = commaSource.lastIndexOf("broad: ") + "broad: ".length;
+    expect(queryAt(commaSource, commaCompiled, commaPosition)).toMatchObject({
+      expectedGeometryInterface: "path",
+      role: "geometry",
+      multiplicity: "single",
+      range: { from: commaPosition, to: commaPosition }
+    });
+
+    const ambiguousSource = source.replace("broad: )", ")");
+    const ambiguousCompiled = compileWithIds(ambiguousSource);
+    const ambiguousPosition = ambiguousSource.lastIndexOf("M(") + 2;
+    expect(queryAt(ambiguousSource, ambiguousCompiled, ambiguousPosition)).toBeNull();
+  });
+
   it("uses geometry builtin registry metadata for active arguments", () => {
     const source = [
       "nui 1",
