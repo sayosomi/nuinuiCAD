@@ -279,6 +279,58 @@ describe("VS Code extension manifest command contributions", () => {
     expect(command?.shortTitle).toBe("Create Free Point at Pointer");
   });
 
+  it("keeps the public Convert titles while using native submenu short titles", async () => {
+    const manifest = await readManifest();
+    const commands = manifest.contributes?.commands ?? [];
+    const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+    const conversionCommands = [
+      {
+        id: "nuinuiCAD.convertPointToXYOffset",
+        title: "nuinuiCAD: Convert Point to XY Offset",
+        shortTitle: "XY Offset…"
+      },
+      {
+        id: "nuinuiCAD.convertPointToAngleDistanceOffset",
+        title: "nuinuiCAD: Convert Point to Angle-Distance Offset",
+        shortTitle: "Angle-Distance Offset…"
+      }
+    ];
+
+    for (const conversion of conversionCommands) {
+      expect(commands.find(({ command }) => command === conversion.id)).toMatchObject({
+        command: conversion.id,
+        title: conversion.title,
+        shortTitle: conversion.shortTitle
+      });
+      expect(commandPalette.find(({ command }) => command === conversion.id)?.when)
+        .toBe(sourceOrCanvasPaletteWhen);
+      expect(keybindings.some(({ command }) => command === conversion.id)).toBe(false);
+    }
+
+    expect(manifest.contributes?.menus?.["editor/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: coordinatePointConversionSourceContextWhen,
+      group: "1_modification@2"
+    });
+    expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: coordinatePointConversionCanvasContextWhen,
+      group: "1_modification@1"
+    });
+    expect(manifest.contributes?.menus?.["view/item/context"]).toContainEqual({
+      submenu: "nuinuiCAD.convertPoint",
+      when: "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'",
+      group: "1_modification@1"
+    });
+
+    expect(manifest.contributes?.menus?.["view/title"]?.some(({ command }) =>
+      conversionCommands.some((conversion) => conversion.id === command))).toBe(false);
+    const ribbonSetting = manifest.contributes?.configuration?.properties?.["nuinuiCAD.canvasRibbon.ribbons"];
+    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToXYOffset");
+    expect(JSON.stringify(ribbonSetting)).not.toContain("convertPointToAngleDistanceOffset");
+  });
+
   it("scopes open commands without making Module Preview Palette visibility caret-dependent", async () => {
     const manifest = await readManifest();
     const commandPalette = manifest.contributes?.menus?.commandPalette ?? [];

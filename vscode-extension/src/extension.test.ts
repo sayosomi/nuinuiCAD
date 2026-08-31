@@ -2846,7 +2846,69 @@ describe("VS Code production document lifecycle", () => {
     await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionStart",
       mode,
+      origin: "explorer",
       targetIds: [expect.any(String)]
+    })));
+  });
+
+  it.each([
+    ["nuinuiCAD.convertPointToXYOffset", "xy"],
+    ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
+  ] as const)("routes a Source editor resource argument to Source for %s", async (command, mode) => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/source-context-conversion.nui", "file:///tmp/source-context-conversion.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+
+    commandHandlerFor(command)?.(document.uri);
+
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      mode,
+      origin: "source",
+      targetIds: [expect.any(String)]
+    })));
+  });
+
+  it.each([
+    ["nuinuiCAD.convertPointToXYOffset", "xy"],
+    ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
+  ] as const)("routes an invocation without an Explorer node to the authoritative Canvas for %s", async (command, mode) => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/canvas-context-conversion.nui", "file:///tmp/canvas-context-conversion.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: ["point-a"]
+    });
+    expect(vscodeObservationState.cachedSnapshot().documents[0]?.activeSurface).toBe("canvas");
+    expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas?.coordinatePointConversionTargetIds).toEqual(["point-a"]);
+    panel.webview.postMessage.mockClear();
+
+    commandHandlerFor(command)?.();
+
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      mode,
+      origin: "canvas",
+      targetIds: ["point-a"]
     })));
   });
 

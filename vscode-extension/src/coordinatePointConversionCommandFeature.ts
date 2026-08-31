@@ -82,6 +82,26 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isDocumentRange = (value: unknown): value is { from: number; to: number } =>
+  isRecord(value) && typeof value.from === "number" && typeof value.to === "number";
+
+const isDocumentSymbol = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  return typeof value.name === "string" &&
+    typeof value.detail === "string" &&
+    typeof value.kind === "string" &&
+    isDocumentRange(value.range) &&
+    isDocumentRange(value.selectionRange) &&
+    Array.isArray(value.children) &&
+    value.children.every((child) => isDocumentSymbol(child));
+};
+
+const isNuiElementsTreeNode = (value: unknown): value is NuiElementsTreeNode =>
+  isRecord(value) && isDocumentSymbol(value.symbol);
+
 const canonicalDocumentFor = (snapshot: Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>): CanonicalDocumentValue | null => {
   if (!snapshot) return null;
   return {
@@ -359,13 +379,13 @@ export const registerVscodeCoordinatePointConversionFeature = ({
   };
 
   const commands = [
-    vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_XY_COMMAND_ID, (node?: NuiElementsTreeNode) => {
-      if (node) void convertFromExplorer("xy", node);
+    vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_XY_COMMAND_ID, (invocation: unknown) => {
+      if (isNuiElementsTreeNode(invocation)) void convertFromExplorer("xy", invocation);
       else if (activeCanvasEndpoint()) convertFromCanvas("xy");
       else void convertFromSource("xy");
     }),
-    vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_ANGLE_DISTANCE_COMMAND_ID, (node?: NuiElementsTreeNode) => {
-      if (node) void convertFromExplorer("angle-distance", node);
+    vscode.commands.registerCommand(VSCODE_COORDINATE_POINT_CONVERSION_ANGLE_DISTANCE_COMMAND_ID, (invocation: unknown) => {
+      if (isNuiElementsTreeNode(invocation)) void convertFromExplorer("angle-distance", invocation);
       else if (activeCanvasEndpoint()) convertFromCanvas("angle-distance");
       else void convertFromSource("angle-distance");
     })
