@@ -831,7 +831,18 @@ const addModuleOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
     const declaration = index.declarationByTarget.get(moduleSemanticTargetKey(token.target));
     const isDeclaration = declaration?.from === token.from && declaration.to === token.to;
     const pathRanges = readDslReferencePathSegments(source, token.from, token.to);
-    if (!isDeclaration && pathRanges.kind === "valid" && pathRanges.segments.length > 1) continue;
+    if (!isDeclaration && pathRanges.kind === "valid" && pathRanges.segments.length > 1) {
+      // Qualified Module callees are represented by the existing Module
+      // semantic editor as one resolved path token. The generic occurrence
+      // owner must expose the authored callee member, not the whole path,
+      // so a document-qualified Module identity can be projected without
+      // turning the import alias into a Module reference.
+      if (token.target.kind === "moduleDefinition") {
+        const member = pathRanges.segments.at(-1);
+        if (member) add("reference", member.start, member.end, identity);
+      }
+      continue;
+    }
     add(isDeclaration ? "declaration" : "reference", token.from, token.to, identity);
   }
   addModuleSemanticPathOccurrences(compiled, add);
