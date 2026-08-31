@@ -722,6 +722,40 @@ describe("Output Preview application", () => {
     expect(status).toHaveTextContent(/X-?\d+\.\d+Y-?\d+\.\d+/);
   });
 
+  it("keeps the viewport owner reachable when the React root pointer boundary is interrupted", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel", "lostpointercapture"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+
+    try {
+      useCadDocumentStore.getState().commitText(source, "test");
+      render(<OutputPreviewApp api={api} />, { container });
+      await waitFor(() => expect(Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("width"))).toBeGreaterThan(400));
+      const viewport = container.querySelector(".output-preview-viewport");
+      if (!(viewport instanceof HTMLElement)) throw new Error("missing output preview viewport");
+      const before = Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("x"));
+
+      await act(async () => {
+        fireEvent.pointerDown(viewport, { button: 1, pointerId: 1, clientX: 100, clientY: 100 });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerMove(viewport, { buttons: 0, pointerId: 1, clientX: 120, clientY: 100 });
+        await Promise.resolve();
+      });
+
+      expect(Number(container.querySelector('[data-output-preview-layer="page-fill"]')?.getAttribute("x"))).toBeCloseTo(before + 20);
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      cleanup();
+      container.remove();
+    }
+  });
+
   it("ends a captured middle-button pan on pointerup and keeps wheel zoom available", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     mocks.evaluateOutputPlan.mockImplementation(async ({ output }: { output: TestOutput }) => planFor(output));

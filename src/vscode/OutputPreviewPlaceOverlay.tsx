@@ -17,6 +17,7 @@ import {
   type OutputPreviewPlaceDragProof
 } from "./outputPreviewPlaceDrag";
 import type { OutputPreviewViewport, OutputPreviewViewportSize } from "./outputPreviewViewport";
+import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
 import "./outputPreviewPlaceOverlay.css";
 
 type OutputPreviewPlaceCandidateSession = {
@@ -84,6 +85,7 @@ export const OutputPreviewPlaceOverlay = ({
   const [dragSession, setDragSession] = useState<OutputPreviewPlaceDragSession | null>(null);
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const dragSessionRef = useRef<OutputPreviewPlaceDragSession | null>(null);
+  const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const axisLockKeysRef = useRef<AxisLockKeys>(releasedAxisLocks());
   const suppressClickPlaceIdRef = useRef<string | null>(null);
   const candidateWheelDeltaRef = useRef(0);
@@ -329,13 +331,28 @@ export const OutputPreviewPlaceOverlay = ({
     return () => viewportElement.removeEventListener("wheel", handleCandidateWheel, { capture: true });
   }, [candidateSessionIsCurrent, handleCandidateWheel]);
 
-  const beginHandleDrag = (event: React.PointerEvent<HTMLButtonElement>, handle: OutputPreviewPlaceHandle) => {
+  const handleForPointerEvent = (event: React.PointerEvent<HTMLElement>): OutputPreviewPlaceHandle | null => {
+    const target = event.target;
+    if (!(target instanceof Element)) return null;
+    const button = target.closest<HTMLButtonElement>("button[data-place-id]");
+    if (!button || !overlayRootRef.current?.contains(button)) return null;
+    return handles.find((handle) => handle.placeId === button.dataset.placeId) ?? null;
+  };
+
+  const beginHandleDrag = (event: React.PointerEvent<HTMLElement>, handle: OutputPreviewPlaceHandle) => {
     if (event.button !== 0 || !handle.projection.dragability.draggable || !onBeginDrag) return;
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
     event.stopPropagation();
     const candidates = outputPreviewPlaceCandidatesAtScreen(handles, handle.screen);
     if (candidates.length > 1 && activePlaceId !== handle.placeId) return;
     const proof = onBeginDrag(handle.projection);
     if (!proof) return;
+    const captureTarget = event.currentTarget instanceof HTMLButtonElement
+      ? event.currentTarget
+      : event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>("button[data-place-id]")
+        : null;
+    if (!captureTarget) return;
     cancelHoverClear();
     setHoveredPlaceId(null);
     setCandidateSession(null);
@@ -352,18 +369,19 @@ export const OutputPreviewPlaceOverlay = ({
       zoom: viewport.zoom,
       coordinates: { x: proof.x.literal, y: proof.y.literal },
       activated: false,
-      captureTarget: event.currentTarget
+      captureTarget
     };
     dragSessionRef.current = session;
     setDragSession(session);
     try {
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      session.captureTarget.setPointerCapture?.(event.pointerId);
     } catch {
       finishDragSession(true);
     }
   };
 
-  const moveHandleDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const moveHandleDrag = (event: React.PointerEvent<HTMLElement>) => {
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
     const current = dragSessionRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     event.stopPropagation();
@@ -374,7 +392,8 @@ export const OutputPreviewPlaceOverlay = ({
     applyDragPreview(current, event.clientX, event.clientY);
   };
 
-  const commitHandleDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const commitHandleDrag = (event: React.PointerEvent<HTMLElement>) => {
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
     const current = dragSessionRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     event.stopPropagation();
@@ -387,11 +406,29 @@ export const OutputPreviewPlaceOverlay = ({
     finishDragSession(!committed);
   };
 
-  const cancelHandleDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const cancelHandleDrag = (event: React.PointerEvent<HTMLElement>) => {
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
     if (dragSessionRef.current?.pointerId !== event.pointerId) return;
     event.stopPropagation();
     finishDragSession(true);
   };
+
+  const handleNativePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handle = handleForPointerEvent(event);
+    if (handle) beginHandleDrag(event, handle);
+  };
+
+  useNativePointerBoundaryFallback({
+    targetRef: overlayRootRef,
+    handlers: {
+      pointerdown: handleNativePointerDown,
+      pointermove: moveHandleDrag,
+      pointerup: commitHandleDrag,
+      pointercancel: cancelHandleDrag,
+      lostpointercapture: cancelHandleDrag
+    },
+    reactHandledEvents: reactHandledPointerEvents
+  });
 
   return (
     <div ref={overlayRootRef} className="output-preview-place-overlay" data-output-preview-layer="place-overlay">

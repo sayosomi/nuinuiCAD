@@ -449,6 +449,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         evaluationState={canvasPresentation.renderEvaluationState}
         canvasFocusRef={canvasFocusRef}
         hostAdapter={hostAdapter}
+        nativePointerBoundaryFallback
       />
     );
   }

@@ -303,6 +303,61 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(state.elements.find((element) => element.id === selectedId)?.name).toBe("A");
   });
 
+  it("selects a point when the React root pointer boundary is interrupted", async () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const evaluation = evaluateElements(state.elements);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    const pointerEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel"];
+    pointerEvents.forEach((eventName) => container.addEventListener(eventName, blockReactPointerBoundary));
+
+    try {
+      const view = render(
+        renderCurrent(
+          evaluation,
+          evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision)
+        ),
+        { container }
+      );
+      const point = container.querySelector<SVGCircleElement>(".overlay-draggable-point");
+      if (!point) throw new Error("Expected rendered SVG point overlay");
+      const coordinates = {
+        clientX: Number(point.getAttribute("cx")),
+        clientY: Number(point.getAttribute("cy"))
+      };
+
+      await act(async () => {
+        fireEvent.pointerDown(point, {
+          button: 0,
+          buttons: 1,
+          ...coordinates,
+          pointerId: 1
+        });
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.pointerUp(point, {
+          buttons: 0,
+          ...coordinates,
+          pointerId: 1
+        });
+        await Promise.resolve();
+      });
+
+      const selectedId = useCadUiStore.getState().selectedElementId;
+      expect(state.elements.find((element) => element.id === selectedId)?.name).toBe("A");
+      view.unmount();
+    } finally {
+      pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
+      container.remove();
+    }
+  });
+
   it("selects a line when the pointer events target the rendered SVG line", () => {
     useCadDocumentStore.getState().replaceTextDocument(baseline, {
       currentFilePath: null,

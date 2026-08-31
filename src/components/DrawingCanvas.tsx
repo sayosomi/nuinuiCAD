@@ -85,12 +85,14 @@ import {
   measureCanvasDraw
 } from "../performance/benchmarkInstrumentation";
 import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObserver";
+import { useNativePointerBoundaryFallback } from "./nativePointerBoundaryFallback";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
   hostAdapter: CanvasHostAdapter;
+  nativePointerBoundaryFallback?: boolean;
 };
 
 /** Narrow command-facing boundary for Canvas state that must not survive creation-session re-entry. */
@@ -150,6 +152,15 @@ const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
 const POINT_DRAG_THRESHOLD_PX = 8;
 const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 
+const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
+  const target = event.target;
+  return !(target instanceof Element && target.closest(
+    ".command-ribbon, .vscode-creation-assist-dock, [data-reference-pick-ui='true'], " +
+    ".numeric-reference-candidate-menu, .measurement-candidate-menu, .line-pick-candidate-menu, " +
+    ".canvas-overlap-candidate-menu"
+  ));
+};
+
 const isRejectedDocumentMutation = (result: unknown) =>
   typeof result === "object" && result !== null && "status" in result && result.status === "rejected";
 
@@ -175,13 +186,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   evaluation,
   evaluationState,
   canvasFocusRef,
-  hostAdapter
+  hostAdapter,
+  nativePointerBoundaryFallback = false
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panDragRef = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
+  const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
   const rectangleSelectionRef = useRef<CanvasRectangleSelectionSessionState | null>(null);
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
@@ -842,6 +855,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     hoverPointerRef.current = null;
     setHoverIdentityState(null);
   }, []);
+
+  const markReactPointerEvent = (event: ReactPointerEvent): void => {
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
+  };
 
   const setOverlapSession = useCallback((session: CanvasOverlapSessionState | null) => {
     overlapCandidateSessionRef.current = session;
@@ -1543,6 +1560,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
     const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
       hostAdapter.setCommandErrorMessage(
@@ -1660,6 +1678,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
     const screen = screenPointForPointerEvent(event);
     publishWorldPointerForScreen(screen);
     const pointerMoveEntry = capturePointerMoveEntry();
@@ -1791,6 +1810,56 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     };
   };
 
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
+    if (pendingPointerStateRef.current.kind === "waiting") {
+      applyPendingPointerTransition(releasePendingCanvasPointer(
+        pendingPointerStateRef.current,
+        event.pointerId,
+        { clientX: event.clientX, clientY: event.clientY }
+      ));
+      return;
+    }
+    stopBezierHandleDragging(event);
+    stopPointDragging(event);
+    stopRectangleSelection(event, true);
+    stopPanning(event);
+    resolveEditorFocusReservation(event.pointerId);
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
+    if (pendingPointerStateRef.current.kind === "waiting") {
+      applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
+      discardEditorFocusReservation(event.pointerId);
+      return;
+    }
+    stopBezierHandleDragging(event);
+    stopPointDragging(event);
+    stopRectangleSelection(event, false);
+    stopPanning(event);
+    discardEditorFocusReservation(event.pointerId);
+  };
+
+  const handlePointerLeave = (event: ReactPointerEvent<HTMLDivElement>) => {
+    markReactPointerEvent(event);
+    clearHoveredElement();
+  };
+
+  useNativePointerBoundaryFallback({
+    targetRef: canvasFocusRef,
+    enabled: nativePointerBoundaryFallback,
+    handlers: {
+      pointerdown: handlePointerDown,
+      pointermove: handlePointerMove,
+      pointerup: handlePointerUp,
+      pointercancel: handlePointerCancel,
+      pointerleave: handlePointerLeave
+    },
+    reactHandledEvents: reactHandledPointerEvents,
+    shouldFallback: nativePointerBoundaryFallback ? canvasPointerBoundaryFallbackShouldRun : undefined
+  });
+
   return (
     <section className="canvas-panel">
       <div
@@ -1814,34 +1883,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={(event) => {
-          if (pendingPointerStateRef.current.kind === "waiting") {
-            applyPendingPointerTransition(releasePendingCanvasPointer(
-              pendingPointerStateRef.current,
-              event.pointerId,
-              { clientX: event.clientX, clientY: event.clientY }
-            ));
-            return;
-          }
-          stopBezierHandleDragging(event);
-          stopPointDragging(event);
-          stopRectangleSelection(event, true);
-          stopPanning(event);
-          resolveEditorFocusReservation(event.pointerId);
-        }}
-        onPointerCancel={(event) => {
-          if (pendingPointerStateRef.current.kind === "waiting") {
-            applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
-            discardEditorFocusReservation(event.pointerId);
-            return;
-          }
-          stopBezierHandleDragging(event);
-          stopPointDragging(event);
-          stopRectangleSelection(event, false);
-          stopPanning(event);
-          discardEditorFocusReservation(event.pointerId);
-        }}
-        onPointerLeave={clearHoveredElement}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >
         <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
