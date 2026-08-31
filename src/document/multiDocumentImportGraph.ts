@@ -140,6 +140,10 @@ export type BuildMultiDocumentImportGraphInput<Metadata = unknown> = {
   declarationContributors?: readonly MultiDocumentDeclarationContributor<Metadata>[];
   /** Canonical root callers may supply reconciler-owned identities. */
   rootStatementIdByStatementIndex?: ReadonlyMap<number, string>;
+  /** Existing graph owners may supply exact statement identities for a saved dependency. */
+  savedDependencyStatementIdsForDocument?: (
+    source: DependencySavedSourceSnapshot
+  ) => ReadonlyMap<number, string> | undefined;
 };
 
 const cacheKey = (documentId: DocumentId, fingerprint: SavedSourceFingerprint) =>
@@ -332,8 +336,10 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
   const artifactForSaved = (snapshot: DependencySavedSourceSnapshot) => {
     const cached = cache.get(snapshot.documentId, snapshot.savedSourceFingerprint);
     if (cached) return cached;
+    const statementIds = input.savedDependencyStatementIdsForDocument?.(snapshot);
     const artifact = analyzeMultiDocumentSource(snapshot, {
-      declarationContributors: input.declarationContributors
+      declarationContributors: input.declarationContributors,
+      ...(statementIds ? { statementIdByStatementIndex: statementIds } : {})
     });
     cache.set(artifact);
     return artifact;

@@ -14,6 +14,7 @@ import {
   signatureHelpTranslationCatalog
 } from "./localization";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
 export const nuiSignatureHelpSelector: vscode.DocumentSelector = {
@@ -130,11 +131,21 @@ export const createNuiSignatureHelpProvider = (
       normalizedSource,
       sourceRevision: session.getSourceRevision()
     };
-    const result = queryDslSignatureHelp({
-      source,
-      position: normalizedOffsetAt(normalizedSource, position),
-      semantic: session.signatureHelpSemanticSnapshot(source)
-    });
-    return result ? projectDslSignatureHelp(result, displayLanguageFor()) : undefined;
+    const provideFor = (querySource: SourceSnapshot, semanticSource?: DslSignatureHelpSemanticSnapshot) => {
+      const result = queryDslSignatureHelp({
+        source: querySource,
+        position: normalizedOffsetAt(querySource.normalizedSource, position),
+        semantic: semanticSource ?? session.signatureHelpSemanticSnapshot(querySource)
+      });
+      return result ? projectDslSignatureHelp(result, displayLanguageFor()) : undefined;
+    };
+
+    const multiDocument = activeVscodeMultiDocumentHost();
+    if (!multiDocument) return provideFor(source);
+    return multiDocument.languageSemanticSnapshotFor(document).then((snapshot) =>
+      snapshot
+        ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)
+        : provideFor(source)
+    );
   }
 });

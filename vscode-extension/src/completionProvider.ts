@@ -8,6 +8,7 @@ import {
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
 export { normalizedOffsetAt } from "./sourceOffsetAdapter";
@@ -130,16 +131,26 @@ export const createNuiCompletionProvider = (
       normalizedSource,
       sourceRevision: session.getSourceRevision()
     };
-    const semantic = session.completionSemanticSnapshot(source);
-    const recovery = session.completionRecoverySnapshot(source);
-    const result = queryDslCompletion({
-      source,
-      position: normalizedOffsetAt(normalizedSource, position),
-      ...(semantic ? { semantic } : {}),
-      ...(recovery ? { recovery } : {})
-    });
-    if (!result) return [];
+    const provideFor = (querySource: SourceSnapshot, semanticSource?: Parameters<typeof queryDslCompletion>[0]["semantic"]) => {
+      const semantic = semanticSource ?? session.completionSemanticSnapshot(querySource);
+      const recovery = semanticSource ? undefined : session.completionRecoverySnapshot(querySource);
+      const result = queryDslCompletion({
+        source: querySource,
+        position: normalizedOffsetAt(querySource.normalizedSource, position),
+        ...(semantic ? { semantic } : {}),
+        ...(recovery ? { recovery } : {})
+      });
+      return result
+        ? projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor())
+        : [];
+    };
 
-    return projectDslCompletionItems(normalizedSource, result, displayLanguageFor());
+    const multiDocument = activeVscodeMultiDocumentHost();
+    if (!multiDocument) return provideFor(source);
+    return multiDocument.languageSemanticSnapshotFor(document).then((snapshot) =>
+      snapshot
+        ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)
+        : provideFor(source)
+    );
   }
 });
