@@ -46,6 +46,10 @@
       {
         "id": "nuinuiCAD.create",
         "label": "Create"
+      },
+      {
+        "id": "nuinuiCAD.convertPoint",
+        "label": "Convert"
       }
     ],
     "keybindings": [
@@ -131,6 +135,14 @@
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToXYOffset",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
           "command": "nuinuiCAD.replaceGeometryReferences",
@@ -513,6 +525,32 @@
           "group": "configuration@100"
         }
       ],
+      "nuinuiCAD.convertPoint": [
+        {
+          "command": "nuinuiCAD.convertPointToXYOffset",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToXYOffset",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToXYOffset",
+          "when": "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'"
+        },
+        {
+          "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+          "when": "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'"
+        }
+      ],
       "view/title": [
         {
           "command": "nuinuiCAD.openCanvas",
@@ -523,6 +561,13 @@
           "command": "nuinuiCAD.openOutputPreview",
           "when": "view == nuinuiCAD.elements",
           "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "submenu": "nuinuiCAD.convertPoint",
+          "when": "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'",
+          "group": "1_modification@1"
         }
       ],
       "webview/context": [
@@ -540,6 +585,11 @@
           "submenu": "nuinuiCAD.create",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'",
           "group": "1_create@1"
+        },
+        {
+          "submenu": "nuinuiCAD.convertPoint",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget",
+          "group": "1_modification@1"
         },
         {
           "command": "nuinuiCAD.fitDrawing",
@@ -658,6 +708,11 @@
           "group": "1_modification@1"
         },
         {
+          "submenu": "nuinuiCAD.convertPoint",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget",
+          "group": "1_modification@2"
+        },
+        {
           "command": "nuinuiCAD.stepSourceValueForward",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
           "group": "1_modification@2"
@@ -728,6 +783,18 @@
         "command": "nuinuiCAD.pickReferenceFromCanvas",
         "title": "nuinuiCAD: Pick Reference from Canvas",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.convertPointToXYOffset",
+        "title": "nuinuiCAD: Convert Point to XY Offset",
+        "shortTitle": "XY Offset…",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget)"
+      },
+      {
+        "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
+        "title": "nuinuiCAD: Convert Point to Angle-Distance Offset",
+        "shortTitle": "Angle-Distance Offset…",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget)"
       },
       {
         "command": "nuinuiCAD.replaceGeometryReferences",

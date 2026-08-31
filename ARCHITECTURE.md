@@ -101,6 +101,21 @@ retargets the existing panel using the exact-current Module definition identity.
 All three surfaces reuse the one Extension Host Rust process owner and the shared
 `replaceTextDocument` / `commitText` hydration protocol.
 
+Coordinate point conversion is an explicit Source+Canvas command family with an
+Explorer item-context entry point. `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
+owns host target projection, exact-current runtime evaluation, Canvas session
+routing, and result presentation; `src/vscode/useVSCodeCoordinatePointConversionSession.ts`
+and `src/commands/coordinatePointConversionSession.ts` own the narrow one-base
+interaction state. Source, Canvas, and Explorer all send the same proof-carrying
+start request to the URI-matched Canvas. The Webview performs the shared
+candidate/search/visual-pick interaction and calls the existing
+`coordinatePointConversion.ts` planner/apply owner, then the Extension Host
+applies the resulting statement-level splices through the normal Canvas commit
+boundary. Canvas availability is projected from the attached observation's
+current eligible selection; Source and Explorer availability use the current
+document analysis/evaluation path. No cross-surface sticky target or alternate
+conversion semantics are introduced.
+
 Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
 `webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
 Webview state. It derives current print/svg candidates from the compiled
@@ -712,6 +727,8 @@ dynamic Lucide icon resolution through the same boundary.
 Primary:
 
 - `src/commands/`
+- `src/commands/coordinatePointConversion.ts`
+- `src/commands/coordinatePointConversionSession.ts`
 - `src/keyboard/shortcuts.ts`
 - `src/parameters/parameterDefinitions.ts`
 
@@ -782,12 +799,16 @@ Primary:
 - `vscode-extension/src/hoverProvider.ts`
 - `vscode-extension/src/runtimeEvaluationService.ts`
 - `vscode-extension/src/referencePickCommandFeature.ts`
+- `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
+- `vscode-extension/src/coordinatePointConversionPresentation.ts`
 - `vscode-extension/src/referencePickSourceBridge.ts`
 - `vscode-extension/src/sourceValueStepCommandFeature.ts`
 - `src/geometry/geometryHoverPresentation.ts`
 - `src/node/rustEvaluationProcess.ts`
 - `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/components/CommandLineBar.tsx`
+- `src/vscode/coordinatePointConversionPick.ts`
 - `src/vscode/ModulePreviewApp.tsx`
 - `src/vscode/modulePreviewLifecycle.ts`
 - `src/vscode/modulePreviewEvaluation.ts`
@@ -882,6 +903,21 @@ Done/Enter, and Esc UI using the established Canvas bottom-right transient hint
 and Canvas theme variables. Source changes, document close, stale proof/version,
 panel disposal, stale responses, or invalidated targets cancel or fail closed
 without source mutation.
+
+Coordinate point conversion keeps its semantic session and target/base
+revalidation in `coordinatePointConversion.ts` and
+`coordinatePointConversionSession.ts`, while the Extension Host owns the
+document-scoped request lifecycle and terminal presentation. In the Webview,
+`CommandLineBar.tsx` is the shared conversion base-entry surface: it reuses the
+common searchable reference suggestions and command-line styling, and delegates
+Canvas picking through `CanvasHostAdapter` and the shared `DrawingCanvas` point
+pick path. `coordinatePointConversionPick.ts` is only the narrow adapter between
+that virtual pick target and the conversion session; it is not a second
+conversion evaluator or creation recipe. Source, Canvas, and Explorer all use
+the same host request and session flow. An owned conversion commit carries its
+request identity across the normal TextDocument change echo so the terminal
+result remains connected to exactly one active request; unrelated source
+changes, stale evaluation, panel disposal, or document close fail closed.
 
 The Webview keeps the last authoritative host source snapshot separately from
 its latest host version. Navigation is allowed only when that snapshot, the
