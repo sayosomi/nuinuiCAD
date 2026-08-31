@@ -243,12 +243,34 @@ const currentModuleDefinitionParametersAt = (
   const namespace = compiled.sourceLexicalNamespace;
   if (!exact || !namespace || statementIndex < 0) return undefined;
 
+  const statement = compiled.statements[statementIndex];
+  const statementId = compiled.statementMap?.statementIdByStatementIndex?.get(statementIndex);
+  const instance = statement?.kind === "moduleInstance" && statementId
+    ? compiled.moduleSemanticAnalysis?.instancesByStatementId.get(statementId)
+    : undefined;
+  const semanticDefinition = instance?.callee?.definition ??
+    (instance?.callee?.definitionIdentity
+      ? compiled.moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+      : undefined) ??
+    (instance?.callee
+      ? compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId)
+      : undefined);
+  if (semanticDefinition) {
+    return semanticDefinition.parameters.map((parameter) => ({
+      name: parameter.name,
+      type: parameter.type,
+      recordTypeIdentity: parameter.recordTypeIdentity,
+      optional: parameter.optional,
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex
+    }));
+  }
+
   const calleeName = authoring
     ? authoring.kind === "module"
       ? authoring.callee.name
       : undefined
     : (() => {
-        const statement = compiled.statements[statementIndex];
         return statement?.kind === "moduleInstance" ? statement.moduleName : undefined;
       })();
   if (!calleeName) return undefined;

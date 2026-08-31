@@ -31,6 +31,7 @@ import {
 import { getParameterValue } from "../parameters/parameterAccess";
 import type { CadElementType } from "../types/geometry";
 import type { ScalarType } from "../scalars/types";
+import { moduleSemanticIdentityKey } from "./moduleSemanticTypes";
 
 export type DslSignatureHelpDocumentation = {
   /** Stable localization key; the host presentation layer selects the locale. */
@@ -341,28 +342,45 @@ const moduleSignatureFor = (
   if (
     !instance ||
     instance.calleeResolution !== "resolved" ||
-    !instance.callee ||
-    instance.callee.name !== authoring.callee.name
+    !instance.callee
   ) return null;
-  const definition = analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  const definition = instance.callee.definition ??
+    (instance.callee.definitionIdentity
+      ? compiled.moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+      : undefined) ??
+    analysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
   if (!definition) return null;
-  const documentationIndex = buildModuleDocumentationIndex({
-    statements: compiled.statements,
-    spans: compiled.spans,
-    semanticAnalysis: analysis
-  });
-  const authoredDocumentation = documentationForModuleDefinition(documentationIndex, definition);
+  const imported = Boolean(
+    definition.identity &&
+    compiled.moduleRuntimeContext &&
+    definition.identity.documentId !== compiled.moduleRuntimeContext.rootDocumentId
+  );
+  const moduleIdentity = imported && definition.identity
+    ? moduleSemanticIdentityKey(definition.identity)
+    : definition.statementId;
+  const documentationIndex = imported
+    ? null
+    : buildModuleDocumentationIndex({
+        statements: compiled.statements,
+        spans: compiled.spans,
+        semanticAnalysis: analysis
+      });
+  const authoredDocumentation = documentationIndex
+    ? documentationForModuleDefinition(documentationIndex, definition)
+    : undefined;
 
   return {
-    identity: `module:${definition.statementId}`,
+    identity: `module:${moduleIdentity}`,
     name: definition.name,
     callingStyle: "module",
     documentation: { key: "signatureHelp.module" },
     ...(authoredDocumentation ? { authoredDocumentation } : {}),
     parameters: definition.parameters.map((parameter) => {
-      const parameterDocumentation = documentationForModuleParameter(documentationIndex, parameter);
+      const parameterDocumentation = documentationIndex
+        ? documentationForModuleParameter(documentationIndex, parameter)
+        : undefined;
       return {
-        identity: `module:${definition.statementId}:${parameter.parameterIndex}`,
+        identity: `module:${moduleIdentity}:${parameter.parameterIndex}`,
         name: parameter.name,
         type: moduleTypeName(parameter.type),
         optional: parameter.optional,
