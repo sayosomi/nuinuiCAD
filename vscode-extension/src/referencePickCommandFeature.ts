@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
 import {
+  isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
   queryDslOutputPreviewRevealSourceTarget,
   type DslOutputPreviewRevealSourceQueryResult,
   type DslOutputPreviewRevealSourceTarget
@@ -172,11 +173,16 @@ export const sourceTargetAvailabilityForEditor = (
     compiled: semantic.compiled,
     position: normalizedSourceOffset
   }) !== null;
-  const revealInOutputPreview = outputPreviewRevealSourceTargetFromSnapshot({
+  const outputPreviewRevealTarget = outputPreviewRevealSourceTargetFromSnapshot({
     source,
     semantic,
     normalizedSourceOffset
-  }).status === "resolved";
+  });
+  const revealInOutputPreview = outputPreviewRevealTarget.status === "resolved" &&
+    isDslOutputPreviewRevealSourceTargetStructurallyAvailable({
+      target: outputPreviewRevealTarget.target,
+      compiled: semantic.compiled
+    });
   return { referencePickSourceOffset, revealInCanvas, revealInOutputPreview, bake };
 };
 

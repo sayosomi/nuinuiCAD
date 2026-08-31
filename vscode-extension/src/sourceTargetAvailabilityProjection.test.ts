@@ -73,6 +73,7 @@ vi.mock("./referencePickSourceBridge", () => ({
 }));
 
 import {
+  outputPreviewRevealSourceTargetForEditor,
   registerVscodeReferencePickFeature,
   VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY,
   VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY,
@@ -102,8 +103,14 @@ describe("Source target availability projection", () => {
   it("reuses Reveal and Bake target semantics without conflating their hit areas", async () => {
     const source = [
       "nui 1",
-      "line L = segment(start: (0, 0), end: (10, 0))",
-      "const width: number = @L.length"
+      "group G {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  const width: number = @L.length",
+      "}",
+      "layout Printed {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "print P(layout: @Printed, paper: a4, orientation: portrait, overlap: 0)"
     ].join("\n");
     const document: TestDocument = {
       version: 1,
@@ -148,6 +155,45 @@ describe("Source target availability projection", () => {
     feature.dispose();
   });
 
+  it("keeps command-time Source target resolution broader than menu containment availability", async () => {
+    const source = [
+      "nui 1",
+      "group Unplaced {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  const width: number = @L.length",
+      "}",
+      "layout Unused {",
+      "  place @Unplaced(at: (0, 0))",
+      "}"
+    ].join("\n");
+    const document: TestDocument = {
+      version: 1,
+      fileName: "/tmp/source-unplaced.nui",
+      uri: { scheme: "file", toString: () => "file:///tmp/source-unplaced.nui" },
+      getText: () => source,
+      offsetAt: (position) => position.offset
+    };
+    const editor: TestEditor = {
+      document,
+      selection: { active: { offset: source.indexOf("@L.length") + 3 } },
+      viewColumn: 1
+    };
+    mocks.activeTextEditor = editor;
+    const analysis = createLanguageAnalysisSession(source);
+    const commandTarget = outputPreviewRevealSourceTargetForEditor(editor, analysis);
+    expect(commandTarget.status).toBe("resolved");
+
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => analysis,
+      ensureCanvas: () => null
+    });
+    await flushContextUpdates();
+    expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
+
+    feature.dispose();
+  });
+
   it("refreshes fail-closed after the active Source document loses its target", async () => {
     let source = [
       "nui 1",
@@ -174,6 +220,7 @@ describe("Source target availability projection", () => {
 
     await flushContextUpdates();
     expect(contextValue(VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
+    expect(contextValue(VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY)).toBe(false);
     expect(contextValue(VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY)).toBe(true);
 
     source = "nui 1\n// target removed";
