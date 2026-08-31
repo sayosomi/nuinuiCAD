@@ -1307,6 +1307,45 @@ describe("Output Preview production Rust transport lifecycle", () => {
     }));
   }, 30_000);
 
+  it("keeps the cold Reveal highlight after the authoritative snapshot is replayed", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
+    await useProductionOutputEvaluation();
+    const controlled = createControlledRustApi();
+    useCadDocumentStore.setState(initialCadDocumentState());
+    render(<OutputPreviewApp api={controlled.api} />);
+
+    expect(controlled.api.postMessage).toHaveBeenCalledWith({ type: "webviewReady" });
+    postWindowMessage({ type: "replaceTextDocument", sourceText: coldRevealSource, documentVersion: 3 });
+    await waitFor(() => expect(controlled.api.postMessage).toHaveBeenCalledWith({
+      type: "webviewAuthoritativeDocumentReady",
+      documentVersion: 3
+    }));
+    postWindowMessage({
+      type: "outputPreviewReveal",
+      requestId: 3,
+      documentVersion: 3,
+      normalizedSourceOffset: coldRevealSource.indexOf("group G") + 2
+    });
+
+    await waitFor(() => expect(controlled.requests).toHaveLength(1));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(2));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.requests).toHaveLength(3));
+    await controlled.respondNext();
+    await waitFor(() => expect(controlled.api.postMessage).toHaveBeenCalledWith({
+      type: "outputPreviewRevealResult",
+      requestId: 3,
+      documentVersion: 3,
+      status: "resolved",
+      outputKey: outputKeyFor("svg", "B")
+    }));
+    await waitFor(() => expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).not.toBeNull());
+
+    postWindowMessage({ type: "replaceTextDocument", sourceText: coldRevealSource, documentVersion: 3 });
+    expect(document.querySelector('[data-output-preview-layer="reveal-highlight"]')).not.toBeNull();
+  }, 30_000);
+
   it("completes warm Reveal with three Outputs through the ordered production transport path", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(viewportRect);
     await useProductionOutputEvaluation();
