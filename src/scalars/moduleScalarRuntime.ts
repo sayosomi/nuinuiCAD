@@ -794,6 +794,13 @@ export const compileModuleScalarRuntime = ({
     iterationBindings: adapter.iterationBindings,
     containerIndex: adapter.containerIndex
   });
+  const sourceOwnedBindingsByStatementIndex = new Map<number, Binding[]>();
+  for (const binding of baseCatalog.bindings) {
+    if (binding.kind !== "typed" || binding.resolutionMode !== "preResolvedOnly" || binding.catalogOrder !== "source") continue;
+    const bucket = sourceOwnedBindingsByStatementIndex.get(binding.statementIndex) ?? [];
+    bucket.push(binding);
+    sourceOwnedBindingsByStatementIndex.set(binding.statementIndex, bucket);
+  }
 
   const rootRecordPlan = sourceNamespace?.recordSemanticAnalysis && sourceNamespace
     ? planRecordScalarLowering({ analysis: sourceNamespace.recordSemanticAnalysis, sourceNamespace })
@@ -1202,6 +1209,15 @@ export const compileModuleScalarRuntime = ({
       const stableId = stableStatementIdByIndex.get(statementIndex);
       const binding = baseCatalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.statementIndex === statementIndex && candidate.id === `binding:${stableId}`);
       if (statement.kind === "typedDeclaration" && binding) pushEvent({ kind: "binding", bindingId: binding.id }, statementIndex);
+      if (statement.kind === "typedDeclaration") {
+        // Source-owned record fields are pre-resolved catalog entries rather
+        // than ordinary declaration bindings. They still need a source event
+        // so Module dependencies observe the record constructor before a
+        // later instance consumes its field.
+        for (const sourceBinding of sourceOwnedBindingsByStatementIndex.get(statementIndex) ?? []) {
+          pushEvent({ kind: "binding", bindingId: sourceBinding.id }, statementIndex);
+        }
+      }
       if (statement.kind === "set") {
         const setId = stableId;
         if (setId) pushEvent({ kind: "set", versionId: setId }, statementIndex);
@@ -1311,6 +1327,10 @@ export const compileModuleScalarRuntime = ({
     if (target.kind === "documentBinding") return bindingsById.get(target.bindingId);
     const info = bindingInfoForTarget(target, context);
     if (info) return bindingsById.get(info.id);
+    if (target.kind === "recordField") {
+      const bindingId = recordFieldBindingIdForTarget(target.record, target.field, context);
+      return bindingId ? bindingsById.get(bindingId) : undefined;
+    }
     if (target.kind === "iteration") return documentIterationBindingForTarget(target);
     return undefined;
   };
