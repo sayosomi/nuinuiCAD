@@ -256,6 +256,38 @@ describe("multi-document Module completion and Signature Help", () => {
     ]);
   });
 
+  it("completes imported exported geometry arrays from the defining document", async () => {
+    const library = savedSource("query-array-library", "sha256:query-array-library", [
+      "nui 1",
+      "export module Maker() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line L = segment(start: @A, end: @B)",
+      "  export const edges: line[] = [@L]",
+      "}"
+    ].join("\n"));
+    const source = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Maker()",
+      "const copy: path[] = @use::edges"
+    ].join("\n");
+    const { compiled, context } = await compileImported(source, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, library]
+    ]));
+    const result = completionAt(source, compiled, "@use::");
+    const arrayValue = context.documentFor(library.documentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis?.values.find((value) => value.name === "edges");
+
+    expect(result?.category).toBe("moduleQualifiedMember");
+    expect(result?.candidates).toEqual([
+      expect.objectContaining({
+        kind: "binding",
+        label: "edges",
+        identity: moduleSemanticIdentityKey({ documentId: library.documentId, localIdentity: arrayValue!.statementId })
+      })
+    ]);
+  });
+
   it("does not expose private, missing, or wrong-family imported candidates", async () => {
     const library = savedSource("query-library", "sha256:query-library", [
       "nui 1",

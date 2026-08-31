@@ -19,6 +19,7 @@ import {
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import { formatDslReferencePath, parseDslSourceReference } from "./dslReferenceTokens";
+import { qualifySemanticIdentity } from "../document/multiDocumentPrimitives";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -311,6 +312,17 @@ const definitionDocumentStatements = (
   definition.identity?.documentId ?? definition.documentId
 )?.statements ?? compiled.statements;
 
+const definitionDocumentGeometryArrayAnalysis = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic
+) => {
+  const documentId = definition.identity?.documentId ?? definition.documentId;
+  if (compiled.moduleRuntimeContext) {
+    return compiled.moduleRuntimeContext.documentFor(documentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis ?? null;
+  }
+  return compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis ?? null;
+};
+
 const isImportedDefinition = (
   compiled: CompiledDslDocument,
   definition: ModuleDefinitionSemantic
@@ -327,6 +339,14 @@ const exportIdentityForCandidate = (
 ) => isImportedDefinition(compiled, definition) && entry.exportedIdentity
   ? moduleSemanticIdentityKey(entry.exportedIdentity)
   : entry.exportedStatementId;
+
+const geometryArrayIdentityForCandidate = (
+  compiled: CompiledDslDocument,
+  definition: ModuleDefinitionSemantic,
+  statementId: string
+) => isImportedDefinition(compiled, definition) && definition.identity
+  ? moduleSemanticIdentityKey(qualifySemanticIdentity(definition.identity.documentId, statementId))
+  : statementId;
 
 const lexicalInput = (compiled: CompiledDslDocument, owner: ModuleDefinitionSemantic | null) => {
   const namespace = compiled.sourceLexicalNamespace;
@@ -1084,10 +1104,14 @@ const qualifiedGeometryArrayReferenceCompletions = (
   definition: ModuleDefinitionSemantic,
   expected: GeometryArrayType
 ): ModuleCompletionCandidate[] =>
-  (compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values ?? [])
+  (definitionDocumentGeometryArrayAnalysis(compiled, definition)?.values ?? [])
     .filter((value) => value.ownerModuleDefinitionStatementIndex === definition.statementIndex && value.exported)
     .filter((value) => isGeometryArrayTypeAssignable(value.type, expected))
-    .map((value) => ({ kind: "binding" as const, label: value.name, identity: value.statementId }));
+    .map((value) => ({
+      kind: "binding" as const,
+      label: value.name,
+      identity: geometryArrayIdentityForCandidate(compiled, definition, value.statementId)
+    }));
 
 const sourceQualifiedGeometryArrayCompletions = (
   compiled: CompiledDslDocument,
@@ -1104,6 +1128,15 @@ const sourceQualifiedGeometryArrayCompletions = (
     request.sourceOrderIndex
   );
   if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  if (compiled.moduleSemanticAnalysis) {
+    const instance = currentInstance(compiled, resolved.lookup.declaration.statementIndex);
+    const definition = definitionForInstance(compiled, instance);
+    if (!definition) return [];
+    return context.mode === "arrayReference"
+      ? qualifiedGeometryArrayReferenceCompletions(compiled, definition, context.expectedType)
+      : qualifiedGeometryArrayMemberCompletions(compiled, definition, context.expectedType);
+  }
+
   const instanceStatement = compiled.statements[resolved.lookup.declaration.statementIndex];
   const input = lexicalInput(compiled, null);
   if (instanceStatement?.kind !== "moduleInstance" || !input) return [];
