@@ -313,6 +313,12 @@ export type ExtensionToVscodeMessage =
       origin: "source" | "canvas" | "explorer";
     }
   | {
+      type: "coordinatePointConversionSelection";
+      requestId: number;
+      documentVersion: number;
+      successfulTargetIds: readonly string[];
+    }
+  | {
       type: "canvasCommand";
       commandId: VscodeCanvasCommandId;
       emitSkippedComments?: boolean;

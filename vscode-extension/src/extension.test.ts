@@ -107,6 +107,7 @@ const mocks = vi.hoisted(() => ({
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
   showInformationMessage: vi.fn(),
+  showQuickPick: vi.fn(),
   showSaveDialog: vi.fn(),
   createOutputChannel: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
@@ -225,6 +226,7 @@ vi.mock("vscode", () => {
       showErrorMessage: mocks.showErrorMessage,
       showWarningMessage: mocks.showWarningMessage,
       showInformationMessage: mocks.showInformationMessage,
+      showQuickPick: mocks.showQuickPick,
       showSaveDialog: mocks.showSaveDialog,
       createOutputChannel: mocks.createOutputChannel,
       showTextDocument: mocks.showTextDocument,
@@ -731,6 +733,26 @@ const publishCanvasTheme = (
     : themeOrBackground
 });
 
+const elementIdFor = (document: TestDocument, name: string): string => {
+  const registrationHost = mocks.registerElementsTreeFeature.mock.calls[0]?.[0] as {
+    languageAnalysisSessionFor?: (document: TestDocument) => {
+      getSource: () => string;
+      getSourceRevision: () => number;
+      runtimeEvaluationSemanticSnapshot: (source: { normalizedSource: string; sourceRevision: number }) =>
+        { compiled: { document: { elements: Array<{ name?: string; id: string }> } } } | undefined;
+    };
+  } | undefined;
+  const session = registrationHost?.languageAnalysisSessionFor?.(document);
+  if (!session) throw new Error("missing language analysis session");
+  const semantic = session.runtimeEvaluationSemanticSnapshot({
+    normalizedSource: session.getSource().replace(/\r\n/g, "\n"),
+    sourceRevision: session.getSourceRevision()
+  });
+  const element = semantic?.compiled.document.elements.find((candidate) => candidate.name === name);
+  if (!element) throw new Error(`missing compiled element ${name}`);
+  return element.id;
+};
+
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
@@ -764,6 +786,7 @@ afterEach(() => {
   mocks.showErrorMessage.mockReset();
   mocks.showWarningMessage.mockReset();
   mocks.showInformationMessage.mockReset();
+  mocks.showQuickPick.mockReset();
   mocks.showSaveDialog.mockReset();
   mocks.createOutputChannel.mockReset();
   mocks.bakeSettings = {};
@@ -2811,7 +2834,7 @@ describe("VS Code production document lifecycle", () => {
   it.each([
     ["nuinuiCAD.convertPointToXYOffset", "xy"],
     ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
-  ] as const)("passes the exact Explorer node to the %s conversion start", async (command, mode) => {
+  ] as const)("starts native QuickPick conversion from the exact Explorer node for %s", async (command, mode) => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
@@ -2820,11 +2843,10 @@ describe("VS Code production document lifecycle", () => {
     const document = documentFor("/tmp/explorer-conversion.nui", "file:///tmp/explorer-conversion.nui", source);
     const editor = editorFor(document);
     setup(false, editor, [document]);
-    const panel = openPanelFor(editor);
-    await messageHandlerFor(panel)({ type: "webviewReady" });
-    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    panel.webview.postMessage.mockClear();
     mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string; baseKey?: string }[]) =>
+      items.find((item) => item.kind === "base")
+    );
 
     commandHandlerFor(command)?.({
       symbol: {
@@ -2843,18 +2865,19 @@ describe("VS Code production document lifecycle", () => {
       }
     });
 
-    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "coordinatePointConversionStart",
-      mode,
-      origin: "explorer",
-      targetIds: [expect.any(String)]
-    })));
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    expect(mocks.showQuickPick.mock.calls[0]?.[1]).toMatchObject({
+      placeHolder: mode === "xy" ? "Select a shared base point for XY offset" : "Select a shared base point for angle-distance offset",
+      matchOnDescription: true,
+      matchOnDetail: true
+    });
+    expect(editor.edit).toHaveBeenCalledTimes(1);
   });
 
   it.each([
     ["nuinuiCAD.convertPointToXYOffset", "xy"],
     ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
-  ] as const)("routes a Source editor resource argument to Source for %s", async (command, mode) => {
+  ] as const)("routes a Source editor resource argument to native QuickPick for %s", async (command, mode) => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
@@ -2864,25 +2887,23 @@ describe("VS Code production document lifecycle", () => {
     const editor = editorFor(document);
     editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
     setup(false, editor, [document]);
-    const panel = openPanelFor(editor);
-    await messageHandlerFor(panel)({ type: "webviewReady" });
-    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
     mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string; baseKey?: string }[]) =>
+      items.find((item) => item.kind === "base")
+    );
 
     commandHandlerFor(command)?.(document.uri);
 
-    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "coordinatePointConversionStart",
-      mode,
-      origin: "source",
-      targetIds: [expect.any(String)]
-    })));
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
+    expect(editor.edit).toHaveBeenCalledTimes(1);
+    expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
   });
 
   it.each([
     ["nuinuiCAD.convertPointToXYOffset", "xy"],
     ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
-  ] as const)("routes an invocation without an Explorer node to the authoritative Canvas for %s", async (command, mode) => {
+  ] as const)("uses native QuickPick for Canvas-origin conversion without changing routing for %s", async (command, mode) => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
@@ -2894,25 +2915,169 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const targetId = elementIdFor(document, "Target");
     await publishCanvasObservation(panel, {
       ...canvasObservationSnapshotFor(document.version),
-      coordinatePointConversionTargetIds: ["point-a"]
+      coordinatePointConversionTargetIds: [targetId]
     });
     expect(vscodeObservationState.cachedSnapshot().documents[0]?.activeSurface).toBe("canvas");
-    expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas?.coordinatePointConversionTargetIds).toEqual(["point-a"]);
+    expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas?.coordinatePointConversionTargetIds).toEqual([targetId]);
     panel.webview.postMessage.mockClear();
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
+      items.find((item) => item.kind === "base")
+    );
 
     commandHandlerFor(command)?.();
 
-    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(editor.edit).toHaveBeenCalledTimes(1));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "coordinatePointConversionSelection",
+      requestId: expect.any(Number),
+      documentVersion: document.version,
+      successfulTargetIds: [targetId]
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionStart",
       mode,
-      origin: "canvas",
-      targetIds: ["point-a"]
+      origin: "canvas"
+    }));
+  });
+
+  it("cancels native conversion without mutating Source when QuickPick returns Esc", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-cancel.nui", "file:///tmp/conversion-cancel.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    mocks.showQuickPick.mockResolvedValue(undefined);
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    expect(editor.edit).not.toHaveBeenCalled();
+    expect(document.getText()).toBe(source);
+  });
+
+  it("represents every legal shared base with searchable canonical references and an explicit Canvas affordance", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "line Guide = segment(start: @Base, end: (20, 0))",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-candidates.nui", "file:///tmp/conversion-candidates.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 3, character: source.split("\n")[3]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    mocks.showQuickPick.mockResolvedValue(undefined);
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    const items = mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ label: string; kind?: string; detail?: string }>;
+    expect(items.find((item) => item.kind === "canvas")?.label).toContain("Canvas");
+    expect(items.filter((item) => item.kind === "base").map((item) => item.label)).toEqual(
+      expect.arrayContaining(["@Base", "@Guide.start", "@Guide.end"])
+    );
+    expect(items.filter((item) => item.kind === "base").every((item) => item.detail?.includes("@"))).toBe(true);
+  });
+
+  it("fails closed when Source changes before the native base is applied", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-stale.nui", "file:///tmp/conversion-stale.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    let resolvePick: ((value: unknown) => void) | undefined;
+    mocks.showQuickPick.mockImplementation(() => new Promise((resolve) => { resolvePick = resolve; }));
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    document.version = 2;
+    document.setSourceText(`${source}\n// changed`);
+    emitDocumentChange(document);
+    const base = (mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ kind?: string }>).find((item) => item.kind === "base");
+    resolvePick?.(base);
+
+    await vi.waitFor(() => expect(mocks.showErrorMessage).toHaveBeenCalled());
+    expect(editor.edit).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when Canvas-origin targets change before native apply", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-canvas-stale.nui", "file:///tmp/conversion-canvas-stale.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const targetId = elementIdFor(document, "Target");
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: [targetId]
+    });
+    let resolvePick: ((value: unknown) => void) | undefined;
+    mocks.showQuickPick.mockImplementation(() => new Promise((resolve) => { resolvePick = resolve; }));
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: ["changed-target"]
+    });
+    const base = (mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ kind?: string }>).find((item) => item.kind === "base");
+    resolvePick?.(base);
+
+    await vi.waitFor(() => expect(mocks.showErrorMessage).toHaveBeenCalled());
+    expect(editor.edit).not.toHaveBeenCalled();
+  });
+
+  it("hands off to the existing Canvas point-pick path only after the explicit native affordance", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-visual-pick.nui", "file:///tmp/conversion-visual-pick.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
+    setup(false, editor, [document]);
+    const targetId = elementIdFor(document, "Target");
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
+      items.find((item) => item.kind === "canvas")
+    );
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    const panel = mocks.panels.at(-1)!;
+    expect(panel.reveal).toHaveBeenCalled();
+    const extensionMessageHandler = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => Promise<void>;
+    await extensionMessageHandler({ type: "webviewReady" });
+    await extensionMessageHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await vi.waitFor(() => expect(panel.webview.onDidReceiveMessage).toHaveBeenCalledTimes(2));
+    const conversionMessageHandler = panel.webview.onDidReceiveMessage.mock.calls.at(-1)?.[0] as (message: unknown) => Promise<void>;
+    await conversionMessageHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      mode: "xy",
+      origin: "source",
+      targetIds: [targetId]
     })));
   });
 
-  it("keeps an owned conversion commit alive across its document change and presents one terminal result", async () => {
+  it("keeps the explicit Canvas conversion commit connected to one terminal result", async () => {
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
@@ -2922,24 +3087,29 @@ describe("VS Code production document lifecycle", () => {
     const editor = editorFor(document);
     editor.selection.active = { line: 2, character: source.split("\n")[2]!.indexOf("Target") };
     setup(false, editor, [document]);
-    const panel = openPanelFor(editor);
-    await messageHandlerFor(panel)({ type: "webviewReady" });
-    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    mocks.activeTabInput = new mocks.TabInputText(document.uri);
-    panel.webview.postMessage.mockClear();
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
+      items.find((item) => item.kind === "canvas")
+    );
 
     commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
-    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: "coordinatePointConversionStart"
-    })));
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    const panel = mocks.panels.at(-1)!;
+    await vi.waitFor(() => expect(panel.webview.onDidReceiveMessage).toHaveBeenCalledTimes(2));
+    const extensionMessageHandler = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as
+      (message: unknown) => Promise<void>;
+    await extensionMessageHandler({ type: "webviewReady" });
+    await extensionMessageHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const conversionMessageHandler = panel.webview.onDidReceiveMessage.mock.calls.at(-1)?.[0] as
+      (message: unknown) => Promise<void>;
+    await conversionMessageHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
     const startRequest = panel.webview.postMessage.mock.calls
       .map(([message]) => message)
       .find((message) => message?.type === "coordinatePointConversionStart") as {
         requestId: number;
         documentUri: string;
-        mode: "xy";
         targetIds: readonly string[];
       };
+    expect(startRequest).toBeDefined();
 
     const committedSource = `${source}\n// converted\n`;
     editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
@@ -2949,9 +3119,7 @@ describe("VS Code production document lifecycle", () => {
       emitDocumentChange(document);
       return true;
     });
-    const canvasMessageHandler = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as
-      (message: unknown) => Promise<void>;
-    await canvasMessageHandler({
+    await extensionMessageHandler({
       type: "canvasCommit",
       sourceText: committedSource,
       expectedDocumentVersion: 1,
@@ -2984,8 +3152,8 @@ describe("VS Code production document lifecycle", () => {
       skippedTargets: [],
       skippedTargetCount: 0
     };
-    await messageHandlerFor(panel)(terminalResult);
-    await messageHandlerFor(panel)(terminalResult);
+    await conversionMessageHandler(terminalResult);
+    await conversionMessageHandler(terminalResult);
 
     expect(mocks.showInformationMessage).toHaveBeenCalledTimes(1);
     expect(mocks.showTextDocument).toHaveBeenCalledTimes(1);
