@@ -3,7 +3,7 @@
 **nuinuiCAD is a parametric 2D CAD system that treats geometry and patterns as source code.**
 
 > **nuinuiCAD is currently under active development and is not yet ready for general use.**
-> 
+
 **TODO: Add a screenshot here.**
 <!-- ![nuinuiCAD screenshot](docs/images/nuinuicad-screenshot-placeholder.png) -->
 
