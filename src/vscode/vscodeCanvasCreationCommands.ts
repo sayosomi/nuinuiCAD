@@ -1,7 +1,6 @@
 import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
 
 export const VSCODE_CANVAS_QUICK_CREATE_SETTING = "nuinuiCAD.canvasQuickCreate.commands";
-export const VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT = 6;
 export const VSCODE_CANVAS_CREATION_COMMAND_PREFIX = "nuinuiCAD.create.";
 
 /** The VS Code Canvas creation IDs are exactly the command-line recipe IDs. */
@@ -212,6 +211,26 @@ export const vscodeCanvasCreationCommands: readonly VscodeCanvasCreationCommand[
   };
 });
 
+/** The native submenu has one ordered slot for each current catalog entry. */
+export const VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT = vscodeCanvasCreationCommands.length;
+
+/**
+ * Filters the shared creation presentation without relying on VS Code's
+ * native Quick Pick matching. Each non-empty term must match the label or an
+ * existing presentation keyword.
+ */
+export const filterVscodeCanvasCreationCommands = (
+  query: string
+): readonly VscodeCanvasCreationCommand[] => {
+  const terms = query.trim().split(/\s+/u).filter(Boolean).map((term) => term.toLowerCase());
+  if (terms.length === 0) return vscodeCanvasCreationCommands;
+
+  return vscodeCanvasCreationCommands.filter((entry) => {
+    const corpus = [entry.quickPickLabel, ...entry.keywords].join(" ").toLowerCase();
+    return terms.every((term) => corpus.includes(term));
+  });
+};
+
 export const normalizeVscodeCanvasQuickCreateCommands = (
   input: unknown
 ): VscodeCanvasCreationCommandId[] => {
@@ -222,7 +241,6 @@ export const normalizeVscodeCanvasQuickCreateCommands = (
     if (!isVscodeCanvasCreationCommandId(value) || seen.has(value)) continue;
     seen.add(value);
     normalized.push(value);
-    if (normalized.length === VSCODE_CANVAS_QUICK_CREATE_SLOT_COUNT) break;
   }
   return normalized;
 };
