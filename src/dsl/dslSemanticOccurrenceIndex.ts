@@ -31,10 +31,9 @@ import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGr
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
-import { resolveParameterValueSpan } from "./dslParameterSpans";
-import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { ElementId } from "../types/geometry";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
+import { numericValueSpan } from "./dslCompiledGeometryProperty";
 
 export type DslSemanticIdentity =
   | { kind: "typed"; bindingId: BindingId }
@@ -156,33 +155,6 @@ const addPhysicalOccurrence = (
 ) => {
   const physical = physicalRange(compiled, statementIndex, span);
   if (physical) add(kind, physical.from, physical.to, identity);
-};
-
-/** Returns the compiler-owned logical value span for one numeric binding. */
-const numericValueSpan = (
-  compiled: CompiledDslDocument,
-  statementIndex: number,
-  parameterKey: string
-) => {
-  const statement = compiled.statements[statementIndex];
-  if (!statement) return null;
-  const logical = compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
-  if (!logical) return null;
-
-  if (statement.kind === "element" || statement.kind === "group") {
-    const elementId = elementIdForStatementIndex(compiled, statementIndex);
-    const element = elementId ? compiled.document?.elements.find((candidate) => candidate.id === elementId) : undefined;
-    return element ? resolveParameterValueSpan(logical.logicalText, element, parameterKey) : null;
-  }
-
-  if (statement.kind !== "layout" && statement.kind !== "print" && statement.kind !== "svg" && statement.kind !== "place") return null;
-  const coordinate = parameterKey.match(/^(.+):(x|y)$/);
-  const attributeKey = coordinate?.[1] ?? parameterKey;
-  const outer = statement.payloadSpans[attributeKey];
-  if (!outer) return null;
-  return coordinate
-    ? coordinateComponent(logical.logicalText, outer, coordinate[2] as "x" | "y")
-    : outer;
 };
 
 const addNumericGeometryPropertyOccurrences = (

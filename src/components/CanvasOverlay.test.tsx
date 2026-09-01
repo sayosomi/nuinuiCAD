@@ -107,6 +107,7 @@ describe("CanvasOverlay text rendering", () => {
     const theme = {
       ...LEGACY_CANVAS_THEME,
       selection: "#selection",
+      selectionOutline: "#selection-outline",
       pickCandidate: "#pick",
       bezierHandleLine: "#handle-line",
       bezierHandlePoint: "#handle-point"
@@ -141,6 +142,7 @@ describe("CanvasOverlay text rendering", () => {
     const style = container.querySelector(".drawing-overlay")?.getAttribute("style") ?? "";
 
     expect(style).toContain("--canvas-selection: #selection");
+    expect(style).toContain("--canvas-selection-outline: #selection-outline");
     expect(style).toContain("--canvas-pick-candidate: #pick");
     expect(style).toContain("--canvas-bezier-handle-line: #handle-line");
     expect(style).toContain("--canvas-bezier-handle-point: #handle-point");
@@ -287,7 +289,7 @@ describe("Canvas identity labels", () => {
 
 
 describe("Module instance selection frame", () => {
-  it("renders the frame and name with the Canvas selection semantic and no pointer target", () => {
+  it("renders the frame outline and label with separate selection semantics and no pointer target", () => {
     const { container } = render(
       <CanvasOverlay
         viewportSize={{ width: 500, height: 400 }}
@@ -328,9 +330,18 @@ describe("Module instance selection frame", () => {
     const rect = frame?.querySelector("rect");
     const label = container.querySelector("[data-module-instance-selection-label='instance']");
     expect(frame).toHaveStyle({ pointerEvents: "none" });
-    expect(rect).toHaveAttribute("stroke", "var(--canvas-selection)");
+    expect(rect).toHaveAttribute("x", "10");
+    expect(rect).toHaveAttribute("y", "20");
+    expect(rect).toHaveAttribute("width", "120");
+    expect(rect).toHaveAttribute("height", "80");
+    expect(rect).toHaveAttribute("stroke", "var(--canvas-selection-outline)");
+    expect(rect).toHaveAttribute("stroke-width", "1.5");
+    expect(rect).toHaveAttribute("stroke-dasharray", "6 4");
     expect(rect).toHaveStyle({ pointerEvents: "none" });
     expect(label).toHaveTextContent("InstanceOne");
+    expect(label).toHaveAttribute("x", "12");
+    expect(label).toHaveAttribute("y", "16");
     expect(label).toHaveAttribute("fill", "var(--canvas-selection)");
+    expect(label).toHaveStyle({ fontSize: "12px", fontWeight: 700, pointerEvents: "none" });
   });
 });
