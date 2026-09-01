@@ -536,7 +536,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               definitionIdentity: externalTarget.identity,
               definitionDocumentId: externalTarget.identity.documentId,
               definitionLocation: externalTarget.declaration,
-              definition: externalTarget.definition
+              definition: externalTarget.definition,
+              ...(externalTarget.documentation ? { documentation: externalTarget.documentation } : {})
             }
           : null,
         lookup

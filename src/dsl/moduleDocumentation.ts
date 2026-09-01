@@ -19,6 +19,24 @@ export type ModuleDocumentation = {
   variants: readonly ModuleDocumentationLocaleVariant[];
 };
 
+export type ModuleDocumentationParameter = {
+  parameterIndex: number;
+  documentation: ModuleDocumentation;
+};
+
+export type ModuleDocumentationExport = {
+  exportedStatementId: StatementIdentity;
+  documentation: ModuleDocumentation;
+};
+
+/** Raw documentation attached to one defining Module identity. The public
+ * API copies this metadata unchanged through generic re-export entries. */
+export type ModuleDocumentationMetadata = {
+  definition: ModuleDocumentation | null;
+  parameters: readonly ModuleDocumentationParameter[];
+  exports: readonly ModuleDocumentationExport[];
+};
+
 /**
  * Source-semantic documentation keyed only by existing stable Module identities.
  * No textual name registry is introduced: parameter identity is
@@ -98,7 +116,7 @@ export const parseModuleDocumentationGroups = (
   return variants.length > 0 ? { variants } : null;
 };
 
-const sourceLineStarts = (source: string) => {
+export const moduleDocumentationLineStarts = (source: string) => {
   const starts = [0];
   for (let index = 0; index < source.length; index += 1) {
     if (source[index] === "\n") starts.push(index + 1);
@@ -179,6 +197,72 @@ const setNested = <K1, K2, V>(
   outer.set(first, nested);
 };
 
+type ModuleDocumentationSourceExport = {
+  statementIndex: number;
+  statementId: StatementIdentity;
+};
+
+/** Extract raw Module documentation from one exact parsed source artifact.
+ * This deliberately uses statement identities supplied by the graph owner;
+ * it does not resolve or index documentation by display name. */
+export const buildModuleDocumentationMetadata = ({
+  statements,
+  spans,
+  definitionStatementIndex,
+  parameterIndexes,
+  exports: sourceExports,
+  lineStarts = moduleDocumentationLineStarts(spans.sourceMap.source)
+}: {
+  statements: readonly DslStatement[];
+  spans: DiagnosticSpanContext;
+  definitionStatementIndex: number;
+  parameterIndexes: readonly number[];
+  exports: readonly ModuleDocumentationSourceExport[];
+  lineStarts?: readonly number[];
+}): ModuleDocumentationMetadata | null => {
+  const statement = statements[definitionStatementIndex];
+  if (!statement || statement.kind !== "moduleDefinition" || !statementIsCurrent(statement, spans)) return null;
+
+  const moduleMinimumLine = Math.max(0, statement.line - 1);
+  const definition = documentationBeforeLine(spans, statement.line - 1, 0);
+  const parameters: ModuleDocumentationParameter[] = [];
+  for (const parameterIndex of parameterIndexes) {
+    const sourceParameter = statement.parameters[parameterIndex];
+    if (!sourceParameter) continue;
+    const physical = sourceParameter.namePhysicalSpan ?? (
+      sourceParameter.nameSpan
+        ? exactPhysicalSpan(spans, statement, sourceParameter.nameSpan)
+        : null
+    );
+    const offset = firstPhysicalOffset(physical);
+    if (offset === null) continue;
+    const documentation = documentationBeforeLine(
+      spans,
+      lineIndexAtOffset(lineStarts, offset),
+      moduleMinimumLine
+    );
+    if (documentation) parameters.push({ parameterIndex, documentation });
+  }
+
+  const documentedExports: ModuleDocumentationExport[] = [];
+  for (const sourceExport of sourceExports) {
+    const exportedStatement = statements[sourceExport.statementIndex];
+    if (!exportedStatement || !statementIsCurrent(exportedStatement, spans)) continue;
+    const documentation = documentationBeforeLine(
+      spans,
+      exportedStatement.line - 1,
+      moduleMinimumLine
+    );
+    if (documentation) documentedExports.push({ exportedStatementId: sourceExport.statementId, documentation });
+  }
+
+  return {
+    definition,
+    parameters,
+    exports: documentedExports
+  };
+};
+
 export const buildModuleDocumentationIndex = ({
   statements,
   spans,
@@ -191,52 +275,29 @@ export const buildModuleDocumentationIndex = ({
   const definitions = new Map<StatementIdentity, ModuleDocumentation>();
   const parameters = new Map<StatementIdentity, Map<number, ModuleDocumentation>>();
   const exports = new Map<StatementIdentity, Map<StatementIdentity, ModuleDocumentation>>();
-  const lineStarts = sourceLineStarts(spans.sourceMap.source);
+  const lineStarts = moduleDocumentationLineStarts(spans.sourceMap.source);
 
   for (const definition of semanticAnalysis.definitions) {
     const statement = statements[definition.statementIndex];
     if (!statementIsCurrent(statement, spans) || statement?.kind !== "moduleDefinition") continue;
-    const moduleMinimumLine = Math.max(0, statement.line - 1);
-
-    const definitionDocumentation = documentationBeforeLine(
+    const metadata = buildModuleDocumentationMetadata({
+      statements,
       spans,
-      statement.line - 1,
-      0
-    );
-    if (definitionDocumentation) definitions.set(definition.statementId, definitionDocumentation);
-
-    for (const parameter of definition.parameters) {
-      const sourceParameter = statement.parameters[parameter.parameterIndex];
-      if (!sourceParameter) continue;
-      const physical = sourceParameter.namePhysicalSpan ?? (
-        sourceParameter.nameSpan
-          ? exactPhysicalSpan(spans, statement, sourceParameter.nameSpan)
-          : null
-      );
-      const offset = firstPhysicalOffset(physical);
-      if (offset === null) continue;
-      const targetLineIndex = lineIndexAtOffset(lineStarts, offset);
-      const parameterDocumentation = documentationBeforeLine(
-        spans,
-        targetLineIndex,
-        moduleMinimumLine
-      );
-      if (parameterDocumentation) {
-        setNested(parameters, definition.statementId, parameter.parameterIndex, parameterDocumentation);
-      }
+      definitionStatementIndex: definition.statementIndex,
+      parameterIndexes: definition.parameters.map((parameter) => parameter.parameterIndex),
+      exports: definition.exports.map((exported) => ({
+        statementIndex: exported.exportedStatementIndex,
+        statementId: exported.exportedStatementId
+      })),
+      lineStarts
+    });
+    if (!metadata) continue;
+    if (metadata.definition) definitions.set(definition.statementId, metadata.definition);
+    for (const parameter of metadata.parameters) {
+      setNested(parameters, definition.statementId, parameter.parameterIndex, parameter.documentation);
     }
-
-    for (const exported of definition.exports) {
-      const exportedStatement = statements[exported.exportedStatementIndex];
-      if (!statementIsCurrent(exportedStatement, spans)) continue;
-      const exportDocumentation = documentationBeforeLine(
-        spans,
-        exportedStatement!.line - 1,
-        moduleMinimumLine
-      );
-      if (exportDocumentation) {
-        setNested(exports, definition.statementId, exported.exportedStatementId, exportDocumentation);
-      }
+    for (const exported of metadata.exports) {
+      setNested(exports, definition.statementId, exported.exportedStatementId, exported.documentation);
     }
   }
 
@@ -257,3 +318,17 @@ export const documentationForModuleExport = (
   index: ModuleDocumentationIndex,
   exported: Pick<ResolvedModuleExport, "ownerModuleDefinitionStatementId" | "exportedStatementId">
 ) => index.exports.get(exported.ownerModuleDefinitionStatementId)?.get(exported.exportedStatementId) ?? null;
+
+export const documentationForModuleDefinitionMetadata = (
+  metadata: ModuleDocumentationMetadata | null | undefined
+) => metadata?.definition ?? null;
+
+export const documentationForModuleParameterMetadata = (
+  metadata: ModuleDocumentationMetadata | null | undefined,
+  parameter: Pick<ResolvedModuleParameter, "parameterIndex">
+) => metadata?.parameters.find((candidate) => candidate.parameterIndex === parameter.parameterIndex)?.documentation ?? null;
+
+export const documentationForModuleExportMetadata = (
+  metadata: ModuleDocumentationMetadata | null | undefined,
+  exported: Pick<ResolvedModuleExport, "exportedStatementId">
+) => metadata?.exports.find((candidate) => candidate.exportedStatementId === exported.exportedStatementId)?.documentation ?? null;

@@ -7,6 +7,7 @@ import type { StatementIdentity } from "../document/statementIdentity";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
+import type { ModuleDocumentationMetadata } from "./moduleDocumentation";
 import type {
   DocumentId,
   DocumentQualifiedSemanticIdentity,
@@ -369,6 +370,8 @@ export type ResolvedModuleCallee = {
   definitionLocation?: DocumentQualifiedSourceLocation;
   /** Exact defining-document semantic object for graph-backed callers. */
   definition?: ModuleDefinitionSemantic;
+  /** Raw documentation transported with the resolved defining Module entry. */
+  documentation?: ModuleDocumentationMetadata;
 };
 
 export type ExternalModuleSemanticTarget = {
@@ -380,6 +383,8 @@ export type ExternalModuleSemanticTarget = {
   parameters: readonly ResolvedModuleParameter[];
   /** Exact defining-document semantic object; never a cloned source model. */
   definition?: ModuleDefinitionSemantic;
+  /** Raw documentation transported through the public API entry. */
+  documentation?: ModuleDocumentationMetadata;
 };
 
 export type ModuleDefinitionSemantic = {

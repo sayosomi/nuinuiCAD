@@ -119,6 +119,38 @@ const panelSource = [
   "}"
 ].join("\n");
 
+const documentedPanelSource = [
+  "nui 1",
+  "/// @ja",
+  "/// パネルを生成する。",
+  "/// @en",
+  "/// Creates a panel.",
+  "export module Panel(",
+  "  /// @ja",
+  "  /// 値。",
+  "  /// @en",
+  "  /// Input value.",
+  "  value: number,",
+  "  /// @ja",
+  "  /// 側。",
+  "  /// @en",
+  "  /// Panel side.",
+  "  side?: choice(left, right),",
+  "  count: number = 2",
+  ") {",
+  "  /// @ja",
+  "  /// 公開点。",
+  "  /// @en",
+  "  /// Public point.",
+  "  export point Public = coordinate(x: @value, y: 0)",
+  "  /// @ja",
+  "  /// 金額。",
+  "  /// @en",
+  "  /// Amount.",
+  "  export const amount: number = @value",
+  "}"
+].join("\n");
+
 const directRoot = (callee: string) => [
   "nui 1",
   "import \"./library.nui\" as lib",
@@ -127,6 +159,165 @@ const directRoot = (callee: string) => [
 ].join("\n");
 
 describe("multi-document Module completion and Signature Help", () => {
+  it("transports direct imported Module definition and parameter documentation", async () => {
+    const source = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel(value: 1, ",
+      ")"
+    ].join("\n");
+    const library = savedSource("query-documented-library", "sha256:query-documented-library", documentedPanelSource);
+    const { compiled } = await compileImported(source, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, library]
+    ]));
+    expect(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "use")?.callee?.documentation)
+      .toMatchObject({
+        definition: {
+          variants: [
+            { locale: "ja", markdown: "パネルを生成する。" },
+            { locale: "en", markdown: "Creates a panel." }
+          ]
+        }
+      });
+
+    const completion = completionAt(source, compiled, "lib::Pa");
+    const argumentCompletion = completionAt(source, compiled, "lib::Panel(value: 1, ");
+    const signature = signatureAt(source, compiled, "lib::Panel(value: 1, ");
+
+    expect(completion?.candidates.find((candidate) => candidate.label === "Panel")).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "パネルを生成する。" },
+          { locale: "en", markdown: "Creates a panel." }
+        ]
+      }
+    });
+    expect(argumentCompletion?.candidates.find((candidate) => candidate.label === "side")).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "側。" },
+          { locale: "en", markdown: "Panel side." }
+        ]
+      }
+    });
+    expect(signature?.signatures[0]?.authoredDocumentation).toEqual({
+      variants: [
+        { locale: "ja", markdown: "パネルを生成する。" },
+        { locale: "en", markdown: "Creates a panel." }
+      ]
+    });
+    expect(signature?.signatures[0]?.parameters.find((parameter) => parameter.name === "value")).toMatchObject({
+      authoredDocumentation: {
+        variants: [
+          { locale: "ja", markdown: "値。" },
+          { locale: "en", markdown: "Input value." }
+        ]
+      }
+    });
+    expect(signature?.signatures[0]?.parameters.find((parameter) => parameter.name === "side")).toMatchObject({
+      authoredDocumentation: {
+        variants: [
+          { locale: "ja", markdown: "側。" },
+          { locale: "en", markdown: "Panel side." }
+        ]
+      }
+    });
+  });
+
+  it("transports imported scalar and geometry export documentation", async () => {
+    const source = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel(value: 1)",
+      "const copied: number = @use::amount",
+      "point copiedPoint = offset(from: @use::Public, dx: 1, dy: 0)"
+    ].join("\n");
+    const library = savedSource("query-documented-export-library", "sha256:query-documented-export-library", documentedPanelSource);
+    const { compiled, context } = await compileImported(source, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, library]
+    ]));
+    const definition = context.analysisFor(library.documentId)?.definitions.find((candidate) => candidate.name === "Panel");
+    expect(definition?.identity).toBeTruthy();
+    expect(context.moduleDocumentationFor(definition?.identity)).toMatchObject({
+      exports: expect.arrayContaining([
+        expect.objectContaining({ exportedStatementId: expect.any(String) })
+      ])
+    });
+
+    const scalar = completionAt(source, compiled, "@use::am");
+    const geometry = completionAt(source, compiled, "@use::Pu");
+
+    expect(scalar?.candidates.find((candidate) => candidate.label === "amount")).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "金額。" },
+          { locale: "en", markdown: "Amount." }
+        ]
+      }
+    });
+    expect(geometry?.candidates.find((candidate) => candidate.label === "Public")).toMatchObject({
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "公開点。" },
+          { locale: "en", markdown: "Public point." }
+        ]
+      }
+    });
+  });
+
+  it("preserves original documentation through a facade re-export", async () => {
+    const library = savedSource("query-facade-documented-library", "sha256:query-facade-documented-library", documentedPanelSource);
+    const facade = savedSource("query-documented-facade", "sha256:query-documented-facade", [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "export @library::Panel"
+    ].join("\n"));
+    const directSource = directRoot("lib::Panel");
+    const facadeSource = [
+      "nui 1",
+      "import \"./facade.nui\" as facade",
+      "instance use = facade::Panel(value: 1)"
+    ].join("\n");
+    const direct = await compileImported(directSource, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, library]
+    ]));
+    const throughFacade = await compileImported(facadeSource, new Map([
+      [`${documentIdFromHost("query-root")}|./facade.nui`, facade],
+      [`${facade.documentId}|./library.nui`, library]
+    ]));
+
+    const directCompletion = completionAt(directSource, direct.compiled, "lib::Pa");
+    const facadeCompletion = completionAt(facadeSource, throughFacade.compiled, "facade::Pa");
+    const directSignature = signatureAt(directSource, direct.compiled, "lib::Panel(value: 1");
+    const facadeSignature = signatureAt(facadeSource, throughFacade.compiled, "facade::Panel(value: 1");
+
+    expect(facadeCompletion?.candidates.find((candidate) => candidate.label === "Panel")?.documentation)
+      .toEqual(directCompletion?.candidates.find((candidate) => candidate.label === "Panel")?.documentation);
+    expect(facadeSignature?.signatures[0]?.authoredDocumentation)
+      .toEqual(directSignature?.signatures[0]?.authoredDocumentation);
+    expect(facadeSignature?.signatures[0]?.parameters[0]?.authoredDocumentation)
+      .toEqual(directSignature?.signatures[0]?.parameters[0]?.authoredDocumentation);
+  });
+
+  it("keeps a valid imported Module candidate when saved documentation is removed", async () => {
+    const source = directRoot("lib::Panel");
+    const withDocumentation = savedSource("query-documentation-revision", "sha256:with-documentation", documentedPanelSource);
+    const withoutDocumentation = savedSource("query-documentation-revision", "sha256:without-documentation", panelSource);
+    const first = await compileImported(source, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, withDocumentation]
+    ]));
+    const second = await compileImported(source, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, withoutDocumentation]
+    ]));
+
+    expect(completionAt(source, first.compiled, "lib::Pa")?.candidates.find((candidate) => candidate.label === "Panel"))
+      .toMatchObject({ documentation: expect.any(Object) });
+    expect(completionAt(source, second.compiled, "lib::Pa")?.candidates.find((candidate) => candidate.label === "Panel"))
+      .toMatchObject({ kind: "module", label: "Panel" });
+    expect(completionAt(source, second.compiled, "lib::Pa")?.candidates.find((candidate) => candidate.label === "Panel")?.documentation)
+      .toBeUndefined();
+  });
+
   it("completes a direct imported Module with defining-document identity", async () => {
     const source = directRoot("lib::Panel");
     const library = savedSource("query-library", "sha256:query-library", panelSource);
@@ -338,6 +529,26 @@ describe("multi-document Module completion and Signature Help", () => {
 
     expect(stale?.category).toBe("moduleCallee");
     expect(stale?.candidates).toEqual([]);
+
+    const invalidSource = directRoot("lib::Panel");
+    const invalid = await compileImported(invalidSource, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, savedSource("query-invalid-library", "sha256:query-invalid-library", "nui 3\n")]
+    ]));
+    expect(completionAt(invalidSource, invalid.compiled, "lib::Pa")?.candidates).toEqual([]);
+
+    const cyclicSource = directRoot("lib::Panel");
+    const cyclicLibrary = savedSource("query-cyclic-library", "sha256:query-cyclic-library", [
+      "nui 1",
+      "import \"./root.nui\" as root",
+      "export module Panel() {",
+      "}"
+    ].join("\n"));
+    const cyclicRoot = savedSource("query-root", "sha256:query-cyclic-root", cyclicSource);
+    const cyclic = await compileImported(cyclicSource, new Map([
+      [`${documentIdFromHost("query-root")}|./library.nui`, cyclicLibrary],
+      [`${cyclicLibrary.documentId}|./root.nui`, cyclicRoot]
+    ]));
+    expect(completionAt(cyclicSource, cyclic.compiled, "lib::Pa")?.candidates).toEqual([]);
   });
 
   it("keeps bare Module completion local-only when imports are present", async () => {
