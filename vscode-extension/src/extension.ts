@@ -97,7 +97,17 @@ import {
   VscodeWebviewSessionRegistry,
   type VscodeWebviewSessionBase
 } from "../../src/vscode/vscodeWebviewSession";
-import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
+import {
+  activeVscodeMultiDocumentHost,
+  type VscodeMultiDocumentDiagnostic,
+  type VscodeMultiDocumentDiagnosticSnapshot,
+  type VscodeMultiDocumentDiagnosticsState
+} from "./multiDocumentHost";
+import type {
+  DocumentQualifiedSourceLocation,
+  DocumentSourceIdentity,
+  MultiDocumentSourceSnapshot
+} from "../../src/document/multiDocumentPrimitives";
 import {
   defaultVscodeCanvasRibbons,
   normalizeVscodeCanvasRibbons,
@@ -481,6 +491,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let canvasHistoryHandoffSession: DocumentSession | null = null;
   let lastActiveCanvasSession: DocumentSession | null = null;
   let lastBakeSurface: LastBakeSurface | null = null;
+  const surfaceDiagnosticsByUri = new Map<string, vscode.Diagnostic[]>();
+  const multiDocumentDiagnosticsByRoot = new Map<string, Map<string, vscode.Diagnostic[]>>();
   const sourceBakeRequestsWithStructuredSkips = new Set<number>();
   let canvasHistoryHandoffContextUpdate: Promise<void> = Promise.resolve();
   let nextNavigationRequestId = 1;
@@ -680,12 +692,121 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return null;
   };
 
+  const sourceIdentityKeyFor = (source: DocumentSourceIdentity): string => source.kind === "root-current"
+    ? JSON.stringify([source.kind, String(source.documentId), source.sourceRevision])
+    : JSON.stringify([source.kind, String(source.documentId), String(source.savedSourceFingerprint)]);
+
+  const sourceSnapshotFor = (
+    snapshot: VscodeMultiDocumentDiagnosticSnapshot,
+    location: DocumentQualifiedSourceLocation
+  ): MultiDocumentSourceSnapshot | null => {
+    const source = snapshot.graph.nodes.get(location.source.documentId)?.artifact.source;
+    return source && sourceIdentityKeyFor(source) === sourceIdentityKeyFor(location.source) ? source : null;
+  };
+
+  const normalizedPositionAt = (source: string, offset: number): vscode.Position => {
+    const clamped = Math.max(0, Math.min(offset, source.length));
+    let line = 0;
+    let lineStart = 0;
+    for (let index = 0; index < clamped; index += 1) {
+      if (source[index] === "\n") {
+        line += 1;
+        lineStart = index + 1;
+      }
+    }
+    return new vscode.Position(line, clamped - lineStart);
+  };
+
+  const normalizedRangeFor = (
+    source: string,
+    range: { from: number; to: number }
+  ): vscode.Range => new vscode.Range(
+    normalizedPositionAt(source, range.from),
+    normalizedPositionAt(source, range.to)
+  );
+
+  const targetDocumentFor = (documentId: string): vscode.TextDocument | undefined =>
+    vscode.workspace.textDocuments.find((candidate) => documentKey(candidate) === documentId);
+
+  const currentDiagnosticSourceFor = (
+    snapshot: VscodeMultiDocumentDiagnosticSnapshot,
+    source: MultiDocumentSourceSnapshot,
+    document: vscode.TextDocument | undefined
+  ): boolean => {
+    if (document && normalizedSourceFor(document.getText()) !== source.normalizedSource) return false;
+    if (document && source.kind === "dependency-saved" && document.isDirty) return false;
+    if (document && source.kind === "root-current" && document.version !== snapshot.documentVersion) return false;
+    return true;
+  };
+
+  const toVscodeMultiDocumentDiagnostic = (
+    snapshot: VscodeMultiDocumentDiagnosticSnapshot,
+    diagnostic: VscodeMultiDocumentDiagnostic
+  ): { key: string; diagnostic: vscode.Diagnostic } | null => {
+    const source = sourceSnapshotFor(snapshot, diagnostic.location);
+    if (!source || !currentDiagnosticSourceFor(snapshot, source, targetDocumentFor(String(source.documentId)))) return null;
+    const targetDocument = targetDocumentFor(String(source.documentId));
+    const targetKey = targetDocument?.uri.toString() ?? String(source.documentId);
+    const result = new vscode.Diagnostic(
+      normalizedRangeFor(source.normalizedSource, diagnostic.location.range),
+      diagnostic.message,
+      diagnostic.severity === "error" ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning
+    );
+    if (diagnostic.code !== undefined) result.code = diagnostic.code;
+    result.source = "nuinuiCAD";
+    if (diagnostic.relatedInformation && diagnostic.relatedInformation.length > 0) {
+      result.relatedInformation = diagnostic.relatedInformation.flatMap((related) => {
+        const relatedSource = sourceSnapshotFor(snapshot, related.location);
+        const relatedDocument = relatedSource
+          ? targetDocumentFor(String(relatedSource.documentId))
+          : undefined;
+        if (!relatedSource || !currentDiagnosticSourceFor(snapshot, relatedSource, relatedDocument)) return [];
+        const relatedUri = relatedDocument?.uri ?? vscode.Uri.parse(String(relatedSource.documentId));
+        return [new vscode.DiagnosticRelatedInformation(
+          new vscode.Location(relatedUri, normalizedRangeFor(relatedSource.normalizedSource, related.location.range)),
+          related.message
+        )];
+      });
+    }
+    return { key: targetKey, diagnostic: result };
+  };
+
+  const diagnosticUriForKey = (key: string): vscode.Uri =>
+    targetDocumentFor(key)?.uri ?? vscode.Uri.parse(key);
+
+  const refreshDiagnosticCollectionFor = (keys: ReadonlySet<string>): void => {
+    for (const key of keys) {
+      const multiDocumentDiagnostics = [...multiDocumentDiagnosticsByRoot.values()]
+        .flatMap((byUri) => byUri.get(key) ?? []);
+      const surfaceDiagnostics = surfaceDiagnosticsByUri.get(key) ?? [];
+      compilerDiagnosticCollection.set(diagnosticUriForKey(key), [
+        ...surfaceDiagnostics,
+        ...multiDocumentDiagnostics
+      ]);
+    }
+  };
+
+  const sameDiagnosticsState = (
+    left: VscodeMultiDocumentDiagnosticsState | null,
+    right: VscodeMultiDocumentDiagnosticsState | null
+  ): boolean => {
+    if (!left || !right) return left === right;
+    if (left.status !== right.status || left.rootGeneration !== right.rootGeneration) return false;
+    if (left.status !== "current" || right.status !== "current") return true;
+    if (left.owner !== right.owner || left.documentVersion !== right.documentVersion) return false;
+    if (left.owner !== "multi-document" || right.owner !== "multi-document") return true;
+    return left.snapshot.graphRevision === right.snapshot.graphRevision &&
+      left.snapshot.rootGeneration === right.snapshot.rootGeneration;
+  };
+
   const publishCurrentDiagnostics = (
     document: vscode.TextDocument,
     session: NuiLanguageAnalysisSession
   ): void => {
     const key = documentKey(document);
     const sourceText = document.getText();
+    const multiDocumentHost = activeVscodeMultiDocumentHost();
+    const capturedState = multiDocumentHost?.diagnosticsStateFor(document) ?? null;
     if (
       !isOpenDocument(document) ||
       languageAnalysisSessions.get(key) !== session ||
@@ -697,11 +818,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       ?.diagnostics ?? [];
     const projectedRuntimeDiagnostics = runtimeDiagnostics
       .map((diagnostic) => toCompilerDiagnostic(sourceText, diagnostic))
-      .filter((diagnostic): diagnostic is CompilerDiagnostic => diagnostic !== null);
-    const diagnostics = [
-      ...session.getDiagnostics(),
-      ...projectedRuntimeDiagnostics
-    ].map((diagnostic) => toVscodeDiagnostic(document, diagnostic));
+      .filter((diagnostic): diagnostic is CompilerDiagnostic => diagnostic !== null)
+      .map((diagnostic) => toVscodeDiagnostic(document, diagnostic));
     const canvasSession = sessions.get(key, "canvas");
     const source = {
       normalizedSource: normalizedSourceFor(sourceText),
@@ -716,12 +834,50 @@ export const activate = (context: vscode.ExtensionContext): void => {
           semantic: session.fixedColorSemanticSnapshot(source)
         })
       : [];
-    compilerDiagnosticCollection.set(document.uri, [
-      ...diagnostics,
+
+    const localCompilerDiagnostics = !capturedState ||
+      (capturedState.status === "current" && capturedState.owner === "local")
+      ? session.getDiagnostics().map((diagnostic) => toVscodeDiagnostic(document, diagnostic))
+      : [];
+    const surfaceDiagnostics = [
+      ...localCompilerDiagnostics,
+      ...projectedRuntimeDiagnostics,
       ...canvasThemeWarnings.map((warning) =>
         toVscodeCanvasThemeWarningDiagnostic(document, sourceText, warning)
       )
+    ];
+    const previousMultiDocumentDiagnostics = multiDocumentDiagnosticsByRoot.get(key);
+    const affectedUris = new Set<string>([
+      key,
+      ...(previousMultiDocumentDiagnostics?.keys() ?? [])
     ]);
+    let nextMultiDocumentDiagnostics: Map<string, vscode.Diagnostic[]> | undefined;
+
+    if (capturedState?.status === "current" && capturedState.owner === "multi-document") {
+      const projectedByUri = new Map<string, vscode.Diagnostic[]>();
+      for (const diagnostic of capturedState.snapshot.diagnostics) {
+        const projected = toVscodeMultiDocumentDiagnostic(capturedState.snapshot, diagnostic);
+        if (!projected) continue;
+        const bucket = projectedByUri.get(projected.key) ?? [];
+        bucket.push(projected.diagnostic);
+        projectedByUri.set(projected.key, bucket);
+        affectedUris.add(projected.key);
+      }
+      nextMultiDocumentDiagnostics = projectedByUri;
+    }
+
+    if (
+      documentKey(document) !== key ||
+      !isOpenDocument(document) ||
+      document.version !== capturedState?.documentVersion && capturedState?.status === "current" ||
+      languageAnalysisSessions.get(key) !== session ||
+      session.getSource() !== sourceText ||
+      !sameDiagnosticsState(capturedState, multiDocumentHost?.diagnosticsStateFor(document) ?? null)
+    ) return;
+    multiDocumentDiagnosticsByRoot.delete(key);
+    if (nextMultiDocumentDiagnostics) multiDocumentDiagnosticsByRoot.set(key, nextMultiDocumentDiagnostics);
+    surfaceDiagnosticsByUri.set(key, surfaceDiagnostics);
+    refreshDiagnosticCollectionFor(affectedUris);
   };
 
   const publishCompilerDiagnostics = (document: vscode.TextDocument): void => {
@@ -747,6 +903,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
     ) return;
     publishCurrentDiagnostics(document, session);
   };
+
+  const multiDocumentDiagnosticsHost = activeVscodeMultiDocumentHost();
+  const multiDocumentDiagnosticsListener = multiDocumentDiagnosticsHost?.onDiagnosticsChanged((documentUri) => {
+    const document = vscode.workspace.textDocuments.find((candidate) => documentKey(candidate) === documentUri);
+    if (document) publishCompilerDiagnostics(document);
+  });
 
   const canvasThemeWarningFeature = createCanvasThemeWarningFeature({
     currentThemeGeneration: currentCanvasThemeGeneration,
@@ -857,8 +1019,20 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (!isSupportedNuiDocument(document)) return;
     const key = documentKey(document);
+    const previousMultiDocumentDiagnostics = multiDocumentDiagnosticsByRoot.get(key);
+    const affectedUris = new Set<string>([
+      key,
+      ...(previousMultiDocumentDiagnostics?.keys() ?? [])
+    ]);
+    multiDocumentDiagnosticsByRoot.delete(key);
+    surfaceDiagnosticsByUri.delete(key);
     languageAnalysisSessions.delete(key);
     compilerDiagnosticCollection.delete(document.uri);
+    affectedUris.delete(key);
+    if ([...multiDocumentDiagnosticsByRoot.values()].some((byUri) => byUri.has(key))) {
+      affectedUris.add(key);
+    }
+    refreshDiagnosticCollectionFor(affectedUris);
     observationFeature.removeDocument(key);
     handleCoordinatePointConversionDocumentClose(document);
   });
@@ -931,6 +1105,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     compilerDiagnosticOpenListener,
     compilerDiagnosticChangeListener,
     compilerDiagnosticCloseListener,
+    ...(multiDocumentDiagnosticsListener ? [multiDocumentDiagnosticsListener] : []),
     disposeCompilerDiagnosticSessions,
     hoverFeature,
     sourceActivityDecorationFeature,

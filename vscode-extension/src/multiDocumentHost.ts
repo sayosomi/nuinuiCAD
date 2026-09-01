@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import * as vscode from "vscode";
 import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
+import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import {
   dslSemanticIdentityKey,
   type DslSemanticIdentity
@@ -37,6 +38,7 @@ import {
   type DependencySavedSourceSnapshot,
   type DocumentId,
   type DocumentQualifiedSemanticIdentity,
+  type DocumentQualifiedSourceLocation,
   type DocumentSourceIdentity,
   type MultiDocumentSourceSnapshot,
   type RootCurrentSourceSnapshot
@@ -61,6 +63,54 @@ export type VscodeMultiDocumentIdentityProjector = (
 export type VscodeMultiDocumentSemanticRootCompiler = (
   graph: MultiDocumentImportGraph<unknown>
 ) => CompiledDslDocument | null;
+
+export type VscodeMultiDocumentDiagnosticRelatedInformation = {
+  message: string;
+  location: DocumentQualifiedSourceLocation;
+};
+
+/** One exact graph-owned diagnostic before VS Code range/URI projection. */
+export type VscodeMultiDocumentDiagnostic = {
+  severity: DslDiagnostic["severity"];
+  message: string;
+  location: DocumentQualifiedSourceLocation;
+  relatedInformation?: readonly VscodeMultiDocumentDiagnosticRelatedInformation[];
+  code?: string;
+};
+
+export type VscodeMultiDocumentDiagnosticSnapshot = {
+  documentVersion: number;
+  rootGeneration: number;
+  graphRevision: number;
+  graph: MultiDocumentImportGraph<unknown>;
+  compiled: CompiledDslDocument | null;
+  diagnostics: readonly VscodeMultiDocumentDiagnostic[];
+};
+
+export type VscodeMultiDocumentDiagnosticsState =
+  | {
+      status: "building" | "invalidated" | "unavailable";
+      documentVersion: number | null;
+      rootGeneration: number;
+    }
+  | {
+      status: "current";
+      owner: "local";
+      documentVersion: number;
+      rootGeneration: number;
+    }
+  | {
+      status: "current";
+      owner: "multi-document";
+      documentVersion: number;
+      rootGeneration: number;
+      snapshot: VscodeMultiDocumentDiagnosticSnapshot;
+    };
+
+export type VscodeMultiDocumentDiagnosticsProjector = (input: {
+  graph: MultiDocumentImportGraph<unknown>;
+  compiled: CompiledDslDocument | null;
+}) => readonly VscodeMultiDocumentDiagnostic[];
 
 export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
   graph: MultiDocumentImportGraph<unknown>;
@@ -87,6 +137,7 @@ export type VscodeMultiDocumentHostOptions = {
   declarationContributors?: readonly MultiDocumentDeclarationContributor<unknown>[];
   identityProjector?: VscodeMultiDocumentIdentityProjector;
   semanticRootCompiler?: VscodeMultiDocumentSemanticRootCompiler;
+  diagnosticsProjector?: VscodeMultiDocumentDiagnosticsProjector;
   canvasRuntimeProjector?: VscodeMultiDocumentCanvasRuntimeProjector;
   /** Family semantic owners may supply their existing exact rename proof. */
   renameProof?: MultiDocumentRenameDocumentProof;
@@ -113,6 +164,9 @@ type RootState = {
   graph: MultiDocumentImportGraph<unknown> | null;
   index: MultiDocumentSemanticOccurrenceIndex | null;
   compiled: CompiledDslDocument | null;
+  diagnosticsStatus: "building" | "invalidated" | "current";
+  diagnostics: VscodeMultiDocumentDiagnosticSnapshot | null;
+  rootGeneration: number;
   pending: Promise<void> | null;
 };
 
@@ -254,6 +308,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   private readonly rootByDocumentId = new Map<DocumentId, RootState>();
   private readonly sessionByDocumentId = new Map<DocumentId, NuiLanguageAnalysisSession>();
   private readonly knownDocumentIdByUri = new Map<string, DocumentId>();
+  private readonly diagnosticsListeners = new Set<(documentUri: string) => void>();
   private readonly subscriptions: vscode.Disposable[] = [];
   private publicationRevision = 0;
   private disposed = false;
@@ -292,6 +347,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         if (state?.documentUri === document.uri.toString()) {
           state.requestRevision += 1;
           this.rootByDocumentId.delete(documentId);
+          this.notifyDiagnosticsChanged(state.documentUri);
           publishVscodeMultiDocumentGraphPublication(state.documentUri, {
             type: "multiDocumentGraphPublication",
             documentVersion: null,
@@ -322,8 +378,63 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     this.disposed = true;
     if (activeHost === this) activeHost = null;
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
+    this.diagnosticsListeners.clear();
     this.rootByDocumentId.clear();
     this.sessionByDocumentId.clear();
+  }
+
+  onDiagnosticsChanged(listener: (documentUri: string) => void): vscode.Disposable {
+    if (this.disposed) return { dispose: () => undefined };
+    this.diagnosticsListeners.add(listener);
+    return {
+      dispose: () => this.diagnosticsListeners.delete(listener)
+    };
+  }
+
+  /**
+   * Return the diagnostic owner without waiting for a rebuild. A non-current
+   * state intentionally exposes no previous graph snapshot, so callers can
+   * remove stale imported diagnostics while the exact graph is rebuilt.
+   */
+  diagnosticsStateFor(document: vscode.TextDocument): VscodeMultiDocumentDiagnosticsState {
+    if (!supportedDocument(document)) {
+      return { status: "unavailable", documentVersion: null, rootGeneration: 0 };
+    }
+    const documentId = this.documentIdForUri(document.uri);
+    const state = this.rootByDocumentId.get(documentId);
+    if (!state || state.documentUri !== document.uri.toString()) {
+      return { status: "unavailable", documentVersion: null, rootGeneration: 0 };
+    }
+    if (state.diagnosticsStatus !== "current") {
+      return {
+        status: state.diagnosticsStatus,
+        documentVersion: state.documentVersion,
+        rootGeneration: state.rootGeneration
+      };
+    }
+    const graph = state.graph;
+    const diagnostics = state.diagnostics;
+    const rootNode = graph?.nodes.get(documentId);
+    if (
+      this.options.diagnosticsProjector &&
+      graph &&
+      diagnostics &&
+      rootNode?.artifact.imports.length
+    ) {
+      return {
+        status: "current",
+        owner: "multi-document",
+        documentVersion: state.documentVersion,
+        rootGeneration: state.rootGeneration,
+        snapshot: diagnostics
+      };
+    }
+    return {
+      status: "current",
+      owner: "local",
+      documentVersion: state.documentVersion,
+      rootGeneration: state.rootGeneration
+    };
   }
 
   async provideDefinition(
@@ -711,6 +822,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         graph: null,
         index: null,
         compiled: null,
+        diagnosticsStatus: "building",
+        diagnostics: null,
+        rootGeneration: 0,
         pending: null
       };
       this.rootByDocumentId.set(documentId, state);
@@ -727,12 +841,16 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     state.documentUri = document.uri.toString();
     state.documentVersion = document.version;
     const requestRevision = ++state.requestRevision;
+    state.rootGeneration += 1;
+    state.diagnosticsStatus = "building";
+    state.diagnostics = null;
     publishVscodeMultiDocumentGraphPublication(state.documentUri, {
       type: "multiDocumentGraphPublication",
       documentVersion: document.version,
       status: "building",
       graph: null
     });
+    this.notifyDiagnosticsChanged(state.documentUri);
     const pending = this.rebuildRoot(document, state, requestRevision);
     state.pending = pending;
     try {
@@ -805,6 +923,18 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     state.index = index;
     state.compiled = compiled;
     state.graphRevision = ++this.publicationRevision;
+    state.diagnostics = this.options.diagnosticsProjector
+      ? {
+          documentVersion: state.documentVersion,
+          rootGeneration: state.rootGeneration,
+          graphRevision: state.graphRevision,
+          graph: result.graph,
+          compiled,
+          diagnostics: this.options.diagnosticsProjector({ graph: result.graph, compiled })
+        }
+      : null;
+    state.diagnosticsStatus = "current";
+    this.notifyDiagnosticsChanged(state.documentUri);
     const canvasRuntime = compiled && this.options.canvasRuntimeProjector
       ? this.options.canvasRuntimeProjector({
           graph: result.graph,
@@ -1189,6 +1319,10 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       state.graph = null;
       state.index = null;
       state.compiled = null;
+      state.diagnostics = null;
+      state.diagnosticsStatus = "invalidated";
+      state.rootGeneration += 1;
+      this.notifyDiagnosticsChanged(state.documentUri);
       publishVscodeMultiDocumentGraphPublication(state.documentUri, {
         type: "multiDocumentGraphPublication",
         documentVersion: state.documentVersion,
@@ -1224,6 +1358,10 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       if (rootId === exclude || !state.graph?.nodes.has(documentId)) continue;
       state.index = null;
     }
+  }
+
+  private notifyDiagnosticsChanged(documentUri: string): void {
+    for (const listener of this.diagnosticsListeners) listener(documentUri);
   }
 }
 

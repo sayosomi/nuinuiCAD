@@ -1060,18 +1060,23 @@ Settings surface.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
 `AutomationDocument` per supported document URI for local diagnostics and
-fallback language features. The Module-aware multi-document host keeps the
-current graph-root compiled semantic snapshot alongside its one graph; saved
-dependencies remain disk-authoritative until the existing watcher/coordinator
-rebuilds affected roots. Diagnostics and native language features share the
-local session, while public Module language queries use the exact host snapshot
-when available:
+fallback language features. `VscodeMultiDocumentHost` owns the exact
+graph/watcher lifecycle, current root generation, and diagnostics refresh
+notifications; saved dependencies remain disk-authoritative until the existing
+watcher/coordinator rebuilds affected roots. The Module adapter supplies the
+Module-family graph, semantic, and exact compiler diagnostic projection.
+`extension.ts` remains the owner of the one native `DiagnosticCollection` and
+composes that selected compiler/semantic layer with runtime diagnostics and
+Canvas-theme warnings. A root without imported dependencies stays on the local
+session path, while an imported root exposes only its exact current graph
+snapshot to Problems:
 
 ```text
 VS Code TextDocument
 → one URI-scoped multi-document host / saved graph coordinator
 ├→ Module contributor → analyzeMultiDocumentModuleSemantics
 ├→ createModuleRuntimeContext → exact graph-root compile
+├→ Module graph/semantic/compiler diagnostics → DiagnosticCollection
 │  ├→ queryDslCompletion → CompletionItemProvider
 │  └→ queryDslSignatureHelp → SignatureHelpProvider
 ├→ queryMultiDocumentDefinition / queryMultiDocumentReferences
@@ -1080,7 +1085,7 @@ VS Code TextDocument
 
 VS Code TextDocument
 → URI-scoped language analysis session / AutomationDocument (local/fallback)
-├→ compiler diagnostics → DiagnosticCollection
+├→ local compiler diagnostics when the multi-document host does not own the root
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslSignatureHelp → SignatureHelpProvider
 ├→ queryDslDefinition → DefinitionProvider
@@ -1093,6 +1098,10 @@ VS Code TextDocument
 │  → geometryHoverPresentation → HoverProvider
 └→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
    → CodeActionProvider → guarded internal apply command → WorkspaceEdit
+
+Runtime diagnostics and Canvas-theme warnings are composed by `extension.ts`
+with whichever compiler/semantic layer the exact host generation selects; they
+are not alternate diagnostic owners.
 ```
 
 `languageAnalysisSession.ts` owns current raw source, source replacement,

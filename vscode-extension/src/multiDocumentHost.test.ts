@@ -283,6 +283,12 @@ describe("VS Code multi-document host lifecycle", () => {
       expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(2);
     });
 
+    const diagnosticsState = host.diagnosticsStateFor(root);
+    expect(diagnosticsState).toMatchObject({ status: "current", owner: "multi-document" });
+    if (diagnosticsState.status === "current" && diagnosticsState.owner === "multi-document") {
+      expect(diagnosticsState.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("module-unresolved-callee");
+    }
+
     const callLine = rootSource.split("\n")[2]!;
     const callOffset = callLine.indexOf("Panel") + 2;
     const definition = await host.provideDefinition(root, new vscode.Position(2, callOffset));
@@ -381,7 +387,83 @@ describe("VS Code multi-document host lifecycle", () => {
       expect(current).toBeDefined();
       expect(current?.canvasRuntime).toBeNull();
     });
+    const diagnosticsState = host.diagnosticsStateFor(root);
+    expect(diagnosticsState).toMatchObject({ status: "current", owner: "multi-document" });
+    if (diagnosticsState.status === "current" && diagnosticsState.owner === "multi-document") {
+      expect(diagnosticsState.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).toContain("import-missing");
+    }
 
+    host.dispose();
+  });
+
+  it("preserves exact same-file compiler diagnostics on imported roots", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()",
+      "point Broken = nope(x: 1)"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      const state = host.diagnosticsStateFor(root);
+      expect(state.status).toBe("current");
+      expect(state.owner).toBe("multi-document");
+    });
+
+    const state = host.diagnosticsStateFor(root);
+    if (state.status === "current" && state.owner === "multi-document") {
+      expect(state.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "unknown-construction" })
+      ]));
+    }
+    host.dispose();
+  });
+
+  it("keeps imported Module instance export/member references on exact graph semantics", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Direct()",
+      "point Used = offset(from: @use::Outline, dx: 1, dy: 0)"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Direct() {",
+      "  export point Outline = coordinate(x: 0, y: 0)",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      const state = host.diagnosticsStateFor(root);
+      expect(state.status).toBe("current");
+      expect(state.owner).toBe("multi-document");
+    });
+
+    const state = host.diagnosticsStateFor(root);
+    if (state.status === "current" && state.owner === "multi-document") {
+      expect(state.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).not.toEqual(
+        expect.arrayContaining(["module-unresolved-callee", "module-unresolved-namespace"])
+      );
+    }
     host.dispose();
   });
 
@@ -419,6 +501,12 @@ describe("VS Code multi-document host lifecycle", () => {
     await vi.waitFor(() => {
       expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(3);
     });
+
+    const diagnosticsState = host.diagnosticsStateFor(root);
+    expect(diagnosticsState).toMatchObject({ status: "current", owner: "multi-document" });
+    if (diagnosticsState.status === "current" && diagnosticsState.owner === "multi-document") {
+      expect(diagnosticsState.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("module-unresolved-callee");
+    }
 
     const callLine = rootSource.split("\n")[2]!;
     const callOffset = callLine.indexOf("Panel") + 2;

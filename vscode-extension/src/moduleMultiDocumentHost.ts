@@ -1,4 +1,5 @@
 import { compileDslDocument } from "../../src/dsl/dslDocument";
+import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
 import { createModuleRuntimeContext } from "../../src/dsl/moduleRuntimeContext";
 import {
   createMultiDocumentModuleIdentityResolver,
@@ -9,13 +10,29 @@ import {
   moduleDeclarationContributor
 } from "../../src/document/multiDocumentModuleSemantics";
 import type { MultiDocumentRenameDocumentProof } from "../../src/document/multiDocumentLanguageQueries";
+import type { MultiDocumentGraphNode } from "../../src/document/multiDocumentImportGraph";
+import {
+  qualifySourceLocation,
+  sourceIdentityOf,
+  type DocumentQualifiedSourceLocation,
+  type DocumentSourceIdentity,
+  type DocumentTextRange
+} from "../../src/document/multiDocumentPrimitives";
 import {
   VscodeMultiDocumentHost,
+  type VscodeMultiDocumentDiagnostic,
+  type VscodeMultiDocumentDiagnosticsProjector,
   type VscodeMultiDocumentHostOptions,
   type VscodeMultiDocumentRenameProofFactory,
   type VscodeMultiDocumentSemanticRootCompiler
 } from "./multiDocumentHost";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../../src/vscode/multiDocumentRuntimeTransport";
+import {
+  compilerDiagnosticsFor,
+  type CompilerDiagnostic,
+  type CompilerDiagnosticRange
+} from "./compilerDiagnostics";
+import { projectConfiguredCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
 
 const sameStatementIds = (
   left: ReadonlyMap<number, string>,
@@ -23,7 +40,13 @@ const sameStatementIds = (
 ): boolean => left.size === right.size &&
   [...left].every(([statementIndex, statementId]) => right.get(statementIndex) === statementId);
 
-const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph) => {
+type ModuleRootCompilation = {
+  rootNode: MultiDocumentGraphNode<unknown>;
+  analysis: ReturnType<typeof analyzeMultiDocumentModuleSemantics>;
+  compiled: ReturnType<typeof compileDslDocument>;
+};
+
+const moduleRootCompilationFor = (graph: Parameters<VscodeMultiDocumentSemanticRootCompiler>[0]): ModuleRootCompilation | null => {
   if (!graph.valid || graph.rootSource.kind !== "root-current") return null;
   const rootNode = graph.nodes.get(graph.rootDocumentId);
   if (!rootNode || !rootNode.valid || rootNode.artifact.source !== graph.rootSource) return null;
@@ -41,6 +64,13 @@ const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph) 
     assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
     moduleRuntimeContext: context
   });
+  return { rootNode, analysis, compiled };
+};
+
+const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph) => {
+  const prepared = moduleRootCompilationFor(graph);
+  if (!prepared) return null;
+  const { rootNode, analysis, compiled } = prepared;
   const rootAnalysis = analysis.analysesByDocument.get(graph.rootDocumentId);
   const hasModuleStatements = rootNode.artifact.parsed.statements.some(
     (statement) => statement.kind === "moduleDefinition" || statement.kind === "moduleInstance"
@@ -71,6 +101,161 @@ const moduleIdentityProjector: VscodeMultiDocumentHostOptions["identityProjector
   identity,
   compiled
 ) => createMultiDocumentModuleIdentityResolver(compiled)(identity);
+
+const offsetAt = (
+  source: string,
+  position: { line: number; character: number }
+): number | null => {
+  if (!Number.isInteger(position.line) || !Number.isInteger(position.character) ||
+      position.line < 0 || position.character < 0) return null;
+  let offset = 0;
+  for (let line = 0; line < position.line; line += 1) {
+    const newline = source.indexOf("\n", offset);
+    if (newline === -1) return null;
+    offset = newline + 1;
+  }
+  const lineEnd = source.indexOf("\n", offset);
+  const end = lineEnd === -1 ? source.length : lineEnd;
+  return offset + position.character <= end ? offset + position.character : null;
+};
+
+const rangeForCompilerDiagnostic = (
+  source: string,
+  range: CompilerDiagnosticRange
+): DocumentTextRange | null => {
+  const from = offsetAt(source, range.start);
+  const to = offsetAt(source, range.end);
+  return from === null || to === null || to < from ? null : { from, to };
+};
+
+const relatedInformationForCompilerDiagnostic = (
+  source: string,
+  sourceIdentity: DocumentSourceIdentity,
+  diagnostic: CompilerDiagnostic
+): readonly { message: string; location: DocumentQualifiedSourceLocation }[] =>
+  (diagnostic.relatedInformation ?? []).flatMap((related) => {
+    const range = rangeForCompilerDiagnostic(source, related.range);
+    return range ? [{ message: related.message, location: qualifySourceLocation(sourceIdentity, range) }] : [];
+  });
+
+const projectCompilerDiagnostic = (
+  source: string,
+  sourceIdentity: DocumentSourceIdentity,
+  diagnostic: CompilerDiagnostic
+): VscodeMultiDocumentDiagnostic | null => {
+  const range = rangeForCompilerDiagnostic(source, diagnostic.range);
+  if (!range) return null;
+  const relatedInformation = relatedInformationForCompilerDiagnostic(source, sourceIdentity, diagnostic);
+  return {
+    severity: diagnostic.severity,
+    message: diagnostic.message,
+    location: qualifySourceLocation(sourceIdentity, range),
+    ...(relatedInformation.length > 0 ? { relatedInformation } : {}),
+    ...(diagnostic.code === undefined ? {} : { code: diagnostic.code })
+  };
+};
+
+const projectDslDiagnostic = (
+  source: string,
+  sourceIdentity: DocumentSourceIdentity,
+  diagnostic: import("../../src/dsl/dslTypes").DslDiagnostic
+): VscodeMultiDocumentDiagnostic | null => {
+  const projected = compilerDiagnosticsFor(source, [diagnostic], [])[0];
+  return projected ? projectCompilerDiagnostic(source, sourceIdentity, projected) : null;
+};
+
+const diagnosticKey = (diagnostic: VscodeMultiDocumentDiagnostic): string => JSON.stringify([
+  diagnostic.severity,
+  diagnostic.code,
+  diagnostic.message,
+  diagnostic.location,
+  diagnostic.relatedInformation ?? []
+]);
+
+const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = ({ graph, compiled }) => {
+  const diagnostics: VscodeMultiDocumentDiagnostic[] = [];
+  const add = (diagnostic: VscodeMultiDocumentDiagnostic | null): void => {
+    if (diagnostic) diagnostics.push(diagnostic);
+  };
+  const addQualified = (
+    severity: "error" | "warning",
+    code: string,
+    message: string,
+    location: DocumentQualifiedSourceLocation,
+    relatedLocations: readonly DocumentQualifiedSourceLocation[] = []
+  ): void => {
+    add({
+      severity,
+      code,
+      message,
+      location,
+      ...(relatedLocations.length > 0
+        ? { relatedInformation: relatedLocations.map((related) => ({ message, location: related })) }
+        : {})
+    });
+  };
+
+  for (const diagnostic of graph.diagnostics) {
+    addQualified("error", diagnostic.code, diagnostic.message, diagnostic.location, diagnostic.relatedLocations);
+  }
+
+  for (const node of graph.nodes.values()) {
+    const sourceIdentity = sourceIdentityOf(node.artifact.source);
+    for (const diagnostic of node.sourceDiagnostics) {
+      add(projectDslDiagnostic(node.artifact.source.normalizedSource, sourceIdentity, diagnostic));
+    }
+    for (const diagnostic of node.publicApiDiagnostics) {
+      addQualified(
+        "error",
+        diagnostic.code,
+        diagnostic.message,
+        diagnostic.location,
+        diagnostic.relatedLocations
+      );
+    }
+  }
+
+  const analysis = analyzeMultiDocumentModuleSemantics(graph);
+  for (const diagnostic of analysis.diagnostics) {
+    addQualified(
+      "error",
+      diagnostic.code,
+      diagnostic.message,
+      diagnostic.location,
+      diagnostic.relatedLocations
+    );
+  }
+
+  const diagnosticCompiled = compiled ?? moduleRootCompilationFor(graph)?.compiled ?? null;
+  if (diagnosticCompiled && diagnosticCompiled.spans.sourceMap.source === graph.rootSource.normalizedSource &&
+      diagnosticCompiled.spans.sourceMap.sourceRevision === graph.rootSource.sourceRevision) {
+    const sourceIdentity = sourceIdentityOf(graph.rootSource);
+    const base = compilerDiagnosticsFor(
+      graph.rootSource.normalizedSource,
+      diagnosticCompiled.diagnostics,
+      diagnosticCompiled.bindingIssueDiagnostics ?? []
+    );
+    const semantic: DslCompletionSemanticSnapshot = {
+      sourceRevision: graph.rootSource.sourceRevision,
+      sourceText: graph.rootSource.normalizedSource,
+      compiled: diagnosticCompiled,
+      ...(diagnosticCompiled.bindingAnalysis ? { bindingAnalysis: diagnosticCompiled.bindingAnalysis } : {})
+    };
+    const projected = projectConfiguredCompilerDiagnosticsWithTypoSuggestions(
+      base,
+      {
+        normalizedSource: graph.rootSource.normalizedSource,
+        sourceRevision: graph.rootSource.sourceRevision
+      },
+      semantic
+    );
+    for (const diagnostic of projected) add(projectCompilerDiagnostic(graph.rootSource.normalizedSource, sourceIdentity, diagnostic));
+  }
+
+  const unique = new Map<string, VscodeMultiDocumentDiagnostic>();
+  for (const diagnostic of diagnostics) unique.set(diagnosticKey(diagnostic), diagnostic);
+  return [...unique.values()];
+};
 
 const moduleRenameProofFactory: VscodeMultiDocumentRenameProofFactory = ({
   primaryGraph,
@@ -110,6 +295,7 @@ const moduleRenameProofFactory: VscodeMultiDocumentRenameProofFactory = ({
 const moduleMultiDocumentHostOptions: VscodeMultiDocumentHostOptions = {
   declarationContributors: [moduleDeclarationContributor],
   semanticRootCompiler: exactModuleRootCompile,
+  diagnosticsProjector: projectVscodeModuleDiagnostics,
   canvasRuntimeProjector: projectVscodeMultiDocumentCanvasRuntime,
   identityProjector: moduleIdentityProjector,
   renameProofFactory: moduleRenameProofFactory
