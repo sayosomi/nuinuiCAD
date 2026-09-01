@@ -45,6 +45,51 @@ export const NUMERIC_COMPUTED_GEOMETRY_PROPERTIES = [
   "fontSize"
 ] as const;
 
+export type NumericGeometryPropertyUnit = "mm" | "°" | "px" | "dpi" | "px/mm" | "bare";
+
+/** Canonical presentation unit for every static public numeric property. */
+export const NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS: Readonly<Record<
+  (typeof NUMERIC_COMPUTED_GEOMETRY_PROPERTIES)[number],
+  NumericGeometryPropertyUnit
+>> = {
+  length: "mm",
+  startAngleDeg: "°",
+  endAngleDeg: "°",
+  "startPoint.x": "bare",
+  "startPoint.y": "bare",
+  "endPoint.x": "bare",
+  "endPoint.y": "bare",
+  radius: "mm",
+  sweepAngleDeg: "°",
+  startRadiusAngleDeg: "°",
+  endRadiusAngleDeg: "°",
+  "centerPoint.x": "bare",
+  "centerPoint.y": "bare",
+  startHandleAngleDeg: "°",
+  startHandleLength: "mm",
+  endHandleAngleDeg: "°",
+  endHandleLength: "mm",
+  x: "bare",
+  y: "bare",
+  "originPoint.x": "bare",
+  "originPoint.y": "bare",
+  widthMm: "mm",
+  heightMm: "mm",
+  scale: "bare",
+  angleDeg: "°",
+  naturalWidthPx: "px",
+  naturalHeightPx: "px",
+  sourceDpi: "dpi",
+  targetPixelsPerMm: "px/mm",
+  "anchorPoint.x": "bare",
+  "anchorPoint.y": "bare",
+  fontSize: "mm"
+};
+
+/** Returns a public property's display unit; unknown and dynamic coordinates stay unitless. */
+export const numericGeometryPropertyUnitFor = (property: string): NumericGeometryPropertyUnit =>
+  NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS[property as (typeof NUMERIC_COMPUTED_GEOMETRY_PROPERTIES)[number]] ?? "bare";
+
 /** Canonical measurement subset used by numeric-reference pickers. */
 export const NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES = [
   "length",
