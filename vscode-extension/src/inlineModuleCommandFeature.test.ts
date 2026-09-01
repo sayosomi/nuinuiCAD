@@ -57,6 +57,7 @@ import {
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
 import * as inlineModulePlanner from "../../src/document/inlineModulePlanner";
+import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 
 const source = [
   "nui 1",
@@ -104,6 +105,70 @@ const sessionFor = (() => {
   const session = createLanguageAnalysisSession(source);
   return () => session;
 })();
+
+const canvasFixtureFor = (canvasSource: string) => {
+  let currentSource = canvasSource;
+  const document = {
+    uri: { scheme: "file", toString: () => "file:///canvas-inline.nui" },
+    fileName: "/canvas-inline.nui",
+    version: 1,
+    getText: () => currentSource
+  };
+  const editor = { document };
+  const session = createLanguageAnalysisSession(canvasSource);
+  const sourceSnapshot = {
+    normalizedSource: canvasSource,
+    sourceRevision: session.getSourceRevision()
+  };
+  const compiled = session.definitionSemanticSnapshot(sourceSnapshot)!.compiled!;
+  const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance")!;
+  const elements = [{
+    id: runtimeEntry.runtimeElementId,
+    name: runtimeEntry.statement.name,
+    type: "moduleInstance",
+    activity: "visible"
+  }];
+  const targets = inlineModuleCanvasTargetProofsFor({
+    source: sourceSnapshot,
+    compiled,
+    elements: elements as never,
+    selectedElementIds: [runtimeEntry.runtimeElementId],
+    moduleMaterialization: compiled.moduleMaterialization
+  });
+  const postMessage = vi.fn(() => Promise.resolve(true));
+  const endpoint = {
+    document,
+    panel: { webview: { postMessage } },
+    isAuthoritativeReady: () => true
+  };
+  const apply = vi.fn(async (
+    _editor: unknown,
+    expectedVersion: number,
+    expectedSource: string,
+    splices: readonly LineSplice[]
+  ) => {
+    if (document.version !== expectedVersion || currentSource !== expectedSource) return false;
+    currentSource = applyLineSplices(expectedSource, splices);
+    document.version = expectedVersion + 1;
+    session.replaceSource(currentSource);
+    return true;
+  });
+  return {
+    document,
+    editor,
+    endpoint,
+    session,
+    initialPublication: {
+      type: "inlineModuleCanvasTargetsPublication" as const,
+      documentVersion: 1,
+      normalizedSource: canvasSource,
+      targets
+    },
+    apply,
+    postMessage,
+    getCurrentSource: () => currentSource
+  };
+};
 
 describe("VS Code Inline Module command feature", () => {
   it("collects authored Module instances for selections and caret positions, including nested body instances", () => {
@@ -238,6 +303,142 @@ describe("VS Code Inline Module command feature", () => {
     expect(apply).toHaveBeenCalledTimes(1);
     plannerSpy.mockRestore();
     feature.dispose();
+  });
+
+  it("executes from a current Canvas target and requests post-edit selection by generated group", async () => {
+    const canvasSource = [
+      "nui 1",
+      "module Stamp() {",
+      "  point Anchor = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Top = Stamp()"
+    ].join("\n");
+    const fixture = canvasFixtureFor(canvasSource);
+    expect(fixture.initialPublication.targets).toHaveLength(1);
+    mocks.getConfiguration.mockReturnValue({ get: (_key: string, fallback: unknown) => fallback });
+    mocks.registerCommand.mockImplementation((id: string, handler: () => unknown) => {
+      if (id === VSCODE_INLINE_MODULE_INSTANCE_COMMAND_ID) mocks.commandHandler = handler;
+      return { dispose: vi.fn() };
+    });
+    const feature = registerVscodeInlineModuleCommandFeature({
+      languageAnalysisSessionFor: () => fixture.session,
+      activeSourceEditor: () => undefined,
+      sourceEditorForDocument: () => fixture.editor,
+      activeCanvasEndpoint: () => fixture.endpoint,
+      applySourceLineSplices: fixture.apply
+    });
+    feature.handleCanvasTargetsPublication(fixture.document as never, fixture.initialPublication);
+
+    await mocks.commandHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fixture.apply).toHaveBeenCalledTimes(1);
+    expect(fixture.getCurrentSource()).not.toBe(canvasSource);
+
+    const currentSourceSnapshot = {
+      normalizedSource: fixture.getCurrentSource(),
+      sourceRevision: fixture.session.getSourceRevision()
+    };
+    const currentCompiled = fixture.session.definitionSemanticSnapshot(currentSourceSnapshot)!.compiled!;
+    const generatedGroupIndex = currentCompiled.statements.findIndex((statement) =>
+      statement.kind === "group" && statement.name === "Top"
+    );
+    const generatedGroup = currentCompiled.statements[generatedGroupIndex];
+    expect(generatedGroup?.kind).toBe("group");
+    if (generatedGroupIndex < 0 || generatedGroup?.kind !== "group") return;
+
+    feature.handleCanvasTargetsPublication(fixture.document as never, {
+      type: "inlineModuleCanvasTargetsPublication",
+      documentVersion: fixture.document.version,
+      normalizedSource: fixture.getCurrentSource(),
+      targets: []
+    });
+
+    const request = fixture.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "inlineModuleSelectionRequest");
+    expect(request).toMatchObject({
+      type: "inlineModuleSelectionRequest",
+      documentVersion: fixture.document.version,
+      normalizedSource: fixture.getCurrentSource(),
+      generatedGroups: [{
+        sourceStatementIndex: generatedGroupIndex,
+        sourceRange: {
+          from: generatedGroup.documentRange.from,
+          to: generatedGroup.documentRange.to
+        },
+        generatedGroupName: "Top"
+      }]
+    });
+    expect(request).not.toHaveProperty("runtimeElementId");
+    feature.dispose();
+  });
+
+  it("does not mutate when Canvas proof or authoritative readiness becomes stale", async () => {
+    const canvasSource = [
+      "nui 1",
+      "module Stamp() {",
+      "  point Anchor = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Top = Stamp()"
+    ].join("\n");
+    const staleProofFixture = canvasFixtureFor(canvasSource);
+    const staleProof = {
+      ...staleProofFixture.initialPublication,
+      targets: [{
+        ...staleProofFixture.initialPublication.targets[0]!,
+        sourceRange: {
+          from: staleProofFixture.initialPublication.targets[0]!.sourceRange.from,
+          to: staleProofFixture.initialPublication.targets[0]!.sourceRange.to + 1
+        }
+      }]
+    };
+    mocks.showErrorMessage.mockClear();
+    mocks.getConfiguration.mockReturnValue({ get: (_key: string, fallback: unknown) => fallback });
+    mocks.registerCommand.mockImplementation((id: string, handler: () => unknown) => {
+      if (id === VSCODE_INLINE_MODULE_INSTANCE_COMMAND_ID) mocks.commandHandler = handler;
+      return { dispose: vi.fn() };
+    });
+    const staleProofFeature = registerVscodeInlineModuleCommandFeature({
+      languageAnalysisSessionFor: () => staleProofFixture.session,
+      activeSourceEditor: () => undefined,
+      sourceEditorForDocument: () => staleProofFixture.editor,
+      activeCanvasEndpoint: () => staleProofFixture.endpoint,
+      applySourceLineSplices: staleProofFixture.apply
+    });
+    staleProofFeature.handleCanvasTargetsPublication(staleProofFixture.document as never, staleProof);
+    await mocks.commandHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(staleProofFixture.apply).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: No concrete Module instance is selected on the current Canvas."
+    );
+    staleProofFeature.dispose();
+
+    const staleStateFixture = canvasFixtureFor(canvasSource);
+    let authoritativeReady = true;
+    staleStateFixture.endpoint.isAuthoritativeReady = () => authoritativeReady;
+    mocks.showErrorMessage.mockClear();
+    mocks.getConfiguration.mockReturnValue({
+      get: (_key: string, fallback: unknown) => {
+        authoritativeReady = false;
+        return fallback;
+      }
+    });
+    const staleStateFeature = registerVscodeInlineModuleCommandFeature({
+      languageAnalysisSessionFor: () => staleStateFixture.session,
+      activeSourceEditor: () => undefined,
+      sourceEditorForDocument: () => staleStateFixture.editor,
+      activeCanvasEndpoint: () => staleStateFixture.endpoint,
+      applySourceLineSplices: staleStateFixture.apply
+    });
+    staleStateFeature.handleCanvasTargetsPublication(staleStateFixture.document as never, staleStateFixture.initialPublication);
+    await mocks.commandHandler?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(staleStateFixture.apply).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Source or Canvas state changed. No changes were made; run Inline Module again."
+    );
+    staleStateFeature.dispose();
   });
 
   it("keeps targetless Source unavailable and rejects a stale Source before mutation", async () => {

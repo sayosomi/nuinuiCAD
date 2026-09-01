@@ -24,6 +24,7 @@ import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
+import { groupCanvasGeometry } from "../geometry/groupCanvasGeometry";
 import {
   canvasSelectionEligibleElementIds as computeCanvasSelectionEligibleElementIds
 } from "../geometry/canvasSelectionEligibility";
@@ -1006,6 +1007,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         activeVisibilityProfileId: current.state.activeVisibilityProfileId,
         showCanvasPoints: useCadUiStore.getState().showCanvasPoints
       });
+      const revealEligibleIds = new Set(selectionEligibleIds);
+      for (const element of runtimeElements) {
+        if (element.type === "group") revealEligibleIds.add(element.id);
+      }
 
       const selectionIds: string[] = [];
       const seenSelectionIds = new Set<string>();
@@ -1039,13 +1044,26 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           effectiveVisibleElementIds,
           effectiveEnabledElementIds,
           profileVisibleElementIds,
-          selectionEligibleElementIds: selectionEligibleIds
+          selectionEligibleElementIds: revealEligibleIds
         });
         if (revealResult.status !== "resolved") continue;
         for (const runtimeElementId of revealResult.runtimeElementIds) {
-          if (seenSelectionIds.has(runtimeElementId)) continue;
-          seenSelectionIds.add(runtimeElementId);
-          selectionIds.push(runtimeElementId);
+          const element = runtimeElements.find((candidate) => candidate.id === runtimeElementId);
+          const descendants = element?.type === "group"
+            ? groupCanvasGeometry({
+                groupId: runtimeElementId,
+                elements: runtimeElements,
+                evaluation: currentEvaluation,
+                visibilityProfiles: current.state.visibilityProfiles,
+                activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+                measureCanvasTextWidth
+              })?.renderableDescendantIds ?? []
+            : [runtimeElementId];
+          for (const selectionId of descendants) {
+            if (!selectionEligibleIds.has(selectionId) || seenSelectionIds.has(selectionId)) continue;
+            seenSelectionIds.add(selectionId);
+            selectionIds.push(selectionId);
+          }
         }
       }
 
