@@ -132,6 +132,47 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("derives a brighter Solarized-like outline from the active theme hue", () => {
+    const foreground = "#657b83";
+    const background = "#fdf6e3";
+    const themeAccent = "#07958a";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": themeAccent,
+      "--vscode-editor-selectionHighlightBorder": themeAccent
+    }));
+
+    const accentHsl = visibleHslFor(themeAccent, background);
+    const selectionHsl = visibleHslFor(theme.selection, background);
+    const outlineHsl = visibleHslFor(theme.selectionOutline, background);
+
+    expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastFor(theme.selectionOutline, background)).toBeGreaterThanOrEqual(3);
+    expect(perceptualDistanceFor(theme.selectionOutline, foreground, background))
+      .toBeGreaterThanOrEqual(0.15);
+    expect(hueDistance(outlineHsl.hue, accentHsl.hue)).toBeLessThanOrEqual(1);
+    expect(outlineHsl.lightness).toBeGreaterThan(selectionHsl.lightness);
+    expect(theme.selectionOutline).not.toBe(theme.selection);
+  });
+
+  it("keeps materially different light-theme hues materially different in the outline", () => {
+    const resolve = (foreground: string, background: string, accent: string) =>
+      resolveVSCodeCanvasTheme(stylesFor({
+        "--vscode-editor-foreground": foreground,
+        "--vscode-editor-background": background,
+        "--vscode-focusBorder": accent,
+        "--vscode-editor-selectionHighlightBorder": accent
+      }));
+    const teal = resolve("#657b83", "#fdf6e3", "#07958a");
+    const magenta = resolve("#333333", "#ffffff", "#d95ba5");
+
+    expect(hueDistance(
+      visibleHslFor(teal.selectionOutline, teal.background).hue,
+      visibleHslFor(magenta.selectionOutline, magenta.background).hue
+    )).toBeGreaterThan(60);
+  });
+
   it("uses an already-distinct theme focus token unchanged when no selection token exists", () => {
     const foreground = "#333333";
     const background = "#ffffff";
@@ -144,6 +185,13 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
 
     expect(theme.selection).toBe(focusAccent);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastFor(theme.selectionOutline, background)).toBeGreaterThanOrEqual(3);
+    expect(perceptualDistanceFor(theme.selectionOutline, foreground, background))
+      .toBeGreaterThanOrEqual(0.15);
+    expect(hueDistance(
+      visibleHslFor(theme.selectionOutline, background).hue,
+      visibleHslFor(focusAccent, background).hue
+    )).toBeLessThanOrEqual(1);
   });
 
   it("keeps the accepted dark-theme teal correction direction unchanged", () => {
@@ -158,5 +206,6 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     }));
 
     expect(theme.selection).toBe(accent);
+    expect(theme.selectionOutline).toBe(theme.selection);
   });
 });

@@ -106,6 +106,7 @@ export const createCanvasThemeWarningFeature = (options: {
     "bezierHandleLine",
     "bezierHandlePoint",
     "selection",
+    "selectionOutline",
     "pickCandidate"
   ];
 

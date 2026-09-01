@@ -310,6 +310,11 @@ const FOREGROUND_CHROMATIC_SATURATION = 0.18;
 const LIGHT_SELECTION_VIVID_SATURATION = 1;
 const LIGHT_SELECTION_INITIAL_LIGHTNESS = 0.58;
 const LIGHT_SELECTION_MIN_PERCEPTUAL_DISTANCE = 0.15;
+const LIGHT_SELECTION_OUTLINE_MIN_CONTRAST = 3;
+const LIGHT_SELECTION_OUTLINE_MIN_PERCEPTUAL_DISTANCE = 0.15;
+const LIGHT_SELECTION_OUTLINE_MIN_SATURATION = 0.35;
+const LIGHT_SELECTION_OUTLINE_SEARCH_STEPS = 92;
+const LIGHT_SELECTION_OUTLINE_SATURATION_STEPS = 40;
 
 const backgroundIsDark = (background: RgbaColor): boolean =>
   relativeLuminance(background) < 0.35;
@@ -445,6 +450,55 @@ const resolveSelectionColor = (
   return deriveDistinctSelectionColor(accentValue, foregroundValue, backgroundValue);
 };
 
+/**
+ * Keep the light-theme module frame bright enough to read as an outline while
+ * preserving the resolved selection's active-theme hue and color family.
+ */
+const resolveSelectionOutlineColor = (
+  selectionValue: string,
+  foregroundValue: string,
+  backgroundValue: string
+): string => {
+  const selection = parseCssColor(selectionValue);
+  const foreground = parseCssColor(foregroundValue);
+  const background = parseCssColor(backgroundValue);
+  if (!selection || !foreground || !background || backgroundIsDark(background)) {
+    return selectionValue;
+  }
+
+  const visibleSelection = compositeCssColorOver(selection, background);
+  const visibleForeground = compositeCssColorOver(foreground, background);
+  const selectionHsl = rgbToHsl(visibleSelection);
+  const saturationCandidates = Array.from(
+    { length: LIGHT_SELECTION_OUTLINE_SATURATION_STEPS + 1 },
+    (_, index) => index / LIGHT_SELECTION_OUTLINE_SATURATION_STEPS
+  ).filter((saturation) => saturation >= LIGHT_SELECTION_OUTLINE_MIN_SATURATION).sort((first, second) =>
+    Math.abs(first - selectionHsl.saturation) - Math.abs(second - selectionHsl.saturation)
+  );
+  let brightestCandidate: RgbaColor | null = null;
+
+  for (let step = 1; step <= LIGHT_SELECTION_OUTLINE_SEARCH_STEPS; step += 1) {
+    const lightness = Math.min(0.99, selectionHsl.lightness + step * 0.01);
+    for (const saturation of saturationCandidates) {
+      const candidate = hslToRgb({
+        hue: selectionHsl.hue,
+        saturation,
+        lightness
+      });
+      if (
+        contrastRatio(candidate, background) >= LIGHT_SELECTION_OUTLINE_MIN_CONTRAST &&
+        perceptualColorDistance(candidate, visibleForeground) >=
+          LIGHT_SELECTION_OUTLINE_MIN_PERCEPTUAL_DISTANCE
+      ) {
+        brightestCandidate = candidate;
+        break;
+      }
+    }
+  }
+
+  return brightestCandidate ? formatAdjustedColor(brightestCandidate) : selectionValue;
+};
+
 const colorFrom = (
   styles: CssVariableSource,
   variableName: string,
@@ -463,6 +517,7 @@ export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme
   const accent = strengthenContrast(accentSeed, foreground, background, 3);
   const selectionSeed = colorFrom(styles, "--vscode-editor-selectionHighlightBorder", accentSeed);
   const selection = resolveSelectionColor(selectionSeed, accent, foreground, background);
+  const selectionOutline = resolveSelectionOutlineColor(selection, foreground, background);
 
   return {
     foreground,
@@ -491,6 +546,7 @@ export const resolveVSCodeCanvasTheme = (styles: CssVariableSource): CanvasTheme
     ),
     bezierHandlePoint: accent,
     selection,
+    selectionOutline,
     pickCandidate: accent
   };
 };

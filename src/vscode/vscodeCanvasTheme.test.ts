@@ -93,6 +93,7 @@ describe("resolveVSCodeCanvasTheme", () => {
       bezierHandleLine: "#222222",
       bezierHandlePoint: "#111111",
       selection: "#ffffff",
+      selectionOutline: "#ffffff",
       pickCandidate: "#111111"
     });
   });
