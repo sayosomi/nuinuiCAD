@@ -563,6 +563,7 @@ describe("VS Code extension manifest command contributions", () => {
       type: "array",
       scope: "application",
       default: [],
+      uniqueItems: true,
     });
     expect(quickCreateSetting).not.toHaveProperty("maxItems");
     expect(quickCreateEnum).toEqual([...creationCommandIds].sort());

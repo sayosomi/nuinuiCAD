@@ -1604,6 +1604,7 @@
           "scope": "application",
           "description": "Creation commands shown in the Canvas Create submenu, in order.",
           "default": [],
+          "uniqueItems": true,
           "items": {
             "type": "string",
             "enum": [
