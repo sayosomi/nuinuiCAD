@@ -118,6 +118,7 @@ const transformedSegment = ({
   const center = transform(segment.center);
   const start = transform(sourceStart(segment));
   const end = transform(sourceEnd(segment));
+  const radius = lineLength(center, start);
   const startAngleDeg = angleOfPoint(center, start);
   const sweepAngleDeg = mirrorX
     ? -segment.sweepAngleDeg
@@ -127,10 +128,10 @@ const transformedSegment = ({
     center,
     start,
     end,
-    radius: segment.radius,
+    radius,
     startAngleDeg,
     sweepAngleDeg,
-    length: Math.max(segment.radius, 0) * Math.abs(degreesToRadians(sweepAngleDeg))
+    length: radius * Math.abs(degreesToRadians(sweepAngleDeg))
   };
 };
 

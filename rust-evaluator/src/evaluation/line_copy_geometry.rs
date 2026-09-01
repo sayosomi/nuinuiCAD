@@ -115,13 +115,14 @@ fn transform_source_segment(
         }
         SourceSegment::Arc {
             center,
-            radius,
+            radius: _,
             start_angle_deg: _,
             sweep_angle_deg,
         } => {
             let next_center = transform.apply(*center)?;
             let next_start = transform.apply(source_start(segment))?;
             let next_end = transform.apply(source_end(segment))?;
+            let next_radius = line_length(next_center, next_start);
             let start_angle_deg = angle_of_point(next_center, next_start);
             let next_sweep = if transform.reverse_orientation() {
                 -*sweep_angle_deg
@@ -132,10 +133,10 @@ fn transform_source_segment(
                 center: next_center,
                 start: next_start,
                 end: next_end,
-                radius: *radius,
+                radius: next_radius,
                 start_angle_deg,
                 sweep_angle_deg: next_sweep,
-                length: radius.max(0.0) * next_sweep.to_radians().abs(),
+                length: next_radius * next_sweep.to_radians().abs(),
             })
         }
     }
