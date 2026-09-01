@@ -31,6 +31,31 @@ const resolvedReporters = async ({ githubActions, junit }: { githubActions: bool
   }
 };
 
+const resolvedExcludes = async ({
+  performance,
+  benchmark
+}: {
+  performance: boolean;
+  benchmark: boolean;
+}) => {
+  const originalPerformance = process.env.VITE_RUN_PERFORMANCE_GATES;
+  const originalBenchmark = process.env.VITE_RUN_BENCHMARK_SUITES;
+  if (performance) process.env.VITE_RUN_PERFORMANCE_GATES = "1";
+  else delete process.env.VITE_RUN_PERFORMANCE_GATES;
+  if (benchmark) process.env.VITE_RUN_BENCHMARK_SUITES = "1";
+  else delete process.env.VITE_RUN_BENCHMARK_SUITES;
+
+  let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
+  try {
+    vitest = await createVitest("test", { run: true, config: configFile });
+    return [...vitest.projects[0].config.exclude];
+  } finally {
+    if (vitest) await vitest.close();
+    restoreEnvironmentVariable("VITE_RUN_PERFORMANCE_GATES", originalPerformance);
+    restoreEnvironmentVariable("VITE_RUN_BENCHMARK_SUITES", originalBenchmark);
+  }
+};
+
 test("JUnit extends Vitest's GitHub Actions defaults without changing local reporters", async () => {
   const originalGithubActions = process.env.GITHUB_ACTIONS;
   const originalJunitOutputFile = process.env.VITEST_JUNIT_OUTPUT_FILE;
@@ -57,4 +82,28 @@ test("JUnit extends Vitest's GitHub Actions defaults without changing local repo
     restoreEnvironmentVariable("GITHUB_ACTIONS", originalGithubActions);
     restoreEnvironmentVariable("VITEST_JUNIT_OUTPUT_FILE", originalJunitOutputFile);
   }
+});
+
+test("default Vitest routing structurally excludes performance and benchmark suites", async () => {
+  const excludes = await resolvedExcludes({ performance: false, benchmark: false });
+  expect(excludes).toContain("**/*.performance.test.ts");
+  expect(excludes).toContain("**/*.performance.test.tsx");
+  expect(excludes).toContain("**/*.benchmark.test.ts");
+  expect(excludes).toContain("**/*.benchmark.test.tsx");
+});
+
+test("performance opt-in only removes the performance-suite exclusion", async () => {
+  const excludes = await resolvedExcludes({ performance: true, benchmark: false });
+  expect(excludes).not.toContain("**/*.performance.test.ts");
+  expect(excludes).not.toContain("**/*.performance.test.tsx");
+  expect(excludes).toContain("**/*.benchmark.test.ts");
+  expect(excludes).toContain("**/*.benchmark.test.tsx");
+});
+
+test("benchmark opt-in only removes the benchmark-suite exclusion", async () => {
+  const excludes = await resolvedExcludes({ performance: false, benchmark: true });
+  expect(excludes).toContain("**/*.performance.test.ts");
+  expect(excludes).toContain("**/*.performance.test.tsx");
+  expect(excludes).not.toContain("**/*.benchmark.test.ts");
+  expect(excludes).not.toContain("**/*.benchmark.test.tsx");
 });
