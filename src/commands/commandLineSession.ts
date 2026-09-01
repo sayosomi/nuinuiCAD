@@ -294,8 +294,32 @@ export const retreatStep = (session: CommandLineSession): CommandLineSession => 
   return { ...session, currentStepIndex: session.currentStepIndex - 1, error: null };
 };
 
-/** Moves directly to final review, preserving supplied values and blank holes. */
-export const skipUnfilledStepsToReview = (session: CommandLineSession): CommandLineSession => {
+/** Removes one supplied value and makes that recipe step the active prompt. */
+export const clearStepValue = (
+  session: CommandLineSession,
+  stepIndex: number
+): CommandLineSession => {
+  if (
+    isEditingCommandLineStep(session) ||
+    !Number.isInteger(stepIndex) ||
+    stepIndex < 0 ||
+    stepIndex >= session.recipe.steps.length ||
+    !hasCommandLineStepValue(session, stepIndex)
+  ) return session;
+  const step = session.recipe.steps[stepIndex];
+  const key = keyForStep(step);
+  const args = { ...session.args };
+  delete args[key as keyof CreationArgs];
+  return {
+    ...session,
+    args,
+    currentStepIndex: stepIndex,
+    error: null
+  };
+};
+
+/** Moves directly to the end, preserving supplied values and blank holes. */
+export const skipUnfilledStepsToEnd = (session: CommandLineSession): CommandLineSession => {
   if (isEditingCommandLineStep(session)) return session;
   const args = { ...session.args };
   let removedUndefinedValue = false;

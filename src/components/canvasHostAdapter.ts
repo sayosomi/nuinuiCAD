@@ -25,9 +25,21 @@ import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 import type { PickCandidate } from "../model/pickCandidates";
 import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { CommandId } from "../commands/commandTypes";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
+
+export type CanvasPickKeyboardCommandId = Extract<CommandId,
+  | "selectPreviousPickCandidate"
+  | "selectNextPickCandidate"
+  | "selectPreviousPickOption"
+  | "selectNextPickOption"
+  | "applySelectedPickCandidate"
+  | "cancelPointPick"
+  | "cancelNumericReferencePick"
+  | "cancelLinePick"
+>;
 
 export type CanvasContextMenuKind = "blank" | "element";
 
@@ -141,6 +153,8 @@ export type CanvasHostAdapter = {
     pickedPointAnchor: PointAnchor;
     pickedPointSourceReference?: CanonicalGeometrySourceReference;
   }) => unknown;
+  /** Shared Canvas keyboard boundary for the active pick scope. */
+  dispatchCanvasPickCommand?: (commandId: CanvasPickKeyboardCommandId) => unknown;
   /** Optional host filter layered over the shared point-pick candidates. */
   filterPointPickCandidates?: (candidates: PickCandidate[]) => PickCandidate[];
   /** Cancels a host-owned Canvas pick flow while Canvas has focus. */

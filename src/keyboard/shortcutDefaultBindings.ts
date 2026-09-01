@@ -76,7 +76,6 @@ const defaultBindings: ShortcutBinding[] = [
   binding("pick", "selectPreviousPickOption", [ch("ArrowLeft")]),
   binding("pick", "selectNextPickOption", [ch("ArrowRight")]),
   binding("pick", "applySelectedPickCandidate", [ch("Enter")]),
-  binding("pick", "finishLinePick", [ch("Enter", { mod: true })]),
   // Source Editor structural-edit bindings.
   // `[` / `]` stay available for DSL text; Mod variants are the intentional Phase 2e migration.
   binding("sourceEditor", "moveSelectedElementUp", [ch("ArrowUp", { mod: true }), ch("ArrowUp", { mod: true, alt: true })], {

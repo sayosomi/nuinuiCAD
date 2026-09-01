@@ -161,6 +161,10 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
       applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),
       applyPickedPoint: (action) => dispatchCommand("applyPickedPoint", action),
+      dispatchCanvasPickCommand: (commandId) => dispatchCommand(commandId, {
+        ...commandContext,
+        completeCommandLineSession: true
+      }),
       toggleCanvasPointNames: () => dispatchCommand("toggleCanvasPointNames"),
       toggleCanvasGeometryNames: () => dispatchCommand("toggleCanvasGeometryNames"),
       toggleCanvasPoints: () => dispatchCommand("toggleCanvasPoints"),

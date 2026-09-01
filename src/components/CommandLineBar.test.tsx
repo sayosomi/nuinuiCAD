@@ -720,7 +720,7 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("listbox", { name: "変数候補" })).toBeNull();
   });
 
-  it("uses Enter twice to adopt one visible line-list candidate and Mod+Enter to review", () => {
+  it("uses Enter twice to adopt one visible line-list candidate and Mod+Enter to complete", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
@@ -741,10 +741,8 @@ describe("CommandLineBar", () => {
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([line.id]);
 
     expect(fireEvent.keyDown(input, { key: "Enter", metaKey: true })).toBe(false);
-    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(
-      useCadUiStore.getState().commandLineSession?.recipe.steps.length
-    );
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).toContain("offset(");
   });
 
   it("shows the mouse completion action only for a multiple line pick", () => {

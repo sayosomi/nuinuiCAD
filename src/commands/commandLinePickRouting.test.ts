@@ -153,6 +153,24 @@ describe("command-line pick routing", () => {
     expect(useCadDocumentStore.getState().past).toHaveLength(beforePast);
   });
 
+  it("commits immediately when shared pick applies the final creation step", () => {
+    const pointA = byName("A");
+    const pointB = byName("B");
+    const pastBefore = useCadDocumentStore.getState().past.length;
+
+    expect(startCommandLineCreation("line")).toBe(true);
+    submitCommandLineInput("");
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({
+      pickedPointAnchor: referenceAnchor(pointB.id),
+      completeCommandLineSession: true
+    });
+
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("segment(");
+  });
+
   it("keeps completed progress isolated while every pick route edits a step", () => {
     const pointA = byName("A");
     const pointB = byName("B");

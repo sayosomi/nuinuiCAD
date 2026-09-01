@@ -6,16 +6,18 @@ import type {
 } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CommandContext } from "../commands/commandTypes";
+import { dispatchCommand } from "../commands/commands";
 import {
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
   confirmCommandLineSession,
   activateCommandLineStep,
+  clearCommandLineStepValue,
   retreatCommandLineStep,
   skipCommandLineStep,
-  skipCommandLineStepsToReview,
+  skipCommandLineStepsToEnd,
   startCommandLineCreationForRecipe,
-  startCommandLineNumericReferencePick,
+  startCommandLinePickForCurrentStep,
   submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
 import {
@@ -27,9 +29,7 @@ import type { CreationRecipe, CreationStep } from "../commands/creationRecipes";
 import {
   activePickCandidates,
   applyPickReference,
-  finishLinePick,
-  selectPickCandidateByOffset,
-  selectPickOptionByOffset
+  finishLinePick
 } from "../commands/pickCommands";
 import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
@@ -107,6 +107,8 @@ export const VSCodeCreationAssistOverlay = ({
   const doc = useCadDocumentStore((state) => state.doc);
   const elements = useCadDocumentStore((state) => state.elements);
   const evaluationLimitIndex = useCadDocumentStore((state) => state.evaluationLimitIndex);
+  const activePointPickTarget = useCadUiStore((state) => state.activePointPickTarget);
+  const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const lineListDraftSignature = activeLinePickTarget?.draftLineIds?.join("\0") ?? "";
   const [restartRecipe, setRestartRecipe] = useState<CreationRecipe | null>(null);
@@ -135,9 +137,10 @@ export const VSCodeCreationAssistOverlay = ({
     inputValue: string;
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const createButtonRef = useRef<HTMLButtonElement>(null);
   const startAgainButtonRef = useRef<HTMLButtonElement>(null);
   const dockRef = useRef<HTMLElement>(null);
+  const stepButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const [focusedStepIndex, setFocusedStepIndex] = useState(0);
 
   const isCanvasOriginSession = session?.sourceInsertionOrigin === "document-end";
   const step = isCanvasOriginSession ? currentStep(session) : null;
@@ -147,11 +150,15 @@ export const VSCodeCreationAssistOverlay = ({
   );
   const completedCurrentStep = completedSteps.find((item) => item.stepIndex === session?.currentStepIndex);
   const stepIdentity = session && isCanvasOriginSession
-    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "review"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : activeLinePickTarget?.draftLineIds?.join("\0") ?? ""}`
+    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "complete"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : activeLinePickTarget?.draftLineIds?.join("\0") ?? ""}`
     : "";
   const existingInputValue = session && isCanvasOriginSession
     ? stepValueForInput(session, step, completedSteps)
     : "";
+  const completionCommandContext = useMemo(
+    () => ({ ...commandContext, completeCommandLineSession: true, postCanonicalSourceText }),
+    [commandContext, postCanonicalSourceText]
+  );
   const inputValue = inputState.identity === stepIdentity ? inputState.value : existingInputValue;
   const setInputValue = useCallback(
     (value: string) => setInputState({ identity: stepIdentity, value }),
@@ -266,11 +273,8 @@ export const VSCodeCreationAssistOverlay = ({
 
   const confirmAndPersist = useCallback(() => {
     if (!useCadUiStore.getState().commandLineSession) return false;
-    const confirmed = confirmCommandLineSession(commandContext);
-    if (!confirmed) return false;
-    postCanonicalSourceText(useCadDocumentStore.getState().sourceText);
-    return true;
-  }, [commandContext, postCanonicalSourceText]);
+    return confirmCommandLineSession(completionCommandContext);
+  }, [completionCommandContext]);
 
   const cancelWithRestart = useCallback(() => {
     const current = useCadUiStore.getState().commandLineSession;
@@ -316,49 +320,46 @@ export const VSCodeCreationAssistOverlay = ({
   }, [activeSuggestionMatch, activeSuggestionOptions, inputValue, selectedNumberSuggestionIndex, setInputValue, stepIdentity]);
 
   const applyReferenceSuggestion = useCallback((suggestion: ReferenceSuggestion) => {
-    if (!applyPickReference(suggestion.pickRef, evaluation)) return false;
+    if (!applyPickReference(suggestion.pickRef, evaluation, completionCommandContext)) return false;
     setInputValue("");
     setReferenceSuggestionActiveIndex(0);
     setAcceptedReferenceSuggestion(null);
     return true;
-  }, [evaluation, setInputValue]);
-
-  const acceptReferenceSuggestion = useCallback((suggestion: ReferenceSuggestion) => {
-    setInputValue(suggestion.canonicalToken);
-    setReferenceSuggestionActiveIndex(0);
-    setAcceptedReferenceSuggestion({
-      identity: stepIdentity,
-      inputValue: suggestion.canonicalToken,
-      suggestion
-    });
-  }, [setInputValue, stepIdentity]);
+  }, [completionCommandContext, evaluation, setInputValue]);
 
   const submitInput = useCallback(() => {
     if (!step) return confirmAndPersist();
     if (isCommandLineReferenceStep(step.kind)) {
       const query = inputValue.trim();
-      if (!query) return skipCommandLineStep();
+      if (!query) return skipCommandLineStep(completionCommandContext);
       if (acceptedReferenceForCurrentInput) return applyReferenceSuggestion(acceptedReferenceForCurrentInput.suggestion);
       const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
       if (!suggestion) return false;
       return applyReferenceSuggestion(suggestion);
     }
-    return submitCommandLineInput(inputValue, commandContext);
-  }, [acceptedReferenceForCurrentInput, applyReferenceSuggestion, commandContext, confirmAndPersist, inputValue, step, selectedReferenceSuggestionIndex, visibleSuggestions]);
+    return submitCommandLineInput(inputValue, completionCommandContext);
+  }, [acceptedReferenceForCurrentInput, applyReferenceSuggestion, completionCommandContext, confirmAndPersist, inputValue, step, selectedReferenceSuggestionIndex, visibleSuggestions]);
+
+  const closeSuggestionPopup = useCallback(() => {
+    if (numberSuggestionsOpen) {
+      setDismissedNumberSuggestion({ identity: stepIdentity, inputValue });
+      return true;
+    }
+    if (referenceSuggestionsOpen) {
+      setDismissedReferenceSuggestion({ identity: stepIdentity, inputValue });
+      return true;
+    }
+    return false;
+  }, [inputValue, numberSuggestionsOpen, referenceSuggestionsOpen, stepIdentity]);
 
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (
       isImeComposingKeyEvent(event) ||
       isCommandLineInputComposing()
     ) return;
-    if (event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      event.preventDefault();
-      retreatCommandLineStep();
-      return;
-    }
     if (isModifierEnter(event)) {
       event.preventDefault();
-      skipCommandLineStepsToReview();
+      skipCommandLineStepsToEnd(completionCommandContext);
       return;
     }
     if (step?.kind === "number" && numberSuggestionsOpen) {
@@ -367,11 +368,6 @@ export const VSCodeCreationAssistOverlay = ({
         setNumberSuggestionActiveIndex((index) => event.key === "ArrowDown"
           ? (index + 1) % activeSuggestionOptions.length
           : (index - 1 + activeSuggestionOptions.length) % activeSuggestionOptions.length);
-        return;
-      }
-      if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        event.preventDefault();
-        applyNumberSuggestion();
         return;
       }
       if (event.key === "Enter") {
@@ -390,24 +386,6 @@ export const VSCodeCreationAssistOverlay = ({
         setReferenceSuggestionActiveIndex((index) => event.key === "ArrowDown"
           ? (index + 1) % visibleSuggestions.length
           : (index - 1 + visibleSuggestions.length) % visibleSuggestions.length);
-        return;
-      }
-      if (event.key === "Tab" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        if (referenceSuggestionsOpen) {
-          event.preventDefault();
-          const suggestion = visibleSuggestions[selectedReferenceSuggestionIndex];
-          if (suggestion) acceptReferenceSuggestion(suggestion);
-        }
-        return;
-      }
-      if (!referenceSuggestionsOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
-        event.preventDefault();
-        selectPickCandidateByOffset(event.key === "ArrowDown" ? 1 : -1, evaluation);
-        return;
-      }
-      if (!referenceSuggestionsOpen && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
-        event.preventDefault();
-        selectPickOptionByOffset(event.key === "ArrowRight" ? 1 : -1, evaluation);
         return;
       }
       if (event.key === "Enter") {
@@ -454,32 +432,36 @@ export const VSCodeCreationAssistOverlay = ({
       const inDock = Boolean(dock && target instanceof Node && dock.contains(target));
 
       if (event.key === "Escape") {
+        if (closeSuggestionPopup()) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+        const activePick = useCadUiStore.getState();
+        const activePickCommand = activePick.activePointPickTarget
+          ? "cancelPointPick"
+          : activePick.activeNumericReferencePickTarget
+            ? "cancelNumericReferencePick"
+            : activePick.activeLinePickTarget
+              ? "cancelLinePick"
+              : null;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (active) cancelWithRestart();
+        if (activePickCommand) {
+          dispatchCommand(activePickCommand, completionCommandContext);
+          if (step?.kind === "name" || step?.kind === "number" || isCommandLineReferenceStep(step?.kind)) {
+            inputRef.current?.focus();
+          }
+        } else if (active) cancelWithRestart();
         else dismissRestart();
         return;
       }
       if (!active) return;
 
-      if (
-        /^[1-9]$/.test(event.key) &&
-        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
-        !isTextEntryTarget(target) &&
-        (target === viewport || inDock)
-      ) {
-        const index = Number(event.key) - 1;
-        if (session && index < session.recipe.steps.length) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          if (useCadUiStore.getState().commandLineSession) activateCommandLineStep(index);
-        }
-        return;
-      }
       if (isModifierEnter(event) && (target === viewport || inDock || isTextEntryTarget(target))) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        skipCommandLineStepsToReview();
+        skipCommandLineStepsToEnd(completionCommandContext);
         return;
       }
       if (
@@ -488,27 +470,26 @@ export const VSCodeCreationAssistOverlay = ({
       ) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        retreatCommandLineStep();
+        startCommandLinePickForCurrentStep(completionCommandContext);
         return;
       }
       if (event.key === "Enter" && target === viewport) {
+        const state = useCadUiStore.getState();
+        if (state.activePointPickTarget || state.activeNumericReferencePickTarget || state.activeLinePickTarget) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (currentStep(useCadUiStore.getState().commandLineSession)) skipCommandLineStep();
+        if (currentStep(state.commandLineSession)) skipCommandLineStep(completionCommandContext);
         else confirmAndPersist();
       }
     };
 
     window.addEventListener("keydown", handleWindowKeyDown, true);
     return () => window.removeEventListener("keydown", handleWindowKeyDown, true);
-  }, [canvasFocusRef, cancelWithRestart, confirmAndPersist, dismissRestart, isCanvasOriginSession, restartRecipe, session]);
+  }, [activeLinePickTarget, activeNumericReferencePickTarget, activePointPickTarget, canvasFocusRef, cancelWithRestart, closeSuggestionPopup, completionCommandContext, confirmAndPersist, dismissRestart, isCanvasOriginSession, restartRecipe, session, step?.kind]);
 
   useEffect(() => {
     if (!isCanvasOriginSession) return;
-    if (!step) {
-      createButtonRef.current?.focus();
-      return;
-    }
+    if (!step) return;
     if (step.kind === "name" || step.kind === "number") {
       inputRef.current?.focus();
       return;
@@ -550,11 +531,16 @@ export const VSCodeCreationAssistOverlay = ({
   }
 
   if (!session) return null;
-  const isReview = step === null;
   const isLineList = step?.kind === "lineList";
   const lineListDraftCount = activeLinePickTarget?.draftLineIds?.length ?? 0;
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step);
+  const activeStepIndex = session.currentStepIndex;
+  const focusStepButton = (index: number) => {
+    const boundedIndex = Math.max(0, Math.min(index, session.recipe.steps.length - 1));
+    setFocusedStepIndex(boundedIndex);
+    stepButtonRefs.current.get(boundedIndex)?.focus();
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -574,18 +560,18 @@ export const VSCodeCreationAssistOverlay = ({
       <div className="vscode-creation-assist-header">
         <div className="vscode-creation-assist-title">
           <strong>{session.recipe.type}</strong>
-          <span>{isReview ? "Review" : `Step ${Math.min(session.currentStepIndex + 1, session.recipe.steps.length)} of ${session.recipe.steps.length}`}</span>
-          {!isReview ? <span aria-live="polite">{stepLabel}</span> : <span aria-live="polite">Ready to create</span>}
+          <span>{step ? `Step ${Math.min(session.currentStepIndex + 1, session.recipe.steps.length)} of ${session.recipe.steps.length}` : "Complete"}</span>
+          <span aria-live="polite">{stepLabel}</span>
         </div>
         <div className="vscode-creation-assist-legend" aria-label="Creation assist shortcuts">
-          1–9 steps · Shift+Enter Back · ⌘/Ctrl+Enter Review · Enter next · Esc cancel
+          Enter next · Shift+Enter pick · Esc cancel
         </div>
       </div>
 
       <ol className="vscode-creation-assist-navigator" aria-label="Creation recipe steps">
         {session.recipe.steps.map((recipeStep, index) => {
           const filled = hasCommandLineStepValue(session, index);
-          const active = !isReview && session.currentStepIndex === index;
+          const active = session.currentStepIndex === index;
           const completed = completedSteps.find((item) => item.stepIndex === index);
           return (
             <li key={`${index}-${recipeStep.kind}`}>
@@ -594,8 +580,27 @@ export const VSCodeCreationAssistOverlay = ({
                 className={[active ? "is-active" : "", filled ? "is-filled" : ""].filter(Boolean).join(" ")}
                 aria-current={active ? "step" : undefined}
                 data-filled={filled ? "true" : "false"}
+                tabIndex={index === Math.min(focusedStepIndex, session.recipe.steps.length - 1) ? 0 : -1}
+                ref={(element) => {
+                  if (element) stepButtonRefs.current.set(index, element);
+                  else stepButtonRefs.current.delete(index);
+                }}
                 onClick={() => {
+                  setFocusedStepIndex(index);
                   if (useCadUiStore.getState().commandLineSession) activateCommandLineStep(index);
+                }}
+                onKeyDown={(event) => {
+                  if ((event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+                    !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+                    event.preventDefault();
+                    focusStepButton(index + (event.key === "ArrowRight" ? 1 : -1));
+                    return;
+                  }
+                  if ((event.key === "Enter" || event.key === " ") &&
+                    !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+                    event.preventDefault();
+                    if (useCadUiStore.getState().commandLineSession) activateCommandLineStep(index);
+                  }
                 }}
               >
                 <span className="vscode-creation-assist-step-number">{index + 1}</span>
@@ -603,6 +608,11 @@ export const VSCodeCreationAssistOverlay = ({
                   <strong>{commandLineStepLabel(recipeStep)}</strong>
                   <small>{completed?.value ?? "Not supplied"}</small>
                 </span>
+                <span
+                  className="vscode-creation-assist-step-filled"
+                  aria-label={filled ? "Filled" : undefined}
+                  data-filled-marker={filled ? "true" : "false"}
+                >{filled ? "✓" : ""}</span>
               </button>
             </li>
           );
@@ -610,12 +620,7 @@ export const VSCodeCreationAssistOverlay = ({
       </ol>
 
       <div className="vscode-creation-assist-body">
-        {isReview ? (
-          <div className="vscode-creation-assist-review" aria-live="polite">
-            <strong>Review the recipe, then create.</strong>
-            <span>Blank steps remain blank in the canonical Source statement.</span>
-          </div>
-        ) : (
+        {step ? (
           <div className="vscode-creation-assist-entry">
             <label htmlFor="vscode-creation-assist-input">{stepLabel}</label>
             <span className="vscode-creation-assist-help">{inputHelp}</span>
@@ -663,22 +668,19 @@ export const VSCodeCreationAssistOverlay = ({
                 ) : null}
               </div>
             ) : null}
-            <div className="vscode-creation-assist-entry-actions">
-              {step.kind === "number" ? (
-                <button type="button" onClick={() => startCommandLineNumericReferencePick()}>Pick reference value</button>
-              ) : null}
-              {isCommandLineReferenceStep(step.kind) ? (
-                <button type="button" onClick={() => canvasFocusRef.current?.focus({ preventScroll: true })}>Pick on Canvas</button>
-              ) : null}
-              {isLineList && Array.isArray(activeLinePickTarget?.draftLineIds) ? (
-                <button type="button" onClick={() => finishLinePick()}>Finish selection</button>
-              ) : null}
-            </div>
           </div>
-        )}
+        ) : null}
         <div className="vscode-creation-assist-actions">
-          {isReview ? <button ref={createButtonRef} className="is-primary" type="submit">Create</button> : null}
-          <button type="button" disabled={!isReview && session.currentStepIndex <= 0} onClick={() => retreatCommandLineStep()}>Back</button>
+          {step?.kind === "number" || isCommandLineReferenceStep(step?.kind) ? (
+            <button type="button" onClick={() => startCommandLinePickForCurrentStep(completionCommandContext)}>Pick on Canvas</button>
+          ) : null}
+          {isLineList && Array.isArray(activeLinePickTarget?.draftLineIds) ? (
+            <button type="button" onClick={() => finishLinePick(completionCommandContext)}>Finish selection</button>
+          ) : null}
+          {((step?.kind === "number" || isCommandLineReferenceStep(step?.kind)) && hasCommandLineStepValue(session, session.currentStepIndex)) ? (
+            <button type="button" onClick={() => clearCommandLineStepValue()}>Clear</button>
+          ) : null}
+          <button type="button" disabled={activeStepIndex <= 0} onClick={() => retreatCommandLineStep()}>Back</button>
           <button type="button" onClick={cancelWithRestart}>Cancel</button>
         </div>
       </div>

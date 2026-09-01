@@ -48,11 +48,11 @@ describe("Phase 3d Inspector command registry", () => {
       .toContainEqual({ key: "F2", mod: false, alt: false, shift: false });
   });
 
-  it("uses Mod+Enter to finish only a pick session while Enter keeps applying candidates", () => {
+  it("keeps Enter for applying the selected pick candidate without a Mod+Enter finish chord", () => {
     expect(commandIdForKeyboardEvent(
       new KeyboardEvent("keydown", { key: "Enter", metaKey: true }),
       { isPickMode: true }
-    )).toBe("finishLinePick");
+    )).toBeNull();
     expect(commandIdForKeyboardEvent(
       new KeyboardEvent("keydown", { key: "Enter" }),
       { isPickMode: true }

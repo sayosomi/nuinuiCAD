@@ -16,6 +16,7 @@ import {
   activateStep,
   beginStepEdit,
   cancelStepEdit,
+  clearStepValue,
   commitStepEdit,
   type CommandLineSession,
   currentStep,
@@ -26,7 +27,7 @@ import {
   retreatStep,
   sessionCanConfirm,
   sessionIsStale,
-  skipUnfilledStepsToReview,
+  skipUnfilledStepsToEnd,
   skipCurrentStep,
   startSession,
   withCommandLineSessionError
@@ -72,6 +73,12 @@ const commitError = "コマンドライン作成を文書へ反映できませ�
 const editValidationError = "編集値をプレビューできません。値または参照を確認してください。";
 const draftRequiresSourceEditorError =
   "未入力のまま作成するには、Source Editor上のカーソル位置から作成を開始してください。";
+
+const isPickCapableCreationStep = (step: ReturnType<typeof currentStep>) =>
+  step?.kind === "point" ||
+  step?.kind === "endpoint" ||
+  step?.kind === "line" ||
+  step?.kind === "lineList";
 
 const commandLineCompositionIsActive = () =>
   sourceEditSession.isComposing() || isCommandLineInputComposing();
@@ -312,7 +319,10 @@ const confirmEditingDraft = (draftSession: CommandLineSession) => {
  * The sole session-argument fill path. Phase 4f will attach partial preview
  * updates here, after the value has been accepted but before final commit.
  */
-export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentStep>[1]) => {
+export const fillCommandLineCurrentStep = (
+  value: Parameters<typeof fillCurrentStep>[1],
+  context?: CommandContext
+) => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
   const step = currentStep(session);
@@ -330,9 +340,11 @@ export const fillCommandLineCurrentStep = (value: Parameters<typeof fillCurrentS
   }
   const next = fillCurrentStep(session, value);
   if (next === session) return false;
-  return isEditingCommandLineStep(session)
-    ? confirmEditingDraft(next)
-    : (setSessionAndSyncPickTarget(next), true);
+  if (isEditingCommandLineStep(session)) return confirmEditingDraft(next);
+  setSessionAndSyncPickTarget(next);
+  return context?.completeCommandLineSession === true && sessionCanConfirm(next)
+    ? confirmCommandLineSession(context)
+    : true;
 };
 
 /** Activates any recipe step without changing any existing argument value. */
@@ -341,6 +353,18 @@ export const activateCommandLineStep = (stepIndex: number) => {
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
   const next = activateStep(session, stepIndex);
+  if (next === session) return false;
+  setSessionAndSyncPickTarget(next);
+  return true;
+};
+
+/** Removes a supplied pick/reference value and reopens that blank step. */
+export const clearCommandLineStepValue = (stepIndex?: number) => {
+  if (commandLineCompositionIsActive()) return false;
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const targetStepIndex = stepIndex ?? session.currentStepIndex;
+  const next = clearStepValue(session, targetStepIndex);
   if (next === session) return false;
   setSessionAndSyncPickTarget(next);
   return true;
@@ -382,6 +406,23 @@ export const startCommandLineNumericReferencePick = () => {
   return true;
 };
 
+/** Enters the shared Canvas pick for the current pick-capable recipe step. */
+export const startCommandLinePickForCurrentStep = (context?: CommandContext) => {
+  const session = useCadUiStore.getState().commandLineSession;
+  if (!session || cancelStaleCommandLineSession()) return false;
+  const step = currentStep(session);
+  if (step?.kind === "number") {
+    if (!startCommandLineNumericReferencePick()) return false;
+  } else if (!isPickCapableCreationStep(step)) {
+    return false;
+  } else {
+    syncCommandLinePickTarget(session);
+    useCadUiStore.getState().setActivePickCursor(null);
+  }
+  context?.focusCanvas?.();
+  return true;
+};
+
 /**
  * Applies the current number/name prompt without creating a second
  * React-side state machine. Blank input always skips the current step
@@ -398,16 +439,16 @@ export const submitCommandLineInput = (input: string, context?: CommandContext) 
   if (!step) return confirmCommandLineSession(context);
 
   if (input === "") {
-    return skipCommandLineStep();
+    return skipCommandLineStep(context);
   }
   if (step.kind === "name") {
-    return fillCommandLineCurrentStep(input);
+    return fillCommandLineCurrentStep(input, context);
   }
   if (step.kind !== "number") return false;
-  return fillCommandLineCurrentStep(makeNumericExpression(input));
+  return fillCommandLineCurrentStep(makeNumericExpression(input), context);
 };
 
-export const skipCommandLineStep = () => {
+export const skipCommandLineStep = (context?: CommandContext) => {
   if (commandLineCompositionIsActive()) return false;
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
@@ -415,21 +456,22 @@ export const skipCommandLineStep = () => {
   if (next === session) return false;
   if (isEditingCommandLineStep(session)) return confirmEditingDraft(next);
   setSessionAndSyncPickTarget(next);
-  return true;
+  return context?.completeCommandLineSession === true && sessionCanConfirm(next)
+    ? confirmCommandLineSession(context)
+    : true;
 };
 
 export const retreatCommandLineStep = () =>
   commandLineCompositionIsActive() ? false : updateSession(retreatStep);
 
-/** Moves to final review without filling or committing any unfilled step. */
-export const skipCommandLineStepsToReview = () => {
+/** Skips remaining steps and immediately commits the completed recipe. */
+export const skipCommandLineStepsToEnd = (context?: CommandContext) => {
   if (commandLineCompositionIsActive()) return false;
   const session = useCadUiStore.getState().commandLineSession;
   if (!session || cancelStaleCommandLineSession()) return false;
-  const next = skipUnfilledStepsToReview(session);
-  if (next === session) return false;
-  setSessionAndSyncPickTarget(next);
-  return true;
+  const next = skipUnfilledStepsToEnd(session);
+  if (next !== session) setSessionAndSyncPickTarget(next);
+  return confirmCommandLineSession(context);
 };
 
 /**
@@ -533,6 +575,7 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       focusCanvasAfterCreation(context);
     } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditorAtDraftEnd);
     else setTimeout(focusSourceEditorAtDraftEnd, 0);
+    context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
     return true;
   }
 
@@ -626,5 +669,6 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     focusCanvasAfterCreation(context);
   } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
   else setTimeout(focusSourceEditor, 0);
+  context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
   return true;
 };

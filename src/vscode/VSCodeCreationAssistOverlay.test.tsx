@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
-import { applyPickedLine } from "../commands/pickCommands";
+import { applyPickedLine, applyPickedPoint } from "../commands/pickCommands";
 import {
   startCommandLineCreationForRecipe,
   syncCommandLinePickTarget
@@ -117,34 +117,67 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(input(), { key: "Enter" });
 
     expect(navigateButton(1)).toHaveClass("is-filled");
+    expect(navigateButton(1).querySelector("[data-filled-marker='true']")).toBeInTheDocument();
     expect(navigateButton(2)).toHaveClass("is-filled");
+    expect(navigateButton(2).querySelector("[data-filled-marker='true']")).toBeInTheDocument();
     expect(navigateButton(3)).not.toHaveClass("is-filled");
+    expect(navigateButton(3).querySelector("[data-filled-marker='false']")).toBeInTheDocument();
     fireEvent.click(navigateButton(1));
     expect(input()).toHaveValue("Point A");
     expect(useCadUiStore.getState().commandLineSession?.args.x).toBe(12);
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("y");
   });
 
-  it("routes Canvas digits and empty Enter through shared session semantics", () => {
+  it("uses roving focus and chip activation without claiming input keys", () => {
+    renderOverlay();
+    start("line");
+    const first = navigateButton(1);
+    const second = navigateButton(2);
+    const third = navigateButton(3);
+    first.focus();
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    fireEvent.keyDown(second, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(third);
+    fireEvent.keyDown(third, { key: " " });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
+    expect(first).toHaveAttribute("tabindex", "-1");
+    expect(third).toHaveAttribute("tabindex", "0");
+  });
+
+  it("uses Shift+Enter to enter shared pick without digit step jumps", () => {
     const { canvasFocusRef } = renderOverlay();
     start("freePoint");
     fireEvent.keyDown(input(), { key: "Enter" });
     const viewport = canvasFocusRef.current!;
     fireEvent.keyDown(viewport, { key: "Enter", shiftKey: true });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "x" });
     fireEvent.keyDown(viewport, { key: "3" });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
-
-    start("line");
-    fireEvent.keyDown(input(), { key: "Enter" });
-    useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 });
-    fireEvent.keyDown(viewport, { key: "Enter" });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
-    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("y");
-    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("startPoint");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
   });
 
-  it("keeps digits typed in the input normal and sends modifier+Enter to review", () => {
+  it("clears a filled reference step through the session owner and refreshes its pick target", () => {
+    renderOverlay();
+    start("line");
+    fireEvent.keyDown(input(), { key: "Enter" });
+    const point = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    act(() => { useCadUiStore.getState().setActivePickCursor({ elementId: point.id, optionIndex: 0 }); });
+    // The direct command path supplies the actual reference value.
+    act(() => { applyPickedPoint({ pickedPointId: point.id }); });
+    fireEvent.click(navigateButton(2));
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    act(() => { useCadUiStore.getState().setActivePickCursor({ elementId: point.id, optionIndex: 0 }); });
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ currentStepIndex: 1, args: {} });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+    expect(useCadUiStore.getState().activePickCursor).toBeNull();
+  });
+
+  it("keeps digits typed in the input normal and completes modifier+Enter immediately", () => {
     const post = vi.fn();
     renderOverlay(post);
     start("freePoint");
@@ -152,12 +185,12 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(nameInput, { key: "3" });
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
     fireEvent.keyDown(nameInput, { key: "Enter", metaKey: true });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
-    expect(useCadDocumentStore.getState().sourceText).toBe(source);
-    expect(post).not.toHaveBeenCalled();
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).not.toBe(source);
+    expect(post).toHaveBeenCalledTimes(1);
   });
 
-  it("closes a numeric suggestion after Tab and submits it on the next Enter", () => {
+  it("keeps Tab as focus traversal and accepts a numeric suggestion with Enter", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
       "const Height: number = 20",
@@ -176,16 +209,15 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(screen.getByRole("listbox", { name: "変数候補" })).toHaveTextContent("Height");
 
     fireEvent.keyDown(ratioInput, { key: "Tab" });
-    expect(ratioInput).toHaveValue("@Height");
-    expect(screen.queryByRole("listbox", { name: "変数候補" })).not.toBeInTheDocument();
+    expect(ratioInput).toHaveValue("@");
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toBeInTheDocument();
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
 
     fireEvent.keyDown(ratioInput, { key: "Enter" });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(4);
-    expect(useCadUiStore.getState().commandLineSession?.args.ratio).toEqual({
-      kind: "expression",
-      expression: "@Height"
-    });
+    expect(ratioInput).toHaveValue("@Height");
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
+    fireEvent.keyDown(ratioInput, { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 
   it("uses an explicit line-list Finish selection action and never modifier+Enter", () => {
@@ -196,8 +228,8 @@ describe("VSCodeCreationAssistOverlay", () => {
     act(() => { applyPickedLine({ pickedLineId: line.id }); });
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     fireEvent.keyDown(input(), { key: "Enter", ctrlKey: true });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(3);
-    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).not.toBe(source);
     expect(screen.queryByRole("button", { name: "Finish selection" })).not.toBeInTheDocument();
   });
 
@@ -217,7 +249,7 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().commandLineSession?.insertionIndex).toBe(useCadDocumentStore.getState().elements.length);
   });
 
-  it("persists successful complete and draft creation exactly once, while rejected confirmation stays local", () => {
+  it("persists successful complete and draft creation exactly once on the final Enter", () => {
     const post = vi.fn();
     renderOverlay(post);
     start("freePoint");
@@ -227,7 +259,6 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(input(), { key: "Enter" });
     fireEvent.change(input(), { target: { value: "2" } });
     fireEvent.keyDown(input(), { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(post).toHaveBeenCalledTimes(1);
     expect(post).toHaveBeenCalledWith(useCadDocumentStore.getState().sourceText);
 
@@ -236,19 +267,8 @@ describe("VSCodeCreationAssistOverlay", () => {
     fireEvent.keyDown(input(), { key: "Enter" });
     fireEvent.keyDown(input(), { key: "Enter" });
     fireEvent.keyDown(input(), { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(post).toHaveBeenCalledTimes(2);
     expect(useCadDocumentStore.getState().sourceText).not.toBe(beforeDraftSource);
-
-    start("freePoint");
-    fireEvent.keyDown(input(), { key: "Enter", metaKey: true });
-    useCadUiStore.setState((state) => ({
-      commandLineSession: state.commandLineSession
-        ? { ...state.commandLineSession, sourceInsertionLine: null }
-        : null
-    }));
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(post).toHaveBeenCalledTimes(2);
   });
 
   it("dismisses Start again with Escape and returns focus to Canvas", () => {

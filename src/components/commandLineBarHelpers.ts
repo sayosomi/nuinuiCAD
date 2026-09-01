@@ -4,7 +4,7 @@ export const isCommandLineReferenceStep = (kind: CreationStep["kind"] | undefine
   kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList";
 
 export const commandLineStepHelp = (step: CreationStep | null) => {
-  if (!step) return "入力完了。Enterで作成します。";
+  if (!step) return "入力完了。";
   // Empty Enter's effect differs by mode (blank-advance while progressing
   // normally, adopt the current pick/selection while editing an already-
   // completed step) - see CommandLineBar's mode-scoped hints for the
