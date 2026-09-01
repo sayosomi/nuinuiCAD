@@ -142,6 +142,8 @@ const outputPreviewOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD
 const referencePickContextWhen = `${sourcePaletteWhen} && nuinuiCAD.referencePickSourceTarget`;
 const coordinatePointConversionSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.coordinatePointConversionSourceTarget`;
 const coordinatePointConversionCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasCoordinatePointConversionTarget";
+const coordinatePointConversionExplorerContextWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
+const coordinatePointConversionEnablement = `(${coordinatePointConversionSourceContextWhen}) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerContextWhen})`;
 const outputPreviewRevealEnablement = `${sourcePaletteWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`;
 const geometryReferenceRetargetContextWhen = `${sourcePaletteWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`;
 const sourceValueStepKeybindingWhen = `editorTextFocus && ${sourcePaletteWhen} && !editorReadonly`;
@@ -301,7 +303,8 @@ describe("VS Code extension manifest command contributions", () => {
       expect(commands.find(({ command }) => command === conversion.id)).toMatchObject({
         command: conversion.id,
         title: conversion.title,
-        shortTitle: conversion.shortTitle
+        shortTitle: conversion.shortTitle,
+        enablement: coordinatePointConversionEnablement
       });
       expect(commandPalette.find(({ command }) => command === conversion.id)?.when)
         .toBe(sourceOrCanvasPaletteWhen);
@@ -320,7 +323,7 @@ describe("VS Code extension manifest command contributions", () => {
     });
     expect(manifest.contributes?.menus?.["view/item/context"]).toContainEqual({
       submenu: "nuinuiCAD.convertPoint",
-      when: "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'",
+      when: coordinatePointConversionExplorerContextWhen,
       group: "1_modification@1"
     });
 
