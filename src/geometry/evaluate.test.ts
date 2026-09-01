@@ -3217,6 +3217,127 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     });
   });
 
+  it.each([
+    { label: "scale 2", scale: 2, angleDeg: 0, mirrorX: false, expectedRadius: 20, expectedSweep: 90 },
+    { label: "scale 0.5", scale: 0.5, angleDeg: 0, mirrorX: false, expectedRadius: 5, expectedSweep: 90 },
+    { label: "translation and rotation", scale: 1, angleDeg: 45, mirrorX: false, expectedRadius: 10, expectedSweep: 90 },
+    { label: "mirror", scale: 1, angleDeg: 0, mirrorX: true, expectedRadius: 10, expectedSweep: -90 },
+    { label: "mirror with scale 2", scale: 2, angleDeg: 0, mirrorX: true, expectedRadius: 20, expectedSweep: -90 }
+  ])("keeps copied arc radius and length coherent for $label", ({
+    scale,
+    angleDeg,
+    mirrorX,
+    expectedRadius,
+    expectedSweep
+  }) => {
+    const result = evaluateElements([
+      { id: "origin", name: "原点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "target", name: "移動先", type: "freePoint", activity: "visible", x: 20, y: 30 },
+      { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        activity: "visible",
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "copy",
+        name: "コピー円弧",
+        type: "copyLine",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "origin" },
+        endPoint: { mode: "reference", pointId: "target" },
+        scale,
+        angleDeg,
+        mirrorX,
+        baseLineIds: ["arc"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine" });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    const segment = copy.segments[0];
+    if (segment?.kind !== "arc") throw new Error("Expected a copied arc segment");
+
+    const expectedLength = expectedRadius * (Math.PI / 2);
+    expect(segment.radius).toBeCloseTo(expectedRadius);
+    expect(segment.sweepAngleDeg).toBeCloseTo(expectedSweep);
+    expect(segment.length).toBeCloseTo(expectedLength);
+    expect(copy.length).toBeCloseTo(expectedLength);
+    expect(Math.hypot(segment.start.x - segment.center.x, segment.start.y - segment.center.y)).toBeCloseTo(expectedRadius);
+    expect(Math.hypot(segment.end.x - segment.center.x, segment.end.y - segment.center.y)).toBeCloseTo(expectedRadius);
+  });
+
+  it("keeps mixed copied path segment lengths coherent", () => {
+    const result = evaluateElements([
+      { id: "origin", name: "原点", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "target", name: "移動先", type: "freePoint", activity: "visible", x: 50, y: 20 },
+      { id: "line-end", name: "線終点", type: "freePoint", activity: "visible", x: 10, y: 0 },
+      { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "curve-end", name: "曲線終点", type: "freePoint", activity: "visible", x: 0, y: 30 },
+      {
+        id: "line",
+        name: "線",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "origin" },
+        endPoint: { mode: "reference", pointId: "line-end" }
+      },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        activity: "visible",
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "derived", elementId: "arc", pointKey: "end" },
+        startHandleAngleDeg: 90,
+        startHandleLength: 10,
+        intermediatePoints: [],
+        endPoint: { mode: "reference", pointId: "curve-end" },
+        endHandleAngleDeg: 270,
+        endHandleLength: 10
+      },
+      {
+        id: "copy",
+        name: "混合コピー線",
+        type: "copyLine",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "origin" },
+        endPoint: { mode: "reference", pointId: "target" },
+        scale: 2,
+        angleDeg: 0,
+        mirrorX: false,
+        baseLineIds: ["line", "arc", "curve"]
+      }
+    ]);
+
+    const copy = result.computedGeometry.get("copy");
+    expect(result.errors).toHaveLength(0);
+    expect(copy).toMatchObject({ kind: "offsetLine" });
+    if (copy?.kind !== "offsetLine") throw new Error("Expected a copy line");
+    expect(copy.segments.map((segment) => segment.kind)).toEqual(["line", "arc", "bezier"]);
+    expect(copy.length).toBeCloseTo(copy.segments.reduce((sum, segment) => sum + segment.length, 0));
+    const arc = copy.segments[1];
+    if (arc?.kind !== "arc") throw new Error("Expected a copied arc segment");
+    expect(arc.radius).toBeCloseTo(Math.hypot(arc.start.x - arc.center.x, arc.start.y - arc.center.y));
+    expect(arc.length).toBeCloseTo(arc.radius * Math.abs((arc.sweepAngleDeg * Math.PI) / 180));
+  });
+
   it("mirrors copied lines across the vertical axis through the end point", () => {
     const result = evaluateElements([
       {

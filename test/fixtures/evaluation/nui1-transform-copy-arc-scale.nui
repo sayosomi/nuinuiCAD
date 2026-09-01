@@ -1,0 +1,6 @@
+nui 1
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 20, y: 30)
+arc SourceArc = arc(center: @A, radius: 10, start: 0, end: 90)
+line ScaledCopy = transformCopy(startPoint: @A, endPoint: @B, scale: 2, angleDeg: 0, mirrorX: false, baseLines: [@SourceArc])
+line MirroredScaledCopy = transformCopy(startPoint: @A, endPoint: @B, scale: 2, angleDeg: 0, mirrorX: true, baseLines: [@SourceArc])
