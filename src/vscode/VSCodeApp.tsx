@@ -218,9 +218,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       return;
     }
+    if (!evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
     deferredCanvasNavigationRequestRef.current = null;
     window.dispatchEvent(new MessageEvent("message", { data: deferredCanvasNavigation }));
-  }, [evaluationState]);
+  }, [compiledDocumentRevision, evaluationState]);
 
   const restoreCanvasFocus = useCallback((afterFocus?: () => void) => {
     queueMicrotask(() => {
@@ -1098,6 +1099,16 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
+        const currentEvaluation = evaluationRef.current;
+        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
+          evaluationStateRef.current,
+          current.state.compiledDocumentRevision
+        );
+        if (!currentEvaluationIsCurrent) {
+          deferredCanvasNavigationRequestRef.current = message;
+          return;
+        }
+
         const runtimeElements = effectiveElements(current.state);
         const drawingModifiers = current.state.modifiers ?? [];
         const effectiveVisibleElementIds = effectiveDrawElementIds(runtimeElements, drawingModifiers);
@@ -1110,20 +1121,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: [...runtimeElements],
           profile: activeVisibilityProfile
         });
-        const currentEvaluation = evaluationRef.current;
-        const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
-          evaluationStateRef.current,
-          current.state.compiledDocumentRevision
-        );
-        const canvasPresentationIds = currentEvaluation
-          ? canvasPresentationEligibleElementIds({
-              elements: runtimeElements,
-              evaluation: currentEvaluation,
-              visibilityProfiles: current.state.visibilityProfiles,
-              activeVisibilityProfileId: current.state.activeVisibilityProfileId,
-              showCanvasPoints: useCadUiStore.getState().showCanvasPoints
-            })
-          : new Set<string>();
+        const canvasPresentationIds = canvasPresentationEligibleElementIds({
+          elements: runtimeElements,
+          evaluation: currentEvaluation,
+          visibilityProfiles: current.state.visibilityProfiles,
+          activeVisibilityProfileId: current.state.activeVisibilityProfileId,
+          showCanvasPoints: useCadUiStore.getState().showCanvasPoints
+        });
         const revealResult = queryDslCanvasRevealRuntimeTarget({
           target: sourceTarget.target,
           compiled: current.compiled,

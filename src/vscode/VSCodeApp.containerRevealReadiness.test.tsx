@@ -57,7 +57,7 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
-  it("fails a Module instance Reveal when only descendant geometry is presented", async () => {
+  it("fails a Module instance Reveal when only descendant geometry is presented after evaluation is current", async () => {
     const source = moduleSource();
     const api = { postMessage: vi.fn() };
     render(<VSCodeAppForTest api={api} />);
@@ -78,6 +78,7 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
       x: 80,
       y: 0
     });
+    drawingCanvasProps.evaluationIsCurrent = true;
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -100,13 +101,13 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     expect(instance).toBeDefined();
   });
 
-  it("rejects ordinary geometry Reveal when no current evaluation presentation is available", async () => {
+  it("defers cold ordinary geometry Reveal until the current evaluation is presented", async () => {
     const source = [
       "nui 1",
       "point A = coordinate(x: 0, y: 0)"
     ].join("\n");
     const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
+    const view = render(<VSCodeAppForTest api={api} />);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -123,15 +124,42 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
-    expect(navigationResultsFor(api, 421)).toContainEqual({
+    expect(navigationResultsFor(api, 421)).toEqual([]);
+
+    const target = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(target.id, {
+      kind: "point",
+      elementId: target.id,
+      name: target.name,
+      x: 0,
+      y: 0
+    });
+
+    await act(async () => {
+      view.rerender(<VSCodeAppForTest api={api} />);
+      await Promise.resolve();
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(navigationResultsFor(api, 421)).toEqual([]);
+
+    drawingCanvasProps.evaluationIsCurrent = true;
+    await act(async () => {
+      view.rerender(<VSCodeAppForTest api={api} />);
+      await Promise.resolve();
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(target.id);
+    expect(navigationResultsFor(api, 421)).toEqual([{
       type: "canvasNavigationResult",
       requestId: 421,
-      status: "failed",
-      reason: "no-revealable-runtime-target"
-    });
+      status: "resolved",
+      degradations: []
+    }]);
+    expect(navigationResultsFor(api, 421)).toHaveLength(1);
   });
 
-  it("does not defer a structural Module Reveal for a newer authoritative source", async () => {
+  it("does not replay a deferred Reveal against a newer authoritative source", async () => {
     const source = moduleSource();
     const newerSource = moduleSource("// newer authoritative source");
     const api = { postMessage: vi.fn() };
@@ -174,11 +202,6 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
-    expect(navigationResultsFor(api, 431)).toContainEqual({
-      type: "canvasNavigationResult",
-      requestId: 431,
-      status: "failed",
-      reason: "no-revealable-runtime-target"
-    });
+    expect(navigationResultsFor(api, 431)).toEqual([]);
   });
 });
