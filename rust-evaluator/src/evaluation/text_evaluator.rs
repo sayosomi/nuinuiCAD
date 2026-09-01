@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+use super::errors::geometry_error;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::point_anchor_or_error;
 use super::scalars::{ScalarDocumentBindingResolver, ValidatedTextTemplate};
@@ -145,6 +146,16 @@ pub(crate) fn evaluate_text(
     ) else {
         return;
     };
+    if !(font_size > 0.0) {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の文字サイズは0より大きい値で指定してください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
     let Some(text) = (match template_context
         .by_element_id
         .get(template_context.lookup_id)

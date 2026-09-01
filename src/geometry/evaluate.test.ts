@@ -282,6 +282,38 @@ describe("evaluateElements", () => {
   });
 
   it.each([
+    [3, true],
+    [0, false],
+    [-1, false]
+  ] as const)("accepts only positive text font sizes (%s)", (fontSize, shouldCompute) => {
+    const result = evaluateElements([
+      {
+        id: "text",
+        name: "注記",
+        type: "text",
+        activity: "visible",
+        text: "ここから前身頃",
+        anchor: null,
+        fontSize
+      }
+    ]);
+
+    if (shouldCompute) {
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get("text")).toMatchObject({ kind: "text", fontSize });
+    } else {
+      expect(result.computedGeometry.has("text")).toBe(false);
+      expect(result.errors).toEqual([{
+        elementId: "text",
+        elementName: "注記",
+        missingDependencyId: "text",
+        missingDependencyName: "注記",
+        message: "注記 の文字サイズは0より大きい値で指定してください。"
+      }]);
+    }
+  });
+
+  it.each([
     ["source DPI", { sourceDpi: 0 }],
     ["natural width", { naturalWidthPx: 0 }],
     ["natural height", { naturalHeightPx: 0 }],
