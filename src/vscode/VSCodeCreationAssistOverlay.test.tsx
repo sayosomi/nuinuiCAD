@@ -225,6 +225,68 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
   });
 
+  it("closes an input-owned numeric suggestion on Escape without cancelling the session", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "const Height: number = 20",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
+    renderOverlay();
+    start("divisionPoint");
+    fireEvent.click(navigateButton(4));
+    const ratioInput = input();
+    fireEvent.change(ratioInput, { target: { value: "@" } });
+    ratioInput.setSelectionRange(1, 1);
+    fireEvent.select(ratioInput);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toBeInTheDocument();
+
+    fireEvent.keyDown(ratioInput, { key: "Escape" });
+
+    expect(screen.queryByRole("listbox", { name: "変数候補" })).not.toBeInTheDocument();
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start again" })).not.toBeInTheDocument();
+  });
+
+  it("does not let stale input suggestions consume the first Canvas-pick Escape", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "const Height: number = 20",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)"
+    ].join("\n"), "test");
+    publishTestCanvasSelectionEligibility();
+    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelNumericReferencePick") => {
+      dispatchCommand(commandId);
+    });
+    const { canvasFocusRef } = renderOverlay(vi.fn(), (event) => {
+      if (event.key === "Escape") dispatchCanvasPickCommand("cancelNumericReferencePick");
+    });
+    start("divisionPoint");
+    fireEvent.click(navigateButton(4));
+    const ratioInput = input();
+    fireEvent.change(ratioInput, { target: { value: "@" } });
+    ratioInput.setSelectionRange(1, 1);
+    fireEvent.select(ratioInput);
+    expect(screen.getByRole("listbox", { name: "変数候補" })).toBeInTheDocument();
+
+    commandContext.focusCanvas.mockImplementation(() => canvasFocusRef.current?.focus());
+    fireEvent.keyDown(ratioInput, { key: "Enter", shiftKey: true });
+    const canvas = canvasFocusRef.current!;
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "ratio" });
+    expect(document.activeElement).toBe(canvas);
+
+    fireEvent.keyDown(canvas, { key: "Escape" });
+
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledTimes(1);
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelNumericReferencePick");
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start again" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(canvas);
+  });
+
   it("uses an explicit line-list Finish selection action and never modifier+Enter", () => {
     renderOverlay();
     start("offsetLine");
@@ -242,7 +304,7 @@ describe("VSCodeCreationAssistOverlay", () => {
     renderOverlay();
     start("freePoint");
     const beforeRevision = useCadDocumentStore.getState().sourceRevision;
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.keyDown(input(), { key: "Escape" });
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(screen.getByRole("button", { name: "Start again" })).toBeInTheDocument();
     expect(useCadDocumentStore.getState().sourceText).toBe(source);

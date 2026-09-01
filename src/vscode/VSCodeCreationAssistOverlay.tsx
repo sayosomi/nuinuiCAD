@@ -431,7 +431,7 @@ export const VSCodeCreationAssistOverlay = ({
       const inDock = Boolean(dock && target instanceof Node && dock.contains(target));
 
       if (event.key === "Escape") {
-        if (closeSuggestionPopup()) {
+        if (target === inputRef.current && closeSuggestionPopup()) {
           event.preventDefault();
           event.stopImmediatePropagation();
           return;
