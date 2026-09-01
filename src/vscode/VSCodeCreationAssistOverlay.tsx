@@ -6,7 +6,6 @@ import type {
 } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CommandContext } from "../commands/commandTypes";
-import { dispatchCommand } from "../commands/commands";
 import {
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
@@ -437,22 +436,13 @@ export const VSCodeCreationAssistOverlay = ({
           event.stopImmediatePropagation();
           return;
         }
-        const activePick = useCadUiStore.getState();
-        const activePickCommand = activePick.activePointPickTarget
-          ? "cancelPointPick"
-          : activePick.activeNumericReferencePickTarget
-            ? "cancelNumericReferencePick"
-            : activePick.activeLinePickTarget
-              ? "cancelLinePick"
-              : null;
+        const canvasOwnsPickEscape = target === viewport && (
+          activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
+        );
+        if (canvasOwnsPickEscape) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (activePickCommand) {
-          dispatchCommand(activePickCommand, completionCommandContext);
-          if (step?.kind === "name" || step?.kind === "number" || isCommandLineReferenceStep(step?.kind)) {
-            inputRef.current?.focus();
-          }
-        } else if (active) cancelWithRestart();
+        if (active) cancelWithRestart();
         else dismissRestart();
         return;
       }

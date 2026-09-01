@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
+import type { KeyboardEventHandler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
+import { dispatchCommand } from "../commands/commands";
 import { applyPickedLine, applyPickedPoint } from "../commands/pickCommands";
 import {
   startCommandLineCreationForRecipe,
@@ -25,10 +27,13 @@ const commandContext = {
   focusCanvas: vi.fn()
 };
 
-const renderOverlay = (postCanonicalSourceText = vi.fn()) => {
+const renderOverlay = (
+  postCanonicalSourceText = vi.fn(),
+  onCanvasKeyDown?: KeyboardEventHandler<HTMLDivElement>
+) => {
   const canvasFocusRef = createRef<HTMLDivElement>();
   const view = render(
-    <div ref={canvasFocusRef} tabIndex={-1}>
+    <div ref={canvasFocusRef} tabIndex={-1} onKeyDown={onCanvasKeyDown}>
       <VSCodeCreationAssistOverlay
         canvasFocusRef={canvasFocusRef}
         commandContext={commandContext}
@@ -247,6 +252,30 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().commandLineSession?.recipe.type).toBe("freePoint");
     expect(useCadUiStore.getState().commandLineSession?.startedAtRevision).toBeGreaterThan(beforeRevision);
     expect(useCadUiStore.getState().commandLineSession?.insertionIndex).toBe(useCadDocumentStore.getState().elements.length);
+  });
+
+  it("lets Canvas-owned Escape cancel only the shared pick and retain Canvas focus", () => {
+    const dispatchCanvasPickCommand = vi.fn((commandId: "cancelPointPick") => {
+      dispatchCommand(commandId);
+    });
+    const { canvasFocusRef } = renderOverlay(vi.fn(), (event) => {
+      if (event.key === "Escape") dispatchCanvasPickCommand("cancelPointPick");
+    });
+    start("line");
+    fireEvent.keyDown(input(), { key: "Enter" });
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+    const canvas = canvasFocusRef.current!;
+    canvas.focus();
+
+    fireEvent.keyDown(canvas, { key: "Escape" });
+
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledTimes(1);
+    expect(dispatchCanvasPickCommand).toHaveBeenCalledWith("cancelPointPick");
+    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start again" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(canvas);
   });
 
   it("persists successful complete and draft creation exactly once on the final Enter", () => {
