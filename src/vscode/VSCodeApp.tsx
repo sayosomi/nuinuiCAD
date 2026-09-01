@@ -83,7 +83,9 @@ const sourceElementIdForLine = (
 ): string | null => {
   const currentElementIds = new Set(elements.map((element) => element.id));
   const candidates = [...statementMap.byElementId.entries()].filter(([elementId, info]) =>
-    currentElementIds.has(elementId) && info.line <= line && line <= info.endLine
+    currentElementIds.has(elementId) &&
+    info.range.startLine <= line &&
+    line <= Math.max(info.range.endLine, info.endLine)
   );
   if (candidates.length === 0) return null;
   const deepestIndent = Math.max(...candidates.map(([, info]) => info.indentDepth));
@@ -121,6 +123,18 @@ type PendingCanvasFreePointSelectionRestore = {
   selection: SelectionSnapshot;
 };
 
+type CanvasCreationRequestContext = {
+  requestId: number;
+  sourceCursor: SourceCreationCursor;
+};
+
+const canvasCreationSourcePositionIsValid = (position: unknown): position is { line: number; character: number } => {
+  if (typeof position !== "object" || position === null) return false;
+  const candidate = position as { line?: unknown; character?: unknown };
+  return typeof candidate.line === "number" && Number.isInteger(candidate.line) && candidate.line >= 0 &&
+    typeof candidate.character === "number" && Number.isInteger(candidate.character) && candidate.character >= 0;
+};
+
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
@@ -137,6 +151,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [multiDocumentGraphPublication, setMultiDocumentGraphPublication] = useState<VscodeMultiDocumentGraphPublication | null>(null);
   const [latestHostDocumentVersion, setLatestHostDocumentVersion] = useState<number | null>(null);
   const [authoritativeHostSourceSnapshot, setAuthoritativeHostSourceSnapshot] = useState<AuthoritativeHostSourceSnapshot | null>(null);
+  const [canvasCreationRequest, setCanvasCreationRequest] = useState<CanvasCreationRequestContext | undefined>();
   const canvasThemeRef = useRef<CanvasTheme>(LEGACY_CANVAS_THEME);
   const canvasThemeGenerationRef = useRef<number | null>(null);
   const latestHostDocumentVersionRef = useRef<number | null>(null);
@@ -150,6 +165,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const pendingCanvasFreePointCommitRef = useRef<PendingCanvasFreePointCommit | null>(null);
   const pendingCanvasFreePointSelectionRef = useRef<PendingCanvasFreePointSelection | null>(null);
   const pendingCanvasFreePointSelectionRestoreRef = useRef<PendingCanvasFreePointSelectionRestore | null>(null);
+  const canvasCreationRequestIdRef = useRef<number | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
   const canvasFocusRef = useRef<HTMLDivElement>(null);
@@ -924,6 +940,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         runCanvasFreePointAtPointer(message);
         return;
       } else if (message.type === "canvasCommitResult") {
+        if (canvasCreationRequestIdRef.current === message.operationId) {
+          canvasCreationRequestIdRef.current = null;
+          setCanvasCreationRequest(undefined);
+        }
         const pending = pendingCanvasFreePointCommitRef.current;
         if (!pending || pending.requestId !== message.operationId) return;
         pendingCanvasFreePointCommitRef.current = null;
@@ -1016,6 +1036,40 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
       } else if (message.type === "canvasCreationCommand") {
         if (!isVscodeCanvasCreationCommandId(message.commandId)) return;
+        if (!Number.isInteger(message.requestId) ||
+          !Number.isInteger(message.documentVersion) ||
+          !canvasCreationSourcePositionIsValid(message.sourcePosition)) return;
+        const current = currentAuthoritativeDocument(message.documentVersion);
+        const sourceTextLines = current?.source.normalizedSource.split("\n") ?? [];
+        if (!current ||
+          message.sourcePosition.line >= sourceTextLines.length ||
+          message.sourcePosition.character > (sourceTextLines[message.sourcePosition.line]?.length ?? 0)) {
+          useCadUiStore.getState().setCommandErrorMessage(staleSourceAnchorError);
+          return;
+        }
+        const sourcePositionLine = message.sourcePosition.line + 1;
+        const sourceCursor: SourceCreationCursor = {
+          sourceRevision: current.source.sourceRevision,
+          line: sourcePositionLine,
+          lineCount: sourceTextLines.length,
+          elementId: sourceElementIdForLine(
+            sourcePositionLine,
+            current.state.elements,
+            current.state.doc.statementMap
+          )
+        };
+        const sourceResolution = resolveSourceCreationInsertion({
+          cursor: sourceCursor,
+          sourceRevision: current.source.sourceRevision,
+          elements: current.state.elements,
+          statementMap: current.state.doc.statementMap
+        });
+        if (sourceResolution.kind !== "safe") {
+          useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+          return;
+        }
+        canvasCreationRequestIdRef.current = message.requestId;
+        setCanvasCreationRequest({ requestId: message.requestId, sourceCursor });
         dispatchCommand(message.commandId, {
           evaluation: evaluationRef.current,
           baseEvaluation: evaluationRef.current,
@@ -1027,7 +1081,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           measureCanvasTextWidth,
           recordSelectionHistory: true,
           finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
-          canvasHistory: requestCanvasHistory
+          canvasHistory: requestCanvasHistory,
+          currentSourceCursor: () => sourceCursor,
+          sourceCreationOrigin: "canvas-retained",
+          canvasCreationRequestId: message.requestId
         });
       } else if (message.type === "bakeSourceRequest") {
         void runSourceBake(message);
@@ -1300,6 +1357,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluationState={evaluationState}
         multiDocumentRuntimePresentation={multiDocumentRuntimePresentation}
         canvasFocusRef={canvasFocusRef}
+        canvasCreationRequest={canvasCreationRequest}
         canvasTheme={canvasTheme}
         canvasRibbonRibbons={canvasRibbonRibbons}
         measureCanvasTextWidth={measureCanvasTextWidth}
@@ -1324,7 +1382,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
         currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}
         postCanvasCommit={postCanvasCommit}
-        postCanonicalSourceText={(sourceText) => {
+        postCanonicalSourceText={(sourceText, metadata) => {
           if (benchmarkConfig) return;
           const expectedDocumentVersion = latestHostDocumentVersionRef.current;
           if (expectedDocumentVersion === null) return;
@@ -1335,6 +1393,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             sourceText,
             expectedDocumentVersion,
             mutationKind,
+            ...(metadata?.requestId === undefined ? {} : {
+              operationId: metadata.requestId,
+              sourceCreation: {
+                requestId: metadata.requestId,
+                ...(metadata.insertedElementId === undefined ? {} : { insertedElementId: metadata.insertedElementId }),
+                ...(metadata.nextSourcePosition === undefined ? {} : { nextSourcePosition: metadata.nextSourcePosition })
+              }
+            }),
             ...(sourceUpdate.kind === "model-patch" ? { splices: sourceUpdate.splices } : {})
           });
         }}

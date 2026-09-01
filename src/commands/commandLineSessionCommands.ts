@@ -83,6 +83,19 @@ const isPickCapableCreationStep = (step: ReturnType<typeof currentStep>) =>
 const commandLineCompositionIsActive = () =>
   sourceEditSession.isComposing() || isCommandLineInputComposing();
 
+const canvasOwnedSourceInsertion = (origin: CommandLineSession["sourceInsertionOrigin"]): boolean =>
+  origin === "canvas-retained" || origin === "document-end";
+
+const sourcePositionForElement = (elementId: string) => {
+  const document = useCadDocumentStore.getState();
+  const info = document.doc.statementMap?.byElementId.get(elementId);
+  if (!info) return undefined;
+  const lines = document.sourceText.replace(/\r\n/g, "\n").split("\n");
+  const line = Math.max(info.range.endLine, info.endLine) - 1;
+  if (line < 0 || line >= lines.length) return undefined;
+  return { line, character: lines[line]?.length ?? 0 };
+};
+
 const clearStaleSession = () => {
   const ui = useCadUiStore.getState();
   clearCommandLineGhostPreview();
@@ -127,6 +140,11 @@ export const startCommandLineCreationForRecipe = (
     return false;
   }
   const sourceCursor = context?.currentSourceCursor?.() ?? null;
+  const canvasRetainedOrigin = context?.sourceCreationOrigin === "canvas-retained";
+  if (canvasRetainedOrigin && !sourceCursor) {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
   const sourceDocument = useCadDocumentStore.getState();
   const sourceResolution = sourceCursor
     ? resolveSourceCreationInsertion({
@@ -155,13 +173,19 @@ export const startCommandLineCreationForRecipe = (
   const cursorElementId = context?.currentCursorElementId?.() ?? null;
   const insertionResolution = sourceResolution?.kind === "safe"
     ? sourceResolution
-    : resolveDocumentEndSourceCreationInsertion({
-        sourceText: document.sourceText,
-        documentText: document.docText,
-        sourceRevision: document.sourceRevision,
-        elements: document.elements,
-        statementMap: document.doc.statementMap
-      });
+    : canvasRetainedOrigin
+      ? null
+      : resolveDocumentEndSourceCreationInsertion({
+          sourceText: document.sourceText,
+          documentText: document.docText,
+          sourceRevision: document.sourceRevision,
+          elements: document.elements,
+          statementMap: document.doc.statementMap
+        });
+  if (!insertionResolution) {
+    useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
+    return false;
+  }
   if (insertionResolution.kind !== "safe") {
     useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
     return false;
@@ -171,7 +195,9 @@ export const startCommandLineCreationForRecipe = (
     useCadUiStore.getState().setCommandErrorMessage(sourceCreationInsertionUnsafeError);
     return false;
   }
-  const sourceInsertionOrigin = sourceCursor ? "source-cursor" as const : "document-end" as const;
+  const sourceInsertionOrigin = canvasRetainedOrigin
+    ? "canvas-retained" as const
+    : sourceCursor ? "source-cursor" as const : "document-end" as const;
   const insertionAnchor = sourceCursor
     ? insertionAnchorForCommandLineCreation(sourceCursor.elementId ?? cursorElementId)
     : { kind: "documentEnd" as const };
@@ -571,11 +597,21 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
       }
       context?.focusSourceEditor?.();
     };
-    if (session.sourceInsertionOrigin === "document-end") {
+    if (canvasOwnedSourceInsertion(session.sourceInsertionOrigin)) {
       focusCanvasAfterCreation(context);
     } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditorAtDraftEnd);
     else setTimeout(focusSourceEditorAtDraftEnd, 0);
-    context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
+    if (session.sourceInsertionOrigin === "canvas-retained" && context?.canvasCreationRequestId !== undefined) {
+      context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText, {
+        requestId: context.canvasCreationRequestId,
+        nextSourcePosition: {
+          line: draftEndLine - 1,
+          character: useCadDocumentStore.getState().sourceText.replace(/\r\n/g, "\n").split("\n")[draftEndLine - 1]?.length ?? 0
+        }
+      });
+    } else {
+      context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
+    }
     return true;
   }
 
@@ -598,10 +634,10 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
   // published eligibility for the eventual element. Document commits
   // invalidate that snapshot synchronously, so retain it only for this
   // Canvas-owned selection handoff.
-  const canvasSelectionEligibility = session.sourceInsertionOrigin === "document-end"
+  const canvasSelectionEligibility = canvasOwnedSourceInsertion(session.sourceInsertionOrigin)
     ? useCadUiStore.getState().canvasSelectionEligibleElementIds
     : undefined;
-  const canvasPreviewElementIds = session.sourceInsertionOrigin === "document-end"
+  const canvasPreviewElementIds = canvasOwnedSourceInsertion(session.sourceInsertionOrigin)
     ? new Set((document.previewElements ?? [])
         .filter((previewElement) => !document.elements.some((element) => element.id === previewElement.id))
         .map((previewElement) => previewElement.id))
@@ -665,10 +701,18 @@ export const confirmCommandLineSession = (context?: CommandContext) => {
     }
     context?.focusSourceEditor?.();
   };
-  if (session.sourceInsertionOrigin === "document-end") {
+  if (canvasOwnedSourceInsertion(session.sourceInsertionOrigin)) {
     focusCanvasAfterCreation(context);
   } else if (typeof requestAnimationFrame === "function") requestAnimationFrame(focusSourceEditor);
   else setTimeout(focusSourceEditor, 0);
-  context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
+  if (session.sourceInsertionOrigin === "canvas-retained" && context?.canvasCreationRequestId !== undefined) {
+    context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText, {
+      requestId: context.canvasCreationRequestId,
+      insertedElementId: sourceCommit?.selectedElementId ?? selectedElementId,
+      nextSourcePosition: sourcePositionForElement(selectedElementId)
+    });
+  } else {
+    context?.postCanonicalSourceText?.(useCadDocumentStore.getState().sourceText);
+  }
   return true;
 };

@@ -20,7 +20,7 @@ export type SourceCreationInsertion = {
   sourceInsertionLine: number;
 };
 
-export type SourceCreationInsertionOrigin = "source-cursor" | "document-end";
+export type SourceCreationInsertionOrigin = "source-cursor" | "canvas-retained" | "document-end";
 
 export type SourceCreationInsertionUnsafeReason =
   | "stale-source-revision"

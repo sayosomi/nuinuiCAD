@@ -221,6 +221,11 @@ export type VscodeToExtensionMessage =
       splices?: readonly LineSplice[];
       operationId?: number;
       coordinatePointConversionRequestId?: number;
+      sourceCreation?: {
+        requestId: number;
+        insertedElementId?: string;
+        nextSourcePosition?: { line: number; character: number };
+      };
     }
   | {
       type: "coordinatePointConversionResult";
@@ -331,7 +336,13 @@ export type ExtensionToVscodeMessage =
       includeHiddenGeometry?: boolean;
       includeDisabledGeometry?: boolean;
     }
-  | { type: "canvasCreationCommand"; commandId: VscodeCanvasCreationCommandId }
+  | {
+      type: "canvasCreationCommand";
+      commandId: VscodeCanvasCreationCommandId;
+      requestId: number;
+      documentVersion: number;
+      sourcePosition: { line: number; character: number };
+    }
   | {
       type: "bakeSourceRequest";
       requestId: number;

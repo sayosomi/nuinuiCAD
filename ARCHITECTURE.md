@@ -1049,6 +1049,19 @@ Module Preview's per-document panel/target lifecycle, TextDocument edit bridge,
 URI-scoped language analysis sessions, and its adapter into the shared persistent
 Rust stdio process boundary.
 
+`vscode-extension/src/sourceAuthoringPositionFeature.ts` is the single
+Extension Host owner for retained Source authoring positions. It records
+explicit Source authoring locations with their exact document version, fails
+closed on stale or external changes, and advances command-owned positions only
+after accepted edits while preserving the retained Undo/Redo history. The
+Canvas free-point feature and generic Canvas creation endpoint both consume this
+owner. Generic Canvas creation captures the retained position, current document
+version, Canvas session, and request identity before crossing the Webview
+boundary; the Webview resolves that position through
+`resolveSourceCreationInsertion`, and an accepted host commit advances the
+shared position from the committed statement metadata rather than using a
+document-end fallback.
+
 The Extension Host is authoritative for VS Code Canvas Ribbon configuration. It
 normalizes `nuinuiCAD.canvasRibbon.ribbons`, sends the current normalized value
 to each Webview session, broadcasts configuration changes, and applies only

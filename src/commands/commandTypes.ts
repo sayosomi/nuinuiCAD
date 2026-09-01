@@ -15,6 +15,12 @@ import type { NumericValue } from "../types/geometry";
 import type { SourceCreationCursor } from "./sourceCreationInsertion";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 
+export type SourceCreationCommitMetadata = {
+  requestId?: number;
+  insertedElementId?: ElementId;
+  nextSourcePosition?: { line: number; character: number };
+};
+
 export type { BezierHandleRole };
 
 export type BakeSandboxEvaluation = {
@@ -173,6 +179,10 @@ export type CommandContext = {
   currentCursorElementId?: () => ElementId | null;
   /** Current physical Source Editor cursor for statement-preserving creation insertion. */
   currentSourceCursor?: () => SourceCreationCursor | null;
+  /** Retained Source position supplied by a Canvas-only creation request. */
+  sourceCreationOrigin?: "canvas-retained";
+  /** Correlates a Canvas-only creation commit with its Extension Host request. */
+  canvasCreationRequestId?: number;
   /** Typed binding (declaration/reference/set target/template hole) under the
    * Source Editor cursor, if any - see typedRenameTargetAtCursor.ts. Null
    * whenever the cursor is not on a typed construct at all. */
@@ -189,7 +199,7 @@ export type CommandContext = {
    * corresponding CadElement yet. */
   focusSourceEditorAtLineEnd?: (line: number) => void;
   /** Notifies a host after the canonical document has been committed. */
-  postCanonicalSourceText?: (sourceText: string) => void;
+  postCanonicalSourceText?: (sourceText: string, metadata?: SourceCreationCommitMetadata) => void;
   /** Allows interactive command-line hosts to commit as soon as the final step is supplied. */
   completeCommandLineSession?: boolean;
   /** Canvas-only ephemeral state cleared before a creation-session replacement. */
