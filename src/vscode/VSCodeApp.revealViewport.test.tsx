@@ -180,7 +180,7 @@ describe("VSCodeApp Reveal viewport fitting", () => {
     });
   });
 
-  it("fails a concrete Module instance Reveal when only aggregate descendant bounds are available", async () => {
+  it("fits and selects a concrete Module instance from its presented descendants", async () => {
     const source = [
       "nui 1",
       "module M() {",
@@ -224,17 +224,18 @@ describe("VSCodeApp Reveal viewport fitting", () => {
       }));
     });
 
-    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([instance.id]);
     expect(useCadUiStore.getState().canvasViewport).toEqual({
-      zoom: 2,
-      panX: -40,
-      panY: 25
+      zoom: 3.36,
+      panX: -168,
+      panY: 84
     });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 521,
-      status: "failed",
-      reason: "no-revealable-runtime-target"
+      status: "resolved",
+      degradations: []
     });
   });
 

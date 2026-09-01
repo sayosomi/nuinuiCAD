@@ -466,6 +466,40 @@ describe("cadUiStore published Canvas eligibility selection", () => {
       selectionAnchorElementId: "visible"
     });
   });
+
+  it("retains a qualifying Module selection and prunes it when shared eligibility is withdrawn", () => {
+    const moduleElements: CadElement[] = [
+      { id: "instance", name: "Instance", type: "moduleInstance", activity: "visible" },
+      {
+        id: "child",
+        name: "Child",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "coordinate", x: 0, y: 0 },
+        endPoint: { mode: "coordinate", x: 10, y: 0 }
+      }
+    ];
+    useCadDocumentStore.setState({ elements: moduleElements });
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      moduleElements,
+      new Set(["instance", "child"])
+    );
+    useCadUiStore.getState().applySelection(moduleElements, {
+      selectedElementId: "instance",
+      selectedElementIds: ["instance"],
+      selectionAnchorElementId: "instance"
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe("instance");
+
+    useCadUiStore.getState().setCanvasSelectionEligibility(moduleElements, new Set(["child"]));
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: null,
+      selectedElementIds: [],
+      selectionAnchorElementId: null
+    });
+  });
 });
 
 describe("cadUiStore Canvas eligibility freshness", () => {

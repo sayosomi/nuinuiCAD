@@ -23,10 +23,10 @@ import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
 import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
+import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
 import {
-  canvasElementDrawingBounds,
-  canvasPresentationEligibleElementIds
-} from "../geometry/canvasDrawingBounds";
+  canvasSelectionEligibleElementIds as computeCanvasSelectionEligibleElementIds
+} from "../geometry/canvasSelectionEligibility";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
   normalizeVscodeCanvasRibbons,
@@ -353,7 +353,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           ownerId,
           true,
           "requested",
-          new Set([ownerId]),
+          useCadUiStore.getState().canvasSelectionEligibleElementIds ?? undefined,
           activeElements
         )
       : false;
@@ -1121,9 +1121,10 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           elements: [...runtimeElements],
           profile: activeVisibilityProfile
         });
-        const canvasPresentationIds = canvasPresentationEligibleElementIds({
+        const selectionEligibleIds = computeCanvasSelectionEligibleElementIds({
           elements: runtimeElements,
           evaluation: currentEvaluation,
+          moduleMaterialization: current.compiled.moduleMaterialization,
           visibilityProfiles: current.state.visibilityProfiles,
           activeVisibilityProfileId: current.state.activeVisibilityProfileId,
           showCanvasPoints: useCadUiStore.getState().showCanvasPoints
@@ -1136,7 +1137,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           effectiveVisibleElementIds,
           effectiveEnabledElementIds,
           profileVisibleElementIds,
-          canvasPresentationEligibleElementIds: canvasPresentationIds
+          selectionEligibleElementIds: selectionEligibleIds
         });
         if (revealResult.status === "failed") {
           api.postMessage({
@@ -1174,7 +1175,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           primarySelectionId,
           true,
           "requested",
-          currentEvaluationIsCurrent ? canvasPresentationIds : undefined
+          currentEvaluationIsCurrent ? selectionEligibleIds : undefined
         )) {
           api.postMessage({
             type: "canvasNavigationResult",
