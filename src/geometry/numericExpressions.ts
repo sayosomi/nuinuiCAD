@@ -16,6 +16,10 @@ import { getParameterValue } from "../parameters/parameterAccess";
 import { Parser, tokenize } from "./numericExpressionParser";
 import type { NumericExpressionMeasurementFunctionName } from "./numericExpressionParser";
 import { propertyLabels } from "./numericExpressionProperties";
+import {
+  NUMERIC_GEOMETRY_PROPERTY_INPUT_ALIASES,
+  numericGeometryPropertyInputAlias
+} from "./numericExpressionInputAliases";
 import type {
   NumericExpressionError,
   NumericExpressionReference,
@@ -217,12 +221,17 @@ const cachedRegExp = (pattern: string, flags = "g"): RegExp => {
 const quotedNamePattern = (name: string, suffix = "(?=$|[\\s()+*/<>=!&|,-])", prefix = "") =>
   cachedRegExp(`${prefix}(["'])${escapeRegExp(name)}\\1${suffix}`);
 
-// Element names are normalized to stable IDs here. Property aliases are not
-// normalized: the public nui1 contract accepts canonical English property keys
-// only, while presentation labels belong to the display layer.
+// Element names are normalized to stable IDs here. The small, explicit alias
+// boundary below restores only unaffected legacy input spellings; presentation
+// labels are never used as a source of aliases.
 
 type NumericExpressionCurrentElement = Pick<CadElement, "parentGroupId"> &
   Partial<Pick<CadElement, "name">>;
+
+const numericGeometryPropertyAliasPattern = new RegExp(
+  `\\.(${Object.keys(NUMERIC_GEOMETRY_PROPERTY_INPUT_ALIASES).map(escapeRegExp).join("|")})(?=$|[\\s()+*/<>=!&|,])`,
+  "g"
+);
 
 export const normalizeNumericExpressionInput = (
   input: string,
@@ -261,7 +270,9 @@ export const normalizeNumericExpressionInput = (
     );
   }
 
-  return expression;
+  return expression.replace(numericGeometryPropertyAliasPattern, (_match, property: string) =>
+    `.${numericGeometryPropertyInputAlias(property)}`
+  );
 };
 
 const pointValueFromAnchor = ({

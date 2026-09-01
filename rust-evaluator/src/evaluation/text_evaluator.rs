@@ -19,11 +19,15 @@ pub(crate) fn text_number(value: f64) -> String {
 }
 
 fn property_key(value: &str) -> &str {
-    // Public property aliases are presentation-only. Text-template numeric
-    // references arrive at the same canonical English input boundary as
-    // source expressions; only the measurement function aliases are handled
-    // by the numeric-expression tokenizer.
-    value
+    // Keep this input-alias boundary deliberately smaller than presentation:
+    // only unaffected non-angle Japanese spellings remain accepted in text
+    // templates. Changed angle concepts are English-only in nui1 source.
+    match value {
+        "長さ" => "length",
+        "始点ハンドル長" => "startHandleLength",
+        "終点ハンドル長" => "endHandleLength",
+        _ => value,
+    }
 }
 
 /// Maps each `.`-separated segment of a property path through `property_key`
@@ -197,4 +201,38 @@ pub(crate) fn evaluate_text(
             "fontSize": font_size
         }),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::property_path_key;
+
+    #[test]
+    fn preserves_only_unaffected_japanese_numeric_property_aliases() {
+        assert_eq!(property_path_key("長さ"), "length");
+        assert_eq!(property_path_key("始点ハンドル長"), "startHandleLength");
+        assert_eq!(property_path_key("終点ハンドル長"), "endHandleLength");
+    }
+
+    #[test]
+    fn does_not_treat_presentation_or_removed_angle_labels_as_input_aliases() {
+        for property in [
+            "始点からパス内部への角度",
+            "終点からパス内部への角度",
+            "中心から始点への角度",
+            "中心から終点への角度",
+            "始角度",
+            "終角度",
+            "始接線角度",
+            "終接線角度",
+            "始点接線角度",
+            "終点接線角度",
+            "始点角度",
+            "終点角度",
+            "始点ハンドル角度",
+            "終点ハンドル角度",
+        ] {
+            assert_eq!(property_path_key(property), property);
+        }
+    }
 }

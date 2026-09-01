@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { createElementNameContext } from "../model/elementNames";
 import {
   addToNumericValue,
+  evaluateNumericValue,
   formatNumericExpressionForDisplay,
   makeNumericExpression,
   normalizeNumericExpressionInput
 } from "./numericExpressions";
 import type { CadElement } from "../types/geometry";
+import { evaluateElements } from "./evaluate";
+import { propertyLabels } from "./numericExpressionProperties";
 
 const expression = (value: string) => ({ kind: "expression" as const, expression: value });
 
@@ -102,39 +105,110 @@ describe("normalizeNumericExpressionInput", () => {
     ];
 
     expect(normalizeNumericExpressionInput("脇線.長さ", elements, elements[2])).toBe(
-      "front-line.長さ"
+      "front-line.length"
     );
     expect(normalizeNumericExpressionInput("後身頃::脇線.長さ", elements, elements[2])).toBe(
-      "back-line.長さ"
+      "back-line.length"
     );
   });
 
-  it("does not accept Japanese geometry-property aliases", () => {
+  it("restores only unaffected Japanese property-input aliases and evaluates them", () => {
     const elements: CadElement[] = [
+      {
+        id: "point-a",
+        name: "点A",
+        type: "freePoint",
+        activity: "visible",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "point-b",
+        name: "点B",
+        type: "freePoint",
+        activity: "visible",
+        x: 100,
+        y: 0
+      },
       {
         id: "curve-ac",
         name: "曲線AC",
         type: "bezierCurve",
         activity: "visible",
-        startPoint: { mode: "reference", pointId: "a" },
+        startPoint: { mode: "reference", pointId: "point-a" },
         startHandleAngleDeg: 0,
         startHandleLength: 20,
         intermediatePoints: [],
-        endPoint: { mode: "reference", pointId: "c" },
+        endPoint: { mode: "reference", pointId: "point-b" },
         endHandleAngleDeg: 0,
         endHandleLength: 20
       }
     ];
 
+    expect(normalizeNumericExpressionInput("曲線AC.始点ハンドル長", elements)).toBe(
+      "curve-ac.startHandleLength"
+    );
+    expect(normalizeNumericExpressionInput("曲線AC.終点ハンドル長", elements)).toBe(
+      "curve-ac.endHandleLength"
+    );
+    const evaluation = evaluateElements(elements);
+    const evaluated = evaluateNumericValue({
+      value: makeNumericExpression(
+        normalizeNumericExpressionInput(
+          "曲線AC.始点ハンドル長 + 曲線AC.終点ハンドル長",
+          elements
+        )
+      ),
+      computedGeometry: evaluation.computedGeometry,
+      elementsById: new Map(elements.map((element) => [element.id, element])),
+      elements
+    });
+    expect(evaluated).toEqual({ value: 40 });
+
     expect(normalizeNumericExpressionInput("曲線AC.長さ + 5", elements)).toBe(
-      "curve-ac.長さ + 5"
+      "curve-ac.length + 5"
     );
     expect(normalizeNumericExpressionInput("曲線AC.長さ > 0", elements)).toBe(
-      "curve-ac.長さ > 0"
+      "curve-ac.length > 0"
     );
     expect(normalizeNumericExpressionInput("曲線AC.長さ >= 100  or  曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.長さ >= 100  or  curve-ac.長さ == 0"
+      "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
+  });
+
+  it("does not infer input aliases from presentation labels or restore removed angle spellings", () => {
+    const curve: CadElement = {
+      id: "curve-ac",
+      name: "曲線AC",
+      type: "bezierCurve",
+      activity: "visible",
+      startPoint: { mode: "reference", pointId: "a" },
+      startHandleAngleDeg: 0,
+      startHandleLength: 20,
+      intermediatePoints: [],
+      endPoint: { mode: "reference", pointId: "b" },
+      endHandleAngleDeg: 0,
+      endHandleLength: 20
+    };
+    const removedAliases = [
+      "始角度",
+      "終角度",
+      "始接線角度",
+      "終接線角度",
+      "始点接線角度",
+      "終点接線角度",
+      "始点角度",
+      "終点角度",
+      "始点ハンドル角度",
+      "終点ハンドル角度"
+    ];
+
+    expect(normalizeNumericExpressionInput(`曲線AC.${propertyLabels.startAngleDeg}`, [curve])).toBe(
+      `curve-ac.${propertyLabels.startAngleDeg}`
+    );
+    for (const alias of removedAliases) {
+      expect(normalizeNumericExpressionInput(`曲線AC.${alias}`, [curve])).toBe(`curve-ac.${alias}`);
+    }
   });
 
   it("formats Bezier intermediate point references with their point index", () => {
@@ -212,9 +286,9 @@ describe("normalizeNumericExpressionInput", () => {
       }
     ];
 
-    expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.長さ + 5");
+    expect(normalizeNumericExpressionInput("@曲線AC.長さ + 5", elements)).toBe("curve-ac.length + 5");
     expect(normalizeNumericExpressionInput("@曲線AC.長さ >= 100  or  @曲線AC.長さ == 0", elements)).toBe(
-      "curve-ac.長さ >= 100  or  curve-ac.長さ == 0"
+      "curve-ac.length >= 100  or  curve-ac.length == 0"
     );
   });
 
@@ -293,11 +367,11 @@ describe("normalizeNumericExpressionInput", () => {
       endHandleLength: 20
     };
 
-    // Presentation labels are not accepted source aliases, including on a
-    // self-reference.
+    // The unaffected length label remains an explicit input alias, even on a
+    // self-reference; changed presentation labels remain display-only.
     expect(
       normalizeNumericExpressionInput("@曲線AC.長さ", [curve], curve)
-    ).toBe("curve-ac.長さ");
+    ).toBe("curve-ac.length");
   });
 
   it("falls through to the element-property arm for a self-referencing multi-segment property path", () => {

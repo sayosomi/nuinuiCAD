@@ -386,6 +386,14 @@ fn splits_offset_line() {
     let far = geometry(&result, "split");
     assert_eq!(near["kind"], json!("offsetLine"));
     assert_eq!(far["kind"], json!("offsetLine"));
+    assert_close(near["start"]["x"].as_f64().unwrap(), 0.0);
+    assert_close(near["end"]["x"].as_f64().unwrap(), 50.0);
+    assert_close(far["start"]["x"].as_f64().unwrap(), 50.0);
+    assert_close(far["end"]["x"].as_f64().unwrap(), 100.0);
+    assert_close(near["startTangentAngleDeg"].as_f64().unwrap(), 0.0);
+    assert_close(near["endTangentAngleDeg"].as_f64().unwrap(), 180.0);
+    assert_close(far["startTangentAngleDeg"].as_f64().unwrap(), 0.0);
+    assert_close(far["endTangentAngleDeg"].as_f64().unwrap(), 180.0);
     assert_close(near["segments"][0]["end"]["x"].as_f64().unwrap(), 50.0);
     assert_close(far["segments"][0]["start"]["x"].as_f64().unwrap(), 50.0);
     assert_close(near["length"].as_f64().unwrap(), 50.0);

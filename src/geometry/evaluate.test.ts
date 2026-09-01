@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateElements } from "./evaluate";
-import { makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
+import { computedReferencePathValue, makeNumericExpression, normalizeNumericExpressionInput } from "./numericExpressions";
 import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
@@ -1781,6 +1781,85 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       end: { x: 100, y: 0 },
       length: 60
     });
+  });
+
+  it("rebuilds split offset endpoints and directions from the resulting segments", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        activity: "visible",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        activity: "visible",
+        x: 100,
+        y: 0
+      },
+      {
+        id: "line",
+        name: "基準線",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        endPoint: { mode: "reference", pointId: "b" }
+      },
+      {
+        id: "offset",
+        name: "オフセット線",
+        type: "offsetLine",
+        activity: "visible",
+        baseLineIds: ["line"],
+        offset: 10,
+        side: "right",
+        closed: false
+      },
+      {
+        id: "mid",
+        name: "分割点",
+        type: "freePoint",
+        activity: "visible",
+        x: 50,
+        y: -10
+      },
+      {
+        id: "split",
+        name: "分割後線",
+        type: "splitLine",
+        activity: "visible",
+        baseLineId: "offset",
+        splitPoint: { mode: "reference", pointId: "mid" }
+      }
+    ]);
+
+    const near = result.computedGeometry.get("offset");
+    const far = result.computedGeometry.get("split");
+    expect(result.errors).toEqual([]);
+    expect(near).toMatchObject({
+      kind: "offsetLine",
+      start: { x: 0, y: -10 },
+      end: { x: 50, y: -10 },
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 180
+    });
+    expect(far).toMatchObject({
+      kind: "offsetLine",
+      start: { x: 50, y: -10 },
+      end: { x: 100, y: -10 },
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 180
+    });
+    expect(computedReferencePathValue(near, "startPoint.x")).toBe(0);
+    expect(computedReferencePathValue(near, "endPoint.x")).toBe(50);
+    expect(computedReferencePathValue(far, "startPoint.x")).toBe(50);
+    expect(computedReferencePathValue(far, "endPoint.x")).toBe(100);
+    expect(computedReferencePathValue(far, "startAngleDeg")).toBe(0);
+    expect(computedReferencePathValue(far, "endAngleDeg")).toBe(180);
   });
 
   it("rejects a split point on the extension outside the line segment", () => {
