@@ -57,11 +57,20 @@ pub(crate) fn evaluate_image(
         .get("sourceDpi")
         .and_then(Value::as_f64)
         .unwrap_or(0.0);
-    if natural_width_px <= 0.0 || natural_height_px <= 0.0 || source_dpi <= 0.0 || scale <= 0.0 {
+    let target_pixels_per_mm = element
+        .get("targetPixelsPerMm")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    if natural_width_px <= 0.0
+        || natural_height_px <= 0.0
+        || source_dpi <= 0.0
+        || target_pixels_per_mm <= 0.0
+        || scale <= 0.0
+    {
         state.errors.push(geometry_error(
             element,
             format!(
-                "{} は画像寸法、DPI、倍率が0以下のため配置できません。画像を読み込み直すか、倍率を正の値にしてください。",
+                "{} は画像寸法、DPI、目標解像度、倍率が0以下のため配置できません。画像を読み込み直すか、倍率を正の値にしてください。",
                 element_name(element)
             ),
         ));
@@ -81,7 +90,7 @@ pub(crate) fn evaluate_image(
             "naturalWidthPx": natural_width_px,
             "naturalHeightPx": natural_height_px,
             "sourceDpi": source_dpi,
-            "targetPixelsPerMm": element.get("targetPixelsPerMm").and_then(Value::as_f64).unwrap_or(0.0),
+            "targetPixelsPerMm": target_pixels_per_mm,
             "scale": scale,
             "angleDeg": angle_deg,
             "mirrorX": element.get("mirrorX").and_then(Value::as_bool).unwrap_or(false),
