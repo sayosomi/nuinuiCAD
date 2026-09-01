@@ -177,6 +177,49 @@ describe("VS Code native nui completion provider", () => {
     expect(items.find((item) => item.label === "Panel")?.kind).toBe(vscodeMocks.CompletionItemKind.Module);
   });
 
+  it("uses the graph-root semantic snapshot for static Module path properties", async () => {
+    const source = [
+      "nui 1",
+      "module Consumer(target: path) {",
+      "  const probe: number = @target.startAngleDeg",
+      "}"
+    ].join("\n");
+    const snapshot = await importedModuleSnapshotFor(source, "nui 1");
+    const host = {
+      languageSemanticSnapshotFor: vi.fn(async () => snapshot)
+    };
+    vscodeMocks.multiDocumentHost = host;
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const document = documentFor(source);
+    const line = source.split("\n")[2]!;
+    const prefix = "@target.sta";
+    const items = await provider.provideCompletionItems(
+      document as vscode.TextDocument,
+      new vscode.Position(2, line.indexOf(prefix) + prefix.length),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+    const labels = items.map((item) => item.label);
+
+    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledWith(document);
+    expect(labels).toEqual(expect.arrayContaining([
+      "length",
+      "startAngleDeg",
+      "endAngleDeg",
+      "startPoint.x",
+      "startPoint.y",
+      "endPoint.x",
+      "endPoint.y"
+    ]));
+    expect(labels).not.toEqual(expect.arrayContaining([
+      "radius",
+      "startRadiusAngleDeg",
+      "startHandleAngleDeg",
+      "startHandleLength"
+    ]));
+  });
+
   it("keeps the established local completion path when the host snapshot is unavailable", async () => {
     const source = "nui 1\nconst value: number = ab";
     const host = {

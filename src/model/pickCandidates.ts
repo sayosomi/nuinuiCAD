@@ -48,6 +48,11 @@ import {
   type CanonicalGeometrySourceReference,
   type ModuleSemanticCandidateContext
 } from "./moduleSemanticCandidateBoundary";
+import {
+  numericGeometryStaticTargetForElementInDocument,
+  numericGeometryStaticTargetForModuleInterface
+} from "../geometry/numericGeometryProperties";
+import { moduleGeometryInterfaceTypeOfElement } from "../dsl/moduleGeometryInterfaces";
 
 export type PickOption =
   | {
@@ -353,10 +358,22 @@ const numericReferenceCandidates = (
     .map((element) => {
       const geometry = numericReferenceGeometry(evaluation.computedGeometry.get(element.id));
       const property = activeNumericReferencePickTarget.property;
+      const origin = moduleSemanticContext?.moduleMaterialization?.originByRuntimeElementId.get(element.id);
+      const sourceDeclaration = origin?.kind === "moduleBody"
+        ? moduleSemanticContext?.sourceLexicalNamespace?.allDeclarations.find(
+            (declaration) => declaration.statementId === origin.sourceStatementId
+          )
+        : undefined;
+      const moduleInterface = sourceDeclaration?.kind === "geometry"
+        ? moduleGeometryInterfaceTypeOfElement(sourceDeclaration.statement)
+        : null;
+      const staticTarget = moduleInterface
+        ? numericGeometryStaticTargetForModuleInterface(moduleInterface)
+        : numericGeometryStaticTargetForElementInDocument(element, elements);
       const options: PickOption[] =
         geometry &&
         geometry.elementId !== activeNumericReferencePickTarget.elementId &&
-        numericReferenceGeometrySupportsProperty(geometry, property)
+        numericReferenceGeometrySupportsProperty(geometry, property, staticTarget)
           ? [
               {
                 kind: "numericReference" as const,

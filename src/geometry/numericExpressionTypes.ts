@@ -4,8 +4,10 @@ export type NumericMeasurementKey =
   | "length"
   | "startAngleDeg"
   | "endAngleDeg"
-  | "startTangentAngleDeg"
-  | "endTangentAngleDeg"
+  | "radius"
+  | "sweepAngleDeg"
+  | "startRadiusAngleDeg"
+  | "endRadiusAngleDeg"
   | "startHandleAngleDeg"
   | "startHandleLength"
   | "endHandleAngleDeg"
@@ -14,9 +16,7 @@ export type NumericMeasurementKey =
 export type LineMeasurementKey =
   | "length"
   | "startAngleDeg"
-  | "endAngleDeg"
-  | "startTangentAngleDeg"
-  | "endTangentAngleDeg";
+  | "endAngleDeg";
 
 export type NumericExpressionReference = {
   elementId: ElementId;

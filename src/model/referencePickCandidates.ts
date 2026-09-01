@@ -5,6 +5,10 @@ import {
   type NumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
 import {
+  numericGeometryStaticTargetForElementInDocument,
+  numericGeometryStaticTargetForModuleInterface
+} from "../geometry/numericGeometryProperties";
+import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOfElement,
   type ModuleGeometryInterfaceType
@@ -293,7 +297,16 @@ export const referencePickCandidates = ({
     if (target.role === "numericPropertyBase") {
       const numericGeometry = numericReferenceGeometryFor(geometry);
       if (!numericGeometry) continue;
-      const properties = numericComputedGeometryPropertiesFor(numericGeometry);
+      const sourceElement = context.elements.find((candidate) => candidate.id === element.id);
+      const staticTarget = entry.origin?.kind === "moduleBody"
+        ? numericGeometryStaticTargetForModuleInterface(actualGeometryInterface)
+        : sourceElement
+          ? numericGeometryStaticTargetForElementInDocument(sourceElement, context.elements)
+          : undefined;
+      const properties = numericComputedGeometryPropertiesFor(
+        numericGeometry,
+        staticTarget
+      );
       if (properties.length === 0) continue;
       candidates.push({
         elementId: element.id,

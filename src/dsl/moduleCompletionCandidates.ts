@@ -33,6 +33,7 @@ import {
   type GeometryArrayCompletionContext
 } from "./dslGeometryArrayCompletionContext";
 import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
+import { numericGeometryPropertiesForStaticTarget } from "../geometry/numericGeometryProperties";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -222,6 +223,34 @@ export const moduleRecordFieldCompletions = (
     label: field.name,
     identity: `${definition.statementId}:${field.fieldIndex}`
   })) ?? [];
+};
+
+/** Completes canonical numeric properties for a Module geometry parameter.
+ * The parameter's declared interface is the only static proof available here;
+ * runtime geometry is intentionally not consulted. */
+export const moduleGeometryPropertyCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  baseName: string,
+  request?: ModuleCompletionPresenceRequest
+): ModuleCompletionCandidate[] => {
+  const resolved = visibleLookup(
+    compiled,
+    statementIndex,
+    baseName.replace(/^@/, ""),
+    request?.scopeId,
+    request?.sourceOrderIndex
+  );
+  const lookup = resolved?.lookup;
+  if (!lookup || lookup.kind !== "parameter") return [];
+  if (!optionalParameterIsAvailable(compiled, statementIndex, lookup.parameter.value, request)) return [];
+  const interfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
+  if (!interfaceType) return [];
+  return numericGeometryPropertiesForStaticTarget({ kind: "module", interfaceType }).map((label) => ({
+    kind: "property" as const,
+    label,
+    identity: `module-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}:${label}`
+  }));
 };
 
 /** Completes fields after a qualified Module record export, e.g.

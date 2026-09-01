@@ -4,6 +4,8 @@ import {
   formatMillimeters,
   formatNumber
 } from "./geometryDisplay";
+import { computedReferencePathValue } from "./numericExpressions";
+import { propertyLabels } from "./numericExpressionProperties";
 import {
   elementTypeLabels,
   type CadElement,
@@ -74,17 +76,13 @@ const valueRow = (label: string, value: string): GeometryHoverRow => ({
   value
 });
 
-const lineDirectionAngleDeg = (line: ComputedLine): number | null => {
-  const dx = line.end.x - line.start.x;
-  const dy = line.end.y - line.start.y;
-  return Math.hypot(dx, dy) <= Number.EPSILON
-    ? null
-    : Math.atan2(dy, dx) * 180 / Math.PI;
-};
+const canonicalAngle = (geometry: ComputedGeometry, property: "startAngleDeg" | "endAngleDeg" | "startRadiusAngleDeg" | "endRadiusAngleDeg") =>
+  computedReferencePathValue(geometry, property) ?? null;
 
 const lineHoverRows = (line: ComputedLine): GeometryHoverRow[] => [
   valueRow("長さ", formatMillimeters(line.length)),
-  valueRow("角度", formatAngleDeg(lineDirectionAngleDeg(line))),
+  valueRow(propertyLabels.startAngleDeg, formatAngleDeg(canonicalAngle(line, "startAngleDeg"))),
+  valueRow(propertyLabels.endAngleDeg, formatAngleDeg(canonicalAngle(line, "endAngleDeg"))),
   valueRow("始点", formatCoordinate(line.start)),
   valueRow("終点", formatCoordinate(line.end))
 ];
@@ -92,9 +90,11 @@ const lineHoverRows = (line: ComputedLine): GeometryHoverRow[] => [
 const arcHoverRows = (arc: ComputedArcLine): GeometryHoverRow[] => [
   valueRow("中心点", formatCoordinate(arc.center)),
   valueRow("半径", formatMillimeters(arc.radius)),
-  valueRow("始角度", formatAngleDeg(arc.startAngleDeg)),
-  valueRow("終角度", formatAngleDeg(arc.endAngleDeg)),
-  valueRow("スイープ", `${formatNumber(arc.sweepAngleDeg)}°`),
+  valueRow(propertyLabels.startAngleDeg, formatAngleDeg(canonicalAngle(arc, "startAngleDeg"))),
+  valueRow(propertyLabels.endAngleDeg, formatAngleDeg(canonicalAngle(arc, "endAngleDeg"))),
+  valueRow(propertyLabels.startRadiusAngleDeg, formatAngleDeg(canonicalAngle(arc, "startRadiusAngleDeg"))),
+  valueRow(propertyLabels.endRadiusAngleDeg, formatAngleDeg(canonicalAngle(arc, "endRadiusAngleDeg"))),
+  valueRow(propertyLabels.sweepAngleDeg, `${formatNumber(arc.sweepAngleDeg)}°`),
   valueRow("進行方向", arc.sweepAngleDeg > 0 ? "反時計回り" : arc.sweepAngleDeg < 0 ? "時計回り" : "なし"),
   valueRow("長さ", formatMillimeters(arc.length)),
   valueRow("始点", formatCoordinate(arc.start)),
@@ -140,8 +140,8 @@ const bezierHoverTable = (curve: ComputedBezierCurve): GeometryHoverTable | unde
     "P0",
     formatCoordinate(first.start),
     "—",
-    formatAngleDeg(curve.startHandleAngleDeg),
-    formatMillimeters(curve.startHandleLength)
+    formatAngleDeg(computedReferencePathValue(curve, "startHandleAngleDeg")),
+    formatMillimeters(computedReferencePathValue(curve, "startHandleLength") ?? 0)
   ]];
 
   for (let index = 1; index < curve.segments.length; index += 1) {
@@ -160,13 +160,13 @@ const bezierHoverTable = (curve: ComputedBezierCurve): GeometryHoverTable | unde
   rows.push([
     `P${curve.segments.length}`,
     formatCoordinate(last.end),
-    formatMillimeters(curve.endHandleLength),
-    formatAngleDeg(curve.endHandleAngleDeg),
+    formatMillimeters(computedReferencePathValue(curve, "endHandleLength") ?? 0),
+    formatAngleDeg(computedReferencePathValue(curve, "endHandleAngleDeg")),
     "—"
   ]);
 
   return {
-    headers: ["Anchor", "Position", "← In", "Angle", "Out →"],
+    headers: ["Anchor", "Position", "← In", "Handle angle", "Out →"],
     rows
   };
 };
@@ -181,6 +181,8 @@ const offsetHoverRows = (
   evaluation: EvaluationResult
 ): GeometryHoverRow[] => [
   valueRow("長さ", formatMillimeters(line.length)),
+  valueRow(propertyLabels.startAngleDeg, formatAngleDeg(canonicalAngle(line, "startAngleDeg"))),
+  valueRow(propertyLabels.endAngleDeg, formatAngleDeg(canonicalAngle(line, "endAngleDeg"))),
   valueRow("始点", line.start ? formatCoordinate(line.start) : "未定義"),
   valueRow("終点", line.end ? formatCoordinate(line.end) : "未定義"),
   ...(line.offsetDistance === undefined
@@ -202,6 +204,8 @@ const offsetHoverRows = (
 
 const polylineHoverRows = (line: ComputedPolyline): GeometryHoverRow[] => [
   valueRow("長さ", formatMillimeters(line.length)),
+  valueRow(propertyLabels.startAngleDeg, formatAngleDeg(canonicalAngle(line, "startAngleDeg"))),
+  valueRow(propertyLabels.endAngleDeg, formatAngleDeg(canonicalAngle(line, "endAngleDeg"))),
   valueRow("始点", formatCoordinate(line.start)),
   valueRow("終点", formatCoordinate(line.end)),
   ...(line.closed ? [valueRow("閉じる", "はい")] : [])
@@ -226,7 +230,11 @@ const geometryHoverAvailability = (
   if (geometry.kind === "bezierCurve") {
     return {
       kind: "geometry",
-      rows: [valueRow("長さ", formatMillimeters(geometry.length))],
+      rows: [
+        valueRow("長さ", formatMillimeters(geometry.length)),
+        valueRow(propertyLabels.startAngleDeg, formatAngleDeg(canonicalAngle(geometry, "startAngleDeg"))),
+        valueRow(propertyLabels.endAngleDeg, formatAngleDeg(canonicalAngle(geometry, "endAngleDeg")))
+      ],
       table: bezierHoverTable(geometry)
     };
   }

@@ -1,4 +1,5 @@
 import type { NumericMeasurementKey } from "./numericExpressions";
+import { computedReferencePathValue } from "./numericExpressions";
 import { propertyLabels } from "./numericExpressionProperties";
 import {
   numericReferencePropertiesForGeometry,
@@ -30,8 +31,8 @@ export const formatCoordinate = (point: ComputedPoint) =>
 
 const normalizeDegrees = (degrees: number) => (degrees + 360) % 360;
 
-export const formatAngleDeg = (degrees: number | null) =>
-  degrees === null ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
+export const formatAngleDeg = (degrees: number | null | undefined) =>
+  degrees === null || degrees === undefined ? "未定義" : `${formatNumber(normalizeDegrees(degrees))}°`;
 
 export const numericReferenceProperties = (
   geometry: NumericReferenceGeometry
@@ -46,46 +47,18 @@ export const numericReferenceValue = (
   geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
   property: NumericMeasurementKey
 ) => {
-  if (property === "length") return formatMillimeters(geometry.length);
-  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "startAngleDeg") {
-    return formatAngleDeg(geometry.startAngleDeg);
-  }
-  if ((geometry.kind === "line" || geometry.kind === "arcLine") && property === "endAngleDeg") {
-    return formatAngleDeg(geometry.endAngleDeg);
-  }
-  if (property === "startTangentAngleDeg") {
-    return formatAngleDeg(geometry.startTangentAngleDeg);
-  }
-  if (property === "endTangentAngleDeg") {
-    return formatAngleDeg(geometry.endTangentAngleDeg);
-  }
-  if (geometry.kind === "bezierCurve" && property === "startHandleAngleDeg") {
-    return formatAngleDeg(geometry.startHandleAngleDeg);
-  }
-  if (geometry.kind === "bezierCurve" && property === "startHandleLength") {
-    return formatMillimeters(geometry.startHandleLength);
-  }
-  if (geometry.kind === "bezierCurve" && property === "endHandleAngleDeg") {
-    return formatAngleDeg(geometry.endHandleAngleDeg);
-  }
-  if (geometry.kind === "bezierCurve" && property === "endHandleLength") {
-    return formatMillimeters(geometry.endHandleLength);
-  }
+  const value = computedReferencePathValue(geometry, property);
+  if (value === undefined) return "未定義";
+  if (property === "sweepAngleDeg") return `${formatNumber(value)}°`;
+  if (property.toLowerCase().includes("angle") || property.endsWith("Deg")) return formatAngleDeg(value);
+  if (property === "length" || property === "radius" || property.endsWith("Length")) return formatMillimeters(value);
   return "";
 };
 
 export const numericReferenceLabel = (
   geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
   property: NumericMeasurementKey
-) => {
-  if (geometry.kind === "arcLine" && property === "startAngleDeg") return "始トリム角度";
-  if (geometry.kind === "arcLine" && property === "endAngleDeg") return "終トリム角度";
-  if (property === "startTangentAngleDeg") return "始接線角度";
-  if (property === "endTangentAngleDeg") return "終接線角度";
-  if (geometry.kind === "line" && property === "startAngleDeg") return "始接線角度";
-  if (geometry.kind === "line" && property === "endAngleDeg") return "終接線角度";
-  return propertyLabels[property];
-};
+) => propertyLabels[property];
 
 export const pointCoordinateRows = (point: ComputedPoint): GeometryInfoRow[] => [
   { label: "座標", value: formatCoordinate(point) }
@@ -94,8 +67,8 @@ export const pointCoordinateRows = (point: ComputedPoint): GeometryInfoRow[] => 
 export const lineInfoRows = (line: ComputedLine): GeometryInfoRow[] => [
   { label: "始点", value: formatCoordinate(line.start) },
   { label: "終点", value: formatCoordinate(line.end) },
-  { label: "始接線角度", value: formatAngleDeg(line.startTangentAngleDeg) },
-  { label: "終接線角度", value: formatAngleDeg(line.endTangentAngleDeg) },
+  { label: propertyLabels.startAngleDeg, value: numericReferenceValue(line, "startAngleDeg") },
+  { label: propertyLabels.endAngleDeg, value: numericReferenceValue(line, "endAngleDeg") },
   { label: "長さ", value: formatMillimeters(line.length) }
 ];
 
@@ -104,10 +77,11 @@ export const arcLineInfoRows = (arc: ComputedArcLine): GeometryInfoRow[] => [
   { label: "始点", value: formatCoordinate(arc.start) },
   { label: "終点", value: formatCoordinate(arc.end) },
   { label: "半径", value: formatMillimeters(arc.radius) },
-  { label: "始トリム角度", value: formatAngleDeg(arc.startAngleDeg) },
-  { label: "終トリム角度", value: formatAngleDeg(arc.endAngleDeg) },
-  { label: "始接線角度", value: formatAngleDeg(arc.startTangentAngleDeg) },
-  { label: "終接線角度", value: formatAngleDeg(arc.endTangentAngleDeg) },
+  { label: propertyLabels.startAngleDeg, value: numericReferenceValue(arc, "startAngleDeg") },
+  { label: propertyLabels.endAngleDeg, value: numericReferenceValue(arc, "endAngleDeg") },
+  { label: propertyLabels.startRadiusAngleDeg, value: numericReferenceValue(arc, "startRadiusAngleDeg") },
+  { label: propertyLabels.endRadiusAngleDeg, value: numericReferenceValue(arc, "endRadiusAngleDeg") },
+  { label: propertyLabels.sweepAngleDeg, value: numericReferenceValue(arc, "sweepAngleDeg") },
   { label: "長さ", value: formatMillimeters(arc.length) }
 ];
 
@@ -116,12 +90,12 @@ export const bezierCurveInfoRows = (curve: ComputedBezierCurve): GeometryInfoRow
   return [
     { label: "始点", value: endpoints.start ? formatCoordinate(endpoints.start) : "未定義" },
     { label: "終点", value: endpoints.end ? formatCoordinate(endpoints.end) : "未定義" },
-    { label: "始接線角度", value: formatAngleDeg(curve.startTangentAngleDeg) },
-    { label: "終接線角度", value: formatAngleDeg(curve.endTangentAngleDeg) },
-    { label: "始点角度", value: formatAngleDeg(curve.startHandleAngleDeg) },
-    { label: "始点ハンドル長", value: formatMillimeters(curve.startHandleLength) },
-    { label: "終点角度", value: formatAngleDeg(curve.endHandleAngleDeg) },
-    { label: "終点ハンドル長", value: formatMillimeters(curve.endHandleLength) },
+    { label: propertyLabels.startAngleDeg, value: numericReferenceValue(curve, "startAngleDeg") },
+    { label: propertyLabels.endAngleDeg, value: numericReferenceValue(curve, "endAngleDeg") },
+    { label: propertyLabels.startHandleAngleDeg, value: numericReferenceValue(curve, "startHandleAngleDeg") },
+    { label: propertyLabels.startHandleLength, value: numericReferenceValue(curve, "startHandleLength") },
+    { label: propertyLabels.endHandleAngleDeg, value: numericReferenceValue(curve, "endHandleAngleDeg") },
+    { label: propertyLabels.endHandleLength, value: numericReferenceValue(curve, "endHandleLength") },
     { label: "長さ", value: formatMillimeters(curve.length) }
   ];
 };
@@ -129,8 +103,8 @@ export const bezierCurveInfoRows = (curve: ComputedBezierCurve): GeometryInfoRow
 export const offsetLineInfoRows = (line: ComputedOffsetLine): GeometryInfoRow[] => [
   { label: "始点", value: line.start ? formatCoordinate(line.start) : "未定義" },
   { label: "終点", value: line.end ? formatCoordinate(line.end) : "未定義" },
-  { label: "始接線角度", value: formatAngleDeg(line.startTangentAngleDeg) },
-  { label: "終接線角度", value: formatAngleDeg(line.endTangentAngleDeg) },
+  { label: propertyLabels.startAngleDeg, value: numericReferenceValue(line, "startAngleDeg") },
+  { label: propertyLabels.endAngleDeg, value: numericReferenceValue(line, "endAngleDeg") },
   { label: "長さ", value: formatMillimeters(line.length) },
   ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
 ];
@@ -138,8 +112,8 @@ export const offsetLineInfoRows = (line: ComputedOffsetLine): GeometryInfoRow[] 
 export const polylineInfoRows = (line: ComputedPolyline): GeometryInfoRow[] => [
   { label: "始点", value: formatCoordinate(line.start) },
   { label: "終点", value: formatCoordinate(line.end) },
-  { label: "始接線角度", value: formatAngleDeg(line.startTangentAngleDeg) },
-  { label: "終接線角度", value: formatAngleDeg(line.endTangentAngleDeg) },
+  { label: propertyLabels.startAngleDeg, value: numericReferenceValue(line, "startAngleDeg") },
+  { label: propertyLabels.endAngleDeg, value: numericReferenceValue(line, "endAngleDeg") },
   { label: "長さ", value: formatMillimeters(line.length) },
   ...(line.closed ? [{ label: "閉じる", value: "はい" }] : [])
 ];

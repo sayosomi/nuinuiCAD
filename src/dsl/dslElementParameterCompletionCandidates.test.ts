@@ -55,7 +55,8 @@ describe("dslElementParameterCompletionOptions", () => {
     });
     const paths = options.map((option) => option.path);
     expect(paths).toContain("length");
-    expect(paths).toContain("startTangentAngleDeg");
+    expect(paths).toContain("startAngleDeg");
+    expect(paths).not.toContain("startTangentAngleDeg");
   });
 
   it("excludes a later statement (forward reference / cursor position)", () => {

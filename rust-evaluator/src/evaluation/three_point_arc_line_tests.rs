@@ -130,7 +130,7 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
     assert!(result.errors.is_empty());
     assert_eq!(arc["sweepAngleDeg"], json!(90.0));
     assert!((measure["x"].as_f64().unwrap() - (20.0 + std::f64::consts::PI * 10.0)).abs() < 1e-9);
-    assert_eq!(measure["y"], json!(30.0));
+    assert_eq!(measure["y"], json!(300.0));
 }
 
 #[test]

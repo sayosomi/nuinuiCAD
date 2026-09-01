@@ -466,7 +466,7 @@ describe("command-line session commands", () => {
     useCadUiStore.setState({
       activeNumericReferencePickTarget: {
         ...useCadUiStore.getState().activeNumericReferencePickTarget!,
-        property: "endTangentAngleDeg"
+        property: "endAngleDeg"
       }
     });
 
@@ -479,7 +479,7 @@ describe("command-line session commands", () => {
     });
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
       parameterKey: "y",
-      property: "endTangentAngleDeg"
+      property: "endAngleDeg"
     });
   });
 

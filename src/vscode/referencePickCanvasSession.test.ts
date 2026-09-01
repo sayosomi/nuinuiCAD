@@ -423,8 +423,6 @@ describe("VS Code Canvas reference pick session bridge", () => {
         "length",
         "startAngleDeg",
         "endAngleDeg",
-        "startTangentAngleDeg",
-        "endTangentAngleDeg",
         "startPoint.x",
         "startPoint.y",
         "endPoint.x",

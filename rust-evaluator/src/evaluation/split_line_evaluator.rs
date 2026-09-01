@@ -9,6 +9,7 @@ use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
 use super::math::{arc_tangent_angles, normalize_degrees};
 use super::offset_projection::project_point_onto_offset_segment;
+use super::offset_types::offset_line_endpoint_measurements_from_values;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
 use super::types::{
     element_id, element_name, insert_geometry, EvaluationState, Point as ComputedPoint,
@@ -897,6 +898,12 @@ fn split_offset_line_geometry(
         .flatten()
         .map(offset_segment_length)
         .sum::<f64>());
+    let (near_start, near_end, near_start_tangent, near_end_tangent) =
+        offset_line_endpoint_measurements_from_values(&near_segments);
+    near["start"] = near_start;
+    near["end"] = near_end;
+    near["startTangentAngleDeg"] = near_start_tangent;
+    near["endTangentAngleDeg"] = near_end_tangent;
     let mut far = line.clone();
     far["elementId"] = json!(split_line_id);
     far["name"] = json!(split_line_name);
@@ -908,6 +915,12 @@ fn split_offset_line_geometry(
         .flatten()
         .map(offset_segment_length)
         .sum::<f64>());
+    let (far_start, far_end, far_start_tangent, far_end_tangent) =
+        offset_line_endpoint_measurements_from_values(&far_segments);
+    far["start"] = far_start;
+    far["end"] = far_end;
+    far["startTangentAngleDeg"] = far_start_tangent;
+    far["endTangentAngleDeg"] = far_end_tangent;
     SplitGeometryResult::Split(SplitResult { near, far })
 }
 

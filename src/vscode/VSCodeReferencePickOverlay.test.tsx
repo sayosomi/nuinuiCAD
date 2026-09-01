@@ -165,7 +165,7 @@ const numericLineCandidate: ReferencePickCandidate = {
     kind: "numericProperty",
     label: "Base",
     reference: { base: "Base" },
-    properties: ["length", "startTangentAngleDeg"]
+    properties: ["length", "startAngleDeg"]
   }]
 };
 
@@ -319,7 +319,7 @@ describe("VSCodeReferencePickOverlay", () => {
 
     fireEvent.keyDown(window, { key: "ArrowDown" });
     fireEvent.keyDown(window, { key: "Enter" });
-    expect(onSelectNumericProperty).toHaveBeenCalledWith("startTangentAngleDeg");
+    expect(onSelectNumericProperty).toHaveBeenCalledWith("startAngleDeg");
     expect(screen.queryByRole("listbox", { name: "Reference Pick numeric properties" })).toBeNull();
 
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });

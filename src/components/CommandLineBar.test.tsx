@@ -1277,13 +1277,13 @@ describe("CommandLineBar", () => {
     fireEvent.select(input);
     const listbox = screen.getByRole("listbox", { name: "変数候補" });
     expect(listbox).toHaveTextContent("length");
-    expect(listbox).toHaveTextContent("startTangentAngleDeg");
+    expect(listbox).toHaveTextContent("startAngleDeg");
 
     fireEvent.change(input, { target: { value: "直線AB.st" } });
     input.setSelectionRange(9, 9);
     fireEvent.select(input);
     const narrowed = screen.getByRole("listbox", { name: "変数候補" });
-    expect(narrowed).toHaveTextContent("startTangentAngleDeg");
+    expect(narrowed).toHaveTextContent("startAngleDeg");
     expect(narrowed).not.toHaveTextContent("length");
   });
 

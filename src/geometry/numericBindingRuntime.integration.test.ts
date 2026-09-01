@@ -111,7 +111,7 @@ describe("general numeric typed binding runtime", () => {
       expect(result.errors).toEqual([
         expect.objectContaining({
           elementId: a.id,
-          message: `A の数値式を評価できません。A はこの要素より後にあるか、存在しません。`
+          message: "A の数値式を評価できません。A.length はこのgeometry targetでは公開されていません。"
         })
       ]);
     });

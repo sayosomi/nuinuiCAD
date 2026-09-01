@@ -335,8 +335,8 @@ describe("dslCompletionContextAt", () => {
     });
 
     it("offers elementParameter narrowing inside an intermediates=[...] numeric field", () => {
-      const line = "curve C = bezier(start: A, end: B, intermediates: [pt1:@直線AB.startTangentAngleDeg:5:5:id1])";
-      const context = dslCompletionContextAt(line, at(line, "直線AB.startTangentAngleDeg"));
+      const line = "curve C = bezier(start: A, end: B, intermediates: [pt1:@直線AB.startPoint.x:5:5:id1])";
+      const context = dslCompletionContextAt(line, at(line, "直線AB.startPoint.x"));
       expect(context).toMatchObject({
         kind: "elementParameter",
         elementToken: "直線AB"

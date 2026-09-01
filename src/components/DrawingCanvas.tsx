@@ -10,6 +10,7 @@ import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
 import type { CanvasRectangleSelectionUpdateMode } from "../commands/canvasRectangleSelectionCommands";
 import { numericReferencePropertiesForGeometry } from "../geometry/numericReferenceProperties";
+import { numericGeometryStaticTargetForElementInDocument } from "../geometry/numericGeometryProperties";
 import { pickCandidates, pickSourcePrecedesTarget } from "../model/pickCandidates";
 import { isSemanticGeometryCandidateAllowed } from "../model/moduleSemanticCandidateBoundary";
 import { pickRefForOption, pickRefKey } from "../model/pickReferences";
@@ -835,12 +836,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       lines: overlayNumericReferenceCandidates.filter(({ line: candidate }) => !previewElementIds.has(candidate.elementId))
     })) {
       if (!isPickableForNumericReference(line.elementId)) continue;
-      for (const property of numericReferencePropertiesForGeometry(line)) {
+      const sourceElement = elements.find((element) => element.id === line.elementId);
+      for (const property of numericReferencePropertiesForGeometry(
+        line,
+        sourceElement
+          ? numericGeometryStaticTargetForElementInDocument(sourceElement, elements)
+          : undefined
+      )) {
         uniqueCandidates.set(`${line.elementId}:${property}`, { line, property });
       }
     }
     return Array.from(uniqueCandidates.values());
-  }, [activeNumericReferencePickTarget, isPickableForNumericReference, overlayNumericReferenceCandidates, previewElementIds]);
+  }, [activeNumericReferencePickTarget, elements, isPickableForNumericReference, overlayNumericReferenceCandidates, previewElementIds]);
 
   const applyPendingPointerTransition = useCallback((transition: PendingCanvasPointerTransition) => {
     pendingPointerStateRef.current = transition.state;

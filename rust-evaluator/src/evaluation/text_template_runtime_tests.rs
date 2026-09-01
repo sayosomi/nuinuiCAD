@@ -42,6 +42,44 @@ fn text_element(id: &str) -> Value {
     })
 }
 
+fn free_point(id: &str, name: &str, x: f64, y: f64) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "type": "freePoint",
+        "activity": "visible",
+        "x": x,
+        "y": y
+    })
+}
+
+fn line_element(id: &str, name: &str, start_id: &str, end_id: &str) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "type": "line",
+        "activity": "visible",
+        "startPoint": {"mode": "reference", "pointId": start_id},
+        "endPoint": {"mode": "reference", "pointId": end_id}
+    })
+}
+
+fn bezier_element(id: &str, name: &str, start_id: &str, end_id: &str) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "type": "bezierCurve",
+        "activity": "visible",
+        "startPoint": {"mode": "reference", "pointId": start_id},
+        "startHandleAngleDeg": 0,
+        "startHandleLength": 20,
+        "intermediatePoints": [],
+        "endPoint": {"mode": "reference", "pointId": end_id},
+        "endHandleAngleDeg": 180,
+        "endHandleLength": 20
+    })
+}
+
 fn literal_segment(cooked: &str) -> Value {
     json!({"kind": "literal", "cooked": cooked})
 }
@@ -154,6 +192,29 @@ fn assembles_a_literal_only_template_with_no_scalar_program() {
     ));
     assert!(result.errors.is_empty());
     assert_eq!(text_value(&result, "t"), "前身頃を2枚カット");
+}
+
+#[test]
+fn normalizes_unaffected_japanese_geometry_property_aliases_in_text_templates() {
+    let result = evaluate_document_input(input(
+        vec![
+            free_point("a", "A", 0.0, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            line_element("line", "直線AB", "a", "b"),
+            bezier_element("curve", "曲線AC", "a", "b"),
+            text_element("t"),
+        ],
+        None,
+        Some(json!([text_template_entry(
+            "t",
+            vec![numeric_expression_hole_segment(
+                "直線AB.長さ + 曲線AC.始点ハンドル長 + 曲線AC.終点ハンドル長",
+            )]
+        )])),
+        None,
+    ));
+    assert!(result.errors.is_empty());
+    assert_eq!(text_value(&result, "t"), "140");
 }
 
 #[test]

@@ -122,6 +122,25 @@ describe("typed geometry-property completion", () => {
     expect(result?.options.map((option) => option.label)).toContain("length");
   });
 
+  it("uses the static target surface even when a supported runtime value is undefined", async () => {
+    const fixture = compiledFixture();
+    const line = fixture.geometry.values().next().value!;
+    const degenerateGeometry = new Map(fixture.geometry);
+    degenerateGeometry.set(fixture.compiled.document!.elements.find((element) => element.name === "AB")!.id, {
+      ...line,
+      start: line.start,
+      end: line.start,
+      length: 0
+    });
+    const source = `${baseSource}\nconst direction: number = @AB.st`;
+    const result = await completionAt({ fixture, source, geometry: degenerateGeometry });
+    const labels = result?.options.map((option) => option.label) ?? [];
+    expect(labels).toContain("startAngleDeg");
+    expect(labels).toContain("endAngleDeg");
+    expect(labels).not.toContain("radius");
+    expect(labels.some((label) => label.startsWith("params."))).toBe(false);
+  });
+
   it("keeps @ binding completion separate and returns no properties for unsupported typed sites", async () => {
     const fixture = compiledFixture();
     const bindingResult = await completionAt({ fixture, source: `${baseSource}\nconst total: number = @` });

@@ -95,7 +95,7 @@ describe("geometry Hover runtime presentation", () => {
     expect(geometryHoverMarkdown(presentation)).toContain("**座標:** \\(1, 2\\)");
   });
 
-  it("shows line length, start-to-end angle and endpoints without duplicate tangent rows", () => {
+  it("shows line length, endpoint directions and endpoints without duplicate tangent rows", () => {
     const geometry: ComputedGeometry = {
       kind: "line",
       elementId: "base",
@@ -119,7 +119,8 @@ describe("geometry Hover runtime presentation", () => {
       kind: "geometry",
       rows: [
         { kind: "value", label: "長さ", value: "150 mm" },
-        { kind: "value", label: "角度", value: "90°" },
+        { kind: "value", label: "始点からパス内部への角度", value: "90°" },
+        { kind: "value", label: "終点からパス内部への角度", value: "270°" },
         { kind: "value", label: "始点", value: "(0, 0)" },
         { kind: "value", label: "終点", value: "(0, 150)" }
       ]
@@ -156,9 +157,11 @@ describe("geometry Hover runtime presentation", () => {
       rows: [
         { label: "中心点", value: "(0, 0)" },
         { label: "半径", value: "50 mm" },
-        { label: "始角度", value: "0°" },
-        { label: "終角度", value: "270°" },
-        { label: "スイープ", value: "-90°" },
+        { label: "始点からパス内部への角度", value: "270°" },
+        { label: "終点からパス内部への角度", value: "0°" },
+        { label: "中心から始点への角度", value: "0°" },
+        { label: "中心から終点への角度", value: "270°" },
+        { label: "スイープ角度", value: "-90°" },
         { label: "進行方向", value: "時計回り" },
         { label: "長さ", value: "78.54 mm" },
         { label: "始点", value: "(50, 0)" },
@@ -212,9 +215,13 @@ describe("geometry Hover runtime presentation", () => {
 
     expect(presentation.availability).toEqual({
       kind: "geometry",
-      rows: [{ kind: "value", label: "長さ", value: "70 mm" }],
+      rows: [
+        { kind: "value", label: "長さ", value: "70 mm" },
+        { kind: "value", label: "始点からパス内部への角度", value: "0°" },
+        { kind: "value", label: "終点からパス内部への角度", value: "180°" }
+      ],
       table: {
-        headers: ["Anchor", "Position", "← In", "Angle", "Out →"],
+        headers: ["Anchor", "Position", "← In", "Handle angle", "Out →"],
         rows: [
           ["P0", "(0, 0)", "—", "0°", "10 mm"],
           ["P1", "(30, 20)", "10 mm", "0°", "10 mm"],
@@ -222,7 +229,7 @@ describe("geometry Hover runtime presentation", () => {
         ]
       }
     });
-    expect(geometryHoverMarkdown(presentation)).toContain("| Anchor | Position | ← In | Angle | Out → |");
+    expect(geometryHoverMarkdown(presentation)).toContain("| Anchor | Position | ← In | Handle angle | Out → |");
   });
 
   it("shows offset result and operation context with a structured source reference", () => {
@@ -264,6 +271,8 @@ describe("geometry Hover runtime presentation", () => {
       kind: "geometry",
       rows: [
         { kind: "value", label: "長さ", value: "100 mm" },
+        { kind: "value", label: "始点からパス内部への角度", value: "未定義" },
+        { kind: "value", label: "終点からパス内部への角度", value: "未定義" },
         { kind: "value", label: "始点", value: "(0, 10)" },
         { kind: "value", label: "終点", value: "(100, 10)" },
         { kind: "value", label: "距離", value: "10 mm" },

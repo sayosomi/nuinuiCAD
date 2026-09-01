@@ -8,6 +8,13 @@ import type {
   ComputedPolyline
 } from "../types/geometry";
 import type { NumericMeasurementKey } from "./numericExpressionTypes";
+import {
+  NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES,
+  numericGeometryMeasurementPropertiesForStaticTarget,
+  numericGeometryStaticTargetForComputedGeometry,
+  numericGeometryStaticTargetForElement,
+  type NumericGeometryStaticTarget
+} from "./numericGeometryProperties";
 
 export type NumericReferenceGeometry =
   | ComputedLine
@@ -16,95 +23,38 @@ export type NumericReferenceGeometry =
   | ComputedOffsetLine
   | ComputedPolyline;
 
-export const numericReferencePickProperties: readonly NumericMeasurementKey[] = [
-  "length",
-  "startTangentAngleDeg",
-  "endTangentAngleDeg",
-  "startAngleDeg",
-  "endAngleDeg",
-  "startHandleAngleDeg",
-  "startHandleLength",
-  "endHandleAngleDeg",
-  "endHandleLength"
-];
+export const numericReferencePickProperties: readonly NumericMeasurementKey[] =
+  NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES;
 
 export const numericReferencePropertiesForGeometry = (
-  geometry: NumericReferenceGeometry
-): readonly NumericMeasurementKey[] => {
-  if (geometry.kind === "arcLine") {
-    return ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-
-  if (geometry.kind === "bezierCurve") {
-    return [
-      "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg",
-      "startHandleAngleDeg",
-      "startHandleLength",
-      "endHandleAngleDeg",
-      "endHandleLength"
-    ];
-  }
-
-  return ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
-};
+  geometry: NumericReferenceGeometry,
+  staticTarget?: NumericGeometryStaticTarget | null
+): readonly NumericMeasurementKey[] => numericGeometryMeasurementPropertiesForStaticTarget(
+  staticTarget === undefined ? numericGeometryStaticTargetForComputedGeometry(geometry) : staticTarget
+) as readonly NumericMeasurementKey[];
 
 export const numericReferencePropertiesForElement = (
-  element: CadElement
-): readonly NumericMeasurementKey[] => {
-  if (
-    element.type === "line" ||
-    element.type === "angleLengthLine" ||
-    element.type === "commonTangentLine" ||
-    element.type === "arcLine" ||
-    element.type === "threePointArcLine" ||
-    element.type === "cornerRadiusArcLine"
-  ) {
-    return ["length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-
-  if (element.type === "polyline") {
-    return ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-
-  if (element.type === "bezierCurve") {
-    return [
-      "length",
-      "startTangentAngleDeg",
-      "endTangentAngleDeg",
-      "startHandleAngleDeg",
-      "startHandleLength",
-      "endHandleAngleDeg",
-      "endHandleLength"
-    ];
-  }
-
-  if (
-    element.type === "offsetLine" ||
-    element.type === "copyLine" ||
-    element.type === "symmetricCopyLine"
-  ) {
-    return ["length", "startTangentAngleDeg", "endTangentAngleDeg"];
-  }
-
-  return [];
-};
+  element: CadElement,
+  options: { baseTarget?: NumericGeometryStaticTarget | null } = {}
+): readonly NumericMeasurementKey[] => numericGeometryMeasurementPropertiesForStaticTarget(
+  numericGeometryStaticTargetForElement(element, options)
+) as readonly NumericMeasurementKey[];
 
 export const numericReferenceGeometrySupportsProperty = (
   geometry: NumericReferenceGeometry,
-  property: NumericMeasurementKey
-) => numericReferencePropertiesForGeometry(geometry).includes(property);
+  property: NumericMeasurementKey,
+  staticTarget?: NumericGeometryStaticTarget | null
+) => numericReferencePropertiesForGeometry(geometry, staticTarget).includes(property);
 
 /**
  * Default measurement to start a numeric-reference pick on, before the user
  * cycles through `numericReferencePickProperties` (Left/Right). Angle-shaped
  * target parameters (recognized by their `stepLevels`) start on an angle
- * instead of always defaulting to length. "length" && "startTangentAngleDeg"
- * are both supported by every NumericReferenceGeometry kind (see
+ * instead of always defaulting to length. "length" and "startAngleDeg" are
+ * both supported by every NumericReferenceGeometry kind (see
  * numericReferencePropertiesForGeometry above), so either default is always a
  * valid starting candidate regardless of what geometry the user picks.
  */
 export const initialNumericReferencePickProperty = (
   stepLevels?: readonly number[]
-): NumericMeasurementKey => (stepLevels === angleNumericParameterStepLevels ? "startTangentAngleDeg" : "length");
+): NumericMeasurementKey => (stepLevels === angleNumericParameterStepLevels ? "startAngleDeg" : "length");

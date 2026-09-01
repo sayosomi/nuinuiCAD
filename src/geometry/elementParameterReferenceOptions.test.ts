@@ -84,8 +84,8 @@ describe("referenceablePathsForElement", () => {
     });
     const paths = referenceablePathsForElement(element, [element], evaluation).map((item) => item.path);
     expect(paths).toContain("length");
-    expect(paths).toContain("startTangentAngleDeg");
-    expect(paths).toContain("endTangentAngleDeg");
+    expect(paths).toContain("startAngleDeg");
+    expect(paths).toContain("endAngleDeg");
   });
 
   it("excludes a disabled element's saved params, even though the raw value would trivially evaluate", () => {
@@ -99,13 +99,11 @@ describe("referenceablePathsForElement", () => {
     expect(referenceablePathsForElement(element, [element], evaluation)).toEqual([]);
   });
 
-  it("includes an enabled forGroup's params.* paths despite it never getting a computedGeometry entry", () => {
+  it("does not expose params.* as authored geometry-property paths", () => {
     const element = forGroupElement("fg1", "forブロック1");
     const evaluation = baseEvaluation({ effectiveEnabledElementIds: new Set(["fg1"]) });
     const paths = referenceablePathsForElement(element, [element], evaluation).map((item) => item.path);
-    expect(paths).toContain("params.start");
-    expect(paths).toContain("params.count");
-    expect(paths).toContain("params.step");
+    expect(paths).toEqual([]);
   });
 
   it("never exposes a moduleInstance's stale geometry as an element-property reference", () => {
