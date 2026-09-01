@@ -10,11 +10,12 @@ import {
   cancelCommandLineStepEdit,
   cancelCommandLineSession,
   cancelStaleCommandLineSession,
+  clearCommandLineStepValue,
   confirmCommandLineSession,
   activateCommandLineStep,
   retreatCommandLineStep,
   skipCommandLineStep,
-  skipCommandLineStepsToReview,
+  skipCommandLineStepsToEnd,
   startCommandLineCreation,
   startCommandLineCreationForRecipe,
   startCommandLineStepEdit,
@@ -255,20 +256,17 @@ describe("command-line session commands", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
   });
 
-  it("skips all unfilled steps to review without committing or materializing values", () => {
+  it("skips all unfilled steps and commits without materializing blank values", () => {
     expect(startCommandLineCreation("freePoint")).toBe(true);
     submitCommandLineInput("");
     submitCommandLineInput("3");
     const before = useCadDocumentStore.getState();
 
-    expect(skipCommandLineStepsToReview()).toBe(true);
-    const session = useCadUiStore.getState().commandLineSession!;
-    expect(session.currentStepIndex).toBe(session.recipe.steps.length);
-    expect(session.args).toEqual({ x: 3 });
-    expect(session.args).not.toHaveProperty("y");
-    expect(useCadDocumentStore.getState().sourceText).toBe(before.sourceText);
-    expect(useCadDocumentStore.getState().past).toBe(before.past);
-    expect(useCadUiStore.getState().commandLineSession).not.toBeNull();
+    expect(skipCommandLineStepsToEnd()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().sourceText).not.toBe(before.sourceText);
+    expect(useCadDocumentStore.getState().past).toHaveLength(before.past.length + 1);
+    expect(useCadDocumentStore.getState().sourceText).toContain("x: 3");
   });
 
   it("commits an edited value through the ghost validation path without rewinding later args", () => {
@@ -339,6 +337,19 @@ describe("command-line session commands", () => {
       args: { endpoint: { lineId: line.id, endpointKey: "start" } }
     });
     expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("ratio");
+  });
+
+  it("clears a filled reference through the session command and resets its transient pick state", () => {
+    expect(startCommandLineCreation("line")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: { mode: "coordinate", x: 0, y: 0 } });
+    expect(activateCommandLineStep(1)).toBe(true);
+    useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 });
+
+    expect(clearCommandLineStepValue()).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({ currentStepIndex: 1, args: {} });
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({ parameterKey: "startPoint" });
+    expect(useCadUiStore.getState().activePickCursor).toBeNull();
   });
 
   it("does not save an empty return-pick state for a completed-session edit", () => {

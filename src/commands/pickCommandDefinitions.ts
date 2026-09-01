@@ -118,7 +118,7 @@ export const pickCommandDefinitions = {
     id: "applySelectedPickCandidate",
     label: "選択候補を確定",
     shortcuts: [{ keys: "Enter" }],
-    run: () => applySelectedPickCandidate()
+    run: (context) => applySelectedPickCandidate(context?.evaluation, context)
   },
   startPointPick: {
     id: "startPointPick",
@@ -170,7 +170,7 @@ export const pickCommandDefinitions = {
   finishLinePick: {
     id: "finishLinePick",
     label: "複数線の選択を完了",
-    run: () => finishLinePick()
+    run: (context) => finishLinePick(context)
   },
   cancelLinePick: {
     id: "cancelLinePick",

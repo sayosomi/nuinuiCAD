@@ -619,6 +619,25 @@ describe("DrawingCanvas rendering", () => {
     expect(pickingAdapter.clearCanvasSelection).not.toHaveBeenCalled();
   });
 
+  it("routes active Canvas pick keys through the shared pick command boundary", () => {
+    const dispatchCanvasPickCommand = vi.fn();
+    const { viewport } = renderWithHostAdapter({
+      activePointPickTarget: { elementId: "target", parameterKey: "point" },
+      dispatchCanvasPickCommand
+    });
+
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: "ArrowUp" });
+    fireEvent.keyDown(viewport, { key: "ArrowRight" });
+    fireEvent.keyDown(viewport, { key: "Enter" });
+    fireEvent.keyDown(viewport, { key: "Escape" });
+
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(1, "selectPreviousPickCandidate");
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(2, "selectNextPickOption");
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(3, "applySelectedPickCandidate");
+    expect(dispatchCanvasPickCommand).toHaveBeenNthCalledWith(4, "cancelPointPick");
+  });
+
   it("lets a host hide the shared fixed Canvas chrome", () => {
     const hostAdapter = createFakeCanvasHostAdapter({ renderFixedCanvasChrome: false });
     const view = render(createElement(DrawingCanvas, {

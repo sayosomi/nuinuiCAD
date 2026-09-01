@@ -395,7 +395,7 @@ export const setNumericReferencePickProperty = (context?: CommandContext) => {
   });
 };
 
-export const applyPickedNumericReference = (context?: Pick<CommandContext, "numericReferenceExpression">) => {
+export const applyPickedNumericReference = (context?: CommandContext) => {
   const numericExpression = context?.numericReferenceExpression;
   if (!numericExpression) return;
   const { activeNumericReferencePickTarget } = useCadUiStore.getState();
@@ -406,7 +406,7 @@ export const applyPickedNumericReference = (context?: Pick<CommandContext, "nume
   );
   if (commandLineStep?.kind === "number") {
     if (cancelStaleCommandLineSession()) return;
-    fillCommandLineCurrentStep(makeNumericExpression(numericExpression));
+    fillCommandLineCurrentStep(makeNumericExpression(numericExpression), context);
     return;
   }
   if (numericExpression.startsWith(`${activeNumericReferencePickTarget.elementId}.`)) return;
@@ -465,9 +465,10 @@ export const activePickCandidates = (currentEvaluation?: EvaluationResult) => {
   });
 };
 
-const applyPickOption = (option: PickOption) => {
+const applyPickOption = (option: PickOption, context?: CommandContext) => {
   if (option.kind === "point") {
     applyPickedPoint({
+      ...context,
       pickedPointAnchor: option.anchor,
       ...(option.sourceReference ? { pickedPointSourceReference: option.sourceReference } : {})
     });
@@ -475,19 +476,24 @@ const applyPickOption = (option: PickOption) => {
   }
   if (option.kind === "line") {
     applyPickedLine({
+      ...context,
       pickedLineId: option.lineId,
       ...(option.sourceReference ? { pickedLineSourceReference: option.sourceReference } : {})
     });
     return;
   }
-  applyPickedNumericReference({ numericReferenceExpression: option.expression });
+  applyPickedNumericReference({ ...context, numericReferenceExpression: option.expression });
 };
 
-export const applyPickReference = (ref: PickRef, currentEvaluation?: EvaluationResult) => {
+export const applyPickReference = (
+  ref: PickRef,
+  currentEvaluation?: EvaluationResult,
+  context?: CommandContext
+) => {
   if (cancelStaleCommandLineSession()) return false;
   const resolved = findPickOptionByRef(activePickCandidates(currentEvaluation), ref);
   if (!resolved) return false;
-  applyPickOption(resolved.option);
+  applyPickOption(resolved.option, context);
   return true;
 };
 
@@ -545,12 +551,15 @@ export const selectPickOptionByOffset = (offset: number, currentEvaluation?: Eva
   });
 };
 
-export const applySelectedPickCandidate = (currentEvaluation?: EvaluationResult) => {
+export const applySelectedPickCandidate = (
+  currentEvaluation?: EvaluationResult,
+  context?: CommandContext
+) => {
   const candidates = activePickCandidates(currentEvaluation);
   const selected = selectedPickOption(candidates, useCadUiStore.getState().activePickCursor);
   if (!selected) return;
 
-  applyPickOption(selected.option);
+  applyPickOption(selected.option, context);
 };
 
 export const startPointPick = (
@@ -647,7 +656,7 @@ export const startEndpointAndPointPick = (
   });
 };
 
-export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" | "pickedPointAnchor" | "pickedPointSourceReference">) => {
+export const applyPickedPoint = (context?: CommandContext) => {
   const anchor = context?.pickedPointAnchor ?? (context?.pickedPointId ? referenceAnchor(context.pickedPointId) : null);
   if (!anchor) return;
   const sourceReference = context?.pickedPointSourceReference;
@@ -694,7 +703,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
       });
       if (endpoint) {
         const sourceLineId = context?.pickedPointSourceReference?.base;
-        fillCommandLineCurrentStep(sourceLineId ? { ...endpoint, lineId: sourceLineId } : endpoint);
+        fillCommandLineCurrentStep(sourceLineId ? { ...endpoint, lineId: sourceLineId } : endpoint, context);
       }
       return;
     }
@@ -714,7 +723,7 @@ export const applyPickedPoint = (context?: Pick<CommandContext, "pickedPointId" 
     if (pickedAnchor.mode === "derived" && !elements.some((element) => element.id === pickedAnchor.elementId)) {
       return;
     }
-    fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor);
+    fillCommandLineCurrentStep(context?.pickedPointSourceReference ? sourceAnchor : pickedAnchor, context);
     return;
   }
   if (activePointPickTarget.measurementSlot) {
@@ -926,7 +935,7 @@ export const startLineAndPointPick = (
   });
 };
 
-export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | "pickedLineSourceReference">) => {
+export const applyPickedLine = (context?: CommandContext) => {
   const pickedLineId = context?.pickedLineId;
   if (!pickedLineId) return;
   const sourceReferenceToken = sourceReferenceText(context?.pickedLineSourceReference ?? null);
@@ -961,7 +970,7 @@ export const applyPickedLine = (context?: Pick<CommandContext, "pickedLineId" | 
       : null;
     if (!normalizedPickedLineId || !pickedLine || !isLineLikeElement(pickedLine)) return;
     if (commandLineStep.kind === "line") {
-      fillCommandLineCurrentStep(sourceReferenceToken ?? normalizedPickedLineId);
+      fillCommandLineCurrentStep(sourceReferenceToken ?? normalizedPickedLineId, context);
       return;
     }
     const draftLineIds = activeLinePickTarget.draftLineIds ?? [];
@@ -1073,7 +1082,7 @@ export const cancelLinePick = () => {
   useCadUiStore.getState().setActiveLinePickTarget(null);
 };
 
-export const finishLinePick = () => {
+export const finishLinePick = (context?: CommandContext) => {
   const { activeLinePickTarget } = useCadUiStore.getState();
   if (!activeLinePickTarget || activeLinePickTarget.draftLineIds === undefined) return;
   const commandLineStep = commandLineStepForPickTarget(
@@ -1082,7 +1091,7 @@ export const finishLinePick = () => {
   );
   if (commandLineStep?.kind === "lineList") {
     if (cancelStaleCommandLineSession()) return;
-    fillCommandLineCurrentStep(activeLinePickTarget.draftLineIds);
+    fillCommandLineCurrentStep(activeLinePickTarget.draftLineIds, context);
     return;
   }
   const { elements } = useCadDocumentStore.getState();

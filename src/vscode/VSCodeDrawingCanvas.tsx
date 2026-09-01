@@ -372,8 +372,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
       focusCanvas: () => canvasFocusRef.current?.focus(),
       clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
-      clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation()
-    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth]);
+      clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
+      postCanonicalSourceText,
+      completeCommandLineSession: true
+    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanonicalSourceText]);
 
     useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
     useEffect(() => {
@@ -507,10 +509,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.moveBezierHandleByDelta(action),
       applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {
+        ...creationCommandContext,
         numericReferenceExpression
       }),
       applyNumericExpressionReference: (action) => dispatchCommand("applyNumericExpressionReference", action),
-      applyPickedLine: (action) => dispatchCommand("applyPickedLine", action),
+      applyPickedLine: (action) => dispatchCommand("applyPickedLine", {
+        ...creationCommandContext,
+        ...action
+      }),
       applyPickedPoint: (action) => {
         const currentTarget = useCadUiStore.getState().activePointPickTarget;
         if (coordinatePointConversionSession && isCoordinatePointConversionPickTarget(currentTarget)) {
@@ -524,8 +530,14 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
           if (baseKey) selectCoordinatePointConversionBase(baseKey);
           return;
         }
-        return dispatchCommand("applyPickedPoint", action);
+        return dispatchCommand("applyPickedPoint", {
+          ...creationCommandContext,
+          ...action
+        });
       },
+      dispatchCanvasPickCommand: (commandId) => coordinatePointConversionSession
+        ? false
+        : dispatchCommand(commandId, creationCommandContext),
       filterPointPickCandidates: coordinatePointConversionSession &&
         isCoordinatePointConversionPickTarget(activePointPickTarget)
         ? (candidates) => candidates

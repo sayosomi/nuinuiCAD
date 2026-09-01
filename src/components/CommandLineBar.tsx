@@ -13,7 +13,7 @@ import {
   skipCommandLineStep,
   startCommandLineStepEdit,
   startCommandLineNumericReferencePick,
-  skipCommandLineStepsToReview,
+  skipCommandLineStepsToEnd,
   submitCommandLineInput
 } from "../commands/commandLineSessionCommands";
 import { currentStep, isEditingCommandLineStep } from "../commands/commandLineSession";
@@ -456,7 +456,7 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
         ) {
           event.preventDefault();
           clearPendingSuggestionState();
-          skipCommandLineStepsToReview();
+          skipCommandLineStepsToEnd(commandContext);
           return;
         }
         if (step?.kind === "number" && numberSuggestionsOpen) {

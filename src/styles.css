@@ -4589,7 +4589,6 @@ textarea {
 
 .vscode-creation-assist-header,
 .vscode-creation-assist-title,
-.vscode-creation-assist-entry-actions,
 .vscode-creation-assist-actions,
 .vscode-creation-assist-restart-copy {
   display: flex;
@@ -4614,7 +4613,6 @@ textarea {
 
 .vscode-creation-assist-title span,
 .vscode-creation-assist-help,
-.vscode-creation-assist-review span,
 .vscode-creation-assist-selection-count {
   color: var(--vscode-creation-muted);
   font-size: 12px;
@@ -4696,6 +4694,18 @@ textarea {
   white-space: nowrap;
 }
 
+.vscode-creation-assist-step-filled {
+  display: grid;
+  flex: 0 0 16px;
+  place-items: center;
+  width: 16px;
+  min-height: 16px;
+  color: var(--vscode-testing-iconPassed, #89d185);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .vscode-creation-assist-step-copy strong {
   font-size: 11px;
 }
@@ -4718,15 +4728,13 @@ textarea {
   min-width: 0;
 }
 
-.vscode-creation-assist-entry,
-.vscode-creation-assist-review {
+.vscode-creation-assist-entry {
   display: grid;
   min-width: 0;
   gap: 5px;
 }
 
-.vscode-creation-assist-entry label,
-.vscode-creation-assist-review strong {
+.vscode-creation-assist-entry label {
   font-size: 13px;
   font-weight: 700;
 }
@@ -4814,18 +4822,13 @@ textarea {
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
-.vscode-creation-assist-entry-actions,
 .vscode-creation-assist-actions {
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.vscode-creation-assist-entry-actions {
-  margin-top: 2px;
-}
-
 .vscode-creation-assist-actions > button,
-.vscode-creation-assist-entry-actions > button {
+.vscode-creation-assist-actions > button {
   min-height: 30px;
   border: 1px solid var(--vscode-button-border, var(--vscode-creation-border));
   border-radius: 3px;
@@ -4836,12 +4839,12 @@ textarea {
 }
 
 .vscode-creation-assist-actions > button:hover:not(:disabled),
-.vscode-creation-assist-entry-actions > button:hover:not(:disabled) {
+.vscode-creation-assist-actions > button:hover:not(:disabled) {
   background: var(--vscode-creation-hover);
 }
 
 .vscode-creation-assist-actions > button:disabled,
-.vscode-creation-assist-entry-actions > button:disabled {
+.vscode-creation-assist-actions > button:disabled {
   cursor: default;
   opacity: 0.55;
 }
