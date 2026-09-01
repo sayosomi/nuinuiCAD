@@ -5167,6 +5167,31 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(arc.length).toBeCloseTo((Math.PI * 10) / 2);
   });
 
+  it.each([0, -10])("rejects a direct arc line with radius %s without computed geometry", (radius) => {
+    const result = evaluateElements([
+      validElements[0],
+      {
+        id: "arc",
+        name: "非正円弧",
+        type: "arcLine",
+        activity: "visible",
+        centerPoint: { mode: "reference", pointId: "a" },
+        radius,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      }
+    ]);
+
+    expect(result.computedGeometry.has("arc")).toBe(false);
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        elementId: "arc",
+        missingDependencyId: "arc",
+        message: "非正円弧 の半径は0より大きい値で指定してください。"
+      })
+    ]);
+  });
+
   it("evaluates an arc line that wraps past 360 degrees", () => {
     const result = evaluateElements([
       validElements[0],

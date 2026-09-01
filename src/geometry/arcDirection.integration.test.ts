@@ -108,6 +108,39 @@ describe("nui1 concrete arc direction", () => {
     expect(computedArc(evaluate(counterclockwise), ccwArc.id).sweepAngleDeg).toBe(360);
   });
 
+  it.each([0, -10])("rejects a direct arc with a non-positive radius and makes runtime properties unavailable", (radius) => {
+    const compiled = compile([
+      "nui 1",
+      `arc A = arc(center: (0, 0), radius: ${radius}, start: 0, end: 90)`,
+      "const radiusValue: number = @A.radius",
+      "const lengthValue: number = @A.length",
+      "const startX: number = @A.startPoint.x",
+      "const centerX: number = @A.centerPoint.x"
+    ].join("\n"));
+    const arc = arcByName(compiled, "A");
+    const evaluation = evaluate(compiled);
+
+    expect(evaluation.computedGeometry.has(arc.id)).toBe(false);
+    expect(evaluation.errors).toEqual([
+      expect.objectContaining({
+        elementId: arc.id,
+        missingDependencyId: arc.id,
+        message: "A の半径は0より大きい値で指定してください。"
+      })
+    ]);
+
+    for (const name of ["radiusValue", "lengthValue", "startX", "centerX"]) {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, `missing binding ${name}`).toBeDefined();
+      expect(evaluation.computedScalarBindings?.get(binding!.id)).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-geometry-property-unavailable"
+      });
+    }
+  });
+
   it("keeps direction exclusive to concrete arc(...) construction", () => {
     expect(constructionFor("arc", "arc")?.args.map((arg) => arg.arg)).toContain("direction");
     expect(constructionFor("arc", "through")?.args.map((arg) => arg.arg)).not.toContain("direction");
