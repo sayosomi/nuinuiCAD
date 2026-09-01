@@ -146,7 +146,7 @@ pub(crate) fn evaluate_text(
     ) else {
         return;
     };
-    if !(font_size > 0.0) {
+    if font_size.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         state.errors.push(geometry_error(
             element,
             format!(
