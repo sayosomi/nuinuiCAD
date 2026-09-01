@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   evaluatePreparedRust,
   type RustEvaluationTransport
@@ -8,12 +8,18 @@ import type { EvaluationResult } from "../types/geometry";
 import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "./multiDocumentRuntimeTransport";
 
 type RuntimeEvaluation = {
-  snapshot: VscodeMultiDocumentCanvasRuntimeSnapshot;
+  request: RuntimeEvaluationRequest;
   evaluation: EvaluationResult;
   status: "ready" | "failed";
   error: unknown | null;
+};
+
+type RuntimeEvaluationRequest = {
+  snapshot: VscodeMultiDocumentCanvasRuntimeSnapshot;
   requestRevision: number;
 };
+
+let nextRuntimeEvaluationRequestRevision = 1;
 
 const emptyRuntimeEvaluation = (
   elements: readonly unknown[],
@@ -41,7 +47,6 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
   transport: RustEvaluationTransport
 ): EvaluationEngineState => {
   const [completed, setCompleted] = useState<RuntimeEvaluation | null>(null);
-  const requestRevisionRef = useRef(0);
   const emptyEvaluation = useMemo(
     () => snapshot
       ? emptyRuntimeEvaluation(
@@ -51,38 +56,41 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
       : emptyRuntimeEvaluation([]),
     [snapshot]
   );
+  const request = useMemo<RuntimeEvaluationRequest | null>(() => {
+    if (!snapshot) return null;
+    return {
+      snapshot,
+      requestRevision: nextRuntimeEvaluationRequestRevision++
+    };
+  }, [snapshot]);
 
   useEffect(() => {
-    if (!snapshot) {
-      return;
-    }
-    const requestRevision = ++requestRevisionRef.current;
+    if (!request) return;
+    const { snapshot: requestedSnapshot } = request;
     let cancelled = false;
-    void evaluatePreparedRust(snapshot.preparedRustEvaluation, transport)
+    void evaluatePreparedRust(requestedSnapshot.preparedRustEvaluation, transport)
       .then((evaluation) => {
         if (cancelled) return;
         setCompleted({
-          snapshot,
+          request,
           evaluation,
           status: "ready",
-          error: null,
-          requestRevision
+          error: null
         });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setCompleted({
-          snapshot,
+          request,
           evaluation: emptyEvaluation,
           status: "failed",
-          error,
-          requestRevision
+          error
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [emptyEvaluation, snapshot, transport]);
+  }, [emptyEvaluation, request, transport]);
 
   if (!snapshot) {
     return {
@@ -98,11 +106,11 @@ export const useVscodeMultiDocumentRuntimeEvaluation = (
     };
   }
 
-  const matching = completed?.snapshot === snapshot ? completed : null;
+  const matching = completed?.request === request ? completed : null;
   return {
     evaluation: matching?.evaluation ?? emptyEvaluation,
     evaluationRevision: snapshot.graphRevision,
-    evaluationRequestRevision: matching?.requestRevision ?? snapshot.graphRevision,
+    evaluationRequestRevision: request?.requestRevision ?? 0,
     mode: "rust",
     source: "rust",
     status: matching?.status ?? "evaluating",

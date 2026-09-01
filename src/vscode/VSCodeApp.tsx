@@ -127,7 +127,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
   const compiledDocumentRevision = useCadDocumentStore((state) => state.compiledDocumentRevision);
   const sourceText = useCadDocumentStore((state) => state.sourceText);
-  const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
   const previewActive = useCadDocumentStore((state) => state.previewElements !== null);
   const observationSelectionSubject = useCadUiStore((state) => state.selectionSubject);
   const observationSelectedElementIds = useCadUiStore((state) => state.selectedElementIds);
@@ -185,13 +184,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       authoritative?.normalizedSource !== normalizedSourceFor(sourceText) ||
       graph.rootSource.documentId !== graph.rootDocumentId ||
       graph.rootSource.normalizedSource !== normalizedSourceFor(sourceText) ||
-      graph.rootSource.sourceRevision !== currentSourceRevision ||
       runtime.graphRevision !== graph.revision ||
       runtime.rootDocumentId !== graph.rootDocumentId ||
       runtime.rootSourceRevision !== graph.rootSource.sourceRevision
     ) return null;
     return runtime;
-  }, [authoritativeHostSourceSnapshot, currentSourceRevision, latestHostDocumentVersion, multiDocumentGraphPublication, sourceText]);
+  }, [authoritativeHostSourceSnapshot, latestHostDocumentVersion, multiDocumentGraphPublication, sourceText]);
   const multiDocumentRuntimePresentation = useMemo(
     () => multiDocumentRuntimeSnapshot ? canvasRuntimePresentationFor(multiDocumentRuntimeSnapshot) : null,
     [multiDocumentRuntimeSnapshot]

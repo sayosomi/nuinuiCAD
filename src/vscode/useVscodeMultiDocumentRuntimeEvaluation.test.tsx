@@ -54,8 +54,12 @@ describe("VS Code multi-document runtime evaluation", () => {
     const { result } = renderHook(() => useVscodeMultiDocumentRuntimeEvaluation(snapshot, transport));
 
     expect(result.current.status).toBe("evaluating");
+    const requestRevision = result.current.evaluationRequestRevision;
+    expect(requestRevision).toBeGreaterThan(0);
+    expect(result.current.evaluationRevision).toBe(4);
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(result.current.evaluationRevision).toBe(4);
+    expect(result.current.evaluationRequestRevision).toBe(requestRevision);
     expect(result.current.source).toBe("rust");
     expect(transport).toHaveBeenCalledOnce();
   });
@@ -74,13 +78,20 @@ describe("VS Code multi-document runtime evaluation", () => {
       { initialProps: { snapshot: first } }
     );
 
+    const firstRequestRevision = result.current.evaluationRequestRevision;
     rerender({ snapshot: second });
+    const secondRequestRevision = result.current.evaluationRequestRevision;
+    expect(firstRequestRevision).toBeGreaterThan(0);
+    expect(secondRequestRevision).toBeGreaterThan(firstRequestRevision);
     resolveFirst?.(payload);
     await Promise.resolve();
     expect(result.current.status).toBe("evaluating");
+    expect(result.current.evaluationRevision).toBe(5);
+    expect(result.current.evaluationRequestRevision).toBe(secondRequestRevision);
     resolveSecond?.(payload);
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(result.current.evaluationRevision).toBe(5);
+    expect(result.current.evaluationRequestRevision).toBe(secondRequestRevision);
     expect(transport).toHaveBeenCalledTimes(2);
   });
 
@@ -91,9 +102,13 @@ describe("VS Code multi-document runtime evaluation", () => {
     const snapshot = snapshotFor(4, "runtime-a");
     const { result } = renderHook(() => useVscodeMultiDocumentRuntimeEvaluation(snapshot, transport));
 
+    const requestRevision = result.current.evaluationRequestRevision;
+    expect(requestRevision).toBeGreaterThan(0);
+    expect(result.current.evaluationRevision).toBe(4);
     await waitFor(() => expect(result.current.status).toBe("failed"));
     expect(result.current.evaluation.computedGeometry).toEqual(new Map());
     expect(result.current.evaluation.errors).toEqual([]);
     expect(result.current.evaluationRevision).toBe(4);
+    expect(result.current.evaluationRequestRevision).toBe(requestRevision);
   });
 });
