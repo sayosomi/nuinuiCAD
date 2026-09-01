@@ -339,6 +339,7 @@ Primary:
 - `src/dsl/dslMultiDocumentSyntax.ts`
 - `src/dsl/sourceLexicalNamespaceIndex.ts`
 - `vscode-extension/src/multiDocumentHost.ts`
+- `vscode-extension/src/moduleMultiDocumentHost.ts`
 - `src/vscode/multiDocumentGraphTransport.ts`
 - `src/vscode/vscodeWebviewSession.ts`
 
@@ -399,14 +400,17 @@ alias rename remains importer-local. Concrete VS Code filesystem discovery,
 watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
 outside this subsystem.
 
-`vscode-extension/src/multiDocumentHost.ts` is the production VS Code adapter for
-that host-neutral layer. It canonicalizes file-backed `.nui` paths to file-URI
-`DocumentId`s, reads imported dependencies only through `workspace.fs.readFile`,
-and fingerprints the exact saved bytes with SHA-256. Each open root owns one
-coordinated graph built from its current `TextDocument`; dependency nodes remain
-saved-disk snapshots even when the same file is open and dirty. Dirty open
-content may contribute only an exact-current semantic view for language queries,
-never replace the dependency snapshot used to construct the graph.
+`vscode-extension/src/multiDocumentHost.ts` is the generic production VS Code
+adapter for that host-neutral layer. It canonicalizes file-backed `.nui` paths
+to file-URI `DocumentId`s, reads imported dependencies only through
+`workspace.fs.readFile`, and fingerprints the exact saved bytes with SHA-256.
+Each open root owns one coordinated graph built from its current `TextDocument`;
+dependency nodes remain saved-disk snapshots even when the same file is open
+and dirty. Dirty open content may contribute only an exact-current semantic view
+for language queries, never replace the dependency snapshot used to construct
+the graph. One saved artifact cache is shared by active-root and reverse-root
+builds, and exact existing graph statement identities are reused when a saved
+document is compiled as another graph root.
 
 The host watches `**/*.nui` saves/creates/deletes and invalidates coordinator-owned
 reverse dependencies before rebuilding affected open roots. Public References and
@@ -417,6 +421,15 @@ Definition/References/Rename providers ask this host first for document-qualifie
 results and otherwise retain the existing single-document query path. Rename
 rechecks every exact source owner immediately before producing a `WorkspaceEdit`;
 a dirty editor cannot authorize edits against an older saved dependency snapshot.
+
+`vscode-extension/src/moduleMultiDocumentHost.ts` composes that one generic
+host with the existing Module declaration contributor, graph-root
+`analyzeMultiDocumentModuleSemantics` / `createModuleRuntimeContext` compile,
+document-qualified identity projection, and Module rename proof factory. The
+factory delegates defining-document safety to `analyzeModuleSemanticRename` and
+allows importer/re-export edits only from the existing exact Module semantic
+view or graph re-export occurrences. It does not own a second graph, cache,
+resolver, occurrence index, workspace search, or rename planner.
 
 `multiDocumentGraphTransport.ts` projects only JSON-safe root graph/source data.
 `multiDocumentHost.ts` publishes building/current/invalidated/unavailable states
@@ -1008,12 +1021,27 @@ Command Palette and Ribbon host-action invocations to the normal VS Code
 Settings surface.
 
 The extension keeps one `NuiLanguageAnalysisSession` and one production
-`AutomationDocument` per supported document URI. Diagnostics and native language
-features share that session:
+`AutomationDocument` per supported document URI for local diagnostics and
+fallback language features. The Module-aware multi-document host keeps the
+current graph-root compiled semantic snapshot alongside its one graph; saved
+dependencies remain disk-authoritative until the existing watcher/coordinator
+rebuilds affected roots. Diagnostics and native language features share the
+local session, while public Module language queries use the exact host snapshot
+when available:
 
 ```text
 VS Code TextDocument
-→ URI-scoped language analysis session / AutomationDocument
+→ one URI-scoped multi-document host / saved graph coordinator
+├→ Module contributor → analyzeMultiDocumentModuleSemantics
+├→ createModuleRuntimeContext → exact graph-root compile
+│  ├→ queryDslCompletion → CompletionItemProvider
+│  └→ queryDslSignatureHelp → SignatureHelpProvider
+├→ queryMultiDocumentDefinition / queryMultiDocumentReferences
+│  └→ DefinitionProvider / ReferenceProvider
+└→ planMultiDocumentRename + Module document proof → RenameProvider / WorkspaceEdit
+
+VS Code TextDocument
+→ URI-scoped language analysis session / AutomationDocument (local/fallback)
 ├→ compiler diagnostics → DiagnosticCollection
 ├→ queryDslCompletion → CompletionItemProvider
 ├→ queryDslSignatureHelp → SignatureHelpProvider
@@ -1032,13 +1060,14 @@ VS Code TextDocument
 `languageAnalysisSession.ts` owns current raw source, source replacement,
 current compiler diagnostics, source revision, and fail-closed semantic / exact
 current source-structure snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
-conversion adapter. `completionProvider.ts` only normalizes VS Code positions,
-projects `queryDslCompletion` candidates to `CompletionItem`s, and supplies
-host insertion behavior; completion semantics, filtering, ranking, and
-truncation remain owned by the production query. `signatureHelpProvider.ts`
-projects the host-neutral `queryDslSignatureHelp` result to the standard VS Code
-signature-help objects and uses the session's dedicated exact current-source
-Module semantic snapshot; it does not recover stale Module metadata. `definitionProvider.ts` keeps
+conversion adapter. `completionProvider.ts` first asks the active
+multi-document host for its exact graph-root semantic snapshot, then projects
+`queryDslCompletion` candidates to `CompletionItem`s; it retains the session
+and completion recovery path when that snapshot is unavailable. Completion
+semantics, filtering, ranking, and truncation remain owned by the production
+query. `signatureHelpProvider.ts` uses the same exact host snapshot when
+available and otherwise projects the session's dedicated current-source Module
+semantic snapshot; it does not recover stale Module metadata. `definitionProvider.ts` keeps
 the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
 UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
 `queryDslDefinition`, and projects its exact ranges to a same-document

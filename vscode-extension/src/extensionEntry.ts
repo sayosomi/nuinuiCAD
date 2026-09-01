@@ -21,7 +21,7 @@ import {
   createMcpObservationBridge,
   NUI_MCP_OBSERVATION_SETTING
 } from "./mcpObservationBridge";
-import { createVscodeMultiDocumentHost } from "./multiDocumentHost";
+import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { activeRustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { vscodeObservationState } from "./vscodeObservationState";
 import { registerExplorerMockFeature } from "./explorerMockFeature";
@@ -155,7 +155,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(registerExplorerMockFeature(context));
   registerModulePreview(context);
 
-  const multiDocumentHost = createVscodeMultiDocumentHost();
+  const multiDocumentHost = createVscodeModuleMultiDocumentHost();
   multiDocumentHost.start();
   context.subscriptions.push(multiDocumentHost);
 

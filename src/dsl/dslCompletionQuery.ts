@@ -28,6 +28,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import {
   moduleCompletionCandidates,
+  moduleGeometryPropertyCandidates,
   moduleRecordFieldCompletions,
   moduleQualifiedRecordFieldCompletions,
   isInsideModuleSemanticStatement,
@@ -961,6 +962,12 @@ const queryCandidates = (
         logicalCursorPosition: input.localPosition
       });
       if (moduleRecordCandidates.length > 0) return moduleRecordCandidates.map(moduleCandidate);
+      const moduleGeometryCandidates = moduleGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, {
+        sourceOrderIndex: statementIndex,
+        liveStatementText: input.lineText,
+        logicalCursorPosition: input.localPosition
+      });
+      if (moduleGeometryCandidates.length > 0) return moduleGeometryCandidates.map(moduleCandidate);
     }
     return sourceGeometryPropertyCandidates(compiled, statementIndex, context.elementToken, context.expectedScalarType);
   }

@@ -132,7 +132,10 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 }));
 
 import * as vscode from "vscode";
+import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
+import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
 import { VscodeMultiDocumentHost } from "./multiDocumentHost";
+import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 
 const encoder = new TextEncoder();
@@ -248,5 +251,277 @@ describe("VS Code multi-document host lifecycle", () => {
 
     host.dispose();
     expect(mocks.watcherDispose).toHaveBeenCalledOnce();
+  });
+
+  it("uses the exact graph-root Module compile for native Definition and Rename", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    mocks.findFiles.mockResolvedValue([root.uri, vscode.Uri.file(libraryPath) as unknown as TestUri]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(2);
+    });
+
+    const callLine = rootSource.split("\n")[2]!;
+    const callOffset = callLine.indexOf("Panel") + 2;
+    const definition = await host.provideDefinition(root, new vscode.Position(2, callOffset));
+    expect(definition.handled).toBe(true);
+    expect(definition.value?.[0]?.targetUri.toString()).toBe(`file://${libraryPath}`);
+
+    const semantic = await host.languageSemanticSnapshotFor(root);
+    expect(semantic).not.toBeNull();
+    const source = { normalizedSource: rootSource, sourceRevision: semantic!.sourceRevision };
+    const completion = queryDslCompletion({
+      source,
+      position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+      semantic
+    });
+    const signature = queryDslSignatureHelp({
+      source,
+      position: rootSource.indexOf("lib::Panel(") + "lib::Panel(".length,
+      semantic
+    });
+    expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+    expect(signature?.signatures[0]?.name).toBe("Panel");
+
+    const rename = await host.provideRenameEdits(root, new vscode.Position(2, callOffset), "Renamed");
+    expect(rename.handled).toBe(true);
+    const replacements = (rename.value as { replacements: Array<{ uri: TestUri; newText: string }> }).replacements;
+    expect(replacements.map((replacement) => [replacement.uri.toString(), replacement.newText])).toEqual([
+      [`file://${libraryPath}`, "Renamed"],
+      [`file://${rootPath}`, "Renamed"]
+    ]);
+
+    host.dispose();
+  });
+
+  it("keeps one defining identity through a saved re-export chain", async () => {
+    const rootPath = "/workspace/root.nui";
+    const facadePath = "/workspace/facade.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./facade.nui\" as facade",
+      "instance use = facade::Panel()"
+    ].join("\n");
+    const facadeSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "export @library::Panel"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(facadePath, encoder.encode(facadeSource));
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    mocks.findFiles.mockResolvedValue([
+      root.uri,
+      vscode.Uri.file(facadePath) as unknown as TestUri,
+      vscode.Uri.file(libraryPath) as unknown as TestUri
+    ]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(3);
+    });
+
+    const callLine = rootSource.split("\n")[2]!;
+    const callOffset = callLine.indexOf("Panel") + 2;
+    const definition = await host.provideDefinition(root, new vscode.Position(2, callOffset));
+    expect(definition.value?.[0]?.targetUri.toString()).toBe(`file://${libraryPath}`);
+
+    const rename = await host.provideRenameEdits(root, new vscode.Position(2, callOffset), "Renamed");
+    expect(rename.value).toBeDefined();
+    const replacements = (rename.value as { replacements: Array<{ uri: TestUri; newText: string }> }).replacements;
+    expect(replacements.map((replacement) => [replacement.uri.toString(), replacement.newText])).toEqual([
+      [`file://${facadePath}`, "Renamed"],
+      [`file://${libraryPath}`, "Renamed"],
+      [`file://${rootPath}`, "Renamed"]
+    ]);
+
+    host.dispose();
+  });
+
+  it("keeps importer semantics on saved bytes until a watcher rebuild, then fails closed", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n");
+    const savedLibrary = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(savedLibrary));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    await vi.waitFor(async () => {
+      expect(await host.languageSemanticSnapshotFor(root)).not.toBeNull();
+    });
+    const dirty = documentFor(libraryPath, ["nui 1", "export module Other() {", "}"].join("\n"), { dirty: true });
+    mocks.textDocuments.push(dirty);
+    mocks.openListeners[0]?.(dirty);
+    await vi.waitFor(async () => {
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const result = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot
+      });
+      expect(result?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+    });
+
+    mocks.files.set(libraryPath, encoder.encode("nui 1\nexport module Panel("));
+    mocks.watcherChangeListeners[0]?.(dirty.uri);
+    await vi.waitFor(async () => {
+      expect(await host.languageSemanticSnapshotFor(root)).toBeNull();
+    });
+
+    host.dispose();
+  });
+
+  it("re-proves dirty dependency navigation or fails closed without leaking saved ranges", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n");
+    const savedLibrary = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(savedLibrary));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+    mocks.findFiles.mockResolvedValue([
+      root.uri,
+      vscode.Uri.file(libraryPath) as unknown as TestUri
+    ]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(root.uri.toString())?.nodes).toHaveLength(2);
+    });
+
+    const savedLibraryDocument = documentFor(libraryPath, savedLibrary, { version: 1 });
+    mocks.textDocuments.push(savedLibraryDocument);
+    mocks.openListeners[0]?.(savedLibraryDocument);
+    await vi.waitFor(async () => {
+      expect(latestCurrentGraphFor(savedLibraryDocument.uri.toString())?.nodes).toHaveLength(1);
+      expect(await host.languageSemanticSnapshotFor(savedLibraryDocument)).not.toBeNull();
+    });
+
+    const shiftedDirtyLibrary = [
+      "nui 1",
+      "// shifted dirty declaration",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    const shiftedDirtyDocument = documentFor(libraryPath, shiftedDirtyLibrary, { version: 2, dirty: true });
+    mocks.textDocuments = [root, shiftedDirtyDocument];
+    mocks.changeListeners[0]?.({ document: shiftedDirtyDocument });
+
+    const callLine = rootSource.split("\n")[2]!;
+    const callPosition = new vscode.Position(2, callLine.indexOf("Panel") + 2);
+    await vi.waitFor(async () => {
+      expect(await host.languageSemanticSnapshotFor(shiftedDirtyDocument)).not.toBeNull();
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const completion = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot
+      });
+      const signature = queryDslSignatureHelp({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Panel(") + "lib::Panel(".length,
+        semantic: snapshot
+      });
+      expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+      expect(signature?.signatures[0]?.name).toBe("Panel");
+
+      const definition = await host.provideDefinition(root, callPosition);
+      expect(definition.handled).toBe(true);
+      expect(definition.value?.[0]?.targetUri.toString()).toBe(`file://${libraryPath}`);
+      expect(definition.value?.[0]?.targetSelectionRange.start.line).toBe(2);
+
+      const references = await host.provideReferences(root, callPosition, true);
+      expect(references.handled).toBe(true);
+      const dirtyLocations = references.value?.filter((location) => location.uri.toString() === `file://${libraryPath}`);
+      expect(dirtyLocations).toHaveLength(1);
+      expect(dirtyLocations?.[0]?.range.start.line).toBe(2);
+    });
+
+    const unprovedDirtyLibrary = [
+      "nui 1",
+      "export module Other() {",
+      "}"
+    ].join("\n");
+    const unprovedDirtyDocument = documentFor(libraryPath, unprovedDirtyLibrary, { version: 3, dirty: true });
+    mocks.textDocuments = [root, unprovedDirtyDocument];
+    mocks.changeListeners[0]?.({ document: unprovedDirtyDocument });
+
+    await vi.waitFor(async () => {
+      const snapshot = await host.languageSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const completion = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot
+      });
+      const signature = queryDslSignatureHelp({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Panel(") + "lib::Panel(".length,
+        semantic: snapshot
+      });
+      expect(completion?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+      expect(signature?.signatures[0]?.name).toBe("Panel");
+
+      const definition = await host.provideDefinition(root, callPosition);
+      expect(definition.handled).toBe(true);
+      expect(definition.value).toBeUndefined();
+
+      const references = await host.provideReferences(root, callPosition, true);
+      expect(references.handled).toBe(true);
+      expect(references.value).toEqual([]);
+
+      const rename = await host.provideRenameEdits(root, callPosition, "Renamed");
+      expect(rename.handled).toBe(true);
+      expect(rename.value).toBeUndefined();
+    });
+
+    host.dispose();
   });
 });
