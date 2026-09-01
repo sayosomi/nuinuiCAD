@@ -1,7 +1,6 @@
 import type { ElementId } from "../types/geometry";
 import { evaluateBuiltinFunction } from "../scalars/builtinFunctionSemantics";
 import { getBuiltinConstantDefinition } from "../scalars/builtinConstants";
-import { labelToProperty } from "./numericExpressionProperties";
 import type { NumericExpressionReference } from "./numericExpressionTypes";
 
 export type NumericExpressionMeasurementFunctionName = "distance" | "angle" | "lineDistance";
@@ -130,10 +129,7 @@ export const tokenize = (expression: string): Token[] => {
       .slice(index)
       .match(/^([^\s()+*/.<>!=&|]+)\.([^\s()+*/<>!=&|]+)/);
     if (referenceMatch) {
-      const property = referenceMatch[2]
-        .split(".")
-        .map((part) => labelToProperty.get(part) ?? part)
-        .join(".");
+      const property = referenceMatch[2];
       tokens.push({
         type: "reference",
         elementId: referenceMatch[1],

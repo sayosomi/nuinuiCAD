@@ -454,7 +454,9 @@ describe("createDslCompletionSource", () => {
       expect(result).not.toBeNull();
       const labels = result!.options.map((option) => option.label);
       expect(labels).toContain("length");
-      expect(labels).toContain("startTangentAngleDeg");
+      expect(labels).toContain("startAngleDeg");
+      expect(labels).toContain("endAngleDeg");
+      expect(labels).not.toContain("startTangentAngleDeg");
       expect(result!.options.every((option) => option.type === "constant")).toBe(true);
     });
 

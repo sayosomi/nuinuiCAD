@@ -31,8 +31,10 @@ import {
   isLineEndpointPointKey
 } from "../model/pointAnchors";
 import {
-  isKnownNumericComputedGeometryProperty
-} from "../geometry/numericExpressions";
+  numericGeometryPropertySupportedByStaticTarget,
+  numericGeometryStaticTargetForConstruction,
+  numericGeometryStaticTargetForModuleInterface
+} from "../geometry/numericGeometryProperties";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -476,9 +478,17 @@ const candidateSupportsOccurrence = (
   occurrence: ParsedOccurrence
 ) => {
   if (occurrence.role === "numericPropertyBase") {
+    const target = "declaration" in candidate
+      ? numericGeometryStaticTargetForConstruction(
+          candidate.category,
+          candidate.declaration.statement.kind === "element"
+            ? candidate.declaration.statement.construction
+            : ""
+        )
+      : numericGeometryStaticTargetForModuleInterface(candidate.interfaceType);
     return isModuleGeometryInterfaceAssignable(candidate.interfaceType, "path") &&
       occurrence.property !== null &&
-      isKnownNumericComputedGeometryProperty(occurrence.property);
+      numericGeometryPropertySupportedByStaticTarget(target, occurrence.property);
   }
 
   if (occurrence.role === "endpoint") {

@@ -7,9 +7,9 @@ import type { ScalarType } from "../scalars/types";
 import {
   computedPathsForGeometry,
   formatValue,
-  numericReferenceValueForPath,
-  parameterPathsForElement
+  numericReferenceValueForPath
 } from "./numericReferencePaths";
+import { numericGeometryStaticTargetForElementInDocument } from "./numericGeometryProperties";
 import {
   isSemanticGeometryCandidateAllowed,
   type ModuleSemanticCandidateContext
@@ -50,14 +50,9 @@ const elementIsCurrentlyReferenceable = (
   !evaluation.errors.some((error) => error.elementId === elementId);
 
 /**
- * Enumerates the paths for `element` that the evaluator's own
- * numericReferenceValueForPath currently accepts && can resolve to a value.
- * Guards params.* the same way as geometry-derived paths: a disabled ||
- * invalid (evaluation error) element never contributes a candidate, even for
- * a params.* path whose raw saved value would otherwise evaluate fine on its
- * own (numericReferenceValueForPath's params.* branch reads the saved value
- * directly && does not itself check the owning element's enabled/error
- * state - see elementIsCurrentlyReferenceable above).
+ * Enumerates the statically supported public geometry paths for `element`.
+ * Runtime values enrich the candidate detail when available, but do not
+ * remove a statically valid property from completion.
  */
 export const referenceablePathsForElement = (
   element: CadElement,
@@ -71,14 +66,14 @@ export const referenceablePathsForElement = (
     elements: elements as CadElement[],
     evaluation: evaluation as EvaluationResult
   };
-  const candidatePaths = [
-    ...computedPathsForGeometry(evaluation.computedGeometry.get(element.id)),
-    ...parameterPathsForElement(element)
-  ];
+  const candidatePaths = computedPathsForGeometry(
+    evaluation.computedGeometry.get(element.id),
+    numericGeometryStaticTargetForElementInDocument(element, elements)
+  );
 
   return candidatePaths.flatMap((path) => {
     const value = numericReferenceValueForPath(element, path, context);
-    return value === undefined ? [] : [{ path, valueLabel: formatValue(value, path) }];
+    return [{ path, valueLabel: value === undefined ? "" : formatValue(value, path) }];
   });
 };
 

@@ -328,13 +328,13 @@ const parameterDefinitionsForElement = (
         { key: "radius", label: "半径", kind: "number" },
         {
           key: "startAngleDeg",
-          label: "始角度",
+          label: "中心から始点への角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
         {
           key: "endAngleDeg",
-          label: "終角度",
+          label: "中心から終点への角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
@@ -368,13 +368,13 @@ const parameterDefinitionsForElement = (
         }),
         {
           key: "startAngleDeg",
-          label: "始角度",
+          label: "中心から始点への角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
         {
           key: "endAngleDeg",
-          label: "終角度",
+          label: "中心から終点への角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
@@ -418,7 +418,7 @@ const parameterDefinitionsForElement = (
         }),
         {
           key: "startHandleAngleDeg",
-          label: "始点角度",
+          label: "始点ハンドル角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },
@@ -455,7 +455,7 @@ const parameterDefinitionsForElement = (
         }),
         {
           key: "endHandleAngleDeg",
-          label: "終点角度",
+          label: "終点ハンドル角度",
           kind: "number",
           stepLevels: angleNumericParameterStepLevels,
         },

@@ -333,7 +333,7 @@ describe("InspectorPanel mouse-only actions", () => {
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({
       elementId: element.id,
       parameterKey: "angleDeg",
-      property: "startTangentAngleDeg"
+      property: "startAngleDeg"
     });
 
     fireEvent.click(screen.getByRole("button", { name: "長さを選択" }));

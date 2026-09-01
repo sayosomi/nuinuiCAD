@@ -33,7 +33,12 @@ import { coordinateComponent } from "./dslParameterSpanScanner";
 import { splitDslList } from "./dslTokens";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
-import { isKnownNumericComputedGeometryProperty } from "../geometry/numericExpressions";
+import {
+  numericGeometryPropertySupportedByStaticTarget,
+  numericGeometryStaticTargetForConstruction,
+  numericGeometryStaticTargetForModuleInterface,
+  type NumericGeometryStaticTarget
+} from "../geometry/numericGeometryProperties";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
 import {
@@ -260,6 +265,41 @@ const declarationGeometryPropertyTarget = (
     category: declaration.statement.category,
     property
   };
+};
+
+const numericGeometryTargetForStatement = (
+  statement: DslStatement | undefined,
+  options: { intermediatePointCount?: number } = {}
+): NumericGeometryStaticTarget | null =>
+  statement?.kind === "element"
+    ? numericGeometryStaticTargetForConstruction(statement.category, statement.construction, options)
+    : null;
+
+const intermediatePointCountForStatement = (statement: DslStatement | undefined): number | undefined => {
+  if (statement?.kind !== "element" || statement.category !== "curve" || statement.construction !== "bezier") {
+    return undefined;
+  }
+  const value = statement.attrs.find((attribute) => attribute.key === "intermediates")?.value;
+  return value === undefined ? 0 : splitDslList(value).filter((item) => item.trim().length > 0).length;
+};
+
+const numericGeometryTargetForExport = (
+  category: DslGeometryDeclarationCategory,
+  statement: DslStatement | undefined
+): NumericGeometryStaticTarget | null => {
+  if (category === "point") return numericGeometryStaticTargetForModuleInterface("point");
+  // Module geometry exports are exposed through the declared public geometry
+  // interface, not through the concrete construction that produced them.
+  // There is no public arc/Bezier interface yet, so line/path exports keep the
+  // common path surface even when their source statement is concrete.
+  if (category === "line" || category === "curve" || category === "arc") {
+    return numericGeometryStaticTargetForModuleInterface("path");
+  }
+  const fromStatement = numericGeometryTargetForStatement(statement);
+  if (fromStatement) return fromStatement;
+  if (category === "text") return numericGeometryStaticTargetForConstruction("text", "");
+  if (category === "image") return numericGeometryStaticTargetForConstruction("image", "");
+  return numericGeometryStaticTargetForConstruction("line", "offset");
 };
 
 const choiceGeometryPropertyTypeForStatement = (
@@ -1044,7 +1084,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const qualifiedScalarExportFor = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
   ): { kind: "scalar"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; declaredType: ScalarType }
-    | { kind: "geometry"; exportedStatementIndex: number }
+    | { kind: "geometry"; exportedStatementIndex: number; category: DslGeometryDeclarationCategory }
     | { kind: "private"; exportedStatementIndex: number }
     | null => {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
@@ -1059,7 +1099,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           declaredType: exported.declaredType
         };
       }
-      return exported ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex } : null;
+      return exported?.kind === "geometry"
+        ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex, category: exported.category }
+        : null;
     }
     const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
     const exported = definition?.bodyStatementIndexes
@@ -1083,7 +1125,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         declaredType: exported.statement.declaredType
       };
     }
-    return { kind: "geometry", exportedStatementIndex: exported.statementIndex };
+    if (exported.statement.kind !== "element" || !isGeometryDeclarationCategory(exported.statement.category)) return null;
+    return {
+      kind: "geometry",
+      exportedStatementIndex: exported.statementIndex,
+      category: exported.statement.category
+    };
   };
 
   type RecordSourceLookup =
@@ -1554,6 +1601,48 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   };
 
+  const numericGeometryTargetForSourceStatement = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    statement: DslStatement | undefined,
+    visiting: ReadonlySet<number> = new Set()
+  ): NumericGeometryStaticTarget | null => {
+    const directTarget = numericGeometryTargetForStatement(
+      statement,
+      { intermediatePointCount: intermediatePointCountForStatement(statement) }
+    );
+    if (
+      statement?.kind !== "element" ||
+      statement.category !== "line" ||
+      statement.construction !== "split" ||
+      visiting.has(statementIndex)
+    ) {
+      return directTarget;
+    }
+    const source = statement.attrs.find((attribute) => attribute.key === "source")?.value;
+    const parsed = source ? parseDslSourceReference(source) : null;
+    if (!parsed || parsed.kind !== "valid" || parsed.reference.property) return directTarget;
+    const path = parseDslReferenceToken(parsed.reference.pathText);
+    const lookup = ownerIndex === null
+      ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, parsed.reference.pathText)
+      : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+    let baseTarget: NumericGeometryStaticTarget | null = null;
+    if (lookup.kind === "parameter") {
+      const interfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.parameter.type);
+      baseTarget = interfaceType ? numericGeometryStaticTargetForModuleInterface(interfaceType) : null;
+    } else if (lookup.kind === "resolved" && lookup.declaration.kind === "geometry") {
+      const nextVisiting = new Set(visiting);
+      nextVisiting.add(statementIndex);
+      baseTarget = numericGeometryTargetForSourceStatement(
+        lookup.declaration.statementIndex,
+        ownerIndex,
+        lookup.declaration.statement,
+        nextVisiting
+      );
+    }
+    return numericGeometryStaticTargetForConstruction("line", "split", { baseTarget });
+  };
+
   const resolveGeometryProperty = (
     statementIndex: number,
     ownerIndex: number | null,
@@ -1605,7 +1694,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         diagnostic: record.diagnostic
       };
     }
-    const numericType = isKnownNumericComputedGeometryProperty(reference.property) ? { kind: "number" as const } : null;
     const unknownProperty = (): ModuleGeometryPropertyReferenceResolution => ({
       target: null,
       type: null,
@@ -1614,8 +1702,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     });
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
-      const exported = numericType ? null : qualifiedScalarExportFor(qualified);
-      const type = numericType ?? (exported?.kind === "geometry"
+      const exported = qualifiedScalarExportFor(qualified);
+      const numericTarget = exported?.kind === "geometry"
+        ? numericGeometryTargetForExport(exported.category, statements[exported.exportedStatementIndex])
+        : exported === null
+          ? numericGeometryStaticTargetForModuleInterface("path")
+          : null;
+      const type = numericGeometryPropertySupportedByStaticTarget(numericTarget, reference.property)
+        ? { kind: "number" as const }
+        : (exported?.kind === "geometry"
         ? choiceGeometryPropertyTypeForStatement(statements[exported.exportedStatementIndex], reference.property)
         : null);
       if (!type) return unknownProperty();
@@ -1652,7 +1747,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (lookup.parameter.parameter.optional && !reference.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
         return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`, { relatedSources }) };
       }
-      const type = numericType;
+      const interfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.parameter.type);
+      const type = numericGeometryPropertySupportedByStaticTarget(
+        interfaceType ? numericGeometryStaticTargetForModuleInterface(interfaceType) : null,
+        reference.property
+      )
+        ? { kind: "number" as const }
+        : null;
       if (!type) return unknownProperty();
       return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type, resolution: "resolved" };
     }
@@ -1669,7 +1770,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
       return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated }) };
     }
-    const type = numericType ?? choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
+    const type = numericGeometryPropertySupportedByStaticTarget(
+      numericGeometryTargetForSourceStatement(
+        lookup.declaration.statementIndex,
+        ownerIndex,
+        lookup.declaration.statement,
+      ),
+      reference.property
+    )
+      ? { kind: "number" as const }
+      : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
     if (!type) return unknownProperty();
     return { target: { ...geometryTarget, kind: "sourceGeometryProperty", property: reference.property }, type, resolution: "resolved" };
   };

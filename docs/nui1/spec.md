@@ -217,6 +217,44 @@ evaluated elements are unavailable and produce the existing dependency
 diagnostic. The read observes the target value materialized at that position;
 later mutations do not retroactively change an earlier read.
 
+### Canonical numeric geometry properties
+
+Numeric geometry-property reads use the following public nui1 vocabulary.
+Property keys are authored in English; presentation labels are not additional
+source aliases. params.*, startTangentAngleDeg, and endTangentAngleDeg are not
+public geometry-property paths.
+
+| Static target | Properties |
+| --- | --- |
+| point | x, y |
+| line/path | length, startAngleDeg, endAngleDeg, startPoint.x, startPoint.y, endPoint.x, endPoint.y |
+| arc | line/path properties plus radius, sweepAngleDeg, startRadiusAngleDeg, endRadiusAngleDeg, centerPoint.x, centerPoint.y |
+| Bezier | line/path properties plus startHandleAngleDeg, startHandleLength, endHandleAngleDeg, endHandleLength, and only statically proven intermediatePoints[n].x/y |
+| polyline | line/path properties |
+| image | originPoint.x, originPoint.y, widthMm, heightMm, scale, angleDeg, naturalWidthPx, naturalHeightPx, sourceDpi, targetPixelsPerMm |
+| text | anchorPoint.x, anchorPoint.y, fontSize |
+
+segment, polar, and commonTangent produce the line surface. arc, through, and
+corner produce the arc surface. bezier produces the Bezier surface; offset,
+transformCopy, and mirrorCopy produce the generic path surface. polyline
+produces the polyline surface. A split preserves a concrete arc or Bezier
+surface only when its source target is statically proven; otherwise it exposes
+the common path surface. Module point parameters expose x/y, while Module line
+and path parameters and exports expose only the common path surface.
+
+startAngleDeg is the normalized direction from the start endpoint into the
+path, and endAngleDeg is the normalized direction from the end endpoint into
+the path. For an arc, startRadiusAngleDeg and endRadiusAngleDeg are the
+normalized directions from the center to the corresponding endpoints;
+sweepAngleDeg remains signed and preserves meaningful full turns such as 360
+and -360. Bezier handle angles and lengths describe the resulting
+endpoint-to-control geometry. If a direction cannot be determined, the
+property remains statically valid but has no current numeric value.
+
+Arc construction arguments retain their construction spelling, including
+start: and end:; those arguments are distinct from the public computed
+properties startAngleDeg and endAngleDeg.
+
 ## Namespace and scope
 
 Named declarations participate in one lexical namespace within their scope.

@@ -14,6 +14,20 @@ Declarations are evaluated in document order, and unavailable or invalid
 dependencies are reported rather than repaired. References use `@`, module
 exports use `::`, and geometry properties use `.`.
 
+Numeric geometry properties use canonical English source keys and are
+target-aware. Points expose x/y; lines, paths, and polylines expose length,
+endpoint directions (startAngleDeg and endAngleDeg), and endpoint coordinates;
+arcs add radius, signed sweep, radial endpoint angles, and center coordinates;
+Beziers add current handle angles/lengths and only proven intermediate point
+indices. Images expose their origin, dimensions, scale, angle, and pixel/DPI
+metadata; text exposes its anchor and font size. startAngleDeg/endAngleDeg
+mean endpoint-to-path-interior directions, while startRadiusAngleDeg/
+endRadiusAngleDeg mean center-to-endpoint directions. startTangentAngleDeg,
+endTangentAngleDeg, params.*, and Japanese presentation labels are not authored
+nui1 property aliases. See the canonical numeric geometry-property contract in
+[nui1/spec.md](nui1/spec.md#canonical-numeric-geometry-properties) for fixed
+construction and Module interface rules.
+
 The reference covers the current implemented language:
 
 - syntax and statement spellings

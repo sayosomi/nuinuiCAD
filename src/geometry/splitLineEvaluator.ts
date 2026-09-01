@@ -16,7 +16,7 @@ import { approximateBezierSegmentLength, degreesToRadians, normalizeDegrees, rad
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { isLineLikeGeometry } from "./linePaths";
-import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
+import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { cubicPointAt, distance, interpolate, refineBezierProjection, splitBezierLike, type Point } from "./bezierMath";
 import { projectPointOntoOffsetSegment } from "./offsetSegmentProjection";
 
@@ -410,6 +410,7 @@ const splitOffsetLineGeometry = (
       ...line,
       closed: false,
       segments: nearSegments,
+      ...offsetLineEndpointMeasurements(nearSegments),
       length: nearSegments.reduce((sum, segment) => sum + segment.length, 0)
     },
     far: {
@@ -418,6 +419,7 @@ const splitOffsetLineGeometry = (
       name: splitLineName,
       closed: false,
       segments: farSegments,
+      ...offsetLineEndpointMeasurements(farSegments),
       length: farSegments.reduce((sum, segment) => sum + segment.length, 0)
     }
   };

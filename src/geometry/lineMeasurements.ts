@@ -70,15 +70,17 @@ export const bezierCurveEndpointPoints = (curve: ComputedBezierCurve) => {
 export const offsetSegmentStartForwardAngle = (segment: ComputedOffsetLineSegment) => {
   if (segment.kind === "line") return angleFromTo(segment.start, segment.end);
   if (segment.kind === "bezier") return bezierSegmentStartForwardAngle(segment);
-  return normalizeDegrees(segment.startAngleDeg + arcSweepDirection(segment.sweepAngleDeg));
+  if (Math.abs(segment.radius) <= EPSILON || Math.abs(segment.sweepAngleDeg) <= EPSILON) return null;
+  const radial = angleFromTo(segment.center, segment.start);
+  return radial === null ? null : normalizeDegrees(radial + arcSweepDirection(segment.sweepAngleDeg));
 };
 
 export const offsetSegmentEndForwardAngle = (segment: ComputedOffsetLineSegment) => {
   if (segment.kind === "line") return angleFromTo(segment.start, segment.end);
   if (segment.kind === "bezier") return bezierSegmentEndForwardAngle(segment);
-  return normalizeDegrees(
-    segment.startAngleDeg + segment.sweepAngleDeg + arcSweepDirection(segment.sweepAngleDeg)
-  );
+  if (Math.abs(segment.radius) <= EPSILON || Math.abs(segment.sweepAngleDeg) <= EPSILON) return null;
+  const radial = angleFromTo(segment.center, segment.end);
+  return radial === null ? null : normalizeDegrees(radial + arcSweepDirection(segment.sweepAngleDeg));
 };
 
 export const offsetLineEndpointMeasurements = (
@@ -89,11 +91,27 @@ export const offsetLineEndpointMeasurements = (
 > => {
   const first = segments[0];
   const last = segments.at(-1);
+  let startTangentAngleDeg: number | null = null;
+  for (const segment of segments) {
+    const angle = offsetSegmentStartForwardAngle(segment);
+    if (angle !== null) {
+      startTangentAngleDeg = angle;
+      break;
+    }
+  }
+  let endTangentAngleDeg: number | null = null;
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const angle = offsetSegmentEndForwardAngle(segments[index]);
+    if (angle !== null) {
+      endTangentAngleDeg = reverseAngle(angle);
+      break;
+    }
+  }
   return {
     start: first?.start ?? null,
     end: last?.end ?? null,
-    startTangentAngleDeg: first ? offsetSegmentStartForwardAngle(first) : null,
-    endTangentAngleDeg: last ? reverseAngle(offsetSegmentEndForwardAngle(last)) : null
+    startTangentAngleDeg,
+    endTangentAngleDeg
   };
 };
 

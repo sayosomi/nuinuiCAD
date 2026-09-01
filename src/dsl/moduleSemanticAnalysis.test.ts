@@ -849,6 +849,44 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("keeps Module line/path parameters and exports on the common path surface", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module Child() {",
+      "  export arc Output = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "}",
+      "module M(base: path) {",
+      "  instance ChildInstance = Child()",
+      "  const pathLength: number = @base.length",
+      "  const pathRadius: number = @base.radius",
+      "  const exportLength: number = @ChildInstance::Output.length",
+      "  const exportRadius: number = @ChildInstance::Output.radius",
+      "}"
+    ].join("\n"));
+    const locals = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.localScalars;
+    expect(locals.map((local) => local.initializer?.geometryProperties[0]?.resolution)).toEqual([
+      "resolved",
+      "invalid",
+      "deferred",
+      "invalid"
+    ]);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-unknown-geometry-property")).toHaveLength(2);
+  });
+
+  it("preserves a concrete split family for module-local source geometry", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  arc A = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "  line Split = split(source: @A, at: @A.start)",
+      "  const radius: number = @Split.radius",
+      "}"
+    ].join("\n"));
+    const property = compiled.moduleSemanticAnalysis!.definitions[0].localScalars[0].initializer!.geometryProperties[0];
+    expect(property).toMatchObject({ property: "radius", resolution: "resolved" });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("uses the nearest group-local scalar for a nested module default", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -1259,7 +1297,7 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
-  it("defers qualified export properties without guessing the exported geometry category", () => {
+  it("rejects category-specific properties on an unknown broad module export", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Child() {",
@@ -1270,18 +1308,8 @@ describe("module semantic analysis", () => {
       "}"
     ].join("\n"));
     const property = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.localScalars[0].initializer!.geometryProperties[0];
-    expect(property).toMatchObject({
-      property: "fontSize",
-      resolution: "deferred",
-      target: {
-        kind: "deferredModuleExportProperty",
-        instanceStatementId: "statement:test:4",
-        exportName: "TextExport",
-        property: "fontSize"
-      }
-    });
-    expect(property.target).not.toHaveProperty("expectedGeometryKind");
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(property).toMatchObject({ property: "fontSize", resolution: "invalid", target: null });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).not.toEqual([]);
   });
 
   it("applies the module owner boundary to qualified export geometry and properties", () => {

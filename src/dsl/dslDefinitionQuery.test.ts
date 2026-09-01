@@ -395,7 +395,9 @@ describe("queryDslDefinition", () => {
   it("returns null for builtin function names and geometry property names", () => {
     const source = [
       "nui 1",
-      "point Base = coordinate(x: 0, y: 0)",
+      "point Start = coordinate(x: 0, y: 0)",
+      "point End = coordinate(x: 10, y: 0)",
+      "line Base = segment(start: @Start, end: @End)",
       "const width: number = abs(@Base.length)"
     ].join("\n");
     const compiled = compileWithIds(source);

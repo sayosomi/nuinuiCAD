@@ -13,7 +13,7 @@ module 縫い代写し(基準点: point, 写し元縫い線: path, 合わせ先�
     baseLines: [@写し元縫い線]
   )
 
-  const 角度: number = @合わせ先縫い線.endTangentAngleDeg - @脇コピー.endTangentAngleDeg
+  const 角度: number = @合わせ先縫い線.endAngleDeg - @脇コピー.endAngleDeg
 
   move(
     targets: [@脇コピー],

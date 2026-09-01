@@ -154,14 +154,14 @@ describe("tokenizeScalarExpression / @qualifiedName references", () => {
 
   it("tokenizes a qualified path with a property as one geometry-property head", () => {
     const elementName = "G::H::AB";
-    const source = `@${elementName}.endTangentAngleDeg`;
+    const source = `@${elementName}.endAngleDeg`;
     const result = tokenizeScalarExpression(source, fullSpan(source));
     expect(result.error).toBeNull();
     expect(result.tokens[0]).toEqual({
       kind: "geometryProperty",
       elementName,
       elementNameSpan: { start: 1, end: 1 + elementName.length },
-      property: "endTangentAngleDeg",
+      property: "endAngleDeg",
       propertySpan: { start: 1 + elementName.length + 1, end: source.length },
       span: { start: 0, end: source.length }
     });
