@@ -38,6 +38,37 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     expect(result.target.ownerSourceStatementIndex).not.toBeNull();
   });
 
+  it("keeps a geometry reference semantic through a pre-comma caret boundary only", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: 1, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = { normalizedSource: source, sourceRevision: 11 };
+    const token = "@A";
+    const tokenStart = source.indexOf(token);
+    const queryAtPosition = (position: number) => queryDslCanvasRevealSourceTarget({
+      source: snapshot,
+      compiled,
+      position
+    });
+
+    for (const position of [tokenStart + token.length - 1, tokenStart + token.length]) {
+      const result = queryAtPosition(position);
+      expect(result.status).toBe("resolved");
+      if (result.status !== "resolved") throw new Error("Expected a resolved geometry reference target");
+      expect(result.target.kind).toBe("semantic");
+      if (result.target.kind !== "semantic") throw new Error("Expected a semantic geometry reference target");
+      expect(result.target.semantic).toMatchObject({ kind: "geometry-reference", referenceText: token });
+    }
+
+    expect(queryAtPosition(tokenStart + token.length + 1)).toEqual({
+      status: "resolved",
+      target: { kind: "statement-owner", sourceStatementIndex: 2 }
+    });
+  });
+
   it("does not treat a typed scalar reference as a geometry semantic target", () => {
     const source = [
       "nui 1",
@@ -147,6 +178,61 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     }
   });
 
+  it("keeps a geometry property semantic at a pre-comma endpoint and falls back after the comma", () => {
+    const source = [
+      "nui 1",
+      "const distance: number = 5",
+      "line Guide = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: @Guide.length, y: @distance)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = { normalizedSource: source, sourceRevision: 11 };
+    const token = "@Guide.length";
+    const tokenStart = source.indexOf(token);
+    const queryAtPosition = (position: number) => queryDslCanvasRevealSourceTarget({
+      source: snapshot,
+      compiled,
+      position
+    });
+
+    for (const position of [tokenStart + token.length - 1, tokenStart + token.length]) {
+      const result = queryAtPosition(position);
+      expect(result.status).toBe("resolved");
+      if (result.status !== "resolved") throw new Error("Expected a resolved geometry property target");
+      expect(result.target.kind).toBe("semantic");
+      if (result.target.kind !== "semantic") throw new Error("Expected a semantic geometry property target");
+      expect(result.target.semantic).toMatchObject({ kind: "geometry-property", referenceText: token });
+    }
+
+    expect(queryAtPosition(tokenStart + token.length + 1)).toEqual({
+      status: "resolved",
+      target: { kind: "statement-owner", sourceStatementIndex: 3 }
+    });
+  });
+
+  it("does not extend a geometry reference to a non-comma endpoint", () => {
+    const source = [
+      "nui 1",
+      "module Shift(input: point) {",
+      "  point Out = offset(from: @input, dx: 1, dy: 0)",
+      "}",
+      "point P1 = coordinate(x: 0, y: 0)",
+      "instance S1 = Shift(input: @P1)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = { normalizedSource: source, sourceRevision: 11 };
+    const token = "@P1";
+    const tokenStart = source.indexOf(token);
+
+    const result = queryDslCanvasRevealSourceTarget({
+      source: snapshot,
+      compiled,
+      position: tokenStart + token.length
+    });
+
+    expect(result).toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 5 } });
+  });
+
   it("keeps a normal scalar reference in a root numeric element parameter on statement-owner fallback", () => {
     const source = [
       "nui 1",
@@ -157,6 +243,26 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     const result = queryAt(source, "@distance");
 
     expect(result).toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 3 } });
+  });
+
+  it("keeps a scalar reference and its comma endpoint on statement-owner fallback", () => {
+    const source = [
+      "nui 1",
+      "const dx: number = 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = offset(from: @A, dx: @dx, dy: 0)"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const snapshot = { normalizedSource: source, sourceRevision: 11 };
+    const token = "@dx";
+    const tokenStart = source.indexOf(token);
+
+    for (const position of [tokenStart + 1, tokenStart + token.length]) {
+      expect(queryDslCanvasRevealSourceTarget({ source: snapshot, compiled, position })).toEqual({
+        status: "resolved",
+        target: { kind: "statement-owner", sourceStatementIndex: 3 }
+      });
+    }
   });
 
   it("recognizes a choice-valued geometry property in a compiled property binding", () => {

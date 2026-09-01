@@ -118,8 +118,8 @@ const exactRange = (
   return range;
 };
 
-const rangeContains = (range: SourceRange, position: number): boolean =>
-  range.from <= position && position < range.to;
+const semanticRangeContains = (source: SourceSnapshot, range: SourceRange, position: number): boolean =>
+  range.from <= position && (position < range.to || (position === range.to && source.normalizedSource[range.to] === ","));
 
 const statementIndexForId = (compiled: CompiledDslDocument, statementId: string): number | null =>
   compiled.statementMap?.statementIndexByStatementId?.get(statementId) ?? null;
@@ -292,7 +292,7 @@ export const queryDslCanvasRevealSourceTarget = ({
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (analysis) {
     const matches = semanticCandidates(source, compiled, analysis)
-      .filter((candidate) => rangeContains(candidate.range, position))
+      .filter((candidate) => semanticRangeContains(source, candidate.range, position))
       .sort((left, right) =>
         (left.range.to - left.range.from) - (right.range.to - right.range.from) ||
         left.range.from - right.range.from ||
