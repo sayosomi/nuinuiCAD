@@ -106,6 +106,8 @@ mod split_line_evaluator;
 #[cfg(test)]
 mod split_line_tests;
 mod text_evaluator;
+#[cfg(test)]
+mod text_evaluator_tests;
 mod text_template_runtime;
 #[cfg(test)]
 mod text_template_runtime_tests;

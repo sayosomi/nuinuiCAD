@@ -20,7 +20,9 @@ endpoint directions (startAngleDeg and endAngleDeg), and endpoint coordinates;
 arcs add radius, signed sweep, radial endpoint angles, and center coordinates;
 Beziers add current handle angles/lengths and only proven intermediate point
 indices. Images expose their origin, dimensions, scale, angle, and pixel/DPI
-metadata; text exposes its anchor and font size. startAngleDeg/endAngleDeg
+metadata; text exposes its anchor and font size. Label/text size must be finite
+and strictly greater than zero; zero or negative size produces an evaluation
+error and no computed Text geometry. startAngleDeg/endAngleDeg
 mean endpoint-to-path-interior directions, while startRadiusAngleDeg/
 endRadiusAngleDeg mean center-to-endpoint directions. startTangentAngleDeg,
 endTangentAngleDeg, params.*, and Japanese presentation labels are not authored
