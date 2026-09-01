@@ -350,6 +350,34 @@ describe("SAY-64 output core", () => {
     expect(plan.drawables.find((drawable) => drawable.kind === "text")).toBeDefined();
   });
 
+  it.each([0, -1])("fails Output closed for Text geometry with a non-positive font size (%s)", (fontSize) => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 10, y: 0)",
+      "  line AB = segment(start: @A, end: @B)",
+      `  text Invalid = label(text: "invalid", anchor: @A, size: ${fontSize})`,
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L, margin: 0)"
+    ]);
+    const invalid = doc.document.elements.find((element) => element.name === "Invalid")!;
+    const evaluation = evaluationFor(doc);
+
+    expect(evaluation.computedGeometry.has(invalid.id)).toBe(false);
+    expect(evaluation.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: invalid.id, missingDependencyId: invalid.id })
+    ]));
+    expect(() => buildOutputPlan({
+      compiledDocument: doc,
+      output: doc.document.svgOutputs[0],
+      evaluation
+    })).toThrow(`Output evaluation failed: ${invalid.name} の文字サイズは0より大きい値で指定してください。`);
+  });
+
   it("keeps a styled stroke physical across placement scales while transforming geometry", () => {
     const doc = sourceFor([
       "nui 1",

@@ -1,5 +1,5 @@
 import type { CadElement, ComputedText } from "../types/geometry";
-import { getPointAnchorOrError, numericError } from "./evaluationContext";
+import { geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { evaluateElementTextTemplate } from "./textTemplateRuntime";
 
@@ -21,6 +21,10 @@ export const evaluateTextElement = (
     context.elements
   );
   if (fontSize === undefined) return true;
+  if (!(fontSize > 0)) {
+    context.errors.push(geometryError(element, `${element.name} の文字サイズは0より大きい値で指定してください。`));
+    return true;
+  }
 
   // Source-authored nui 1 text interpolation is compiled before evaluation.
   // A raw element without that compiled entry is literal text; it is never

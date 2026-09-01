@@ -74,6 +74,16 @@ const arc = (
   ...(direction ? { direction } : {})
 });
 
+const text = (fontSize: number): Extract<CadElement, { type: "text" }> => ({
+  id: "text",
+  name: "注記",
+  type: "text",
+  activity: "visible",
+  text: "注記",
+  anchor: null,
+  fontSize
+});
+
 const geometryProperty = (
   elementId: string,
   property: string,
@@ -119,6 +129,35 @@ const evaluateDirectionRead = (
 });
 
 describe("Task 23 standard property runtime, end-to-end through the real compiler", () => {
+  it.each([3, 0, -1])("reads Text.fontSize from current computed geometry only for a positive size (%s)", (fontSize) => {
+    const target = text(fontSize);
+    const evaluation = evaluateElements([target]);
+    const runtime: DocumentGeometryRuntime = {
+      computedGeometry: evaluation.computedGeometry,
+      elementsById: new Map([[target.id, target]]),
+      activities: new Map()
+    };
+    const result = resolveDocumentGeometryProperty(
+      runtime,
+      geometryProperty(target.id, "fontSize", 0, { kind: "number" }),
+      1
+    );
+
+    if (fontSize > 0) {
+      expect(result).toEqual({
+        status: "ok",
+        type: { kind: "number" },
+        value: { kind: "number", value: fontSize }
+      });
+    } else {
+      expect(result).toEqual({
+        status: "error",
+        type: { kind: "number" },
+        issueCode: "evaluation-geometry-property-unavailable"
+      });
+    }
+  });
+
   it("evaluates a resolved geometry-property expression in a common boolean property", () => {
     const compiled = compileCanonical([
       "nui 1",
