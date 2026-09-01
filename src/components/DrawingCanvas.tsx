@@ -349,6 +349,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     canvasViewport,
     visibilityProfiles,
     activeVisibilityProfileId,
+    moduleMaterialization: canvasModuleMaterialization ?? moduleSemanticContext.moduleMaterialization,
     showCanvasPoints,
     resolveImageSourceUrl: hostAdapter.resolveImageSourceUrl
   });

@@ -148,7 +148,7 @@ export type CanvasOverlayData = {
   texts: ComputedText[];
   points: ComputedPoint[];
   visibleElementIds: Set<ElementId>;
-  /** Current normal Canvas presentation boundary used by shared selection. */
+  /** Current Canvas selection boundary, including qualifying Module identities. */
   selectionEligibleElementIds: Set<ElementId>;
   overlayLines: CanvasOverlayLine[];
   overlayPoints: CanvasOverlayPoint[];

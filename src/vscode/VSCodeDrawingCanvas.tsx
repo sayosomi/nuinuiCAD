@@ -30,7 +30,6 @@ import type {
   CanvasPointDragAction,
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
-import { useModuleInstanceSelectionReconciliation } from "../components/useModuleInstanceSelectionReconciliation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
@@ -179,12 +178,6 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       holdLastStable: multiDocumentRuntimePresentation ? false : holdLastStableCanvasPresentation,
       retainLastStable: !multiDocumentRuntimePresentation
     });
-    useModuleInstanceSelectionReconciliation({
-      evaluation: canvasPresentation.renderEvaluation,
-      evaluationState: canvasPresentation.renderEvaluationState,
-      measureCanvasTextWidth
-    });
-
     const currentReferencePickContext = useCallback(() => {
       const state = useCadDocumentStore.getState();
       if (

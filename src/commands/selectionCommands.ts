@@ -252,10 +252,13 @@ export const selectInstance = (recordHistory = false) => {
   });
   if (!ownerId) return false;
 
-  // Module instances are frame identities rather than normal drawable Canvas
-  // candidates. The shared replacement path still owns selection/history and
-  // is given the proven owner as its narrow eligibility boundary.
-  return replaceCanvasSelection([ownerId], ownerId, recordHistory, "requested", new Set([ownerId]));
+  return replaceCanvasSelection(
+    [ownerId],
+    ownerId,
+    recordHistory,
+    "requested",
+    useCadUiStore.getState().canvasSelectionEligibleElementIds ?? undefined
+  );
 };
 
 export const clearCanvasSelection = (recordHistory = false) => {

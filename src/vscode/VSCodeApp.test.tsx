@@ -1578,7 +1578,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     });
   });
 
-  it("fails a concrete Module instance Reveal when only descendant bounds are available", async () => {
+  it("selects a concrete Module instance when a descendant is presented", async () => {
     const source = [
       "nui 1",
       "module M() {",
@@ -1629,15 +1629,15 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
 
-    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
-    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([instance.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
     expect(useCadUiStore.getState().selectedElementIds).not.toContain(child.id);
-    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: 0, panY: 0, zoom: 1 });
+    expect(useCadUiStore.getState().canvasViewport).toEqual({ panX: -80, panY: 0, zoom: 1 });
     expect(api.postMessage).toHaveBeenCalledWith({
       type: "canvasNavigationResult",
       requestId: 311,
-      status: "failed",
-      reason: "no-revealable-runtime-target"
+      status: "resolved",
+      degradations: []
     });
   });
 

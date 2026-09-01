@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { startSession } from "../commands/commandLineSession";
 import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import { creationRecipeForType } from "../commands/creationRecipes";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { evaluateElements } from "../geometry/evaluate";
 import { pickCandidates } from "../model/pickCandidates";
 import { DEFAULT_CANVAS_VIEWPORT } from "../state/cadUiStore";
@@ -190,6 +191,52 @@ describe("useCanvasOverlayData", () => {
 
     expect(result.current.lines).toEqual([]);
     expect(result.current.overlayLines).toEqual([]);
+  });
+
+  it("publishes a qualifying Module identity without synthesizing a Module overlay or hit target", () => {
+    const instance: CadElement = {
+      id: "instance",
+      name: "Instance",
+      type: "moduleInstance",
+      activity: "visible"
+    };
+    const child: CadElement = {
+      id: "child",
+      name: "Child",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "coordinate", x: 0, y: 0 },
+      endPoint: { mode: "coordinate", x: 30, y: 0 }
+    };
+    const elements = [instance, child];
+    const moduleMaterialization: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots"> = {
+      instanceBaseGeometrySnapshots: [{
+        instanceId: instance.id,
+        endRuntimeIndex: 1,
+        descendantIds: [child.id]
+      }]
+    };
+    const evaluation = evaluateElements(elements);
+    const { result } = renderHook(() => useCanvasOverlayData({
+      evaluation,
+      elements,
+      selectedElementId: null,
+      pointPickCandidates: [],
+      viewportSize: { width: 500, height: 400 },
+      canvasViewport: DEFAULT_CANVAS_VIEWPORT,
+      visibilityProfiles: [],
+      activeVisibilityProfileId: null,
+      moduleMaterialization,
+      resolveImageSourceUrl: (sourcePath) => sourcePath
+    }));
+
+    expect(result.current.selectionEligibleElementIds).toEqual(new Set([child.id, instance.id]));
+    expect(result.current.overlayIdentityCandidates.map((candidate) => candidate.elementId)).toEqual([child.id]);
+    expect(hitTestCanvasGeometry({
+      screen: result.current.overlayLines[0].start,
+      lines: result.current.overlayLines,
+      points: []
+    })).toBe(child.id);
   });
 
   it("keeps materialized private geometry in normal Canvas drawing and hit testing", () => {

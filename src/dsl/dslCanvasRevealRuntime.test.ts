@@ -131,13 +131,13 @@ const revealability = (
     visible?: readonly ElementId[];
     enabled?: readonly ElementId[];
     profile?: readonly ElementId[];
-    presented?: readonly ElementId[];
+    selectionEligible?: readonly ElementId[];
   } = {}
 ) => ({
   effectiveVisibleElementIds: new Set(options.visible ?? allIds),
   effectiveEnabledElementIds: new Set(options.enabled ?? allIds),
   profileVisibleElementIds: new Set(options.profile ?? allIds),
-  canvasPresentationEligibleElementIds: new Set(options.presented ?? allIds)
+  selectionEligibleElementIds: new Set(options.selectionEligible ?? allIds)
 });
 
 const materializedModule = (): readonly Partial<MaterializedExecutionStatement>[] => [
@@ -185,6 +185,21 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       status: "resolved",
       runtimeElementIds: ["A-id"],
       primaryRuntimeElementId: "A-id",
+      degradations: []
+    });
+  });
+
+  it("accepts a concrete Module identity from shared selection eligibility", () => {
+    const elements = [element("M1")];
+    expect(queryDslCanvasRevealRuntimeTarget({
+      target: { kind: "statement-owner", sourceStatementIndex: 10 },
+      compiled: compiled({ entries: materializedModule() }),
+      elements,
+      ...revealability(["M1"], { selectionEligible: ["M1"] })
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["M1"],
+      primaryRuntimeElementId: "M1",
       degradations: []
     });
   });
@@ -246,7 +261,7 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
         ])
       }),
       elements,
-      ...revealability(allIds, { presented: ["P1"] })
+      ...revealability(allIds, { selectionEligible: ["P1"] })
     })).toEqual({
       status: "resolved",
       runtimeElementIds: ["P1"],
@@ -268,7 +283,7 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
         ])
       }),
       elements,
-      ...revealability(allIds, { presented: ["Out1", "Out2"] })
+      ...revealability(allIds, { selectionEligible: ["Out1", "Out2"] })
     })).toEqual({
       status: "resolved",
       runtimeElementIds: ["Out1", "Out2"],
@@ -290,7 +305,7 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
         ])
       }),
       elements,
-      ...revealability(allIds, { presented: [] })
+      ...revealability(allIds, { selectionEligible: [] })
     })).toEqual({ status: "failed", reason: "no-revealable-runtime-target" });
   });
 
