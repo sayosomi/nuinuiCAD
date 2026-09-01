@@ -314,7 +314,7 @@ pub(crate) fn evaluate_arc_line(
     ) else {
         return;
     };
-    if !(radius > 0.0) {
+    if radius.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         state.errors.push(geometry_error(
             element,
             format!(
