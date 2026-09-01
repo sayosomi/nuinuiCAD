@@ -272,11 +272,15 @@ describe("multi-document Module completion and Signature Help", () => {
       "import \"./library.nui\" as library",
       "export @library::Panel"
     ].join("\n"));
-    const directSource = directRoot("lib::Panel");
+    const directSource = [
+      directRoot("lib::Panel"),
+      "const copied: number = @use::amount"
+    ].join("\n");
     const facadeSource = [
       "nui 1",
       "import \"./facade.nui\" as facade",
-      "instance use = facade::Panel(value: 1)"
+      "instance use = facade::Panel(value: 1)",
+      "const copied: number = @use::amount"
     ].join("\n");
     const direct = await compileImported(directSource, new Map([
       [`${documentIdFromHost("query-root")}|./library.nui`, library]
@@ -288,6 +292,8 @@ describe("multi-document Module completion and Signature Help", () => {
 
     const directCompletion = completionAt(directSource, direct.compiled, "lib::Pa");
     const facadeCompletion = completionAt(facadeSource, throughFacade.compiled, "facade::Pa");
+    const directExportCompletion = completionAt(directSource, direct.compiled, "@use::am");
+    const facadeExportCompletion = completionAt(facadeSource, throughFacade.compiled, "@use::am");
     const directSignature = signatureAt(directSource, direct.compiled, "lib::Panel(value: 1");
     const facadeSignature = signatureAt(facadeSource, throughFacade.compiled, "facade::Panel(value: 1");
 
@@ -297,6 +303,26 @@ describe("multi-document Module completion and Signature Help", () => {
       .toEqual(directSignature?.signatures[0]?.authoredDocumentation);
     expect(facadeSignature?.signatures[0]?.parameters[0]?.authoredDocumentation)
       .toEqual(directSignature?.signatures[0]?.parameters[0]?.authoredDocumentation);
+
+    const directExport = directExportCompletion?.candidates.find((candidate) => candidate.label === "amount");
+    const facadeExport = facadeExportCompletion?.candidates.find((candidate) => candidate.label === "amount");
+    const facadeDefinition = throughFacade.context.analysisFor(library.documentId)?.definitions.find((definition) => definition.name === "Panel");
+    const facadeExportIdentity = facadeDefinition?.exports.find((entry) => entry.name === "amount")?.exportedIdentity;
+    expect(directExport).toMatchObject({
+      identity: expect.any(String),
+      documentation: {
+        variants: [
+          { locale: "ja", markdown: "金額。" },
+          { locale: "en", markdown: "Amount." }
+        ]
+      }
+    });
+    expect(facadeExportIdentity).toBeDefined();
+    if (!facadeExportIdentity) return;
+    expect(facadeExport).toMatchObject({
+      identity: moduleSemanticIdentityKey(facadeExportIdentity),
+      documentation: directExport?.documentation
+    });
   });
 
   it("keeps a valid imported Module candidate when saved documentation is removed", async () => {
