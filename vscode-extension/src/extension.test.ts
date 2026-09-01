@@ -209,6 +209,11 @@ vi.mock("vscode", () => {
 
     constructor(public readonly label: string, public readonly kind: number) {}
   }
+  class ColorPresentation {
+    textEdit?: unknown;
+
+    constructor(public readonly label: string) {}
+  }
   class SnippetString {
     constructor(public readonly value: string) {}
   }
@@ -334,6 +339,7 @@ vi.mock("vscode", () => {
     Location,
     DiagnosticRelatedInformation,
     CompletionItem,
+    ColorPresentation,
     SnippetString,
     FoldingRange
   };
@@ -4508,6 +4514,37 @@ describe("VS Code native fixed-color lifecycle", () => {
     panel.dispose();
     expect(mocks.colorRegistrations).toHaveLength(5);
     expect(mocks.colorRegistrations[3]!.disposable.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires rejected semantic color edits to the exact native error notification", async () => {
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await publishCanvasTheme(panel, 1, { ...LEGACY_CANVAS_THEME, accent: "#123456" });
+    const provider = mocks.colorRegistrations.at(-1)!.provider as {
+      provideColorPresentations: (
+        color: { red: number; green: number; blue: number; alpha: number },
+        context: { document: TestDocument; range: { start: unknown; end: unknown } }
+      ) => Array<{ label: string; textEdit?: unknown }>;
+    };
+    const start = source.indexOf("accent");
+    const range = {
+      start: document.positionAt(start),
+      end: document.positionAt(start + "accent".length)
+    };
+
+    provider.provideColorPresentations({ red: 1, green: 0, blue: 0, alpha: 1 }, { document, range });
+    provider.provideColorPresentations({ red: 0, green: 1, blue: 0, alpha: 1 }, { document, range });
+
+    const message = "Theme role \"accent\" follows the current Canvas theme and can't be changed with the color picker. Use a fixed #RRGGBB color to choose a custom color.";
+    expect(mocks.showErrorMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(message);
   });
 });
 

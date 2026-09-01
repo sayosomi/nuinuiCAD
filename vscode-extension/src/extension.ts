@@ -1121,7 +1121,15 @@ export const activate = (context: vscode.ExtensionContext): void => {
     colorProviderRegistration?.dispose();
     colorProviderRegistration = vscode.languages.registerColorProvider(
       nuiColorSelector,
-      createNuiColorProvider(languageAnalysisSessionFor, canvasThemeWarningFeature.currentCanvasTheme)
+      createNuiColorProvider(
+        languageAnalysisSessionFor,
+        canvasThemeWarningFeature.currentCanvasTheme,
+        (role) => {
+          void vscode.window.showErrorMessage(
+            `Theme role "${role}" follows the current Canvas theme and can't be changed with the color picker. Use a fixed #RRGGBB color to choose a custom color.`
+          );
+        }
+      )
     );
   };
   refreshNativeColorProvider = refreshColorProvider;

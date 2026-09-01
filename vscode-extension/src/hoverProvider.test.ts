@@ -223,6 +223,92 @@ describe("VS Code native nui Hover provider", () => {
     expect(evaluateCurrent).not.toHaveBeenCalled();
   });
 
+  it("returns exact semantic theme-role Hover text without runtime evaluation", async () => {
+    const source = ["nui 1", "modifier Guide {", "  color: accent,", "}"].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const evaluateCurrent = vi.fn();
+    const provider = createNuiHoverProvider(
+      () => session,
+      { evaluateCurrent } as unknown as NuiHoverRuntimeEvaluationService
+    );
+    const start = source.indexOf("accent");
+
+    const hover = await provider.provideHover(
+      document as vscode.TextDocument,
+      new vscode.Position(2, start - source.lastIndexOf("\n", start) - 1),
+      tokenFor()
+    ) as vscode.Hover | undefined;
+
+    expect((hover?.contents as vscode.MarkdownString).value).toBe(
+      "Theme role: accent\n\nFollows the current Canvas theme. This is a semantic color preview, not a fixed color. Color picker changes aren't applied; use #RRGGBB for a fixed color."
+    );
+    expect(hover?.range).toMatchObject({
+      start: { line: 2, character: "  color: ".length },
+      end: { line: 2, character: "  color: accent".length }
+    });
+    expect(evaluateCurrent).not.toHaveBeenCalled();
+  });
+
+  it("excludes fixed colors, comments, strings, lookalikes, and unrelated identifiers from theme-role Hover", async () => {
+    const source = [
+      "nui 1",
+      "// color: accent",
+      'modifier "accent" {',
+      '  color: "accent",',
+      "}",
+      "modifier Fixed {",
+      "  color: #112233,",
+      "}",
+      "modifier Lookalike {",
+      "  color: primary,",
+      "}",
+      "modifier Actual {",
+      "  color: accent,",
+      "}"
+    ].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const evaluateCurrent = vi.fn();
+    const provider = createNuiHoverProvider(
+      () => session,
+      { evaluateCurrent } as unknown as NuiHoverRuntimeEvaluationService
+    );
+    const roleStart = source.lastIndexOf("accent");
+    const quotedColorStart = source.indexOf('color: "accent"') + 'color: "'.length;
+    const positions = [
+      source.indexOf("accent"),
+      source.indexOf("#112233") + 1,
+      source.indexOf('"accent"') + 1,
+      quotedColorStart,
+      source.indexOf("primary")
+    ];
+
+    for (const offset of positions) {
+      const before = source.slice(0, offset);
+      const line = before.split("\n").length - 1;
+      const character = offset - (before.lastIndexOf("\n") + 1);
+      const hover = await provider.provideHover(
+        document as vscode.TextDocument,
+        new vscode.Position(line, character),
+        tokenFor()
+      );
+      expect(hover).toBeUndefined();
+    }
+
+    const roleBefore = source.slice(0, roleStart);
+    const roleHover = await provider.provideHover(
+      document as vscode.TextDocument,
+      new vscode.Position(
+        roleBefore.split("\n").length - 1,
+        roleStart - (roleBefore.lastIndexOf("\n") + 1)
+      ),
+      tokenFor()
+    );
+    expect(roleHover).toBeDefined();
+    expect(evaluateCurrent).not.toHaveBeenCalled();
+  });
+
   it("shows Geometry unavailable only for a still-current semantic target", async () => {
     const source = "nui 1\npoint A = coordinate(x: 1, y: 2)";
     const document = documentFor(source);

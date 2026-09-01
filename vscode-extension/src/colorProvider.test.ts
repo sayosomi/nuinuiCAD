@@ -152,16 +152,85 @@ describe("VS Code fixed-color provider", () => {
       { red: 48 / 255, green: 49 / 255, blue: 50 / 255, alpha: 1 },
       { red: 64 / 255, green: 65 / 255, blue: 66 / 255, alpha: 1 }
     ]);
+    expect(colors.slice(1).map(({ range }) => source.slice(
+      document.offsetAt(range.start),
+      document.offsetAt(range.end)
+    ))).toEqual(["foreground", "muted", "accent", "info", "warning", "error"]);
   });
 
-  it("does not offer a source rewrite for a theme-role token", () => {
+  it("returns a semantic-preserving presentation for the current theme-role color", () => {
     const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
+    const onEditAttempt = vi.fn();
     const provider = createNuiColorProvider(() => session, () => ({
       ...LEGACY_CANVAS_THEME,
       accent: "#123456"
-    }));
+    }), onEditAttempt);
+    const start = source.indexOf("accent");
+    const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "accent".length));
+
+    const presentations = provider.provideColorPresentations(new vscode.Color(0x12 / 255, 0x34 / 255, 0x56 / 255, 1), {
+      document,
+      range
+    } as vscode.ColorPresentationContext);
+
+    expect(presentations).toEqual([expect.objectContaining({ label: "accent" })]);
+    expect(presentations[0]?.textEdit).toBeUndefined();
+    expect(onEditAttempt).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom semantic colors without a fixed-color rewrite and deduplicates the notification", () => {
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const onEditAttempt = vi.fn();
+    const provider = createNuiColorProvider(() => session, () => ({
+      ...LEGACY_CANVAS_THEME,
+      accent: "#123456"
+    }), onEditAttempt);
+    const start = source.indexOf("accent");
+    const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "accent".length));
+    const context = { document, range } as vscode.ColorPresentationContext;
+
+    const first = provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), context);
+    const second = provider.provideColorPresentations(new vscode.Color(0, 1, 0, 1), context);
+
+    expect(first[0]?.textEdit).toBeUndefined();
+    expect(second[0]?.textEdit).toBeUndefined();
+    expect(onEditAttempt).toHaveBeenCalledTimes(1);
+    expect(onEditAttempt).toHaveBeenCalledWith("accent");
+    expect(document.getText()).toBe(source);
+  });
+
+  it("includes alpha in semantic color comparison and resets a rejected target at the effective color", () => {
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const onEditAttempt = vi.fn();
+    const provider = createNuiColorProvider(() => session, () => ({
+      ...LEGACY_CANVAS_THEME,
+      accent: "rgba(18 52 86 / 50%)"
+    }), onEditAttempt);
+    const start = source.indexOf("accent");
+    const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "accent".length));
+    const context = { document, range } as vscode.ColorPresentationContext;
+
+    provider.provideColorPresentations(new vscode.Color(18 / 255, 52 / 255, 86 / 255, 1), context);
+    expect(onEditAttempt).toHaveBeenCalledTimes(1);
+
+    provider.provideColorPresentations(new vscode.Color(18 / 255, 52 / 255, 86 / 255, 0.5), context);
+    provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), context);
+    expect(onEditAttempt).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed for a missing current theme, stale range, and source mutation", () => {
+    const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
+    const document = documentFor(source);
+    const session = createLanguageAnalysisSession(source);
+    const onEditAttempt = vi.fn();
+    let theme: typeof LEGACY_CANVAS_THEME | null = null;
+    const provider = createNuiColorProvider(() => session, () => theme, onEditAttempt);
     const start = source.indexOf("accent");
     const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "accent".length));
 
@@ -169,12 +238,34 @@ describe("VS Code fixed-color provider", () => {
       document,
       range
     } as vscode.ColorPresentationContext)).toEqual([]);
+    theme = LEGACY_CANVAS_THEME;
+    const staleRange = new vscode.Range(document.positionAt(start - 1), document.positionAt(start + "accent".length));
+    expect(provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), {
+      document,
+      range: staleRange
+    } as vscode.ColorPresentationContext)).toEqual([]);
+
+    const originalSnapshot = session.themeRoleColorSemanticSnapshot;
+    session.themeRoleColorSemanticSnapshot = (snapshot) => {
+      document.setSourceText(source.replace("accent", "warning"));
+      return originalSnapshot(snapshot);
+    };
+    expect(provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), {
+      document,
+      range
+    } as vscode.ColorPresentationContext)).toEqual([]);
+    expect(onEditAttempt).not.toHaveBeenCalled();
   });
 
   it("offers one canonical token-only edit after revalidating the exact current range", () => {
     const source = ["nui 1", "modifier Guide {", "  color: #0a10ff", "}"].join("\n");
     const document = documentFor(source);
-    const provider = createNuiColorProvider(() => createLanguageAnalysisSession(source));
+    const onEditAttempt = vi.fn();
+    const provider = createNuiColorProvider(
+      () => createLanguageAnalysisSession(source),
+      undefined,
+      onEditAttempt
+    );
     const start = source.indexOf("#0a10ff");
     const range = new vscode.Range(document.positionAt(start), document.positionAt(start + "#0a10ff".length));
 
@@ -187,6 +278,7 @@ describe("VS Code fixed-color provider", () => {
       label: "#ff8000",
       textEdit: expect.objectContaining({ range, newText: "#ff8000" })
     })]);
+    expect(onEditAttempt).not.toHaveBeenCalled();
   });
 
   it("rejects a stale presentation range, source change, and unsupported document", () => {
