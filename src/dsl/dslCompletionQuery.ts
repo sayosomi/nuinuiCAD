@@ -39,8 +39,11 @@ import { geometryArrayDeclarationCompletionContextAt } from "./dslGeometryArrayC
 import {
   buildModuleDocumentationIndex,
   documentationForModuleDefinition,
+  documentationForModuleDefinitionMetadata,
   documentationForModuleExport,
+  documentationForModuleExportMetadata,
   documentationForModuleParameter,
+  documentationForModuleParameterMetadata,
   type ModuleDocumentation
 } from "./moduleDocumentation";
 import type { CompiledDslDocument } from "./dslDocument";
@@ -226,13 +229,15 @@ const recoveredModuleStatementAt = (
 
   const liveDefinition = recovery.liveCompiled.statements[liveCallee.declaration.statementIndex];
   if (liveDefinition?.kind !== "moduleDefinition") return null;
+  const lastGoodDefinition = recovery.lastGoodCompiled.moduleSemanticAnalysis.definitionsByStatementId.get(definitionStatementId);
   const currentDefinitionParameters = liveDefinition.parameters.map((parameter, parameterIndex) => ({
     name: parameter.name,
     type: parameter.type,
     recordTypeIdentity: recovery.lastGoodCompiled.moduleSemanticAnalysis?.definitionsByStatementId.get(definitionStatementId)?.parameters[parameterIndex]?.recordTypeIdentity ?? null,
     optional: parameter.optional,
     definitionStatementId: liveCallee.declaration.statementId,
-    parameterIndex
+    parameterIndex,
+    ...(lastGoodDefinition?.identity ? { definitionIdentity: lastGoodDefinition.identity } : {})
   }));
 
   return { compiled: recovery.lastGoodCompiled, statementIndex, currentDefinitionParameters };
@@ -267,7 +272,8 @@ const currentModuleDefinitionParametersAt = (
       recordTypeIdentity: parameter.recordTypeIdentity,
       optional: parameter.optional,
       definitionStatementId: parameter.definitionStatementId,
-      parameterIndex: parameter.parameterIndex
+      parameterIndex: parameter.parameterIndex,
+      ...(parameter.definitionIdentity ? { definitionIdentity: parameter.definitionIdentity } : {})
     }));
   }
 
@@ -1048,12 +1054,28 @@ const attachModuleDocumentation = (
     ? { ...candidate, documentation }
     : candidate;
 
+  const importedDefinitionForIdentity = (identity: string) => {
+    const runtime = compiled.moduleRuntimeContext;
+    if (!runtime?.valid) return null;
+    for (const document of runtime.documentsById.values()) {
+      const definition = document.moduleSemanticAnalysis.definitionsByQualifiedIdentity?.get(identity);
+      if (!definition || !definition.identity) continue;
+      return {
+        definition,
+        metadata: runtime.moduleDocumentationFor(definition.identity)
+      };
+    }
+    return null;
+  };
+
   if (context.kind === "moduleCallee") {
     return candidates.map((candidate) => {
       if (candidate.kind !== "module" || !candidate.identity) return candidate;
       const definition = analysis.definitionsByStatementId.get(candidate.identity);
-      return definition
-        ? withDocumentation(candidate, documentationForModuleDefinition(documentationIndex, definition))
+      if (definition) return withDocumentation(candidate, documentationForModuleDefinition(documentationIndex, definition));
+      const imported = importedDefinitionForIdentity(candidate.identity);
+      return imported
+        ? withDocumentation(candidate, documentationForModuleDefinitionMetadata(imported.metadata))
         : candidate;
     });
   }
@@ -1064,9 +1086,23 @@ const attachModuleDocumentation = (
     return candidates.map((candidate) => {
       if (candidate.kind !== "argumentName") return candidate;
       const parameter = parameters.find((entry) => entry.name === candidate.label);
-      return parameter
-        ? withDocumentation(candidate, documentationForModuleParameter(documentationIndex, parameter))
-        : candidate;
+      if (!parameter) return candidate;
+      const imported = Boolean(
+        parameter.definitionIdentity &&
+        compiled.moduleRuntimeContext &&
+        parameter.definitionIdentity.documentId !== compiled.moduleRuntimeContext.rootDocumentId
+      );
+      const localDocumentation = imported
+        ? null
+        : documentationForModuleParameter(documentationIndex, parameter);
+      if (localDocumentation) return withDocumentation(candidate, localDocumentation);
+      const importedDocumentation = compiled.moduleRuntimeContext
+        ? documentationForModuleParameterMetadata(
+            compiled.moduleRuntimeContext.moduleDocumentationFor(parameter.definitionIdentity),
+            parameter
+          )
+        : null;
+      return withDocumentation(candidate, importedDocumentation);
     });
   }
 
@@ -1079,17 +1115,37 @@ const attachModuleDocumentation = (
   );
   if (qualifier.kind !== "resolved" || qualifier.declaration.kind !== "moduleInstance") return candidates;
   const instance = analysis.instancesByStatementId.get(qualifier.declaration.statementId);
-  const definition = instance?.callee
-    ? analysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
-    : undefined;
+  const definition = instance?.callee?.definition ??
+    (instance?.callee?.definitionIdentity
+      ? compiled.moduleRuntimeContext?.definitionFor(instance.callee.definitionIdentity)
+      : undefined) ??
+    (instance?.callee
+      ? analysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
+      : undefined);
   if (!definition) return candidates;
+  const importedDocumentation = compiled.moduleRuntimeContext?.valid
+    ? instance?.callee?.documentation ?? (
+        definition.identity
+          ? compiled.moduleRuntimeContext.moduleDocumentationFor(definition.identity)
+          : undefined
+      )
+    : undefined;
 
   return candidates.map((candidate) => {
     if (candidate.kind !== "binding" && candidate.kind !== "geometry") return candidate;
     const exported = definition.exports.find((entry) => entry.name === candidate.label);
-    return exported
-      ? withDocumentation(candidate, documentationForModuleExport(documentationIndex, exported))
-      : candidate;
+    if (!exported) return candidate;
+    const imported = Boolean(
+      definition.identity &&
+      compiled.moduleRuntimeContext &&
+      definition.identity.documentId !== compiled.moduleRuntimeContext.rootDocumentId
+    );
+    const localDocumentation = imported
+      ? null
+      : documentationForModuleExport(documentationIndex, exported);
+    return localDocumentation
+      ? withDocumentation(candidate, localDocumentation)
+      : withDocumentation(candidate, documentationForModuleExportMetadata(importedDocumentation, exported));
   });
 };
 

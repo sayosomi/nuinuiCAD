@@ -27,30 +27,56 @@ import {
 } from "./multiDocumentPrimitives";
 import type { MultiDocumentPublicApiEntry } from "./multiDocumentPublicApi";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
+import {
+  buildModuleDocumentationMetadata,
+  moduleDocumentationLineStarts,
+  type ModuleDocumentationMetadata
+} from "../dsl/moduleDocumentation";
 
 /** Production family contributor for direct top-level Module declarations.
  * The graph remains family-neutral; it invokes this contributor through its
  * existing declaration-contributor seam. */
-export const moduleDeclarationContributor: MultiDocumentDeclarationContributor<never> = ({
+export const moduleDeclarationContributor: MultiDocumentDeclarationContributor<ModuleDocumentationMetadata> = ({
   source,
   parsed,
   statementIdByStatementIndex
-}) => parsed.statements.flatMap((statement, statementIndex) => {
-  if (statement.kind !== "moduleDefinition" || statement.enclosing || !statement.name) return [];
-  const statementId = statementIdByStatementIndex.get(statementIndex);
-  if (!statementId) return [];
-  const nameSegments = statement.namePhysicalSpan?.segments;
-  const range = nameSegments && nameSegments.length > 0
-    ? { from: nameSegments[0]!.from, to: nameSegments.at(-1)!.to }
-    : { from: statement.documentRange.from, to: statement.documentRange.to };
-  return [{
-    identity: qualifySemanticIdentity(source.documentId, statementId),
-    family: "module" as const,
-    name: statement.name,
-    declaration: qualifySourceLocation(sourceIdentityOf(source), range),
-    exported: statement.exported
-  }];
-});
+}) => {
+  const lineStarts = moduleDocumentationLineStarts(parsed.sourceMap.source);
+  return parsed.statements.flatMap((statement, statementIndex) => {
+    if (statement.kind !== "moduleDefinition" || statement.enclosing || !statement.name) return [];
+    const statementId = statementIdByStatementIndex.get(statementIndex);
+    if (!statementId) return [];
+    const nameSegments = statement.namePhysicalSpan?.segments;
+    const range = nameSegments && nameSegments.length > 0
+      ? { from: nameSegments[0]!.from, to: nameSegments.at(-1)!.to }
+      : { from: statement.documentRange.from, to: statement.documentRange.to };
+    const documentation = buildModuleDocumentationMetadata({
+      statements: parsed.statements,
+      spans: {
+        sourceMap: parsed.sourceMap,
+        logicalStatementByRangeFrom: parsed.logicalStatementByRangeFrom
+      },
+      definitionStatementIndex: statementIndex,
+      parameterIndexes: statement.parameters.map((_, parameterIndex) => parameterIndex),
+      exports: parsed.statements.flatMap((candidate, candidateIndex) => {
+        const exported = (candidate.kind === "typedDeclaration" || candidate.kind === "element") && candidate.exported;
+        const candidateId = statementIdByStatementIndex.get(candidateIndex);
+        return exported && candidate.enclosing?.statementIndex === statementIndex && candidateId
+          ? [{ statementIndex: candidateIndex, statementId: candidateId }]
+          : [];
+      }),
+      lineStarts
+    });
+    return [{
+      identity: qualifySemanticIdentity(source.documentId, statementId),
+      family: "module" as const,
+      name: statement.name,
+      declaration: qualifySourceLocation(sourceIdentityOf(source), range),
+      exported: statement.exported,
+      ...(documentation ? { metadata: documentation } : {})
+    }];
+  });
+};
 
 export type MultiDocumentModuleSemanticDiagnostic = {
   code: "module-recursion" | "module-semantic-invalid";
@@ -155,7 +181,7 @@ export const analyzeMultiDocumentModuleSemantics = (
     if (!node.valid) continue;
     const externalNamespaceResolver = createGraphExternalNamespaceResolver(graph, node.documentId);
     const externalModuleResolver = (member: { value: unknown }): ExternalModuleSemanticTarget | null => {
-      const entry = member.value as MultiDocumentPublicApiEntry | null;
+      const entry = member.value as MultiDocumentPublicApiEntry<ModuleDocumentationMetadata> | null;
       if (!entry || entry.family !== "module") return null;
       const defining = analysesByDocument.get(entry.identity.documentId);
       const definition = defining?.definitionsByStatementId.get(localIdentity(entry.identity));
@@ -167,7 +193,8 @@ export const analyzeMultiDocumentModuleSemantics = (
         definitionStatementIndex: definition.statementIndex,
         name: definition.name,
         parameters: definition.parameters,
-        definition
+        definition,
+        ...(entry.metadata ? { documentation: entry.metadata } : {})
       };
     };
     const analysis = analyzeModuleSemantics({

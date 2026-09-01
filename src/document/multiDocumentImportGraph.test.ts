@@ -11,6 +11,7 @@ import {
   type SavedDependencyLoadResult
 } from "./multiDocumentImportGraph";
 import { moduleDeclarationContributor } from "./multiDocumentModuleSemantics";
+import type { ModuleDocumentationMetadata } from "../dsl/moduleDocumentation";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost,
@@ -268,9 +269,9 @@ describe("multi-document import graph", () => {
       "}"
     ].join("\n"));
     const invalid = savedSource("library", "sha256:v2", "nui 3\n");
-    const cache = new SavedDocumentArtifactCache<{ docs: string }>();
+    const cache = new SavedDocumentArtifactCache<ModuleDocumentationMetadata>();
     let dependencyContributionCount = 0;
-    const countingContributor: MultiDocumentDeclarationContributor<{ docs: string }> = (context) => {
+    const countingContributor: MultiDocumentDeclarationContributor<ModuleDocumentationMetadata> = (context) => {
       if (context.source.kind === "dependency-saved") dependencyContributionCount += 1;
       return moduleDeclarationContributor(context);
     };

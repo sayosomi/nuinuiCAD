@@ -34,6 +34,7 @@ import {
 } from "./dslGeometryArrayCompletionContext";
 import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { numericGeometryPropertiesForStaticTarget } from "../geometry/numericGeometryProperties";
+import type { DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -49,6 +50,7 @@ export type ModuleCompletionParameterMetadata = {
   optional: boolean;
   definitionStatementId: string;
   parameterIndex: number;
+  definitionIdentity?: DocumentQualifiedSemanticIdentity<string>;
 };
 
 export type ModuleCompletionRequest = {

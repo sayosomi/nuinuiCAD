@@ -10,6 +10,7 @@ import type { MultiDocumentModuleSemanticAnalysis } from "../document/multiDocum
 import type { MultiDocumentGraphNode, MultiDocumentImportGraph } from "../document/multiDocumentImportGraph";
 import { buildStatementMap, type StatementMap } from "./dslDocument";
 import type { DslStatement } from "./dslTypes";
+import type { ModuleDocumentationMetadata } from "./moduleDocumentation";
 import type { ModuleDefinitionSemantic, ModuleInstanceSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
 
@@ -44,6 +45,7 @@ export type ModuleRuntimeContext = {
   runtimePathForInstance(parentPath: readonly string[], instance: ModuleInstanceSemantic): readonly string[];
   definitionFor(identity: DocumentQualifiedSemanticIdentity<StatementIdentity> | undefined): ModuleDefinitionSemantic | undefined;
   instanceFor(identity: DocumentQualifiedSemanticIdentity<StatementIdentity> | undefined): ModuleInstanceSemantic | undefined;
+  moduleDocumentationFor(identity: DocumentQualifiedSemanticIdentity<StatementIdentity> | undefined): ModuleDocumentationMetadata | undefined;
 };
 
 const graphNodeFor = (graph: MultiDocumentImportGraph, documentId: DocumentId): MultiDocumentGraphNode | undefined =>
@@ -109,6 +111,18 @@ export const createModuleRuntimeContext = (
     identity ? analysisFor(identity.documentId)?.definitionsByStatementId.get(identity.localIdentity) : undefined;
   const instanceFor = (identity: DocumentQualifiedSemanticIdentity<StatementIdentity> | undefined) =>
     identity ? analysisFor(identity.documentId)?.instancesByStatementId.get(identity.localIdentity) : undefined;
+  const moduleDocumentationFor = (
+    identity: DocumentQualifiedSemanticIdentity<StatementIdentity> | undefined
+  ): ModuleDocumentationMetadata | undefined => {
+    if (!valid || !identity) return undefined;
+    const entry = [...(graph.nodes.get(identity.documentId)?.publicApi.publicEntriesByName.values() ?? [])]
+      .find((candidate) =>
+        candidate.family === "module" &&
+        candidate.identity.documentId === identity.documentId &&
+        candidate.identity.localIdentity === identity.localIdentity
+      );
+    return entry?.metadata as ModuleDocumentationMetadata | undefined;
+  };
 
   // Keep this reference alive as a structural assertion that every context
   // document came from the graph node that supplied its exact source artifact.
@@ -117,7 +131,7 @@ export const createModuleRuntimeContext = (
       return {
         graph, analysis, rootDocumentId: graph.rootDocumentId, documentsById, valid: false,
         qualifiesRuntimePaths, documentFor, analysisFor, runtimePathComponent,
-        runtimePathForInstance, definitionFor, instanceFor
+        runtimePathForInstance, definitionFor, instanceFor, moduleDocumentationFor
       };
     }
   }
@@ -134,6 +148,7 @@ export const createModuleRuntimeContext = (
     runtimePathComponent,
     runtimePathForInstance,
     definitionFor,
-    instanceFor
+    instanceFor,
+    moduleDocumentationFor
   };
 };
