@@ -246,6 +246,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     visibilityProfiles,
     activeVisibilityProfileId,
     moduleSemanticContext,
+    canvasModuleMaterialization,
     selectedElementId,
     selectedElementIds,
     canvasViewport,
@@ -260,8 +261,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const renderFixedCanvasChrome = hostAdapter.renderFixedCanvasChrome ?? true;
   const previewElementIds = useMemo(() => {
     const documentElementIds = new Set(documentElements.map((element) => element.id));
-    return new Set(elements.filter((element) => !documentElementIds.has(element.id)).map((element) => element.id));
-  }, [documentElements, elements]);
+    return new Set(elements
+      .filter((element) => !documentElementIds.has(element.id) && !hostAdapter.runtimeElementIds?.has(element.id))
+      .map((element) => element.id));
+  }, [documentElements, elements, hostAdapter.runtimeElementIds]);
   const hasCommandLineGhost = Boolean(commandLineSession && previewElementIds.size > 0);
   const commandLinePlacement = useMemo(
     () => commandLineSession
@@ -353,7 +356,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     selectedElementIds,
     elements,
     evaluation,
-    moduleMaterialization: moduleSemanticContext.moduleMaterialization,
+    moduleMaterialization: canvasModuleMaterialization ?? moduleSemanticContext.moduleMaterialization,
     visibilityProfiles,
     activeVisibilityProfileId,
     viewportSize,
@@ -365,6 +368,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     elements,
     evaluation,
     hostAdapter.measureCanvasTextWidth,
+    canvasModuleMaterialization,
     moduleSemanticContext.moduleMaterialization,
     selectedElementIds,
     viewportSize,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { ModuleMaterialization, ModuleOrigin } from "../dsl/moduleMaterialization";
+import { materializedRuntimeElementId, type ModuleMaterialization, type ModuleOrigin } from "../dsl/moduleMaterialization";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import type { CadElement, ElementId } from "../types/geometry";
@@ -131,7 +131,7 @@ describe("resolveOwningModuleInstanceId", () => {
       selectedElementId: body.id,
       elements: state.elements,
       moduleMaterialization: withOrigins(materialization, new Map([
-        [body.id, { ...origin, instancePath: [] }]
+        [body.id, { ...origin, instancePath: [], runtimeInstancePath: [] }]
       ]))
     })).toBeNull();
   });
@@ -158,6 +158,30 @@ describe("resolveOwningModuleInstanceId", () => {
       elements: wrongTypeElements,
       moduleMaterialization: materialization
     })).toBeNull();
+  });
+
+  it("uses the runtime-qualified path when local statement identities collide", () => {
+    const state = loadDocument(directModuleSource);
+    const owner = elementNamed("First", "moduleInstance");
+    const body = bodyOwnedBy(owner);
+    const materialization = state.doc.moduleMaterialization!;
+    const origin = materialization.originByRuntimeElementId.get(body.id)!;
+    const runtimeInstancePath = ["module-document:file:///workspace/library.nui:live:instance"];
+    const qualifiedOwnerId = materializedRuntimeElementId("moduleInstance", runtimeInstancePath);
+    const qualifiedElements = state.elements
+      .filter((element) => element.id !== owner.id)
+      .map((element) => element.id === body.id
+        ? { ...element, parentGroupId: qualifiedOwnerId }
+        : element);
+    qualifiedElements.push({ ...owner, id: qualifiedOwnerId });
+    const origins = new Map(materialization.originByRuntimeElementId);
+    origins.set(body.id, { ...origin, runtimeInstancePath });
+
+    expect(resolveOwningModuleInstanceId({
+      selectedElementId: body.id,
+      elements: qualifiedElements,
+      moduleMaterialization: withOrigins(materialization, origins)
+    })).toBe(qualifiedOwnerId);
   });
 });
 

@@ -163,6 +163,11 @@ const latestCurrentGraphFor = (documentUri: string) => {
   return publication?.status === "current" ? publication.graph : null;
 };
 
+const latestCurrentPublicationFor = (documentUri: string) => {
+  const entry = currentPublicationsFor(documentUri).at(-1);
+  return entry?.publication as Extract<VscodeMultiDocumentGraphPublication, { status: "current" }> | undefined;
+};
+
 afterEach(() => {
   mocks.textDocuments = [];
   mocks.files.clear();
@@ -307,6 +312,75 @@ describe("VS Code multi-document host lifecycle", () => {
       [`file://${libraryPath}`, "Renamed"],
       [`file://${rootPath}`, "Renamed"]
     ]);
+
+    host.dispose();
+  });
+
+  it("publishes exact imported Canvas runtime and fails closed for dirty or deleted dependencies", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "  point P = coordinate(x: 3, y: 4)",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      const publication = latestCurrentPublicationFor(rootUri);
+      expect(publication?.canvasRuntime).toBeDefined();
+    });
+
+    const publication = latestCurrentPublicationFor(rootUri);
+    const runtime = publication?.canvasRuntime;
+    expect(runtime?.preparedRustEvaluation.rustEligible).toBe(true);
+    expect(runtime?.preparedRustEvaluation.input.elements.some((element) => element.name === "P")).toBe(true);
+    expect(runtime?.modulePresentation.instanceBaseGeometrySnapshots.length).toBeGreaterThan(0);
+    const bodyId = runtime?.preparedRustEvaluation.input.elements.find((element) => element.name === "P")?.id;
+    expect(bodyId).toBeDefined();
+    if (!bodyId) return;
+
+    const target = await host.canvasSourceDefinitionFor(root, bodyId);
+    expect(target.handled).toBe(true);
+    expect(target.value).toMatchObject({
+      targetUri: { scheme: "file", fsPath: libraryPath },
+      normalizedSource: librarySource,
+      sourceIdentity: {
+        kind: "dependency-saved",
+        documentId: `file://${libraryPath}`
+      }
+    });
+
+    const dirtyDependency = documentFor(libraryPath, [
+      "nui 1",
+      "// dirty buffer must not be revealed into the saved target",
+      "export module Panel() {",
+      "  point P = coordinate(x: 30, y: 40)",
+      "}"
+    ].join("\n"), { version: 2, dirty: true });
+    mocks.textDocuments = [root, dirtyDependency];
+    const dirtyTarget = await host.canvasSourceDefinitionFor(root, bodyId);
+    expect(dirtyTarget).toEqual({ handled: true, value: undefined });
+
+    mocks.textDocuments = [root];
+    mocks.files.delete(libraryPath);
+    mocks.watcherDeleteListeners[0]?.(vscode.Uri.file(libraryPath) as unknown as TestUri);
+    await vi.waitFor(() => {
+      const current = latestCurrentPublicationFor(rootUri);
+      expect(current).toBeDefined();
+      expect(current?.canvasRuntime).toBeNull();
+    });
 
     host.dispose();
   });

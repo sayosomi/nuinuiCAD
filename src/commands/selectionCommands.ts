@@ -3,7 +3,10 @@ import {
   selectionRangeIds,
   toggleSelectionIds
 } from "../model/documentSelection";
-import { materializedRuntimeElementId, type ModuleMaterialization } from "../dsl/moduleMaterialization";
+import {
+  materializedRuntimeElementId,
+  type CanvasModuleMaterialization
+} from "../dsl/moduleMaterialization";
 import { moveElementsToInsertionIndex as moveDocumentElementsToInsertionIndex } from "../model/documentOrder";
 import {
   elementTypeSupportsHiddenActivity,
@@ -159,9 +162,10 @@ export const canvasSelectionForElement = (
 export const previewCanvasSelection = (
   previousSelection: SelectionSnapshot,
   elementId: ElementId,
-  selectionMode: CanvasSelectionMode = "replace"
+  selectionMode: CanvasSelectionMode = "replace",
+  activeElements?: readonly CadElement[]
 ) => {
-  const elements = useCadDocumentStore.getState().elements;
+  const elements = [...(activeElements ?? useCadDocumentStore.getState().elements)];
   const selection = canvasSelectionForElement(elements, previousSelection, elementId, selectionMode);
   if (!selection) return;
   useCadUiStore.getState().applySelection(elements, selection);
@@ -179,9 +183,10 @@ export const replaceCanvasSelection = (
   primaryElementId?: ElementId,
   recordHistory = false,
   ordering: "document" | "requested" = "document",
-  canvasEligibility?: CanvasSelectionEligibility
+  canvasEligibility?: CanvasSelectionEligibility,
+  activeElements?: readonly CadElement[]
 ) => {
-  const elements = useCadDocumentStore.getState().elements;
+  const elements = [...(activeElements ?? useCadDocumentStore.getState().elements)];
   const selectableIds = selectionEligibleElementIds(elements, canvasEligibility);
   const requested = new Set(elementIds);
   const orderedIds = ordering === "requested"
@@ -207,7 +212,7 @@ export const replaceCanvasSelection = (
 export type SelectInstanceResolutionInput = {
   selectedElementId: ElementId | null | undefined;
   elements: readonly CadElement[];
-  moduleMaterialization?: ModuleMaterialization;
+  moduleMaterialization?: Pick<CanvasModuleMaterialization, "originByRuntimeElementId">;
 };
 
 /** Resolves the concrete Module instance that owns the selected materialized body element. */
@@ -225,7 +230,7 @@ export const resolveOwningModuleInstanceId = ({
   const origin = moduleMaterialization.originByRuntimeElementId.get(selectedElementId);
   if (!origin || origin.kind !== "moduleBody") return null;
 
-  const instancePath = origin.instancePath;
+  const instancePath = origin.runtimeInstancePath ?? origin.instancePath;
   if (
     !Array.isArray(instancePath) ||
     instancePath.length === 0 ||
