@@ -43,6 +43,8 @@ mod for_group_tests;
 mod groups;
 mod image_evaluator;
 #[cfg(test)]
+mod image_evaluator_tests;
+#[cfg(test)]
 mod incomplete_numeric_expression_tests;
 mod intersection_point_evaluator;
 #[cfg(test)]

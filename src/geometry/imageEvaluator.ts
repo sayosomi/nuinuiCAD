@@ -61,12 +61,13 @@ export const evaluateImageElement = (
     element.naturalWidthPx <= 0 ||
     element.naturalHeightPx <= 0 ||
     element.sourceDpi <= 0 ||
+    element.targetPixelsPerMm <= 0 ||
     scale <= 0
   ) {
     errors.push(
       geometryError(
         element,
-        `${element.name} は画像寸法、DPI、倍率が0以下のため配置できません。画像を読み込み直すか、倍率を正の値にしてください。`
+        `${element.name} は画像寸法、DPI、目標解像度、倍率が0以下のため配置できません。画像を読み込み直すか、倍率を正の値にしてください。`
       )
     );
     return true;

@@ -5,7 +5,7 @@ import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
-import type { CadElement } from "../types/geometry";
+import type { CadElement, ImageElement } from "../types/geometry";
 
 const compileAndEvaluate = (source: string) => {
   const compiled = compileDslDocument(source);
@@ -54,6 +54,23 @@ const validElements: CadElement[] = [
     endPoint: { mode: "reference", pointId: "b" }
   }
 ];
+
+const imageElement = (overrides: Partial<ImageElement> = {}): ImageElement => ({
+  id: "image",
+  name: "画像",
+  type: "image",
+  activity: "visible",
+  sourcePath: "image.png",
+  originPoint: { mode: "coordinate", x: 0, y: 0 },
+  naturalWidthPx: 300,
+  naturalHeightPx: 150,
+  sourceDpi: 300,
+  targetPixelsPerMm: 10,
+  scale: 1,
+  angleDeg: 0,
+  mirrorX: false,
+  ...overrides
+});
 
 describe("evaluateElements", () => {
   it("treats moduleInstance as a no-op container while evaluating its child normally", () => {
@@ -182,21 +199,14 @@ describe("evaluateElements", () => {
   it("evaluates image placement from source dpi and scale", () => {
     const result = evaluateElements([
       validElements[0],
-      {
-        id: "image",
+      imageElement({
         name: "下絵",
-        type: "image",
-        activity: "visible",
         sourcePath: "underlay.png",
         originPoint: { mode: "reference", pointId: "a" },
-        naturalWidthPx: 300,
-        naturalHeightPx: 150,
-        sourceDpi: 300,
-        targetPixelsPerMm: 10,
         scale: 2,
         angleDeg: 15,
         mirrorX: true
-      }
+      })
     ]);
 
     expect(result.errors).toHaveLength(0);
@@ -205,10 +215,23 @@ describe("evaluateElements", () => {
       origin: { x: 10, y: 20 },
       widthMm: 50.8,
       heightMm: 25.4,
+      targetPixelsPerMm: 10,
       scale: 2,
       angleDeg: 15,
       mirrorX: true
     });
+  });
+
+  it.each([0, -1])("reports image geometry errors for target resolution %s", (targetPixelsPerMm) => {
+    const result = evaluateElements([imageElement({ targetPixelsPerMm })]);
+
+    expect(result.computedGeometry.has("image")).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatchObject({
+      elementId: "image",
+      missingDependencyId: "image"
+    });
+    expect(result.errors[0].message).toContain("目標解像度");
   });
 
   // A raw element with no compiled textTemplate context (as built directly here,
@@ -258,30 +281,20 @@ describe("evaluateElements", () => {
     });
   });
 
-  it("reports image geometry errors for invalid dpi or scale", () => {
-    const result = evaluateElements([
-      {
-        id: "image",
-        name: "壊れた画像",
-        type: "image",
-        activity: "visible",
-        sourcePath: "broken.png",
-        originPoint: { mode: "coordinate", x: 0, y: 0 },
-        naturalWidthPx: 300,
-        naturalHeightPx: 150,
-        sourceDpi: 0,
-        targetPixelsPerMm: 10,
-        scale: 1,
-        angleDeg: 0,
-        mirrorX: false
-      }
-    ]);
+  it.each([
+    ["source DPI", { sourceDpi: 0 }],
+    ["natural width", { naturalWidthPx: 0 }],
+    ["natural height", { naturalHeightPx: 0 }],
+    ["scale", { scale: 0 }]
+  ] as [string, Partial<ImageElement>][]) ("reports image geometry errors for invalid %s", (_label, overrides) => {
+    const result = evaluateElements([imageElement({ name: "壊れた画像", sourcePath: "broken.png", ...overrides })]);
 
     expect(result.computedGeometry.has("image")).toBe(false);
     expect(result.errors[0]).toMatchObject({
       elementId: "image",
       missingDependencyId: "image"
     });
+    expect(result.errors[0].message).toContain("目標解像度");
   });
 
   it("evaluates only elements before the evaluation limit", () => {
