@@ -16,6 +16,7 @@ export type CanvasTheme = {
   bezierHandleLine: string;
   bezierHandlePoint: string;
   selection: string;
+  selectionOutline: string;
   pickCandidate: string;
 };
 
@@ -34,6 +35,7 @@ export const LEGACY_CANVAS_THEME: CanvasTheme = {
   bezierHandleLine: "rgb(83 86 79 / 42%)",
   bezierHandlePoint: "#0f766e",
   selection: "rgb(15 118 110 / 80%)",
+  selectionOutline: "rgb(15 118 110 / 80%)",
   pickCandidate: "#0f766e"
 };
 
@@ -56,5 +58,6 @@ export const canvasThemeCssVariables = (theme: CanvasTheme): CSSProperties => ({
   "--canvas-bezier-handle-line": theme.bezierHandleLine,
   "--canvas-bezier-handle-point": theme.bezierHandlePoint,
   "--canvas-selection": theme.selection,
+  "--canvas-selection-outline": theme.selectionOutline,
   "--canvas-pick-candidate": theme.pickCandidate
 } as CSSProperties);

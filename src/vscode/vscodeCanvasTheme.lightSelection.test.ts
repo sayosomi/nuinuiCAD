@@ -36,11 +36,29 @@ const hueDistance = (first: number, second: number) => {
   return Math.min(difference, 360 - difference);
 };
 
+const MAX_SELECTION_OUTLINE_HUE_DRIFT = 20 + 1e-6;
+
 const contrastFor = (value: string, backgroundValue: string) => {
   const color = parseCssColor(value);
   const background = parseCssColor(backgroundValue);
   if (!color || !background) throw new Error("Expected test colors to parse");
   return contrastRatio(compositeCssColorOver(color, background), background);
+};
+
+const renderedRelativeLuminanceFor = (value: string, backgroundValue: string) => {
+  const color = parseCssColor(value);
+  const background = parseCssColor(backgroundValue);
+  if (!color || !background) throw new Error("Expected test colors to parse");
+  const visible = compositeCssColorOver(color, background);
+  const linearize = (channel: number) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linearize(visible.red) +
+    0.7152 * linearize(visible.green) +
+    0.0722 * linearize(visible.blue);
 };
 
 const visibleOklabFor = (value: string, backgroundValue: string) => {
@@ -107,6 +125,8 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     expect(contrastFor(themeAccent, background)).toBeLessThan(4.5);
     expect(theme.selection).not.toBe(themeAccent);
     expect(hueDistance(selectionHsl.hue, baseHsl.hue)).toBeLessThanOrEqual(1);
+    expect(hueDistance(visibleHslFor(theme.selectionOutline, background).hue, baseHsl.hue))
+      .toBeLessThanOrEqual(MAX_SELECTION_OUTLINE_HUE_DRIFT);
     expect(selectionHsl.saturation).toBeGreaterThanOrEqual(0.98);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
@@ -132,6 +152,51 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("derives a brighter Solarized-like outline from the active theme hue", () => {
+    const foreground = "#657b83";
+    const background = "#fdf6e3";
+    const themeAccent = "#07958a";
+    const theme = resolveVSCodeCanvasTheme(stylesFor({
+      "--vscode-editor-foreground": foreground,
+      "--vscode-editor-background": background,
+      "--vscode-focusBorder": themeAccent,
+      "--vscode-editor-selectionHighlightBorder": themeAccent
+    }));
+
+    const accentHsl = visibleHslFor(themeAccent, background);
+    const outlineHsl = visibleHslFor(theme.selectionOutline, background);
+    const selectionContrast = contrastFor(theme.selection, background);
+    const outlineContrast = contrastFor(theme.selectionOutline, background);
+
+    expect(selectionContrast).toBeGreaterThanOrEqual(4.5);
+    expect(outlineContrast).toBeGreaterThanOrEqual(3);
+    expect(perceptualDistanceFor(theme.selectionOutline, foreground, background))
+      .toBeGreaterThanOrEqual(0.15);
+    expect(hueDistance(outlineHsl.hue, accentHsl.hue))
+      .toBeLessThanOrEqual(MAX_SELECTION_OUTLINE_HUE_DRIFT);
+    expect(renderedRelativeLuminanceFor(theme.selectionOutline, background))
+      .toBeGreaterThan(renderedRelativeLuminanceFor(theme.selection, background));
+    expect(outlineContrast).toBeLessThan(selectionContrast);
+    expect(theme.selectionOutline).not.toBe(theme.selection);
+  });
+
+  it("keeps materially different light-theme hues materially different in the outline", () => {
+    const resolve = (foreground: string, background: string, accent: string) =>
+      resolveVSCodeCanvasTheme(stylesFor({
+        "--vscode-editor-foreground": foreground,
+        "--vscode-editor-background": background,
+        "--vscode-focusBorder": accent,
+        "--vscode-editor-selectionHighlightBorder": accent
+      }));
+    const teal = resolve("#657b83", "#fdf6e3", "#07958a");
+    const magenta = resolve("#333333", "#ffffff", "#d95ba5");
+
+    expect(hueDistance(
+      visibleHslFor(teal.selectionOutline, teal.background).hue,
+      visibleHslFor(magenta.selectionOutline, magenta.background).hue
+    )).toBeGreaterThan(60);
+  });
+
   it("uses an already-distinct theme focus token unchanged when no selection token exists", () => {
     const foreground = "#333333";
     const background = "#ffffff";
@@ -144,6 +209,13 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
 
     expect(theme.selection).toBe(focusAccent);
     expect(contrastFor(theme.selection, background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastFor(theme.selectionOutline, background)).toBeGreaterThanOrEqual(3);
+    expect(perceptualDistanceFor(theme.selectionOutline, foreground, background))
+      .toBeGreaterThanOrEqual(0.15);
+    expect(hueDistance(
+      visibleHslFor(theme.selectionOutline, background).hue,
+      visibleHslFor(focusAccent, background).hue
+    )).toBeLessThanOrEqual(MAX_SELECTION_OUTLINE_HUE_DRIFT);
   });
 
   it("keeps the accepted dark-theme teal correction direction unchanged", () => {
@@ -158,5 +230,6 @@ describe("resolveVSCodeCanvasTheme light selection correction", () => {
     }));
 
     expect(theme.selection).toBe(accent);
+    expect(theme.selectionOutline).toBe(theme.selection);
   });
 });
