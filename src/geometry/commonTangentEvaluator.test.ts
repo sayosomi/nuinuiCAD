@@ -96,7 +96,7 @@ describe("commonTangent", () => {
     expect(result.errors).toEqual([]);
   });
 
-  it("reports exact non-arc, invalid-radius, concentric/coincident, missing-kind, and collapsed diagnostics", () => {
+  it("reports exact non-arc, failed-source, concentric/coincident, missing-kind, and collapsed diagnostics", () => {
     const base: CadElement[] = [
       { id: "c1", name: "C1", type: "freePoint", activity: "visible", x: 0, y: 0 },
       { id: "c2", name: "C2", type: "freePoint", activity: "visible", x: 10, y: 0 },
@@ -111,7 +111,7 @@ describe("commonTangent", () => {
     expect(evaluateElements([...base, tangent({ firstLineId: "straight" })]).errors.at(-1)?.message)
       .toBe("first に円弧が指定されていません。共通接線には円弧を指定してください。");
     expect(evaluateElements([...base.map((element) => element.id === "a" ? { ...element, radius: 0 } as CadElement : element), tangent()]).errors.at(-1)?.message)
-      .toBe("first の半径が0以下です。共通接線には半径のある円弧を指定してください。");
+      .toBe("T は A を参照していますが、A の評価に失敗しているため評価できません。先に A のエラーを解消してください。");
     expect(evaluateElements([...base.map((element) => element.id === "c2" ? { ...element, x: 0 } as CadElement : element), tangent()]).errors.at(-1)?.message)
       .toBe("2つの円が同一円のため、共通接線を1本に決定できません。");
     expect(evaluateElements([...base.map((element) => element.id === "c2" ? { ...element, x: 0 } as CadElement : element).map((element) => element.id === "b" ? { ...element, radius: 4 } as CadElement : element), tangent()]).errors.at(-1)?.message)

@@ -54,6 +54,8 @@ mod line_copy_move_evaluator;
 #[cfg(test)]
 mod line_copy_move_tests;
 mod line_division_point_evaluator;
+#[cfg(test)]
+mod line_evaluator_tests;
 mod line_evaluators;
 mod line_intersections;
 mod line_path;

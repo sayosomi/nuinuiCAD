@@ -91,7 +91,7 @@ fn reports_exact_common_tangent_boundary_diagnostics() {
 }
 
 #[test]
-fn rejects_non_arc_and_invalid_radius_exactly() {
+fn rejects_non_arc_and_reports_failed_direct_arc_dependency() {
     let mut elements = base("external", "left");
     elements[2] = json!({
         "id": "a", "name": "A", "type": "line", "activity": "visible",
@@ -109,6 +109,6 @@ fn rejects_non_arc_and_invalid_radius_exactly() {
     let invalid = evaluate_document_input(input(elements));
     assert_eq!(
         invalid.errors.last().unwrap().message,
-        "first の半径が0以下です。共通接線には半径のある円弧を指定してください。"
+        "T は a を参照していますが、a の評価に失敗しているため評価できません。先に a のエラーを解消してください。"
     );
 }

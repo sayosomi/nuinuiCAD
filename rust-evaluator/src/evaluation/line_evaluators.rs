@@ -314,7 +314,16 @@ pub(crate) fn evaluate_arc_line(
     ) else {
         return;
     };
-    let safe_radius = if radius > 0.0 { radius } else { 0.0 };
+    if !(radius > 0.0) {
+        state.errors.push(geometry_error(
+            element,
+            format!(
+                "{} の半径は0より大きい値で指定してください。",
+                element_name(element)
+            ),
+        ));
+        return;
+    }
     let direction = element
         .get("direction")
         .and_then(Value::as_str)
@@ -331,7 +340,6 @@ pub(crate) fn evaluate_arc_line(
             center_point_id: anchor_reference_element_id(center_anchor),
             center,
             radius,
-            safe_radius,
             start_angle_deg,
             end_angle_deg,
             start_tangent_angle_deg,
@@ -422,7 +430,6 @@ pub(crate) fn evaluate_three_point_arc_line(
                 y: circle.y,
             },
             radius: circle.radius,
-            safe_radius: circle.radius,
             start_angle_deg,
             end_angle_deg,
             start_tangent_angle_deg,
@@ -438,7 +445,6 @@ struct ArcGeometry {
     center_point_id: Option<String>,
     center: Point,
     radius: f64,
-    safe_radius: f64,
     start_angle_deg: f64,
     end_angle_deg: f64,
     start_tangent_angle_deg: f64,
@@ -458,15 +464,15 @@ fn insert_arc_line_geometry(state: &mut EvaluationState, arc: ArcGeometry) {
             "name": arc.name,
             "centerPointId": arc.center_point_id,
             "center": computed_point(arc.center.element_id, arc.center.name, arc.center.x, arc.center.y),
-            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), arc.center.x + start_angle_rad.cos() * arc.safe_radius, arc.center.y + start_angle_rad.sin() * arc.safe_radius),
-            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), arc.center.x + end_angle_rad.cos() * arc.safe_radius, arc.center.y + end_angle_rad.sin() * arc.safe_radius),
+            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), arc.center.x + start_angle_rad.cos() * arc.radius, arc.center.y + start_angle_rad.sin() * arc.radius),
+            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), arc.center.x + end_angle_rad.cos() * arc.radius, arc.center.y + end_angle_rad.sin() * arc.radius),
             "radius": arc.radius,
             "startAngleDeg": arc.start_angle_deg,
             "endAngleDeg": arc.end_angle_deg,
             "startTangentAngleDeg": arc.start_tangent_angle_deg,
             "endTangentAngleDeg": arc.end_tangent_angle_deg,
             "sweepAngleDeg": arc.sweep_angle_deg,
-            "length": arc.safe_radius * arc.sweep_angle_deg.to_radians().abs()
+            "length": arc.radius * arc.sweep_angle_deg.to_radians().abs()
         }),
     );
 }

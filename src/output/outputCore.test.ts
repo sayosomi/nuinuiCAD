@@ -224,6 +224,24 @@ describe("SAY-64 output core", () => {
     expect(plan.drawables.some((drawable) => drawable.name === "Copy" && drawable.kind === "offsetLine")).toBe(true);
   });
 
+  it("emits a positive direct arc as output geometry", () => {
+    const doc = sourceFor([
+      "nui 1",
+      "group G {",
+      "  arc A = arc(center: (0, 0), radius: 12, start: 30, end: 150)",
+      "}",
+      "layout L {",
+      "  place @G(at: (0, 0))",
+      "}",
+      "svg S(layout: @L)"
+    ]);
+    const plan = buildOutputPlan({ compiledDocument: doc, output: doc.document.svgOutputs[0], evaluation: evaluationFor(doc) });
+
+    expect(plan.drawables).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "A", kind: "arc", radius: 12 })
+    ]));
+  });
+
   it("emits a polyline as one ordered output drawable", () => {
     const doc = sourceFor([
       "nui 1",
