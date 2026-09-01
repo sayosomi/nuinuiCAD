@@ -313,7 +313,11 @@ const LIGHT_SELECTION_MIN_PERCEPTUAL_DISTANCE = 0.15;
 const LIGHT_SELECTION_OUTLINE_MIN_CONTRAST = 3;
 const LIGHT_SELECTION_OUTLINE_MIN_PERCEPTUAL_DISTANCE = 0.15;
 const LIGHT_SELECTION_OUTLINE_MIN_SATURATION = 0.35;
-const LIGHT_SELECTION_OUTLINE_SEARCH_STEPS = 92;
+const LIGHT_SELECTION_OUTLINE_HUE_DRIFT = 20;
+const LIGHT_SELECTION_OUTLINE_HUE_STEPS = 40;
+const LIGHT_SELECTION_OUTLINE_LIGHTNESS_MIN = 0.08;
+const LIGHT_SELECTION_OUTLINE_LIGHTNESS_MAX = 0.99;
+const LIGHT_SELECTION_OUTLINE_LIGHTNESS_STEPS = 91;
 const LIGHT_SELECTION_OUTLINE_SATURATION_STEPS = 40;
 
 const backgroundIsDark = (background: RgbaColor): boolean =>
@@ -452,7 +456,7 @@ const resolveSelectionColor = (
 
 /**
  * Keep the light-theme module frame bright enough to read as an outline while
- * preserving the resolved selection's active-theme hue and color family.
+ * preserving the resolved selection's active-theme color family.
  */
 const resolveSelectionOutlineColor = (
   selectionValue: string,
@@ -471,32 +475,70 @@ const resolveSelectionOutlineColor = (
   const selectionHsl = rgbToHsl(visibleSelection);
   const saturationCandidates = Array.from(
     { length: LIGHT_SELECTION_OUTLINE_SATURATION_STEPS + 1 },
-    (_, index) => index / LIGHT_SELECTION_OUTLINE_SATURATION_STEPS
-  ).filter((saturation) => saturation >= LIGHT_SELECTION_OUTLINE_MIN_SATURATION).sort((first, second) =>
+    (_, index) => LIGHT_SELECTION_OUTLINE_MIN_SATURATION +
+      (1 - LIGHT_SELECTION_OUTLINE_MIN_SATURATION) * index /
+        LIGHT_SELECTION_OUTLINE_SATURATION_STEPS
+  ).sort((first, second) =>
     Math.abs(first - selectionHsl.saturation) - Math.abs(second - selectionHsl.saturation)
   );
-  let brightestCandidate: RgbaColor | null = null;
+  const selectionLuminance = relativeLuminance(visibleSelection);
+  let brightestCandidate: {
+    color: RgbaColor;
+    luminance: number;
+    hueDrift: number;
+    saturationDistance: number;
+  } | null = null;
 
-  for (let step = 1; step <= LIGHT_SELECTION_OUTLINE_SEARCH_STEPS; step += 1) {
-    const lightness = Math.min(0.99, selectionHsl.lightness + step * 0.01);
-    for (const saturation of saturationCandidates) {
-      const candidate = hslToRgb({
-        hue: selectionHsl.hue,
-        saturation,
-        lightness
-      });
-      if (
-        contrastRatio(candidate, background) >= LIGHT_SELECTION_OUTLINE_MIN_CONTRAST &&
-        perceptualColorDistance(candidate, visibleForeground) >=
-          LIGHT_SELECTION_OUTLINE_MIN_PERCEPTUAL_DISTANCE
-      ) {
-        brightestCandidate = candidate;
-        break;
+  for (let hueStep = 0; hueStep <= LIGHT_SELECTION_OUTLINE_HUE_STEPS; hueStep += 1) {
+    const hueDrift = -LIGHT_SELECTION_OUTLINE_HUE_DRIFT +
+      2 * LIGHT_SELECTION_OUTLINE_HUE_DRIFT * hueStep / LIGHT_SELECTION_OUTLINE_HUE_STEPS;
+    for (
+      let lightnessStep = 0;
+      lightnessStep <= LIGHT_SELECTION_OUTLINE_LIGHTNESS_STEPS;
+      lightnessStep += 1
+    ) {
+      const lightness = LIGHT_SELECTION_OUTLINE_LIGHTNESS_MIN +
+        (LIGHT_SELECTION_OUTLINE_LIGHTNESS_MAX - LIGHT_SELECTION_OUTLINE_LIGHTNESS_MIN) *
+          lightnessStep / LIGHT_SELECTION_OUTLINE_LIGHTNESS_STEPS;
+
+      for (const saturation of saturationCandidates) {
+        const candidate = hslToRgb({
+          hue: selectionHsl.hue + hueDrift,
+          saturation,
+          lightness
+        });
+        const visibleCandidate = compositeCssColorOver(candidate, background);
+        const luminance = relativeLuminance(visibleCandidate);
+        if (
+          contrastRatio(visibleCandidate, background) < LIGHT_SELECTION_OUTLINE_MIN_CONTRAST ||
+          perceptualColorDistance(visibleCandidate, visibleForeground) <
+            LIGHT_SELECTION_OUTLINE_MIN_PERCEPTUAL_DISTANCE ||
+          luminance <= selectionLuminance
+        ) {
+          continue;
+        }
+
+        const candidateRecord = {
+          color: candidate,
+          luminance,
+          hueDrift: Math.abs(hueDrift),
+          saturationDistance: Math.abs(saturation - selectionHsl.saturation)
+        };
+        if (
+          !brightestCandidate ||
+          candidateRecord.luminance > brightestCandidate.luminance ||
+          (candidateRecord.luminance === brightestCandidate.luminance &&
+            (candidateRecord.hueDrift < brightestCandidate.hueDrift ||
+              (candidateRecord.hueDrift === brightestCandidate.hueDrift &&
+                candidateRecord.saturationDistance < brightestCandidate.saturationDistance)))
+        ) {
+          brightestCandidate = candidateRecord;
+        }
       }
     }
   }
 
-  return brightestCandidate ? formatAdjustedColor(brightestCandidate) : selectionValue;
+  return brightestCandidate ? formatAdjustedColor(brightestCandidate.color) : selectionValue;
 };
 
 const colorFrom = (
