@@ -188,6 +188,10 @@ export type CommandContext = {
    * Canvas selection - used for a just-inserted draft statement that has no
    * corresponding CadElement yet. */
   focusSourceEditorAtLineEnd?: (line: number) => void;
+  /** Notifies a host after the canonical document has been committed. */
+  postCanonicalSourceText?: (sourceText: string) => void;
+  /** Allows interactive command-line hosts to commit as soon as the final step is supplied. */
+  completeCommandLineSession?: boolean;
   /** Canvas-only ephemeral state cleared before a creation-session replacement. */
   clearPendingCanvasPointerIntent?: () => void;
   /** Cancels the deferred Canvas-to-Source-Editor focus handoff before replacement. */

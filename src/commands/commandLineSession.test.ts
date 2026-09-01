@@ -10,6 +10,7 @@ import {
   cancelStepEdit,
   commitStepEdit,
   currentStep,
+  clearStepValue,
   effectiveCommandLineArgs,
   fillCurrentStep,
   hasCommandLineStepValue,
@@ -18,7 +19,7 @@ import {
   sessionCanConfirm,
   setEditingDraft,
   sessionIsStale,
-  skipUnfilledStepsToReview,
+  skipUnfilledStepsToEnd,
   skipCurrentStep,
   startSession
 } from "./commandLineSession";
@@ -200,15 +201,31 @@ describe("commandLineSession", () => {
     expect(blanked.args).toEqual({ startPoint: referenceAnchor("point-a"), name: "Line A" });
   });
 
-  it("skips all unfilled steps to review without filling or committing them", () => {
-    const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
-    const review = skipUnfilledStepsToReview(partial);
+  it("clears a supplied value and reopens that step without fabricating a placeholder", () => {
+    const complete = fillCurrentStep(
+      fillCurrentStep(
+        fillCurrentStep(start(), referenceAnchor("point-a")),
+        8
+      ),
+      "Line A"
+    );
 
-    expect(review.currentStepIndex).toBe(recipe.steps.length);
-    expect(review.args).toEqual({ startPoint: referenceAnchor("point-a") });
-    expect(hasCommandLineStepValue(review, 1)).toBe(false);
-    expect(hasCommandLineStepValue(review, 2)).toBe(false);
-    expect(sessionCanConfirm(review)).toBe(true);
+    const cleared = clearStepValue(complete, 1);
+    expect(cleared.currentStepIndex).toBe(1);
+    expect(cleared.args).toEqual({ startPoint: referenceAnchor("point-a"), name: "Line A" });
+    expect(hasCommandLineStepValue(cleared, 1)).toBe(false);
+    expect(clearStepValue(cleared, 1)).toBe(cleared);
+  });
+
+  it("skips all unfilled steps to the end without filling them", () => {
+    const partial = fillCurrentStep(start(), referenceAnchor("point-a"));
+    const skipped = skipUnfilledStepsToEnd(partial);
+
+    expect(skipped.currentStepIndex).toBe(recipe.steps.length);
+    expect(skipped.args).toEqual({ startPoint: referenceAnchor("point-a") });
+    expect(hasCommandLineStepValue(skipped, 1)).toBe(false);
+    expect(hasCommandLineStepValue(skipped, 2)).toBe(false);
+    expect(sessionCanConfirm(skipped)).toBe(true);
   });
 
   it("keeps an edited draft isolated until it is committed", () => {

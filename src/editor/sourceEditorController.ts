@@ -1166,7 +1166,7 @@ export class SourceEditorController implements SourceEditorHandle {
     const candidate = this.currentPickCandidates().find((item) => item.elementId === elementId);
     if (!candidate) return false;
     this.uiStore.getState().setActivePickCursor({ elementId: candidate.elementId, optionIndex: 0 });
-    return dispatchCommand("applySelectedPickCandidate") !== false;
+    return dispatchCommand("applySelectedPickCandidate", { completeCommandLineSession: true }) !== false;
   };
 
   openTextSearch = () => {
@@ -1263,7 +1263,7 @@ export class SourceEditorController implements SourceEditorHandle {
     if (this.protocol.composing || this.flush("command") === "blocked-composition") return true;
     const cursor = ui.activePickCursor;
     if (!cursor || !this.currentPickCandidates().some((candidate) => candidate.elementId === cursor.elementId)) return false;
-    return dispatchCommand("applySelectedPickCandidate") !== false;
+    return dispatchCommand("applySelectedPickCandidate", { completeCommandLineSession: true }) !== false;
   }
 
   private runPickNavigation(commandId: "selectNextPickCandidate" | "selectPreviousPickCandidate" | "selectNextPickOption" | "selectPreviousPickOption") {

@@ -87,6 +87,8 @@ import {
 } from "../performance/benchmarkInstrumentation";
 import { notifyProductionDrawCompleted } from "../performance/benchmarkFrameObserver";
 import { useNativePointerBoundaryFallback } from "./nativePointerBoundaryFallback";
+import { dispatchCommand } from "../commands/commands";
+import type { CanvasPickKeyboardCommandId } from "./canvasHostAdapter";
 
 type DrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -1655,6 +1657,48 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         event.stopPropagation();
         finalizeOverlapSession();
         event.currentTarget.focus();
+        return;
+      }
+    }
+    const activePickTarget = activePointPickTarget
+      ? "point"
+      : activeNumericReferencePickTarget
+        ? "numeric"
+        : activeLinePickTarget
+          ? "line"
+          : null;
+    if (activePickTarget && event.currentTarget === document.activeElement) {
+      let commandId: CanvasPickKeyboardCommandId | null = null;
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        commandId = event.key === "ArrowUp"
+          ? "selectPreviousPickCandidate"
+          : event.key === "ArrowDown"
+            ? "selectNextPickCandidate"
+            : event.key === "ArrowLeft"
+              ? "selectPreviousPickOption"
+              : event.key === "ArrowRight"
+                ? "selectNextPickOption"
+                : event.key === "Enter"
+                  ? "applySelectedPickCandidate"
+                  : null;
+      }
+      if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        commandId = activePickTarget === "point"
+          ? "cancelPointPick"
+          : activePickTarget === "numeric"
+            ? "cancelNumericReferencePick"
+            : "cancelLinePick";
+      }
+      if (commandId) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (commandId.startsWith("cancel") && hostAdapter.cancelCanvasPickOperation) {
+          hostAdapter.cancelCanvasPickOperation();
+        } else if (hostAdapter.dispatchCanvasPickCommand) {
+          hostAdapter.dispatchCanvasPickCommand(commandId);
+        } else {
+          dispatchCommand(commandId);
+        }
         return;
       }
     }
