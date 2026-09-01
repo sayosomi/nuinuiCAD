@@ -3,6 +3,7 @@ import { creationCommandDefinitions } from "../commands/creationCommandDefinitio
 import { legacyCreationCommandRecipeMap } from "../commands/legacyCreationRecipes";
 import {
   normalizeVscodeCanvasQuickCreateCommands,
+  filterVscodeCanvasCreationCommands,
   vscodeCanvasCreationCommands,
   type VscodeCanvasCreationCommandId
 } from "./vscodeCanvasCreationCommands";
@@ -22,6 +23,28 @@ describe("VS Code Canvas creation catalog", () => {
       expect(entry.quickPickDescription).toContain(entry.keywords[0]!);
     }
   });
+
+  it("filters the label and presentation keywords with trimmed AND matching", () => {
+    expect(filterVscodeCanvasCreationCommands("ベジェ").map(({ commandId }) => commandId)).toEqual([
+      "addBezierBulgePoint",
+      "addBezierExtremePoint",
+      "addBezierCurve"
+    ]);
+    expect(filterVscodeCanvasCreationCommands("  CURVE  ").map(({ commandId }) => commandId)).toEqual([
+      "addBezierBulgePoint",
+      "addBezierExtremePoint",
+      "addBezierCurve",
+      "addOffsetLine",
+      "addCopyLine",
+      "addMove"
+    ]);
+    expect(filterVscodeCanvasCreationCommands("bezier 曲線").map(({ commandId }) => commandId)).toEqual([
+      "addBezierBulgePoint",
+      "addBezierExtremePoint",
+      "addBezierCurve"
+    ]);
+    expect(filterVscodeCanvasCreationCommands("   ")).toEqual(vscodeCanvasCreationCommands);
+  });
 });
 
 describe("VS Code Canvas Quick Create normalization", () => {
@@ -30,7 +53,7 @@ describe("VS Code Canvas Quick Create normalization", () => {
     expect(normalizeVscodeCanvasQuickCreateCommands(undefined)).toEqual([]);
   });
 
-  it("preserves order, keeps the first duplicate, drops unknown values, and caps at six", () => {
+  it("preserves order, keeps the first duplicate, and drops unknown values", () => {
     const input = [
       "addLine",
       "unknown",
@@ -49,7 +72,9 @@ describe("VS Code Canvas Quick Create normalization", () => {
       "addArcLine",
       "addText",
       "addMove",
-      "addOffsetLine"
+      "addOffsetLine",
+      "addCopyLine",
+      "addSymmetricMove"
     ] satisfies VscodeCanvasCreationCommandId[]);
   });
 });
