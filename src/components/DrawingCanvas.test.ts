@@ -72,6 +72,7 @@ const bezierCurve = (
   startPointId: start.elementId,
   endPointId: end.elementId,
   intermediatePointIds: [],
+  intermediateSlotIds: [],
   segments: [
     {
       startPointId: start.elementId,

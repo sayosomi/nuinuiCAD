@@ -88,8 +88,7 @@ export const pointAnchorForElement = (element: CadElement): PointAnchor | null =
 
 const derivedPoint = (
   source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline | Extract<ComputedGeometry, { kind: "arcLine" }>,
-  pointKey: string,
-  elementsById: Map<ElementId, CadElement>
+  pointKey: string
 ): ComputedPoint | null => {
   if (source.kind === "line") {
     if (pointKey === "start") return source.start;
@@ -125,18 +124,18 @@ const derivedPoint = (
   const intermediateId = pointKey.startsWith("intermediate:")
     ? pointKey.slice("intermediate:".length)
     : null;
-  const element = elementsById.get(source.elementId);
-  if (!intermediateId || element?.type !== "bezierCurve") return null;
+  if (!intermediateId || source.kind !== "bezierCurve") return null;
 
-  const index = element.intermediatePoints.findIndex((point) => point.id === intermediateId);
+  const index = source.intermediateSlotIds.indexOf(intermediateId);
   return index < 0 ? null : source.segments[index]?.end ?? null;
 };
 
 export const resolveDerivedPoint = (
   source: ComputedGeometry | undefined,
   pointKey: string,
-  elementsById: Map<ElementId, CadElement>
+  _elementsById: Map<ElementId, CadElement>
 ) => {
+  void _elementsById;
   if (
     !source ||
     (
@@ -147,7 +146,7 @@ export const resolveDerivedPoint = (
       source.kind !== "polyline"
     )
   ) return null;
-  return derivedPoint(source, pointKey, elementsById);
+  return derivedPoint(source, pointKey);
 };
 
 const computedPoint = (
@@ -264,9 +263,10 @@ export const selectablePointsForGeometry = (
     });
   }
 
-  if (element?.type === "bezierCurve") {
+  if (geometry.kind === "bezierCurve" && element?.type === "bezierCurve") {
     element.intermediatePoints.forEach((intermediate, index) => {
-      const point = geometry.segments[index]?.end;
+      const segmentIndex = geometry.intermediateSlotIds.indexOf(intermediate.id);
+      const point = segmentIndex < 0 ? undefined : geometry.segments[segmentIndex]?.end;
       if (!point) return;
       points.push({
         anchor: derivedAnchor(geometry.elementId, `intermediate:${intermediate.id}`),

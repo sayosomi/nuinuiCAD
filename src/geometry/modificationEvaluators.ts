@@ -224,7 +224,8 @@ const truncateBezierAtBody = (
       endHandleAngleDeg: endHandleAngle,
       endHandleLength: bmDistance(split.left.control2, split.point),
       endTangentAngleDeg: normalizeDegrees(endHandleAngle + 180),
-      intermediatePointIds: curve.intermediatePointIds.slice(0, hit.segmentIndex)
+      intermediatePointIds: curve.intermediatePointIds.slice(0, hit.segmentIndex),
+      intermediateSlotIds: curve.intermediateSlotIds.slice(0, hit.segmentIndex)
     };
     if (hit.segmentIndex === 0) {
       // The truncated segment is also the first segment, so the curve's own
@@ -258,7 +259,8 @@ const truncateBezierAtBody = (
     startHandleAngleDeg: startHandleAngle,
     startHandleLength: bmDistance(split.point, split.right.control1),
     startTangentAngleDeg: normalizeDegrees(startHandleAngle),
-    intermediatePointIds: curve.intermediatePointIds.slice(hit.segmentIndex)
+    intermediatePointIds: curve.intermediatePointIds.slice(hit.segmentIndex),
+    intermediateSlotIds: curve.intermediateSlotIds.slice(hit.segmentIndex)
   };
   if (hit.segmentIndex === curve.segments.length - 1) {
     // The truncated segment is also the last segment, so the curve's own end

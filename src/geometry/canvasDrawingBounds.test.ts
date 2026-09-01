@@ -62,6 +62,7 @@ describe("visibleCanvasDrawingBounds", () => {
       startPointId: null,
       endPointId: null,
       intermediatePointIds: [],
+      intermediateSlotIds: [],
       segments: [{
         startPointId: null,
         endPointId: null,
@@ -95,6 +96,7 @@ describe("visibleCanvasDrawingBounds", () => {
       startPointId: null,
       endPointId: null,
       intermediatePointIds: [],
+      intermediateSlotIds: [],
       segments: [{
         startPointId: null,
         endPointId: null,

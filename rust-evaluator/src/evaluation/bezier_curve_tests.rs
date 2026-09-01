@@ -123,6 +123,7 @@ fn evaluates_multi_segment_bezier_curve() {
     assert!(result.errors.is_empty());
     assert_eq!(curve["segments"].as_array().unwrap().len(), 2);
     assert_eq!(curve["intermediatePointIds"], json!(["b"]));
+    assert_eq!(curve["intermediateSlotIds"], json!(["mid-1"]));
 }
 
 #[test]
@@ -169,7 +170,183 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
     assert_eq!(curve["startPointId"], Value::Null);
     assert_eq!(curve["endPointId"], Value::Null);
     assert_eq!(curve["intermediatePointIds"], json!([]));
+    assert_eq!(curve["intermediateSlotIds"], json!(["mid-1"]));
     assert_eq!(curve["segments"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn keeps_distinct_stable_slot_ids_when_intermediate_slots_share_an_external_point() {
+    let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "点A", 0.0, 0.0),
+            free_point("b", "点B", 20.0, 10.0),
+            free_point("d", "点D", 40.0, 0.0),
+            element(json!({
+                "id": "curve",
+                "name": "曲線",
+                "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": 5,
+                "intermediatePoints": [
+                    {
+                        "id": "slot-b-1",
+                        "point": { "mode": "reference", "pointId": "b" },
+                        "handleAngleDeg": 90,
+                        "incomingHandleLength": 5,
+                        "outgoingHandleLength": 5
+                    },
+                    {
+                        "id": "slot-b-2",
+                        "point": { "mode": "reference", "pointId": "b" },
+                        "handleAngleDeg": 270,
+                        "incomingHandleLength": 5,
+                        "outgoingHandleLength": 5
+                    }
+                ],
+                "endPoint": { "mode": "reference", "pointId": "d" },
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5
+            })),
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    let curve = geometry(&result, "curve");
+    assert!(result.errors.is_empty());
+    assert_eq!(curve["intermediatePointIds"], json!(["b", "b"]));
+    assert_eq!(
+        curve["intermediateSlotIds"],
+        json!(["slot-b-1", "slot-b-2"])
+    );
+}
+
+#[test]
+fn reverse_preserves_bezier_stable_intermediate_points_and_numeric_positions() {
+    let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "点A", 0.0, 0.0),
+            free_point("b", "点B", 10.0, 0.0),
+            free_point("c", "点C", 20.0, 0.0),
+            free_point("d", "点D", 30.0, 0.0),
+            element(json!({
+                "id": "curve",
+                "name": "曲線ABCD",
+                "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": 3,
+                "intermediatePoints": [
+                    {
+                        "id": "slot-b",
+                        "point": { "mode": "reference", "pointId": "b" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    },
+                    {
+                        "id": "slot-c",
+                        "point": { "mode": "reference", "pointId": "c" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    }
+                ],
+                "endPoint": { "mode": "reference", "pointId": "d" },
+                "endHandleAngleDeg": 0,
+                "endHandleLength": 3
+            })),
+            element(json!({
+                "id": "reverse-1", "name": "", "type": "pathReverse", "activity": "visible",
+                "targetLineId": "curve"
+            })),
+            element(json!({
+                "id": "after-b",
+                "name": "反転後B",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "derived", "elementId": "curve", "pointKey": "intermediate:slot-b" },
+                "dx": 1,
+                "dy": 2
+            })),
+            element(json!({
+                "id": "after-c",
+                "name": "反転後C",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "derived", "elementId": "curve", "pointKey": "intermediate:slot-c" },
+                "dx": 1,
+                "dy": 2
+            })),
+            element(json!({
+                "id": "numeric-first",
+                "name": "数値1",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "reference", "pointId": "a" },
+                "dx": { "kind": "expression", "expression": "curve.intermediatePoints[1].x" },
+                "dy": 0
+            })),
+            element(json!({
+                "id": "numeric-second",
+                "name": "数値2",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "reference", "pointId": "a" },
+                "dx": { "kind": "expression", "expression": "curve.intermediatePoints[2].x" },
+                "dy": 0
+            })),
+            element(json!({
+                "id": "reverse-2", "name": "", "type": "pathReverse", "activity": "visible",
+                "targetLineId": "curve"
+            })),
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let curve = geometry(&result, "curve");
+    assert_eq!(curve["intermediatePointIds"], json!(["b", "c"]));
+    assert_eq!(curve["intermediateSlotIds"], json!(["slot-b", "slot-c"]));
+    assert_eq!(
+        curve["segments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|segment| segment["end"]["elementId"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("b"), json!("c"), json!("d")]
+    );
+    assert_eq!(geometry(&result, "after-b")["x"], json!(11.0));
+    assert_eq!(geometry(&result, "after-c")["x"], json!(21.0));
+    assert_eq!(geometry(&result, "numeric-first")["x"], json!(20.0));
+    assert_eq!(geometry(&result, "numeric-second")["x"], json!(10.0));
 }
 
 #[test]

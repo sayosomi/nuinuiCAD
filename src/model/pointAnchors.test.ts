@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
-import { derivedAnchor, derivedPointLabel, isPointElement, pointAnchorLabel } from "./pointAnchors";
+import { evaluateElements } from "../geometry/evaluate";
+import {
+  derivedAnchor,
+  derivedPointLabel,
+  isPointElement,
+  pointAnchorLabel,
+  selectablePointsForGeometry
+} from "./pointAnchors";
 
 const curve: CadElement = {
   id: "curve",
@@ -68,5 +75,39 @@ describe("pointAnchors", () => {
     expect(derivedPointLabel("curve", "start", [curve])).toBe("曲線.始点");
     expect(derivedPointLabel("curve", "end", [curve])).toBe("曲線.終点");
     expect(derivedPointLabel("arc", "center", [])).toBe("arc.中心点");
+  });
+
+  it("projects authored Bezier labels through the reversed current slot mapping", () => {
+    const result = evaluateElements([
+      curve,
+      {
+        id: "reverse",
+        name: "",
+        type: "pathReverse",
+        activity: "visible",
+        targetLineId: "curve"
+      }
+    ]);
+    expect(result.errors).toEqual([]);
+    const geometry = result.computedGeometry.get("curve");
+    expect(geometry?.kind).toBe("bezierCurve");
+    if (geometry?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+
+    const selectable = selectablePointsForGeometry(
+      geometry,
+      new Map([[curve.id, curve]])
+    );
+    expect(selectable).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        anchor: derivedAnchor("curve", "intermediate:mid-a"),
+        label: "曲線.中間点1",
+        point: expect.objectContaining({ x: 20, y: 10 })
+      }),
+      expect.objectContaining({
+        anchor: derivedAnchor("curve", "intermediate:mid-b"),
+        label: "曲線.中間点2",
+        point: expect.objectContaining({ x: 40, y: 10 })
+      })
+    ]));
   });
 });

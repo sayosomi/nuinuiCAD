@@ -489,7 +489,7 @@ describe("renderCanvasGeometry", () => {
     };
     const curve: ComputedBezierCurve = {
       kind: "bezierCurve", elementId: "curve", name: "curve", startPointId: "start", endPointId: "end",
-      intermediatePointIds: [], segments: [{
+      intermediatePointIds: [], intermediateSlotIds: [], segments: [{
         startPointId: "start", endPointId: "end", start, control1: { x: 2, y: 3 },
         control2: { x: 8, y: 3 }, end
       }], length: 10, startTangentAngleDeg: 0, endTangentAngleDeg: 0,

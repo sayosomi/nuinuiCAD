@@ -68,6 +68,7 @@ const reverseBezier = (curve: ComputedBezierCurve): ComputedBezierCurve => {
     ...curve,
     startPointId: curve.endPointId,
     endPointId: curve.startPointId,
+    intermediateSlotIds: [...curve.intermediateSlotIds].reverse(),
     segments,
     startHandleAngleDeg: curve.endHandleAngleDeg,
     startHandleLength: curve.endHandleLength,

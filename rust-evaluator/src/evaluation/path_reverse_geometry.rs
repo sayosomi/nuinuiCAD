@@ -71,11 +71,19 @@ fn reverse_bezier(curve: &Value) -> Option<Value> {
     let start_control = value_point(first.get("control1")?)?;
     let end = value_point(last.get("end")?)?;
     let end_control = value_point(last.get("control2")?)?;
+    let intermediate_slot_ids = curve
+        .get("intermediateSlotIds")?
+        .as_array()?
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<_>>();
     let mut next = curve.clone();
     swap_fields(&mut next, "startPointId", "endPointId")?;
     swap_fields(&mut next, "startHandleAngleDeg", "endHandleAngleDeg")?;
     swap_fields(&mut next, "startHandleLength", "endHandleLength")?;
     next["segments"] = json!(segments);
+    next["intermediateSlotIds"] = json!(intermediate_slot_ids);
     next["startTangentAngleDeg"] = json!(angle_of_point(start, start_control));
     next["endTangentAngleDeg"] = json!(angle_of_point(end, end_control));
     Some(next)

@@ -5,7 +5,7 @@ import { forGroupGeneratedElementId } from "./forGroupExpansion";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { parseDsl } from "../dsl/dslParser";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
-import type { CadElement, ImageElement } from "../types/geometry";
+import type { BezierCurveElement, CadElement, ImageElement } from "../types/geometry";
 
 const compileAndEvaluate = (source: string) => {
   const compiled = compileDslDocument(source);
@@ -5098,6 +5098,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
     expect(curve.segments).toHaveLength(2);
     expect(curve.intermediatePointIds).toEqual(["b"]);
+    expect(curve.intermediateSlotIds).toEqual(["mid-1"]);
   });
 
   it("evaluates Bezier curve anchors from direct coordinates", () => {
@@ -5131,10 +5132,158 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       kind: "bezierCurve",
       startPointId: null,
       endPointId: null,
-      intermediatePointIds: []
+      intermediatePointIds: [],
+      intermediateSlotIds: ["mid-1"]
     });
     if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
     expect(curve.segments).toHaveLength(2);
+  });
+
+  it("keeps distinct stable slot ids when intermediate slots share an external point", () => {
+    const result = evaluateElements([
+      {
+        id: "a",
+        name: "点A",
+        type: "freePoint",
+        activity: "visible",
+        x: 0,
+        y: 0
+      },
+      {
+        id: "b",
+        name: "点B",
+        type: "freePoint",
+        activity: "visible",
+        x: 20,
+        y: 10
+      },
+      {
+        id: "d",
+        name: "点D",
+        type: "freePoint",
+        activity: "visible",
+        x: 40,
+        y: 0
+      },
+      {
+        id: "curve",
+        name: "曲線",
+        type: "bezierCurve",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "a" },
+        startHandleAngleDeg: 0,
+        startHandleLength: 5,
+        intermediatePoints: [
+          {
+            id: "slot-b-1",
+            point: { mode: "reference", pointId: "b" },
+            handleAngleDeg: 90,
+            incomingHandleLength: 5,
+            outgoingHandleLength: 5
+          },
+          {
+            id: "slot-b-2",
+            point: { mode: "reference", pointId: "b" },
+            handleAngleDeg: 270,
+            incomingHandleLength: 5,
+            outgoingHandleLength: 5
+          }
+        ],
+        endPoint: { mode: "reference", pointId: "d" },
+        endHandleAngleDeg: 180,
+        endHandleLength: 5
+      }
+    ]);
+
+    expect(result.errors).toEqual([]);
+    const curve = result.computedGeometry.get("curve");
+    expect(curve).toMatchObject({ kind: "bezierCurve" });
+    if (curve?.kind !== "bezierCurve") throw new Error("Expected a Bezier curve");
+    expect(curve.intermediatePointIds).toEqual(["b", "b"]);
+    expect(curve.intermediateSlotIds).toEqual(["slot-b-1", "slot-b-2"]);
+  });
+
+  it("retains only current Bezier joins through reverse, split, and endpoint truncation", () => {
+    const points: CadElement[] = [
+      { id: "a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      { id: "b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0 },
+      { id: "c", name: "点C", type: "freePoint", activity: "visible", x: 20, y: 0 },
+      { id: "d", name: "点D", type: "freePoint", activity: "visible", x: 30, y: 0 }
+    ];
+    const curve: BezierCurveElement = {
+      id: "curve",
+      name: "曲線ABCD",
+      type: "bezierCurve",
+      activity: "visible",
+      startPoint: { mode: "reference", pointId: "a" },
+      startHandleAngleDeg: 0,
+      startHandleLength: 3,
+      intermediatePoints: [
+        {
+          id: "slot-b",
+          point: { mode: "reference", pointId: "b" },
+          handleAngleDeg: 0,
+          incomingHandleLength: 3,
+          outgoingHandleLength: 3
+        },
+        {
+          id: "slot-c",
+          point: { mode: "reference", pointId: "c" },
+          handleAngleDeg: 0,
+          incomingHandleLength: 3,
+          outgoingHandleLength: 3
+        }
+      ],
+      endPoint: { mode: "reference", pointId: "d" },
+      endHandleAngleDeg: 0,
+      endHandleLength: 3
+    };
+    const reverse: CadElement = {
+      id: "reverse",
+      name: "",
+      type: "pathReverse",
+      activity: "visible",
+      targetLineId: "curve"
+    };
+
+    const split = evaluateElements([
+      ...points,
+      curve,
+      reverse,
+      {
+        id: "split",
+        name: "分割曲線",
+        type: "splitLine",
+        activity: "visible",
+        baseLineId: "curve",
+        splitPoint: { mode: "coordinate", x: 25, y: 0 }
+      }
+    ]);
+    expect(split.errors).toEqual([]);
+    const splitNear = split.computedGeometry.get("curve");
+    const splitFar = split.computedGeometry.get("split");
+    expect(splitNear).toMatchObject({ kind: "bezierCurve", intermediateSlotIds: [] });
+    expect(splitFar).toMatchObject({ kind: "bezierCurve", intermediateSlotIds: ["slot-c", "slot-b"] });
+
+    const truncated = evaluateElements([
+      ...points,
+      curve,
+      reverse,
+      { id: "target", name: "目標", type: "freePoint", activity: "visible", x: 5, y: 0 },
+      {
+        id: "trim",
+        name: "短縮",
+        type: "extendTrim",
+        activity: "visible",
+        endpoint: { lineId: "curve", endpointKey: "end" },
+        point: { mode: "reference", pointId: "target" }
+      }
+    ]);
+    expect(truncated.errors).toEqual([]);
+    expect(truncated.computedGeometry.get("curve")).toMatchObject({
+      kind: "bezierCurve",
+      intermediateSlotIds: ["slot-c", "slot-b"]
+    });
   });
 
   it("evaluates numeric expressions that reference earlier curve length", () => {

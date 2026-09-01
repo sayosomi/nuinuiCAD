@@ -156,6 +156,7 @@ describe("CanvasOverlay text rendering", () => {
       startPointId: null,
       endPointId: null,
       intermediatePointIds: [],
+      intermediateSlotIds: [],
       segments: [],
       length: 0,
       startTangentAngleDeg: null,

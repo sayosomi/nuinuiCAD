@@ -259,6 +259,82 @@ fn splits_bezier_curve() {
 }
 
 #[test]
+fn split_after_bezier_reverse_keeps_only_current_join_slot_ids() {
+    let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "点A", 0.0, 0.0),
+            free_point("b", "点B", 10.0, 0.0),
+            free_point("c", "点C", 20.0, 0.0),
+            free_point("d", "点D", 30.0, 0.0),
+            element(json!({
+                "id": "curve",
+                "name": "曲線ABCD",
+                "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": 3,
+                "intermediatePoints": [
+                    {
+                        "id": "slot-b",
+                        "point": { "mode": "reference", "pointId": "b" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    },
+                    {
+                        "id": "slot-c",
+                        "point": { "mode": "reference", "pointId": "c" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    }
+                ],
+                "endPoint": { "mode": "reference", "pointId": "d" },
+                "endHandleAngleDeg": 0,
+                "endHandleLength": 3
+            })),
+            element(json!({
+                "id": "reverse", "name": "", "type": "pathReverse", "activity": "visible",
+                "targetLineId": "curve"
+            })),
+            free_point("split-point", "分割点", 25.0, 0.0),
+            split_line("split", "curve", "split-point"),
+            element(json!({
+                "id": "from-c",
+                "name": "分割後C",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "derived", "elementId": "split", "pointKey": "intermediate:slot-c" },
+                "dx": 0,
+                "dy": 0
+            })),
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(geometry(&result, "curve")["intermediateSlotIds"], json!([]));
+    assert_eq!(
+        geometry(&result, "split")["intermediateSlotIds"],
+        json!(["slot-c", "slot-b"])
+    );
+    assert_eq!(geometry(&result, "from-c")["x"], json!(20.0));
+}
+
+#[test]
 fn splits_bezier_curve_at_intersection_with_angle_line() {
     let result = evaluate_document_input(EvaluationInput {
         module_materialization: None,

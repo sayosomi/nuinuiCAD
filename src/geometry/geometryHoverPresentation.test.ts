@@ -182,6 +182,7 @@ describe("geometry Hover runtime presentation", () => {
       startPointId: "start",
       endPointId: "end",
       intermediatePointIds: ["middle"],
+      intermediateSlotIds: ["middle"],
       segments: [
         {
           startPointId: "start",

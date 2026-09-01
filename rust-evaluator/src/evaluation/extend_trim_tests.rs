@@ -456,6 +456,88 @@ fn extend_trim_shortens_multi_segment_bezier_and_keeps_untouched_segments() {
 }
 
 #[test]
+fn endpoint_truncation_after_bezier_reverse_keeps_current_join_slot_ids() {
+    let result = evaluate_document_input(EvaluationInput {
+        module_materialization: None,
+        property_bindings: None,
+        control_boolean_bindings: None,
+        condition_expressions: None,
+        text_templates: None,
+        text_property_bindings: None,
+        elements: vec![
+            free_point("a", "点A", 0.0, 0.0),
+            free_point("b", "点B", 10.0, 0.0),
+            free_point("c", "点C", 20.0, 0.0),
+            free_point("d", "点D", 30.0, 0.0),
+            element(json!({
+                "id": "curve",
+                "name": "曲線ABCD",
+                "type": "bezierCurve",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "a" },
+                "startHandleAngleDeg": 0,
+                "startHandleLength": 3,
+                "intermediatePoints": [
+                    {
+                        "id": "slot-b",
+                        "point": { "mode": "reference", "pointId": "b" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    },
+                    {
+                        "id": "slot-c",
+                        "point": { "mode": "reference", "pointId": "c" },
+                        "handleAngleDeg": 0,
+                        "incomingHandleLength": 3,
+                        "outgoingHandleLength": 3
+                    }
+                ],
+                "endPoint": { "mode": "reference", "pointId": "d" },
+                "endHandleAngleDeg": 0,
+                "endHandleLength": 3
+            })),
+            element(json!({
+                "id": "reverse", "name": "", "type": "pathReverse", "activity": "visible",
+                "targetLineId": "curve"
+            })),
+            free_point("target", "目標", 5.0, 0.0),
+            element(json!({
+                "id": "trim",
+                "name": "短縮",
+                "type": "extendTrim",
+                "activity": "visible",
+                "endpoint": { "lineId": "curve", "endpointKey": "end" },
+                "point": { "mode": "reference", "pointId": "target" }
+            })),
+            element(json!({
+                "id": "from-b",
+                "name": "短縮後B",
+                "type": "offsetPoint",
+                "activity": "visible",
+                "fromPoint": { "mode": "derived", "elementId": "curve", "pointKey": "intermediate:slot-b" },
+                "dx": 0,
+                "dy": 0
+            })),
+        ],
+        evaluation_limit_index: None,
+        allow_disabled_element_ids: None,
+        drawing_modifiers: None,
+        selected_drawing_profile_id: None,
+        scalar_expression_payload: None,
+        scalar_program: None,
+        binding_versions: None,
+    });
+
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(
+        geometry(&result, "curve")["intermediateSlotIds"],
+        json!(["slot-c", "slot-b"])
+    );
+    assert_eq!(geometry(&result, "from-b")["x"], json!(10.0));
+}
+
+#[test]
 fn extend_trim_bezier_to_opposite_anchor_reports_zero_length_error() {
     // Regression: trimming the curve's end to a point that coincides with its own
     // start (as when a user meant to target a division point but referenced the
