@@ -22,7 +22,7 @@ type ModuleInstanceCanvasGeometryInput = {
   instanceId: ElementId;
   elements: readonly CadElement[];
   evaluation: EvaluationResult;
-  moduleMaterialization?: ModuleMaterialization;
+  moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   visibilityProfiles: readonly VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;

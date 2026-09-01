@@ -74,9 +74,10 @@ export const canvasRectangleSelectionForMembers = (
 export const commitCanvasRectangleSelection = (
   memberIds: readonly ElementId[],
   mode: CanvasRectangleSelectionUpdateMode,
-  recordHistory = false
+  recordHistory = false,
+  activeElements?: readonly CadElement[]
 ): boolean => {
-  const elements = useCadDocumentStore.getState().elements;
+  const elements = [...(activeElements ?? useCadDocumentStore.getState().elements)];
   const selectionBefore = canvasSelectionSnapshot();
   const selection = canvasRectangleSelectionForMembers(
     elements,
@@ -95,7 +96,9 @@ export const commitCanvasRectangleSelection = (
       selection.selectedElementIds,
       selection.selectedElementId ?? undefined,
       recordHistory,
-      "requested"
+      "requested",
+      undefined,
+      elements
     );
   }
 

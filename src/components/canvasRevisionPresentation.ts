@@ -77,7 +77,8 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   compiledDocumentRevision,
   evaluationState,
   lastStable,
-  holdLastStable = false
+  holdLastStable = false,
+  retainLastStable = true
 }: {
   current: CanvasRevisionPresentationInputs;
   evaluation: EvaluationResult;
@@ -85,6 +86,7 @@ export const resolveRevisionCoherentCanvasPresentation = ({
   evaluationState?: EvaluationEngineState;
   lastStable: CanvasRevisionPresentationSnapshot | null;
   holdLastStable?: boolean;
+  retainLastStable?: boolean;
 }): CanvasRevisionPresentation => {
   if (holdLastStable) {
     if (lastStable) return pinnedStablePresentation(evaluationState, lastStable);
@@ -115,6 +117,15 @@ export const resolveRevisionCoherentCanvasPresentation = ({
       renderEvaluationState: evaluationState,
       isPinned: false,
       hasCoherentSnapshot: true
+    };
+  }
+  if (!retainLastStable) {
+    return {
+      ...current,
+      renderEvaluation: evaluation,
+      renderEvaluationState: evaluationState,
+      isPinned: true,
+      hasCoherentSnapshot: false
     };
   }
   // Once a complete presentation has been accepted, it is safe to keep that
@@ -151,13 +162,15 @@ export const useRevisionCoherentCanvasPresentation = ({
   evaluation,
   compiledDocumentRevision,
   evaluationState,
-  holdLastStable = false
+  holdLastStable = false,
+  retainLastStable = true
 }: {
   current: CanvasRevisionPresentationInputs;
   evaluation: EvaluationResult;
   compiledDocumentRevision: number;
   evaluationState?: EvaluationEngineState;
   holdLastStable?: boolean;
+  retainLastStable?: boolean;
 }) => {
   const [instanceKey] = useState<object>(() => ({}));
   const lastStable = stableCanvasPresentationByInstance.get(instanceKey) ?? null;
@@ -167,7 +180,8 @@ export const useRevisionCoherentCanvasPresentation = ({
     compiledDocumentRevision,
     evaluationState,
     lastStable,
-    holdLastStable
+    holdLastStable,
+    retainLastStable
   });
   const isStale = evaluationState?.isStale;
   const evaluationRevision = evaluationState?.evaluationRevision;
@@ -176,6 +190,7 @@ export const useRevisionCoherentCanvasPresentation = ({
   useLayoutEffect(() => {
     if (
       holdLastStable ||
+      !retainLastStable ||
       isStale ||
       evaluationRevision === undefined ||
       evaluationRequestRevision === undefined ||
@@ -195,7 +210,8 @@ export const useRevisionCoherentCanvasPresentation = ({
     evaluationRequestRevision,
     holdLastStable,
     instanceKey,
-    isStale
+    isStale,
+    retainLastStable
   ]);
 
   return resolved;

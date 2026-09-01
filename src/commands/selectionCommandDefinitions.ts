@@ -241,7 +241,7 @@ export const selectionCommandDefinitions = {
   selectInstance: {
     id: "selectInstance",
     label: "Select Instance",
-    run: (context?) => selectInstance(context?.recordSelectionHistory)
+    run: (context?) => context?.selectInstance?.() ?? selectInstance(context?.recordSelectionHistory)
   },
   clearCanvasSelection: {
     id: "clearCanvasSelection",

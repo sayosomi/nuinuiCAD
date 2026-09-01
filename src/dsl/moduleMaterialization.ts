@@ -94,6 +94,19 @@ export type ModuleMaterialization = {
   evaluationLimitIndex: number | undefined;
 };
 
+/** The small materialization view required by Canvas presentation helpers. */
+export type CanvasModuleOrigin = Pick<ModuleOrigin, "kind" | "instancePath" | "runtimeInstancePath">;
+
+export type CanvasModuleMaterialization = Pick<
+  ModuleMaterialization,
+  "instanceBaseGeometrySnapshots"
+> & {
+  originByRuntimeElementId: ReadonlyMap<
+    ElementId,
+    CanvasModuleOrigin
+  >;
+};
+
 type MaterializationInput = {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>;

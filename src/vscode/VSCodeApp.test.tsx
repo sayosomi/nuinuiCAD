@@ -6,10 +6,12 @@ import * as commandRegistry from "../commands/commands";
 import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
-import type { EvaluationResult } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
+import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 
@@ -18,6 +20,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   currentReferencePickAuthorityFor: null as VscodeReferencePickAuthorityFor | null,
   bakeSandboxTargetIds: null as string[] | null,
   bakeSandboxPromise: null as Promise<unknown> | null,
+  multiDocumentRuntimePresentation: null as VscodeMultiDocumentCanvasRuntimePresentation | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
@@ -44,14 +47,17 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
   VSCodeDrawingCanvas: ({
     canvasFocusRef,
     postCanonicalSourceText,
-    currentReferencePickAuthorityFor
+    currentReferencePickAuthorityFor,
+    multiDocumentRuntimePresentation
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanonicalSourceText: (sourceText: string) => void;
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
+    multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   }) => {
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
+    drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -74,6 +80,51 @@ const h3Source = [
 
 const h3GuideSourcePosition = { line: 3, character: "line ".length };
 
+const multiDocumentRuntimePublicationFor = (
+  source: string,
+  documentVersion: number,
+  graphSourceRevision: number,
+  runtimeRootSourceRevision: number,
+  elements: CadElement[]
+): VscodeMultiDocumentGraphPublication => ({
+  type: "multiDocumentGraphPublication",
+  documentVersion,
+  status: "current",
+  graph: {
+    revision: 12,
+    rootDocumentId: "file:///workspace/root.nui",
+    rootSource: {
+      kind: "root-current",
+      documentId: "file:///workspace/root.nui",
+      normalizedSource: source,
+      sourceRevision: graphSourceRevision
+    },
+    valid: true,
+    nodes: [],
+    edges: [],
+    dependencyFingerprints: [],
+    diagnostics: []
+  },
+  canvasRuntime: {
+    graphRevision: 12,
+    rootDocumentId: "file:///workspace/root.nui",
+    rootSourceRevision: runtimeRootSourceRevision,
+    preparedRustEvaluation: {
+      rustEligible: true,
+      input: {
+        elements,
+        evaluationLimitIndex: elements.length
+      }
+    },
+    visibilityProfiles: [],
+    activeVisibilityProfileId: "",
+    modulePresentation: {
+      instanceBaseGeometrySnapshots: [],
+      origins: []
+    }
+  }
+});
+
 const publishAllCurrentElementsAsPresented = () => {
   const elements = useCadDocumentStore.getState().elements;
   useCadUiStore.getState().setCanvasSelectionEligibility(
@@ -90,10 +141,63 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.currentReferencePickAuthorityFor = null;
     drawingCanvasProps.bakeSandboxTargetIds = null;
     drawingCanvasProps.bakeSandboxPromise = null;
+    drawingCanvasProps.multiDocumentRuntimePresentation = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it("accepts a graph/runtime source revision that differs from the Webview compiler revision", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const webviewSourceRevision = useCadDocumentStore.getState().currentSourceRevision;
+    expect(webviewSourceRevision).not.toBe(37);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: multiDocumentRuntimePublicationFor(
+          source,
+          7,
+          37,
+          37,
+          useCadDocumentStore.getState().elements
+        )
+      }));
+    });
+
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).not.toBeNull();
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(37);
+  });
+
+  it("fails closed when the host runtime source revision disagrees with the graph root", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: multiDocumentRuntimePublicationFor(
+          source,
+          7,
+          37,
+          38,
+          useCadDocumentStore.getState().elements
+        )
+      }));
+    });
+
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation).toBeNull();
+  });
 
   it("keeps the Rust transport alive across benchmark configuration and disposes it on unmount", async () => {
     const dispose = vi.spyOn(VscodeRustTransport.prototype, "dispose");

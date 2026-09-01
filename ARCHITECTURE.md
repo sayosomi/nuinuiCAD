@@ -67,6 +67,16 @@ VS Code TextDocument / Extension Host
 → rust-evaluator::evaluate_document
 ```
 
+For a root that imports a saved Module, the Module-aware Extension Host uses the
+same exact graph-backed root compile for native language features and for a
+narrow Canvas runtime projection. The Webview accepts that projection only when
+the graph, root source/version, and publication revision still match its
+authoritative root mirror; it evaluates the prepared Rust input and presents
+the imported runtime without rebuilding imports or filesystem state. Graph
+building/invalidating/unavailable states clear this cross-document runtime
+authority rather than retaining a previous imported render. Same-file roots
+continue through the local Canvas path.
+
 Native Hover uses an Extension Host-only current-document path, so Canvas may be
 closed and no Webview protocol is involved:
 
@@ -341,6 +351,7 @@ Primary:
 - `vscode-extension/src/multiDocumentHost.ts`
 - `vscode-extension/src/moduleMultiDocumentHost.ts`
 - `src/vscode/multiDocumentGraphTransport.ts`
+- `src/vscode/multiDocumentRuntimeTransport.ts`
 - `src/vscode/vscodeWebviewSession.ts`
 
 `multiDocumentImportGraph.ts` is the host-neutral owner of saved dependency graph
@@ -437,8 +448,13 @@ by root document URI, and `VscodeWebviewSessionRegistry` fans the latest retaine
 publication to every matching Canvas and Output Preview session, including a
 surface opened after the graph was built. The graph is owned once by the root
 document; individual Webview surfaces do not rebuild filesystem/import state.
+`moduleMultiDocumentHost.ts` supplies the family-owned exact graph-root compile
+and a projector that publishes `multiDocumentRuntimeTransport.ts` only for
+actual cross-document Module materialization. That JSON-safe projection uses
+the existing prepared Rust input and narrow materialization snapshots/origins;
+it does not transport the compiler, graph, parser products, Maps, or functions.
 Family-specific declaration/export/runtime semantics remain supplied by their
-own semantic owners rather than by this VS Code host adapter.
+own semantic owners rather than by the generic VS Code host adapter.
 
 ### Lexical / name resolution
 
@@ -558,6 +574,15 @@ Rust request preparation / transport contractであり、既存の
 担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
 ownerである。VS CodeとHeadless MCPはそれぞれの薄いhost transportからこの共通
 boundaryを利用する。
+
+`src/vscode/useVscodeMultiDocumentRuntimeEvaluation.ts` is the VS Code-specific
+consumer for a published cross-document Canvas runtime. It evaluates the
+host-prepared input through `evaluatePreparedRust` and `VscodeRustTransport`,
+uses the graph publication revision as its Canvas evaluation revision, ignores
+stale completions, and exposes an empty failed result on transport failure.
+It never reconstructs a reference evaluation or retains the preceding imported
+runtime. When no cross-document projection is active, `VSCodeApp` keeps the
+existing local `useEvaluationEngine` path.
 
 `vscode-extension/src/extension.ts` owns the three Canvas Bake settings as the
 VS Code configuration boundary. Hosts resolve plain Bake options before invoking
@@ -691,6 +716,8 @@ Primary:
 - `src/vscode/VSCodeDrawingCanvas.tsx`
 - `src/vscode/ModulePreviewApp.tsx`
 - `src/vscode/ModulePreviewParametersApp.tsx`
+- `src/vscode/multiDocumentRuntimeTransport.ts`
+- `src/vscode/useVscodeMultiDocumentRuntimeEvaluation.ts`
 - `src/vscode/modulePreviewParameterProjection.ts`
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
@@ -709,6 +736,13 @@ interaction/rendering ownerとしてcanvasとoverlayを描画する。ModulePrev
 rootのtarget runtime elementsだけを描画し、source-writing adapter operationsを
 no-opにしてread-only surfaceとして構成する。VS Code側に別のrendererやdrag
 transformは持たない。
+
+`VSCodeDrawingCanvas` additionally accepts the narrow exact runtime projection
+for an importing root. While active, the shared renderer and hit testing use
+the prepared runtime elements, runtime evaluation revision, and rehydrated
+Module instance presentation facts. Those elements remain presentation-only:
+the canonical root store and all Source-writing commands remain unchanged, and
+dependency-owned runtime IDs cannot be dragged or committed through Canvas.
 
 Current invariants:
 
@@ -890,12 +924,16 @@ Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
 selection. The TextDocument remains the source authority. The Extension Host /
 Webview boundary transports only the TextDocument version plus a normalized LF
-source position or range; runtime ElementIds and reconciler StatementIdentity
-remain Webview-local. Editor → Canvas runs the host-neutral source-target query
-before opening Canvas, so non-runtime source never creates a panel. Canvas →
-Editor resolves the selected runtime element through the same source-ownership
-query and exact compiled physical spans. Both directions fail closed on stale
-source, version, compilation, or session state.
+source position or range. Canvas source-definition responses additionally carry
+the exact selected runtime ElementId; reconciler StatementIdentity remains
+inside the source-ownership and graph context owners. Editor → Canvas runs the
+host-neutral source-target query before opening Canvas, so non-runtime source
+never creates a panel. With the production multi-document host, Canvas → Editor
+resolves that runtime element through the exact graph-backed Module context and
+target-document physical span, then rechecks the proven URI/source/dirty state
+before reveal. The legacy root-local range is used only when no such host is
+active. Both directions fail closed on stale source, version, compilation, or
+session state.
 
 Source → Canvas Reference Pick is an explicit Source command, not cursor-follow
 behavior. `referencePickCommandFeature.ts` uses the same exact host-neutral

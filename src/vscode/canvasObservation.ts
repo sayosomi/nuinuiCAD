@@ -1,7 +1,7 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import type { CanonicalDocumentValue } from "../document/canonicalDocument";
 import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import { evaluationStateIsCurrentFor, type EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { resolveOwningModuleInstanceId } from "../commands/selectionCommands";
@@ -119,13 +119,15 @@ export const canvasObservationSnapshot = (input: {
   selectedElementSources?: readonly VscodeCanvasObservationElementSource[];
   elements?: readonly CadElement[];
   document?: CanonicalDocumentValue;
-  moduleMaterialization?: ModuleMaterialization;
+  moduleMaterialization?: Pick<CanvasModuleMaterialization, "originByRuntimeElementId">;
   selectionSubject: CadSelectionSubject;
   compiledDocumentRevision: number;
   previewActive: boolean;
   evaluationState: EvaluationEngineState;
+  /** Imported runtime IDs are not root-local source observations. */
+  runtimePresentationActive?: boolean;
 }): VscodeCanvasObservationSnapshot => {
-  const selectedElementSources = input.selectionSubject.kind === "binding"
+  const selectedElementSources = input.runtimePresentationActive || input.selectionSubject.kind === "binding"
     ? []
     : input.selectedElementSources ?? currentSelectedElementSources(input.selectedElementIds);
   const selection = observationSelectionFor(
@@ -141,6 +143,7 @@ export const canvasObservationSnapshot = (input: {
     moduleMaterialization: input.moduleMaterialization
   }) !== null;
   const coordinatePointConversionTargetIds = input.document &&
+    !input.runtimePresentationActive &&
     !input.previewActive &&
     evaluationStateIsCurrentFor(input.evaluationState, input.compiledDocumentRevision) &&
     selection.selectionSubject.kind === "elements"

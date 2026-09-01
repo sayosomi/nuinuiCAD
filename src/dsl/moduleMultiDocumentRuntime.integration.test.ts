@@ -19,7 +19,9 @@ import {
 } from "../document/multiDocumentPrimitives";
 import { createModuleRuntimeContext } from "./moduleRuntimeContext";
 import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
+import { queryDslCanvasSourceDefinitionQualified } from "./dslNavigationQuery";
 import { effectiveElementActivityById } from "../model/elementActivity";
+import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
 
 const rootSource = (id: string, normalizedSource: string): RootCurrentSourceSnapshot => ({
   kind: "root-current",
@@ -141,6 +143,17 @@ describe("multi-document module runtime", () => {
     expect(owner?.source?.kind === "dependency-saved" ? owner.source.savedSourceFingerprint : undefined).toBe(library.savedSourceFingerprint);
     expect(owner?.sourceLocation?.range).toEqual(origins[0]!.sourceLocation!.range);
     expect(new Set(points.map((point) => point.id)).size).toBe(2);
+
+    const runtimeSnapshot = projectVscodeMultiDocumentCanvasRuntime({
+      graph,
+      compiled,
+      graphRevision: 12
+    });
+    expect(runtimeSnapshot).not.toBeNull();
+    expect(runtimeSnapshot?.graphRevision).toBe(12);
+    expect(runtimeSnapshot?.preparedRustEvaluation.rustEligible).toBe(true);
+    expect(runtimeSnapshot?.preparedRustEvaluation.input.elements.some((element) => element.name === "P")).toBe(true);
+    expect(runtimeSnapshot?.modulePresentation.origins.some((origin) => origin.kind === "moduleBody")).toBe(true);
 
     const staleOrigin = {
       ...origins[0]!,
@@ -434,6 +447,75 @@ describe("multi-document module runtime", () => {
     expect(result.errors).toEqual([]);
     const point = compiled.document.elements.find((element) => element.name === "P");
     expect(point && result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 13, y: 24 });
+  });
+
+  it("resolves Canvas source definitions to qualified root and nested dependency documents", async () => {
+    const helper = savedSource("qualified-helper", "sha256:qualified-helper", [
+      "nui 1",
+      "export module Shift(input: point) {",
+      "  point P = offset(from: @input, dx: 3, dy: 4)",
+      "}"
+    ].join("\n"));
+    const library = savedSource("qualified-library", "sha256:qualified-library", [
+      "nui 1",
+      "import \"./qualified-helper.nui\" as helper",
+      "export module Outer(input: point) {",
+      "  instance Child = helper::Shift(input: @input)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("qualified-root", [
+      "nui 1",
+      "point Base = coordinate(x: 10, y: 20)",
+      "import \"./qualified-library.nui\" as lib",
+      "instance use = lib::Outer(input: @Base)"
+    ].join("\n"));
+    const { compiled } = await compileImported(root, new Map([
+      [`${root.documentId}|./qualified-library.nui`, library],
+      [`${library.documentId}|./qualified-helper.nui`, helper]
+    ]));
+    if (!compiled.document) throw new Error("expected compiled document");
+
+    const moduleBody = compiled.document.elements.find((element) => element.name === "P");
+    const moduleInstance = compiled.document.elements.find((element) => element.name === "use");
+    expect(moduleBody).toBeDefined();
+    expect(moduleInstance).toBeDefined();
+    if (!moduleBody || !moduleInstance) return;
+
+    const bodyTarget = queryDslCanvasSourceDefinitionQualified({
+      source: root,
+      compiled,
+      runtimeElementId: moduleBody.id
+    });
+    expect(bodyTarget).toEqual({
+      source: {
+        kind: "dependency-saved",
+        documentId: helper.documentId,
+        savedSourceFingerprint: helper.savedSourceFingerprint
+      },
+      sourceStatementIndex: 2,
+      range: {
+        from: helper.normalizedSource.indexOf("P"),
+        to: helper.normalizedSource.indexOf("P") + 1
+      }
+    });
+
+    const instanceTarget = queryDslCanvasSourceDefinitionQualified({
+      source: root,
+      compiled,
+      runtimeElementId: moduleInstance.id
+    });
+    expect(instanceTarget).toEqual({
+      source: {
+        kind: "root-current",
+        documentId: root.documentId,
+        sourceRevision: root.sourceRevision
+      },
+      sourceStatementIndex: 3,
+      range: {
+        from: root.normalizedSource.indexOf("use"),
+        to: root.normalizedSource.indexOf("use") + 3
+      }
+    });
   });
 
   it("evaluates scalar exports through imported instances", async () => {
