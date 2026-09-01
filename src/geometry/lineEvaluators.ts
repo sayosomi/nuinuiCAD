@@ -341,9 +341,13 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           break;
         }
 
+        if (!(radius > 0)) {
+          errors.push(geometryError(element, `${element.name} の半径は0より大きい値で指定してください。`));
+          break;
+        }
+
         const startAngleRad = degreesToRadians(startAngleDeg);
         const endAngleRad = degreesToRadians(endAngleDeg);
-        const safeRadius = radius > 0 ? radius : 0;
         const sweepAngleDeg = directedSweepDegrees(startAngleDeg, endAngleDeg, element.direction ?? "counterclockwise");
         const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
         computedGeometry.set(element.id, {
@@ -356,22 +360,22 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             kind: "point",
             elementId: `${element.id}:start`,
             name: `${element.name}.始点`,
-            x: center.x + Math.cos(startAngleRad) * safeRadius,
-            y: center.y + Math.sin(startAngleRad) * safeRadius
+            x: center.x + Math.cos(startAngleRad) * radius,
+            y: center.y + Math.sin(startAngleRad) * radius
           },
           end: {
             kind: "point",
             elementId: `${element.id}:end`,
             name: `${element.name}.終点`,
-            x: center.x + Math.cos(endAngleRad) * safeRadius,
-            y: center.y + Math.sin(endAngleRad) * safeRadius
+            x: center.x + Math.cos(endAngleRad) * radius,
+            y: center.y + Math.sin(endAngleRad) * radius
           },
           radius,
           startAngleDeg,
           endAngleDeg,
           ...tangentAngles,
           sweepAngleDeg,
-          length: safeRadius * Math.abs(degreesToRadians(sweepAngleDeg))
+          length: radius * Math.abs(degreesToRadians(sweepAngleDeg))
         });
         break;
       }

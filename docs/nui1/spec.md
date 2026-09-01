@@ -604,6 +604,11 @@ argument explicitly. Direction is represented at runtime only by the sign of
 an explicitly authored full turn such as `0 -> 360` produces `+360` or `-360`
 according to `direction`.
 
+The direct `arc(...)` radius must resolve to a value greater than zero. A zero
+or negative radius produces a deterministic geometry evaluation error and does
+not materialize computed geometry, so runtime geometry-property reads for that
+arc are unavailable.
+
 `through(...)` and `corner(...)` do not gain a `direction` argument. Bake may
 materialize a non-zero evaluated arc exactly when the directed sweep recomputed
 from its start angle, end angle, and sign equals the evaluated signed sweep; a

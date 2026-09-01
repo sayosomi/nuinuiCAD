@@ -1,0 +1,7 @@
+nui 1
+arc Positive = arc(center: (0, 0), radius: 10, start: 0, end: 90)
+arc Zero = arc(center: (0, 0), radius: 0, start: 0, end: 90)
+arc Negative = arc(center: (0, 0), radius: -10, start: 0, end: 90)
+const PositiveRadius: number = @Positive.radius
+const ZeroRadius: number = @Zero.radius
+const NegativeLength: number = @Negative.length

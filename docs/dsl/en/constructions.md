@@ -726,10 +726,14 @@ start angle, and end angle. Angles are degrees. `direction` may be
 `counterclockwise` or `clockwise`; omitting it is the same as
 `counterclockwise`.
 
-**Notes:** Equal start and end angles produce zero sweep. An explicitly authored
-full turn such as `0` to `360` produces a full positive or negative turn
-according to direction. The readable `.direction` property is the corresponding
-choice value; see [Expressions](expressions.md).
+**Notes:** `radius` must resolve to a value greater than zero. Zero or negative
+values produce a deterministic geometry evaluation error and no computed arc;
+runtime geometry properties such as `.radius`, `.length`, and endpoint or center
+coordinates are consequently unavailable. Equal start and end angles produce
+zero sweep. An explicitly authored full turn such as `0` to `360` produces a
+full positive or negative turn according to direction. The readable
+`.direction` property is the corresponding choice value; see
+[Expressions](expressions.md).
 
 ### `through`
 
