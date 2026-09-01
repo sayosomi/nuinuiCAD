@@ -151,13 +151,13 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-  activateExtension(context);
-  context.subscriptions.push(registerExplorerMockFeature(context));
-  registerModulePreview(context);
-
   const multiDocumentHost = createVscodeModuleMultiDocumentHost();
   multiDocumentHost.start();
   context.subscriptions.push(multiDocumentHost);
+
+  activateExtension(context);
+  context.subscriptions.push(registerExplorerMockFeature(context));
+  registerModulePreview(context);
 
   const bridge = createMcpObservationBridge({
     configured: vscode.workspace.getConfiguration("nuinuiCAD").get<boolean>(NUI_MCP_OBSERVATION_SETTING, false),

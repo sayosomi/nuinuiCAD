@@ -3,6 +3,7 @@ import { AutomationDocument } from "../../src/document/automationDocument";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { vscodeObservationState } from "./vscodeObservationState";
+import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 
 type MockPosition = { line: number; character: number };
 type MockSelection = {
@@ -17,6 +18,7 @@ type TestDocument = {
   languageId?: string;
   version: number;
   uri: { scheme: string; toString: () => string };
+  isDirty?: boolean;
   getText: () => string;
   offsetAt: (position: { line: number; character: number }) => number;
   positionAt: (offset: number) => { line: number; character: number };
@@ -91,6 +93,11 @@ const mocks = vi.hoisted(() => ({
   panels: [] as TestPanel[],
   rustProcesses: [] as TestRustProcess[],
   diagnosticCollections: [] as TestDiagnosticCollection[],
+  multiDocumentHost: null as {
+    diagnosticsStateFor: ReturnType<typeof vi.fn>;
+    onDiagnosticsChanged: ReturnType<typeof vi.fn>;
+  } | null,
+  multiDocumentDiagnosticsListeners: [] as Array<(documentUri: string) => void>,
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
   completionRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
   signatureHelpRegistrations: [] as Array<{ selector: unknown; provider: unknown; triggerCharacters: string[]; disposable: { dispose: () => void } }>,
@@ -277,7 +284,12 @@ vi.mock("vscode", () => {
     },
     Uri: {
       joinPath: vi.fn((...parts: unknown[]) => parts.join("/")),
-      file: vi.fn((fsPath: string) => ({ scheme: "file", fsPath, toString: () => `file://${fsPath}` }))
+      file: vi.fn((fsPath: string) => ({ scheme: "file", fsPath, toString: () => `file://${fsPath}` })),
+      parse: vi.fn((value: string) => ({
+        scheme: value.split(":", 1)[0] ?? "",
+        fsPath: value.replace(/^file:\/\//, ""),
+        toString: () => value
+      }))
     },
     ViewColumn: { Beside: 2 },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
@@ -338,6 +350,10 @@ vi.mock("./rustEvaluationProcess", () => ({
   }
 }));
 
+vi.mock("./multiDocumentHost", () => ({
+  activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost
+}));
+
 vi.mock("./elementsTreeFeature", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./elementsTreeFeature")>();
   return {
@@ -383,6 +399,7 @@ const documentFor = (
     fileName,
     version: 1,
     uri: { scheme: uri.startsWith("file:") ? "file" : "untitled", toString: () => uri },
+    isDirty: false,
     getText: () => {
       document.onGetText?.();
       return sourceText;
@@ -604,6 +621,12 @@ const setup = (
     mocks.documentCloseListeners.push(listener);
     return disposable();
   });
+  if (mocks.multiDocumentHost) {
+    mocks.multiDocumentHost.onDiagnosticsChanged.mockImplementation((listener: (documentUri: string) => void) => {
+      mocks.multiDocumentDiagnosticsListeners.push(listener);
+      return disposable();
+    });
+  }
   mocks.getConfiguration.mockImplementation((section?: string) => ({
     get: <T>(key: string, defaultValue?: T) => {
       const fullKey = section ? `${section}.${key}` : key;
@@ -772,6 +795,8 @@ afterEach(() => {
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
   mocks.diagnosticCollections.length = 0;
+  mocks.multiDocumentHost = null;
+  mocks.multiDocumentDiagnosticsListeners.length = 0;
   mocks.contexts.length = 0;
   mocks.completionRegistrations.length = 0;
   mocks.signatureHelpRegistrations.length = 0;
@@ -3773,6 +3798,81 @@ describe("VS Code compiler diagnostics lifecycle", () => {
       })
     ]);
     expect(context.subscriptions).toContain(collection);
+  });
+
+  it("publishes exact graph-qualified imported diagnostics and clears them during invalidation", () => {
+    const rootSource = "nui 1\nimport \"./dependency.nui\" as dependency\n";
+    const dependencySource = "nui 1\nexport module Broken() {\n}\n";
+    const root = documentFor("/tmp/importer.nui", "file:///tmp/importer.nui", rootSource);
+    const dependency = documentFor("/tmp/dependency.nui", "file:///tmp/dependency.nui", dependencySource);
+    const rootId = root.uri.toString();
+    const dependencyId = dependency.uri.toString();
+    const snapshot = {
+      documentVersion: root.version,
+      rootGeneration: 1,
+      graphRevision: 1,
+      graph: {
+        nodes: new Map([
+          [rootId, { artifact: { source: { kind: "root-current", documentId: rootId, normalizedSource: rootSource, sourceRevision: 1 } } }],
+          [dependencyId, { artifact: { source: { kind: "dependency-saved", documentId: dependencyId, normalizedSource: dependencySource, savedSourceFingerprint: "sha256:dependency" } } }]
+        ])
+      },
+      compiled: null,
+      diagnostics: [{
+        severity: "error",
+        code: "import-invalid-dependency",
+        message: "dependency is invalid",
+        location: {
+          source: { kind: "dependency-saved", documentId: dependencyId, savedSourceFingerprint: "sha256:dependency" },
+          range: { from: dependencySource.indexOf("Broken"), to: dependencySource.indexOf("Broken") + "Broken".length }
+        },
+        relatedInformation: [{
+          message: "importer reference",
+          location: {
+            source: { kind: "root-current", documentId: rootId, sourceRevision: 1 },
+            range: { from: rootSource.indexOf("dependency"), to: rootSource.indexOf("dependency") + "dependency".length }
+          }
+        }]
+      }]
+    } as unknown as import("./multiDocumentHost").VscodeMultiDocumentDiagnosticSnapshot;
+    let diagnosticState: VscodeMultiDocumentDiagnosticsState = {
+      status: "current",
+      owner: "multi-document",
+      documentVersion: root.version,
+      rootGeneration: 1,
+      snapshot
+    };
+    const localState = {
+      status: "current",
+      owner: "local",
+      documentVersion: dependency.version,
+      rootGeneration: 1
+    };
+    const host = {
+      diagnosticsStateFor: vi.fn((document: TestDocument) => document === root ? diagnosticState : localState),
+      onDiagnosticsChanged: vi.fn()
+    };
+    mocks.multiDocumentHost = host;
+    setup(false, null, [root, dependency]);
+    const collection = collectionFor();
+
+    const dependencyPublication = collection.set.mock.calls.find(([uri]) => uri === dependency.uri)?.[1] as Array<{
+      code?: string;
+      relatedInformation?: Array<{ location: { uri: { toString: () => string } } }>;
+    }> | undefined;
+    expect(dependencyPublication).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "import-invalid-dependency",
+        relatedInformation: [expect.objectContaining({
+          location: expect.objectContaining({ uri: root.uri })
+        })]
+      })
+    ]));
+    expect(mocks.multiDocumentDiagnosticsListeners).toHaveLength(1);
+
+    diagnosticState = { status: "building", documentVersion: root.version, rootGeneration: 2 };
+    mocks.multiDocumentDiagnosticsListeners[0]!(root.uri.toString());
+    expect(collection.set).toHaveBeenLastCalledWith(dependency.uri, []);
   });
 
   it("publishes invalid choice literals for typed declarations", () => {
