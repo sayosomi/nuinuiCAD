@@ -59,6 +59,7 @@ import {
 import { registerNuiElementsTreeFeature } from "./elementsTreeFeature";
 import {
   registerVscodeCoordinatePointConversionFeature,
+  coordinatePointConversionCanvasTargetsFor,
   type CoordinatePointConversionCanvasEndpoint,
   type VscodeCoordinatePointConversionFeature
 } from "./coordinatePointConversionCommandFeature";
@@ -1859,7 +1860,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           matchingSession.webviewReady &&
           matchingSession.authoritativeDocumentVersion === matchingSession.document.version &&
           matchingSession.inFlightCanvasHistory === null,
-        targetIds: () => []
+        targetSources: () => []
       };
     },
     activeCanvasEndpoint: (): CoordinatePointConversionCanvasEndpoint | null => {
@@ -1874,10 +1875,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
           session.webviewReady &&
           session.authoritativeDocumentVersion === session.document.version &&
           session.inFlightCanvasHistory === null,
-        targetIds: () => {
+        targetSources: () => {
           const observation = vscodeObservationState.cachedSnapshot();
           const document = observation.documents.find((candidate) => candidate.documentUri === session.documentUri);
-          return document?.canvas?.coordinatePointConversionTargetIds ?? [];
+          return coordinatePointConversionCanvasTargetsFor(document?.canvas);
         }
       };
     },

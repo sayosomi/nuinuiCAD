@@ -788,13 +788,13 @@
         "command": "nuinuiCAD.convertPointToXYOffset",
         "title": "nuinuiCAD: Convert Point to XY Offset",
         "shortTitle": "XY Offset…",
-        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget)"
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget')"
       },
       {
         "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
         "title": "nuinuiCAD: Convert Point to Angle-Distance Offset",
         "shortTitle": "Angle-Distance Offset…",
-        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget)"
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget')"
       },
       {
         "command": "nuinuiCAD.replaceGeometryReferences",

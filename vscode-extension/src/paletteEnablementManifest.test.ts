@@ -29,6 +29,7 @@ const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrCanvasWhen = `(${sourceWhen}) || ${canvasWhen}`;
 const canvasSelectionEnablement = `${canvasWhen} && nuinuiCAD.canvasHasSelection`;
 const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasSelection)`;
+const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 
 const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.openModulePreview", `${sourceWhen} && nuinuiCAD.modulePreviewSourceTarget`],
@@ -36,8 +37,8 @@ const expectedTargetEnablement = new Map<string, string>([
   ["nuinuiCAD.revealInCanvas", `${sourceWhen} && nuinuiCAD.revealInCanvasSourceTarget`],
   ["nuinuiCAD.revealInOutputPreview", `${sourceWhen} && nuinuiCAD.revealInOutputPreviewSourceTarget`],
   ["nuinuiCAD.pickReferenceFromCanvas", `${sourceWhen} && nuinuiCAD.referencePickSourceTarget`],
-  ["nuinuiCAD.convertPointToXYOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget)`],
-  ["nuinuiCAD.convertPointToAngleDistanceOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget)`],
+  ["nuinuiCAD.convertPointToXYOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerWhen})`],
+  ["nuinuiCAD.convertPointToAngleDistanceOffset", `(${sourceWhen} && nuinuiCAD.coordinatePointConversionSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (${coordinatePointConversionExplorerWhen})`],
   ["nuinuiCAD.replaceGeometryReferences", `${sourceWhen} && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget`],
   ["nuinuiCAD.stepSourceValueForward", `${sourceWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`],
   ["nuinuiCAD.stepSourceValueBackward", `${sourceWhen} && !editorReadonly && nuinuiCAD.sourceValueStepTarget`],

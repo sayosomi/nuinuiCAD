@@ -3,6 +3,7 @@ import { AutomationDocument } from "../../src/document/automationDocument";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { vscodeObservationState } from "./vscodeObservationState";
+import { coordinatePointConversionCanvasTargetsFor } from "./coordinatePointConversionCommandFeature";
 import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 
 type MockPosition = { line: number; character: number };
@@ -2945,13 +2946,24 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    const targetId = elementIdFor(document, "Target");
+    const extensionHostTargetId = elementIdFor(document, "Target");
+    const canvasTargetId = "webview-target";
+    expect(extensionHostTargetId).not.toBe(canvasTargetId);
     await publishCanvasObservation(panel, {
       ...canvasObservationSnapshotFor(document.version),
-      coordinatePointConversionTargetIds: [targetId]
+      coordinatePointConversionTargetIds: [canvasTargetId],
+      selectedElementSources: [{
+        runtimeElementId: canvasTargetId,
+        sourceStatementIndex: 2,
+        elementType: "point"
+      }]
     });
+    expect(coordinatePointConversionCanvasTargetsFor(vscodeObservationState.cachedSnapshot().documents[0]?.canvas)).toEqual([{
+      runtimeElementId: canvasTargetId,
+      sourceStatementIndex: 2
+    }]);
     expect(vscodeObservationState.cachedSnapshot().documents[0]?.activeSurface).toBe("canvas");
-    expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas?.coordinatePointConversionTargetIds).toEqual([targetId]);
+    expect(vscodeObservationState.cachedSnapshot().documents[0]?.canvas?.coordinatePointConversionTargetIds).toEqual([canvasTargetId]);
     panel.webview.postMessage.mockClear();
     mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
       items.find((item) => item.kind === "base")
@@ -2965,13 +2977,14 @@ describe("VS Code production document lifecycle", () => {
       type: "coordinatePointConversionSelection",
       requestId: expect.any(Number),
       documentVersion: document.version,
-      successfulTargetIds: [targetId]
+      successfulTargetIds: [canvasTargetId]
     });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionStart",
       mode,
       origin: "canvas"
     }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("cancels native conversion without mutating Source when QuickPick returns Esc", async () => {
@@ -3053,10 +3066,15 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor(editor);
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
-    const targetId = elementIdFor(document, "Target");
+    const canvasTargetId = "webview-target";
     await publishCanvasObservation(panel, {
       ...canvasObservationSnapshotFor(document.version),
-      coordinatePointConversionTargetIds: [targetId]
+      coordinatePointConversionTargetIds: [canvasTargetId],
+      selectedElementSources: [{
+        runtimeElementId: canvasTargetId,
+        sourceStatementIndex: 2,
+        elementType: "point"
+      }]
     });
     let resolvePick: ((value: unknown) => void) | undefined;
     mocks.showQuickPick.mockImplementation(() => new Promise((resolve) => { resolvePick = resolve; }));
@@ -3065,13 +3083,100 @@ describe("VS Code production document lifecycle", () => {
     await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
     await publishCanvasObservation(panel, {
       ...canvasObservationSnapshotFor(document.version),
-      coordinatePointConversionTargetIds: ["changed-target"]
+      coordinatePointConversionTargetIds: [canvasTargetId],
+      selectedElementSources: [{
+        runtimeElementId: canvasTargetId,
+        sourceStatementIndex: 1,
+        elementType: "point"
+      }]
     });
     const base = (mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ kind?: string }>).find((item) => item.kind === "base");
     resolvePick?.(base);
 
     await vi.waitFor(() => expect(mocks.showErrorMessage).toHaveBeenCalled());
     expect(editor.edit).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a Canvas conversion target has no ordinary Source owner", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-canvas-missing-source-owner.nui", "file:///tmp/conversion-canvas-missing-source-owner.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: ["webview-target"],
+      selectedElementSources: []
+    });
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+
+    await Promise.resolve();
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(editor.edit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["ambiguous", [
+      { runtimeElementId: "webview-target", sourceStatementIndex: 2, elementType: "point" },
+      { runtimeElementId: "webview-target", sourceStatementIndex: 2, elementType: "point" }
+    ]],
+    ["Module", [{ runtimeElementId: "webview-target", runtimeKind: "moduleBody", sourceStatementPath: [2] }]]
+  ] as const)("fails closed for %s Canvas Source ownership", (_label, selectedElementSources) => {
+    expect(coordinatePointConversionCanvasTargetsFor({
+      ...canvasObservationSnapshotFor(1),
+      coordinatePointConversionTargetIds: ["webview-target"],
+      selectedElementSources
+    })).toEqual([]);
+  });
+
+  it("hands off Canvas-origin native QuickPick to Canvas with Canvas runtime target IDs", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-canvas-visual-pick.nui", "file:///tmp/conversion-canvas-visual-pick.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    const extensionHostTargetId = elementIdFor(document, "Target");
+    const canvasTargetId = "webview-target";
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: [canvasTargetId],
+      selectedElementSources: [{
+        runtimeElementId: canvasTargetId,
+        sourceStatementIndex: 2,
+        elementType: "point"
+      }]
+    });
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
+      items.find((item) => item.kind === "canvas")
+    );
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      mode: "xy",
+      origin: "canvas",
+      targetIds: [canvasTargetId]
+    })));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      origin: "canvas",
+      targetIds: [extensionHostTargetId]
+    }));
   });
 
   it("hands off to the existing Canvas point-pick path only after the explicit native affordance", async () => {
