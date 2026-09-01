@@ -41,7 +41,12 @@ import {
   type MultiDocumentSourceSnapshot,
   type RootCurrentSourceSnapshot
 } from "../../src/document/multiDocumentPrimitives";
+import {
+  queryDslCanvasSourceDefinitionQualified,
+  type NormalizedSourceRange
+} from "../../src/dsl/dslNavigationQuery";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
+import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "../../src/vscode/multiDocumentRuntimeTransport";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 import { reconcileStatements } from "../../src/document/statementReconciler";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -56,6 +61,12 @@ export type VscodeMultiDocumentIdentityProjector = (
 export type VscodeMultiDocumentSemanticRootCompiler = (
   graph: MultiDocumentImportGraph<unknown>
 ) => CompiledDslDocument | null;
+
+export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
+  graph: MultiDocumentImportGraph<unknown>;
+  compiled: CompiledDslDocument;
+  graphRevision: number;
+}) => VscodeMultiDocumentCanvasRuntimeSnapshot | null;
 
 export type VscodeMultiDocumentLanguageSemanticSnapshot = {
   sourceRevision: number;
@@ -76,6 +87,7 @@ export type VscodeMultiDocumentHostOptions = {
   declarationContributors?: readonly MultiDocumentDeclarationContributor<unknown>[];
   identityProjector?: VscodeMultiDocumentIdentityProjector;
   semanticRootCompiler?: VscodeMultiDocumentSemanticRootCompiler;
+  canvasRuntimeProjector?: VscodeMultiDocumentCanvasRuntimeProjector;
   /** Family semantic owners may supply their existing exact rename proof. */
   renameProof?: MultiDocumentRenameDocumentProof;
   renameProofFactory?: VscodeMultiDocumentRenameProofFactory;
@@ -84,6 +96,13 @@ export type VscodeMultiDocumentHostOptions = {
 export type VscodeMultiDocumentHandled<T> =
   | { handled: false }
   | { handled: true; value: T };
+
+export type VscodeCanvasSourceDefinitionTarget = {
+  targetUri: vscode.Uri;
+  normalizedSource: string;
+  range: NormalizedSourceRange;
+  sourceIdentity: DocumentSourceIdentity;
+};
 
 type RootState = {
   documentId: DocumentId;
@@ -515,6 +534,63 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     };
   }
 
+  /** Resolve a Canvas runtime identity through the exact graph-backed source owner. */
+  async canvasSourceDefinitionFor(
+    document: vscode.TextDocument,
+    runtimeElementId: string
+  ): Promise<VscodeMultiDocumentHandled<VscodeCanvasSourceDefinitionTarget | undefined>> {
+    if (!supportedDocument(document)) return { handled: false };
+    await this.activateRoot(document);
+    const documentId = this.documentIdForUri(document.uri);
+    const state = this.rootByDocumentId.get(documentId);
+    if (state?.pending) await state.pending;
+    const graph = state?.graph;
+    const compiled = state?.compiled;
+    if (
+      !state ||
+      !graph ||
+      !compiled ||
+      state.documentUri !== document.uri.toString() ||
+      state.documentVersion !== document.version ||
+      graph.valid !== true ||
+      graph.rootDocumentId !== documentId ||
+      graph.rootSource.kind !== "root-current" ||
+      graph.rootSource.normalizedSource !== normalizedSourceFor(document.getText()) ||
+      compiled.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
+      compiled.spans.sourceMap.sourceRevision !== graph.rootSource.sourceRevision ||
+      !compiled.statementMap ||
+      compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+      (compiled.bindingIssueDiagnostics ?? []).some((diagnostic) => diagnostic.severity === "error") ||
+      (this.options.semanticRootCompiler && (
+        compiled.moduleRuntimeContext?.graph !== graph ||
+        compiled.moduleRuntimeContext.rootDocumentId !== documentId ||
+        compiled.moduleRuntimeContext.valid !== true
+      ))
+    ) return { handled: true, value: undefined };
+
+    const target = queryDslCanvasSourceDefinitionQualified({
+      source: graph.rootSource,
+      compiled,
+      runtimeElementId
+    });
+    if (!target) return { handled: true, value: undefined };
+    const targetNode = graph.nodes.get(target.source.documentId);
+    const targetSource = targetNode?.artifact.source;
+    if (!targetSource || !sourceSnapshotMatchesIdentity(targetSource, target.source) ||
+        !(await this.sourceStillCurrent(targetSource))) {
+      return { handled: true, value: undefined };
+    }
+    return {
+      handled: true,
+      value: {
+        targetUri: vscode.Uri.parse(String(target.source.documentId)),
+        normalizedSource: targetSource.normalizedSource,
+        range: target.range,
+        sourceIdentity: target.source
+      }
+    };
+  }
+
   private readonly proveImportAliasRename: MultiDocumentRenameDocumentProof = ({
     source,
     occurrences,
@@ -729,11 +805,19 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
     state.index = index;
     state.compiled = compiled;
     state.graphRevision = ++this.publicationRevision;
+    const canvasRuntime = compiled && this.options.canvasRuntimeProjector
+      ? this.options.canvasRuntimeProjector({
+          graph: result.graph,
+          compiled,
+          graphRevision: state.graphRevision
+        })
+      : null;
     publishVscodeMultiDocumentGraphPublication(state.documentUri, {
       type: "multiDocumentGraphPublication",
       documentVersion: state.documentVersion,
       status: "current",
-      graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision)
+      graph: vscodeMultiDocumentGraphSnapshot(result.graph, state.graphRevision),
+      canvasRuntime
     });
   }
 

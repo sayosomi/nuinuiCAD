@@ -5,6 +5,7 @@ import type { CommandContext } from "../commands/commandTypes";
 import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
 import {
   canvasSelectionSnapshot,
+  canvasSelectionForElement,
   finalizeCanvasSelectionSession,
   previewCanvasSelection,
   resolveOwningModuleInstanceId
@@ -21,7 +22,7 @@ import {
   useCadDocumentStore
 } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { EvaluationResult } from "../types/geometry";
+import type { ElementId, EvaluationResult } from "../types/geometry";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import type { DrawingCanvasHandle } from "../components/DrawingCanvas";
 import type {
@@ -59,6 +60,7 @@ import {
   isCoordinatePointConversionPickTarget
 } from "./coordinatePointConversionPick";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
+import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
@@ -72,6 +74,7 @@ type VSCodeDrawingCanvasProps = {
   onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   onEditCanvasRibbon?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
+  multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
   currentCoordinatePointConversionAuthorityFor?: (
     expectedDocumentVersion: number
@@ -96,6 +99,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     onCanvasRibbonPositionCommit,
     onEditCanvasRibbon,
     measureCanvasTextWidth,
+    multiDocumentRuntimePresentation = null,
     currentReferencePickAuthorityFor,
     currentCoordinatePointConversionAuthorityFor
   }, ref) {
@@ -130,6 +134,20 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
     const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
     const commandLineSession = useCadUiStore((state) => state.commandLineSession);
+    const runtimeOnlyElementIds = useMemo(() => {
+      if (!multiDocumentRuntimePresentation) return new Set<ElementId>();
+      const canonicalIds = new Set(canonicalElements.map((element) => element.id));
+      return new Set(multiDocumentRuntimePresentation.elements
+        .filter((element) => !canonicalIds.has(element.id))
+        .map((element) => element.id));
+    }, [canonicalElements, multiDocumentRuntimePresentation]);
+    const presentationCompiledDocumentRevision = multiDocumentRuntimePresentation?.graphRevision ?? compiledDocumentRevision;
+    const presentationElements = multiDocumentRuntimePresentation?.elements ?? elements;
+    const presentationEvaluationLimitIndex = multiDocumentRuntimePresentation
+      ? multiDocumentRuntimePresentation.evaluationLimitIndex
+      : evaluationLimitIndex;
+    const presentationVisibilityProfiles = multiDocumentRuntimePresentation?.visibilityProfiles ?? visibilityProfiles;
+    const presentationActiveVisibilityProfileId = multiDocumentRuntimePresentation?.activeVisibilityProfileId ?? activeVisibilityProfileId;
     const moduleSemanticContext = useMemo(() => ({
       moduleMaterialization,
       moduleSemanticAnalysis,
@@ -137,28 +155,29 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       statementInfoByElementId
     }), [moduleMaterialization, moduleSemanticAnalysis, sourceLexicalNamespace, statementInfoByElementId]);
     const currentCanvasPresentation = useMemo(() => ({
-      elements,
+      elements: presentationElements,
       canonicalElements,
       compiledDocument,
-      evaluationLimitIndex,
-      visibilityProfiles,
-      activeVisibilityProfileId,
+      evaluationLimitIndex: presentationEvaluationLimitIndex,
+      visibilityProfiles: presentationVisibilityProfiles,
+      activeVisibilityProfileId: presentationActiveVisibilityProfileId,
       moduleSemanticContext
     }), [
-      activeVisibilityProfileId,
       canonicalElements,
       compiledDocument,
-      elements,
-      evaluationLimitIndex,
+      presentationActiveVisibilityProfileId,
+      presentationElements,
+      presentationEvaluationLimitIndex,
+      presentationVisibilityProfiles,
       moduleSemanticContext,
-      visibilityProfiles
     ]);
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
       evaluation,
-      compiledDocumentRevision,
+      compiledDocumentRevision: presentationCompiledDocumentRevision,
       evaluationState,
-      holdLastStable: holdLastStableCanvasPresentation
+      holdLastStable: multiDocumentRuntimePresentation ? false : holdLastStableCanvasPresentation,
+      retainLastStable: !multiDocumentRuntimePresentation
     });
     useModuleInstanceSelectionReconciliation({
       evaluation: canvasPresentation.renderEvaluation,
@@ -335,12 +354,13 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
 
     const dispatchGeometryAction = useMemo(
       () => (action: CanvasPointDragAction | CanvasBezierHandleDragAction) => {
+        if (runtimeOnlyElementIds.has(action.elementId)) return false;
         if ("bezierHandleRole" in action) {
           return dispatchCommand("moveBezierHandleByDelta", action);
         }
         return dispatchCommand("movePointElementByDelta", action);
       },
-      []
+      [runtimeOnlyElementIds]
     );
     const dragPreviewScheduler = useMemo(
       () => new VscodeDragPreviewScheduler(dispatchGeometryAction),
@@ -376,6 +396,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
 
     const commitGeometryCommand = useMemo(() => ({
       movePointElementByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["movePointElementByDelta"]>>[0]) => {
+        if (runtimeOnlyElementIds.has(action.elementId)) return false;
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
@@ -384,6 +405,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         return result;
       },
       moveBezierHandleByDelta: (action: Parameters<NonNullable<CanvasHostAdapter["moveBezierHandleByDelta"]>>[0]) => {
+        if (runtimeOnlyElementIds.has(action.elementId)) return false;
         const result = dragPreviewScheduler.dispatchCommit(action);
         if (mutationWasApplied(result)) {
           const sourceText = useCadDocumentStore.getState().sourceText;
@@ -391,17 +413,19 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
         }
         return result;
       }
-    }), [dragPreviewScheduler, postCanonicalSourceText]);
+    }), [dragPreviewScheduler, postCanonicalSourceText, runtimeOnlyElementIds]);
 
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
       elements: canvasPresentation.elements,
       canonicalElements: canvasPresentation.canonicalElements,
+      runtimeElementIds: runtimeOnlyElementIds,
       evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
-      compiledDocumentRevision,
+      compiledDocumentRevision: presentationCompiledDocumentRevision,
       canvasTheme,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
+      canvasModuleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization,
       measureCanvasTextWidth,
       selectedElementId,
       selectedElementIds,
@@ -420,12 +444,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       publishCanvasContextMenu: ({ kind, pointer }) => {
         const viewport = canvasFocusRef.current;
         if (!viewport) return;
-        const currentDocument = useCadDocumentStore.getState();
         const currentSelection = useCadUiStore.getState();
         const canSelectInstance = kind === "element" && resolveOwningModuleInstanceId({
           selectedElementId: currentSelection.selectedElementId,
-          elements: currentDocument.elements,
-          moduleMaterialization: currentDocument.doc.moduleMaterialization
+          elements: canvasPresentation.elements,
+          moduleMaterialization: multiDocumentRuntimePresentation?.moduleMaterialization ??
+            canvasPresentation.moduleSemanticContext.moduleMaterialization
         }) !== null;
         viewport.dataset.vscodeContext = vscodeCanvasContextDataFor(
           kind,
@@ -451,6 +475,20 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
       zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
       selectElement: (elementId, selectionMode, recordHistory) => {
+        if (multiDocumentRuntimePresentation) {
+          const previousSelection = canvasSelectionSnapshot();
+          const selection = canvasSelectionForElement(
+            canvasPresentation.elements,
+            previousSelection,
+            elementId,
+            selectionMode
+          );
+          if (!selection) return false;
+          useCadUiStore.getState().applySelection(canvasPresentation.elements, selection);
+          if (recordHistory) useCadDocumentStore.getState().recordCanvasSelection(previousSelection);
+          useCadUiStore.getState().clearPickMode();
+          return true;
+        }
         return dispatchCommand("selectElement", {
           elementId,
           selectionMode,
@@ -459,17 +497,21 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       },
       getCanvasSelectionSnapshot: () => canvasSelectionSnapshot(),
       previewCanvasSelection: (previousSelection, elementId, selectionMode) =>
-        previewCanvasSelection(previousSelection, elementId, selectionMode),
+        multiDocumentRuntimePresentation
+          ? previewCanvasSelection(previousSelection, elementId, selectionMode, canvasPresentation.elements)
+          : previewCanvasSelection(previousSelection, elementId, selectionMode),
       finalizeCanvasSelectionSession: (previousSelection) =>
         finalizeCanvasSelectionSession(previousSelection),
       commitCanvasRectangleSelection: (memberIds, mode) =>
-        commitCanvasRectangleSelection(memberIds, mode, true),
+        multiDocumentRuntimePresentation
+          ? commitCanvasRectangleSelection(memberIds, mode, true, canvasPresentation.elements)
+          : commitCanvasRectangleSelection(memberIds, mode, true),
       clearCanvasSelection: () => dispatchCommand("clearCanvasSelection", { recordSelectionHistory: true }),
       movePointElementByDelta: (action) => action.commitMode === "preview"
-        ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
+        ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.movePointElementByDelta(action),
       moveBezierHandleByDelta: (action) => action.commitMode === "preview"
-        ? dragPreviewScheduler.dispatchPreview(action, evaluationState)
+        ? runtimeOnlyElementIds.has(action.elementId) ? false : dragPreviewScheduler.dispatchPreview(action, evaluationState)
         : commitGeometryCommand.moveBezierHandleByDelta(action),
       applyPickedNumericReference: (numericReferenceExpression) => dispatchCommand("applyPickedNumericReference", {
         numericReferenceExpression
@@ -568,10 +610,12 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       canvasViewport,
       commandLineSession,
       commitGeometryCommand,
-      compiledDocumentRevision,
       canvasTheme,
       dragPreviewScheduler,
       evaluationState,
+      multiDocumentRuntimePresentation,
+      presentationCompiledDocumentRevision,
+      runtimeOnlyElementIds,
       measureCanvasTextWidth,
       selectedElementId,
       selectedElementIds,

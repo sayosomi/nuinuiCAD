@@ -24,6 +24,7 @@ import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCa
 import type { ViewportSize } from "./canvasViewport";
 import type { CanvasTheme } from "./canvasTheme";
 import type { PickCandidate } from "../model/pickCandidates";
+import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -69,12 +70,16 @@ export type CanvasHostAdapter = {
   elements: CadElement[];
   /** Canonical document elements used for document-order and drag snapshots. */
   canonicalElements: CadElement[];
+  /** Runtime-only IDs are real Canvas candidates, not ephemeral creation previews. */
+  runtimeElementIds?: ReadonlySet<ElementId>;
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
   canvasTheme: CanvasTheme;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;
+  /** Presentation-only materialization; canonical semantic context remains root-owned. */
+  canvasModuleMaterialization?: CanvasModuleMaterialization;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   selectedElementId: ElementId | null;
   selectedElementIds: ElementId[];

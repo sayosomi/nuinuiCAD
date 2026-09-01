@@ -179,6 +179,8 @@ export type CommandContext = {
   currentCursorTypedRenameTargetBindingId?: () => BindingId | null;
   currentCursorModuleSemanticTarget?: () => ModuleSemanticTarget | null;
   currentCursorModuleSemanticResolution?: () => ModuleSemanticCursorResolution;
+  /** Optional host-owned runtime selection boundary for imported Canvas elements. */
+  selectInstance?: () => boolean;
   goToSourceDefinitionAtCursor?: () => boolean;
   /** Focuses the Source Editor at the end of a newly generated element statement. */
   focusSourceEditorAtElementEnd?: (elementId: ElementId) => void;

@@ -51,6 +51,7 @@ const snapshot = (input: {
   moduleMaterialization?: ModuleMaterialization;
   previewActive?: boolean;
   compiledDocumentRevision?: number;
+  runtimePresentationActive?: boolean;
 } = {}) => canvasObservationSnapshot({
   documentVersion: 7,
   selectedElementId: input.selectedElementId,
@@ -62,6 +63,7 @@ const snapshot = (input: {
   selectionSubject: input.selectionSubject ?? { kind: "elements" },
   compiledDocumentRevision: input.compiledDocumentRevision ?? 12,
   previewActive: input.previewActive ?? false,
+  runtimePresentationActive: input.runtimePresentationActive,
   evaluationState: input.state ?? evaluationState()
 });
 
@@ -180,6 +182,38 @@ describe("canvasObservationSnapshot", () => {
       selectedElementId: body.id,
       moduleMaterialization: undefined
     }).canvasCanSelectInstance).toBe(false);
+  });
+
+  it("omits root-local source facts for imported runtime selections", () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}",
+      "instance Root = M()"
+    ].join("\n");
+    const compiled = compileMaterializedModuleDocument(source);
+    const body = compiled.document!.elements.find((element) => element.name === "P")!;
+
+    const result = snapshot({
+      selectedElementId: body.id,
+      selectedElementIds: [body.id],
+      selectedElementSources: [{
+        runtimeElementId: body.id,
+        sourceStatementIndex: 2,
+        elementType: "point"
+      }],
+      elements: compiled.document!.elements,
+      moduleMaterialization: compiled.moduleMaterialization,
+      runtimePresentationActive: true,
+      state: evaluationState({ evaluationRevision: 99 }),
+      compiledDocumentRevision: 99
+    });
+
+    expect(result.selectedElementIds).toEqual([body.id]);
+    expect(result.selectedElementSources).toEqual([]);
+    expect(result.coordinatePointConversionTargetIds).toEqual([]);
+    expect(result.isCurrent).toBe(true);
   });
 
   it("publishes current canonical selection and compact evaluation metadata", () => {

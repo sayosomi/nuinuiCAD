@@ -1,4 +1,5 @@
 import type { MultiDocumentImportGraph } from "../document/multiDocumentImportGraph";
+import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "./multiDocumentRuntimeTransport";
 import type {
   DocumentQualifiedSemanticIdentity,
   DocumentQualifiedSourceLocation,
@@ -77,6 +78,7 @@ export type VscodeMultiDocumentGraphPublication =
       documentVersion: number;
       status: "current";
       graph: VscodeMultiDocumentGraphSnapshot;
+      canvasRuntime?: VscodeMultiDocumentCanvasRuntimeSnapshot | null;
     }
   | {
       type: "multiDocumentGraphPublication";

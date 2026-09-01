@@ -15,6 +15,7 @@ import {
   type VscodeMultiDocumentRenameProofFactory,
   type VscodeMultiDocumentSemanticRootCompiler
 } from "./multiDocumentHost";
+import { projectVscodeMultiDocumentCanvasRuntime } from "../../src/vscode/multiDocumentRuntimeTransport";
 
 const sameStatementIds = (
   left: ReadonlyMap<number, string>,
@@ -109,6 +110,7 @@ const moduleRenameProofFactory: VscodeMultiDocumentRenameProofFactory = ({
 const moduleMultiDocumentHostOptions: VscodeMultiDocumentHostOptions = {
   declarationContributors: [moduleDeclarationContributor],
   semanticRootCompiler: exactModuleRootCompile,
+  canvasRuntimeProjector: projectVscodeMultiDocumentCanvasRuntime,
   identityProjector: moduleIdentityProjector,
   renameProofFactory: moduleRenameProofFactory
 };

@@ -189,7 +189,13 @@ export type VscodeToExtensionMessage =
   | VscodeModulePreviewParameterViewMessage
   | VscodeModulePreviewParameterSnapshot
   | VscodeModulePreviewParametersUnavailable
-  | { type: "canvasSourceDefinitionResult"; requestId: number; documentVersion: number | null; range: NormalizedSourceRange | null }
+  | {
+      type: "canvasSourceDefinitionResult";
+      requestId: number;
+      documentVersion: number | null;
+      runtimeElementId: string | null;
+      range: NormalizedSourceRange | null;
+    }
   | VscodeCanvasNavigationResult
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
   | ({ type: "bakeOperationResult"; surface: "source"; requestId: number; mode: "current" | "base" } & VscodeBakeOperationResult)
