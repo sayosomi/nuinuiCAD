@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { dispatchCommand } from "../commands/commands";
-import type { CommandContext } from "../commands/commandTypes";
+import type { CommandContext, SourceCreationCommitMetadata } from "../commands/commandTypes";
 import { commitCanvasRectangleSelection } from "../commands/canvasRectangleSelectionCommands";
 import {
   canvasSelectionSnapshot,
@@ -60,12 +60,17 @@ import {
 } from "./coordinatePointConversionPick";
 import { vscodeWebviewApi } from "./vscodeWebviewApiContext";
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
 
 type VSCodeDrawingCanvasProps = {
   evaluation: EvaluationResult;
   evaluationState?: EvaluationEngineState;
   canvasFocusRef: RefObject<HTMLDivElement | null>;
-  postCanonicalSourceText: (sourceText: string) => void;
+  postCanonicalSourceText: (sourceText: string, metadata?: SourceCreationCommitMetadata) => void;
+  canvasCreationRequest?: {
+    requestId: number;
+    sourceCursor: SourceCreationCursor;
+  };
   postCanvasCommit?: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
   postCanvasPointerPosition?: (pointer: VscodeCanvasPointer) => void;
   canvasTheme?: CanvasTheme;
@@ -91,6 +96,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     evaluationState,
     canvasFocusRef,
     postCanonicalSourceText,
+    canvasCreationRequest,
     postCanvasCommit,
     postCanvasPointerPosition,
     canvasTheme = LEGACY_CANVAS_THEME,
@@ -374,8 +380,15 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       clearPendingCanvasPointerIntent: () => drawingCanvasRef.current?.clearPendingCanvasPointerIntent(),
       clearSourceEditorFocusReservation: () => drawingCanvasRef.current?.clearEditorFocusReservation(),
       postCanonicalSourceText,
-      completeCommandLineSession: true
-    }), [canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanonicalSourceText]);
+      completeCommandLineSession: true,
+      ...(canvasCreationRequest
+        ? {
+            currentSourceCursor: () => canvasCreationRequest.sourceCursor,
+            sourceCreationOrigin: "canvas-retained" as const,
+            canvasCreationRequestId: canvasCreationRequest.requestId
+          }
+        : {})
+    }), [canvasCreationRequest, canvasFocusRef, canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, measureCanvasTextWidth, postCanonicalSourceText]);
 
     useEffect(() => () => dragPreviewScheduler.dispose(), [dragPreviewScheduler]);
     useEffect(() => {

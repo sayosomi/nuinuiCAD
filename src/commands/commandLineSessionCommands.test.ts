@@ -663,6 +663,70 @@ describe("command-line session commands", () => {
     });
   });
 
+  it("uses a retained Canvas Source anchor and reports the semantic end after commit", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Guide = segment(start: @A, end: @B)"
+    ].join("\n"), "test");
+    const before = useCadDocumentStore.getState();
+    const guide = before.elements.find((element) => element.name === "Guide")!;
+    const focusCanvas = vi.fn();
+    const postCanonicalSourceText = vi.fn();
+
+    expect(startCommandLineCreation("freePoint", {
+      currentSourceCursor: () => ({
+        sourceRevision: before.sourceRevision,
+        line: 4,
+        lineCount: 4,
+        elementId: guide.id
+      }),
+      sourceCreationOrigin: "canvas-retained",
+      canvasCreationRequestId: 73,
+      focusCanvas,
+      postCanonicalSourceText
+    })).toBe(true);
+    expect(useCadUiStore.getState().commandLineSession).toMatchObject({
+      sourceInsertionOrigin: "canvas-retained",
+      insertionIndex: before.elements.length
+    });
+
+    submitCommandLineInput("");
+    submitCommandLineInput("1");
+    submitCommandLineInput("2");
+    expect(confirmCommandLineSession({
+      focusCanvas,
+      postCanonicalSourceText,
+      canvasCreationRequestId: 73
+    })).toBe(true);
+
+    const committed = useCadDocumentStore.getState();
+    const created = committed.elements.find((element) => !before.elements.some((old) => old.id === element.id))!;
+    const info = committed.doc.statementMap.byElementId.get(created.id)!;
+    const semanticEndLine = Math.max(info.range.endLine, info.endLine) - 1;
+    expect(committed.sourceText.indexOf("line Guide = segment(start: @A, end: @B)")).toBeLessThan(
+      committed.sourceText.indexOf("point = coordinate(")
+    );
+    expect(postCanonicalSourceText).toHaveBeenCalledWith(committed.sourceText, {
+      requestId: 73,
+      insertedElementId: created.id,
+      nextSourcePosition: {
+        line: semanticEndLine,
+        character: committed.sourceText.split("\n")[semanticEndLine]!.length
+      }
+    });
+    expect(focusCanvas).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed instead of falling back to document end for a retained Canvas request without an anchor", () => {
+    expect(startCommandLineCreation("freePoint", {
+      sourceCreationOrigin: "canvas-retained"
+    })).toBe(false);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadUiStore.getState().commandErrorMessage).toContain("安全な挿入境界");
+  });
+
   it("splices a Source Editor comment-line cursor at that physical line", () => {
     useCadDocumentStore.getState().commitText([
       "nui 1",
