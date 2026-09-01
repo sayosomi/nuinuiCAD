@@ -258,6 +258,181 @@ describe("VS Code multi-document host lifecycle", () => {
     expect(mocks.watcherDispose).toHaveBeenCalledOnce();
   });
 
+  it("keeps imported Module documentation disk-authoritative when a dependency is dirty", async () => {
+    const rootPath = "/workspace/root.nui";
+    const dependencyPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel(value: 1, ",
+      ")"
+    ].join("\n");
+    const savedDependency = [
+      "nui 1",
+      "/// @en",
+      "/// Saved panel documentation.",
+      "export module Panel(",
+      "  /// @en",
+      "  /// Saved value documentation.",
+      "  value: number",
+      ") {",
+      "}"
+    ].join("\n");
+    const dirtyDependency = savedDependency
+      .replace("Saved panel documentation.", "Dirty panel documentation.")
+      .replace("Saved value documentation.", "Dirty value documentation.");
+    mocks.files.set(dependencyPath, encoder.encode(savedDependency));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const query = async () => {
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      if (!semantic) return null;
+      const source = { normalizedSource: rootSource, sourceRevision: semantic.sourceRevision };
+      return {
+        completion: queryDslCompletion({
+          source,
+          position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+          semantic
+        }),
+        signature: queryDslSignatureHelp({
+          source,
+          position: rootSource.indexOf("lib::Panel(value: 1, ") + "lib::Panel(value: 1, ".length,
+          semantic
+        })
+      };
+    };
+
+    await vi.waitFor(async () => {
+      const observed = await query();
+      expect(observed?.completion?.candidates.find((candidate) => candidate.label === "Panel")).toMatchObject({
+        kind: "module",
+        documentation: { variants: [{ locale: "en", markdown: "Saved panel documentation." }] }
+      });
+      expect(observed?.signature?.signatures[0]).toMatchObject({
+        name: "Panel",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: "Saved panel documentation." }] }
+      });
+      expect(observed?.signature?.signatures[0]?.parameters[0]).toMatchObject({
+        name: "value",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: "Saved value documentation." }] }
+      });
+    });
+
+    const dirty = documentFor(dependencyPath, dirtyDependency, { version: 2, dirty: true });
+    mocks.textDocuments.push(dirty);
+    mocks.openListeners[0]?.(dirty);
+
+    await vi.waitFor(async () => {
+      const observed = await query();
+      expect(observed?.completion?.candidates.find((candidate) => candidate.label === "Panel")).toMatchObject({
+        kind: "module",
+        documentation: { variants: [{ locale: "en", markdown: "Saved panel documentation." }] }
+      });
+      expect(observed?.signature?.signatures[0]).toMatchObject({
+        name: "Panel",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: "Saved panel documentation." }] }
+      });
+      expect(observed?.signature?.signatures[0]?.parameters[0]).toMatchObject({
+        name: "value",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: "Saved value documentation." }] }
+      });
+    });
+
+    host.dispose();
+  });
+
+  it("refreshes imported Module documentation after docs-only saved dependency rebuilds", async () => {
+    const rootPath = "/workspace/root.nui";
+    const dependencyPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel(value: 1)"
+    ].join("\n");
+    const initialDependency = [
+      "nui 1",
+      "/// @en",
+      "/// Initial panel documentation.",
+      "export module Panel(",
+      "  /// @en",
+      "  /// Initial value documentation.",
+      "  value: number",
+      ") {",
+      "}"
+    ].join("\n");
+    const refreshedDependency = initialDependency
+      .replace("Initial panel documentation.", "Refreshed panel documentation.")
+      .replace("Initial value documentation.", "Refreshed value documentation.");
+    const removedDependency = [
+      "nui 1",
+      "export module Panel(value: number) {",
+      "}"
+    ].join("\n");
+    mocks.files.set(dependencyPath, encoder.encode(initialDependency));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const query = async () => {
+      const semantic = await host.languageSemanticSnapshotFor(root);
+      if (!semantic) return null;
+      const source = { normalizedSource: rootSource, sourceRevision: semantic.sourceRevision };
+      return {
+        completion: queryDslCompletion({
+          source,
+          position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+          semantic
+        }),
+        signature: queryDslSignatureHelp({
+          source,
+          position: rootSource.indexOf("lib::Panel(value: 1") + "lib::Panel(value: 1".length,
+          semantic
+        })
+      };
+    };
+    const assertDocumentation = async (definition: string, parameter: string) => {
+      const observed = await query();
+      expect(observed?.completion?.candidates.find((candidate) => candidate.label === "Panel")).toMatchObject({
+        kind: "module",
+        documentation: { variants: [{ locale: "en", markdown: definition }] }
+      });
+      expect(observed?.signature?.signatures[0]).toMatchObject({
+        name: "Panel",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: definition }] }
+      });
+      expect(observed?.signature?.signatures[0]?.parameters[0]).toMatchObject({
+        name: "value",
+        authoredDocumentation: { variants: [{ locale: "en", markdown: parameter }] }
+      });
+    };
+
+    await vi.waitFor(() => assertDocumentation("Initial panel documentation.", "Initial value documentation."));
+
+    mocks.files.set(dependencyPath, encoder.encode(refreshedDependency));
+    mocks.watcherChangeListeners[0]?.(vscode.Uri.file(dependencyPath) as unknown as TestUri);
+    await vi.waitFor(() => assertDocumentation("Refreshed panel documentation.", "Refreshed value documentation."));
+
+    mocks.files.set(dependencyPath, encoder.encode(removedDependency));
+    mocks.watcherChangeListeners[0]?.(vscode.Uri.file(dependencyPath) as unknown as TestUri);
+    await vi.waitFor(async () => {
+      const observed = await query();
+      const candidate = observed?.completion?.candidates.find((entry) => entry.label === "Panel");
+      const signature = observed?.signature?.signatures[0];
+      expect(candidate).toMatchObject({ kind: "module", label: "Panel" });
+      expect(candidate?.documentation).toBeUndefined();
+      expect(signature).toMatchObject({ name: "Panel" });
+      expect(signature?.authoredDocumentation).toBeUndefined();
+      expect(signature?.parameters[0]).toMatchObject({ name: "value" });
+      expect(signature?.parameters[0]?.authoredDocumentation).toBeUndefined();
+    });
+
+    host.dispose();
+  });
+
   it("uses the exact graph-root Module compile for native Definition and Rename", async () => {
     const rootPath = "/workspace/root.nui";
     const libraryPath = "/workspace/library.nui";

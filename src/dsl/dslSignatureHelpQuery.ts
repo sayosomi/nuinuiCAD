@@ -14,7 +14,9 @@ import type { SourceSnapshot } from "./logicalStatementSourceMap";
 import {
   buildModuleDocumentationIndex,
   documentationForModuleDefinition,
+  documentationForModuleDefinitionMetadata,
   documentationForModuleParameter,
+  documentationForModuleParameterMetadata,
   type ModuleDocumentation
 } from "./moduleDocumentation";
 import { createCadElement } from "../model/elementFactory";
@@ -365,9 +367,16 @@ const moduleSignatureFor = (
         spans: compiled.spans,
         semanticAnalysis: analysis
       });
+  const importedDocumentation = imported && compiled.moduleRuntimeContext?.valid
+    ? instance.callee.documentation ?? (
+        definition.identity && compiled.moduleRuntimeContext
+          ? compiled.moduleRuntimeContext.moduleDocumentationFor(definition.identity)
+          : undefined
+      )
+    : undefined;
   const authoredDocumentation = documentationIndex
     ? documentationForModuleDefinition(documentationIndex, definition)
-    : undefined;
+    : documentationForModuleDefinitionMetadata(importedDocumentation);
 
   return {
     identity: `module:${moduleIdentity}`,
@@ -378,7 +387,7 @@ const moduleSignatureFor = (
     parameters: definition.parameters.map((parameter) => {
       const parameterDocumentation = documentationIndex
         ? documentationForModuleParameter(documentationIndex, parameter)
-        : undefined;
+        : documentationForModuleParameterMetadata(importedDocumentation, parameter);
       return {
         identity: `module:${moduleIdentity}:${parameter.parameterIndex}`,
         name: parameter.name,
