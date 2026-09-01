@@ -16,6 +16,7 @@ import {
 } from "./numericExpressions";
 import {
   numericGeometryPropertiesForStaticTarget,
+  numericGeometryPropertyUnitFor,
   numericGeometryStaticTargetForComputedGeometry,
   numericGeometryStaticTargetForElementInDocument,
   type NumericGeometryStaticTarget
@@ -54,12 +55,12 @@ const formatNumber = (value: number) =>
 
 const piDefinition = getBuiltinConstantDefinition("pi");
 
-export const formatValue = (value: number, path: string) =>
-  path.toLowerCase().includes("angle") || path.toLowerCase().endsWith("deg")
-    ? `${formatNumber(value)}°`
-    : path.endsWith(".x") || path.endsWith(".y")
-      ? formatNumber(value)
-      : `${formatNumber(value)} mm`;
+export const formatValue = (value: number, path: string) => {
+  const formatted = formatNumber(value);
+  const unit = numericGeometryPropertyUnitFor(path);
+  if (unit === "bare") return formatted;
+  return unit === "°" ? `${formatted}°` : `${formatted} ${unit}`;
+};
 
 const elementIndex = (elements: CadElement[], elementId: ElementId) =>
   elements.findIndex((element) => element.id === elementId);
