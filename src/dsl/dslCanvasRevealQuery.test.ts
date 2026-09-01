@@ -112,6 +112,119 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     expect(result.target.semantic.reference.target?.kind).toBe("sourceGeometryProperty");
   });
 
+  it("recognizes a geometry property in a root numeric element parameter across the full authored span", () => {
+    const source = [
+      "nui 1",
+      "const distance: number = 5",
+      "line Guide = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: @Guide.length, y: @distance)"
+    ].join("\n");
+    const token = "@Guide.length";
+    const tokenStart = source.indexOf(token);
+
+    for (let offset = 0; offset < token.length; offset += 1) {
+      const result = queryDslCanvasRevealSourceTarget({
+        source: { normalizedSource: source, sourceRevision: 11 },
+        compiled: compileWithIds(source),
+        position: tokenStart + offset
+      });
+
+      expect(result.status).toBe("resolved");
+      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
+      expect(result.target.semantic.kind).toBe("geometry-property");
+      if (result.target.semantic.kind !== "geometry-property") continue;
+      expect(result.target.semantic.referenceText).toBe(token);
+      expect(result.target.semantic.reference).toMatchObject({
+        geometryName: "Guide",
+        property: "length",
+        target: {
+          kind: "sourceGeometryProperty",
+          statementIndex: 2,
+          category: "line",
+          property: "length"
+        }
+      });
+    }
+  });
+
+  it("keeps a normal scalar reference in a root numeric element parameter on statement-owner fallback", () => {
+    const source = [
+      "nui 1",
+      "const distance: number = 5",
+      "line Guide = segment(start: (0, 0), end: (10, 0))",
+      "point P = coordinate(x: @Guide.length, y: @distance)"
+    ].join("\n");
+    const result = queryAt(source, "@distance");
+
+    expect(result).toEqual({ status: "resolved", target: { kind: "statement-owner", sourceStatementIndex: 3 } });
+  });
+
+  it("recognizes a choice-valued geometry property in a compiled property binding", () => {
+    const source = [
+      "nui 1",
+      "const marker: number = 1",
+      "arc Guide = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "arc Result = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: @Guide.direction)"
+    ].join("\n");
+    const token = "@Guide.direction";
+    const tokenStart = source.indexOf(token);
+    const compiled = compileWithIds(source);
+
+    expect(compiled.propertyBindings).toBeDefined();
+    for (let offset = 0; offset < token.length; offset += 1) {
+      const result = queryDslCanvasRevealSourceTarget({
+        source: { normalizedSource: source, sourceRevision: 11 },
+        compiled,
+        position: tokenStart + offset
+      });
+
+      expect(result.status).toBe("resolved");
+      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
+      expect(result.target.semantic.kind).toBe("geometry-property");
+      if (result.target.semantic.kind !== "geometry-property") continue;
+      expect(result.target.semantic.referenceText).toBe(token);
+      expect(result.target.semantic.reference).toMatchObject({
+        geometryName: "Guide",
+        property: "direction",
+        type: { kind: "choice", options: ["counterclockwise", "clockwise"] },
+        target: { kind: "sourceGeometryProperty", statementIndex: 2, category: "arc", property: "direction" }
+      });
+    }
+  });
+
+  it("recognizes a geometry property in a set RHS", () => {
+    const source = [
+      "nui 1",
+      "let direction: choice(counterclockwise, clockwise) = clockwise",
+      "arc Guide = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "set direction = @Guide.direction"
+    ].join("\n");
+    const token = "@Guide.direction";
+    const tokenStart = source.indexOf(token);
+    const compiled = compileWithIds(source);
+
+    expect(compiled.setStatements).toBeDefined();
+    for (let offset = 0; offset < token.length; offset += 1) {
+      const result = queryDslCanvasRevealSourceTarget({
+        source: { normalizedSource: source, sourceRevision: 11 },
+        compiled,
+        position: tokenStart + offset
+      });
+
+      expect(result.status).toBe("resolved");
+      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
+      expect(result.target.semantic.kind).toBe("geometry-property");
+      if (result.target.semantic.kind !== "geometry-property") continue;
+      expect(result.target.semantic.referenceText).toBe(token);
+      expect(result.target.semantic.reference.target).toMatchObject({
+        kind: "sourceGeometryProperty",
+        statementIndex: 2,
+        category: "arc",
+        property: "direction"
+      });
+    }
+  });
+
   it("keeps multiline in-progress punctuation, indentation, and comments inside the owner envelope", () => {
     const source = [
       "nui 1",

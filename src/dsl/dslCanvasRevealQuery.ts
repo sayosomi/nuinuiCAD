@@ -1,5 +1,7 @@
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import type { CompiledDslDocument } from "./dslDocument";
+import { isGeometryDeclarationCategory } from "./dslConstructions";
+import { rootCompiledGeometryPropertyOccurrences } from "./dslCompiledGeometryProperty";
 import { sourceOwnerByRuntimeElementId } from "./sourceOwnership";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
 import type {
@@ -153,6 +155,47 @@ const addExpressionCandidates = (
   }
 };
 
+const addRootCompiledGeometryPropertyCandidates = (
+  source: SourceSnapshot,
+  compiled: CompiledDslDocument,
+  result: SemanticCandidate[]
+) => {
+  for (const occurrence of rootCompiledGeometryPropertyOccurrences(compiled)) {
+    const targetStatement = compiled.statements[occurrence.targetSourceOrder];
+    const targetStatementId = compiled.statementMap?.statementIdByStatementIndex?.get(occurrence.targetSourceOrder);
+    if (
+      targetStatement?.kind !== "element" ||
+      !isGeometryDeclarationCategory(targetStatement.category) ||
+      !targetStatementId
+    ) continue;
+    const reference: ModuleGeometryPropertyReference = {
+      geometryName: occurrence.elementName,
+      property: occurrence.property,
+      elementNameSpan: occurrence.elementNameSpan,
+      propertySpan: occurrence.propertySpan,
+      span: occurrence.span,
+      target: {
+        kind: "sourceGeometryProperty",
+        statementId: targetStatementId,
+        statementIndex: occurrence.targetSourceOrder,
+        category: targetStatement.category,
+        property: occurrence.property
+      },
+      type: occurrence.type,
+      resolution: "resolved"
+    };
+    const range = exactRange(source, compiled, occurrence.statementIndex, reference.span);
+    if (!range) continue;
+    result.push({
+      kind: "geometry-property",
+      sourceStatementIndex: occurrence.statementIndex,
+      reference,
+      referenceText: source.normalizedSource.slice(range.from, range.to),
+      range
+    });
+  }
+};
+
 const semanticCandidates = (
   source: SourceSnapshot,
   compiled: CompiledDslDocument,
@@ -183,6 +226,7 @@ const semanticCandidates = (
     const statementIndex = statementIndexForId(compiled, statementId);
     if (statementIndex !== null) addExpression(statementIndex, site.expression);
   }
+  addRootCompiledGeometryPropertyCandidates(source, compiled, result);
   for (const definition of analysis.definitions) {
     for (const body of definition.bodyStatements) {
       for (const site of body.geometryReferences) addReference(body.statementIndex, site.reference);
