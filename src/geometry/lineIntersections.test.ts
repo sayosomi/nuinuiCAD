@@ -88,6 +88,7 @@ const verticalBezier = (): ComputedBezierCurve => {
     startPointId: null,
     endPointId: null,
     intermediatePointIds: [],
+    intermediateSlotIds: [],
     segments: [
       {
         startPointId: null,
@@ -413,6 +414,7 @@ describe("findLineIntersections", () => {
     startPointId: null,
     endPointId: null,
     intermediatePointIds: [],
+    intermediateSlotIds: [],
     segments: [
       {
         startPointId: null,

@@ -73,7 +73,7 @@ pub(crate) fn anchor_reference_element_id(anchor: &Value) -> Option<ElementId> {
 pub(crate) fn resolve_derived_point(
     source: &Value,
     point_key: &str,
-    state: &EvaluationState,
+    _state: &EvaluationState,
 ) -> Option<Point> {
     match source.get("kind")?.as_str()? {
         "line" => {
@@ -131,21 +131,11 @@ pub(crate) fn resolve_derived_point(
                     .and_then(point_from_value)
             } else {
                 let intermediate_id = point_key.strip_prefix("intermediate:")?;
-                let element_id = source.get("elementId")?.as_str()?;
-                let element = state
-                    .elements_by_id
-                    .get(element_id)
-                    .and_then(|index| state.elements.get(*index))?;
-                if element_type(element) != Some("bezierCurve") {
-                    return None;
-                }
-                let index = element
-                    .get("intermediatePoints")?
+                let index = source
+                    .get("intermediateSlotIds")?
                     .as_array()?
                     .iter()
-                    .position(|point| {
-                        point.get("id").and_then(Value::as_str) == Some(intermediate_id)
-                    })?;
+                    .position(|point| point.as_str() == Some(intermediate_id))?;
                 source
                     .get("segments")?
                     .as_array()?

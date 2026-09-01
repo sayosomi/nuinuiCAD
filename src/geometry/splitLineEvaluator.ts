@@ -299,6 +299,7 @@ const splitBezierCurveGeometry = (
       segments: nearSegments,
       endPointId: splitPointId,
       intermediatePointIds: curve.intermediatePointIds.slice(0, hit.segmentIndex),
+      intermediateSlotIds: curve.intermediateSlotIds.slice(0, hit.segmentIndex),
       length: nearSegments.reduce((sum, segment) => sum + approximateBezierSegmentLength(segment), 0)
     },
     far: {
@@ -307,6 +308,7 @@ const splitBezierCurveGeometry = (
       name: splitLineName,
       startPointId: splitPointId,
       intermediatePointIds: curve.intermediatePointIds.slice(hit.segmentIndex),
+      intermediateSlotIds: curve.intermediateSlotIds.slice(hit.segmentIndex),
       segments: farSegments,
       length: farSegments.reduce((sum, segment) => sum + approximateBezierSegmentLength(segment), 0)
     }

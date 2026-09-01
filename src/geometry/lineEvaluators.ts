@@ -635,6 +635,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           intermediatePointIds: element.intermediatePoints.flatMap((point) =>
             anchorReferenceElementId(point.point) ? [anchorReferenceElementId(point.point)!] : []
           ),
+          intermediateSlotIds: element.intermediatePoints.map((point) => point.id),
           segments,
           length: segments.reduce(
             (sum, segment) => sum + approximateBezierSegmentLength(segment),

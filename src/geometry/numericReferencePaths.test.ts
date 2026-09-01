@@ -77,6 +77,7 @@ const curveGeometry: ComputedBezierCurve = {
   startPointId: "a",
   endPointId: null,
   intermediatePointIds: ["mid"],
+  intermediateSlotIds: ["mid"],
   segments: [
     {
       startPointId: "a",
@@ -311,6 +312,7 @@ describe("numericReferencePaths", () => {
       startPointId: null,
       endPointId: null,
       intermediatePointIds: [],
+      intermediateSlotIds: [],
       segments: [
         {
           startPointId: null,
