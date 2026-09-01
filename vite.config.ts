@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
 const junitOutputFile = process.env.VITEST_JUNIT_OUTPUT_FILE?.trim();
+const runPerformanceSuites = process.env.VITE_RUN_PERFORMANCE_GATES === "1";
+const runBenchmarkSuites = process.env.VITE_RUN_BENCHMARK_SUITES === "1";
+const performanceSuiteGlobs = ["**/*.performance.test.ts", "**/*.performance.test.tsx"];
+const benchmarkSuiteGlobs = ["**/*.benchmark.test.ts", "**/*.benchmark.test.tsx"];
 const junitReporterPlugin = junitOutputFile
   ? {
       name: "nuinuicad-junit-reporter",
@@ -45,7 +49,12 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test/setup.ts",
-    exclude: [...configDefaults.exclude, "automation/linear-github-mirror/test/**/*.test.js"],
+    exclude: [
+      ...configDefaults.exclude,
+      "automation/linear-github-mirror/test/**/*.test.js",
+      ...(runPerformanceSuites ? [] : performanceSuiteGlobs),
+      ...(runBenchmarkSuites ? [] : benchmarkSuiteGlobs)
+    ],
     ...(junitOutputFile
       ? {
           outputFile: { junit: junitOutputFile }
