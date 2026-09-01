@@ -141,7 +141,8 @@ export const VSCodeCreationAssistOverlay = ({
   const stepButtonRefs = useRef(new Map<number, HTMLButtonElement>());
   const [focusedStepIndex, setFocusedStepIndex] = useState(0);
 
-  const isCanvasOriginSession = session?.sourceInsertionOrigin === "document-end";
+  const isCanvasOriginSession = session?.sourceInsertionOrigin === "document-end" ||
+    session?.sourceInsertionOrigin === "canvas-retained";
   const step = isCanvasOriginSession ? currentStep(session) : null;
   const completedSteps = useMemo(
     () => isCanvasOriginSession && session ? completedCommandLineSteps(session, elements) : [],
@@ -277,7 +278,7 @@ export const VSCodeCreationAssistOverlay = ({
 
   const cancelWithRestart = useCallback(() => {
     const current = useCadUiStore.getState().commandLineSession;
-    if (!current || current.sourceInsertionOrigin !== "document-end") return false;
+    if (!current || (current.sourceInsertionOrigin !== "document-end" && current.sourceInsertionOrigin !== "canvas-retained")) return false;
     setRestartRecipe(current.recipe);
     setCommandLineInputComposing(false);
     if (!cancelCommandLineSession()) {

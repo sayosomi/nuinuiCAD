@@ -80,6 +80,10 @@ import {
   type VscodeCanvasFreePointAtPointerEndpoint,
   type VscodeCanvasFreePointAtPointerFeature
 } from "./canvasFreePointAtPointerFeature";
+import {
+  registerVscodeSourceAuthoringPositionFeature,
+  type VscodeSourceAuthoringPositionFeature
+} from "./sourceAuthoringPositionFeature";
 import { isVscodeCanvasPointer } from "../../src/vscode/protocol";
 import type { VscodeCanvasPointer } from "../../src/vscode/protocol";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
@@ -178,6 +182,21 @@ type WebviewSession = DocumentSession | OutputPreviewSession;
 type LastBakeSurface =
   | { kind: "canvas"; session: DocumentSession }
   | { kind: "source"; document: vscode.TextDocument };
+
+const staleSourceAnchorError = "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。";
+const sourceAnchorError = "nuinuiCAD: Sourceの挿入位置を先に確定してください。Sourceでキャレットを明示的に移動してから再試行してください。";
+
+const sourcePositionAfterCommitIsValid = (
+  document: vscode.TextDocument,
+  position: { line: number; character: number } | undefined
+): position is { line: number; character: number } =>
+  position !== undefined &&
+  Number.isInteger(position.line) &&
+  position.line >= 0 &&
+  position.line < document.lineCount &&
+  Number.isInteger(position.character) &&
+  position.character >= 0 &&
+  position.character <= document.lineAt(position.line).range.end.character;
 
 const benchmarkConfigFromEnvironment = (): VscodeBenchmarkConfig | null => {
   const raw = process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
@@ -500,6 +519,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let nextBakeRequestId = 1;
   let refreshNativeColorProvider: () => void = () => undefined;
   let canvasFreePointAtPointerFeature: VscodeCanvasFreePointAtPointerFeature | null = null;
+  let sourceAuthoringPositionFeature: VscodeSourceAuthoringPositionFeature;
   let coordinatePointConversionExplorerContextValueFor: (node: import("./elementsTreeProvider").NuiElementsTreeNode) => string | undefined = () => undefined;
   let refreshElementsTree = (): void => undefined;
   let coordinatePointConversionOutputChannel: vscode.OutputChannel | null = null;
@@ -510,6 +530,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
   ) => void = () => undefined;
   let handleCoordinatePointConversionDocumentChange = (): void => undefined;
   let handleCoordinatePointConversionDocumentClose = (): void => undefined;
+  sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
+    onDocumentInvalidated: (document) => {
+      canvasFreePointAtPointerFeature?.handleSourceDocumentInvalidated(document);
+    }
+  });
 
   const bakeOutputChannelFor = (): vscode.OutputChannel => {
     if (bakeOutputChannel) return bakeOutputChannel;
@@ -928,6 +953,26 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const session = createLanguageAnalysisSession(document.getText());
     languageAnalysisSessions.set(key, session);
     return session;
+  };
+
+  const sourcePositionForCommittedElement = (
+    document: vscode.TextDocument,
+    elementId: string
+  ): { line: number; character: number } | null => {
+    const analysis = languageAnalysisSessionFor(document);
+    const sourceText = document.getText();
+    if (analysis.getSource() !== sourceText) analysis.replaceSource(sourceText);
+    const normalizedSource = normalizedSourceFor(sourceText);
+    const source = {
+      normalizedSource,
+      sourceRevision: analysis.getSourceRevision()
+    };
+    const semantic = analysis.definitionSemanticSnapshot(source);
+    const info = semantic?.compiled.statementMap?.byElementId.get(elementId);
+    if (!info || info.line < 1) return null;
+    const line = Math.max(info.range.endLine, info.endLine) - 1;
+    if (line >= document.lineCount) return null;
+    return { line, character: document.lineAt(line).range.end.character };
   };
 
   const acceptRuntimeDiagnosticsPublication = (
@@ -1421,7 +1466,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
         return;
       }
     }
-    if (message.operationId !== undefined && message.coordinatePointConversionRequestId === undefined) {
+    if (message.sourceCreation && message.operationId === message.sourceCreation.requestId) {
+      sourceAuthoringPositionFeature.markCommandOwnedEdit(message.operationId);
+    } else if (message.operationId !== undefined && message.coordinatePointConversionRequestId === undefined) {
       canvasFreePointAtPointerFeature?.markCanvasEdit(message.operationId);
     }
     if (message.coordinatePointConversionRequestId !== undefined && message.operationId !== undefined) {
@@ -1442,6 +1489,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         editBuilder.replace(fullDocumentRange(session.document), message.sourceText);
       }, { undoStopBefore: true, undoStopAfter: true });
     } catch {
+      if (message.sourceCreation) sourceAuthoringPositionFeature.rejectCommandOwnedEdit(message.sourceCreation.requestId);
       resync(session);
       postCanvasCommitResult(session, message, "rejected");
       return;
@@ -1450,12 +1498,35 @@ export const activate = (context: vscode.ExtensionContext): void => {
     try {
       const editCompleted = await editResult;
       if (!editCompleted) {
+        if (message.sourceCreation) sourceAuthoringPositionFeature.rejectCommandOwnedEdit(message.sourceCreation.requestId);
         resync(session);
         postCanvasCommitResult(session, message, "rejected");
         return;
       }
+      if (message.sourceCreation) {
+        const committedElementPosition = message.sourceCreation.insertedElementId
+          ? sourcePositionForCommittedElement(session.document, message.sourceCreation.insertedElementId)
+          : null;
+        // The Webview owns the live element identity. New statements normally
+        // have a generated runtime id that is not serialized into Source, so
+        // prefer the Webview's statement-map position and use the host lookup
+        // only for explicitly persisted ids.
+        const postPosition = message.sourceCreation.nextSourcePosition ?? committedElementPosition ?? undefined;
+        if (!sourcePositionAfterCommitIsValid(session.document, postPosition) || !sourceAuthoringPositionFeature.completeCommandOwnedEdit({
+          requestId: message.sourceCreation.requestId,
+          document: session.document,
+          documentVersion: session.document.version,
+          postPosition
+        })) {
+          sourceAuthoringPositionFeature.rejectCommandOwnedEdit(message.sourceCreation.requestId);
+          resync(session);
+          postCanvasCommitResult(session, message, "rejected");
+          return;
+        }
+      }
       postCanvasCommitResult(session, message, "accepted");
     } catch {
+      if (message.sourceCreation) sourceAuthoringPositionFeature.rejectCommandOwnedEdit(message.sourceCreation.requestId);
       resync(session);
       postCanvasCommitResult(session, message, "rejected");
     }
@@ -1552,6 +1623,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const disposeCanvasSession = (session: DocumentSession): void => {
     if (sessions.get(session.documentUri, "canvas") !== session) return;
+    sourceAuthoringPositionFeature.disposeSession(session, session.document);
     canvasFreePointAtPointerFeature?.disposeSession(session, session.document);
     if (lastActiveCanvasSession === session) lastActiveCanvasSession = null;
     if (lastBakeSurface?.kind === "canvas" && lastBakeSurface.session === session) lastBakeSurface = null;
@@ -1943,15 +2015,36 @@ export const activate = (context: vscode.ExtensionContext): void => {
         isCurrent,
         postCreationCommand: (commandId) => {
           if (!isCurrent()) return;
+          const retained = sourceAuthoringPositionFeature.sourceAuthoringPositionFor(session.document);
+          if (!retained) {
+            void vscode.window.showErrorMessage(sourceAnchorError);
+            return;
+          }
+          if (retained.documentVersion !== session.document.version) {
+            void vscode.window.showErrorMessage(staleSourceAnchorError);
+            return;
+          }
+          const request = sourceAuthoringPositionFeature.beginCanvasCreation(session, session.document);
+          if (!request) {
+            void vscode.window.showErrorMessage(staleSourceAnchorError);
+            return;
+          }
           void session.panel.webview.postMessage({
             type: "canvasCreationCommand",
-            commandId
+            commandId,
+            requestId: request.requestId,
+            documentVersion: request.documentVersion,
+            sourcePosition: {
+              line: request.sourcePosition.line,
+              character: request.sourcePosition.character
+            }
           } satisfies ExtensionToVscodeMessage);
         }
       };
     }
   });
   canvasFreePointAtPointerFeature = registerVscodeCanvasFreePointAtPointerFeature({
+    sourceAuthoringPosition: sourceAuthoringPositionFeature,
     activeCanvasEndpoint: (context?: unknown): VscodeCanvasFreePointAtPointerEndpoint | null => {
       const session = canvasSessionForFreePointCommand(context);
       if (
@@ -2226,6 +2319,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     sourceValueStepFeature,
     canvasQuickCreateFeature,
     canvasFreePointAtPointerFeature,
+    sourceAuthoringPositionFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     ...canvasCommandDisposables,

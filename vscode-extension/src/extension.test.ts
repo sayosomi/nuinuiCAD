@@ -18,6 +18,7 @@ type TestDocument = {
   fileName: string;
   languageId?: string;
   version: number;
+  readonly lineCount: number;
   uri: { scheme: string; toString: () => string };
   isDirty?: boolean;
   getText: () => string;
@@ -399,6 +400,7 @@ const documentFor = (
   const document: TestDocument = {
     fileName,
     version: 1,
+    get lineCount() { return lineStartsFor().length; },
     uri: { scheme: uri.startsWith("file:") ? "file" : "untitled", toString: () => uri },
     isDirty: false,
     getText: () => {
@@ -1618,23 +1620,115 @@ describe("VS Code production document lifecycle", () => {
     setup();
     const panel = openPanelFor();
     const document = mocks.activeTextEditor!.document;
+    document.languageId = "nui";
     mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
     await messageHandlerFor(panel)({ type: "webviewReady" });
     await messageHandlerFor(panel)({
       type: "webviewAuthoritativeDocumentReady",
       documentVersion: document.version
     });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: mocks.activeTextEditor!, kind: 1 });
 
     commandHandlerFor("nuinuiCAD.create.addLine")?.();
     expect(panel.webview.postMessage).toHaveBeenCalledWith({
       type: "canvasCreationCommand",
-      commandId: "addLine"
+      commandId: "addLine",
+      requestId: expect.any(Number),
+      documentVersion: document.version,
+      sourcePosition: {
+        line: mocks.activeTextEditor!.selection.active.line,
+        character: mocks.activeTextEditor!.selection.active.character
+      }
     });
 
     panel.webview.postMessage.mockClear();
     mocks.activeTabInput = new mocks.TabInputText(document.uri);
     commandHandlerFor("nuinuiCAD.create.addLine")?.();
     expect(panel.webview.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("reuses and advances the retained Source anchor for consecutive generic Canvas creations", async () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0, id: a)",
+      "point B = coordinate(x: 20, y: 0, id: b)",
+      "line Guide = segment(start: @A, end: @B, id: guide)"
+    ].join("\n");
+    const document = documentFor("/tmp/generic-canvas.nui", "file:///tmp/generic-canvas.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("line Guide"));
+    setup(false, editor, [document]);
+    document.languageId = "nui";
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    for (const listener of mocks.selectionChangeListeners) listener({ textEditor: editor, kind: 1 });
+
+    const creationMessages = () => panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is {
+        type: "canvasCreationCommand";
+        commandId: string;
+        requestId: number;
+        documentVersion: number;
+        sourcePosition: { line: number; character: number };
+      } => message?.type === "canvasCreationCommand");
+    const commitCreation = async (request: ReturnType<typeof creationMessages>[number], nextSource: string, version: number, id: string) => {
+      editor.edit.mockImplementationOnce(async (callback: (builder: typeof editor.editBuilder) => void) => {
+        callback(editor.editBuilder);
+        document.version = version;
+        document.setSourceText(nextSource);
+        emitDocumentChange(document);
+        return true;
+      });
+      await handler({
+        type: "canvasCommit",
+        sourceText: nextSource,
+        expectedDocumentVersion: version - 1,
+        mutationKind: "reset",
+        operationId: request.requestId,
+        sourceCreation: {
+          requestId: request.requestId,
+          insertedElementId: id
+        }
+      });
+      await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: version });
+    };
+
+    commandHandlerFor("nuinuiCAD.create.addLine")?.();
+    const firstRequest = creationMessages().at(-1)!;
+    expect(firstRequest).toMatchObject({ documentVersion: 1, sourcePosition: { line: 3 } });
+    const firstSource = [
+      source,
+      "line First = segment(start: @A, end: @B, id: first)"
+    ].join("\n");
+    await commitCreation(firstRequest, firstSource, 2, "first");
+
+    panel.webview.postMessage.mockClear();
+    commandHandlerFor("nuinuiCAD.create.addLine")?.();
+    const secondRequest = creationMessages().at(-1)!;
+    const firstLine = "line First = segment(start: @A, end: @B, id: first)";
+    expect(secondRequest).toMatchObject({
+      documentVersion: 2,
+      sourcePosition: { line: 4, character: firstLine.length }
+    });
+    const secondSource = [
+      firstSource,
+      "line Second = segment(start: @A, end: @B, id: second)"
+    ].join("\n");
+    await commitCreation(secondRequest, secondSource, 3, "second");
+
+    expect(document.getText().indexOf("line Guide = segment(start: @A, end: @B, id: guide)")).toBeLessThan(
+      document.getText().indexOf("line First = segment(start: @A, end: @B, id: first)")
+    );
+    expect(document.getText().indexOf("line First = segment(start: @A, end: @B, id: first)")).toBeLessThan(
+      document.getText().indexOf("line Second = segment(start: @A, end: @B, id: second)")
+    );
+    expect(editor.edit).toHaveBeenCalledTimes(2);
+    expect(editor.edit.mock.calls[0]?.[1]).toEqual({ undoStopBefore: true, undoStopAfter: true });
+    expect(editor.edit.mock.calls[1]?.[1]).toEqual({ undoStopBefore: true, undoStopAfter: true });
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 
   it("routes Bake Current Shape from a dynamic Canvas tab to Canvas", () => {
