@@ -109,7 +109,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 }): VscodeCanvasFreePointAtPointerFeature => {
   const pendingRequests = new Map<number, PendingRequest>();
   const sessionStates = new Map<object, FreePointSessionState>();
-  let handleSourceDocumentInvalidated = (_document: vscode.TextDocument): void => undefined;
+  let handleSourceDocumentInvalidated: (document: vscode.TextDocument) => void = () => undefined;
   const ownedSourceAuthoringPosition = sourceAuthoringPosition ?? registerVscodeSourceAuthoringPositionFeature({
     onDocumentInvalidated: (document) => handleSourceDocumentInvalidated(document)
   });

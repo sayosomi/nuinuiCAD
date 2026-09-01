@@ -80,10 +80,7 @@ import {
   type VscodeCanvasFreePointAtPointerEndpoint,
   type VscodeCanvasFreePointAtPointerFeature
 } from "./canvasFreePointAtPointerFeature";
-import {
-  registerVscodeSourceAuthoringPositionFeature,
-  type VscodeSourceAuthoringPositionFeature
-} from "./sourceAuthoringPositionFeature";
+import { registerVscodeSourceAuthoringPositionFeature } from "./sourceAuthoringPositionFeature";
 import { isVscodeCanvasPointer } from "../../src/vscode/protocol";
 import type { VscodeCanvasPointer } from "../../src/vscode/protocol";
 import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFeature";
@@ -519,7 +516,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let nextBakeRequestId = 1;
   let refreshNativeColorProvider: () => void = () => undefined;
   let canvasFreePointAtPointerFeature: VscodeCanvasFreePointAtPointerFeature | null = null;
-  let sourceAuthoringPositionFeature: VscodeSourceAuthoringPositionFeature;
   let coordinatePointConversionExplorerContextValueFor: (node: import("./elementsTreeProvider").NuiElementsTreeNode) => string | undefined = () => undefined;
   let refreshElementsTree = (): void => undefined;
   let coordinatePointConversionOutputChannel: vscode.OutputChannel | null = null;
@@ -530,7 +526,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
   ) => void = () => undefined;
   let handleCoordinatePointConversionDocumentChange = (): void => undefined;
   let handleCoordinatePointConversionDocumentClose = (): void => undefined;
-  sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
+  const sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
     onDocumentInvalidated: (document) => {
       canvasFreePointAtPointerFeature?.handleSourceDocumentInvalidated(document);
     }
