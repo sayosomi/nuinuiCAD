@@ -546,21 +546,35 @@ describe("Output Preview application", () => {
       }));
     });
     const svgKey = outputKeyFor("svg", "B");
-    fireEvent.change(await screen.findByRole("combobox"), { target: { value: svgKey } });
-    const exportButton = await screen.findByRole("button", { name: "Export SVG" });
-
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewExport" } }));
+    const selector = await screen.findByRole("combobox");
+    let exportButtonObserved: HTMLButtonElement | null = null;
+    const exportButtonObservedPromise = new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        const button = screen.queryByRole("button", { name: "Export SVG" });
+        if (!(button instanceof HTMLButtonElement)) return;
+        exportButtonObserved = button;
+        observer.disconnect();
+        act(() => {
+          window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewExport" } }));
+        });
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
     });
-    await waitFor(() => expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+
+    fireEvent.change(selector, { target: { value: svgKey } });
+    await exportButtonObservedPromise;
+
+    expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "outputPreviewExportRequest",
       documentVersion: 3,
       outputKey: svgKey,
       outputName: "B",
       format: "svg",
       payload: expect.objectContaining({ kind: "svg" })
-    })));
-    expect(exportButton).toBeDisabled();
+    }));
+    expect(exportButtonObserved).not.toBeNull();
+    expect(exportButtonObserved).toBeDisabled();
   });
 
   it("withdraws export availability while the current source is invalid", async () => {
