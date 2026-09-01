@@ -57,7 +57,9 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     for (const position of [tokenStart + token.length - 1, tokenStart + token.length]) {
       const result = queryAtPosition(position);
       expect(result.status).toBe("resolved");
-      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
+      if (result.status !== "resolved") throw new Error("Expected a resolved geometry reference target");
+      expect(result.target.kind).toBe("semantic");
+      if (result.target.kind !== "semantic") throw new Error("Expected a semantic geometry reference target");
       expect(result.target.semantic).toMatchObject({ kind: "geometry-reference", referenceText: token });
     }
 
@@ -196,7 +198,9 @@ describe("queryDslCanvasRevealSourceTarget", () => {
     for (const position of [tokenStart + token.length - 1, tokenStart + token.length]) {
       const result = queryAtPosition(position);
       expect(result.status).toBe("resolved");
-      if (result.status !== "resolved" || result.target.kind !== "semantic") continue;
+      if (result.status !== "resolved") throw new Error("Expected a resolved geometry property target");
+      expect(result.target.kind).toBe("semantic");
+      if (result.target.kind !== "semantic") throw new Error("Expected a semantic geometry property target");
       expect(result.target.semantic).toMatchObject({ kind: "geometry-property", referenceText: token });
     }
 
