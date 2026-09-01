@@ -57,10 +57,10 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
   });
 
-  it("fails a Module instance Reveal when only descendant geometry is presented after evaluation is current", async () => {
+  it("defers cold Module Reveal and then selects the whole instance when a descendant is presented", async () => {
     const source = moduleSource();
     const api = { postMessage: vi.fn() };
-    render(<VSCodeAppForTest api={api} />);
+    const view = render(<VSCodeAppForTest api={api} />);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
@@ -78,8 +78,6 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
       x: 80,
       y: 0
     });
-    drawingCanvasProps.evaluationIsCurrent = true;
-
     await act(async () => {
       window.dispatchEvent(new MessageEvent("message", {
         data: {
@@ -92,12 +90,68 @@ describe("VSCodeApp container Reveal evaluation readiness", () => {
     });
 
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
-    expect(navigationResultsFor(api, 411)).toContainEqual({
+    expect(navigationResultsFor(api, 411)).toEqual([]);
+
+    drawingCanvasProps.evaluationIsCurrent = true;
+    await act(async () => {
+      view.rerender(<VSCodeAppForTest api={api} />);
+      await Promise.resolve();
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(instance.id);
+    expect(navigationResultsFor(api, 411)).toEqual([{
       type: "canvasNavigationResult",
       requestId: 411,
+      status: "resolved",
+      degradations: []
+    }]);
+    expect(navigationResultsFor(api, 411)).toHaveLength(1);
+    expect(instance).toBeDefined();
+  });
+
+  it("fails a non-qualifying Module Reveal closed while preserving the existing valid selection", async () => {
+    const source = moduleSource("point Outside = coordinate(x: 10, y: 0)");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 45 }
+      }));
+    });
+
+    const state = useCadDocumentStore.getState();
+    const instance = state.elements.find((element) => element.type === "moduleInstance" && element.name === "A")!;
+    const outside = state.elements.find((element) => element.name === "Outside")!;
+    drawingCanvasProps.evaluation.computedGeometry.set(outside.id, {
+      kind: "point",
+      elementId: outside.id,
+      name: outside.name,
+      x: 10,
+      y: 0
+    });
+    useCadUiStore.getState().setCanvasSelectionEligibility(state.elements, new Set([outside.id]));
+    useCadUiStore.getState().setSelectedElementId(outside.id);
+    drawingCanvasProps.evaluationIsCurrent = true;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 451,
+          documentVersion: 45,
+          normalizedSourceOffset: source.indexOf("A = M")
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(outside.id);
+    expect(navigationResultsFor(api, 451)).toEqual([{
+      type: "canvasNavigationResult",
+      requestId: 451,
       status: "failed",
       reason: "no-revealable-runtime-target"
-    });
+    }]);
     expect(instance).toBeDefined();
   });
 

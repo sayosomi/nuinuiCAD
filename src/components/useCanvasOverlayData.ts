@@ -15,11 +15,10 @@ import type {
   EvaluationResult
 } from "../types/geometry";
 import type { VisibilityProfile } from "../types/geometry";
-import {
-  canvasPresentationEligibleElementIds,
-  effectiveCanvasVisibleElementIds
-} from "../geometry/canvasDrawingBounds";
+import { effectiveCanvasVisibleElementIds } from "../geometry/canvasDrawingBounds";
+import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
 import { imageWorldCorners } from "../geometry/imageGeometry";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import {
   selectablePointsForGeometry
 } from "../model/pointAnchors";
@@ -89,6 +88,7 @@ export const useCanvasOverlayData = ({
   canvasViewport,
   visibilityProfiles,
   activeVisibilityProfileId,
+  moduleMaterialization,
   showCanvasPoints = true,
   resolveImageSourceUrl
 }: {
@@ -101,6 +101,7 @@ export const useCanvasOverlayData = ({
   canvasViewport: CanvasViewport;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
+  moduleMaterialization?: Pick<ModuleMaterialization, "instanceBaseGeometrySnapshots">;
   showCanvasPoints?: boolean;
   resolveImageSourceUrl: (sourcePath: string) => string;
 }): CanvasOverlayData => {
@@ -121,9 +122,10 @@ export const useCanvasOverlayData = ({
     ]
   );
   const selectionEligibleElementIds = useMemo(
-    () => canvasPresentationEligibleElementIds({
+    () => canvasSelectionEligibleElementIds({
       elements,
       evaluation,
+      moduleMaterialization,
       visibilityProfiles,
       activeVisibilityProfileId,
       showCanvasPoints
@@ -132,6 +134,7 @@ export const useCanvasOverlayData = ({
       activeVisibilityProfileId,
       elements,
       evaluation,
+      moduleMaterialization,
       showCanvasPoints,
       visibilityProfiles
     ]

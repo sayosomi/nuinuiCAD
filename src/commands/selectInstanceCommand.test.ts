@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { evaluateElements } from "../geometry/evaluate";
+import { canvasSelectionEligibleElementIds } from "../geometry/canvasSelectionEligibility";
 import { materializedRuntimeElementId, type ModuleMaterialization, type ModuleOrigin } from "../dsl/moduleMaterialization";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -49,6 +51,17 @@ const bodyOwnedBy = (owner: CadElement) =>
   useCadDocumentStore.getState().elements.find((element) =>
     element.name === "P" && element.parentGroupId === owner.id
   )!;
+
+const publishModuleCanvasSelectionEligibility = (state: ReturnType<typeof loadDocument>) => {
+  publishTestCanvasSelectionEligibility(state.elements, canvasSelectionEligibleElementIds({
+    elements: state.elements,
+    evaluation: evaluateElements(state.elements),
+    moduleMaterialization: state.doc.moduleMaterialization,
+    visibilityProfiles: state.visibilityProfiles,
+    activeVisibilityProfileId: state.activeVisibilityProfileId,
+    showCanvasPoints: true
+  }));
+};
 
 const withOrigins = (
   materialization: ModuleMaterialization,
@@ -192,7 +205,7 @@ describe("Select Instance command", () => {
     const second = elementNamed("Second", "moduleInstance");
     const firstBody = bodyOwnedBy(first);
     const secondBody = bodyOwnedBy(second);
-    publishTestCanvasSelectionEligibility(state.elements);
+    publishModuleCanvasSelectionEligibility(state);
     useCadUiStore.getState().setSelectedElementIds([firstBody.id, secondBody.id], firstBody.id);
 
     expect(selectInstance()).toBe(true);
@@ -208,7 +221,7 @@ describe("Select Instance command", () => {
     const owner = elementNamed("First", "moduleInstance");
     const body = bodyOwnedBy(owner);
     const ordinary = elementNamed("Outside");
-    publishTestCanvasSelectionEligibility(state.elements);
+    publishModuleCanvasSelectionEligibility(state);
     useCadUiStore.getState().setSelectedElementIds([ordinary.id, body.id], body.id);
     useCadUiStore.getState().setActivePointPickTarget({
       elementId: body.id,
@@ -240,7 +253,7 @@ describe("Select Instance command", () => {
     const state = loadDocument(directModuleSource);
     const owner = elementNamed("First", "moduleInstance");
     const body = bodyOwnedBy(owner);
-    publishTestCanvasSelectionEligibility(state.elements);
+    publishModuleCanvasSelectionEligibility(state);
     useCadUiStore.getState().setSelectedElementId(body.id);
     useCadUiStore.getState().setCanvasViewport({ panX: 11, panY: 12, zoom: 1.5 });
     const selectionBefore = {
@@ -259,6 +272,17 @@ describe("Select Instance command", () => {
       canvasViewport: viewportBefore
     });
     expect(useCadDocumentStore.getState().selectionPast).toEqual([]);
+  });
+
+  it("fails closed when the authoritative Canvas eligibility snapshot excludes the owner", () => {
+    const state = loadDocument(directModuleSource);
+    const owner = elementNamed("First", "moduleInstance");
+    const body = bodyOwnedBy(owner);
+    publishTestCanvasSelectionEligibility(state.elements, new Set([body.id]));
+    useCadUiStore.getState().setSelectedElementId(body.id);
+
+    expect(selectInstance()).toBe(false);
+    expect(useCadUiStore.getState().selectedElementId).toBe(body.id);
   });
 
   it("is registered as a host-neutral command without Palette or VS Code integration", () => {

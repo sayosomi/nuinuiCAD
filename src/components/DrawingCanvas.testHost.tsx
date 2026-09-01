@@ -18,7 +18,6 @@ import type { DrawingCanvasHandle } from "./DrawingCanvas";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { useRevisionCoherentCanvasPresentation } from "./canvasRevisionPresentation";
-import { useModuleInstanceSelectionReconciliation } from "./useModuleInstanceSelectionReconciliation";
 
 type DrawingCanvasTestHostProps = {
   evaluation: EvaluationResult;
@@ -103,11 +102,6 @@ export const DrawingCanvasTestHost = forwardRef<DrawingCanvasHandle, DrawingCanv
       compiledDocumentRevision,
       evaluationState,
       holdLastStable: holdLastStableCanvasPresentation
-    });
-
-    useModuleInstanceSelectionReconciliation({
-      evaluation: canvasPresentation.renderEvaluation,
-      evaluationState: canvasPresentation.renderEvaluationState
     });
 
     const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
