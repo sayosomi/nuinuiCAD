@@ -507,7 +507,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setPendingExportRequestId(null);
     return false;
   }, [api, canonicalSelectedCandidate, exportablePlan, pendingExportRequestId]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     requestCurrentExportRef.current = requestCurrentExport;
   }, [requestCurrentExport]);
 
