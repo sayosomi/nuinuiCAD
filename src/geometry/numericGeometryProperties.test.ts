@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CadElement } from "../types/geometry";
 import {
+  NUMERIC_COMPUTED_GEOMETRY_PROPERTIES,
+  NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS,
   numericGeometryPropertiesForStaticTarget,
   numericGeometryPropertySupportedByStaticTarget,
+  numericGeometryPropertyUnitFor,
   numericGeometryStaticTargetForConstruction,
   numericGeometryStaticTargetForElementInDocument,
   numericGeometryStaticTargetForModuleInterface
@@ -19,6 +22,32 @@ const commonPath = [
 ];
 
 describe("numeric geometry property contract", () => {
+  it("classifies canonical properties by presentation unit and fails closed", () => {
+    expect(NUMERIC_COMPUTED_GEOMETRY_PROPERTIES).toHaveLength(
+      Object.keys(NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS).length
+    );
+    expect(numericGeometryPropertyUnitFor("length")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("radius")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("startHandleLength")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("endHandleLength")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("widthMm")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("heightMm")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("fontSize")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("startAngleDeg")).toBe("°");
+    expect(numericGeometryPropertyUnitFor("sweepAngleDeg")).toBe("°");
+    expect(numericGeometryPropertyUnitFor("angleDeg")).toBe("°");
+    expect(numericGeometryPropertyUnitFor("naturalWidthPx")).toBe("px");
+    expect(numericGeometryPropertyUnitFor("naturalHeightPx")).toBe("px");
+    expect(numericGeometryPropertyUnitFor("sourceDpi")).toBe("dpi");
+    expect(numericGeometryPropertyUnitFor("targetPixelsPerMm")).toBe("px/mm");
+    expect(numericGeometryPropertyUnitFor("scale")).toBe("bare");
+    expect(numericGeometryPropertyUnitFor("x")).toBe("bare");
+    expect(numericGeometryPropertyUnitFor("startPoint.x")).toBe("bare");
+    expect(numericGeometryPropertyUnitFor("intermediatePoints[4].y")).toBe("bare");
+    expect(numericGeometryPropertyUnitFor("unknownProperty")).toBe("bare");
+    expect(numericGeometryPropertyUnitFor("unknownPoint.x")).toBe("bare");
+  });
+
   it("exposes exact target-aware public surfaces", () => {
     expect(numericGeometryPropertiesForStaticTarget(
       numericGeometryStaticTargetForConstruction("line", "segment")

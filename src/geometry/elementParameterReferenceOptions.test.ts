@@ -159,6 +159,12 @@ describe("elementParameterReferenceOptionsForPosition", () => {
     });
     expect(options.map((option) => option.path)).toContain("length");
     expect(options.every((option) => option.elementId === "line1")).toBe(true);
+    expect(options.find((option) => option.path === "length")).toMatchObject({
+      detail: "直線AB · 10 mm"
+    });
+    expect(options.find((option) => option.path === "startAngleDeg")).toMatchObject({
+      detail: "直線AB · 0°"
+    });
   });
 
   it("returns no candidates for a missing element name (never guesses)", () => {

@@ -12,6 +12,7 @@ import type {
 import {
   computedNumericReferenceValue,
   computedPathsForGeometry,
+  formatValue,
   numericReferenceCandidates
 } from "./numericReferencePaths";
 import {
@@ -131,6 +132,75 @@ const evaluation: EvaluationResult = {
 };
 
 describe("numericReferencePaths", () => {
+  it("formats numeric values with canonical property-aware units and preserved rounding", () => {
+    expect(formatValue(12, "length")).toBe("12 mm");
+    expect(formatValue(12.34567, "length")).toBe("12.346 mm");
+    expect(formatValue(12.34567, "startAngleDeg")).toBe("12.346°");
+    expect(formatValue(12.34567, "scale")).toBe("12.346");
+    expect(formatValue(320, "naturalWidthPx")).toBe("320 px");
+    expect(formatValue(240, "naturalHeightPx")).toBe("240 px");
+    expect(formatValue(96, "sourceDpi")).toBe("96 dpi");
+    expect(formatValue(3.7795, "targetPixelsPerMm")).toBe("3.78 px/mm");
+    expect(formatValue(12.34567, "x")).toBe("12.346");
+    expect(formatValue(12.34567, "intermediatePoints[1].x")).toBe("12.346");
+    expect(formatValue(12.34567, "unclassifiedProperty")).toBe("12.346");
+  });
+
+  it("uses property-aware units for image metadata in numeric-reference candidates", () => {
+    const imageElement: CadElement = {
+      id: "image",
+      name: "画像",
+      type: "image",
+      activity: "visible",
+      sourcePath: "image.png",
+      originPoint: { mode: "coordinate", x: 0, y: 0 },
+      naturalWidthPx: 320,
+      naturalHeightPx: 240,
+      sourceDpi: 96,
+      targetPixelsPerMm: 3.7795,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false
+    };
+    const imageGeometry: ComputedGeometry = {
+      kind: "image",
+      elementId: imageElement.id,
+      name: imageElement.name,
+      sourcePath: imageElement.sourcePath,
+      origin: point("image:origin", 0, 0),
+      naturalWidthPx: 320,
+      naturalHeightPx: 240,
+      sourceDpi: 96,
+      targetPixelsPerMm: 3.7795,
+      scale: 1,
+      angleDeg: 0,
+      mirrorX: false,
+      widthMm: 84.667,
+      heightMm: 63.5
+    };
+    const candidates = numericReferenceCandidates({
+      elements: [imageElement],
+      evaluation: {
+        computedGeometry: new Map([[imageElement.id, imageGeometry]]),
+        errors: [],
+        warnings: []
+      }
+    });
+
+    expect(candidates.find((candidate) => candidate.expression === "image.naturalWidthPx")).toMatchObject({
+      valueLabel: "320 px"
+    });
+    expect(candidates.find((candidate) => candidate.expression === "image.sourceDpi")).toMatchObject({
+      valueLabel: "96 dpi"
+    });
+    expect(candidates.find((candidate) => candidate.expression === "image.targetPixelsPerMm")).toMatchObject({
+      valueLabel: "3.78 px/mm"
+    });
+    expect(candidates.find((candidate) => candidate.expression === "image.scale")).toMatchObject({
+      valueLabel: "1"
+    });
+  });
+
   it("enumerates canonical properties from the resolved geometry family", () => {
     const arcProperties = numericComputedGeometryPropertiesFor(arcGeometry);
     expect(arcProperties).toEqual(expect.arrayContaining([
@@ -334,6 +404,15 @@ describe("numericReferencePaths", () => {
     expect(expressions).toContain("curve.endHandleLength");
     expect(expressions).toContain("curve.intermediatePoints[1].x");
     expect(expressions).toContain("curve.intermediatePoints[1].y");
+    expect(candidates.find((candidate) => candidate.expression === "curve.startHandleLength")).toMatchObject({
+      valueLabel: "20 mm"
+    });
+    expect(candidates.find((candidate) => candidate.expression === "curve.startHandleAngleDeg")).toMatchObject({
+      valueLabel: "0°"
+    });
+    expect(candidates.find((candidate) => candidate.expression === "curve.intermediatePoints[1].x")).toMatchObject({
+      valueLabel: "40"
+    });
   });
 
   it("exports the canonical computed paths used by numericReferenceCandidates", () => {

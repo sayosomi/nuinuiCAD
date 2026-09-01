@@ -1,0 +1,4 @@
+nui 1
+image Positive = image(source: "positive.png", origin: (0, 0), naturalWidthPx: 300, naturalHeightPx: 150, sourceDpi: 300, targetPixelsPerMm: 10, scale: 1, angleDeg: 0, mirrorX: false)
+image Zero = image(source: "zero.png", origin: (0, 0), naturalWidthPx: 300, naturalHeightPx: 150, sourceDpi: 300, targetPixelsPerMm: 0, scale: 1, angleDeg: 0, mirrorX: false)
+image Negative = image(source: "negative.png", origin: (0, 0), naturalWidthPx: 300, naturalHeightPx: 150, sourceDpi: 300, targetPixelsPerMm: -1, scale: 1, angleDeg: 0, mirrorX: false)
