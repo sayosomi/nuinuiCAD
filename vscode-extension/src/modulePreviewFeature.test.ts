@@ -217,7 +217,8 @@ const parameterSnapshotFor = ({
   target,
   sourceRevision,
   value = "1",
-  numericTypeOptions
+  numericTypeOptions,
+  parameterType = { kind: "number" as const }
 }: {
   sessionId: string;
   document: TestDocument;
@@ -225,6 +226,7 @@ const parameterSnapshotFor = ({
   sourceRevision: number;
   value?: string;
   numericTypeOptions?: { step?: number; min?: number; max?: number };
+  parameterType?: { kind: "number" | "point" | "line" | "path" };
 }): VscodeModulePreviewParameterSnapshot => ({
   type: "modulePreviewParameterSnapshot",
   sessionId,
@@ -246,7 +248,7 @@ const parameterSnapshotFor = ({
       definitionStatementId: target.statementId,
       parameterIndex: 0,
       name: "width",
-      type: { kind: "number" },
+      type: parameterType,
       ...(numericTypeOptions ? { numericTypeOptions } : {}),
       optional: false,
       required: true,
@@ -310,12 +312,224 @@ afterEach(() => {
 });
 
 describe("registerModulePreviewFeature", () => {
+  it("routes an exact geometry-row Preview pick through the shared Canvas session and ephemeral setValue", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const sessionMessage = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    const target = analysis.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionMessage?.sessionId || !target) throw new Error("expected exact Preview session");
+    const snapshot = parameterSnapshotFor({
+      sessionId: sessionMessage.sessionId,
+      document,
+      target,
+      sourceRevision: analysis.getSourceRevision(),
+      parameterType: { kind: "point" },
+      value: ""
+    });
+    await panel.receive(snapshot);
+    panel.webview.postMessage.mockClear();
+
+    await parameterView.receive({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+    const start = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number; [key: string]: unknown })
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    expect(start).toMatchObject({
+      type: "modulePreviewReferencePickStartRequest",
+      requestId: 1,
+      sessionId: snapshot.sessionId,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single"
+    });
+    if (!start) throw new Error("expected Preview picker request");
+
+    const proof = {
+      requestId: start.requestId,
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      expectedGeometryInterface: "point" as const,
+      role: "geometry" as const,
+      multiplicity: "single" as const
+    };
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...proof,
+      status: "started",
+      candidateReferences: [{ base: "Top" }]
+    });
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...proof,
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "Top" }]
+    });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sessionId: snapshot.sessionId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      expression: "@Top"
+    }));
+    expect(document.getText()).toBe(source);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("undo");
+
+    feature.dispose();
+  });
+
+  it("cancels Preview picks on source freshness changes and ignores stale confirmations", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "  point P = offset(from: @anchor, dx: 1, dy: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    const target = analysis.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analysis.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionId || !target) throw new Error("expected exact Preview session");
+    const snapshot = parameterSnapshotFor({
+      sessionId,
+      document,
+      target,
+      sourceRevision: analysis.getSourceRevision(),
+      parameterType: { kind: "point" }
+    });
+    await panel.receive(snapshot);
+    await parameterView.receive({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+    const start = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number })
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    if (!start?.requestId) throw new Error("expected active Preview picker");
+    document.setSource(source.replace("y: 0", "y: 1"));
+    for (const listener of mocks.documentChangeListeners) listener({ document, contentChanges: [{}] });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickCancelRequest",
+      requestId: start.requestId
+    }));
+    panel.webview.postMessage.mockClear();
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      requestId: start.requestId,
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single",
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "Top" }]
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+    expect(document.getText()).toBe(source.replace("y: 0", "y: 1"));
+    feature.dispose();
+  });
+
   it("keeps one panel per document and retargets it to the innermost current Module", async () => {
     const source = [
       "nui 1",
-      "module Outer() {",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Outer(anchor: point) {",
       "  point A = coordinate(x: 0, y: 0)",
-      "  module Inner() {",
+      "  module Inner(target: point) {",
       "    point B = coordinate(x: 1, y: 0)",
       "  }",
       "}"
@@ -350,6 +564,9 @@ describe("registerModulePreviewFeature", () => {
       editCanvasRibbon: () => undefined,
       evaluateWithRust
     });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
     const open = mocks.commandHandlers.get("nuinuiCAD.openModulePreview");
     expect(open).toBeDefined();
     open!();
@@ -364,6 +581,62 @@ describe("registerModulePreviewFeature", () => {
       normalizedSourceOffset: source.indexOf("module Outer")
     }));
 
+    const semantic = sessionFor(document).definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: sessionFor(document).getSourceRevision()
+    });
+    const outerTarget = semantic?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Outer");
+    const outerSession = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession");
+    if (!outerTarget || !outerSession?.sessionId) throw new Error("expected Outer Preview session");
+    const outerSnapshot = parameterSnapshotFor({
+      sessionId: outerSession.sessionId,
+      document,
+      target: outerTarget,
+      sourceRevision: sessionFor(document).getSourceRevision(),
+      parameterType: { kind: "point" }
+    });
+    await panel.receive(outerSnapshot);
+    await parameterView.receive({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: outerSnapshot.sessionId,
+      documentUri: outerSnapshot.documentUri,
+      documentVersion: outerSnapshot.documentVersion,
+      sourceRevision: outerSnapshot.sourceRevision,
+      sessionRevision: outerSnapshot.sessionRevision,
+      targetDefinitionStatementId: outerSnapshot.target.definitionStatementId,
+      definitionStatementId: outerSnapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+    const firstStart = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number })
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    if (!firstStart?.requestId) throw new Error("expected initial Preview picker");
+
+    const replacementParameterView = createParameterWebview();
+    feature.attachParameterView(replacementParameterView as never);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickCancelRequest",
+      requestId: firstStart.requestId
+    }));
+    await replacementParameterView.receive({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: outerSnapshot.sessionId,
+      documentUri: outerSnapshot.documentUri,
+      documentVersion: outerSnapshot.documentVersion,
+      sourceRevision: outerSnapshot.sourceRevision,
+      sessionRevision: outerSnapshot.sessionRevision,
+      targetDefinitionStatementId: outerSnapshot.target.definitionStatementId,
+      definitionStatementId: outerSnapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+    const secondStart = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number })
+      .reverse()
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    if (!secondStart?.requestId) throw new Error("expected replacement Preview picker");
+
     mocks.activeTextEditor.selection.active = positionAt(source, source.indexOf("point B"));
     open!();
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(1);
@@ -372,6 +645,70 @@ describe("registerModulePreviewFeature", () => {
       type: "modulePreviewTarget",
       documentVersion: 1,
       normalizedSourceOffset: source.indexOf("  module Inner")
+    }));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickCancelRequest",
+      requestId: secondStart.requestId
+    }));
+
+    const innerTarget = sessionFor(document).definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: sessionFor(document).getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Inner");
+    const innerSession = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .reverse()
+      .find((message) => message.type === "modulePreviewSession");
+    if (!innerTarget || !innerSession?.sessionId) throw new Error("expected Inner Preview session");
+    const innerSnapshot = parameterSnapshotFor({
+      sessionId: innerSession.sessionId,
+      document,
+      target: innerTarget,
+      sourceRevision: sessionFor(document).getSourceRevision(),
+      parameterType: { kind: "point" }
+    });
+    await panel.receive(innerSnapshot);
+    await replacementParameterView.receive({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: innerSnapshot.sessionId,
+      documentUri: innerSnapshot.documentUri,
+      documentVersion: innerSnapshot.documentVersion,
+      sourceRevision: innerSnapshot.sourceRevision,
+      sessionRevision: innerSnapshot.sessionRevision,
+      targetDefinitionStatementId: innerSnapshot.target.definitionStatementId,
+      definitionStatementId: innerSnapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+    const thirdStart = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number })
+      .reverse()
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    if (!thirdStart?.requestId) throw new Error("expected retargeted Preview picker");
+    panel.fireDispose();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickCancelRequest",
+      requestId: thirdStart.requestId
+    }));
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      requestId: thirdStart.requestId,
+      sessionId: innerSnapshot.sessionId,
+      documentUri: innerSnapshot.documentUri,
+      documentVersion: innerSnapshot.documentVersion,
+      sourceRevision: innerSnapshot.sourceRevision,
+      sessionRevision: innerSnapshot.sessionRevision,
+      targetDefinitionStatementId: innerSnapshot.target.definitionStatementId,
+      definitionStatementId: innerSnapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "single",
+      status: "confirmed",
+      resultKind: "geometry",
+      references: [{ base: "Top" }]
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
     }));
 
     await panel.receive({ type: "rustEvaluationRequest", id: 7, input: { document: "preview" } });

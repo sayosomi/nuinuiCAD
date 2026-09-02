@@ -47,6 +47,38 @@ export type VscodeReferencePickCanvasSession = {
   draft: ReferencePickSession;
 };
 
+/** Route-neutral Canvas state. Protocol adapters provide the route-specific
+ * request/result proof while this state owns the draft and candidate UX. */
+export type VscodeReferencePickCanvasSessionLike = {
+  request: {
+    requestId: number;
+    documentUri: string;
+    documentVersion: number;
+  };
+  target: DslReferencePickTarget;
+  candidates: readonly ReferencePickCandidate[];
+  draft: ReferencePickSession;
+};
+
+export const createVscodeReferencePickCanvasSession = <
+  TRequest extends VscodeReferencePickCanvasSessionLike["request"]
+>({
+  request,
+  target,
+  candidates,
+  draft
+}: {
+  request: TRequest;
+  target: DslReferencePickTarget;
+  candidates: readonly ReferencePickCandidate[];
+  draft: ReferencePickSession;
+}): VscodeReferencePickCanvasSessionLike & { request: TRequest } => ({
+  request,
+  target,
+  candidates,
+  draft
+});
+
 /**
  * The coherent Canvas snapshot that supplied the geometry currently being
  * rendered. Its source is candidate authority only; the current Source
@@ -137,13 +169,14 @@ export const reanchorReferencePickTargetToCanvasSnapshot = ({
   };
 };
 
-const uniqueCandidateReferences = (
+export const referencePickCandidateReferences = (
   candidates: readonly ReferencePickCandidate[]
 ): CanonicalGeometrySourceReference[] => {
   const seen = new Set<string>();
   const result: CanonicalGeometrySourceReference[] = [];
   for (const candidate of candidates) {
     for (const option of candidate.options) {
+      if (!isCanonicalReferencePickReference(option.reference)) continue;
       const key = referencePickReferenceKey(option.reference);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -244,7 +277,7 @@ export const startVscodeReferencePickCanvasSession = ({
   const candidateCompiled = candidateSnapshot?.compiled ?? compiled;
   const candidateEvaluation = candidateSnapshot?.evaluation ?? evaluation;
   const candidates = referencePickCandidates({ compiled: candidateCompiled, evaluation: candidateEvaluation, target: candidateTarget });
-  const candidateReferenceKeys = new Set(uniqueCandidateReferences(candidates).map(referencePickReferenceKey));
+  const candidateReferenceKeys = new Set(referencePickCandidateReferences(candidates).map(referencePickReferenceKey));
   const numericCandidates = uniqueNumericCandidates(candidates);
   if (candidateTarget.role === "numericPropertyBase" && !candidateTarget.numericProperty) {
     return { session: null, result: rejected("rejected") };
@@ -311,14 +344,14 @@ export const startVscodeReferencePickCanvasSession = ({
   const result: VscodeReferencePickStartedResult = {
     ...resultBase(session),
     status: "started",
-    candidateReferences: uniqueCandidateReferences(candidates),
+    candidateReferences: referencePickCandidateReferences(candidates),
     ...(candidateTarget.role === "numericPropertyBase" ? { numericCandidates } : {})
   };
   return { session, result };
 };
 
 const optionBelongsToSession = (
-  session: VscodeReferencePickCanvasSession,
+  session: VscodeReferencePickCanvasSessionLike,
   candidateElementId: string,
   reference: CanonicalGeometrySourceReference
 ): boolean => session.candidates.some((candidate) =>
@@ -334,39 +367,39 @@ export const referencePickHoverForCanvasOption = (
   reference: option.reference
 });
 
-export const setVscodeReferencePickCanvasHover = (
-  session: VscodeReferencePickCanvasSession,
+export const setVscodeReferencePickCanvasHover = <TSession extends VscodeReferencePickCanvasSessionLike>(
+  session: TSession,
   hover: ReferencePickHover | null
-): VscodeReferencePickCanvasSession => {
+): TSession => {
   if (hover && !optionBelongsToSession(session, hover.candidateElementId, hover.reference)) return session;
-  return { ...session, draft: setReferencePickHover(session.draft, hover) };
+  return { ...session, draft: setReferencePickHover(session.draft, hover) } as TSession;
 };
 
-export const selectVscodeReferencePickCanvasDraft = (
-  session: VscodeReferencePickCanvasSession,
+export const selectVscodeReferencePickCanvasDraft = <TSession extends VscodeReferencePickCanvasSessionLike>(
+  session: TSession,
   selection: ReferencePickHover | null
-): VscodeReferencePickCanvasSession => {
+): TSession => {
   if (selection && !optionBelongsToSession(session, selection.candidateElementId, selection.reference)) return session;
   if (session.target.role === "numericPropertyBase") {
-    if (!selection) return { ...session, draft: selectReferencePickDraft(session.draft, null) };
+    if (!selection) return { ...session, draft: selectReferencePickDraft(session.draft, null) } as TSession;
     const option = session.candidates
       .find((candidate) => candidate.elementId === selection.candidateElementId)
       ?.options.find((candidate) => candidate.kind === "numericProperty" &&
         referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(selection.reference));
     return option?.kind === "numericProperty"
-      ? { ...session, draft: selectReferencePickNumericGeometry(session.draft, selection, option.properties) }
+      ? { ...session, draft: selectReferencePickNumericGeometry(session.draft, selection, option.properties) } as TSession
       : session;
   }
-  return { ...session, draft: selectReferencePickDraft(session.draft, selection) };
+  return { ...session, draft: selectReferencePickDraft(session.draft, selection) } as TSession;
 };
 
-export const selectVscodeReferencePickCanvasNumericProperty = (
-  session: VscodeReferencePickCanvasSession,
+export const selectVscodeReferencePickCanvasNumericProperty = <TSession extends VscodeReferencePickCanvasSessionLike>(
+  session: TSession,
   property: VscodeReferencePickNumericPropertyDraft["property"]
-): VscodeReferencePickCanvasSession => ({
+): TSession => ({
   ...session,
   draft: selectReferencePickNumericProperty(session.draft, property)
-});
+} as TSession);
 
 export const confirmVscodeReferencePickCanvasSession = (
   session: VscodeReferencePickCanvasSession

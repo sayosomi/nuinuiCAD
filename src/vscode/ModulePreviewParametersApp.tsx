@@ -4,6 +4,7 @@ import type {
   VscodeModulePreviewParameter,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParameterValueFocus,
+  VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewParametersUnavailable,
   VscodeWebviewApi
 } from "./protocol";
@@ -14,6 +15,9 @@ const typeLabelFor = (parameter: VscodeModulePreviewParameter): string => {
   if (!parameter.type) return "unknown";
   return parameter.type.kind;
 };
+
+const isReferencePickableParameter = (parameter: VscodeModulePreviewParameter): boolean =>
+  parameter.type?.kind === "point" || parameter.type?.kind === "line" || parameter.type?.kind === "path";
 
 const unavailableMessageFor = (state: VscodeModulePreviewParametersUnavailable): string => {
   switch (state.reason) {
@@ -41,7 +45,8 @@ const ParameterRow = ({
   onValueInputFocus,
   onValueInputSelection,
   onValueInputBlur,
-  onValueInputRefresh
+  onValueInputRefresh,
+  onReferencePick
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   parameter: VscodeModulePreviewParameter;
@@ -51,6 +56,7 @@ const ParameterRow = ({
   onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
 }) => {
   const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
   const [draft, setDraft] = useState(parameter.value);
@@ -112,25 +118,38 @@ const ParameterRow = ({
         {parameter.optional ? <span className="module-preview-parameter-kind">optional</span> : null}
       </th>
       <td>
-        <input
-          ref={inputRef}
-          data-module-preview-parameter-identity={rowIdentity}
-          className="module-preview-parameter-input"
-          aria-label={`Value for ${parameter.name}`}
-          aria-invalid={parameter.diagnostic ? "true" : "false"}
-          aria-describedby={diagnosticId}
-          value={draft}
-          onFocus={(event) => onValueInputFocus(parameter, event.currentTarget)}
-          onSelect={(event) => onValueInputSelection(parameter, event.currentTarget)}
-          onBlur={(event) => onValueInputBlur(parameter, event.currentTarget)}
-          onChange={(event) => {
-            const expression = event.currentTarget.value;
-            pendingDraftRef.current = expression;
-            setDraft(expression);
-            onValueChange(parameter, expression);
-            onValueInputRefresh(parameter, event.currentTarget);
-          }}
-        />
+        <div className="module-preview-parameter-input-row">
+          <input
+            ref={inputRef}
+            data-module-preview-parameter-identity={rowIdentity}
+            className="module-preview-parameter-input"
+            aria-label={`Value for ${parameter.name}`}
+            aria-invalid={parameter.diagnostic ? "true" : "false"}
+            aria-describedby={diagnosticId}
+            value={draft}
+            onFocus={(event) => onValueInputFocus(parameter, event.currentTarget)}
+            onSelect={(event) => onValueInputSelection(parameter, event.currentTarget)}
+            onBlur={(event) => onValueInputBlur(parameter, event.currentTarget)}
+            onChange={(event) => {
+              const expression = event.currentTarget.value;
+              pendingDraftRef.current = expression;
+              setDraft(expression);
+              onValueChange(parameter, expression);
+              onValueInputRefresh(parameter, event.currentTarget);
+            }}
+          />
+          {isReferencePickableParameter(parameter) ? (
+            <button
+              type="button"
+              className="module-preview-parameter-pick-button"
+              data-module-preview-parameter-pick="true"
+              aria-label={`Pick reference for ${parameter.name}`}
+              onClick={() => onReferencePick(parameter)}
+            >
+              Pick
+            </button>
+          ) : null}
+        </div>
         {parameter.diagnostic ? (
           <div id={diagnosticId} className="module-preview-parameter-diagnostic" role="alert">
             {parameter.diagnostic.message}
@@ -167,7 +186,8 @@ const ParameterGroup = ({
   onValueInputFocus,
   onValueInputSelection,
   onValueInputBlur,
-  onValueInputRefresh
+  onValueInputRefresh,
+  onReferencePick
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   group: VscodeModulePreviewParameterSnapshot["parameters"];
@@ -177,6 +197,7 @@ const ParameterGroup = ({
   onValueInputSelection: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
+  onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
 }) => (
   <section
     className="module-preview-parameter-group"
@@ -200,6 +221,7 @@ const ParameterGroup = ({
             onValueInputSelection={onValueInputSelection}
             onValueInputBlur={onValueInputBlur}
             onValueInputRefresh={onValueInputRefresh}
+            onReferencePick={onReferencePick}
           />
         ))}
       </tbody>
@@ -407,6 +429,22 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
     });
   };
 
+  const onReferencePick = (parameter: VscodeModulePreviewParameter): void => {
+    if (!snapshot || !isReferencePickableParameter(parameter)) return;
+    const message: VscodeModulePreviewParameterReferencePickStartRequest = {
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      definitionStatementId: parameter.definitionStatementId,
+      parameterIndex: parameter.parameterIndex
+    };
+    api.postMessage(message);
+  };
+
   return (
     <main className="module-preview-parameters" data-module-preview-parameter-surface="true">
       <header className="module-preview-parameters-header">
@@ -434,6 +472,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
                 onValueInputSelection={onValueInputSelection}
                 onValueInputBlur={onValueInputBlur}
                 onValueInputRefresh={onValueInputRefresh}
+                onReferencePick={onReferencePick}
               />
             ))}
             <ParameterGroup
@@ -445,6 +484,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
               onValueInputSelection={onValueInputSelection}
               onValueInputBlur={onValueInputBlur}
               onValueInputRefresh={onValueInputRefresh}
+              onReferencePick={onReferencePick}
             />
           </div>
         </>

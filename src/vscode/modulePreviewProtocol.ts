@@ -1,6 +1,7 @@
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { DslModuleParameterType } from "../dsl/dslTypes";
 import type { DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
+import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 
 export type VscodeModulePreviewTarget = {
   type: "modulePreviewTarget";
@@ -75,7 +76,7 @@ export type VscodeModulePreviewParametersUnavailable = {
   reason: "no-session" | "not-ready" | "source-stale" | "target-unavailable" | "disposed";
 };
 
-type VscodeModulePreviewParameterActionProof = {
+export type VscodeModulePreviewParameterActionProof = {
   sessionId: string;
   documentUri: string;
   documentVersion: number;
@@ -85,6 +86,61 @@ type VscodeModulePreviewParameterActionProof = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
 };
+
+export type VscodeModulePreviewParameterReferencePickStartRequest =
+  VscodeModulePreviewParameterActionProof & {
+    type: "modulePreviewParameterReferencePickStart";
+  };
+
+export type VscodeModulePreviewReferencePickProof =
+  VscodeModulePreviewParameterActionProof & {
+    expectedGeometryInterface: "point" | "line" | "path";
+    role: "geometry";
+    multiplicity: "single";
+  };
+
+export type VscodeModulePreviewReferencePickStartRequest =
+  VscodeModulePreviewReferencePickProof & {
+    type: "modulePreviewReferencePickStartRequest";
+    requestId: number;
+  };
+
+export type VscodeModulePreviewReferencePickCancelRequest = {
+  type: "modulePreviewReferencePickCancelRequest";
+  requestId: number;
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+};
+
+type VscodeModulePreviewReferencePickResultBase =
+  VscodeModulePreviewReferencePickProof & {
+    type: "modulePreviewReferencePickResult";
+    requestId: number;
+  };
+
+export type VscodeModulePreviewReferencePickStartedResult =
+  VscodeModulePreviewReferencePickResultBase & {
+    status: "started";
+    candidateReferences: readonly CanonicalGeometrySourceReference[];
+  };
+
+export type VscodeModulePreviewReferencePickConfirmedResult =
+  VscodeModulePreviewReferencePickResultBase & {
+    status: "confirmed";
+    resultKind: "geometry";
+    references: readonly [CanonicalGeometrySourceReference];
+  };
+
+export type VscodeModulePreviewReferencePickTerminalResult =
+  VscodeModulePreviewReferencePickResultBase & {
+    status: "canceled" | "stale" | "rejected";
+  };
+
+export type VscodeModulePreviewReferencePickResult =
+  | VscodeModulePreviewReferencePickStartedResult
+  | VscodeModulePreviewReferencePickConfirmedResult
+  | VscodeModulePreviewReferencePickTerminalResult;
 
 export type VscodeModulePreviewParameterValueFocus =
   VscodeModulePreviewParameterActionProof & {
@@ -136,6 +192,7 @@ export type VscodeModulePreviewParameterViewMessage =
   | { type: "modulePreviewParametersViewReady" }
   | VscodeModulePreviewParameterSetValueRequest
   | VscodeModulePreviewParameterUseDefaultRequest
+  | VscodeModulePreviewParameterReferencePickStartRequest
   | VscodeModulePreviewParameterValueFocus
   | VscodeModulePreviewParameterValueBlur;
 
@@ -147,4 +204,8 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewParametersUnavailable
   | VscodeModulePreviewParameterSetValue
   | VscodeModulePreviewParameterUseDefault
-  | VscodeModulePreviewParameterValueSelectionRestore;
+  | VscodeModulePreviewParameterValueSelectionRestore
+  | VscodeModulePreviewReferencePickStartRequest
+  | VscodeModulePreviewReferencePickCancelRequest;
+
+export type VscodeModulePreviewToExtensionMessage = VscodeModulePreviewReferencePickResult;
