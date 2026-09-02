@@ -141,6 +141,10 @@
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.extractModule",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.convertPointToXYOffset",
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -1128,6 +1132,11 @@
           "group": "1_modification@7"
         },
         {
+          "command": "nuinuiCAD.extractModule",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget",
+          "group": "1_modification@8"
+        },
+        {
           "command": "nuinuiCAD.bakeCurrentShape",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
@@ -1190,6 +1199,11 @@
           "command": "nuinuiCAD.inlineModuleInstance",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget",
           "group": "1_modification@7"
+        },
+        {
+          "command": "nuinuiCAD.extractModule",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget",
+          "group": "1_modification@8"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
@@ -1257,6 +1271,11 @@
         "command": "nuinuiCAD.inlineModuleInstance",
         "title": "nuinuiCAD: Inline Module Instance",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget)"
+      },
+      {
+        "command": "nuinuiCAD.extractModule",
+        "title": "nuinuiCAD: Extract Module",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",

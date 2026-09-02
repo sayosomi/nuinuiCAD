@@ -68,6 +68,11 @@ import {
   type InlineModuleCanvasEndpoint,
   type VscodeInlineModuleCommandFeature
 } from "./inlineModuleCommandFeature";
+import {
+  registerVscodeExtractModuleCommandFeature,
+  type ExtractModuleCanvasEndpoint,
+  type VscodeExtractModuleCommandFeature
+} from "./extractModuleCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
   outputPreviewRevealSourceTargetForEditor,
@@ -531,10 +536,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
   ) => void = () => undefined;
   let handleCoordinatePointConversionDocumentChange = (): void => undefined;
   let handleCoordinatePointConversionDocumentClose = (): void => undefined;
-  let handleInlineModuleCanvasTargetsPublication = (): void => undefined;
-  let handleInlineModuleCanvasAuthoritativeDocumentReady = (): void => undefined;
-  let handleInlineModuleDocumentChange = (): void => undefined;
-  let handleInlineModuleDocumentClose = (): void => undefined;
+  let handleInlineModuleCanvasTargetsPublication: VscodeInlineModuleCommandFeature["handleCanvasTargetsPublication"] = () => undefined;
+  let handleInlineModuleCanvasAuthoritativeDocumentReady: VscodeInlineModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
+  let handleInlineModuleDocumentChange: VscodeInlineModuleCommandFeature["handleDocumentChange"] = () => undefined;
+  let handleInlineModuleDocumentClose: VscodeInlineModuleCommandFeature["handleDocumentClose"] = () => undefined;
+  let handleExtractModuleCanvasAuthoritativeDocumentReady: VscodeExtractModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
+  let handleExtractModuleCanvasObservationPublication: VscodeExtractModuleCommandFeature["handleCanvasObservationPublication"] = () => undefined;
+  let handleExtractModuleDocumentChange: VscodeExtractModuleCommandFeature["handleDocumentChange"] = () => undefined;
+  let handleExtractModuleDocumentClose: VscodeExtractModuleCommandFeature["handleDocumentClose"] = () => undefined;
   const sourceAuthoringPositionFeature = registerVscodeSourceAuthoringPositionFeature({
     onDocumentInvalidated: (document) => {
       canvasFreePointAtPointerFeature?.handleSourceDocumentInvalidated(document);
@@ -1065,12 +1074,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
       observationFeature.invalidateDocumentRuntime(key);
       handleCoordinatePointConversionDocumentChange(event.document);
       handleInlineModuleDocumentChange(event.document);
+      handleExtractModuleDocumentChange(event.document);
     }
     publishCompilerDiagnostics(event.document);
   });
   const compilerDiagnosticCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (!isSupportedNuiDocument(document)) return;
     handleInlineModuleDocumentClose(document);
+    handleExtractModuleDocumentClose(document);
     const key = documentKey(document);
     const previousMultiDocumentDiagnostics = multiDocumentDiagnosticsByRoot.get(key);
     const affectedUris = new Set<string>([
@@ -1820,6 +1831,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           currentDocumentVersion: session.document.version,
           snapshot: message.snapshot
         });
+        handleExtractModuleCanvasObservationPublication(session.document);
         return;
       }
       if (message.type === "inlineModuleCanvasTargetsPublication") {
@@ -1866,6 +1878,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
           message.documentVersion
         );
         handleInlineModuleCanvasAuthoritativeDocumentReady(session.document, message.documentVersion);
+        handleExtractModuleCanvasAuthoritativeDocumentReady(session.document, message.documentVersion);
         deliverPendingCanvasNavigation(session);
         deliverPendingBake(session);
         return;
@@ -1966,6 +1979,65 @@ export const activate = (context: vscode.ExtensionContext): void => {
   handleInlineModuleCanvasAuthoritativeDocumentReady = inlineModuleFeature.handleCanvasAuthoritativeDocumentReady;
   handleInlineModuleDocumentChange = inlineModuleFeature.handleDocumentChange;
   handleInlineModuleDocumentClose = inlineModuleFeature.handleDocumentClose;
+
+  const extractModuleFeature: VscodeExtractModuleCommandFeature = registerVscodeExtractModuleCommandFeature({
+    languageAnalysisSessionFor,
+    activeSourceEditor: activeNuiTextEditorForCommand,
+    sourceEditorForDocument: visibleEditorFor,
+    activeCanvasEndpoint: (): ExtractModuleCanvasEndpoint | null => {
+      const session = canvasSessionForCommand();
+      if (
+        !session ||
+        !session.webviewReady ||
+        !isOpenDocument(session.document) ||
+        sessions.get(session.documentUri, "canvas") !== session ||
+        canvasHistoryHandoffSession !== null ||
+        session.inFlightCanvasHistory !== null
+      ) return null;
+      return {
+        document: session.document,
+        panel: session.panel,
+        isAuthoritativeReady: () =>
+          canvasHistoryHandoffSession === null &&
+          sessions.get(session.documentUri, "canvas") === session &&
+          session.webviewReady &&
+          session.authoritativeDocumentVersion === session.document.version &&
+          session.inFlightCanvasHistory === null,
+        observation: () => {
+          const snapshot = vscodeObservationState.snapshot();
+          return snapshot.documents.find((document) =>
+            document.documentUri === session.documentUri && document.activeSurface === "canvas"
+          )?.canvas ?? null;
+        }
+      };
+    },
+    navigateCanvasToSourceOffset: (endpoint, normalizedSourceOffset) => {
+      const session = sessions.get(documentKey(endpoint.document), "canvas");
+      if (
+        !session ||
+        session.panel !== endpoint.panel ||
+        canvasSessionForCommand() !== session ||
+        session.inFlightCanvasHistory !== null ||
+        canvasHistoryHandoffSession !== null ||
+        !isOpenDocument(session.document)
+      ) return false;
+      const requestId = nextNavigationRequestId++;
+      session.pendingCanvasNavigation = {
+        requestId,
+        documentVersion: session.document.version,
+        normalizedSourceOffset
+      };
+      session.pendingCanvasFocus = null;
+      session.panel.reveal(vscode.ViewColumn.Beside, true);
+      deliverPendingCanvasNavigation(session);
+      return true;
+    },
+    applySourceLineSplices
+  });
+  handleExtractModuleCanvasAuthoritativeDocumentReady = extractModuleFeature.handleCanvasAuthoritativeDocumentReady;
+  handleExtractModuleCanvasObservationPublication = extractModuleFeature.handleCanvasObservationPublication;
+  handleExtractModuleDocumentChange = extractModuleFeature.handleDocumentChange;
+  handleExtractModuleDocumentClose = extractModuleFeature.handleDocumentClose;
 
   const coordinatePointConversionFeature: VscodeCoordinatePointConversionFeature = registerVscodeCoordinatePointConversionFeature({
     languageAnalysisSessionFor,
@@ -2367,6 +2439,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     outputPreviewFeature,
     coordinatePointConversionFeature,
     inlineModuleFeature,
+    extractModuleFeature,
     goToSourceDefinitionCommand,
     revealInCanvasCommand,
     referencePickFeature,
