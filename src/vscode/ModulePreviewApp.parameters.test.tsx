@@ -470,6 +470,63 @@ describe("ModulePreviewApp parameter relay", () => {
     fromSource.mockRestore();
   });
 
+  it("keeps a pending drag patch through its exact authoritative commit acknowledgement", () => {
+    const sourceText = [
+      "nui 1",
+      "module Preview() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText);
+    renderPreviewFixture(fixture);
+    const hostAdapter = mocks.hostAdapter as CanvasHostAdapter | null;
+    expect(hostAdapter).not.toBeNull();
+    if (!hostAdapter) throw new Error("expected Module Preview Canvas host");
+    const base = hostAdapter.getCurrentCanonicalDocument();
+    const point = base.elements.find((element) =>
+      element.name === "P" && fixture.root.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(point).toBeDefined();
+    if (!point) throw new Error("expected Preview point");
+
+    expect(hostAdapter.movePointElementByDelta({
+      elementId: point.id,
+      dx: 2,
+      dy: 0,
+      angleLocked: false,
+      distanceLocked: false,
+      commitMode: "commit",
+      baseElements: base.elements,
+      baseEvaluation: fixture.evaluation
+    })).toEqual({ status: "pending" });
+    const request = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message): message is VscodeModulePreviewModelPatchRequest => message?.type === "modulePreviewModelPatch");
+    expect(request).toBeDefined();
+    if (!request) throw new Error("expected drag Module Preview patch");
+
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "commitText",
+        sourceText: request.expectedPatchedSource,
+        documentVersion: request.expectedDocumentVersion + 1,
+        reason: "edit"
+      }
+    })));
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "modulePreviewModelPatchResult",
+        operationId: request.operationId,
+        sessionId: "module-preview-session:1",
+        documentUri: "file:///pattern.nui",
+        documentVersion: request.expectedDocumentVersion + 1,
+        status: "applied"
+      }
+    })));
+
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+  });
+
   it("bakes selected Preview leaves into authored source without mutating the local canonical mirror", async () => {
     const sourceText = [
       "nui 1",
@@ -629,6 +686,102 @@ describe("ModulePreviewApp parameter relay", () => {
         }]
       }
     });
+  });
+
+  it("waits for the applied model patch result after its own authoritative commitText", async () => {
+    const { request } = await preparePartialBake();
+    const expectedDocumentVersion = request.expectedDocumentVersion + 1;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "commitText",
+          sourceText: request.expectedPatchedSource,
+          documentVersion: expectedDocumentVersion,
+          reason: "edit"
+        }
+      }));
+      await Promise.resolve();
+    });
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: expectedDocumentVersion,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    const resultsAfterAcceptance = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "bakeOperationResult");
+    expect(resultsAfterAcceptance).toHaveLength(1);
+    expect(resultsAfterAcceptance[0]).toMatchObject({
+      surface: "modulePreview",
+      mode: "current",
+      status: "applied",
+      summary: {
+        successfulTargetCount: 1,
+        skippedTargetCount: 1,
+        skippedTargets: [{
+          sourceLabel: "text Memo",
+          reason: { code: "unsupported-geometry-kind", geometryKind: "text" }
+        }]
+      }
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: expectedDocumentVersion,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+    });
+    expect(mocks.postMessage.mock.calls.filter(([message]) => message?.type === "bakeOperationResult")).toHaveLength(1);
+  });
+
+  it("clears a pending Preview Bake after a nonmatching authoritative commitText", async () => {
+    const { fixture, request } = await preparePartialBake();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "commitText",
+          sourceText: fixture.document.getSource(),
+          documentVersion: request.expectedDocumentVersion + 2,
+          reason: "edit"
+        }
+      }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: request.expectedDocumentVersion + 1,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
   });
 
   it.each(["stale", "rejected"] as const)(

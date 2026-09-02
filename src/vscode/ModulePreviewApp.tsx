@@ -123,6 +123,12 @@ type PendingModulePreviewBakeResult = {
   result: VscodeBakeOperationResult;
 };
 
+type PendingModulePreviewModelPatch = {
+  operationId: number;
+  expectedDocumentVersion: number;
+  expectedPatchedSource: string;
+};
+
 const bakeTargetsSignature = (targets: readonly BakeResolvedTarget[]) => JSON.stringify(
   targets.map((target) => ({
     targetId: target.targetId,
@@ -162,7 +168,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
   const nextModelPatchOperationIdRef = useRef(1);
-  const pendingModelPatchOperationIdRef = useRef<number | null>(null);
+  const pendingModelPatchRef = useRef<PendingModulePreviewModelPatch | null>(null);
   const pendingBakeResultRef = useRef<PendingModulePreviewBakeResult | null>(null);
   const [statusMessages, setStatusMessages] = useState<string[]>([
     "Open Module Preview from a Module definition in the Source Editor."
@@ -245,7 +251,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     ephemeralElementsRef.current = null;
     setEphemeralElements(null);
     dragProofRef.current = null;
-    pendingModelPatchOperationIdRef.current = null;
+  }, []);
+
+  const clearPendingModelPatch = useCallback(() => {
+    pendingModelPatchRef.current = null;
     pendingBakeResultRef.current = null;
   }, []);
 
@@ -650,15 +659,20 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       expectedPatchedSource
     };
     clearEphemeralPreview();
-    pendingModelPatchOperationIdRef.current = operationId;
+    clearPendingModelPatch();
+    pendingModelPatchRef.current = {
+      operationId,
+      expectedDocumentVersion: request.expectedDocumentVersion,
+      expectedPatchedSource: request.expectedPatchedSource
+    };
     try {
       api.postMessage(request);
     } catch (error) {
-      pendingModelPatchOperationIdRef.current = null;
+      clearPendingModelPatch();
       return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
     }
     return { status: "pending" };
-  }, [api, clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
+  }, [api, clearEphemeralPreview, clearPendingModelPatch, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
 
   const sourceOwnersForBakeTargets = useCallback((
     authority: ModulePreviewAuthority,
@@ -861,16 +875,20 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       expectedPatchedSource
     };
     clearEphemeralPreview();
-    pendingModelPatchOperationIdRef.current = operationId;
+    clearPendingModelPatch();
+    pendingModelPatchRef.current = {
+      operationId,
+      expectedDocumentVersion: request.expectedDocumentVersion,
+      expectedPatchedSource: request.expectedPatchedSource
+    };
     pendingBakeResultRef.current = { operationId, mode, result: operationResult };
     try {
       api.postMessage(request);
     } catch (error) {
-      pendingModelPatchOperationIdRef.current = null;
-      pendingBakeResultRef.current = null;
+      clearPendingModelPatch();
       setStatusMessages([error instanceof Error ? error.message : String(error)]);
     }
-  }, [api, bakeProofIsCurrent, captureBakeProof, clearEphemeralPreview, currentPreviewAuthority, rustTransport.transport]);
+  }, [api, bakeProofIsCurrent, captureBakeProof, clearEphemeralPreview, clearPendingModelPatch, currentPreviewAuthority, rustTransport.transport]);
 
   const executeSharedCanvasCommand = useCallback((commandId: VscodeCanvasCommandId) => {
     if (!nonWritingCanvasCommands.has(commandId)) return;
@@ -896,6 +914,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (message.type === "modulePreviewSession") {
         if (sessionIdRef.current !== message.sessionId) {
           parameterSessionRevisionRef.current = 0;
+          clearPendingModelPatch();
           clearEphemeralPreview();
           previewRef.current = null;
           setPreview(null);
@@ -944,6 +963,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
       if (message.type === "replaceTextDocument") {
+        clearPendingModelPatch();
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
         clearEphemeralPreview();
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
@@ -956,7 +976,15 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
       if (message.type === "commitText") {
-        if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
+        const pendingModelPatch = pendingModelPatchRef.current;
+        const isOwnModelPatchCommit = pendingModelPatch !== null &&
+          message.sourceText === pendingModelPatch.expectedPatchedSource &&
+          message.documentVersion === pendingModelPatch.expectedDocumentVersion + 1;
+        if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) {
+          if (!isOwnModelPatchCommit) clearPendingModelPatch();
+          return;
+        }
+        if (!isOwnModelPatchCommit) clearPendingModelPatch();
         clearEphemeralPreview();
         const document = automationDocumentRef.current ?? AutomationDocument.fromSource(message.sourceText);
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
@@ -976,6 +1004,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "modulePreviewTargetUnavailable") {
         if (documentVersionRef.current !== message.documentVersion) return;
+        clearPendingModelPatch();
         clearEphemeralPreview();
         previewRef.current = null;
         setPreview(null);
@@ -988,13 +1017,14 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       }
       if (message.type === "modulePreviewModelPatchResult") {
+        const pendingModelPatch = pendingModelPatchRef.current;
         if (
           message.sessionId !== sessionIdRef.current ||
           message.documentUri !== sessionDocumentUriRef.current ||
-          message.operationId !== pendingModelPatchOperationIdRef.current
+          message.operationId !== pendingModelPatch?.operationId
         ) return;
         const pendingBakeResult = pendingBakeResultRef.current;
-        pendingModelPatchOperationIdRef.current = null;
+        clearPendingModelPatch();
         clearEphemeralPreview();
         if (message.status === "applied" && pendingBakeResult?.operationId === message.operationId) {
           api.postMessage({
@@ -1041,7 +1071,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, applySessionSnapshot, clearEphemeralPreview, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
+  }, [api, applySessionSnapshot, clearEphemeralPreview, clearPendingModelPatch, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
