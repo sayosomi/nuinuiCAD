@@ -17,6 +17,7 @@ import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTr
 import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import { VscodeRustTransport } from "./vscodeRustTransport";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string, metadata?: SourceCreationCommitMetadata) => void) | null,
@@ -149,6 +150,74 @@ describe("VSCodeApp Canvas history coordinator", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    ["ja", "Canvas上にポインターを置いてから実行してください。"],
+    ["en", "Place the pointer on the Canvas before running this command."]
+  ] as const)("localizes invalid Canvas pointer errors for the %s host without changing rejection behavior", async (language, expectedError) => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "webviewPresentation", presentation: webviewPresentationFor(language) }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasFreePointAtPointer",
+          requestId: 601,
+          documentVersion: 7,
+          pointer: { x: Number.NaN, y: 2 },
+          sourcePosition: { line: 0, character: 0 }
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().commandErrorMessage).toBe(expectedError);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasFreePointAtPointerResult",
+      requestId: 601,
+      status: "rejected",
+      documentVersion: 7
+    });
+  });
+
+  it.each([
+    ["ja", "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。"],
+    ["en", "The current Source position is stale. Reconfirm the caret in the current Source and try again."]
+  ] as const)("localizes stale Canvas source anchors for the %s host without starting creation", async (language, expectedError) => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "webviewPresentation", presentation: webviewPresentationFor(language) }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: "nui 1\n", documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "webviewAuthoritativeDocumentReady", documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCreationCommand",
+          commandId: "addLine",
+          requestId: 602,
+          documentVersion: 7,
+          sourcePosition: { line: 4, character: 0 }
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().commandErrorMessage).toBe(expectedError);
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommit" }));
+  });
 
   it("accepts a graph/runtime source revision that differs from the Webview compiler revision", async () => {
     const source = sourceForSelectionChronology(0);

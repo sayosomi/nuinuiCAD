@@ -4,6 +4,8 @@ import { compileFreshCanonicalText } from "../document/canonicalDocument";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { startCoordinatePointConversionSession } from "../commands/coordinatePointConversionSession";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import { webviewCanvasPresentationFor } from "../vscode/webviewCanvasPresentation";
 import { CommandLineBar } from "./CommandLineBar";
 
 const conversionSession = () => {
@@ -83,5 +85,26 @@ describe("CommandLineBar coordinate point conversion", () => {
 
     expect(callbacks.onStartPick).toHaveBeenCalledTimes(1);
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the Extension Host presentation for English coordinate-conversion chrome", () => {
+    render(
+      <CommandLineBar
+        presentation={webviewCanvasPresentationFor(webviewPresentationFor("en"))}
+        coordinatePointConversion={{
+          session: { ...conversionSession(), query: "@Ba" },
+          onQuery: vi.fn(),
+          onSelectBase: vi.fn(),
+          onStartPick: vi.fn(),
+          onConfirm: vi.fn(),
+          onCancel: vi.fn()
+        }}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "Coordinate conversion base reference" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pick on Canvas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply (Enter)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel (Esc)" })).toBeInTheDocument();
   });
 });

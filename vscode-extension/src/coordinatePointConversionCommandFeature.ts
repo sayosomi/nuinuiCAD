@@ -236,15 +236,17 @@ type CanvasTargetResolution =
 
 const resolveCanvasTargetIdsFor = (
   canvasTargetSources: readonly CoordinatePointConversionCanvasTarget[],
-  snapshot: NonNullable<Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>>
+  snapshot: NonNullable<Awaited<ReturnType<NuiRuntimeEvaluationService["evaluateCurrent"]>>>,
+  displayLanguage: string
 ): CanvasTargetResolution => {
+  const translator = coordinatePointConversionTranslatorFor(displayLanguage);
   const canonical = canonicalDocumentFor(snapshot);
   if (!canonical) {
     return {
       status: "rejected",
       reason: {
         code: "revalidation-failed",
-        message: "Canvasの変換対象を現在のExtension Host評価へ再解決できません。コマンドをもう一度実行してください。"
+        message: translator("coordinatePointConversion.revalidation.canvasTargetUnavailable")
       }
     };
   }
@@ -261,7 +263,7 @@ const resolveCanvasTargetIdsFor = (
         status: "rejected",
         reason: {
           code: "revalidation-failed",
-          message: "Canvasの変換対象を現在のExtension Host評価へ一意に再解決できません。コマンドをもう一度実行してください。"
+          message: translator("coordinatePointConversion.revalidation.canvasTargetUnavailable")
         }
       };
     }
@@ -468,6 +470,8 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       showErrorMessage: (message, action) => vscode.window.showErrorMessage(message, action)
     }, displayLanguageFor());
   };
+  const presentationText = (key: string): string =>
+    coordinatePointConversionTranslatorFor(displayLanguageFor())(key);
 
   const cancelActiveRequest = (): void => {
     activeNativeRequest = null;
@@ -589,7 +593,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       document.version !== request.documentVersion ||
       document.getText() !== session.sourceText ||
       !selectionEquals(editor.selection, current.selection)
-    ) return stale("現在の文書、Source、または選択が変化しました。コマンドをもう一度実行してください。");
+    ) return stale(coordinatePointConversionTranslatorFor(displayLanguageFor())(
+      "coordinatePointConversion.revalidation.documentChanged"
+    ));
 
     if (request.origin === "canvas") {
       const endpoint = activeCanvasEndpoint();
@@ -597,7 +603,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
         endpoint.targetSources(),
         current.canvasTargetSources ?? []
       )) {
-        return stale("Canvasの変換対象選択が変化しました。コマンドをもう一度実行してください。");
+        return stale(coordinatePointConversionTranslatorFor(displayLanguageFor())(
+          "coordinatePointConversion.revalidation.canvasTargetChanged"
+        ));
       }
     }
 
@@ -607,10 +615,12 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       snapshot.proof.documentVersion !== request.documentVersion ||
       snapshot.proof.normalizedSource !== session.sourceText ||
       snapshot.proof.sourceRevision !== session.sourceRevision
-    ) return stale("現在の文書または評価結果が古くなっています。コマンドをもう一度実行してください。");
+    ) return stale(coordinatePointConversionTranslatorFor(displayLanguageFor())(
+      "coordinatePointConversion.revalidation.staleEvaluation"
+    ));
 
     const resolvedCanvasTargets = request.origin === "canvas"
-      ? resolveCanvasTargetIdsFor(current.canvasTargetSources ?? [], snapshot)
+      ? resolveCanvasTargetIdsFor(current.canvasTargetSources ?? [], snapshot, displayLanguageFor())
       : null;
     if (resolvedCanvasTargets?.status === "rejected") return resolvedCanvasTargets;
     const targetIds = resolvedCanvasTargets?.status === "resolved"
@@ -649,7 +659,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     if (!base) {
       const reason: CoordinatePointConversionSkip["reason"] = {
         code: "base-not-candidate",
-        message: "選択した基準点は現在の合法な共有候補ではありません。コマンドをもう一度実行してください。"
+        message: presentationText("coordinatePointConversion.revalidation.baseNotCandidate")
       };
       await presentResult(rejectedResultFor(current.request, reason, current.editor.document.version));
       return;
@@ -680,7 +690,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     if (current.request.origin === "canvas" && !successfulCanvasTargetIds) {
       const reason: CoordinatePointConversionSkip["reason"] = {
         code: "revalidation-failed",
-        message: "変換結果をCanvasの現在の選択へ対応付けできません。コマンドをもう一度実行してください。"
+        message: presentationText("coordinatePointConversion.revalidation.canvasSelectionMappingFailed")
       };
       await presentResult(rejectedResultFor(current.request, reason, current.editor.document.version));
       return;
@@ -732,7 +742,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
           !selectionEquals(current.editor.selection, current.selection)) {
         const reason: CoordinatePointConversionSkip["reason"] = {
           code: "revalidation-failed",
-          message: "Canvasを開く前に現在の文書が変化しました。コマンドをもう一度実行してください。"
+          message: presentationText("coordinatePointConversion.revalidation.canvasOpenedStale")
         };
         await presentResult(rejectedResultFor(current.request, reason, current.editor.document.version));
         return;
@@ -787,14 +797,14 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     if (!currentSnapshot || !canonical || editor.document.version !== initialRequest.documentVersion) {
       const reason: CoordinatePointConversionSkip["reason"] = {
         code: "revalidation-failed",
-        message: "現在の文書または評価結果を取得できませんでした。コマンドをもう一度実行してください。"
+        message: presentationText("coordinatePointConversion.revalidation.evaluationUnavailable")
       };
       await presentResult(rejectedResultFor(initialRequest, reason, editor.document.version));
       return;
     }
 
     const resolvedCanvasTargets = origin === "canvas"
-      ? resolveCanvasTargetIdsFor(canvasTargetSources ?? [], currentSnapshot)
+      ? resolveCanvasTargetIdsFor(canvasTargetSources ?? [], currentSnapshot, displayLanguageFor())
       : null;
     if (resolvedCanvasTargets?.status === "rejected") {
       await presentResult(rejectedResultFor(initialRequest, resolvedCanvasTargets.reason, editor.document.version));

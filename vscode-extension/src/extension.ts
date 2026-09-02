@@ -945,6 +945,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const canvasThemeWarningFeature = createCanvasThemeWarningFeature({
     currentThemeGeneration: currentCanvasThemeGeneration,
+    displayLanguageFor: extensionDisplayLanguage,
     onPreviewThemeChanged: () => refreshNativeColorProvider(),
     onDiagnosticsChanged: (documentUri) => {
       const document = vscode.workspace.textDocuments.find((candidate) => documentKey(candidate) === documentUri);

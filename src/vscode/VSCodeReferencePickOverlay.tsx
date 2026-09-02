@@ -24,6 +24,7 @@ import {
 } from "../model/referencePickSession";
 import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import {
   referencePickHoverForCanvasOption,
   type VscodeReferencePickCanvasSessionLike
@@ -47,6 +48,7 @@ type VSCodeReferencePickOverlayProps = {
   onSelectNumericProperty?: (property: NumericComputedGeometryProperty) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  presentation?: CanvasPresentation;
 };
 
 const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
@@ -100,7 +102,8 @@ export const VSCodeReferencePickOverlay = ({
   onSelect,
   onSelectNumericProperty,
   onConfirm,
-  onCancel
+  onCancel,
+  presentation
 }: VSCodeReferencePickOverlayProps) => {
   const [pointCandidateMenu, setPointCandidateMenuState] = useState<ReferencePickPointCandidateMenu | null>(null);
   const pointCandidateMenuRef = useRef<ReferencePickPointCandidateMenu | null>(null);
@@ -553,22 +556,22 @@ export const VSCodeReferencePickOverlay = ({
     ? numericPropertyState?.draft ? 1 : 0
     : session.draft.draftReferences.length;
   const targetLabel = session.target.role === "endpoint"
-    ? "Endpoint"
+    ? presentation?.text("canvas.referencePick.target.endpoint", "Endpoint") ?? "Endpoint"
     : session.target.role === "numericPropertyBase"
-      ? "Geometry base"
+      ? presentation?.text("canvas.referencePick.target.geometryBase", "Geometry base") ?? "Geometry base"
       : session.target.expectedGeometryInterface === "point"
-        ? "Point"
+        ? presentation?.text("canvas.referencePick.target.point", "Point") ?? "Point"
         : session.target.expectedGeometryInterface === "line"
-          ? "Line"
-          : "Path";
+          ? presentation?.text("canvas.referencePick.target.line", "Line") ?? "Line"
+          : presentation?.text("canvas.referencePick.target.path", "Path") ?? "Path";
   const instruction = session.target.role === "numericPropertyBase" &&
     numericPropertyState?.stage === "propertySelection"
-    ? "Select a property"
+    ? presentation?.text("canvas.referencePick.instruction.selectProperty", "Select a property") ?? "Select a property"
     : session.draft.multiplicity === "multiple"
-    ? `${selectionCount} selected`
+    ? presentation?.text("canvas.referencePick.instruction.selectedCount", "{count} selected", { count: selectionCount }) ?? `${selectionCount} selected`
     : selectionCount === 0
-      ? "Select a candidate"
-      : "Reference selected";
+      ? presentation?.text("canvas.referencePick.instruction.selectCandidate", "Select a candidate") ?? "Select a candidate"
+      : presentation?.text("canvas.referencePick.instruction.referenceSelected", "Reference selected") ?? "Reference selected";
   const currentPointCandidateMenu = pointCandidateMenu?.requestId === session.request.requestId
     ? pointCandidateMenu
     : null;
@@ -582,7 +585,10 @@ export const VSCodeReferencePickOverlay = ({
     : null;
   const numericPropertyMenuCandidates = currentNumericPropertyMenu?.properties.map((property, index) => ({
     id: `${index}-${property}`,
-    name: propertyLabels[property as keyof typeof propertyLabels] ?? property,
+    name: presentation?.text(
+      `geometry.property.${property}`,
+      propertyLabels[property as keyof typeof propertyLabels] ?? property
+    ) ?? propertyLabels[property as keyof typeof propertyLabels] ?? property,
     detail: referencePickSourceForReference(currentNumericPropertyMenu.reference)
   })) ?? [];
 
@@ -664,7 +670,7 @@ export const VSCodeReferencePickOverlay = ({
               zIndex: 5
             }}
           >
-            Pick · {targetLabel}
+            {presentation?.text("canvas.referencePick.badge", "Pick · {target}", { target: targetLabel }) ?? `Pick · ${targetLabel}`}
           </div>
         </>
       ) : null}
@@ -676,7 +682,10 @@ export const VSCodeReferencePickOverlay = ({
             activeIndex={currentPointCandidateMenu.activeIndex}
             viewportSize={viewportSize}
             idPrefix="reference-pick-point-candidate"
-            ariaLabel="Reference Pick point candidates"
+            ariaLabel={presentation?.text(
+              "canvas.referencePick.menu.pointCandidates",
+              "Reference Pick point candidates"
+            ) ?? "Reference Pick point candidates"}
             onFocusViewport={() => canvasFocusRef.current?.focus()}
             onActivate={activatePointCandidate}
           />
@@ -690,7 +699,10 @@ export const VSCodeReferencePickOverlay = ({
             activeIndex={currentNumericPropertyMenu.activeIndex}
             viewportSize={viewportSize}
             idPrefix="reference-pick-numeric-property"
-            ariaLabel="Reference Pick numeric properties"
+            ariaLabel={presentation?.text(
+              "canvas.referencePick.menu.numericProperties",
+              "Reference Pick numeric properties"
+            ) ?? "Reference Pick numeric properties"}
             onFocusViewport={() => canvasFocusRef.current?.focus()}
             onActivate={activateNumericProperty}
           />
@@ -711,10 +723,14 @@ export const VSCodeReferencePickOverlay = ({
           pointerEvents: "auto"
         }}
       >
-        <strong>{targetLabel} target</strong>
+        <strong>{presentation?.text("canvas.referencePick.targetStatus", "{target} target", { target: targetLabel }) ?? `${targetLabel} target`}</strong>
         <small style={{ color: canvasTheme.muted }}>{instruction}</small>
-        <span className="point-drag-axis-lock-action">Enter Done</span>
-        <span className="point-drag-axis-lock-action">Esc Cancel</span>
+        <span className="point-drag-axis-lock-action">
+          {presentation?.text("canvas.referencePick.enterDone", "Enter Done") ?? "Enter Done"}
+        </span>
+        <span className="point-drag-axis-lock-action">
+          {presentation?.text("canvas.referencePick.escCancel", "Esc Cancel") ?? "Esc Cancel"}
+        </span>
         <button
           type="button"
           disabled={!canConfirm}
@@ -729,7 +745,7 @@ export const VSCodeReferencePickOverlay = ({
             whiteSpace: "nowrap"
           }}
         >
-          Done
+          {presentation?.text("canvas.referencePick.done", "Done") ?? "Done"}
         </button>
       </aside>
     </>

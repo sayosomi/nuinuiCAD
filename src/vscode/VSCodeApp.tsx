@@ -66,7 +66,10 @@ import {
 import { inlineModuleCanvasTargetProofsFor } from "./inlineModuleCanvas";
 import { useVscodeMultiDocumentRuntimeEvaluation } from "./useVscodeMultiDocumentRuntimeEvaluation";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
-import { useVscodeWebviewPresentation } from "./webviewPresentation";
+import {
+  useVscodeWebviewPresentation,
+  webviewPresentationTextFor
+} from "./webviewPresentation";
 
 type CanvasHistoryDirection = "undo" | "redo";
 
@@ -76,8 +79,6 @@ type AuthoritativeHostSourceSnapshot = {
 };
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
-const staleSourceAnchorError = "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。";
-const canvasPointerError = "Canvas上にポインターを置いてから実行してください。";
 
 const sourceElementIdForLine = (
   line: number,
@@ -140,6 +141,21 @@ const canvasCreationSourcePositionIsValid = (position: unknown): position is { l
 
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const webviewPresentation = useVscodeWebviewPresentation();
+  const staleSourceAnchorError = webviewPresentationTextFor(
+    webviewPresentation,
+    "canvas.commandError.staleSourceAnchor",
+    "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。"
+  );
+  const canvasPointerError = webviewPresentationTextFor(
+    webviewPresentation,
+    "canvas.commandError.pointer",
+    "Canvas上にポインターを置いてから実行してください。"
+  );
+  const sourceInsertionError = webviewPresentationTextFor(
+    webviewPresentation,
+    "canvas.commandError.sourceInsertion",
+    "現在のDSLテキストにはこの操作を適用できません。"
+  );
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
@@ -933,7 +949,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         sourceInsertionLine: sourceResolution.insertion.sourceInsertionLine
       });
       if (sourceCommit.result.status !== "applied" || !sourceCommit.selectedElementId) {
-        useCadUiStore.getState().setCommandErrorMessage("現在のDSLテキストにはこの操作を適用できません。");
+        useCadUiStore.getState().setCommandErrorMessage(sourceInsertionError);
         reject();
         return;
       }
@@ -1510,7 +1526,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       deferredInlineModuleSelectionRequestRef.current = null;
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

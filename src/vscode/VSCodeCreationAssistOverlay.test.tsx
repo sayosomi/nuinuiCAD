@@ -3,6 +3,7 @@ import { createRef } from "react";
 import type { KeyboardEventHandler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { evaluateElements } from "../geometry/evaluate";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import { dispatchCommand } from "../commands/commands";
 import { applyPickedLine, applyPickedPoint } from "../commands/pickCommands";
 import {
@@ -14,6 +15,8 @@ import { creationRecipeForType } from "../commands/creationRecipes";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { publishTestCanvasSelectionEligibility } from "../test/canvasSelectionTestUtils";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import { VSCodeCreationAssistOverlay } from "./VSCodeCreationAssistOverlay";
 
 const source = [
@@ -29,7 +32,8 @@ const commandContext = {
 
 const renderOverlay = (
   postCanonicalSourceText = vi.fn(),
-  onCanvasKeyDown?: KeyboardEventHandler<HTMLDivElement>
+  onCanvasKeyDown?: KeyboardEventHandler<HTMLDivElement>,
+  presentation?: CanvasPresentation
 ) => {
   const canvasFocusRef = createRef<HTMLDivElement>();
   const view = render(
@@ -39,6 +43,7 @@ const renderOverlay = (
         commandContext={commandContext}
         evaluation={evaluateElements(useCadDocumentStore.getState().elements)}
         postCanonicalSourceText={postCanonicalSourceText}
+        presentation={presentation}
       />
     </div>
   );
@@ -97,6 +102,16 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(screen.getByLabelText("Creation recipe steps").querySelectorAll("button")).toHaveLength(3);
     expect(input()).toHaveAttribute("aria-label", "名前");
     expect(navigateButton(1)).toHaveClass("is-active");
+  });
+
+  it("uses the Extension Host presentation for creation-assist chrome and help", () => {
+    renderOverlay(vi.fn(), undefined, webviewCanvasPresentationFor(webviewPresentationFor("ja")));
+    start("line");
+
+    expect(screen.getByRole("form", { name: "VS Code作成アシスト" })).toBeInTheDocument();
+    expect(screen.getByText("3ステップ中1ステップ")).toBeInTheDocument();
+    expect(screen.getByText("空Enterで無名のまま進みます。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "キャンセル" })).toBeInTheDocument();
   });
 
   it("describes a default-bearing division ratio as blank when empty Enter advances", () => {

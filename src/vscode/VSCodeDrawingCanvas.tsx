@@ -309,7 +309,8 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       api: vscodeWebviewApi(),
       currentContextFor: currentCoordinatePointConversionContext,
       currentAuthorityFor: currentCoordinatePointConversionAuthorityFor ?? currentReferencePickAuthorityFor,
-      postCanvasCommit: postCanvasCommit ?? (() => undefined)
+      postCanvasCommit: postCanvasCommit ?? (() => undefined),
+      presentation: canvasPresentationAdapter
     });
     const hasCoordinatePointConversionTarget = useMemo(() => {
       if (!evaluationStateIsCurrentFor(canvasPresentation.renderEvaluationState, compiledDocumentRevision)) return false;
@@ -587,6 +588,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
             evaluation={canvasPresentation.renderEvaluation}
             evaluationIsCurrent={creationCommandContext.evaluationIsCurrent ?? true}
             postCanonicalSourceText={postCanonicalSourceText}
+            presentation={canvasPresentationAdapter}
           />
           {referencePickSession ? (
             <VSCodeReferencePickOverlay
@@ -604,6 +606,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
               onSelectNumericProperty={selectReferencePickNumericProperty}
               onConfirm={confirmReferencePick}
               onCancel={cancelReferencePick}
+              presentation={canvasPresentationAdapter}
             />
           ) : null}
           {coordinatePointConversionSession ? (
@@ -616,6 +619,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
                 onConfirm: confirmCoordinatePointConversion,
                 onCancel: cancelCoordinatePointConversion
               }}
+              presentation={canvasPresentationAdapter}
             />
           ) : null}
           <VSCodeCanvasRibbonOverlay

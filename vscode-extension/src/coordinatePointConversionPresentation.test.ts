@@ -3,6 +3,7 @@ import {
   COORDINATE_POINT_CONVERSION_SHOW_DETAILS_ACTION,
   formatCoordinatePointConversionDetails,
   presentCoordinatePointConversionResult,
+  coordinatePointConversionTranslatorFor,
   type CoordinatePointConversionNotificationTarget,
   type CoordinatePointConversionOutputTarget
 } from "./coordinatePointConversionPresentation";
@@ -45,6 +46,18 @@ const targets = () => {
 };
 
 describe("coordinate point conversion presentation", () => {
+  it("provides English and Japanese copy for native revalidation failures", () => {
+    const english = coordinatePointConversionTranslatorFor("en");
+    const japanese = coordinatePointConversionTranslatorFor("ja-JP");
+
+    expect(english("coordinatePointConversion.revalidation.documentChanged")).toBe(
+      "The current document, Source, or selection changed. Try the command again."
+    );
+    expect(japanese("coordinatePointConversion.revalidation.documentChanged")).toBe(
+      "現在の文書、Source、または選択が変化しました。コマンドをもう一度実行してください。"
+    );
+  });
+
   it("preserves planner classification and writes structured details", async () => {
     const { output, notifications } = targets();
     await presentCoordinatePointConversionResult(resultFor(), output, notifications);

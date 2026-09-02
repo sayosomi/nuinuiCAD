@@ -6,6 +6,7 @@ import {
   parseCssColor
 } from "../../src/vscode/vscodeCanvasTheme";
 import type { VscodeCanvasThemePublication } from "../../src/vscode/vscodeCanvasThemeProtocol";
+import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
 
 export const LOW_CONTRAST_FIXED_COLOR_RATIO = 3;
 
@@ -23,13 +24,15 @@ export type FixedColorContrastWarningsInput = {
   source: SourceSnapshot;
   semantic?: DslFixedColorSemanticSnapshot;
   background: string;
+  displayLanguage?: string;
 };
 
 /** Produces Source warnings from exact-current fixed modifier colors only. */
 export const fixedColorContrastWarningsFor = ({
   source,
   semantic,
-  background
+  background,
+  displayLanguage
 }: FixedColorContrastWarningsInput): readonly CanvasThemeWarning[] => {
   const backgroundColor = parseCssColor(background);
   if (!backgroundColor) return [];
@@ -41,7 +44,11 @@ export const fixedColorContrastWarningsFor = ({
     }
     return [{
       severity: "warning",
-      message: `Fixed modifier color ${fixedColor.hex} has low contrast against the current Canvas background.`,
+      message: canvasPresentationTextFor(
+        "canvas.fixedColorContrastWarning",
+        displayLanguage ?? "en",
+        { color: fixedColor.hex }
+      ),
       code: "modifier-fixed-color-low-contrast",
       source: "nuinuiCAD",
       range: fixedColor.range
@@ -88,6 +95,7 @@ export const createCanvasThemeWarningFeature = (options: {
   onDiagnosticsChanged: (documentUri: string) => void;
   currentThemeGeneration: () => number;
   onPreviewThemeChanged: () => void;
+  displayLanguageFor?: () => string;
 }): CanvasThemeWarningFeature => {
   const observations = new Map<string, CanvasThemeObservation>();
   let disposed = false;
@@ -203,7 +211,8 @@ export const createCanvasThemeWarningFeature = (options: {
       return fixedColorContrastWarningsFor({
         source: input.source,
         semantic: input.semantic,
-        background: observation.theme.background
+        background: observation.theme.background,
+        displayLanguage: options.displayLanguageFor?.()
       });
     },
     dispose: () => {
