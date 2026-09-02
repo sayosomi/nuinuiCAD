@@ -429,6 +429,23 @@ let activeCanvasThemeGeneration = 0;
 
 export const currentCanvasThemeGeneration = (): number => activeCanvasThemeGeneration;
 
+type ModulePreviewHistoryDirection = "undo" | "redo";
+type ModulePreviewHistoryFallback = (direction: ModulePreviewHistoryDirection) => boolean;
+
+let modulePreviewHistoryFallback: ModulePreviewHistoryFallback | null = null;
+
+export const registerModulePreviewHistoryFallback = (
+  fallback: ModulePreviewHistoryFallback
+): vscode.Disposable => {
+  const previous = modulePreviewHistoryFallback;
+  modulePreviewHistoryFallback = fallback;
+  return {
+    dispose: () => {
+      if (modulePreviewHistoryFallback === fallback) modulePreviewHistoryFallback = previous;
+    }
+  };
+};
+
 export const activate = (context: vscode.ExtensionContext): void => {
   activeCanvasThemeGeneration = 0;
   const sessions = new VscodeWebviewSessionRegistry<WebviewSession>();
@@ -2136,6 +2153,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
         : null
     );
     if (!session) {
+      if (
+        (commandId === "undo" || commandId === "redo") &&
+        modulePreviewHistoryFallback?.(commandId)
+      ) return;
       void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.noActiveCanvas", extensionDisplayLanguage()));
       return;
     }

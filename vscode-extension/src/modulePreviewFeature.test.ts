@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   configurationListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   textDocuments: undefined as TestDocument[] | undefined,
   visibleTextEditors: [] as TestEditor[],
+  showTextDocument: vi.fn(),
   executeCommand: vi.fn(async () => undefined),
   showErrorMessage: vi.fn(),
   createWebviewPanel: vi.fn()
@@ -77,6 +78,7 @@ vi.mock("vscode", () => ({
       return mocks.visibleTextEditors;
     },
     createWebviewPanel: mocks.createWebviewPanel,
+    showTextDocument: mocks.showTextDocument,
     showErrorMessage: mocks.showErrorMessage,
     onDidChangeActiveTextEditor: (listener: () => void) => {
       mocks.activeEditorListeners.push(listener);
@@ -352,6 +354,7 @@ afterEach(() => {
   mocks.textDocuments = undefined;
   mocks.visibleTextEditors.length = 0;
   mocks.executeCommand.mockClear();
+  mocks.showTextDocument.mockReset();
   mocks.showErrorMessage.mockClear();
   mocks.createWebviewPanel.mockReset();
 });
@@ -477,6 +480,95 @@ describe("registerModulePreviewFeature", () => {
       status: "rejected"
     }));
     unavailableFixture.feature.dispose();
+  });
+
+  it.each(["undo", "redo"] as const)(
+    "hands %s to native VS Code history after activating the matching Source editor",
+    async (direction) => {
+      const fixture = openModulePatchFixture();
+      await fixture.panel.receive({ type: "webviewReady" });
+      await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+      await flushContext();
+      mocks.executeCommand.mockClear();
+      fixture.panel.webview.postMessage.mockClear();
+      fixture.panel.reveal.mockImplementation(() => {
+        fixture.panel.active = true;
+      });
+      mocks.showTextDocument.mockImplementation(async () => {
+        fixture.panel.active = false;
+        return fixture.editor;
+      });
+      mocks.executeCommand.mockImplementation(async (command: string) => {
+        if (command === "setContext") return;
+        expect(command).toBe(direction);
+        fixture.document.setSource([
+          "nui 1",
+          "point A = coordinate(x: 0, y: 0)"
+        ].join("\n"));
+        for (const listener of mocks.documentChangeListeners) {
+          listener({
+            document: fixture.document,
+            contentChanges: [{}],
+            reason: direction === "undo" ? 1 : 2
+          });
+        }
+      });
+
+      expect(fixture.feature.handoffNativeHistoryIfActive(direction)).toBe(true);
+      await vi.waitFor(() => expect(mocks.executeCommand).toHaveBeenCalledWith(direction));
+      await flushContext();
+
+      expect(mocks.showTextDocument).toHaveBeenCalledWith(fixture.document, {
+        viewColumn: undefined,
+        preserveFocus: false,
+        preview: false
+      });
+      expect(mocks.executeCommand.mock.calls.filter(([command]) => command !== "setContext")).toEqual([[direction]]);
+      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+        type: "commitText",
+        sourceText: fixture.document.getText(),
+        documentVersion: 2,
+        reason: direction
+      });
+
+      await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 2 });
+      expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+        type: "modulePreviewTargetUnavailable",
+        documentVersion: 2
+      });
+      expect(fixture.panel.reveal).toHaveBeenCalledWith(undefined, false);
+      fixture.feature.dispose();
+    }
+  );
+
+  it("fails closed before native history when the authoritative document version is stale", async () => {
+    const fixture = openModulePatchFixture();
+    await fixture.panel.receive({ type: "webviewReady" });
+    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    fixture.document.setSource(fixture.source.replace("x: 1", "x: 3"));
+    expect(fixture.feature.handoffNativeHistoryIfActive("undo")).toBe(false);
+    expect(mocks.showTextDocument).not.toHaveBeenCalled();
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("undo");
+    fixture.feature.dispose();
+  });
+
+  it("fails closed when the document version drifts during Source activation", async () => {
+    const fixture = openModulePatchFixture();
+    await fixture.panel.receive({ type: "webviewReady" });
+    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await flushContext();
+    mocks.executeCommand.mockClear();
+    mocks.showTextDocument.mockImplementation(async () => {
+      fixture.document.setSource(fixture.source.replace("x: 1", "x: 4"));
+      return fixture.editor;
+    });
+
+    expect(fixture.feature.handoffNativeHistoryIfActive("undo")).toBe(true);
+    await vi.waitFor(() => expect(mocks.showTextDocument).toHaveBeenCalled());
+    await flushContext();
+
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("undo");
+    fixture.feature.dispose();
   });
 
   it("routes an exact geometry-row Preview pick through the shared Canvas session and ephemeral setValue", async () => {

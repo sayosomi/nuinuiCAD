@@ -66,6 +66,7 @@ type SchemaNode = {
 };
 
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
+const architecturePath = resolve(process.cwd(), "ARCHITECTURE.md");
 const packageNlsPath = resolve(process.cwd(), "vscode-extension/package.nls.json");
 const packageNlsJaPath = resolve(process.cwd(), "vscode-extension/package.nls.ja.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
@@ -164,7 +165,7 @@ const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == fil
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const bakePaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
-const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
+const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)";
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
@@ -713,6 +714,21 @@ describe("VS Code extension manifest keybindings", () => {
     }
     expect(keybindings.some(({ command }) =>
       command === "nuinuiCAD.stepSourceValueForward" || command === "nuinuiCAD.stepSourceValueBackward")).toBe(false);
+    expect(keybindings.some(({ command }) =>
+      command === "nuinuiCAD.modulePreviewUndo" || command === "nuinuiCAD.modulePreviewRedo")).toBe(false);
+  });
+});
+
+describe("Module Preview architecture documentation", () => {
+  it("documents authored point/Bezier source commits and keeps Bake outside Slice A", async () => {
+    const architecture = await readFile(architecturePath, "utf8");
+
+    expect(architecture).toContain("Shared DrawingCanvas point and");
+    expect(architecture).toContain("Bezier gestures use Preview-only ephemeral runtime transforms.");
+    expect(architecture).toContain("source-preserving statement `LineSplice`s through the existing");
+    expect(architecture).toContain("Native VS Code Undo/Redo remains canonical history");
+    expect(architecture).toContain("Bake Current/Base remains outside Slice A");
+    expect(architecture).not.toContain("surface is read-only for authored source: source-writing Canvas gestures are not");
   });
 });
 

@@ -81,13 +81,13 @@
         "command": "nuinuiCAD.canvasUndo",
         "key": "ctrl+z",
         "mac": "cmd+z",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
       },
       {
         "command": "nuinuiCAD.canvasRedo",
         "key": "ctrl+y",
         "mac": "cmd+shift+z",
-        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
+        "when": "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview' || (editorTextFocus && nuinuiCAD.canvasHistoryHandoff)"
       },
       {
         "command": "nuinuiCAD.outputPreviewUndo",

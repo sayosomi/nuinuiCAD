@@ -33,6 +33,10 @@ import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConf
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import {
+  handoffOutputPreviewHistory,
+  type OutputPreviewHistoryDirection
+} from "./outputPreviewHistory";
 import { applySourceLineSplices } from "./textDocumentLineSplices";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
@@ -78,6 +82,7 @@ type ModulePreviewParameterMessage =
 
 export type ModulePreviewFeature = vscode.Disposable & {
   postCanvasCommandIfActive: (commandId: VscodeCanvasCommandId) => boolean;
+  handoffNativeHistoryIfActive: (direction: OutputPreviewHistoryDirection) => boolean;
   attachParameterView: (webview: vscode.Webview) => vscode.Disposable;
 };
 
@@ -478,6 +483,59 @@ export const registerModulePreviewFeature = ({
         definitionStatementId: session.targetDefinitionStatementId
       })?.target ?? null
     };
+  };
+
+  const historySessionIsCurrent = (session: ModulePreviewSession): boolean => {
+    if (
+      sessions.get(session.documentUri) !== session ||
+      !session.webviewReady ||
+      !isOpenDocument(session.document)
+    ) return false;
+    return true;
+  };
+
+  const historySessionIsAuthoritative = (session: ModulePreviewSession): boolean => {
+    if (
+      !historySessionIsCurrent(session) ||
+      session.authoritativeDocumentVersion !== session.document.version
+    ) return false;
+    const current = currentTargetFor(session);
+    return current.target?.definitionStatementId === session.targetDefinitionStatementId;
+  };
+
+  const handoffNativeHistoryIfActive = (direction: OutputPreviewHistoryDirection): boolean => {
+    const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+    if (!session || !historySessionIsAuthoritative(session)) return false;
+    const expectedDocumentVersion = session.document.version;
+    let nativeHistoryStarted = false;
+
+    void handoffOutputPreviewHistory(direction, {
+      isSessionCurrent: () => historySessionIsCurrent(session) &&
+        (nativeHistoryStarted || session.authoritativeDocumentVersion === expectedDocumentVersion),
+      isPanelActive: () => session.panel.active,
+      isDocumentOpen: () => isOpenDocument(session.document),
+      documentVersion: () => session.document.version,
+      activateMatchingSource: async () => {
+        const editor = visibleEditorFor(session.document);
+        if (!editor) return false;
+        try {
+          const activatedEditor = await vscode.window.showTextDocument(session.document, {
+            viewColumn: editor.viewColumn,
+            preserveFocus: false,
+            preview: false
+          });
+          return sameDocument(activatedEditor.document, session.document);
+        } catch {
+          return false;
+        }
+      },
+      executeNativeHistory: async (nativeDirection) => {
+        nativeHistoryStarted = true;
+        await vscode.commands.executeCommand(nativeDirection);
+      },
+      restorePreviewFocus: () => session.panel.reveal(undefined, false)
+    });
+    return true;
   };
 
   const parameterUnavailableFor = (
@@ -1419,6 +1477,7 @@ export const registerModulePreviewFeature = ({
       void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
       return true;
     },
+    handoffNativeHistoryIfActive,
     attachParameterView: (webview) => {
       parameterWebviewDisposable?.dispose();
       parameterWebview = webview;
