@@ -10,6 +10,7 @@ import {
   type VscodeSourceAuthoringPosition,
   type VscodeSourceAuthoringPositionFeature
 } from "./sourceAuthoringPositionFeature";
+import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
 
 export const VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID = "nuinuiCAD.createFreePointAtPointer";
 
@@ -89,9 +90,17 @@ const pointerFromContext = (context: unknown): VscodeCanvasPointer | null => {
   return isVscodeCanvasPointer(pointer) ? pointer : null;
 };
 
-const sourceAnchorError = "nuinuiCAD: Sourceの挿入位置を先に確定してください。Sourceでキャレットを明示的に移動してから再試行してください。";
-const staleSourceAnchorError = "nuinuiCAD: Sourceの挿入位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。";
-const pointerError = "nuinuiCAD: Canvas上にポインターを置いてから実行してください。";
+const displayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
+};
+
+const sourceAnchorError = (): string => canvasPresentationTextFor("canvas.sourceAnchor", displayLanguage());
+const staleSourceAnchorError = (): string => canvasPresentationTextFor("canvas.staleSourceAnchor", displayLanguage());
+const pointerError = (): string => canvasPresentationTextFor("canvas.pointer", displayLanguage());
 
 const sourcePositionIsValid = (position: unknown): position is { line: number; character: number } => {
   if (typeof position !== "object" || position === null) return false;
@@ -132,7 +141,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     const documentUri = endpoint.document.uri.toString();
     const existing = sessionStates.get(endpoint.sessionToken);
     if (existing && (existing.document !== endpoint.document || existing.documentUri !== documentUri)) {
-      invalidateSessionState(existing, staleSourceAnchorError);
+      invalidateSessionState(existing, staleSourceAnchorError());
     }
     const current = sessionStates.get(endpoint.sessionToken);
     if (current) return current;
@@ -165,11 +174,11 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       endpoint.document.uri.toString() !== state.documentUri ||
       !endpoint.isCurrent()
     ) {
-      invalidateSessionState(state, staleSourceAnchorError);
+      invalidateSessionState(state, staleSourceAnchorError());
       return;
     }
     if (endpoint.document.version !== state.expectedDocumentVersion) {
-      invalidateSessionState(state, staleSourceAnchorError);
+      invalidateSessionState(state, staleSourceAnchorError());
       return;
     }
     const readyForCurrentVersion = state.authoritativeReadyVersion === endpoint.document.version;
@@ -177,11 +186,11 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 
     const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(state.document);
     if (!anchor) {
-      invalidateSessionState(state, sourceAnchorError);
+      invalidateSessionState(state, sourceAnchorError());
       return;
     }
     if (anchor.documentVersion !== endpoint.document.version) {
-      invalidateSessionState(state, staleSourceAnchorError);
+      invalidateSessionState(state, staleSourceAnchorError());
       return;
     }
 
@@ -196,7 +205,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
       }
     });
     if (requestId === null) {
-      invalidateSessionState(state, staleSourceAnchorError);
+      invalidateSessionState(state, staleSourceAnchorError());
       return;
     }
     state.queuedInvocations = state.queuedInvocations.slice(1);
@@ -230,12 +239,12 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
           !(state.inFlightRequestId !== null &&
             state.provisionalCommandOwnedDocumentVersion === endpoint.document.version)))
     ) {
-      invalidateSessionState(state, staleSourceAnchorError);
+      invalidateSessionState(state, staleSourceAnchorError());
       return;
     }
     const anchor = ownedSourceAuthoringPosition.sourceAuthoringPositionFor(endpoint.document);
     if (!anchor) {
-      void vscode.window.showErrorMessage(sourceAnchorError);
+      void vscode.window.showErrorMessage(sourceAnchorError());
       return;
     }
     const anchorAtExpectedVersion = anchor.documentVersion === state.expectedDocumentVersion;
@@ -243,13 +252,13 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
     const enqueueBehindProvisionalCommandEdit = state.inFlightRequestId !== null &&
       state.provisionalCommandOwnedDocumentVersion === endpoint.document.version;
     if (!anchorAtCurrentVersion && !(enqueueBehindProvisionalCommandEdit && anchorAtExpectedVersion)) {
-      void vscode.window.showErrorMessage(staleSourceAnchorError);
+      void vscode.window.showErrorMessage(staleSourceAnchorError());
       return;
     }
 
     const pointer = context === undefined ? endpoint.lastCanvasPointer() : pointerFromContext(context);
     if (!pointer || !isVscodeCanvasPointer(pointer)) {
-      void vscode.window.showErrorMessage(pointerError);
+      void vscode.window.showErrorMessage(pointerError());
       return;
     }
 
@@ -270,7 +279,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
 
   handleSourceDocumentInvalidated = (document: vscode.TextDocument): void => {
     for (const state of [...sessionStates.values()]) {
-      if (state.document === document) invalidateSessionState(state, staleSourceAnchorError);
+      if (state.document === document) invalidateSessionState(state, staleSourceAnchorError());
     }
     for (const [requestId, pending] of pendingRequests) {
       if (pending.document === document) pendingRequests.delete(requestId);
@@ -314,7 +323,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
         message.documentVersion !== pending.sourcePosition.documentVersion + 1 ||
         provisionalDocumentVersion !== message.documentVersion
       ) {
-        invalidateSessionState(state, staleSourceAnchorError);
+        invalidateSessionState(state, staleSourceAnchorError());
         return;
       }
       const completed = ownedSourceAuthoringPosition.completeCommandOwnedEdit({
@@ -324,7 +333,7 @@ export const registerVscodeCanvasFreePointAtPointerFeature = ({
         postPosition: message.nextSourcePosition
       });
       if (!completed) {
-        invalidateSessionState(state, staleSourceAnchorError);
+        invalidateSessionState(state, staleSourceAnchorError());
         return;
       }
       state.provisionalCommandOwnedDocumentVersion = null;

@@ -18,6 +18,11 @@ import type {
   VscodeInlineModuleGeneratedGroupProof
 } from "../../src/vscode/protocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  inlineModuleRejectionMessageFor,
+  inlineModuleSummaryFor,
+  inlineModuleTranslatorFor
+} from "./inlineModuleLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 
 export const VSCODE_INLINE_MODULE_INSTANCE_COMMAND_ID = "nuinuiCAD.inlineModuleInstance";
@@ -41,6 +46,15 @@ export type InlineModuleCommandFeatureHost = {
     expectedSourceText: string,
     splices: readonly LineSplice[]
   ) => Promise<boolean>;
+  displayLanguageFor?: () => string;
+};
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
 };
 
 export type VscodeInlineModuleCommandFeature = vscode.Disposable & {
@@ -357,21 +371,16 @@ export const inlineModulePolicyForSettings = (): InlineModulePolicy => {
   };
 };
 
-const resultSummary = (plan: InlineModulePlan): string => {
-  const inlined = plan.targets.filter((target) => target.status === "inlined").length;
-  const skipped = plan.targets.filter((target) => target.status === "skipped");
-  const skipSummary = skipped.length > 0
-    ? ` Skipped ${skipped.length}: ${[...new Set(skipped.map((target) => target.code))].join(", ")}.`
-    : "";
-  return `nuinuiCAD: Inline Module inlined ${inlined} instance${inlined === 1 ? "" : "s"}.${skipSummary}`;
-};
+const resultSummary = (plan: InlineModulePlan, displayLanguage: string): string =>
+  inlineModuleSummaryFor(plan, displayLanguage);
 
 export const registerVscodeInlineModuleCommandFeature = ({
   languageAnalysisSessionFor,
   activeSourceEditor,
   sourceEditorForDocument,
   activeCanvasEndpoint,
-  applySourceLineSplices
+  applySourceLineSplices,
+  displayLanguageFor = vscodeDisplayLanguage
 }: InlineModuleCommandFeatureHost): VscodeInlineModuleCommandFeature => {
   let disposed = false;
   let nextRequestId = 1;
@@ -433,6 +442,7 @@ export const registerVscodeInlineModuleCommandFeature = ({
 
   const execute = async (): Promise<void> => {
     if (disposed) return;
+    const displayLanguage = displayLanguageFor();
     const sourceEditor = activeSourceEditor();
     const sourceInvocation = collectInlineModuleSourceTargets(sourceEditor, languageAnalysisSessionFor);
     let origin: "source" | "canvas";
@@ -443,7 +453,9 @@ export const registerVscodeInlineModuleCommandFeature = ({
 
     if (sourceInvocation) {
       if (sourceInvocation.targets.length === 0) {
-        void vscode.window.showErrorMessage("nuinuiCAD: No authored Module instance is selected at the current Source position.");
+        void vscode.window.showErrorMessage(
+          inlineModuleTranslatorFor(displayLanguage)("inlineModule.source.noTarget")
+        );
         return;
       }
       origin = "source";
@@ -452,7 +464,9 @@ export const registerVscodeInlineModuleCommandFeature = ({
     } else {
       canvasEndpoint = activeCanvasEndpoint();
       if (!canvasEndpoint || !canvasEndpoint.isAuthoritativeReady()) {
-        void vscode.window.showErrorMessage("nuinuiCAD: Inline Module requires an exact current Source or Canvas target.");
+        void vscode.window.showErrorMessage(
+          inlineModuleTranslatorFor(displayLanguage)("inlineModule.requiresCurrentTarget")
+        );
         return;
       }
       const publication = currentCanvasPublicationFor(canvasEndpoint);
@@ -461,7 +475,9 @@ export const registerVscodeInlineModuleCommandFeature = ({
         ? reproveInlineModuleCanvasTargets({ publication, source: canvasExact.source, compiled: canvasExact.compiled })
         : [];
       if (!publication || !canvasExact || canvasTargets.length === 0) {
-        void vscode.window.showErrorMessage("nuinuiCAD: No concrete Module instance is selected on the current Canvas.");
+        void vscode.window.showErrorMessage(
+          inlineModuleTranslatorFor(displayLanguage)("inlineModule.canvas.noTarget")
+        );
         refreshContext();
         return;
       }
@@ -494,7 +510,7 @@ export const registerVscodeInlineModuleCommandFeature = ({
       policy: inlineModulePolicyForSettings()
     });
     if (result.status === "rejected") {
-      void vscode.window.showErrorMessage(`nuinuiCAD: ${result.message}`);
+      void vscode.window.showErrorMessage(`nuinuiCAD: ${inlineModuleRejectionMessageFor(result, displayLanguage)}`);
       return;
     }
 
@@ -531,19 +547,25 @@ export const registerVscodeInlineModuleCommandFeature = ({
             sourceTargetIdsEqual(targets, currentCanvasTargets)
           ));
     if (!stillCurrent) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Source or Canvas state changed. No changes were made; run Inline Module again.");
+      void vscode.window.showErrorMessage(
+        inlineModuleTranslatorFor(displayLanguage)("inlineModule.sourceOrCanvasChanged")
+      );
       refreshContext();
       return;
     }
 
     if (result.splices.length === 0) {
-      void vscode.window.showWarningMessage(`nuinuiCAD: Inline Module made no changes. ${resultSummary(result)}`);
+      void vscode.window.showWarningMessage(
+        `${inlineModuleTranslatorFor(displayLanguage)("inlineModule.noChanges")} ${resultSummary(result, displayLanguage)}`
+      );
       return;
     }
 
     const applied = await applySourceLineSplices(editor, capturedVersion, capturedRawSource, result.splices);
     if (!applied) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Source changed before Inline Module could be applied. No changes were made.");
+      void vscode.window.showErrorMessage(
+        inlineModuleTranslatorFor(displayLanguage)("inlineModule.sourceChangedBeforeApply")
+      );
       refreshContext();
       return;
     }
@@ -559,7 +581,7 @@ export const registerVscodeInlineModuleCommandFeature = ({
         plan: result
       };
     }
-    void vscode.window.showInformationMessage(resultSummary(result));
+    void vscode.window.showInformationMessage(resultSummary(result, displayLanguage));
     refreshContext();
   };
 

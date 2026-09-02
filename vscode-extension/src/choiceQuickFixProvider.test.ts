@@ -124,18 +124,19 @@ const diagnosticFor = (
   return diagnostic;
 };
 
-const providerFor = (document: TestDocument) => {
+const providerFor = (document: TestDocument, displayLanguage = "en") => {
   const session = createLanguageAnalysisSession(document.getText());
-  const provider = createNuiChoiceQuickFixProvider(() => session);
+  const provider = createNuiChoiceQuickFixProvider(() => session, () => displayLanguage);
   const apply = createNuiChoiceQuickFixApplyHandler(() => session);
   return { session, provider, apply };
 };
 
 const actionsFor = (
   document: TestDocument,
-  diagnostics: vscode.Diagnostic[] = [diagnosticFor(document)]
+  diagnostics: vscode.Diagnostic[] = [diagnosticFor(document)],
+  displayLanguage = "en"
 ) => {
-  const { provider, ...rest } = providerFor(document);
+  const { provider, ...rest } = providerFor(document, displayLanguage);
   const actions = provider.provideCodeActions(
     document as unknown as vscode.TextDocument,
     new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
@@ -167,8 +168,8 @@ describe("VS Code choice Quick Fix provider", () => {
     expect(nuiChoiceQuickFixSelector).toEqual({ language: "nui", scheme: "file" });
     expect(actions).toHaveLength(2);
     expect(actions.map((action) => action.title)).toEqual([
-      '"left" に置き換え',
-      '"right" に置き換え'
+      "Replace with 'left'",
+      "Replace with 'right'"
     ]);
     expect(actions.every((action) => action.kind === vscode.CodeActionKind.QuickFix)).toBe(true);
     expect(actions.every((action) => action.diagnostics?.length === 1)).toBe(true);
@@ -217,7 +218,7 @@ describe("VS Code choice Quick Fix provider", () => {
     const { actions, apply } = actionsFor(document, [diagnosticFor(document, "missing-declared-type")]);
 
     expect(actions).toHaveLength(1);
-    expect(actions[0]?.title).toBe("型注釈 (: 型) を追加");
+    expect(actions[0]?.title).toBe("Add a declared type");
     expect(actions[0]?.isPreferred).toBeUndefined();
     const payload = payloadFor(actions[0]!);
     const descriptor = payload.descriptor as Record<string, unknown>;
@@ -244,6 +245,30 @@ describe("VS Code choice Quick Fix provider", () => {
     expect(`${source.slice(0, insertion)}${edit.edits[0]?.newText}${source.slice(insertion)}`).toBe(
       "nui 1\nlet width:  = 10\n"
     );
+  });
+
+  it("localizes choice titles without changing candidate identity or the resulting edit", async () => {
+    const document = documentFor("nui 1\nconst side: choice(left, right) = center\n", "/tmp/choice-ja.nui");
+    mocks.textDocuments.push(document);
+    const english = actionsFor(document, undefined, "en").actions;
+    const japanese = actionsFor(document, undefined, "ja-JP");
+
+    expect(japanese.actions.map((action) => action.title)).toEqual([
+      "'left' に置き換え",
+      "'right' に置き換え"
+    ]);
+    expect(japanese.actions.map((action) => action.command?.command)).toEqual(
+      english.map((action) => action.command?.command)
+    );
+    expect(japanese.actions.map((action) => payloadFor(action).descriptor)).toEqual(
+      english.map((action) => payloadFor(action).descriptor)
+    );
+    expect(japanese.actions.map((action) => payloadFor(action).descriptor.action.insert)).toEqual(["left", "right"]);
+
+    const { apply } = providerFor(document, "ja");
+    await apply(payloadFor(japanese.actions[0]!));
+    const edit = mocks.applyEdit.mock.calls[0]?.[0] as { edits: Array<{ newText: string }> };
+    expect(edit.edits[0]?.newText).toBe("left");
   });
 
   it("offers a native category repair for a known construction mismatch", () => {

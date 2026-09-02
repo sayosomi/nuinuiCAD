@@ -179,18 +179,19 @@ const flush = async (): Promise<void> => {
   await Promise.resolve();
 };
 
-const registerFor = async (fixture: ReturnType<typeof createEditor>) => {
+const registerFor = async (fixture: ReturnType<typeof createEditor>, displayLanguage = "en") => {
   mocks.activeTextEditor = fixture.editor;
   const sessions = new Map<string, NuiLanguageAnalysisSession>();
   const feature = registerVscodeGeometryReferenceRetargetFeature({
-    languageAnalysisSessionFor: (document) => {
+      languageAnalysisSessionFor: (document) => {
       const key = document.uri.toString();
       const existing = sessions.get(key);
       if (existing) return existing;
       const session = createLanguageAnalysisSession(document.getText());
       sessions.set(key, session);
-      return session;
-    }
+        return session;
+    },
+    displayLanguageFor: () => displayLanguage
   });
   await flush();
   return { feature, command: mocks.commands.get(VSCODE_GEOMETRY_REFERENCE_RETARGET_COMMAND_ID)! };
@@ -283,6 +284,22 @@ describe("VS Code geometry-reference retarget feature", () => {
     });
     expect(options).toMatchObject({ matchOnDescription: true, matchOnDetail: true });
     expect(fixture.editor.edit).not.toHaveBeenCalled();
+    feature.dispose();
+  });
+
+  it("localizes candidate presentation while preserving the semantic candidate", async () => {
+    const fixture = createEditor(sourceWithReplacement(), sourceWithReplacement().indexOf("@A") + 1);
+    mocks.showQuickPick.mockResolvedValue(undefined);
+    const { feature } = await registerFor(fixture, "ja-JP");
+
+    await mocks.commands.get(VSCODE_GEOMETRY_REFERENCE_RETARGET_COMMAND_ID)?.();
+
+    const [items] = mocks.showQuickPick.mock.calls[0] ?? [];
+    expect(items?.[0]).toMatchObject({
+      label: "B",
+      description: "point ジオメトリ",
+      detail: "参照パス: @B, @B"
+    });
     feature.dispose();
   });
 

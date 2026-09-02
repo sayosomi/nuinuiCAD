@@ -76,7 +76,7 @@ describe("Bake operation presentation", () => {
     await presentBakeOperationResult(input, output, notifications);
 
     expect(notifications.showWarningMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: Bake は2件成功し、5件をスキップしました（geometry-unavailable ×2, evaluation-failed ×1, unevaluated ×1, ほか1種類）。",
+      "nuinuiCAD: Bake created 2 target(s) and skipped 5 (geometry unavailable ×2, evaluation failed ×1, not evaluated ×1, other 1 reason types).",
       BAKE_SHOW_DETAILS_ACTION
     );
     expect(notifications.showErrorMessage).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe("Bake operation presentation", () => {
     await presentBakeOperationResult(input, output, notifications);
 
     expect(notifications.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: Bake は成功せず、1件をスキップしました（not-losslessly-representable ×1）。",
+      "nuinuiCAD: Bake created no targets and skipped 1 (cannot be represented exactly ×1).",
       BAKE_SHOW_DETAILS_ACTION
     );
     expect(notifications.showWarningMessage).not.toHaveBeenCalled();
@@ -128,5 +128,15 @@ describe("Bake operation presentation", () => {
 
   it("returns no new notification for a zero-success zero-structured-skip result", () => {
     expect(bakeOperationNotificationFor(operation(0, []))).toBeNull();
+  });
+
+  it("localizes the same structured result without changing target identity", () => {
+    const input = operation(1, [skipped("line A", { code: "geometry-unavailable" })]);
+    expect(bakeOperationNotificationFor(input, "ja")).toEqual({
+      severity: "warning",
+      message: "nuinuiCAD: Bake は 1 件を作成し、1 件をスキップしました (ジオメトリを利用できない ×1)。"
+    });
+    expect(formatBakeOperationDetails(input, "ja")).toContain("対象の詳細");
+    expect(formatBakeOperationDetails(input, "ja")).toContain("target-line A");
   });
 });
