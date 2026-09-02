@@ -911,6 +911,14 @@ document/source freshness, target definition identity, and exact row identity.
 The parameter View is hydrated from that retained projection when it resolves; it
 does not create a Module Preview session or mutate canonical Source.
 
+Geometry rows in that View expose a contextual Pick action only for point, line,
+and path parameters. `modulePreviewFeature.ts` validates the exact row and
+Preview session proof, while `ModulePreviewApp.tsx` derives the owning Module
+definition's caller scope from the ephemeral Preview compiler projection and
+reuses the shared Canvas Reference Pick candidate/session/overlay behavior.
+Confirmed references return through the Preview `setValue` path only; this route
+never edits canonical Source or adds a Source Undo entry.
+
 Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
 `AutomationDocument` for the authoritative source mirror,
 `createModulePreviewSession` for the host-neutral ephemeral input/default/last-good
@@ -955,6 +963,14 @@ Done/Enter, and Esc UI using the established Canvas bottom-right transient hint
 and Canvas theme variables. Source changes, document close, stale proof/version,
 panel disposal, stale responses, or invalidated targets cancel or fail closed
 without source mutation.
+
+The Preview route uses `modulePreviewProtocol.ts`,
+`useVSCodeModulePreviewReferencePickSession.ts`, and
+`modulePreviewReferencePick.ts` for its exact session/row proof and Preview
+target adapter. Its candidate input is the compiler-owned ephemeral Preview
+statement map, semantic analysis, and lexical namespace; the route-specific
+adapter shares the Canvas draft, hover, confirm, and cancel behavior without
+using Source caret positions or the Source replacement bridge.
 
 Coordinate point conversion keeps its semantic session and target/base
 revalidation in `coordinatePointConversion.ts` and

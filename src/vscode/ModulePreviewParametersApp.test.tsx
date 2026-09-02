@@ -91,12 +91,85 @@ const snapshotWithValues = (
   }
 });
 
+const geometrySnapshot: VscodeModulePreviewParameterSnapshot = {
+  ...snapshot,
+  target: { ...snapshot.target, name: "GeometryModule" },
+  ancestorContexts: [{
+    kind: "ancestor",
+    definitionStatementId: "module:outer",
+    name: "Outer",
+    parameters: [{
+      ...snapshot.parameters.parameters[0]!,
+      definitionStatementId: "module:outer",
+      name: "contextAnchor",
+      parameterIndex: 0,
+      type: { kind: "point" },
+      diagnostic: null
+    }]
+  }],
+  parameters: {
+    kind: "target",
+    definitionStatementId: snapshot.target.definitionStatementId,
+    name: "GeometryModule",
+    parameters: [
+      { ...snapshot.parameters.parameters[0]!, name: "anchor", parameterIndex: 0, type: { kind: "point" }, diagnostic: null },
+      { ...snapshot.parameters.parameters[0]!, name: "edge", parameterIndex: 1, type: { kind: "line" }, diagnostic: null },
+      { ...snapshot.parameters.parameters[0]!, name: "route", parameterIndex: 2, type: { kind: "path" }, diagnostic: null },
+      { ...snapshot.parameters.parameters[0]!, name: "count", parameterIndex: 3, type: { kind: "number" }, diagnostic: null }
+    ]
+  },
+  previewStatus: "current"
+};
+
 afterEach(() => {
   cleanup();
   vi.mocked(api.postMessage).mockReset();
 });
 
 describe("ModulePreviewParametersApp", () => {
+  it("exposes contextual Pick actions for geometry rows only and routes the exact row proof", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: geometrySnapshot })));
+
+    const rows = [...document.querySelectorAll<HTMLTableRowElement>("[data-module-preview-parameter-row]")];
+    expect(rows).toHaveLength(5);
+    expect(rows.filter((row) => row.querySelector("[data-module-preview-parameter-pick='true']"))).toHaveLength(4);
+    const countRow = rows.find((row) => row.dataset.modulePreviewParameterRow === "module:inner:3");
+    expect(countRow?.querySelector("[data-module-preview-parameter-pick='true']")).toBeNull();
+
+    const anchorRow = rows.find((row) => row.dataset.modulePreviewParameterRow === "module:inner:0");
+    const anchorInput = within(anchorRow!).getByLabelText("Value for anchor");
+    expect(anchorRow).toHaveAttribute("data-module-preview-parameter-row", "module:inner:0");
+    fireEvent.focus(anchorInput);
+    expect(within(anchorRow!).getByRole("button", { name: "Pick reference for anchor" })).toBeInTheDocument();
+    fireEvent.click(within(anchorRow!).getByRole("button", { name: "Pick reference for anchor" }));
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: geometrySnapshot.sessionId,
+      documentUri: geometrySnapshot.documentUri,
+      documentVersion: geometrySnapshot.documentVersion,
+      sourceRevision: geometrySnapshot.sourceRevision,
+      sessionRevision: geometrySnapshot.sessionRevision,
+      targetDefinitionStatementId: geometrySnapshot.target.definitionStatementId,
+      definitionStatementId: geometrySnapshot.target.definitionStatementId,
+      parameterIndex: 0
+    });
+
+    const contextRow = rows.find((row) => row.dataset.modulePreviewParameterRow === "module:outer:0");
+    fireEvent.click(within(contextRow!).getByRole("button", { name: "Pick reference for contextAnchor" }));
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "modulePreviewParameterReferencePickStart",
+      sessionId: geometrySnapshot.sessionId,
+      documentUri: geometrySnapshot.documentUri,
+      documentVersion: geometrySnapshot.documentVersion,
+      sourceRevision: geometrySnapshot.sourceRevision,
+      sessionRevision: geometrySnapshot.sessionRevision,
+      targetDefinitionStatementId: geometrySnapshot.target.definitionStatementId,
+      definitionStatementId: "module:outer",
+      parameterIndex: 0
+    });
+  });
+
   it("renders ordered ancestor and target groups with exact values, defaults, and diagnostics", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));

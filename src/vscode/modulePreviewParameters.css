@@ -114,6 +114,43 @@ body.vscode-module-preview-parameters-webview {
   background: var(--vscode-input-background);
 }
 
+.module-preview-parameter-input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.module-preview-parameter-pick-button {
+  flex: 0 0 auto;
+  align-self: stretch;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.module-preview-parameter-group tbody tr:hover .module-preview-parameter-pick-button,
+.module-preview-parameter-group tbody tr:focus-within .module-preview-parameter-pick-button,
+.module-preview-parameter-pick-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.module-preview-parameter-pick-button:hover {
+  color: var(--vscode-button-secondaryHoverForeground, var(--vscode-button-secondaryForeground));
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground));
+}
+
+.module-preview-parameter-pick-button:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 .module-preview-parameter-input:hover {
   border-color: var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder));
 }

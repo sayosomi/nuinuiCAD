@@ -14,11 +14,13 @@ import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
 import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
+import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";
+import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
@@ -28,9 +30,12 @@ import type {
 import { vscodeCanvasContextDataFor } from "./protocol";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
+import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
+import { useVSCodeModulePreviewReferencePickSession } from "./useVSCodeModulePreviewReferencePickSession";
+import type { VscodeModulePreviewReferencePickStartRequest } from "./modulePreviewProtocol";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -131,7 +136,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, previewSession]);
 
-  const evaluationElements = preview?.root.compileResult.elements ?? [];
+  const evaluationElements = useMemo(
+    () => preview?.root.compileResult.elements ?? [],
+    [preview]
+  );
   const evaluationOptions = preview?.evaluationOptions ?? {};
   const evaluationState = useEvaluationEngine(
     evaluationElements,
@@ -142,6 +150,65 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
   }, [evaluationState.evaluation]);
+
+  const currentModulePreviewReferencePickContext = useCallback((
+    request: VscodeModulePreviewReferencePickStartRequest
+  ) => {
+    const document = automationDocumentRef.current;
+    const activePreview = previewRef.current;
+    const state = previewSession.getState();
+    const evaluation = evaluationRef.current;
+    if (!document || !activePreview || !state || state.preview.kind !== "current" ||
+      state.preview.result !== activePreview.root || !evaluation) return null;
+    const documentState = document.getState();
+    const source = {
+      normalizedSource: normalizedSourceFor(document.getSource()),
+      sourceRevision: documentState.currentCompiled.spans.sourceMap.sourceRevision
+    };
+    if (
+      request.sessionId !== sessionIdRef.current ||
+      request.documentUri !== sessionDocumentUriRef.current ||
+      request.documentVersion !== documentVersionRef.current ||
+      request.sourceRevision !== state.sourceRevision ||
+      request.sessionRevision !== parameterSessionRevisionRef.current ||
+      request.targetDefinitionStatementId !== state.target.definitionStatementId ||
+      source.normalizedSource !== activePreview.root.candidateCompiledDocument.spans.sourceMap.source ||
+      source.sourceRevision !== activePreview.root.candidateCompiledDocument.spans.sourceMap.sourceRevision
+    ) return null;
+    const row = [
+      ...state.ancestorContexts.flatMap((group) => group.parameters),
+      ...state.parameters.parameters
+    ].find((parameter) =>
+      parameter.definitionStatementId === request.definitionStatementId &&
+      parameter.parameterIndex === request.parameterIndex
+    );
+    if (!row) return null;
+    const target = modulePreviewReferencePickTargetFor({
+      root: activePreview.root,
+      definitionStatementId: request.definitionStatementId,
+      parameterIndex: request.parameterIndex,
+      expectedGeometryInterface: request.expectedGeometryInterface
+    });
+    if (!target) return null;
+    return {
+      source,
+      compiled: activePreview.root.candidateCompiledDocument,
+      evaluation,
+      evaluationIsCurrent: evaluationStateIsCurrentFor(evaluationState, activePreview.revision),
+      target
+    };
+  }, [evaluationState, previewSession]);
+
+  const {
+    session: modulePreviewReferencePickSession,
+    setHover: setModulePreviewReferencePickHover,
+    select: selectModulePreviewReferencePick,
+    confirm: confirmModulePreviewReferencePick,
+    cancel: cancelModulePreviewReferencePick
+  } = useVSCodeModulePreviewReferencePickSession({
+    api,
+    currentContextFor: currentModulePreviewReferencePickContext
+  });
 
   const renderElements = useMemo(() => {
     if (!preview) return [];
@@ -473,36 +540,62 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     toggleCanvasGeometryNames: () => executeSharedCanvasCommand("toggleCanvasGeometryNames"),
     toggleCanvasPoints: () => executeSharedCanvasCommand("toggleCanvasPoints"),
     resolveImageSourceUrl: (sourcePath) => sourcePath,
-    renderHostOverlay: (viewportSize) => (
-      <VSCodeCanvasRibbonOverlay
-        canvasFocusRef={canvasFocusRef}
-        canvasViewport={canvasViewport}
-        canvasRibbonRibbons={canvasRibbonRibbons}
-        viewportSize={viewportSize}
-        ribbonCommandContext={ribbonCommandContext}
-        onCommand={(item) => {
-          const definition = vscodeCanvasRibbonCommandFor(item.commandId);
-          if (!definition || !definition.isAvailable(ribbonCommandContext)) return;
-          if (definition.hostAction === "editCanvasRibbon") {
-            api.postMessage({ type: "editCanvasRibbon" });
-            return;
-          }
-          if (definition.sharedCommandId) executeSharedCanvasCommand(definition.sharedCommandId);
-        }}
-        onPositionCommit={(ribbonId, position) => api.postMessage({
-          type: "canvasRibbonPositionCommit",
-          ribbonId,
-          x: position.x,
-          y: position.y
-        })}
-      />
-    )
+      renderHostOverlay: (viewportSize) => (
+        <>
+          {modulePreviewReferencePickSession ? (
+            <VSCodeReferencePickOverlay
+              canvasFocusRef={canvasFocusRef}
+              viewportSize={viewportSize}
+              canvasViewport={canvasViewport}
+              canvasTheme={canvasTheme}
+              elements={evaluationElements}
+              evaluation={evaluationState.evaluation}
+              visibilityProfiles={preview?.root.compileResult.visibilityProfiles ?? []}
+              activeVisibilityProfileId={preview?.root.compileResult.activeVisibilityProfileId ?? null}
+              session={modulePreviewReferencePickSession}
+              onHover={setModulePreviewReferencePickHover}
+              onSelect={selectModulePreviewReferencePick}
+              onConfirm={confirmModulePreviewReferencePick}
+              onCancel={cancelModulePreviewReferencePick}
+            />
+          ) : null}
+          <VSCodeCanvasRibbonOverlay
+            canvasFocusRef={canvasFocusRef}
+            canvasViewport={canvasViewport}
+            canvasRibbonRibbons={canvasRibbonRibbons}
+            viewportSize={viewportSize}
+            ribbonCommandContext={ribbonCommandContext}
+            onCommand={(item) => {
+              const definition = vscodeCanvasRibbonCommandFor(item.commandId);
+              if (!definition || !definition.isAvailable(ribbonCommandContext)) return;
+              if (definition.hostAction === "editCanvasRibbon") {
+                api.postMessage({ type: "editCanvasRibbon" });
+                return;
+              }
+              if (definition.sharedCommandId) executeSharedCanvasCommand(definition.sharedCommandId);
+            }}
+            onPositionCommit={(ribbonId, position) => api.postMessage({
+              type: "canvasRibbonPositionCommit",
+              ribbonId,
+              x: position.x,
+              y: position.y
+            })}
+          />
+        </>
+      )
   }), [
     api,
     canvasRibbonRibbons,
     canvasTheme,
     canvasViewport,
     executeSharedCanvasCommand,
+    evaluationElements,
+    evaluationState.evaluation,
+    modulePreviewReferencePickSession,
+    setModulePreviewReferencePickHover,
+    selectModulePreviewReferencePick,
+    confirmModulePreviewReferencePick,
+    cancelModulePreviewReferencePick,
     measureCanvasTextWidth,
     preview,
     previewCanvasSelection,
