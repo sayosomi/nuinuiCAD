@@ -97,6 +97,7 @@ import { registerVscodeSourceValueStepFeature } from "./sourceValueStepCommandFe
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
+  VscodeBakeSettings,
   VscodeBenchmarkConfig,
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
@@ -432,7 +433,11 @@ export const currentCanvasThemeGeneration = (): number => activeCanvasThemeGener
 type ModulePreviewHistoryDirection = "undo" | "redo";
 type ModulePreviewHistoryFallback = (direction: ModulePreviewHistoryDirection) => boolean;
 
+type ModulePreviewBakeMode = "current" | "base";
+type ModulePreviewBakeFallback = (mode: ModulePreviewBakeMode, settings: VscodeBakeSettings) => boolean;
+
 let modulePreviewHistoryFallback: ModulePreviewHistoryFallback | null = null;
+let modulePreviewBakeFallback: ModulePreviewBakeFallback | null = null;
 
 export const registerModulePreviewHistoryFallback = (
   fallback: ModulePreviewHistoryFallback
@@ -442,6 +447,18 @@ export const registerModulePreviewHistoryFallback = (
   return {
     dispose: () => {
       if (modulePreviewHistoryFallback === fallback) modulePreviewHistoryFallback = previous;
+    }
+  };
+};
+
+export const registerModulePreviewBakeFallback = (
+  fallback: ModulePreviewBakeFallback
+): vscode.Disposable => {
+  const previous = modulePreviewBakeFallback;
+  modulePreviewBakeFallback = fallback;
+  return {
+    dispose: () => {
+      if (modulePreviewBakeFallback === fallback) modulePreviewBakeFallback = previous;
     }
   };
 };
@@ -644,12 +661,14 @@ export const activate = (context: vscode.ExtensionContext): void => {
     return activeEditor && sameDocument(activeEditor.document, document) ? activeEditor : undefined;
   };
 
-  const bakeSurfaceForCommand = ():
+  const bakeSurfaceForCommand = (options: { skipActiveCanvas?: boolean } = {}):
     | { kind: "canvas"; session: DocumentSession }
     | { kind: "source"; editor: vscode.TextEditor }
     | null => {
-    const activeCanvas = activeCanvasSessionForBake();
-    if (activeCanvas) return { kind: "canvas", session: activeCanvas };
+    if (!options.skipActiveCanvas) {
+      const activeCanvas = activeCanvasSessionForBake();
+      if (activeCanvas) return { kind: "canvas", session: activeCanvas };
+    }
 
     const activeSource = activeNuiTextEditorForCommand();
     if (activeSource) {
@@ -2174,7 +2193,17 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
   const executeBakeCommand = (mode: "current" | "base"): void => {
     const settings = bakeSettings();
-    const surface = bakeSurfaceForCommand();
+    const activeCanvas = activeCanvasSessionForBake();
+    if (activeCanvas) {
+      void activeCanvas.panel.webview.postMessage({
+        type: "canvasCommand",
+        commandId: mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
+        ...settings
+      } satisfies ExtensionToVscodeMessage);
+      return;
+    }
+    if (modulePreviewBakeFallback?.(mode, settings)) return;
+    const surface = bakeSurfaceForCommand({ skipActiveCanvas: true });
     if (surface?.kind === "canvas") {
       const canvasSession = surface.session;
       void canvasSession.panel.webview.postMessage({

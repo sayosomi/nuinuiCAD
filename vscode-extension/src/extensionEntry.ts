@@ -10,6 +10,7 @@ import {
 import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
+  registerModulePreviewBakeFallback,
   registerModulePreviewHistoryFallback,
   deactivate as deactivateExtension
 } from "./extension";
@@ -144,6 +145,10 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     feature,
+    registerModulePreviewBakeFallback((mode, settings) => feature.postBakeCommandIfActive(
+      mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
+      settings
+    )),
     registerModulePreviewHistoryFallback((direction) => feature.handoffNativeHistoryIfActive(direction)),
     registerModulePreviewParametersFeature(context, feature),
     ...registerModulePreviewCommands(feature),

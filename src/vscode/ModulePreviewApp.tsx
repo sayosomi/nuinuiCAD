@@ -19,7 +19,14 @@ import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from ".
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
+import { evaluateElementsWithRust } from "../geometry/evaluationEngine";
 import { applyLineSplices } from "../document/textPatch";
+import {
+  planBakeGeometry,
+  resolveDisabledBakeTargetIds,
+  resolveModulePreviewBakeTargets,
+  type BakeResolvedTarget
+} from "../commands/bakeGeometry";
 import { buildModuleOwnerElementPatch } from "../document/moduleModelBridge";
 import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
 import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
@@ -31,6 +38,7 @@ import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePic
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
+  VscodeBakeSettings,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSnapshot,
   VscodeWebviewApi
@@ -73,12 +81,54 @@ type ModulePreviewDragProof = {
   targetDefinitionStatementId: string;
   previewRevision: number;
   materialization: ModulePreviewRootResult["moduleMaterialization"];
-  runtimeElementId: string | null;
-  sourceStatementId: string | null;
+  sourceOwners: ModulePreviewSourceOwnerProof[];
   baseElements: CadElement[];
   baseEvaluation: EvaluationResult;
   evaluationRevision: number;
 };
+
+type ModulePreviewSourceOwnerProof = {
+  runtimeElementId: string;
+  sourceStatementId: string;
+};
+
+type ModulePreviewAuthority = {
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+  normalizedSource: string;
+  sourceRevision: number;
+  targetDefinitionStatementId: string;
+  previewRevision: number;
+  materialization: ModulePreviewRootResult["moduleMaterialization"];
+  authoredCompiled: ReturnType<AutomationDocument["getState"]>["doc"];
+  elements: CadElement[];
+  evaluationOptions: ValidModulePreview["evaluationOptions"];
+  evaluation: EvaluationResult;
+  evaluationRevision: number;
+  evaluationRequestRevision: number;
+};
+
+type ModulePreviewBakeProof = ModulePreviewAuthority & {
+  selectedRuntimeElementIds: string[];
+  resolvedTargets: BakeResolvedTarget[];
+  sourceOwners: ModulePreviewSourceOwnerProof[];
+};
+
+const bakeTargetsSignature = (targets: readonly BakeResolvedTarget[]) => JSON.stringify(
+  targets.map((target) => ({
+    targetId: target.targetId,
+    runtimeElementIds: target.runtimeElementIds,
+    sourceElementId: target.sourceElementId,
+    instanceBaseId: target.instanceBaseId,
+    insertionStatementIndex: target.insertionStatementIndex,
+    insertionParentGroupId: target.insertionParentGroupId,
+    sourceLabel: target.sourceLabel,
+    wholeInstance: target.wholeInstance
+  }))
+);
+
+const sourceOwnersSignature = (owners: readonly ModulePreviewSourceOwnerProof[]) => JSON.stringify(owners);
 
 const diagnosticMessagesFor = (document: AutomationDocument): string[] => {
   const state = document.getState();
@@ -355,7 +405,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     }, nextStatusMessages);
   }, [applyValidPreview, clearEphemeralPreview, previewSession, publishParameterSnapshot, publishParameterUnavailable]);
 
-  const currentDragAuthority = useCallback(() => {
+  const currentPreviewAuthority = useCallback((): ModulePreviewAuthority | null => {
     const document = automationDocumentRef.current;
     const activePreview = previewRef.current;
     const session = previewSession.getState();
@@ -372,14 +422,15 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       !sessionId ||
       !documentUri ||
       documentVersion === null ||
+      ephemeralElementsRef.current !== null ||
       !evaluationStateIsCurrentFor(currentEvaluationState, activePreview.revision)
     ) return null;
 
     const documentState = document.getState();
     const normalizedSource = normalizedSourceFor(document.getSource());
-    const sourceRevision = documentState.currentCompiled.spans.sourceMap.sourceRevision;
+    const sourceRevision = documentState.doc.spans.sourceMap.sourceRevision;
     if (
-      documentState.currentCompiled.spans.sourceMap.source !== normalizedSource ||
+      documentState.doc.spans.sourceMap.source !== normalizedSource ||
       session.sourceRevision !== sourceRevision ||
       activePreview.root.target.definitionStatementId !== session.target.definitionStatementId
     ) return null;
@@ -392,19 +443,31 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       targetDefinitionStatementId: session.target.definitionStatementId,
       previewRevision: activePreview.revision,
       materialization: activePreview.root.moduleMaterialization,
-      baseElements: activePreview.root.compileResult.elements,
-      baseEvaluation: currentEvaluationState.evaluation,
-      evaluationRevision: currentEvaluationState.evaluationRevision
+      authoredCompiled: documentState.doc,
+      elements: activePreview.root.compileResult.elements,
+      evaluationOptions: activePreview.evaluationOptions,
+      evaluation: currentEvaluationState.evaluation,
+      evaluationRevision: currentEvaluationState.evaluationRevision,
+      evaluationRequestRevision: currentEvaluationState.evaluationRequestRevision
     };
   }, [previewSession]);
+
+  const currentDragAuthority = useCallback(() => {
+    const authority = currentPreviewAuthority();
+    if (!authority) return null;
+    return {
+      ...authority,
+      baseElements: authority.elements,
+      baseEvaluation: authority.evaluation
+    };
+  }, [currentPreviewAuthority]);
 
   const captureDragProof = useCallback((): ModulePreviewDragProof | null => {
     const authority = currentDragAuthority();
     if (!authority) return null;
     const proof: ModulePreviewDragProof = {
       ...authority,
-      runtimeElementId: null,
-      sourceStatementId: null
+      sourceOwners: []
     };
     dragProofRef.current = proof;
     return proof;
@@ -449,7 +512,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const document = automationDocumentRef.current;
     const activePreview = previewRef.current;
     if (!document || !activePreview) return null;
-    if (proof.runtimeElementId !== null && proof.runtimeElementId !== action.elementId) return null;
+    const existingOwner = proof.sourceOwners[0];
+    if (existingOwner && existingOwner.runtimeElementId !== action.elementId) return null;
     const documentState = document.getState();
     const owner = sourceOwnerForRuntimeElementId({
       statementMap: documentState.doc.statementMap,
@@ -457,9 +521,13 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       moduleRuntimeContext: documentState.doc.moduleRuntimeContext
     }, action.elementId);
     if (!owner || owner.kind !== "moduleBody") return null;
-    if (proof.sourceStatementId !== null && proof.sourceStatementId !== owner.sourceStatementId) return null;
-    proof.runtimeElementId = action.elementId;
-    proof.sourceStatementId = owner.sourceStatementId;
+    if (existingOwner && existingOwner.sourceStatementId !== owner.sourceStatementId) return null;
+    if (!existingOwner) {
+      proof.sourceOwners.push({
+        runtimeElementId: action.elementId,
+        sourceStatementId: owner.sourceStatementId
+      });
+    }
     return owner;
   }, []);
 
@@ -567,8 +635,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceRevision: proof.sourceRevision,
       targetDefinitionStatementId: proof.targetDefinitionStatementId,
       previewRevision: proof.previewRevision,
-      runtimeElementId: proof.runtimeElementId ?? action.elementId,
-      sourceStatementId: proof.sourceStatementId ?? owner.sourceStatementId,
+      sourceOwners: proof.sourceOwners,
       splices: patch.splices,
       expectedPatchedSource
     };
@@ -582,6 +649,199 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     }
     return { status: "pending" };
   }, [api, clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
+
+  const sourceOwnersForBakeTargets = useCallback((
+    authority: ModulePreviewAuthority,
+    targets: readonly BakeResolvedTarget[]
+  ): ModulePreviewSourceOwnerProof[] | null => {
+    const sourceOwnershipDocument = {
+      statementMap: authority.authoredCompiled.statementMap,
+      moduleMaterialization: authority.materialization,
+      moduleRuntimeContext: authority.authoredCompiled.moduleRuntimeContext
+    };
+    const runtimeElementIds = [...new Set(targets.flatMap((target) => [
+      target.targetId,
+      ...target.runtimeElementIds
+    ]))];
+    const owners: ModulePreviewSourceOwnerProof[] = [];
+    for (const runtimeElementId of runtimeElementIds) {
+      const owner = sourceOwnerForRuntimeElementId(sourceOwnershipDocument, runtimeElementId);
+      if (!owner) return null;
+      owners.push({ runtimeElementId, sourceStatementId: owner.sourceStatementId });
+    }
+    return owners;
+  }, []);
+
+  const captureBakeProof = useCallback((): ModulePreviewBakeProof | null => {
+    const authority = currentPreviewAuthority();
+    if (!authority) return null;
+    const selectedRuntimeElementIds = [...useCadUiStore.getState().selectedElementIds];
+    const resolvedTargets = resolveModulePreviewBakeTargets({
+      authoredCompiled: authority.authoredCompiled,
+      previewMaterialization: authority.materialization,
+      elements: authority.elements,
+      selectedElementIds: selectedRuntimeElementIds
+    });
+    const sourceOwners = sourceOwnersForBakeTargets(authority, resolvedTargets);
+    if (!sourceOwners) return null;
+    return {
+      ...authority,
+      selectedRuntimeElementIds,
+      resolvedTargets,
+      sourceOwners
+    };
+  }, [currentPreviewAuthority, sourceOwnersForBakeTargets]);
+
+  const bakeProofIsCurrent = useCallback((proof: ModulePreviewBakeProof): boolean => {
+    const authority = currentPreviewAuthority();
+    if (!authority) return false;
+    const selectedRuntimeElementIds = [...useCadUiStore.getState().selectedElementIds];
+    if (
+      authority.sessionId !== proof.sessionId ||
+      authority.documentUri !== proof.documentUri ||
+      authority.documentVersion !== proof.documentVersion ||
+      authority.normalizedSource !== proof.normalizedSource ||
+      authority.sourceRevision !== proof.sourceRevision ||
+      authority.targetDefinitionStatementId !== proof.targetDefinitionStatementId ||
+      authority.previewRevision !== proof.previewRevision ||
+      authority.materialization !== proof.materialization ||
+      authority.evaluation !== proof.evaluation ||
+      authority.evaluationRevision !== proof.evaluationRevision ||
+      authority.evaluationRequestRevision !== proof.evaluationRequestRevision ||
+      selectedRuntimeElementIds.length !== proof.selectedRuntimeElementIds.length ||
+      selectedRuntimeElementIds.some((id, index) => id !== proof.selectedRuntimeElementIds[index])
+    ) return false;
+    const resolvedTargets = resolveModulePreviewBakeTargets({
+      authoredCompiled: authority.authoredCompiled,
+      previewMaterialization: authority.materialization,
+      elements: authority.elements,
+      selectedElementIds: selectedRuntimeElementIds
+    });
+    const sourceOwners = sourceOwnersForBakeTargets(authority, resolvedTargets);
+    return sourceOwners !== null &&
+      bakeTargetsSignature(resolvedTargets) === bakeTargetsSignature(proof.resolvedTargets) &&
+      sourceOwnersSignature(sourceOwners) === sourceOwnersSignature(proof.sourceOwners);
+  }, [currentPreviewAuthority, sourceOwnersForBakeTargets]);
+
+  const executeModulePreviewBake = useCallback(async (
+    commandId: Extract<VscodeCanvasCommandId, "bakeCurrentShape" | "bakeBaseShape">,
+    settings: VscodeBakeSettings
+  ): Promise<void> => {
+    const proof = captureBakeProof();
+    if (!proof) {
+      setStatusMessages(["Module Preview Bake was rejected because its state is not exact-current."]);
+      return;
+    }
+    if (proof.resolvedTargets.length === 0) {
+      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      return;
+    }
+
+    const mode = commandId === "bakeCurrentShape" ? "current" : "base";
+    const disabledTargetIds = settings.includeDisabledGeometry
+      ? resolveDisabledBakeTargetIds({
+          compiled: proof.authoredCompiled,
+          elements: proof.elements,
+          resolvedTargets: proof.resolvedTargets
+        })
+      : [];
+    let bakeDisabledEvaluation: EvaluationResult | undefined;
+    if (disabledTargetIds.length > 0) {
+      try {
+        bakeDisabledEvaluation = await evaluateElementsWithRust(
+          proof.elements,
+          {
+            ...proof.evaluationOptions,
+            allowDisabledElementIds: new Set(disabledTargetIds)
+          },
+          rustTransport.transport
+        );
+      } catch {
+        setStatusMessages(["Module Preview Bake用のdisabled geometry評価に失敗しました。"]);
+        return;
+      }
+      if (!bakeProofIsCurrent(proof)) {
+        setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+        return;
+      }
+      const currentAuthority = currentPreviewAuthority();
+      if (!currentAuthority) {
+        setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+        return;
+      }
+      const currentTargets = resolveModulePreviewBakeTargets({
+        authoredCompiled: currentAuthority.authoredCompiled,
+        previewMaterialization: currentAuthority.materialization,
+        elements: currentAuthority.elements,
+        selectedElementIds: proof.selectedRuntimeElementIds
+      });
+      const currentDisabledTargetIds = resolveDisabledBakeTargetIds({
+        compiled: currentAuthority.authoredCompiled,
+        elements: currentAuthority.elements,
+        resolvedTargets: currentTargets
+      });
+      if (
+        disabledTargetIds.length !== currentDisabledTargetIds.length ||
+        disabledTargetIds.some((id, index) => id !== currentDisabledTargetIds[index])
+      ) {
+        setStatusMessages(["Module Preview Bake was rejected because its disabled targets became stale."]);
+        return;
+      }
+    }
+
+    if (!bakeProofIsCurrent(proof)) {
+      setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+      return;
+    }
+    const document = automationDocumentRef.current;
+    if (!document) return;
+    const plan = planBakeGeometry({
+      mode,
+      elements: proof.elements,
+      evaluation: proof.evaluation,
+      baseEvaluation: proof.evaluation,
+      ...(bakeDisabledEvaluation ? { bakeDisabledEvaluation } : {}),
+      compiled: proof.authoredCompiled,
+      resolvedTargets: proof.resolvedTargets,
+      emitSkippedComments: settings.emitSkippedComments,
+      includeHiddenGeometry: settings.includeHiddenGeometry,
+      includeDisabledGeometry: settings.includeDisabledGeometry
+    });
+    if (!plan || plan.splices.length === 0) {
+      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      return;
+    }
+    let expectedPatchedSource: string;
+    try {
+      expectedPatchedSource = applyLineSplices(document.getSource(), plan.splices);
+    } catch (error) {
+      setStatusMessages([error instanceof Error ? error.message : String(error)]);
+      return;
+    }
+    const operationId = nextModelPatchOperationIdRef.current++;
+    const request: VscodeModulePreviewModelPatchRequest = {
+      type: "modulePreviewModelPatch",
+      operationId,
+      sessionId: proof.sessionId,
+      documentUri: proof.documentUri,
+      expectedDocumentVersion: proof.documentVersion,
+      normalizedSource: proof.normalizedSource,
+      sourceRevision: proof.sourceRevision,
+      targetDefinitionStatementId: proof.targetDefinitionStatementId,
+      previewRevision: proof.previewRevision,
+      sourceOwners: proof.sourceOwners,
+      splices: plan.splices,
+      expectedPatchedSource
+    };
+    clearEphemeralPreview();
+    pendingModelPatchOperationIdRef.current = operationId;
+    try {
+      api.postMessage(request);
+    } catch (error) {
+      pendingModelPatchOperationIdRef.current = null;
+      setStatusMessages([error instanceof Error ? error.message : String(error)]);
+    }
+  }, [api, bakeProofIsCurrent, captureBakeProof, clearEphemeralPreview, currentPreviewAuthority, rustTransport.transport]);
 
   const executeSharedCanvasCommand = useCallback((commandId: VscodeCanvasCommandId) => {
     if (!nonWritingCanvasCommands.has(commandId)) return;
@@ -724,7 +984,17 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         setCanvasRibbonRibbons(message.ribbons);
         return;
       }
-      if (message.type === "canvasCommand") executeSharedCanvasCommand(message.commandId);
+      if (message.type === "canvasCommand") {
+        if (message.commandId === "bakeCurrentShape" || message.commandId === "bakeBaseShape") {
+          void executeModulePreviewBake(message.commandId, {
+            emitSkippedComments: message.emitSkippedComments ?? true,
+            includeHiddenGeometry: message.includeHiddenGeometry ?? false,
+            includeDisabledGeometry: message.includeDisabledGeometry ?? false
+          });
+          return;
+        }
+        executeSharedCanvasCommand(message.commandId);
+      }
     };
     window.addEventListener("message", onMessage);
     api.postMessage({ type: "webviewReady" });
@@ -732,7 +1002,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, applySessionSnapshot, clearEphemeralPreview, compileTargetAt, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
+  }, [api, applySessionSnapshot, clearEphemeralPreview, compileTargetAt, executeModulePreviewBake, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();

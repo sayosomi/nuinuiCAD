@@ -200,8 +200,10 @@ export type VscodeModulePreviewModelPatchRequest = {
   sourceRevision: number;
   targetDefinitionStatementId: StatementIdentity;
   previewRevision: number;
-  runtimeElementId: string;
-  sourceStatementId: StatementIdentity;
+  sourceOwners: readonly {
+    runtimeElementId: string;
+    sourceStatementId: StatementIdentity;
+  }[];
   splices: readonly LineSplice[];
   expectedPatchedSource: string;
 };

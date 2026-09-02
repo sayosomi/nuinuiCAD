@@ -385,7 +385,7 @@ vi.mock("./elementsTreeFeature", async (importOriginal) => {
   };
 });
 
-import { activate, registerModulePreviewHistoryFallback } from "./extension";
+import { activate, registerModulePreviewBakeFallback, registerModulePreviewHistoryFallback } from "./extension";
 
 const disposable = () => ({ dispose: vi.fn() });
 
@@ -1803,6 +1803,50 @@ describe("VS Code production document lifecycle", () => {
       includeHiddenGeometry: true,
       includeDisabledGeometry: true
     });
+  });
+
+  it.each([
+    ["current", "nuinuiCAD.bakeCurrentShape"],
+    ["base", "nuinuiCAD.bakeBaseShape"]
+  ] as const)("routes active Module Preview Bake %s with the existing settings", (mode, command) => {
+    mocks.bakeSettings = {
+      "nuinuiCAD.bake.emitSkippedComments": false,
+      "nuinuiCAD.bake.includeHiddenGeometry": true,
+      "nuinuiCAD.bake.includeDisabledGeometry": true
+    };
+    setup();
+    const canvasPanel = openPanelFor();
+    canvasPanel.active = false;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.modulePreview");
+    const fallback = vi.fn(() => true);
+    const registration = registerModulePreviewBakeFallback(fallback);
+
+    commandHandlerFor(command)?.();
+
+    expect(fallback).toHaveBeenCalledWith(mode, {
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
+    expect(canvasPanel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+    registration.dispose();
+  });
+
+  it("keeps active normal Canvas Bake precedence ahead of Module Preview fallback", () => {
+    setup();
+    const canvasPanel = openPanelFor();
+    const fallback = vi.fn(() => true);
+    const registration = registerModulePreviewBakeFallback(fallback);
+
+    commandHandlerFor("nuinuiCAD.bakeCurrentShape")?.();
+
+    expect(fallback).not.toHaveBeenCalled();
+    expect(canvasPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape"
+    }));
+    registration.dispose();
   });
 
   it("keeps Bake routed to the last active Canvas while the Command Palette owns focus", () => {

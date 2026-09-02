@@ -1,5 +1,6 @@
 import type { LastGoodDslDocument } from "../document/canonicalDocument";
-import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
+import { sourceOwnerForRuntimeElementId, type SourceOwnershipDocument } from "../dsl/sourceOwnership";
+import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import { serializeElementStatementLogical } from "../dsl/dslSerializeElement";
 import type { DslSerializerRefs } from "../dsl/dslSerializer";
 import { createCadElementId } from "../model/cadIds";
@@ -38,7 +39,7 @@ type BakePrimitive =
       end: { x: number; y: number };
     };
 
-type ResolvedBakeTarget = {
+export type BakeResolvedTarget = {
   targetId: ElementId;
   runtimeElementIds: ElementId[];
   sourceElementId: ElementId;
@@ -198,33 +199,41 @@ const sourceTargetLabel = (element: CadElement | undefined) => {
 };
 
 const sourceOwnerForTarget = (
-  compiled: LastGoodDslDocument,
+  sourceOwnershipDocument: SourceOwnershipDocument,
   runtimeElementId: ElementId
-) => sourceOwnerForRuntimeElementId(compiled, runtimeElementId);
+) => sourceOwnerForRuntimeElementId(sourceOwnershipDocument, runtimeElementId);
 
-const rootInstanceOwner = (compiled: LastGoodDslDocument, runtimeElementId: ElementId) => {
-  const origin = compiled.moduleMaterialization?.originByRuntimeElementId.get(runtimeElementId);
+const rootInstanceOwner = (sourceOwnershipDocument: SourceOwnershipDocument, runtimeElementId: ElementId) => {
+  const materialization = sourceOwnershipDocument.moduleMaterialization;
+  const origin = materialization?.originByRuntimeElementId.get(runtimeElementId);
   const rootIdentity = origin?.instancePath[0];
   if (!rootIdentity) return null;
-  const root = compiled.moduleMaterialization?.executionStatements.find(
+  const root = materialization?.executionStatements.find(
     (entry) => entry.type === "moduleInstance" && entry.instancePath.length === 1 && entry.instancePath[0] === rootIdentity
   );
-  return root ? sourceOwnerForTarget(compiled, root.runtimeElementId) : null;
+  return root ? sourceOwnerForTarget(sourceOwnershipDocument, root.runtimeElementId) : null;
 };
 
 const targetForRuntimeElement = (
   compiled: LastGoodDslDocument,
   elementsById: ReadonlyMap<ElementId, CadElement>,
   runtimeElementId: ElementId,
-  wholeInstance: boolean
-): ResolvedBakeTarget | null => {
-  const owner = sourceOwnerForTarget(compiled, runtimeElementId);
+  wholeInstance: boolean,
+  options: {
+    sourceOwnershipDocument: SourceOwnershipDocument;
+    materialization?: ModuleMaterialization;
+    redirectModuleBody: boolean;
+  }
+): BakeResolvedTarget | null => {
+  const owner = sourceOwnerForTarget(options.sourceOwnershipDocument, runtimeElementId);
   if (!owner) return null;
   const element = elementsById.get(runtimeElementId);
   if (!element || elementTypesWithoutOwnDrawableGeometry.has(element.type)) return null;
-  const sourceOwner = owner.kind === "moduleBody" ? rootInstanceOwner(compiled, runtimeElementId) : owner;
+  const sourceOwner = options.redirectModuleBody && owner.kind === "moduleBody"
+    ? rootInstanceOwner(options.sourceOwnershipDocument, runtimeElementId)
+    : owner;
   if (!sourceOwner) return null;
-  const snapshot = compiled.moduleMaterialization?.instanceBaseGeometrySnapshots.find(
+  const snapshot = options.materialization?.instanceBaseGeometrySnapshots.find(
     (candidate) => candidate.instanceId === runtimeElementId
   );
   const runtimeElementIds = wholeInstance && snapshot
@@ -237,7 +246,7 @@ const targetForRuntimeElement = (
     ...(wholeInstance ? { instanceBaseId: runtimeElementId } : {}),
     insertionStatementIndex: sourceOwner.statement.statementIndex,
     insertionParentGroupId: element?.type === "moduleInstance" ? element.parentGroupId :
-      compiled.moduleMaterialization?.executionStatements.find((entry) => entry.runtimeElementId === sourceOwner.runtimeElementId)?.parentGroupId ??
+      options.materialization?.executionStatements.find((entry) => entry.runtimeElementId === sourceOwner.runtimeElementId)?.parentGroupId ??
       elementsById.get(sourceOwner.runtimeElementId)?.parentGroupId,
     sourceLabel: sourceTargetLabel(element),
     wholeInstance
@@ -248,32 +257,91 @@ const resolveCanvasTargets = (
   compiled: LastGoodDslDocument,
   elements: readonly CadElement[],
   selectedElementIds: readonly ElementId[]
-): ResolvedBakeTarget[] => {
+): BakeResolvedTarget[] => {
+  const sourceOwnershipDocument: SourceOwnershipDocument = compiled;
+  const materialization = compiled.moduleMaterialization;
+  return resolveRuntimeTargets({
+    compiled,
+    elements,
+    selectedElementIds,
+    sourceOwnershipDocument,
+    materialization,
+    redirectModuleBody: true
+  });
+};
+
+const resolveRuntimeTargets = ({
+  compiled,
+  elements,
+  selectedElementIds,
+  sourceOwnershipDocument,
+  materialization,
+  redirectModuleBody
+}: {
+  compiled: LastGoodDslDocument;
+  elements: readonly CadElement[];
+  selectedElementIds: readonly ElementId[];
+  sourceOwnershipDocument: SourceOwnershipDocument;
+  materialization?: ModuleMaterialization;
+  redirectModuleBody: boolean;
+}): BakeResolvedTarget[] => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const selected = new Set(selectedElementIds);
   const covered = new Set<ElementId>();
-  const targets: ResolvedBakeTarget[] = [];
+  const targets: BakeResolvedTarget[] = [];
   for (const element of elements) {
     if (!selected.has(element.id) || covered.has(element.id)) continue;
     if (element.type === "moduleInstance") {
-      const target = targetForRuntimeElement(compiled, elementsById, element.id, true);
+      const target = targetForRuntimeElement(compiled, elementsById, element.id, true, {
+        sourceOwnershipDocument,
+        materialization,
+        redirectModuleBody
+      });
       if (!target) continue;
       targets.push(target);
       for (const id of target.runtimeElementIds) covered.add(id);
       covered.add(element.id);
       continue;
     }
-    const target = targetForRuntimeElement(compiled, elementsById, element.id, false);
+    const target = targetForRuntimeElement(compiled, elementsById, element.id, false, {
+      sourceOwnershipDocument,
+      materialization,
+      redirectModuleBody
+    });
     if (target) targets.push(target);
   }
   return targets;
 };
 
+/** Resolve selected Module Preview runtime elements against authored source owners. */
+export const resolveModulePreviewBakeTargets = ({
+  authoredCompiled,
+  previewMaterialization,
+  elements,
+  selectedElementIds
+}: {
+  authoredCompiled: LastGoodDslDocument;
+  previewMaterialization: ModuleMaterialization;
+  elements: readonly CadElement[];
+  selectedElementIds: readonly ElementId[];
+}): BakeResolvedTarget[] => resolveRuntimeTargets({
+  compiled: authoredCompiled,
+  elements,
+  selectedElementIds,
+  sourceOwnershipDocument: {
+    statementMap: authoredCompiled.statementMap,
+    moduleMaterialization: previewMaterialization,
+    moduleRuntimeContext: authoredCompiled.moduleRuntimeContext
+  },
+  materialization: previewMaterialization,
+  redirectModuleBody: false
+});
+
 export const resolveSourceBakeTargets = (
   compiled: LastGoodDslDocument,
   elements: readonly CadElement[],
   sourceStatementIndex: number
-): ResolvedBakeTarget[] | null => {
+): BakeResolvedTarget[] | null => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const entries = compiled.moduleMaterialization?.executionStatements.filter(
     (entry) => entry.sourceStatementIndex === sourceStatementIndex
@@ -288,7 +356,11 @@ export const resolveSourceBakeTargets = (
   return runtimeIds.flatMap((id) => {
     const element = elementsById.get(id);
     if (!element) return [];
-    const target = targetForRuntimeElement(compiled, elementsById, id, element.type === "moduleInstance");
+    const target = targetForRuntimeElement(compiled, elementsById, id, element.type === "moduleInstance", {
+      sourceOwnershipDocument: compiled,
+      materialization: compiled.moduleMaterialization,
+      redirectModuleBody: true
+    });
     return target ? [target] : [];
   });
 };
@@ -303,14 +375,14 @@ const resolveTargetsForInvocation = ({
   elements: readonly CadElement[];
   selectedElementIds?: readonly ElementId[];
   sourceStatementIndex?: number;
-}): ResolvedBakeTarget[] | null => sourceStatementIndex === undefined
+}): BakeResolvedTarget[] | null => sourceStatementIndex === undefined
   ? resolveCanvasTargets(compiled, elements, selectedElementIds ?? [])
   : resolveSourceBakeTargets(compiled, elements, sourceStatementIndex);
 
 const bakeTargetsForResolvedTargets = (
-  targets: readonly ResolvedBakeTarget[],
+  targets: readonly BakeResolvedTarget[],
   elementsById: ReadonlyMap<ElementId, CadElement>
-): ResolvedBakeTarget[] => targets.flatMap((target) => {
+): BakeResolvedTarget[] => targets.flatMap((target) => {
   if (!target.wholeInstance) return [target];
   return target.runtimeElementIds.flatMap((runtimeElementId) => {
     const element = elementsById.get(runtimeElementId);
@@ -328,7 +400,7 @@ const bakeTargetsForResolvedTargets = (
 });
 
 const disabledTargetIdsFor = (
-  targets: readonly ResolvedBakeTarget[],
+  targets: readonly BakeResolvedTarget[],
   elementsById: ReadonlyMap<ElementId, CadElement>,
   effectiveActivities: ReadonlyMap<ElementId, ReturnType<typeof effectiveElementActivity>>
 ) => targets.flatMap((target) => {
@@ -343,20 +415,19 @@ export const resolveDisabledBakeTargetIds = ({
   compiled,
   elements,
   selectedElementIds,
-  sourceStatementIndex
+  sourceStatementIndex,
+  resolvedTargets
 }: {
   compiled: LastGoodDslDocument;
   elements: readonly CadElement[];
   selectedElementIds?: readonly ElementId[];
   sourceStatementIndex?: number;
+  resolvedTargets?: readonly BakeResolvedTarget[] | null;
 }): ElementId[] => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
-  const targets = resolveTargetsForInvocation({
-    compiled,
-    elements,
-    selectedElementIds,
-    sourceStatementIndex
-  });
+  const targets = resolvedTargets === undefined
+    ? resolveTargetsForInvocation({ compiled, elements, selectedElementIds, sourceStatementIndex })
+    : resolvedTargets;
   if (!targets) return [];
   const effectiveActivities = effectiveElementActivityById(elements, compiled.document.modifiers ?? []);
   return disabledTargetIdsFor(
@@ -430,7 +501,7 @@ const serializedPrimitiveLines = (element: CadElement, indent: string): string[]
   return [`${indent}${statement}`];
 };
 
-const statementInfoForTarget = (compiled: LastGoodDslDocument, target: ResolvedBakeTarget) =>
+const statementInfoForTarget = (compiled: LastGoodDslDocument, target: BakeResolvedTarget) =>
   compiled.statementMap.statements[target.insertionStatementIndex];
 
 const planInsertionSplices = (
@@ -462,7 +533,7 @@ const failureCommentText = (reason: BakeFailureReason) => {
   }
 };
 
-const makeComment = (target: ResolvedBakeTarget, reason: BakeFailureReason) =>
+const makeComment = (target: BakeResolvedTarget, reason: BakeFailureReason) =>
   `// Bake skipped: ${target.sourceLabel} — ${failureCommentText(reason)}`;
 
 export const planBakeGeometry = ({
@@ -476,7 +547,8 @@ export const planBakeGeometry = ({
   sourceStatementIndex,
   emitSkippedComments = true,
   includeHiddenGeometry = false,
-  includeDisabledGeometry = false
+  includeDisabledGeometry = false,
+  resolvedTargets
 }: {
   mode: BakeMode;
   elements: readonly CadElement[];
@@ -489,16 +561,14 @@ export const planBakeGeometry = ({
   emitSkippedComments?: boolean;
   includeHiddenGeometry?: boolean;
   includeDisabledGeometry?: boolean;
+  resolvedTargets?: readonly BakeResolvedTarget[] | null;
 }): BakePlan | null => {
   if (!evaluation.evaluatedElementIds || !evaluation.effectiveEnabledElementIds) return null;
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const effectiveActivities = effectiveElementActivityById(elements, compiled.document.modifiers ?? []);
-  const targets = resolveTargetsForInvocation({
-    compiled,
-    elements,
-    selectedElementIds,
-    sourceStatementIndex
-  });
+  const targets = resolvedTargets === undefined
+    ? resolveTargetsForInvocation({ compiled, elements, selectedElementIds, sourceStatementIndex })
+    : resolvedTargets;
   if (!targets || targets.length === 0) return null;
 
   const bakeTargets = bakeTargetsForResolvedTargets(targets, elementsById);

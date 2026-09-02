@@ -8,7 +8,14 @@ import { evaluateElements } from "../geometry/evaluate";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { buildRustEvaluationInput } from "../geometry/rustEvaluationInput";
-import { planBakeGeometry, resolveDisabledBakeTargetIds, resolveSourceBakeTargets } from "./bakeGeometry";
+import { buildModulePreviewEvaluationOptions } from "../vscode/modulePreviewEvaluation";
+import { compileModulePreviewRoot } from "../dsl/modulePreviewRoot";
+import {
+  planBakeGeometry,
+  resolveDisabledBakeTargetIds,
+  resolveModulePreviewBakeTargets,
+  resolveSourceBakeTargets
+} from "./bakeGeometry";
 
 const compile = (source: string) => {
   const result = compileFreshCanonicalText(source);
@@ -50,6 +57,33 @@ const evaluateWithProductionRust = (compiled: ReturnType<typeof compile>) => {
     input: `${JSON.stringify({ id: 1, input })}\n`
   })) as { payload: EvaluationPayload };
   return evaluationPayloadToResult(response.payload);
+};
+
+const previewFor = (compiled: ReturnType<typeof compile>, name: string) => {
+  const definition = compiled.doc.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === name);
+  if (!definition) throw new Error(`expected Module definition ${name}`);
+  const root = compileModulePreviewRoot({
+    source: {
+      normalizedSource: compiled.sourceText,
+      sourceRevision: compiled.doc.statementMap.sourceRevision
+    },
+    semantic: {
+      sourceRevision: compiled.doc.statementMap.sourceRevision,
+      sourceText: compiled.sourceText,
+      compiled: compiled.doc
+    },
+    target: {
+      definitionStatementId: definition.statementId,
+      definitionStatementIndex: definition.statementIndex,
+      name: definition.name
+    }
+  });
+  if (!root) throw new Error(`expected Module Preview root for ${name}`);
+  const evaluation = evaluateElements(
+    root.compileResult.elements,
+    buildModulePreviewEvaluationOptions(root)
+  );
+  return { root, evaluation };
 };
 
 describe("Bake geometry", () => {
@@ -158,6 +192,174 @@ describe("Bake geometry", () => {
     });
     expect(plan).toBeNull();
     expect(applyLineSplices(compiled.sourceText, plan?.splices ?? [])).toBe(compiled.sourceText);
+  });
+
+  it("bakes a Preview materialized leaf beside its real authored Module-body statement", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Reusable() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "  line Tail = segment(start: (0, 0), end: (5, 0))",
+      "}",
+      "instance Call = Reusable()"
+    ].join("\n"));
+    const { root, evaluation } = previewFor(compiled, "Reusable");
+    const bodyEntry = root.moduleMaterialization.executionStatements.find(
+      (entry) => root.targetRuntimeElementIds.includes(entry.runtimeElementId) &&
+        entry.origin?.kind === "moduleBody" && entry.type === "freePoint"
+    );
+    if (!bodyEntry) throw new Error("expected Preview body point");
+    const targets = resolveModulePreviewBakeTargets({
+      authoredCompiled: compiled.doc,
+      previewMaterialization: root.moduleMaterialization,
+      elements: root.compileResult.elements,
+      selectedElementIds: [bodyEntry.runtimeElementId]
+    });
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetId: bodyEntry.runtimeElementId,
+      insertionStatementIndex: bodyEntry.sourceStatementIndex,
+      wholeInstance: false
+    });
+    expect(targets[0]?.insertionStatementIndex).not.toBe(
+      root.moduleMaterialization.executionStatements.find((entry) => entry.type === "moduleInstance")?.sourceStatementIndex
+    );
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: root.compileResult.elements,
+      evaluation,
+      baseEvaluation: evaluation,
+      compiled: compiled.doc,
+      resolvedTargets: targets
+    });
+    const patched = applyLineSplices(compiled.sourceText, plan!.splices);
+    expect(patched.indexOf("point P =")).toBeLessThan(patched.indexOf("point P_bake"));
+    expect(patched.indexOf("point P_bake")).toBeLessThan(patched.indexOf("line Tail ="));
+    expect(patched).not.toContain("_module_preview");
+  });
+
+  it("uses exact authored call-site ownership for a real nested Preview Module instance", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Inner() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "module Outer() {",
+      "  instance InnerCall = Inner()",
+      "}",
+      "instance Root = Outer()"
+    ].join("\n"));
+    const { root, evaluation } = previewFor(compiled, "Outer");
+    const nested = root.moduleMaterialization.executionStatements.find(
+      (entry) => root.targetRuntimeElementIds.includes(entry.runtimeElementId) &&
+        entry.type === "moduleInstance" && entry.origin?.sourceStatementId === compiled.doc.moduleSemanticAnalysis?.instances
+        .find((instance) => instance.statementId === entry.origin?.sourceStatementId)?.statementId
+    );
+    if (!nested) throw new Error("expected nested Preview instance");
+    const callStatement = compiled.doc.statementMap.statementRangeById.get(nested.origin!.sourceStatementId);
+    if (!callStatement) throw new Error("expected authored nested call site");
+    const targets = resolveModulePreviewBakeTargets({
+      authoredCompiled: compiled.doc,
+      previewMaterialization: root.moduleMaterialization,
+      elements: root.compileResult.elements,
+      selectedElementIds: [nested.runtimeElementId]
+    });
+    expect(targets).toMatchObject([{
+      targetId: nested.runtimeElementId,
+      insertionStatementIndex: callStatement.statementIndex,
+      wholeInstance: true
+    }]);
+    const plan = planBakeGeometry({
+      mode: "current",
+      elements: root.compileResult.elements,
+      evaluation,
+      baseEvaluation: evaluation,
+      compiled: compiled.doc,
+      resolvedTargets: targets
+    });
+    const patched = applyLineSplices(compiled.sourceText, plan!.splices);
+    expect(patched.indexOf("instance InnerCall = Inner()"))
+      .toBeLessThan(patched.indexOf("line L_bake"));
+    expect(patched).not.toContain("instance __module_preview");
+  });
+
+  it("does not plan a patch for the synthetic Preview root and preserves Preview Current/Base", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Reusable() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  reverse(target: @L)",
+      "}",
+      "instance Call = Reusable()"
+    ].join("\n"));
+    const { root, evaluation } = previewFor(compiled, "Reusable");
+    const synthetic = root.targetRuntimeElementId;
+    expect(resolveModulePreviewBakeTargets({
+      authoredCompiled: compiled.doc,
+      previewMaterialization: root.moduleMaterialization,
+      elements: root.compileResult.elements,
+      selectedElementIds: [synthetic]
+    })).toEqual([]);
+    const leaf = root.moduleMaterialization.executionStatements.find(
+      (entry) => root.targetRuntimeElementIds.includes(entry.runtimeElementId) &&
+        entry.origin?.kind === "moduleBody" && entry.type === "line"
+    );
+    if (!leaf) throw new Error("expected Preview line");
+    const targets = resolveModulePreviewBakeTargets({
+      authoredCompiled: compiled.doc,
+      previewMaterialization: root.moduleMaterialization,
+      elements: root.compileResult.elements,
+      selectedElementIds: [leaf.runtimeElementId]
+    });
+    const current = planBakeGeometry({
+      mode: "current",
+      elements: root.compileResult.elements,
+      evaluation,
+      baseEvaluation: evaluation,
+      compiled: compiled.doc,
+      resolvedTargets: targets
+    });
+    const base = planBakeGeometry({
+      mode: "base",
+      elements: root.compileResult.elements,
+      evaluation,
+      baseEvaluation: evaluation,
+      compiled: compiled.doc,
+      resolvedTargets: targets
+    });
+    expect(applyLineSplices(compiled.sourceText, current!.splices)).toContain(
+      "line L_bake = segment(start: (10, 0), end: (0, 0))"
+    );
+    expect(applyLineSplices(compiled.sourceText, base!.splices)).toContain(
+      "line L_bake = segment(start: (0, 0), end: (10, 0))"
+    );
+  });
+
+  it("resolves disabled Preview targets through authored ownership", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Reusable() {",
+      "  line Disabled = segment(start: (0, 0), end: (10, 0), state: disabled)",
+      "}",
+      "instance Call = Reusable()"
+    ].join("\n"));
+    const { root } = previewFor(compiled, "Reusable");
+    const leaf = root.moduleMaterialization.executionStatements.find(
+      (entry) => root.targetRuntimeElementIds.includes(entry.runtimeElementId) &&
+        entry.origin?.kind === "moduleBody" && entry.type === "line"
+    );
+    if (!leaf) throw new Error("expected disabled Preview line");
+    const targets = resolveModulePreviewBakeTargets({
+      authoredCompiled: compiled.doc,
+      previewMaterialization: root.moduleMaterialization,
+      elements: root.compileResult.elements,
+      selectedElementIds: [leaf.runtimeElementId]
+    });
+    expect(resolveDisabledBakeTargetIds({
+      compiled: compiled.doc,
+      elements: root.compileResult.elements,
+      resolvedTargets: targets
+    })).toEqual([leaf.runtimeElementId]);
   });
 
   it("bakes a reversed arc exactly as an explicit clockwise arc", () => {

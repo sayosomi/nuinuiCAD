@@ -152,10 +152,18 @@ source-preserving statement `LineSplice`s through the existing
 exact document/source/target proof and exact patched source before one native
 `TextEditor.edit` transaction. Native VS Code Undo/Redo remains canonical history
 and refreshes Preview through `onDidChangeTextDocument` and stable target identity.
-Synthetic Preview invocation/root and parameter/context state are never persisted;
+Module Preview Bake Current/Base uses the authored current `StatementMap` for
+source ownership and insertion lines together with the current Preview
+`moduleMaterialization` and evaluation. Materialized Module-body leaves insert
+beside their real authored body statements; real nested Module instances insert
+beside their authored call sites in the enclosing Module/body scope. Synthetic
+Preview calls and roots are never writable and no synthetic Preview invocation,
+root, or parameter/context state is persisted. Bake splices use the same
+authoritative TextDocument transaction as point/Bezier commits, so native VS Code
+history remains canonical. Normal Canvas Bake retains its module-body to root
+instance redirect semantics.
 temporary target/input invalidity keeps the session's last-good preview, and loss
 of exact target identity fails closed rather than rebinding by name or ancestor.
-Bake Current/Base remains outside Slice A and is not implemented by this checkpoint.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -937,7 +945,7 @@ existing production evaluation path, and the shared `DrawingCanvas` /
 `CanvasHostAdapter` for rendering and Preview-only ephemeral interactions.
 Canonical source mutation for point/Bezier edits is performed only through the
 host-owned source-patch boundary; Preview parameter/context state, synthetic root
-invocation, Bake, and Reference Pick remain outside this surface lifecycle.
+invocation, and Reference Pick remain outside this surface lifecycle.
 
 Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
@@ -1041,10 +1049,15 @@ VS Code settings `nuinuiCAD.bake.emitSkippedComments`,
 `nuinuiCAD.bake.includeDisabledGeometry`, document-version isolation, and the
 native edit bridge. When disabled geometry is included, the host requests the
 Bake-only sandbox through the same Rust evaluation boundary. The Webview owns
-target resolution and the shared Bake conversion. A source-triggered request keeps
-Source Editor focus where possible, rejects reusable module-definition bodies, and
-is accepted only after the same authoritative source/revision/evaluation checks
-used by navigation.
+target resolution and the shared Bake conversion. Normal Canvas target resolution
+keeps the module-body to root-instance insertion redirect. Module Preview uses
+authored source ownership with Preview materialization: Module-body leaves insert
+in their real Module definition/body scope, real nested Module instances use their
+authored call-site scope, and synthetic Preview calls are never persisted. Its
+final splices use the same authoritative TextDocument transaction as point/Bezier
+commits. A source-triggered request keeps Source Editor focus where possible,
+rejects reusable module-definition bodies, and is accepted only after the same
+authoritative source/revision/evaluation checks used by navigation.
 
 `RustEvaluationProcess` and the shared lazy owner implementation live in
 `src/node/rustEvaluationProcess.ts`. The VS Code compatibility wrapper in

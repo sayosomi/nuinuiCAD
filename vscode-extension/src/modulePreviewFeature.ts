@@ -26,6 +26,7 @@ import type {
   VscodeModulePreviewReferencePickResult,
   VscodeModulePreviewReferencePickStartRequest,
   VscodeCanvasCommandId,
+  VscodeBakeSettings,
   VscodeDocumentChangeReason,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
@@ -55,6 +56,11 @@ const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
   "toggleCanvasPoints"
 ]);
 
+const bakeCanvasCommands = new Set<VscodeCanvasCommandId>([
+  "bakeCurrentShape",
+  "bakeBaseShape"
+]);
+
 type ModulePreviewPendingTarget =
   | { kind: "target"; documentVersion: number; normalizedSourceOffset: number }
   | { kind: "unavailable"; documentVersion: number };
@@ -82,6 +88,7 @@ type ModulePreviewParameterMessage =
 
 export type ModulePreviewFeature = vscode.Disposable & {
   postCanvasCommandIfActive: (commandId: VscodeCanvasCommandId) => boolean;
+  postBakeCommandIfActive: (commandId: VscodeCanvasCommandId, settings: VscodeBakeSettings) => boolean;
   handoffNativeHistoryIfActive: (direction: OutputPreviewHistoryDirection) => boolean;
   attachParameterView: (webview: vscode.Webview) => vscode.Disposable;
 };
@@ -318,8 +325,14 @@ const isModulePreviewModelPatchRequest = (
     Number.isInteger(candidate.previewRevision) &&
     candidate.previewRevision > 0 &&
     typeof candidate.targetDefinitionStatementId === "string" &&
-    typeof candidate.runtimeElementId === "string" &&
-    typeof candidate.sourceStatementId === "string" &&
+    Array.isArray(candidate.sourceOwners) &&
+    candidate.sourceOwners.length > 0 &&
+    candidate.sourceOwners.every((owner) =>
+      typeof owner === "object" && owner !== null &&
+      typeof owner.runtimeElementId === "string" && owner.runtimeElementId.length > 0 &&
+      typeof owner.sourceStatementId === "string" && owner.sourceStatementId.length > 0
+    ) &&
+    new Set(candidate.sourceOwners.map((owner) => owner.runtimeElementId)).size === candidate.sourceOwners.length &&
     typeof candidate.normalizedSource === "string" &&
     typeof candidate.expectedPatchedSource === "string" &&
     Array.isArray(candidate.splices) &&
@@ -1475,6 +1488,17 @@ export const registerModulePreviewFeature = ({
       const session = [...sessions.values()].find((candidate) => candidate.panel.active);
       if (!session) return false;
       void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
+      return true;
+    },
+    postBakeCommandIfActive: (commandId, settings) => {
+      if (!bakeCanvasCommands.has(commandId)) return false;
+      const session = [...sessions.values()].find((candidate) => candidate.panel.active);
+      if (!session) return false;
+      void session.panel.webview.postMessage({
+        type: "canvasCommand",
+        commandId,
+        ...settings
+      } satisfies ExtensionToVscodeMessage);
       return true;
     },
     handoffNativeHistoryIfActive,
