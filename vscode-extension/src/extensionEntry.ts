@@ -10,6 +10,7 @@ import {
 import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
+  registerModulePreviewHistoryFallback,
   deactivate as deactivateExtension
 } from "./extension";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -143,6 +144,7 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     feature,
+    registerModulePreviewHistoryFallback((direction) => feature.handoffNativeHistoryIfActive(direction)),
     registerModulePreviewParametersFeature(context, feature),
     ...registerModulePreviewCommands(feature),
     closeListener,

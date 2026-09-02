@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
+import { compileModulePreviewRoot } from "./modulePreviewRoot";
+import { queryModulePreviewTarget } from "./modulePreviewTarget";
 import {
   sourceOwnerByRuntimeElementId,
   sourceOwnerForRuntimeElementId
@@ -74,5 +76,45 @@ describe("source ownership", () => {
     expect(firstOwner!.statement).toBe(secondOwner!.statement);
     expect(sourceOwnerByRuntimeElementId(compiled).get(firstNestedPoint.id)?.statement).toBe(firstOwner!.statement);
     expect(compiled.statementMap!.statementRangeById.get("stable:3")).toBe(firstOwner!.statement);
+  });
+
+  it("resolves Module Preview descendants to authored body statements and rejects its synthetic root", () => {
+    const source = [
+      "nui 1",
+      "module Preview() {",
+      "  point P = coordinate(x: 1, y: 2)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithStableIds(source);
+    const sourceRevision = compiled.spans.sourceMap.sourceRevision;
+    const target = queryModulePreviewTarget({
+      source: { normalizedSource: source, sourceRevision },
+      position: source.indexOf("module Preview"),
+      semantic: { sourceRevision, compiled }
+    });
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected Preview target");
+    const preview = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision },
+      semantic: { sourceRevision, compiled },
+      target
+    });
+    expect(preview).not.toBeNull();
+    if (!preview) throw new Error("expected Preview root");
+    const ownershipDocument = {
+      statementMap: compiled.statementMap!,
+      moduleMaterialization: preview.moduleMaterialization,
+      moduleRuntimeContext: compiled.moduleRuntimeContext
+    };
+    const descendant = preview.compileResult.elements.find((element) =>
+      element.name === "P" && preview.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(descendant).toBeDefined();
+    expect(sourceOwnerForRuntimeElementId(ownershipDocument, descendant!.id)).toMatchObject({
+      kind: "moduleBody",
+      sourceStatementId: "stable:2",
+      sourceStatementIndex: 2
+    });
+    expect(sourceOwnerForRuntimeElementId(ownershipDocument, preview.targetRuntimeElementId)).toBeNull();
   });
 });

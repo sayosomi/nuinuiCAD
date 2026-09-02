@@ -52,6 +52,8 @@ export type {
   VscodeModulePreviewParameterValueFocus,
   VscodeModulePreviewParameterValueSelectionRestore,
   VscodeModulePreviewParameterActionProof,
+  VscodeModulePreviewModelPatchRequest,
+  VscodeModulePreviewModelPatchResult,
   VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewParameterUseDefault,
   VscodeModulePreviewParameterUseDefaultRequest,

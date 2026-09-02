@@ -2,6 +2,7 @@ import type { StatementIdentity } from "../document/statementIdentity";
 import type { DslModuleParameterType } from "../dsl/dslTypes";
 import type { DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
+import type { LineSplice } from "../document/textPatch";
 
 export type VscodeModulePreviewTarget = {
   type: "modulePreviewTarget";
@@ -188,6 +189,33 @@ export type VscodeModulePreviewParameterUseDefault =
     type: "modulePreviewUseDefault";
   };
 
+/** A proof-carrying, source-preserving geometry edit from Module Preview. */
+export type VscodeModulePreviewModelPatchRequest = {
+  type: "modulePreviewModelPatch";
+  operationId: number;
+  sessionId: string;
+  documentUri: string;
+  expectedDocumentVersion: number;
+  normalizedSource: string;
+  sourceRevision: number;
+  targetDefinitionStatementId: StatementIdentity;
+  previewRevision: number;
+  runtimeElementId: string;
+  sourceStatementId: StatementIdentity;
+  splices: readonly LineSplice[];
+  expectedPatchedSource: string;
+};
+
+export type VscodeModulePreviewModelPatchResult = {
+  type: "modulePreviewModelPatchResult";
+  operationId: number;
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+  status: "applied" | "stale" | "rejected";
+  reason?: string;
+};
+
 export type VscodeModulePreviewParameterViewMessage =
   | { type: "modulePreviewParametersViewReady" }
   | VscodeModulePreviewParameterSetValueRequest
@@ -206,6 +234,9 @@ export type VscodeExtensionToModulePreviewMessage =
   | VscodeModulePreviewParameterUseDefault
   | VscodeModulePreviewParameterValueSelectionRestore
   | VscodeModulePreviewReferencePickStartRequest
-  | VscodeModulePreviewReferencePickCancelRequest;
+  | VscodeModulePreviewReferencePickCancelRequest
+  | VscodeModulePreviewModelPatchResult;
 
-export type VscodeModulePreviewToExtensionMessage = VscodeModulePreviewReferencePickResult;
+export type VscodeModulePreviewToExtensionMessage =
+  | VscodeModulePreviewReferencePickResult
+  | VscodeModulePreviewModelPatchRequest;

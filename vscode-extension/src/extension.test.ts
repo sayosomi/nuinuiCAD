@@ -385,7 +385,7 @@ vi.mock("./elementsTreeFeature", async (importOriginal) => {
   };
 });
 
-import { activate } from "./extension";
+import { activate, registerModulePreviewHistoryFallback } from "./extension";
 
 const disposable = () => ({ dispose: vi.fn() });
 
@@ -1924,6 +1924,38 @@ describe("VS Code production document lifecycle", () => {
 
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "undo" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "redo" });
+  });
+
+  it.each(["undo", "redo"] as const)(
+    "falls back to the active Module Preview for Canvas %s when no Canvas history session owns it",
+    (direction) => {
+      setup();
+      const panel = openPanelFor();
+      panel.active = false;
+      mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.modulePreview");
+      const fallback = vi.fn(() => true);
+      const registration = registerModulePreviewHistoryFallback(fallback);
+
+      commandHandlerFor(direction === "undo" ? "nuinuiCAD.canvasUndo" : "nuinuiCAD.canvasRedo")?.();
+
+      expect(fallback).toHaveBeenCalledWith(direction);
+      expect(mocks.showErrorMessage).not.toHaveBeenCalled();
+      expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
+      registration.dispose();
+    }
+  );
+
+  it("keeps active Canvas history routing ahead of the Module Preview fallback", () => {
+    setup();
+    const panel = openPanelFor();
+    const fallback = vi.fn(() => true);
+    const registration = registerModulePreviewHistoryFallback(fallback);
+
+    commandHandlerFor("nuinuiCAD.canvasUndo")?.();
+
+    expect(fallback).not.toHaveBeenCalled();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "canvasCommand", commandId: "undo" });
+    registration.dispose();
   });
 
   it.each(["undo", "redo"] as const)("uses the requested Canvas history direction when the native change has no explicit reason (%s)", async (direction) => {

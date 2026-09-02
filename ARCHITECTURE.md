@@ -142,11 +142,20 @@ then the Webview re-proves that target against its authoritative source mirror a
 uses `createModulePreviewSession` / `compileModulePreviewRoot` for ephemeral
 parameter/default/last-good semantics and preview-root materialization. It
 evaluates through the existing Rust transport and renders only the target runtime
-elements through the shared `DrawingCanvas` / `CanvasHostAdapter` path. The
-surface is read-only for authored source: source-writing Canvas gestures are not
-routed, temporary target/input invalidity keeps the session's last-good preview,
-and loss of exact target identity fails closed rather than rebinding by name or
-ancestor.
+elements through the shared `DrawingCanvas` / `CanvasHostAdapter` path. Exact-current
+Module target identity and the authoritative `TextDocument` remain host-owned;
+parameter/default Preview state remains ephemeral. Shared DrawingCanvas point and
+Bezier gestures use Preview-only ephemeral runtime transforms. Committed
+point/Bezier edits resolve runtime provenance to the real authored Module-body owner and produce
+source-preserving statement `LineSplice`s through the existing
+`moduleModelBridge` serialization authority. The Extension Host revalidates the
+exact document/source/target proof and exact patched source before one native
+`TextEditor.edit` transaction. Native VS Code Undo/Redo remains canonical history
+and refreshes Preview through `onDidChangeTextDocument` and stable target identity.
+Synthetic Preview invocation/root and parameter/context state are never persisted;
+temporary target/input invalidity keeps the session's last-good preview, and loss
+of exact target identity fails closed rather than rebinding by name or ancestor.
+Bake Current/Base remains outside Slice A and is not implemented by this checkpoint.
 
 Fatal source でも current-source diagnostics は更新され、last-good compiled
 document は保持される。Current source と compiled document は意図的に別
@@ -732,10 +741,11 @@ CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。
 `VSCodeDrawingCanvas`が現在のstore、command、Source Editor、画像URL、
 CommandRibbonOverlayをadapterへ接続し、DrawingCanvasはhost-neutralな
 interaction/rendering ownerとしてcanvasとoverlayを描画する。ModulePreviewAppも
-同じDrawingCanvas / CanvasHostAdapterを使うが、preview
-rootのtarget runtime elementsだけを描画し、source-writing adapter operationsを
-no-opにしてread-only surfaceとして構成する。VS Code側に別のrendererやdrag
-transformは持たない。
+同じDrawingCanvas / CanvasHostAdapterを使い、preview rootのtarget runtime
+elementsだけを描画する。Point/Bezier source gestures remain shared
+DrawingCanvas interactions with Preview-only ephemeral transforms; authored
+commits cross the Module Preview source-patch boundary described above. VS Code側
+に別のrendererやdrag transformは持たない。
 
 `VSCodeDrawingCanvas` additionally accepts the narrow exact runtime projection
 for an importing root. While active, the shared renderer and hit testing use
@@ -924,9 +934,10 @@ Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
 `createModulePreviewSession` for the host-neutral ephemeral input/default/last-good
 state, `buildModulePreviewEvaluationOptions` plus `VscodeRustTransport` for the
 existing production evaluation path, and the shared `DrawingCanvas` /
-`CanvasHostAdapter` for rendering and non-writing interactions. Canonical source
-mutation, Bake, Reference Pick, and other authored-source gestures are outside
-this surface lifecycle.
+`CanvasHostAdapter` for rendering and Preview-only ephemeral interactions.
+Canonical source mutation for point/Bezier edits is performed only through the
+host-owned source-patch boundary; Preview parameter/context state, synthetic root
+invocation, Bake, and Reference Pick remain outside this surface lifecycle.
 
 Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
 not follow the Editor cursor, and Editor cursor movement does not change Canvas
