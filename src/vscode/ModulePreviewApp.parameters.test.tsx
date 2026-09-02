@@ -243,6 +243,32 @@ const preparePartialBake = async () => {
   return { fixture, request };
 };
 
+const prepareEphemeralDragFixture = () => {
+  const source = [
+    "nui 1",
+    "module Preview() {",
+    "  point P = coordinate(x: 1, y: 2)",
+    "  point Q = coordinate(x: 100, y: 0)",
+    "  curve C = bezier(start: @P, end: @Q, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
+    "}"
+  ].join("\n");
+  const fixture = previewFixtureFor(source);
+  const sourceBefore = useCadDocumentStore.getState().sourceText;
+  renderPreviewFixture(fixture);
+  const hostAdapter = mocks.hostAdapter as CanvasHostAdapter | null;
+  expect(hostAdapter).not.toBeNull();
+  if (!hostAdapter) throw new Error("expected Module Preview Canvas host");
+  const base = hostAdapter.getCurrentCanonicalDocument();
+  const point = base.elements.find((element) =>
+    element.name === "P" && fixture.root.targetRuntimeElementIds.includes(element.id)
+  );
+  const curve = base.elements.find((element) =>
+    element.name === "C" && fixture.root.targetRuntimeElementIds.includes(element.id)
+  );
+  if (!point || !curve) throw new Error("expected Preview geometry");
+  return { source, fixture, sourceBefore, hostAdapter, base, point, curve };
+};
+
 afterEach(() => {
   cleanup();
   mocks.queryModulePreviewTarget.mockReset();
@@ -343,98 +369,13 @@ describe("ModulePreviewApp parameter relay", () => {
     }));
   });
 
-  it("keeps point and Bezier drag previews ephemeral until the host accepts a source patch", () => {
-    const source = [
-      "nui 1",
-      "module Preview() {",
-      "  point P = coordinate(x: 1, y: 2)",
-      "  point Q = coordinate(x: 100, y: 0)",
-      "  curve C = bezier(start: @P, end: @Q, startAngle: 0, startLength: 20, endAngle: 180, endLength: 30)",
-      "}"
-    ].join("\n");
-    const document = AutomationDocument.fromSource(source);
-    const compiled = document.getState().currentCompiled;
-    const sourceRevision = compiled.spans.sourceMap.sourceRevision;
-    const target = compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Preview");
-    if (!target) throw new Error("expected Preview definition");
-    const root = compileModulePreviewRoot({
-      source: { normalizedSource: source, sourceRevision },
-      semantic: { sourceRevision, compiled },
-      target: {
-        definitionStatementId: target.statementId,
-        definitionStatementIndex: target.statementIndex,
-        name: target.name
-      }
-    });
-    if (!root) throw new Error("expected Preview root");
-    const evaluation = evaluateElements(root.compileResult.elements, {
-      moduleMaterialization: root.moduleMaterialization
-    });
-    mocks.queryModulePreviewTarget.mockReturnValue(root.target);
-    const validSnapshot = {
-      sourceRevision,
-      target: root.target,
-      ancestorContexts: [],
-      parameters: {
-        kind: "target" as const,
-        definitionStatementId: root.target.definitionStatementId,
-        name: root.target.name,
-        parameters: []
-      },
-      inputDiagnostics: [],
-      preview: { kind: "current" as const, result: root }
-    } satisfies ModulePreviewSessionSnapshot;
-    mocks.session.activate.mockReturnValue(validSnapshot);
-    mocks.session.getState.mockReturnValue(validSnapshot);
-    mocks.evaluationState = {
-      evaluation,
-      evaluationRevision: 1,
-      evaluationRequestRevision: 1,
-      mode: "reference",
-      source: "reference",
-      status: "ready",
-      rustEligible: false,
-      isStale: false,
-      error: null
-    };
-    const fromSource = vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
-    const sourceBefore = useCadDocumentStore.getState().sourceText;
-    const api = { postMessage: mocks.postMessage };
-    render(<ModulePreviewApp api={api} />);
-
-    act(() => {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
-      }));
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
-      }));
-    });
-
-    const hostAdapter = mocks.hostAdapter as CanvasHostAdapter | null;
-    expect(hostAdapter).not.toBeNull();
-    if (!hostAdapter) throw new Error("expected Module Preview Canvas host");
-    const base = hostAdapter.getCurrentCanonicalDocument();
-    const point = base.elements.find((element) =>
-      element.name === "P" && root.targetRuntimeElementIds.includes(element.id)
-    );
-    const curve = base.elements.find((element) =>
-      element.name === "C" && root.targetRuntimeElementIds.includes(element.id)
-    );
-    if (!point || !curve) throw new Error("expected Preview geometry");
+  it("keeps point drag previews ephemeral until the host accepts a source patch", () => {
+    const { source, fixture, sourceBefore, hostAdapter, base, point } = prepareEphemeralDragFixture();
     expect(sourceOwnerForRuntimeElementId({
-      statementMap: document.getState().doc.statementMap,
-      moduleMaterialization: root.moduleMaterialization,
-      moduleRuntimeContext: document.getState().doc.moduleRuntimeContext
+      statementMap: fixture.document.getState().doc.statementMap,
+      moduleMaterialization: fixture.root.moduleMaterialization,
+      moduleRuntimeContext: fixture.document.getState().doc.moduleRuntimeContext
     }, point.id)).toMatchObject({ kind: "moduleBody" });
-    expect(sourceOwnerForRuntimeElementId({
-      statementMap: document.getState().doc.statementMap,
-      moduleMaterialization: root.moduleMaterialization,
-      moduleRuntimeContext: document.getState().doc.moduleRuntimeContext
-    }, curve.id)).toMatchObject({ kind: "moduleBody" });
     let pointResult: unknown;
     act(() => {
       pointResult = hostAdapter.movePointElementByDelta({
@@ -445,33 +386,15 @@ describe("ModulePreviewApp parameter relay", () => {
         distanceLocked: false,
         commitMode: "preview",
         baseElements: base.elements,
-        baseEvaluation: evaluation
+        baseEvaluation: fixture.evaluation
       });
     });
     expect(pointResult).toEqual({ status: "applied" });
     const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
     expect(previewHostAdapter.canonicalElements.find((element) => element.id === point.id)).toEqual(point);
     expect(previewHostAdapter.elements.find((element) => element.id === point.id)).toMatchObject({ x: 3, y: 2 });
-    expect(document.getSource()).toBe(source);
+    expect(fixture.document.getSource()).toBe(source);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
-
-    const bezierBase = previewHostAdapter.getCurrentCanonicalDocument();
-    let bezierResult: unknown;
-    act(() => {
-      bezierResult = previewHostAdapter.moveBezierHandleByDelta({
-        elementId: curve.id,
-        bezierHandleRole: "start",
-        dx: 0,
-        dy: 10,
-        angleLocked: false,
-        distanceLocked: false,
-        commitMode: "preview",
-        baseElements: bezierBase.elements,
-        baseEvaluation: evaluation
-      });
-    });
-    expect(bezierResult).toEqual({ status: "applied" });
-    expect(document.getSource()).toBe(source);
     expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewModelPatch" }));
     act(() => window.dispatchEvent(new MessageEvent("message", {
       data: { type: "commitText", sourceText: source, documentVersion: 2, reason: "edit" }
@@ -484,10 +407,44 @@ describe("ModulePreviewApp parameter relay", () => {
       distanceLocked: false,
       commitMode: "commit",
       baseElements: base.elements,
-      baseEvaluation: evaluation
+      baseEvaluation: fixture.evaluation
     })).toMatchObject({ status: "rejected" });
-    expect(document.getSource()).toBe(source);
-    fromSource.mockRestore();
+    expect(fixture.document.getSource()).toBe(source);
+  });
+
+  it("keeps Bezier drag previews ephemeral until the host accepts a source patch", () => {
+    const { source, fixture, sourceBefore, hostAdapter, base, curve } = prepareEphemeralDragFixture();
+    expect(sourceOwnerForRuntimeElementId({
+      statementMap: fixture.document.getState().doc.statementMap,
+      moduleMaterialization: fixture.root.moduleMaterialization,
+      moduleRuntimeContext: fixture.document.getState().doc.moduleRuntimeContext
+    }, curve.id)).toMatchObject({ kind: "moduleBody" });
+
+    let bezierResult: unknown;
+    act(() => {
+      bezierResult = hostAdapter.moveBezierHandleByDelta({
+        elementId: curve.id,
+        bezierHandleRole: "start",
+        dx: 0,
+        dy: 10,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "preview",
+        baseElements: base.elements,
+        baseEvaluation: fixture.evaluation
+      });
+    });
+    expect(bezierResult).toEqual({ status: "applied" });
+    const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    expect(previewHostAdapter.canonicalElements.find((element) => element.id === curve.id)).toEqual(curve);
+    const previewCurve = previewHostAdapter.elements.find((element) => element.id === curve.id);
+    expect(previewCurve).toBeDefined();
+    if (!previewCurve || previewCurve.type !== "bezierCurve") throw new Error("expected Preview Bezier curve");
+    expect(previewCurve.startHandleAngleDeg).toBeCloseTo(Math.atan2(10, 20) * 180 / Math.PI);
+    expect(previewCurve.startHandleLength).toBeCloseTo(Math.hypot(20, 10));
+    expect(fixture.document.getSource()).toBe(source);
+    expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewModelPatch" }));
   });
 
   it("keeps a pending drag patch through its exact authoritative commit acknowledgement", () => {
