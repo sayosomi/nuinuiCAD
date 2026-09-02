@@ -631,6 +631,13 @@ fn split_bezier_curve_geometry(
     let far_segments = std::iter::once(right)
         .chain(segments[hit.segment_index + 1..].iter().cloned())
         .collect::<Vec<_>>();
+    let Some(intermediate_slot_ids) = curve.get("intermediateSlotIds").and_then(Value::as_array)
+    else {
+        return SplitGeometryResult::NotOnLine;
+    };
+    if intermediate_slot_ids.len() != segments.len().saturating_sub(1) {
+        return SplitGeometryResult::NotOnLine;
+    }
     let mut near = curve.clone();
     near["segments"] = json!(near_segments);
     near["endPointId"] = split_point_id.clone();
@@ -639,6 +646,7 @@ fn split_bezier_curve_geometry(
         .and_then(Value::as_array)
         .map(|ids| ids[..hit.segment_index.min(ids.len())].to_vec())
         .unwrap_or_default());
+    near["intermediateSlotIds"] = json!(intermediate_slot_ids[..hit.segment_index].to_vec());
     near["length"] = json!(near["segments"]
         .as_array()
         .into_iter()
@@ -655,6 +663,7 @@ fn split_bezier_curve_geometry(
         .and_then(Value::as_array)
         .map(|ids| ids[hit.segment_index.min(ids.len())..].to_vec())
         .unwrap_or_default());
+    far["intermediateSlotIds"] = json!(intermediate_slot_ids[hit.segment_index..].to_vec());
     far["segments"] = json!(far_segments);
     far["length"] = json!(far["segments"]
         .as_array()

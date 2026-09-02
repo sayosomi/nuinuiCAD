@@ -508,6 +508,7 @@ export type ComputedBezierCurve = {
   startPointId: ElementId | null;
   endPointId: ElementId | null;
   intermediatePointIds: ElementId[];
+  intermediateSlotIds: string[];
   segments: ComputedBezierSegment[];
   length: number;
   startTangentAngleDeg: number | null;

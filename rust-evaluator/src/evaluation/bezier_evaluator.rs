@@ -61,6 +61,7 @@ pub(crate) fn evaluate_bezier_curve(
     };
 
     let mut intermediate_points = Vec::new();
+    let mut intermediate_slot_ids = Vec::new();
     for intermediate in element
         .get("intermediatePoints")
         .and_then(Value::as_array)
@@ -70,6 +71,7 @@ pub(crate) fn evaluate_bezier_curve(
         let Some(id) = intermediate.get("id").and_then(Value::as_str) else {
             return;
         };
+        intermediate_slot_ids.push(id.to_owned());
         let Some(point_anchor) = intermediate.get("point") else {
             return;
         };
@@ -234,6 +236,7 @@ pub(crate) fn evaluate_bezier_curve(
             "startPointId": anchor_point_id(start_anchor),
             "endPointId": anchor_point_id(end_anchor),
             "intermediatePointIds": intermediate_point_ids,
+            "intermediateSlotIds": intermediate_slot_ids,
             "segments": segments,
             "length": length,
             "startTangentAngleDeg": normalize_degrees(start_handle_angle_deg),

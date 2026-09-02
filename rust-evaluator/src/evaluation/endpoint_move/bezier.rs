@@ -69,6 +69,17 @@ fn truncate_bezier_at_body(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let Some(intermediate_slot_ids) = curve.get("intermediateSlotIds").and_then(Value::as_array)
+    else {
+        return EndpointMoveResult::Error(format!(
+            "{name} の中間点対応情報がないため、端点を変更できません。"
+        ));
+    };
+    if intermediate_slot_ids.len() != segments.len().saturating_sub(1) {
+        return EndpointMoveResult::Error(format!(
+            "{name} の中間点対応情報が不正なため、端点を変更できません。"
+        ));
+    }
     let mut geometry = curve.clone();
 
     if endpoint_key == "end" {
@@ -110,6 +121,8 @@ fn truncate_bezier_at_body(
         geometry["endHandleLength"] = json!(end_handle_length);
         geometry["endTangentAngleDeg"] = json!(normalize_degrees(end_handle_angle + 180.0));
         geometry["intermediatePointIds"] = json!(kept);
+        geometry["intermediateSlotIds"] =
+            json!(intermediate_slot_ids[..hit.segment_index].to_vec());
         if hit.segment_index == 0 {
             // The truncated segment is also the first segment, so the curve's
             // own start handle (segments[0].control1) shrank along with it.
@@ -169,6 +182,7 @@ fn truncate_bezier_at_body(
     geometry["startHandleLength"] = json!(start_handle_length);
     geometry["startTangentAngleDeg"] = json!(normalize_degrees(start_handle_angle));
     geometry["intermediatePointIds"] = json!(kept);
+    geometry["intermediateSlotIds"] = json!(intermediate_slot_ids[hit.segment_index..].to_vec());
     if hit.segment_index == segments.len() - 1 {
         // The truncated segment is also the last segment, so the curve's own
         // end handle (segments[last].control2) shrank along with it.

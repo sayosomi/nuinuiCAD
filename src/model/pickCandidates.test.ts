@@ -84,6 +84,7 @@ const curve: ComputedBezierCurve = {
   startPointId: "a",
   endPointId: null,
   intermediatePointIds: [],
+  intermediateSlotIds: [],
   segments: [
     {
       startPointId: "a",
