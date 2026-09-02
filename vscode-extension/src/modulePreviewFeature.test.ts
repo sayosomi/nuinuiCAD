@@ -4,7 +4,8 @@ import type {
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSetValueRequest,
   VscodeModulePreviewParameterSnapshot,
-  VscodeModulePreviewParameterValueFocus
+  VscodeModulePreviewParameterValueFocus,
+  VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -360,11 +361,16 @@ afterEach(() => {
 });
 
 describe("registerModulePreviewFeature", () => {
-  const openModulePatchFixture = () => {
+  const openModulePatchFixture = (options: {
+    presentBakeOperationResult?: (
+      message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
+    ) => Promise<void> | void;
+  } = {}) => {
     const source = [
       "nui 1",
       "module Pocket() {",
       "  point P = coordinate(x: 1, y: 0)",
+      "  point Q = coordinate(x: 5, y: 0)",
       "}"
     ].join("\n");
     const document = createDocument(source);
@@ -385,7 +391,8 @@ describe("registerModulePreviewFeature", () => {
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
+      evaluateWithRust: async () => ({}),
+      ...options
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     return { source, document, editor, panel, analysis, feature };
@@ -414,8 +421,7 @@ describe("registerModulePreviewFeature", () => {
       sourceRevision: fixture.analysis.getSourceRevision(),
       targetDefinitionStatementId: target.statementId,
       previewRevision: 1,
-      runtimeElementId: "preview-runtime-point",
-      sourceStatementId: "authored-point",
+      sourceOwners: [{ runtimeElementId: "preview-runtime-point", sourceStatementId: "authored-point" }],
       splices: [{ startLine: 3, endLine: 3, replacementLines: ["  point P = coordinate(x: 2, y: 0)"] }],
       expectedPatchedSource,
       ...overrides
@@ -444,6 +450,95 @@ describe("registerModulePreviewFeature", () => {
       status: "applied",
       documentVersion: 2
     }));
+    fixture.feature.dispose();
+  });
+
+  it("forwards existing Bake commands and settings to the active Module Preview", () => {
+    const fixture = openModulePatchFixture();
+
+    expect(fixture.feature.postBakeCommandIfActive("bakeCurrentShape", {
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    })).toBe(true);
+    expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "canvasCommand",
+      commandId: "bakeCurrentShape",
+      emitSkippedComments: false,
+      includeHiddenGeometry: true,
+      includeDisabledGeometry: true
+    });
+    expect(fixture.feature.postBakeCommandIfActive("bakeBaseShape", {
+      emitSkippedComments: true,
+      includeHiddenGeometry: false,
+      includeDisabledGeometry: false
+    })).toBe(true);
+    fixture.feature.dispose();
+  });
+
+  it("forwards Module Preview Bake results to the shared Extension Host presentation owner", async () => {
+    const presentBakeOperationResult = vi.fn(async () => undefined);
+    const fixture = openModulePatchFixture({ presentBakeOperationResult });
+    const message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }> = {
+      type: "bakeOperationResult",
+      surface: "modulePreview",
+      mode: "current",
+      status: "nothing",
+      summary: {
+        successfulTargetCount: 0,
+        skippedTargetCount: 1,
+        skippedTargets: [{
+          targetId: "target-1",
+          sourceElementId: "source-1",
+          sourceLabel: "text Memo",
+          reason: { code: "unsupported-geometry-kind", geometryKind: "text" }
+        }]
+      }
+    };
+
+    await fixture.panel.receive(message);
+
+    expect(presentBakeOperationResult).toHaveBeenCalledWith(message);
+    fixture.feature.dispose();
+  });
+
+  it("applies multiple Bake splices through one authoritative editor transaction", async () => {
+    const fixture = openModulePatchFixture();
+    await fixture.panel.receive({ type: "webviewReady" });
+    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    const expectedPatchedSource = fixture.source
+      .replace("x: 1", "x: 2")
+      .replace("x: 5", "x: 6");
+    await fixture.panel.receive(patchRequestFor(fixture, {
+      sourceOwners: [
+        { runtimeElementId: "preview-runtime-point", sourceStatementId: "authored-point" },
+        { runtimeElementId: "preview-runtime-point-2", sourceStatementId: "authored-point-2" }
+      ],
+      splices: [
+        { startLine: 3, endLine: 3, replacementLines: ["  point P = coordinate(x: 2, y: 0)"] },
+        { startLine: 4, endLine: 4, replacementLines: ["  point Q = coordinate(x: 6, y: 0)"] }
+      ],
+      expectedPatchedSource
+    }));
+
+    expect(fixture.document.getText()).toBe(expectedPatchedSource);
+    expect(fixture.editor.edit).toHaveBeenCalledTimes(1);
+    fixture.feature.dispose();
+  });
+
+  it("fails closed for malformed multi-target ownership proofs", async () => {
+    const fixture = openModulePatchFixture();
+    await fixture.panel.receive({ type: "webviewReady" });
+    await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    await fixture.panel.receive(patchRequestFor(fixture, {
+      sourceOwners: [
+        { runtimeElementId: "preview-runtime-point", sourceStatementId: "authored-point" },
+        { runtimeElementId: "preview-runtime-point", sourceStatementId: "authored-point-2" }
+      ]
+    }));
+
+    expect(fixture.editor.edit).not.toHaveBeenCalled();
+    expect(fixture.document.getText()).toBe(fixture.source);
     fixture.feature.dispose();
   });
 

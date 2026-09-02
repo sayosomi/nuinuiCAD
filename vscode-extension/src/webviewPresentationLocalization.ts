@@ -103,6 +103,9 @@ export const webviewPresentationTranslationCatalog = {
   "modulePreview.dragStale": { en: "Module Preview drag state is stale.", ja: "Module Previewのドラッグ状態が古くなっています。" },
   "modulePreview.noWritableOwner": { en: "Module Preview geometry has no writable authored owner.", ja: "Module Previewのジオメトリに書き込み可能な作成元がありません。" },
   "modulePreview.dragTargetUnavailable": { en: "Module Preview drag target is unavailable.", ja: "Module Previewのドラッグ対象を利用できません。" },
+  "modulePreview.bakeNotCurrent": { en: "Module Preview Bake was rejected because its state is not exact-current.", ja: "Module Preview Bakeの状態が正確な現在の状態ではないため拒否されました。" },
+  "modulePreview.bakeDisabledEvaluationFailed": { en: "Module Preview Bake could not evaluate disabled geometry.", ja: "Module Preview Bakeのdisabledジオメトリを評価できませんでした。" },
+  "modulePreview.bakeDisabledTargetsStale": { en: "Module Preview Bake was rejected because its disabled targets became stale.", ja: "Module Preview Bakeのdisabled対象が古くなったため拒否されました。" },
   "modulePreview.empty": { en: "No valid Module Preview", ja: "有効なModule Previewがありません" },
 
   "modulePreview.parameters.title": { en: "Module Preview Parameters", ja: "Module Previewパラメータ" },

@@ -134,6 +134,12 @@ export type VscodeCanvasContextMenuKind = "blank" | "element" | "ribbon";
 
 export type VscodeCanvasPointer = { x: number; y: number };
 
+export type VscodeBakeSettings = {
+  emitSkippedComments: boolean;
+  includeHiddenGeometry: boolean;
+  includeDisabledGeometry: boolean;
+};
+
 export const vscodeCanvasPointerContextKeys = {
   x: "nuinuiCAD.canvasPointerWorldX",
   y: "nuinuiCAD.canvasPointerWorldY"
@@ -230,6 +236,7 @@ export type VscodeToExtensionMessage =
   | { type: "bakeSourceResult"; requestId: number; status: "applied" | "nothing" | "stale" | "rejected" }
   | ({ type: "bakeOperationResult"; surface: "source"; requestId: number; mode: "current" | "base" } & VscodeBakeOperationResult)
   | ({ type: "bakeOperationResult"; surface: "canvas"; mode: "current" | "base" } & VscodeBakeOperationResult)
+  | ({ type: "bakeOperationResult"; surface: "modulePreview"; mode: "current" | "base" } & VscodeBakeOperationResult)
   | VscodeRustEvaluationRequest
   | {
       type: "canvasPointerPublication";
@@ -364,10 +371,7 @@ export type ExtensionToVscodeMessage =
   | {
       type: "canvasCommand";
       commandId: VscodeCanvasCommandId;
-      emitSkippedComments?: boolean;
-      includeHiddenGeometry?: boolean;
-      includeDisabledGeometry?: boolean;
-    }
+    } & Partial<VscodeBakeSettings>
   | {
       type: "canvasCreationCommand";
       commandId: VscodeCanvasCreationCommandId;

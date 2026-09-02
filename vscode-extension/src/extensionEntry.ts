@@ -11,6 +11,8 @@ import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
   extensionDisplayLanguage,
+  presentModulePreviewBakeOperationResult,
+  registerModulePreviewBakeFallback,
   registerModulePreviewHistoryFallback,
   deactivate as deactivateExtension
 } from "./extension";
@@ -137,7 +139,8 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
     editCanvasRibbon: () => {
       void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
     },
-    evaluateWithRust: (input) => rustProcessOwner.get().request(input)
+    evaluateWithRust: (input) => rustProcessOwner.get().request(input),
+    presentBakeOperationResult: presentModulePreviewBakeOperationResult
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
     analysisSessions.delete(document.uri.toString());
@@ -147,6 +150,10 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
   };
   context.subscriptions.push(
     feature,
+    registerModulePreviewBakeFallback((mode, settings) => feature.postBakeCommandIfActive(
+      mode === "current" ? "bakeCurrentShape" : "bakeBaseShape",
+      settings
+    )),
     registerModulePreviewHistoryFallback((direction) => feature.handoffNativeHistoryIfActive(direction)),
     registerModulePreviewParametersFeature(context, feature, extensionDisplayLanguage),
     ...registerModulePreviewCommands(feature),

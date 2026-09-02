@@ -169,6 +169,7 @@ const canvasHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas' || activeW
 const outputPreviewHistoryWhen = "activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasBlankWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank'";
 const canvasElementWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
+const canvasOrModulePreviewElementWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && webviewSection == 'element' && nuinuiCAD.canvasHasSelection";
 const canvasOrModulePreviewRibbonWhen = "(webviewId == 'nuinuiCAD.canvas' || webviewId == 'nuinuiCAD.modulePreview') && (webviewSection == 'blank' || webviewSection == 'ribbon')";
 const modulePreviewBlankWhen = "webviewId == 'nuinuiCAD.modulePreview' && webviewSection == 'blank'";
 
@@ -500,8 +501,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleCanvasContextWhen, group: "1_modification@7" },
       { command: "nuinuiCAD.extractModule", when: extractModuleCanvasContextWhen, group: "1_modification@8" },
-      { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
-      { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen },
+      { command: "nuinuiCAD.bakeCurrentShape", when: canvasOrModulePreviewElementWhen },
+      { command: "nuinuiCAD.bakeBaseShape", when: canvasOrModulePreviewElementWhen },
       { command: "nuinuiCAD.modulePreview.fitDrawing", when: modulePreviewBlankWhen },
       { command: "nuinuiCAD.modulePreview.resetView", when: modulePreviewBlankWhen },
       { command: "nuinuiCAD.modulePreview.togglePointNames", when: modulePreviewBlankWhen },
@@ -544,8 +545,8 @@ describe("VS Code extension manifest command contributions", () => {
     const modulePreviewContextCommands = (manifest.contributes?.menus?.["webview/context"] ?? [])
       .filter(({ when }) => when.includes("nuinuiCAD.modulePreview"))
       .map(({ command }) => command);
-    expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.bakeCurrentShape");
-    expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.bakeBaseShape");
+    expect(modulePreviewContextCommands).toContain("nuinuiCAD.bakeCurrentShape");
+    expect(modulePreviewContextCommands).toContain("nuinuiCAD.bakeBaseShape");
     expect(modulePreviewContextCommands).not.toContain("nuinuiCAD.goToSourceDefinition");
     expect(manifest.contributes?.menus?.commandPalette ?? []).toContainEqual({
       command: "nuinuiCAD.toggleCanvasElementNames",
@@ -727,7 +728,8 @@ describe("Module Preview architecture documentation", () => {
     expect(architecture).toContain("Bezier gestures use Preview-only ephemeral runtime transforms.");
     expect(architecture).toContain("source-preserving statement `LineSplice`s through the existing");
     expect(architecture).toContain("Native VS Code Undo/Redo remains canonical history");
-    expect(architecture).toContain("Bake Current/Base remains outside Slice A");
+    expect(architecture).toContain("Module Preview Bake Current/Base uses the authored current `StatementMap`");
+    expect(architecture).not.toContain("Bake Current/Base remains outside Slice A");
     expect(architecture).not.toContain("surface is read-only for authored source: source-writing Canvas gestures are not");
   });
 });

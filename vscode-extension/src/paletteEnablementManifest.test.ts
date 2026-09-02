@@ -28,7 +28,7 @@ const sourceWhen = "editorLangId == nui && resourceScheme == file && resourceExt
 const canvasWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrCanvasWhen = `(${sourceWhen}) || ${canvasWhen}`;
 const canvasSelectionEnablement = `${canvasWhen} && nuinuiCAD.canvasHasSelection`;
-const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || (${canvasWhen} && nuinuiCAD.canvasHasSelection)`;
+const bakeEnablement = `(${sourceWhen} && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)`;
 const coordinatePointConversionExplorerWhen = "view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget'";
 
 const expectedTargetEnablement = new Map<string, string>([
