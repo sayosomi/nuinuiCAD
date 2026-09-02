@@ -165,8 +165,45 @@ const numericLineCandidate: ReferencePickCandidate = {
     kind: "numericProperty",
     label: "Base",
     reference: { base: "Base" },
+    subgeometry: { kind: "body" },
     properties: ["length", "startAngleDeg"]
   }]
+};
+
+const numericLineStartCandidate: ReferencePickCandidate = {
+  elementId: "Base",
+  actualGeometryInterface: "line",
+  options: [
+    {
+      kind: "numericProperty",
+      label: "Base",
+      reference: { base: "Base" },
+      subgeometry: { kind: "body" },
+      properties: ["length"]
+    },
+    {
+      kind: "numericProperty",
+      label: "Base.始点",
+      reference: { base: "Base" },
+      subgeometry: {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "start" }
+      },
+      properties: ["startPoint.x", "startPoint.y", "startAngleDeg"],
+      point: numericLineGeometry.start
+    },
+    {
+      kind: "numericProperty",
+      label: "Base.終点",
+      reference: { base: "Base" },
+      subgeometry: {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "end" }
+      },
+      properties: ["endPoint.x", "endPoint.y", "endAngleDeg"],
+      point: numericLineGeometry.end
+    }
+  ]
 };
 
 describe("VSCodeReferencePickOverlay", () => {
@@ -315,7 +352,11 @@ describe("VSCodeReferencePickOverlay", () => {
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getByRole("listbox", { name: "Reference Pick numeric properties" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /長さ/ })).toBeInTheDocument();
-    expect(onSelect).toHaveBeenCalledWith({ candidateElementId: "Base", reference: { base: "Base" } });
+    expect(onSelect).toHaveBeenCalledWith({
+      candidateElementId: "Base",
+      reference: { base: "Base" },
+      numericSubgeometry: { kind: "body" }
+    });
 
     fireEvent.keyDown(window, { key: "ArrowDown" });
     fireEvent.keyDown(window, { key: "Enter" });
@@ -344,6 +385,46 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(viewport.style.cursor).toBe("pointer");
     view.unmount();
     expect(viewport.style.cursor).toBe("crosshair");
+    viewport.remove();
+  });
+
+  it("prioritizes a numeric semantic endpoint over its body and opens that endpoint's properties", () => {
+    const onHover = vi.fn<(hover: ReferencePickHover | null) => void>();
+    const onSelect = vi.fn<(hover: ReferencePickHover | null) => void>();
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        candidates: [numericLineStartCandidate]
+      }),
+      { onHover, onSelect },
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+
+    fireEvent.pointerMove(viewport, { clientX: 220, clientY: 240 });
+    expect(onHover).toHaveBeenCalledWith({
+      candidateElementId: "Base",
+      reference: { base: "Base" },
+      numericSubgeometry: {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "start" }
+      }
+    });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 220, clientY: 240 });
+
+    expect(onSelect).toHaveBeenCalledWith({
+      candidateElementId: "Base",
+      reference: { base: "Base" },
+      numericSubgeometry: {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "start" }
+      }
+    });
+    expect(screen.getByRole("listbox", { name: "Reference Pick numeric properties" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /startPoint\.x/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /長さ/ })).toBeNull();
+
+    view.unmount();
     viewport.remove();
   });
 
