@@ -15,7 +15,8 @@ import type {
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
-import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
+import { createModulePreviewSession, type ModulePreviewInputDiagnostic, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
@@ -44,6 +45,13 @@ import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
 import { useVSCodeModulePreviewReferencePickSession } from "./useVSCodeModulePreviewReferencePickSession";
 import type { VscodeModulePreviewReferencePickStartRequest } from "./modulePreviewProtocol";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
+import {
+  useVscodeWebviewPresentation,
+  webviewDiagnosticTextFor,
+  webviewInputDiagnosticTextFor,
+  webviewPresentationTextFor
+} from "./webviewPresentation";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -80,14 +88,33 @@ type ModulePreviewDragProof = {
   evaluationRevision: number;
 };
 
-const diagnosticMessagesFor = (document: AutomationDocument): string[] => {
+type ModulePreviewStatusMessage =
+  | { kind: "text"; key: string; fallback: string }
+  | { kind: "diagnostic"; message: string; presentation?: DslDiagnosticPresentation }
+  | { kind: "inputDiagnostic"; message: string; presentation?: DslDiagnosticPresentation }
+  | { kind: "raw"; message: string };
+
+const statusText = (key: string, fallback: string): ModulePreviewStatusMessage => ({ kind: "text", key, fallback });
+const statusDiagnostic = (diagnostic: { message: string; presentation?: DslDiagnosticPresentation }): ModulePreviewStatusMessage => ({
+  kind: "diagnostic",
+  message: diagnostic.message,
+  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
+});
+const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): ModulePreviewStatusMessage => ({
+  kind: "inputDiagnostic",
+  message: diagnostic.message,
+  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
+});
+
+const diagnosticMessagesFor = (document: AutomationDocument): ModulePreviewStatusMessage[] => {
   const state = document.getState();
   return [...state.currentCompiled.diagnostics, ...(state.currentCompiled.bindingIssueDiagnostics ?? [])]
     .slice(0, 4)
-    .map((diagnostic) => diagnostic.message);
+    .map(statusDiagnostic);
 };
 
 export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
+  const webviewPresentation = useVscodeWebviewPresentation();
   const automationDocumentRef = useRef<AutomationDocument | null>(null);
   const documentVersionRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -99,14 +126,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationRef = useRef<EvaluationResult | null>(null);
   const previewRef = useRef<ValidModulePreview | null>(null);
   const previewSession = useMemo(() => createModulePreviewSession(), []);
+  const canvasPresentationAdapter = useMemo(
+    () => webviewCanvasPresentationFor(webviewPresentation),
+    [webviewPresentation]
+  );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
   const nextModelPatchOperationIdRef = useRef(1);
   const pendingModelPatchOperationIdRef = useRef<number | null>(null);
-  const [statusMessages, setStatusMessages] = useState<string[]>([
-    "Open Module Preview from a Module definition in the Source Editor."
+  const [statusMessages, setStatusMessages] = useState<ModulePreviewStatusMessage[]>([
+    statusText("modulePreview.initial", "Open Module Preview from a Module definition in the Source Editor.")
   ]);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
@@ -257,7 +288,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const applyValidPreview = useCallback((
     root: ModulePreviewRootResult,
     moduleSemanticContext: CanvasHostAdapter["moduleSemanticContext"],
-    nextStatusMessages: string[]
+    nextStatusMessages: ModulePreviewStatusMessage[]
   ) => {
     clearEphemeralPreview();
     let evaluationOptions: ReturnType<typeof buildModulePreviewEvaluationOptions>;
@@ -266,9 +297,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     } catch {
       const document = automationDocumentRef.current;
       setStatusMessages(document ? [
-        "Module Preview could not build the current evaluation context.",
+        statusText("modulePreview.contextFailed", "Module Preview could not build the current evaluation context."),
         ...diagnosticMessagesFor(document)
-      ] : ["Module Preview could not build the current evaluation context."]);
+      ] : [statusText("modulePreview.contextFailed", "Module Preview could not build the current evaluation context.")]);
       return;
     }
     const revision = nextPreviewRevisionRef.current++;
@@ -287,18 +318,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       previewRef.current = null;
       setPreview(null);
       setStatusMessages([
-        "Module Preview cannot evaluate the exact current target with the current inputs.",
-        ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message)
+        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
+        ...snapshot.inputDiagnostics.map(statusInputDiagnostic)
       ]);
       return;
     }
     const state = document.getState();
     const nextStatusMessages = [
       ...(snapshot.preview.kind === "lastGood"
-        ? ["Module Preview is showing the last valid preview for the current target."]
+        ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
-      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
       moduleMaterialization: root.moduleMaterialization,
@@ -331,10 +362,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!snapshot) publishParameterUnavailable("target-unavailable");
       previewRef.current = null;
       setPreview(null);
-      const diagnostics = snapshot?.inputDiagnostics.map((diagnostic) => diagnostic.message)
+      const diagnostics = snapshot?.inputDiagnostics.map(statusInputDiagnostic)
         ?? diagnosticMessagesFor(document);
       setStatusMessages([
-        "Module Preview cannot evaluate the exact current target with the current inputs.",
+        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
         ...diagnostics
       ]);
       return;
@@ -342,10 +373,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
     const nextStatusMessages = [
       ...(snapshot.preview.kind === "lastGood"
-        ? ["Module Preview is showing the last valid preview for the current target."]
+        ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
-      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
       moduleMaterialization: root.moduleMaterialization,
@@ -661,8 +692,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersionRef.current = message.documentVersion;
         publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
-          ? ["Module Preview is waiting for the exact current target."]
-          : ["No valid Module Preview is available yet."]);
+          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
+          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         return;
       }
@@ -675,8 +706,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersionRef.current = message.documentVersion;
         publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
-          ? ["Module Preview is waiting for the exact current target."]
-          : ["No valid Module Preview is available yet."]);
+          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
+          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         return;
       }
@@ -693,7 +724,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishParameterUnavailable("target-unavailable", null);
         const document = automationDocumentRef.current;
         setStatusMessages([
-          "Module Preview target is not exact-current and was not rebound.",
+          statusText("modulePreview.targetUnavailable", "Module Preview target is not exact-current and was not rebound."),
           ...(document ? diagnosticMessagesFor(document) : [])
         ]);
         return;
@@ -709,9 +740,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (message.status !== "applied") {
           setStatusMessages([
             message.status === "stale"
-              ? "Module Preview edit became stale and was rejected."
-              : "Module Preview edit was rejected.",
-            ...(message.reason ? [message.reason] : [])
+              ? statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")
+              : statusText("modulePreview.editRejected", "Module Preview edit was rejected."),
+            ...(message.reason ? [{ kind: "raw" as const, message: message.reason }] : [])
           ]);
         }
         return;
@@ -772,6 +803,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: preview?.revision ?? 0,
     canvasTheme,
+    presentation: canvasPresentationAdapter,
     visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? [],
     activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? null,
     moduleSemanticContext: preview?.moduleSemanticContext ?? {},
@@ -858,6 +890,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={viewportSize}
             ribbonCommandContext={ribbonCommandContext}
+            presentation={canvasPresentationAdapter}
             onCommand={(item) => {
               const definition = vscodeCanvasRibbonCommandFor(item.commandId);
               if (!definition || !definition.isAvailable(ribbonCommandContext)) return;
@@ -880,6 +913,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api,
     canvasRibbonRibbons,
     canvasTheme,
+    canvasPresentationAdapter,
     canvasViewport,
     captureDragProof,
     dispatchCommitGeometry,
@@ -936,7 +970,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             pointerEvents: "none"
           }}
         >
-          {statusMessages.map((message, index) => <div key={`${index}:${message}`}>{message}</div>)}
+          {statusMessages.map((message, index) => {
+            const rendered = message.kind === "text"
+              ? webviewPresentationTextFor(webviewPresentation, message.key, message.fallback)
+              : message.kind === "diagnostic"
+                ? webviewDiagnosticTextFor(webviewPresentation, message)
+                : message.kind === "inputDiagnostic"
+                  ? webviewInputDiagnosticTextFor(webviewPresentation, message)
+                  : message.message;
+            return <div key={`${index}:${rendered}`}>{rendered}</div>;
+          })}
         </div>
       ) : null}
       {!preview ? (
@@ -950,7 +993,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             color: "var(--vscode-descriptionForeground)"
           }}
         >
-          No valid Module Preview
+          {webviewPresentationTextFor(webviewPresentation, "modulePreview.empty", "No valid Module Preview")}
         </div>
       ) : null}
     </main>

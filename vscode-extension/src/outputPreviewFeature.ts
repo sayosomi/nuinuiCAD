@@ -26,6 +26,7 @@ import {
   type OutputPreviewHistoryDirection
 } from "./outputPreviewHistory";
 import { outputPreviewTranslatorFor } from "./outputPreviewLocalization";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 
 export type OutputPreviewSession = VscodeWebviewSessionBase & {
   surfaceKind: "outputPreview";
@@ -391,6 +392,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
         session.authoritativeDocumentVersion = null;
         if (session.pendingReveal) session.inFlightRevealRequestId = null;
         else invalidateReveal(session);
+        void panel.webview.postMessage({
+          type: "webviewPresentation",
+          presentation: webviewPresentationFor(displayLanguage())
+        } satisfies ExtensionToVscodeMessage);
         host.postAuthoritativeDocument(panel, session.document);
         return;
       }

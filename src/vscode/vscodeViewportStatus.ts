@@ -14,11 +14,12 @@ export const formatVscodeViewportCoordinate = (coordinate: number | null): strin
 
 export const vscodeViewportStatusFields = (
   viewport: VscodeViewportStatusViewport,
-  pointerWorldPoint: VscodeViewportWorldPoint | null
+  pointerWorldPoint: VscodeViewportWorldPoint | null,
+  labels: { zoom: string; x: string; y: string } = { zoom: "ZOOM", x: "X", y: "Y" }
 ) => [
-  { label: "ZOOM", value: formatVscodeViewportZoom(viewport.zoom) },
-  { label: "X", value: formatVscodeViewportCoordinate(pointerWorldPoint?.x ?? null) },
-  { label: "Y", value: formatVscodeViewportCoordinate(pointerWorldPoint?.y ?? null) }
+  { label: labels.zoom, value: formatVscodeViewportZoom(viewport.zoom) },
+  { label: labels.x, value: formatVscodeViewportCoordinate(pointerWorldPoint?.x ?? null) },
+  { label: labels.y, value: formatVscodeViewportCoordinate(pointerWorldPoint?.y ?? null) }
 ];
 
 export const vscodeViewportStatusPresentationFor = (
@@ -26,12 +27,13 @@ export const vscodeViewportStatusPresentationFor = (
   viewport: VscodeViewportStatusViewport,
   pointerWorldPoint: VscodeViewportWorldPoint | null,
   label = "Viewport status",
-  description = "Current viewport zoom and pointer position."
+  description = "Current viewport zoom and pointer position.",
+  labels?: { zoom: string; x: string; y: string }
 ): CommandRibbonPresentationValueItem => ({
   id,
   type: "value",
   label,
   description,
   estimatedWidth: VSCODE_VIEWPORT_STATUS_ESTIMATED_WIDTH,
-  fields: vscodeViewportStatusFields(viewport, pointerWorldPoint)
+  fields: vscodeViewportStatusFields(viewport, pointerWorldPoint, labels)
 });

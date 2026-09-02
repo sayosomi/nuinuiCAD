@@ -105,6 +105,7 @@ import {
   vscodeWebviewSurfaceDataAttribute,
   type VscodeWebviewSurfaceKind
 } from "../../src/vscode/protocol";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import {
   VscodeWebviewSessionRegistry,
   type VscodeWebviewSessionBase
@@ -196,7 +197,7 @@ type LastBakeSurface =
   | { kind: "canvas"; session: DocumentSession }
   | { kind: "source"; document: vscode.TextDocument };
 
-const extensionDisplayLanguage = (): string => {
+export const extensionDisplayLanguage = (): string => {
   try {
     return vscode.env?.language ?? "en";
   } catch {
@@ -322,11 +323,12 @@ const webviewHtml = (
   context: vscode.ExtensionContext,
   surfaceKind: VscodeWebviewSurfaceKind
 ): string => {
+  const presentation = webviewPresentationFor(extensionDisplayLanguage());
   const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
   const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.css"));
   const contentNonce = nonce();
   return `<!doctype html>
-<html lang="ja" ${vscodeWebviewSurfaceDataAttribute}="${surfaceKind}">
+<html lang="${presentation.locale}" ${vscodeWebviewSurfaceDataAttribute}="${surfaceKind}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -338,6 +340,13 @@ const webviewHtml = (
     <script nonce="${contentNonce}" src="${script}"></script>
   </body>
 </html>`;
+};
+
+const postWebviewPresentation = (panel: vscode.WebviewPanel): void => {
+  void panel.webview.postMessage({
+    type: "webviewPresentation",
+    presentation: webviewPresentationFor(extensionDisplayLanguage())
+  } satisfies ExtensionToVscodeMessage);
 };
 
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
@@ -1733,6 +1742,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
+        postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });

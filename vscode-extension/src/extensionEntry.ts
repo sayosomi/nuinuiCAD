@@ -10,9 +10,11 @@ import {
 import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
+  extensionDisplayLanguage,
   registerModulePreviewHistoryFallback,
   deactivate as deactivateExtension
 } from "./extension";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   registerModulePreviewFeature,
@@ -50,15 +52,16 @@ const observationSnapshot = (includeSourceText: boolean): unknown => {
 
 const modulePreviewNonce = (): string => randomBytes(16).toString("hex");
 
-const modulePreviewWebviewHtml = (
+export const modulePreviewWebviewHtml = (
   panel: vscode.WebviewPanel,
   context: vscode.ExtensionContext
 ): string => {
+  const presentation = webviewPresentationFor(extensionDisplayLanguage());
   const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
   const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.css"));
   const nonce = modulePreviewNonce();
   return `<!doctype html>
-<html lang="ja" ${vscodeWebviewSurfaceDataAttribute}="modulePreview">
+<html lang="${presentation.locale}" ${vscodeWebviewSurfaceDataAttribute}="modulePreview">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -145,7 +148,7 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
     feature,
     registerModulePreviewHistoryFallback((direction) => feature.handoffNativeHistoryIfActive(direction)),
-    registerModulePreviewParametersFeature(context, feature),
+    registerModulePreviewParametersFeature(context, feature, extensionDisplayLanguage),
     ...registerModulePreviewCommands(feature),
     closeListener,
     disposeAnalysisSessions

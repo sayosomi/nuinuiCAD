@@ -15,6 +15,7 @@ type CanvasOverlapCandidateMenuProps = {
   viewportSize: ViewportSize;
   idPrefix: string;
   ariaLabel: string;
+  unnamedLabel?: string;
   className?: string;
   autoFocus?: boolean;
   contextMenuData?: string;
@@ -30,6 +31,7 @@ export const CanvasOverlapCandidateMenu = ({
   viewportSize,
   idPrefix,
   ariaLabel,
+  unnamedLabel = "(unnamed)",
   className = "",
   autoFocus = false,
   contextMenuData,
@@ -82,7 +84,7 @@ export const CanvasOverlapCandidateMenu = ({
             onActivate(index);
           }}
         >
-          <strong>{candidate.name?.trim() || "(unnamed)"}</strong>
+          <strong>{candidate.name?.trim() || unnamedLabel}</strong>
           <small>{candidate.detail}</small>
         </button>
       ))}

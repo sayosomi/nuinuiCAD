@@ -12,12 +12,18 @@ type PointDragAxisLockFeedbackProps = {
   feedback: PointDragAxisLockFeedbackState;
   viewportSize: ViewportSize;
   canvasTheme: CanvasTheme;
+  presentation?: {
+    holdShift: string;
+    horizontal: string;
+    vertical: string;
+  };
 };
 
 export const PointDragAxisLockFeedback = ({
   feedback,
   viewportSize,
-  canvasTheme
+  canvasTheme,
+  presentation
 }: PointDragAxisLockFeedbackProps) => {
   const activeAxis = pointDragAxisForScreenDelta({
     screenDx: feedback.current.x - feedback.origin.x,
@@ -67,16 +73,16 @@ export const PointDragAxisLockFeedback = ({
         data-point-drag-axis-lock-hint-position="bottom-right"
         style={{ right: 0, bottom: 0 }}
       >
-        {"Hold Shift for "}
+        {presentation?.holdShift ?? "Hold Shift for "}
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "horizontal" ? "is-active" : ""}`.trim()}
           data-axis="x"
-        >Horizontal</span>
+        >{presentation?.horizontal ?? "Horizontal"}</span>
         {" / "}
         <span
           className={`point-drag-axis-lock-action ${activeAxis === "vertical" ? "is-active" : ""}`.trim()}
           data-axis="y"
-        >Vertical</span>
+        >{presentation?.vertical ?? "Vertical"}</span>
       </div>
     </div>
   );

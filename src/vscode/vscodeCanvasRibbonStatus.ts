@@ -18,18 +18,22 @@ export const formatVscodeCanvasCoordinate = formatVscodeViewportCoordinate;
 
 export const vscodeCanvasStatusFields = (
   canvasViewport: CanvasViewport,
-  pointerWorldPoint: VscodeCanvasWorldPoint | null
-) => vscodeViewportStatusFields(canvasViewport, pointerWorldPoint);
+  pointerWorldPoint: VscodeCanvasWorldPoint | null,
+  labels?: { zoom: string; x: string; y: string }
+) => vscodeViewportStatusFields(canvasViewport, pointerWorldPoint, labels);
 
 export const vscodeCanvasStatusPresentationFor = (
   id: string,
   canvasViewport: CanvasViewport,
-  pointerWorldPoint: VscodeCanvasWorldPoint | null
+  pointerWorldPoint: VscodeCanvasWorldPoint | null,
+  label = "Canvas status",
+  description = "Current Canvas zoom and pointer position.",
+  labels?: { zoom: string; x: string; y: string }
 ): CommandRibbonPresentationValueItem => ({
   id,
   type: "value",
-  label: "Canvas status",
-  description: "Current Canvas zoom and pointer position.",
+  label,
+  description,
   estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
-  fields: vscodeViewportStatusFields(canvasViewport, pointerWorldPoint)
+  fields: vscodeViewportStatusFields(canvasViewport, pointerWorldPoint, labels)
 });

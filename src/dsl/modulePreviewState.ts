@@ -4,7 +4,7 @@ import { IDENTIFIER_PATTERN } from "../scalars/literalScanner";
 import { numericLiteralForExpression } from "../scalars/numericLiteral";
 import type { ScalarEvaluation, ScalarValue } from "../scalars/types";
 import type { CompiledDslDocument } from "./dslDocument";
-import type { DslStatement } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslStatement } from "./dslTypes";
 import {
   compileModulePreviewRoot,
   type ModulePreviewArgument,
@@ -27,6 +27,7 @@ export type ModulePreviewInputDiagnostic = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type ModulePreviewParameterState = {
@@ -292,7 +293,11 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
         code: "required-value-missing" as const,
         definitionStatementId: definition.statementId,
         parameterIndex: parameter.parameterIndex,
-        message: `Parameter "${parameter.name}" requires a value.`
+        message: `Parameter "${parameter.name}" requires a value.`,
+        presentation: {
+          key: "modulePreview.parameters.diagnostic.required-value-missing",
+          parameters: { name: parameter.name }
+        }
       }];
     }));
   };
@@ -304,7 +309,11 @@ export const createModulePreviewSession = (): ModulePreviewSession => {
     code: "invalid-expression",
     definitionStatementId: definition.statementId,
     parameterIndex: parameter.parameterIndex,
-    message: `Value for "${parameter.name}" is not a valid Module argument expression in this context.`
+    message: `Value for "${parameter.name}" is not a valid Module argument expression in this context.`,
+    presentation: {
+      key: "modulePreview.parameters.diagnostic.invalid-expression",
+      parameters: { name: parameter.name }
+    }
   });
 
   const buildGroup = (

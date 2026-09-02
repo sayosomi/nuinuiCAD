@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
@@ -130,6 +130,26 @@ afterEach(() => {
 });
 
 describe("ModulePreviewApp parameter relay", () => {
+  it("renders the host-published Japanese status without changing Module identity", () => {
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "webviewPresentation",
+          presentation: {
+            locale: "ja",
+            strings: {
+              "modulePreview.initial": "Source EditorのModule定義からModule Previewを開いてください。"
+            },
+            diagnosticTemplates: {}
+          }
+        }
+      }));
+    });
+
+    expect(screen.getByText("Source EditorのModule定義からModule Previewを開いてください。")).toBeInTheDocument();
+  });
+
   it("routes accepted value and unavailable-default actions through the live session", () => {
     mocks.queryModulePreviewTarget.mockReturnValue(target);
     mocks.session.activate.mockReturnValue(snapshot);
