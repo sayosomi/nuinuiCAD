@@ -93,7 +93,7 @@ const resolvedTarget = {
   target: { kind: "output" as const, outputKind: "svg" as const, outputId: "S", sourceStatementIndex: 2 }
 };
 
-const register = () => {
+const register = (displayLanguage = "en") => {
   let currentSource = source;
   const document: TestDocument = {
     version: 4,
@@ -136,7 +136,8 @@ const register = () => {
     activeNuiTextEditorForCommand: () => editor,
     outputPreviewRevealSourceTargetForEditor: () => resolvedTarget,
     activeCanvasDocumentForOpenCommand: () => null,
-    isOutputPreviewTabActive: () => false
+    isOutputPreviewTabActive: () => false,
+    displayLanguageFor: () => displayLanguage
   });
   return {
     document,
@@ -244,6 +245,25 @@ describe("VS Code Output Preview Reveal lifecycle", () => {
     expect(state.panel.reveal).toHaveBeenCalledTimes(2);
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
       "nuinuiCAD: No current Output Preview output contains the Source target."
+    );
+    state.feature.dispose();
+  });
+
+  it("localizes a structured reveal failure from the current display language", async () => {
+    const state = register("ja-JP");
+    await commandFor("nuinuiCAD.revealInOutputPreview")();
+    await sendToHost(state, { type: "webviewReady" });
+    await sendToHost(state, { type: "webviewAuthoritativeDocumentReady", documentVersion: 4 });
+    await sendToHost(state, {
+      type: "outputPreviewRevealResult",
+      requestId: 1,
+      documentVersion: 4,
+      status: "failed",
+      reason: "no-containing-output"
+    });
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: 現在の Output Preview に Source 対象を含む出力がありません。"
     );
     state.feature.dispose();
   });

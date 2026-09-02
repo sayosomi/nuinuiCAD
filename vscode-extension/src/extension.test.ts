@@ -1231,7 +1231,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD requires an active .nui Text Editor or Output Preview."
+      "nuinuiCAD: Activate a .nui Text Editor or Output Preview before running this command."
     );
   });
 
@@ -1277,7 +1277,7 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.openOutputPreview")?.();
 
     expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith("nuinuiCAD requires an active .nui Text Editor or Canvas.");
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("nuinuiCAD: Output Preview requires an active .nui Text Editor or Canvas.");
   });
 
   it("keeps Canvas and Output Preview sessions independent for one document", () => {
@@ -2151,7 +2151,7 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.fitDrawing")?.();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+      "nuinuiCAD: No active Canvas is available. Open Canvas and try again."
     );
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
   });
@@ -2202,7 +2202,7 @@ describe("VS Code production document lifecycle", () => {
     panel.webview.postMessage.mockClear();
     commandHandlerFor("nuinuiCAD.fitDrawing")?.();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+      "nuinuiCAD: No active Canvas is available. Open Canvas and try again."
     );
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
 
@@ -2269,7 +2269,7 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor(command)?.();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。"
+      "nuinuiCAD: No active Canvas is available. Open Canvas and try again."
     );
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasCommand" }));
   });

@@ -25,6 +25,7 @@ import {
   handoffOutputPreviewHistory,
   type OutputPreviewHistoryDirection
 } from "./outputPreviewHistory";
+import { outputPreviewTranslatorFor } from "./outputPreviewLocalization";
 
 export type OutputPreviewSession = VscodeWebviewSessionBase & {
   surfaceKind: "outputPreview";
@@ -83,6 +84,7 @@ export type OutputPreviewFeatureHost = {
   ) => VscodeOutputPreviewRevealSourceTargetResult;
   activeCanvasDocumentForOpenCommand: () => vscode.TextDocument | null;
   isOutputPreviewTabActive: () => boolean;
+  displayLanguageFor?: () => string;
 };
 
 export type OutputPreviewFeature = vscode.Disposable & {
@@ -103,6 +105,15 @@ export type OutputPreviewFeature = vscode.Disposable & {
 export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): OutputPreviewFeature => {
   type OutputPreviewViewportAction = "outputPreviewFit" | "outputPreviewResetView";
   let nextRevealRequestId = 1;
+
+  const displayLanguage = (): string => {
+    if (host.displayLanguageFor) return host.displayLanguageFor();
+    try {
+      return vscode.env?.language ?? "en";
+    } catch {
+      return "en";
+    }
+  };
 
   const activeSession = (): OutputPreviewSession | null =>
     host.registry.values().find((candidate) => candidate.panel.active) ?? null;
@@ -167,14 +178,18 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     } satisfies ExtensionToVscodeMessage);
   };
 
-  const revealFailureMessageFor = (reason: Exclude<VscodeOutputPreviewRevealResult, { status: "resolved" }> ["reason"]): string => {
+  const revealFailureMessageFor = (
+    reason: Exclude<VscodeOutputPreviewRevealResult, { status: "resolved" }> ["reason"],
+    currentDisplayLanguage: string
+  ): string => {
+    const translator = outputPreviewTranslatorFor(currentDisplayLanguage);
     if (reason === "no-containing-output") {
-      return "nuinuiCAD: No current Output Preview output contains the Source target.";
+      return translator("outputPreview.reveal.no-containing-output");
     }
     if (reason === "evaluation-failed") {
-      return "nuinuiCAD: Output Preview evaluation failed while revealing the Source target.";
+      return translator("outputPreview.reveal.evaluation-failed");
     }
-    return "nuinuiCAD: The current Source target is no longer available in Output Preview.";
+    return translator("outputPreview.reveal.target-unavailable");
   };
 
   const invalidateReveal = (session: OutputPreviewSession): void => {
@@ -198,7 +213,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       message.documentVersion !== session.document.version
     ) return;
     if (message.status === "failed") {
-      if (message.reason !== "stale") void vscode.window.showErrorMessage(revealFailureMessageFor(message.reason));
+      if (message.reason !== "stale") {
+        void vscode.window.showErrorMessage(revealFailureMessageFor(message.reason, displayLanguage()));
+      }
       return;
     }
     session.panel.reveal(vscode.ViewColumn.Beside, false);
@@ -246,9 +263,10 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
     session: OutputPreviewSession,
     message: VscodeOutputPreviewExportRequest
   ): Promise<void> => {
+    const translator = outputPreviewTranslatorFor(displayLanguage());
     if (session.inFlightExportRequestId !== null || !exportRequestIsCurrent(session, message)) {
       postExportResult(session, message.requestId, "failed");
-      void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed. Review the current output and export again.");
+      void vscode.window.showErrorMessage(translator("outputPreview.changed"));
       return;
     }
     session.inFlightExportRequestId = message.requestId;
@@ -261,28 +279,32 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       const selected = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file(defaultPath),
         filters: message.format === "pdf"
-          ? { "PDF document": ["pdf"] }
-          : { "SVG document": ["svg"] },
-        saveLabel: message.format === "pdf" ? "Export PDF" : "Export SVG"
+          ? { [translator("outputPreview.pdfDocument")]: ["pdf"] }
+          : { [translator("outputPreview.svgDocument")]: ["svg"] },
+        saveLabel: message.format === "pdf"
+          ? translator("outputPreview.exportPdf")
+          : translator("outputPreview.exportSvg")
       });
       if (!selected) {
         postExportResult(session, message.requestId, "cancelled");
         return;
       }
-      if (selected.scheme !== "file") throw new Error("Output files can only be saved to a local file path.");
+      if (selected.scheme !== "file") throw new Error(translator("outputPreview.localFileOnly"));
       if (!exportRequestIsCurrent(session, message)) {
         postExportResult(session, message.requestId, "failed");
-        void vscode.window.showErrorMessage("nuinuiCAD: Output Preview changed while the save dialog was open. Export again.");
+        void vscode.window.showErrorMessage(translator("outputPreview.changedWhileSaving"));
         return;
       }
       const path = ensureOutputExportExtension(selected.fsPath, message.format);
       await host.exportOutput({ path, payload: message.payload });
       postExportResult(session, message.requestId, "saved");
-      void vscode.window.showInformationMessage(`nuinuiCAD: Saved ${basename(path)}.`);
+      void vscode.window.showInformationMessage(translator("outputPreview.saved", { fileName: basename(path) }));
     } catch (error) {
       postExportResult(session, message.requestId, "failed");
       void vscode.window.showErrorMessage(
-        `nuinuiCAD: Export failed: ${error instanceof Error ? error.message : String(error)}`
+        translator("outputPreview.exportFailed", {
+          error: error instanceof Error ? error.message : String(error)
+        })
       );
     } finally {
       if (session.inFlightExportRequestId === message.requestId) session.inFlightExportRequestId = null;
@@ -327,7 +349,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
 
     const panel = vscode.window.createWebviewPanel(
       "nuinuiCAD.outputPreview",
-      `${basename(document.fileName)} — Output Preview`,
+      outputPreviewTranslatorFor(displayLanguage())("outputPreview.panelTitle", {
+        document: basename(document.fileName)
+      }),
       preserveFocus
         ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }
         : vscode.ViewColumn.Beside,
@@ -442,21 +466,24 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       openForDocument(canvasDocument, null);
       return;
     }
-    void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Canvas.");
+    void vscode.window.showErrorMessage(
+      outputPreviewTranslatorFor(displayLanguage())("outputPreview.requiresSourceOrCanvas")
+    );
   };
 
   const executeRevealInOutputPreview = (): void => {
+    const translator = outputPreviewTranslatorFor(displayLanguage());
     const editor = host.activeNuiTextEditorForCommand();
     if (!editor) return;
     const target = host.outputPreviewRevealSourceTargetForEditor(editor);
     if (target.status === "failed") {
       const message = target.reason === "analysis-unavailable"
-        ? "nuinuiCAD: Output Preview Reveal is unavailable because Source analysis is not ready."
+        ? translator("outputPreview.sourceReveal.analysis-unavailable")
         : target.reason === "source-mismatch"
-          ? "nuinuiCAD: Output Preview Reveal is unavailable because the Source snapshot is stale."
+          ? translator("outputPreview.sourceReveal.source-mismatch")
           : target.reason === "invalid-position"
-            ? "nuinuiCAD: Output Preview Reveal is unavailable at the current Source position."
-            : "nuinuiCAD: There is no Output Preview target at the current Source position.";
+            ? translator("outputPreview.sourceReveal.invalid-position")
+            : translator("outputPreview.sourceReveal.no-target");
       void vscode.window.showErrorMessage(message);
       return;
     }
@@ -501,7 +528,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
   const executeExportCurrent = (): void => {
     const session = activeSessionForOpenCommand();
     if (!session) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Export Current Output is only available from an active Output Preview.");
+      void vscode.window.showErrorMessage(
+        outputPreviewTranslatorFor(displayLanguage())("outputPreview.exportOnlyActive")
+      );
       return;
     }
     if (
@@ -511,7 +540,9 @@ export const registerOutputPreviewFeature = (host: OutputPreviewFeatureHost): Ou
       session.exportAvailability.outputKey === null ||
       session.exportAvailability.format === null
     ) {
-      void vscode.window.showErrorMessage("nuinuiCAD: The active Output Preview has no current exportable output.");
+      void vscode.window.showErrorMessage(
+        outputPreviewTranslatorFor(displayLanguage())("outputPreview.noExportableOutput")
+      );
       return;
     }
     void session.panel.webview.postMessage({ type: "outputPreviewExport" } satisfies ExtensionToVscodeMessage);

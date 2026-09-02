@@ -8,6 +8,7 @@ import {
   type DslGeometryReferenceRetargetSemanticSnapshot
 } from "../../src/dsl/dslGeometryReferenceRetargetQuery";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { geometryReferenceRetargetTranslatorFor } from "./geometryReferenceRetargetLocalization";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -80,37 +81,47 @@ export const geometryReferenceRetargetTargetForEditor = (
 };
 
 const quickPickItemsFor = (
-  candidates: readonly DslGeometryReferenceRetargetCandidate[]
+  candidates: readonly DslGeometryReferenceRetargetCandidate[],
+  displayLanguage: string
 ): readonly GeometryReferenceRetargetQuickPickItem[] => candidates.map((candidate) => {
   const paths = candidate.referencePaths.map((path) => `@${path}`).join(", ");
+  const translate = geometryReferenceRetargetTranslatorFor(displayLanguage);
   return {
     label: candidate.name,
-    description: `${candidate.interfaceType} geometry`,
-    detail: `Reference path${candidate.referencePaths.length === 1 ? "" : "s"}: ${paths}`,
+    description: translate("geometryReferenceRetarget.geometryDescription", { type: candidate.interfaceType }),
+    detail: translate(
+      candidate.referencePaths.length === 1
+        ? "geometryReferenceRetarget.referencePath"
+        : "geometryReferenceRetarget.referencePaths",
+      {
+        paths
+      }
+    ),
     candidate
   };
 });
 
-const plannerFailureMessage = (reason: string): string => {
-  switch (reason) {
-    case "stale-source":
-      return "Source changed while replacing geometry references. Run the command again.";
-    case "unavailable-semantics":
-      return "Current Source semantics are unavailable. Fix the current Source diagnostics and try again.";
-    case "invalid-target":
-      return "The current caret is no longer on a geometry reference. Run the command again.";
-    case "incomplete-references":
-      return "The geometry references could not be fully identified. No changes were made.";
-    case "candidate-not-found":
-      return "The selected geometry is no longer an available replacement. Run the command again.";
-    case "incompatible-candidate":
-      return "The selected geometry is not compatible with every reference. Choose another candidate.";
-    case "unreachable-candidate":
-      return "The selected geometry cannot be referenced from every occurrence. Choose another candidate.";
-    case "proposed-source-verification-failed":
-      return "The proposed Source edit failed semantic verification. No changes were made.";
-    default:
-      return "The geometry-reference replacement could not be verified. No changes were made.";
+const plannerFailureTranslationKeyFor: Record<string, string> = {
+  "stale-source": "geometryReferenceRetarget.failure.stale-source",
+  "unavailable-semantics": "geometryReferenceRetarget.failure.unavailable-semantics",
+  "invalid-target": "geometryReferenceRetarget.failure.invalid-target",
+  "incomplete-references": "geometryReferenceRetarget.failure.incomplete-references",
+  "candidate-not-found": "geometryReferenceRetarget.failure.candidate-not-found",
+  "incompatible-candidate": "geometryReferenceRetarget.failure.incompatible-candidate",
+  "unreachable-candidate": "geometryReferenceRetarget.failure.unreachable-candidate",
+  "proposed-source-verification-failed": "geometryReferenceRetarget.failure.proposed-source-verification-failed"
+};
+
+const plannerFailureMessage = (reason: string, displayLanguage: string): string =>
+  geometryReferenceRetargetTranslatorFor(displayLanguage)(
+    plannerFailureTranslationKeyFor[reason] ?? "geometryReferenceRetarget.failure.default"
+  );
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
   }
 };
 
@@ -129,9 +140,11 @@ const mappedEditFor = (
 };
 
 export const registerVscodeGeometryReferenceRetargetFeature = ({
-  languageAnalysisSessionFor
+  languageAnalysisSessionFor,
+  displayLanguageFor = vscodeDisplayLanguage
 }: {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+  displayLanguageFor?: () => string;
 }): vscode.Disposable => {
   let contextUpdate: Promise<void> = Promise.resolve();
 
@@ -156,27 +169,28 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
   const execute = async (): Promise<void> => {
     const editor = vscode.window.activeTextEditor;
     if (!isSupportedWritableSourceEditor(editor)) return;
+    const displayLanguage = displayLanguageFor();
 
     const captured = sourceStateForEditor(editor, languageAnalysisSessionFor(editor.document));
     if (!captured.target) {
       refreshContext(editor);
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: Place the Source caret on an exact geometry reference to replace it."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.placeCaret")
       );
       return;
     }
     if (captured.target.candidates.length === 0) {
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: No compatible geometry replacement is available for this reference."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.noCandidate")
       );
       return;
     }
 
     const document = editor.document;
     const documentVersion = document.version;
-    const items = quickPickItemsFor(captured.target.candidates);
+    const items = quickPickItemsFor(captured.target.candidates, displayLanguage);
     const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: "Select replacement geometry",
+      placeHolder: geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.pickerPlaceholder"),
       matchOnDescription: true,
       matchOnDetail: true
     });
@@ -191,7 +205,7 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
       document.getText() !== captured.rawSource
     ) {
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: Source changed while choosing a replacement. No changes were made."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.sourceChangedWhileChoosing")
       );
       return;
     }
@@ -206,14 +220,14 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
       selected.candidate.identity
     );
     if (result.status === "rejected") {
-      void vscode.window.showErrorMessage(`nuinuiCAD: ${plannerFailureMessage(result.rejection.reason)}`);
+      void vscode.window.showErrorMessage(`nuinuiCAD: ${plannerFailureMessage(result.rejection.reason, displayLanguage)}`);
       return;
     }
 
     const mappedEdits = result.plan.edits.map((edit) => mappedEditFor(document, current.rawSource, edit));
     if (mappedEdits.some((mapped) => mapped === null)) {
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: The current Source text no longer matches the planned replacement. No changes were made."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.textMismatch")
       );
       return;
     }
@@ -224,7 +238,7 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
       document.getText() !== current.rawSource
     ) {
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: Source changed before the replacement could be applied. No changes were made."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.sourceChangedBeforeApply")
       );
       return;
     }
@@ -236,7 +250,7 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
     }, { undoStopBefore: true, undoStopAfter: true });
     if (!applied) {
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: VS Code could not apply the geometry-reference replacement. No changes were made."
+        geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.applyFailed")
       );
       return;
     }

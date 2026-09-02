@@ -15,6 +15,12 @@ import type {
   VscodeCanvasObservationSnapshot
 } from "../../src/vscode/protocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  extractModuleCanvasExecutionRejectionMessageFor,
+  extractModuleRejectionMessageFor,
+  extractModuleTranslatorFor,
+  type ExtractModuleCanvasExecutionRejection
+} from "./extractModuleLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 
 export const VSCODE_EXTRACT_MODULE_COMMAND_ID = "nuinuiCAD.extractModule";
@@ -43,6 +49,15 @@ export type ExtractModuleCommandFeatureHost = {
     expectedSourceText: string,
     splices: readonly LineSplice[]
   ) => Promise<boolean>;
+  displayLanguageFor?: () => string;
+};
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
 };
 
 export type VscodeExtractModuleCommandFeature = vscode.Disposable & {
@@ -281,7 +296,7 @@ const ordinaryTargetFor = (
 
 type ExtractModuleCanvasTargetProjection = {
   targets: readonly StatementIdentity[];
-  executionRejection: string | null;
+  executionRejection: ExtractModuleCanvasExecutionRejection | null;
 };
 
 const extractModuleCanvasTargetProjectionFor = ({
@@ -315,7 +330,7 @@ const extractModuleCanvasTargetProjectionFor = ({
   }
 
   const targets = new Map<StatementIdentity, number>();
-  let executionRejection: string | null = null;
+  let executionRejection: ExtractModuleCanvasExecutionRejection | null = null;
   for (const runtimeElementId of snapshot.selectedElementIds) {
     const candidates = sourcesByRuntimeElementId.get(runtimeElementId);
     if (!candidates || candidates.length === 0) return { targets: [], executionRejection: null };
@@ -324,7 +339,7 @@ const extractModuleCanvasTargetProjectionFor = ({
     const candidate = distinctCandidates.values().next().value as VscodeCanvasObservationElementSource | undefined;
     if (!candidate) return { targets: [], executionRejection: null };
     if ("runtimeKind" in candidate && candidate.runtimeKind === "moduleBody") {
-      executionRejection ??= "Canvas の選択に materialized moduleBody descendant が含まれています。";
+      executionRejection ??= "materialized-module-body-descendant";
       continue;
     }
     const target = "runtimeKind" in candidate
@@ -352,9 +367,6 @@ export const collectExtractModuleCanvasTargets = ({
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
 }): readonly StatementIdentity[] => extractModuleCanvasTargetProjectionFor({ snapshot, source, compiled }).targets;
-
-const extractModuleCanvasExecutionRejectionMessage = (reason: string): string =>
-  `nuinuiCAD: ${reason} Extract Module は authored source owner または concrete Module instance のみ実行できます。対象を選択解除してから再実行してください。`;
 
 const canvasObservationFor = (
   endpoint: ExtractModuleCanvasEndpoint
@@ -393,7 +405,8 @@ const nameValidationFor = (
   exact: ExactSourceState,
   targets: readonly StatementIdentity[],
   name: string,
-  kind: "instance" | "module"
+  kind: "instance" | "module",
+  displayLanguage: string
 ): string | undefined => {
   const probe = planForNames(
     exact,
@@ -401,7 +414,9 @@ const nameValidationFor = (
     kind === "module" ? name : "__nuinuiCADExtractModuleNameProbe__",
     kind === "instance" ? name : "__nuinuiCADExtractModuleInstanceNameProbe__"
   );
-  return probe.status === "rejected" && probe.code === "invalid-name" ? probe.message : undefined;
+  return probe.status === "rejected" && probe.code === "invalid-name"
+    ? extractModuleRejectionMessageFor(probe, displayLanguage)
+    : undefined;
 };
 
 const conflictForDeterministicModuleName = (
@@ -416,8 +431,10 @@ const conflictForDeterministicModuleName = (
     : null;
 };
 
-const presentPlannerRejection = (result: ExtractModulePlanResult): void => {
-  if (result.status === "rejected") void vscode.window.showErrorMessage(`nuinuiCAD: ${result.message}`);
+const presentPlannerRejection = (result: ExtractModulePlanResult, displayLanguage: string): void => {
+  if (result.status === "rejected") {
+    void vscode.window.showErrorMessage(`nuinuiCAD: ${extractModuleRejectionMessageFor(result, displayLanguage)}`);
+  }
 };
 
 const generatedInstanceOffsetFor = (
@@ -448,7 +465,8 @@ export const registerVscodeExtractModuleCommandFeature = ({
   sourceEditorForDocument,
   activeCanvasEndpoint,
   navigateCanvasToSourceOffset,
-  applySourceLineSplices
+  applySourceLineSplices,
+  displayLanguageFor = vscodeDisplayLanguage
 }: ExtractModuleCommandFeatureHost): VscodeExtractModuleCommandFeature => {
   let disposed = false;
   let contextUpdate: Promise<void> = Promise.resolve();
@@ -492,6 +510,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
 
   const execute = async (): Promise<void> => {
     if (disposed) return;
+    const displayLanguage = displayLanguageFor();
     const sourceInvocation = collectExtractModuleSourceTargets(activeSourceEditor(), languageAnalysisSessionFor);
     let origin: "source" | "canvas";
     let editor: vscode.TextEditor;
@@ -502,7 +521,9 @@ export const registerVscodeExtractModuleCommandFeature = ({
 
     if (sourceInvocation) {
       if (sourceInvocation.targets.length === 0) {
-        void vscode.window.showErrorMessage("nuinuiCAD: No authored Extract target is selected at the current Source position.");
+        void vscode.window.showErrorMessage(
+          extractModuleTranslatorFor(displayLanguage)("extractModule.source.noTarget")
+        );
         return;
       }
       origin = "source";
@@ -518,12 +539,16 @@ export const registerVscodeExtractModuleCommandFeature = ({
         : null;
       const canvasTargets = canvasProjection?.targets ?? [];
       if (canvasProjection?.executionRejection) {
-        void vscode.window.showErrorMessage(extractModuleCanvasExecutionRejectionMessage(canvasProjection.executionRejection));
+        void vscode.window.showErrorMessage(
+          extractModuleCanvasExecutionRejectionMessageFor(canvasProjection.executionRejection, displayLanguage)
+        );
         refreshContext();
         return;
       }
       if (!canvasEndpoint || !snapshot || !canvasExact || canvasTargets.length === 0) {
-        void vscode.window.showErrorMessage("nuinuiCAD: No authored Extract target is selected on the current Canvas.");
+        void vscode.window.showErrorMessage(
+          extractModuleTranslatorFor(displayLanguage)("extractModule.canvas.noTarget")
+        );
         refreshContext();
         return;
       }
@@ -541,9 +566,9 @@ export const registerVscodeExtractModuleCommandFeature = ({
     const capturedRawSource = capturedDocument.getText();
     const capturedSelection = origin === "source" ? selectionFor(editor) : null;
     const acceptedInstanceName = await vscode.window.showInputBox({
-      title: "Instance name",
-      prompt: "Instance name",
-      validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "instance")
+      title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
+      prompt: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
+      validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "instance", displayLanguage)
     });
     if (acceptedInstanceName === undefined) return;
     const instanceName = acceptedInstanceName.trim();
@@ -554,35 +579,40 @@ export const registerVscodeExtractModuleCommandFeature = ({
       moduleCandidate,
       instanceName
     );
-    if (deterministicConflict) presentPlannerRejection(deterministicConflict);
+    if (deterministicConflict) presentPlannerRejection(deterministicConflict, displayLanguage);
 
-    const candidateLabel = `Use module name: ${moduleCandidate}`;
+    const candidateLabel = extractModuleTranslatorFor(displayLanguage)("extractModule.choice.useModuleName", {
+      moduleName: moduleCandidate
+    });
+    const renameModuleLabel = extractModuleTranslatorFor(displayLanguage)("extractModule.choice.renameModule");
     const moduleChoice = await vscode.window.showQuickPick([
       { label: candidateLabel },
-      { label: "Rename module..." }
-    ], { title: "Module name" });
+      { label: renameModuleLabel }
+    ], { title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName") });
     if (!moduleChoice) return;
     if (moduleChoice.label === candidateLabel && deterministicConflict) {
-      presentPlannerRejection(deterministicConflict);
+      presentPlannerRejection(deterministicConflict, displayLanguage);
       return;
     }
-    const moduleName = moduleChoice.label === "Rename module..."
+    const moduleName = moduleChoice.label === renameModuleLabel
       ? (await vscode.window.showInputBox({
-          title: "Module name",
-          prompt: "Module name",
-          validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "module")
+          title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName"),
+          prompt: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName"),
+          validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "module", displayLanguage)
         }))?.trim()
       : moduleCandidate;
     if (moduleName === undefined) return;
 
     const currentExact = exactSourceStateFor(capturedDocument, languageAnalysisSessionFor);
     if (!currentExact) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Extract Module requires an exact-current Source/semantic snapshot.");
+      void vscode.window.showErrorMessage(
+        extractModuleTranslatorFor(displayLanguage)("extractModule.exactCurrent")
+      );
       return;
     }
     const result = planForNames(currentExact, targets, moduleName, instanceName);
     if (result.status === "rejected") {
-      presentPlannerRejection(result);
+      presentPlannerRejection(result, displayLanguage);
       return;
     }
 
@@ -602,7 +632,9 @@ export const registerVscodeExtractModuleCommandFeature = ({
         })
       : null;
     if (currentCanvasProjection?.executionRejection) {
-      void vscode.window.showErrorMessage(extractModuleCanvasExecutionRejectionMessage(currentCanvasProjection.executionRejection));
+      void vscode.window.showErrorMessage(
+        extractModuleCanvasExecutionRejectionMessageFor(currentCanvasProjection.executionRejection, displayLanguage)
+      );
       refreshContext();
       return;
     }
@@ -628,14 +660,18 @@ export const registerVscodeExtractModuleCommandFeature = ({
             sourceTargetIdsEqual(targets, currentCanvasTargets)
           ));
     if (!stillCurrent) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Source or Canvas state changed. No changes were made; run Extract Module again.");
+      void vscode.window.showErrorMessage(
+        extractModuleTranslatorFor(displayLanguage)("extractModule.stateChanged")
+      );
       refreshContext();
       return;
     }
 
     const applied = await applySourceLineSplices(editor, capturedVersion, capturedRawSource, result.splices);
     if (!applied) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Source changed before Extract Module could be applied. No changes were made.");
+      void vscode.window.showErrorMessage(
+        extractModuleTranslatorFor(displayLanguage)("extractModule.sourceChangedBeforeApply")
+      );
       refreshContext();
       return;
     }
@@ -650,7 +686,12 @@ export const registerVscodeExtractModuleCommandFeature = ({
       };
       finishPendingCanvasNavigation();
     }
-    void vscode.window.showInformationMessage(`nuinuiCAD: Extracted ${result.moduleName} from ${result.instanceName}.`);
+    void vscode.window.showInformationMessage(
+      extractModuleTranslatorFor(displayLanguage)("extractModule.completed", {
+        moduleName: result.moduleName,
+        instanceName: result.instanceName
+      })
+    );
     refreshContext();
   };
 

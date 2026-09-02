@@ -28,6 +28,7 @@ import type {
 } from "../../src/vscode/protocol";
 import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
@@ -84,6 +85,15 @@ export type RegisterModulePreviewFeatureOptions = {
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
   editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
+  displayLanguageFor?: () => string;
+};
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
 };
 
 const isSupportedNuiDocument = (document: vscode.TextDocument): boolean =>
@@ -304,7 +314,8 @@ export const registerModulePreviewFeature = ({
   canvasRibbons,
   updateCanvasRibbonPosition,
   editCanvasRibbon,
-  evaluateWithRust
+  evaluateWithRust,
+  displayLanguageFor = vscodeDisplayLanguage
 }: RegisterModulePreviewFeatureOptions): ModulePreviewFeature => {
   const sessions = new Map<string, ModulePreviewSession>();
   const disposables: vscode.Disposable[] = [];
@@ -1070,7 +1081,7 @@ export const registerModulePreviewFeature = ({
 
     const panel = vscode.window.createWebviewPanel(
       NUI_MODULE_PREVIEW_VIEW_TYPE,
-      "Module Preview",
+      modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.panelTitle"),
       vscode.ViewColumn.Beside,
       { enableScripts: true }
     );
@@ -1175,12 +1186,16 @@ export const registerModulePreviewFeature = ({
   disposables.push(vscode.commands.registerCommand("nuinuiCAD.openModulePreview", () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor || !isSupportedNuiDocument(editor.document)) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Open Module Preview requires an active .nui Source Editor.");
+      void vscode.window.showErrorMessage(
+        modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.requiresSourceEditor")
+      );
       return;
     }
     const target = exactTargetAtEditor(editor, languageAnalysisSessionFor);
     if (!target) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Place the Source Editor caret inside a current Module definition.");
+      void vscode.window.showErrorMessage(
+        modulePreviewTranslatorFor(displayLanguageFor())("modulePreview.placeCaret")
+      );
       return;
     }
     createOrRetargetPanel(editor, target);

@@ -52,6 +52,7 @@ import {
   VSCODE_EXTRACT_MODULE_COMMAND_ID,
   type ExtractModuleCanvasEndpoint
 } from "./extractModuleCommandFeature";
+import { extractModuleRejectionMessageFor } from "./extractModuleLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
 import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
@@ -160,6 +161,7 @@ const commandFeatureFor = (input: {
   canvasEditor?: ReturnType<typeof editorFor>;
   session: ReturnType<typeof createLanguageAnalysisSession>;
   endpoint?: ExtractModuleCanvasEndpoint | null;
+  displayLanguage?: string;
   navigate?: (endpoint: ExtractModuleCanvasEndpoint, sourceOffset: number) => boolean;
   apply?: (
     editor: unknown,
@@ -178,7 +180,8 @@ const commandFeatureFor = (input: {
     sourceEditorForDocument: () => (input.canvasEditor ?? input.editor) as never,
     activeCanvasEndpoint: () => input.endpoint ?? null,
     navigateCanvasToSourceOffset: input.navigate ?? vi.fn(() => true),
-    applySourceLineSplices: input.apply ?? (async () => true)
+    applySourceLineSplices: input.apply ?? (async () => true),
+    displayLanguageFor: () => input.displayLanguage ?? "en"
   });
 };
 
@@ -200,6 +203,15 @@ beforeEach(() => {
 });
 
 describe("VS Code Extract Module command feature", () => {
+  it("maps native rejection presentation from the stable code", () => {
+    expect(extractModuleRejectionMessageFor({ code: "name-collision" }, "en")).toBe(
+      "That Module or instance name is already used in this Source scope."
+    );
+    expect(extractModuleRejectionMessageFor({ code: "name-collision" }, "ja-JP")).toBe(
+      "その Module 名またはインスタンス名は、この Source スコープですでに使用されています。"
+    );
+  });
+
   it("collects all complete intersected authored statements and one caret statement", () => {
     const session = createLanguageAnalysisSession(source);
     const firstOffset = source.indexOf("const first");
@@ -284,7 +296,7 @@ describe("VS Code Extract Module command feature", () => {
     expect(mocks.showInputBox).not.toHaveBeenCalled();
     expect(mocks.showQuickPick).not.toHaveBeenCalled();
     expect(apply).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("moduleBody descendant"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("materialized Module body descendant"));
     expect(collectExtractModuleCanvasTargets({ snapshot: observationFor({ selectedElementIds, selectedElementSources }), source: sourceSnapshot, compiled })).toHaveLength(1);
     feature.dispose();
   });
@@ -375,7 +387,31 @@ describe("VS Code Extract Module command feature", () => {
     await flushCommand();
 
     expect(apply).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage.mock.calls.some(([message]) => String(message).includes("既存 declaration"))).toBe(true);
+    expect(mocks.showErrorMessage.mock.calls.some(([message]) => String(message).includes("already used in this Source scope"))).toBe(true);
+    feature.dispose();
+  });
+
+  it("localizes naming presentation without changing the extraction flow", async () => {
+    const editor = editorFor(() => source, {
+      start: source.indexOf("const first"),
+      end: source.indexOf("const first") + "const first: number = @width + 1".length,
+      active: source.indexOf("const first")
+    });
+    const { session } = compiledFor(source);
+    mocks.showInputBox.mockResolvedValue("Part");
+    mocks.showQuickPick.mockResolvedValue({ label: "Module 名に PartModule を使用" });
+    const apply = vi.fn(async () => true);
+    const feature = commandFeatureFor({ editor, session, apply, displayLanguage: "ja-JP" });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).toHaveBeenCalledWith(expect.objectContaining({ title: "インスタンス名", prompt: "インスタンス名" }));
+    expect(mocks.showQuickPick).toHaveBeenCalledWith([
+      { label: "Module 名に PartModule を使用" },
+      { label: "Module 名を変更..." }
+    ], { title: "Module 名" });
+    expect(apply).toHaveBeenCalledTimes(1);
     feature.dispose();
   });
 

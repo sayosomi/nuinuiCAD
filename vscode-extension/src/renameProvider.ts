@@ -15,36 +15,25 @@ import {
   normalizedSourceFor,
   vscodeRangeForNormalized
 } from "./sourceOffsetAdapter";
+import { renameRejectionMessageFor, renameTranslatorFor } from "./renameLocalization";
 
 export const nuiRenameSelector: vscode.DocumentSelector = {
   language: "nui",
   scheme: "file"
 };
 
-const prepareRenameFailureMessage = "Rename is not available at this position.";
-const provideRenameEditsFailureMessage = "Rename could not be applied.";
-const invalidCurrentSourceRenameMessage = "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。";
-
-export const renameRejectionMessage = (rejection: DslRenameRejection): string => {
-  switch (rejection.reason) {
-    case "invalid-name":
-      return rejection.message;
-    case "same-scope-collision":
-      return rejection.conflictingLine === undefined
-        ? `「${rejection.conflictingName}」はこのスコープに既に存在します。`
-        : `「${rejection.conflictingName}」は${rejection.conflictingLine}行目に既に存在します。`;
-    case "reference-resolution-change":
-      if (rejection.family === "typed") return `「${rejection.referencedName}」の参照先が変わるため、リネームできません。`;
-      if (rejection.family === "element") {
-        return rejection.line === undefined
-          ? "参照先が変わるため、リネームできません。"
-          : `${rejection.line}行目の参照先が変わるため、リネームできません。`;
-      }
-      return "リネーム後にModuleの参照解決が変わるため、変更を中止しました。";
-    case "unavailable":
-      return provideRenameEditsFailureMessage;
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
   }
 };
+
+export const renameRejectionMessage = (
+  rejection: DslRenameRejection,
+  displayLanguage = vscodeDisplayLanguage()
+): string => renameRejectionMessageFor(rejection, displayLanguage);
 
 const vscodeRangeFor = (
   document: vscode.TextDocument,
@@ -108,15 +97,17 @@ const currentTargetRangeFor = (
 ): vscode.Range => vscodeRangeFor(document, snapshot.rawSource, target.range);
 
 export const createNuiRenameProvider = (
-  sessionFor: NuiRenameSessionFor
+  sessionFor: NuiRenameSessionFor,
+  displayLanguageFor: () => string = vscodeDisplayLanguage
 ): vscode.RenameProvider => ({
   prepareRename: (document, position) => {
     if (document.uri.scheme !== "file" || !document.fileName.endsWith(".nui")) return undefined;
 
     const prepareSingleDocument = () => {
       const snapshot = captureRenameCall(document, sessionFor);
-      if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
-      if (!snapshot.semantic) throw new Error(prepareRenameFailureMessage);
+      const translator = renameTranslatorFor(displayLanguageFor());
+      if (snapshot.hasCurrentErrors) throw new Error(translator("rename.currentSourceInvalid"));
+      if (!snapshot.semantic) throw new Error(translator("rename.prepareUnavailable"));
 
       let target: DslRenameTarget | null;
       try {
@@ -125,9 +116,11 @@ export const createNuiRenameProvider = (
           document.offsetAt(position)
         ));
       } catch {
-        throw new Error(prepareRenameFailureMessage);
+        throw new Error(renameTranslatorFor(displayLanguageFor())("rename.prepareUnavailable"));
       }
-      if (!target || !isCurrentDocument(document, snapshot)) throw new Error(prepareRenameFailureMessage);
+      if (!target || !isCurrentDocument(document, snapshot)) {
+        throw new Error(renameTranslatorFor(displayLanguageFor())("rename.prepareUnavailable"));
+      }
 
       return {
         range: currentTargetRangeFor(document, snapshot, target),
@@ -139,7 +132,7 @@ export const createNuiRenameProvider = (
     return multiDocument
       ? multiDocument.prepareRename(document, position).then((handled) => {
           if (!handled.handled) return prepareSingleDocument();
-          if (!handled.value) throw new Error(prepareRenameFailureMessage);
+          if (!handled.value) throw new Error(renameTranslatorFor(displayLanguageFor())("rename.prepareUnavailable"));
           return handled.value;
         })
       : prepareSingleDocument();
@@ -150,8 +143,9 @@ export const createNuiRenameProvider = (
 
     const provideSingleDocument = (): vscode.WorkspaceEdit => {
       const snapshot = captureRenameCall(document, sessionFor);
-      if (snapshot.hasCurrentErrors) throw new Error(invalidCurrentSourceRenameMessage);
-      if (!snapshot.semantic) throw new Error(provideRenameEditsFailureMessage);
+      const translator = renameTranslatorFor(displayLanguageFor());
+      if (snapshot.hasCurrentErrors) throw new Error(translator("rename.currentSourceInvalid"));
+      if (!snapshot.semantic) throw new Error(translator("rename.applyUnavailable"));
 
       let result: DslRenameEditPlanResult;
       try {
@@ -161,17 +155,17 @@ export const createNuiRenameProvider = (
           newName
         );
       } catch {
-        throw new Error(provideRenameEditsFailureMessage);
+        throw new Error(renameTranslatorFor(displayLanguageFor())("rename.applyUnavailable"));
       }
 
       if (result.status === "rejected") {
-        throw new Error(renameRejectionMessage(result.rejection));
+        throw new Error(renameRejectionMessage(result.rejection, displayLanguageFor()));
       }
 
       const plan: DslRenameEditPlan = result.plan;
       try {
         if (!exactPlanForSource(plan, snapshot.source) || !isCurrentDocument(document, snapshot)) {
-          throw new Error(provideRenameEditsFailureMessage);
+          throw new Error(renameTranslatorFor(displayLanguageFor())("rename.applyUnavailable"));
         }
 
         const workspaceEdit = new vscode.WorkspaceEdit();
@@ -184,7 +178,7 @@ export const createNuiRenameProvider = (
         }
         return workspaceEdit;
       } catch {
-        throw new Error(provideRenameEditsFailureMessage);
+        throw new Error(renameTranslatorFor(displayLanguageFor())("rename.applyUnavailable"));
       }
     };
 
@@ -192,7 +186,7 @@ export const createNuiRenameProvider = (
     return multiDocument
       ? multiDocument.provideRenameEdits(document, position, newName).then((handled) => {
           if (!handled.handled) return provideSingleDocument();
-          if (!handled.value) throw new Error(provideRenameEditsFailureMessage);
+          if (!handled.value) throw new Error(renameTranslatorFor(displayLanguageFor())("rename.applyUnavailable"));
           return handled.value;
         })
       : provideSingleDocument();

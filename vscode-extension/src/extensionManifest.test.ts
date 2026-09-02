@@ -51,6 +51,7 @@ type ExtensionManifest = {
       "nuinuiCAD.create"?: CommandPaletteMenu[];
       "nuinuiCAD.convertPoint"?: CommandPaletteMenu[];
       "view/item/context"?: CommandPaletteMenu[];
+      "view/title"?: CommandPaletteMenu[];
     };
   };
 };
@@ -65,6 +66,8 @@ type SchemaNode = {
 };
 
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
+const packageNlsPath = resolve(process.cwd(), "vscode-extension/package.nls.json");
+const packageNlsJaPath = resolve(process.cwd(), "vscode-extension/package.nls.ja.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
 const commandIds = [
   "nuinuiCAD.openCanvas",
@@ -172,7 +175,42 @@ async function readManifest(): Promise<ExtensionManifest> {
   return JSON.parse(await readFile(manifestPath, "utf8")) as ExtensionManifest;
 }
 
+const nlsKeysReferencedBy = (value: unknown): string[] => {
+  const keys: string[] = [];
+  const visit = (candidate: unknown): void => {
+    if (typeof candidate === "string") {
+      for (const match of candidate.matchAll(/%([^%]+)%/g)) keys.push(match[1]!);
+      return;
+    }
+    if (Array.isArray(candidate)) {
+      candidate.forEach(visit);
+      return;
+    }
+    if (candidate && typeof candidate === "object") {
+      Object.values(candidate).forEach(visit);
+    }
+  };
+  visit(value);
+  return [...new Set(keys)].sort();
+};
+
 describe("VS Code extension manifest command contributions", () => {
+  it("provides English and Japanese package NLS entries for every manifest token while keeping command titles literal", async () => {
+    const rawManifest = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const referencedKeys = nlsKeysReferencedBy(rawManifest);
+
+    expect(referencedKeys.length).toBeGreaterThan(0);
+    for (const key of referencedKeys) {
+      expect(typeof english[key], key).toBe("string");
+      expect(typeof japanese[key], key).toBe("string");
+    }
+
+    const manifest = rawManifest as { contributes?: { commands?: Array<{ title?: unknown }> } };
+    expect(manifest.contributes?.commands?.every(({ title }) => typeof title === "string" && !title.includes("%"))).toBe(true);
+  });
+
   it("keeps the Source+Output Preview Palette scope in the durable policy", async () => {
     expect(await readFile(agentsPath, "utf8")).toContain("* `Source+Output Preview`");
   });
@@ -533,7 +571,7 @@ describe("VS Code extension manifest command contributions", () => {
     const quickCreateSetting = manifest.contributes?.configuration?.properties?.[VSCODE_CANVAS_QUICK_CREATE_SETTING];
     const quickCreateEnum = (quickCreateSetting?.items as { enum?: unknown[] } | undefined)?.enum;
 
-    expect(manifest.contributes?.submenus).toContainEqual({ id: "nuinuiCAD.create", label: "Create" });
+    expect(manifest.contributes?.submenus).toContainEqual({ id: "nuinuiCAD.create", label: "%submenu.create%" });
     expect(commands.find(({ command }) => command === "nuinuiCAD.createGeometry")).toEqual({
       command: "nuinuiCAD.createGeometry",
       title: "nuinuiCAD: Create Geometry…"

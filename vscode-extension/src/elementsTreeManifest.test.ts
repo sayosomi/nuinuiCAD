@@ -30,22 +30,22 @@ describe("nuinuiCAD Explorer manifest", () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.viewsContainers?.activitybar).toEqual([{
       id: "nuinuiCAD.explorer",
-      title: "nuinuiCAD Explorer",
+      title: "%views.explorerContainer%",
       icon: "media/spline.svg"
     }]);
     expect(manifest.contributes?.views?.["nuinuiCAD.explorer"]).toEqual([
       {
         id: "nuinuiCAD.elements",
-        name: "Elements"
+        name: "%views.elements%"
       },
       {
         id: "nuinuiCAD.explorerMock",
-        name: "Explorer Mock",
+        name: "%views.explorerMock%",
         type: "webview"
       },
       {
         id: "nuinuiCAD.modulePreviewParameters",
-        name: "Module Preview Parameters",
+        name: "%views.modulePreviewParameters%",
         type: "webview"
       }
     ]);

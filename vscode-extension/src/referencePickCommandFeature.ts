@@ -15,6 +15,7 @@ import type {
   VscodeReferencePickTargetProof
 } from "../../src/vscode/referencePickProtocol";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { referencePickTranslatorFor } from "./referencePickLocalization";
 import {
   createVscodeReferencePickSourceBridge,
   type VscodeReferencePickAppliedHandoff,
@@ -27,6 +28,14 @@ export const VSCODE_REFERENCE_PICK_CONTEXT_KEY = "nuinuiCAD.referencePickSourceT
 export const VSCODE_REVEAL_IN_CANVAS_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.revealInCanvasSourceTarget";
 export const VSCODE_REVEAL_IN_OUTPUT_PREVIEW_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.revealInOutputPreviewSourceTarget";
 export const VSCODE_BAKE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.bakeSourceTarget";
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
+};
 
 export type VscodeReferencePickCanvasEndpoint = {
   document: vscode.TextDocument;
@@ -212,12 +221,14 @@ export const referencePickSourceOffsetForEditor = (
 
 export const registerVscodeReferencePickFeature = ({
   languageAnalysisSessionFor,
-  ensureCanvas
+  ensureCanvas,
+  displayLanguageFor = vscodeDisplayLanguage
 }: {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
   ensureCanvas: (
     document: vscode.TextDocument
   ) => VscodeReferencePickCanvasEndpoint | null | Promise<VscodeReferencePickCanvasEndpoint | null>;
+  displayLanguageFor?: () => string;
 }): vscode.Disposable => {
   let nextRequestId = 1;
   let active: ActiveReferencePick | null = null;
@@ -418,7 +429,7 @@ export const registerVscodeReferencePickFeature = ({
     if (normalizedSourceOffset === null) {
       refreshContext(editor);
       void vscode.window.showErrorMessage(
-        "nuinuiCAD: Source Editorのカーソル位置にCanvasから選択できる参照先がありません。"
+        referencePickTranslatorFor(displayLanguageFor())("referencePick.noTarget")
       );
       return;
     }
