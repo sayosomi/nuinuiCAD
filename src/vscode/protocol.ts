@@ -12,7 +12,8 @@ import type {
   VscodeExtensionToModulePreviewMessage,
   VscodeModulePreviewParameterSnapshot,
   VscodeModulePreviewParametersUnavailable,
-  VscodeModulePreviewParameterViewMessage
+  VscodeModulePreviewParameterViewMessage,
+  VscodeModulePreviewToExtensionMessage
 } from "./modulePreviewProtocol";
 import type {
   VscodeExtensionToOutputPreviewMessage,
@@ -50,10 +51,20 @@ export type {
   VscodeModulePreviewParameterValueBlur,
   VscodeModulePreviewParameterValueFocus,
   VscodeModulePreviewParameterValueSelectionRestore,
+  VscodeModulePreviewParameterActionProof,
+  VscodeModulePreviewParameterReferencePickStartRequest,
   VscodeModulePreviewParameterUseDefault,
   VscodeModulePreviewParameterUseDefaultRequest,
   VscodeModulePreviewParametersUnavailable,
   VscodeModulePreviewParameterViewMessage,
+  VscodeModulePreviewReferencePickCancelRequest,
+  VscodeModulePreviewReferencePickConfirmedResult,
+  VscodeModulePreviewReferencePickProof,
+  VscodeModulePreviewReferencePickResult,
+  VscodeModulePreviewReferencePickStartedResult,
+  VscodeModulePreviewReferencePickStartRequest,
+  VscodeModulePreviewReferencePickTerminalResult,
+  VscodeModulePreviewToExtensionMessage,
   VscodeModulePreviewSession,
   VscodeModulePreviewTarget,
   VscodeModulePreviewTargetUnavailable
@@ -201,6 +212,7 @@ export type VscodeToExtensionMessage =
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
   | VscodeModulePreviewParameterViewMessage
+  | VscodeModulePreviewToExtensionMessage
   | VscodeModulePreviewParameterSnapshot
   | VscodeModulePreviewParametersUnavailable
   | {

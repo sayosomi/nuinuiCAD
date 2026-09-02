@@ -18,7 +18,7 @@ import type { CanvasViewport } from "../state/cadUiStore";
 import type { CadElement, EvaluationResult, VisibilityProfile } from "../types/geometry";
 import {
   referencePickHoverForCanvasOption,
-  type VscodeReferencePickCanvasSession
+  type VscodeReferencePickCanvasSessionLike
 } from "./referencePickCanvasSession";
 import {
   referencePickReferenceKey,
@@ -34,7 +34,7 @@ type VSCodeReferencePickOverlayProps = {
   evaluation: EvaluationResult;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
-  session: VscodeReferencePickCanvasSession;
+  session: VscodeReferencePickCanvasSessionLike;
   onHover: (hover: ReferencePickHover | null) => void;
   onSelect: (selection: ReferencePickHover | null) => void;
   onSelectNumericProperty?: (property: NumericComputedGeometryProperty) => void;

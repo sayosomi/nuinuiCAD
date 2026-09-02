@@ -3,7 +3,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import type { ElementId } from "../types/geometry";
 import { applyStatement } from "./dslCompiler";
-import type { CompiledDslDocument } from "./dslDocument";
+import { buildStatementMap, type CompiledDslDocument } from "./dslDocument";
 import { isCompilableDslStatement } from "./dslCompilationGuard";
 import { parseDslSnapshot } from "./dslParser";
 import { buildModuleGeometryRuntime, type ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
@@ -60,6 +60,8 @@ export type ModulePreviewRootResult = {
   moduleMaterialization: ModuleMaterialization;
   moduleGeometryRuntime: ModuleGeometryRuntimeCompilation;
   moduleScalarRuntime: ModuleScalarRuntimeCompilation;
+  /** Ephemeral compiler projection used by Canvas Reference Pick candidates. */
+  candidateCompiledDocument: CompiledDslDocument;
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -707,6 +709,46 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     ...relevantDiagnostics(moduleGeometryRuntime.diagnostics, relevantLines),
     ...relevantDiagnostics(compilerDiagnostics, relevantLines)
   ];
+  const candidateStatementMap = buildStatementMap(
+    statements,
+    Math.max(...statements.map((statement) => statement.line), compiled.sourceLines.length),
+    new Map(compileResult.elementIdsByStatementIndex ?? []),
+    compileResult.layoutIdsByStatementIndex,
+    compileResult.outputIdsByStatementIndex,
+    stableStatementIdByIndex,
+    (_statement, statementIndex) => isCompilableDslStatement(statements, statementIndex)
+  );
+  const candidateDocument = compiled.document
+    ? {
+        ...compiled.document,
+        elements: compileResult.elements,
+        modifiers: compileResult.modifiers ?? [],
+        drawingProfiles: compileResult.drawingProfiles,
+        visibilityRoles: compileResult.visibilityRoles ?? [],
+        visibilityProfiles: compileResult.visibilityProfiles ?? [],
+        activeVisibilityProfileId: compileResult.activeVisibilityProfileId ?? "",
+        layouts: compileResult.layouts ?? [],
+        printOutputs: compileResult.printOutputs ?? [],
+        svgOutputs: compileResult.svgOutputs ?? [],
+        evaluationLimitIndex: undefined
+      }
+    : null;
+  const candidateCompiledDocument: CompiledDslDocument = {
+    ...compiled,
+    document: candidateDocument,
+    statements,
+    statementMap: candidateStatementMap,
+    sourceElementsByStatementIndex: new Map(
+      [...(compileResult.elementIdsByStatementIndex ?? [])].flatMap(([statementIndex, elementId]) => {
+        const element = compileResult.elements.find((candidate) => candidate.id === elementId);
+        return element ? [[statementIndex, element] as const] : [];
+      })
+    ),
+    sourceLexicalNamespace: sourceNamespace,
+    moduleSemanticAnalysis: previewAnalysis,
+    moduleMaterialization,
+    moduleGeometryRuntime
+  };
   return {
     target: input.target,
     targetRuntimeElementId,
@@ -721,6 +763,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     moduleMaterialization,
     moduleGeometryRuntime,
     moduleScalarRuntime,
+    candidateCompiledDocument,
     diagnostics
   };
 };
