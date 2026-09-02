@@ -2,6 +2,7 @@ import type { DslReferencePickTarget } from "../dsl/dslReferencePickQuery";
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import {
   numericComputedGeometryPropertiesFor,
+  computedReferencePathValue,
   type NumericComputedGeometryProperty
 } from "../geometry/numericExpressions";
 import {
@@ -54,11 +55,21 @@ export type ReferencePickGeometryOption = {
   reference: CanonicalGeometrySourceReference;
 };
 
+export type ReferencePickNumericSubgeometry =
+  | { kind: "body" }
+  | {
+      kind: "point";
+      anchor: Extract<PointAnchor, { mode: "derived" }>;
+    };
+
 export type ReferencePickNumericPropertyOption = {
   kind: "numericProperty";
   label: string;
   reference: CanonicalGeometrySourceReference;
+  subgeometry: ReferencePickNumericSubgeometry;
   properties: readonly NumericComputedGeometryProperty[];
+  /** Present only for semantic-point numeric options; never part of Source. */
+  point?: ComputedPoint;
 };
 
 export type ReferencePickCandidateOption =
@@ -94,6 +105,92 @@ const numericReferenceGeometryFor = (
   geometry.kind === "polyline"
     ? geometry
     : null;
+
+const numericPropertiesForSubgeometry = (
+  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }>,
+  subgeometry: ReferencePickNumericSubgeometry
+): readonly NumericComputedGeometryProperty[] => {
+  if (subgeometry.kind === "body") {
+    if (geometry.kind === "arcLine") return ["length", "radius", "sweepAngleDeg"];
+    return ["length"];
+  }
+
+  const pointKey = subgeometry.anchor.pointKey;
+  if (pointKey === "start") {
+    if (geometry.kind === "bezierCurve") {
+      return [
+        "startPoint.x",
+        "startPoint.y",
+        "startAngleDeg",
+        "startHandleAngleDeg",
+        "startHandleLength"
+      ];
+    }
+    if (geometry.kind === "arcLine") {
+      return ["startPoint.x", "startPoint.y", "startAngleDeg", "startRadiusAngleDeg"];
+    }
+    return ["startPoint.x", "startPoint.y", "startAngleDeg"];
+  }
+  if (pointKey === "end") {
+    if (geometry.kind === "bezierCurve") {
+      return [
+        "endPoint.x",
+        "endPoint.y",
+        "endAngleDeg",
+        "endHandleAngleDeg",
+        "endHandleLength"
+      ];
+    }
+    if (geometry.kind === "arcLine") {
+      return ["endPoint.x", "endPoint.y", "endAngleDeg", "endRadiusAngleDeg"];
+    }
+    return ["endPoint.x", "endPoint.y", "endAngleDeg"];
+  }
+  if (geometry.kind === "arcLine" && pointKey === "center") {
+    return ["centerPoint.x", "centerPoint.y"];
+  }
+  if (geometry.kind === "bezierCurve" && pointKey.startsWith("intermediate:")) {
+    const stableId = pointKey.slice("intermediate:".length);
+    const slot = geometry.intermediateSlotIds.indexOf(stableId);
+    if (slot < 0) return [];
+    const index = slot + 1;
+    return [
+      `intermediatePoints[${index}].x`,
+      `intermediatePoints[${index}].y`
+    ];
+  }
+  return [];
+};
+
+const numericPropertiesForHit = (
+  geometry: Extract<ComputedGeometry, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "polyline" }>,
+  subgeometry: ReferencePickNumericSubgeometry,
+  staticTarget: Parameters<typeof numericComputedGeometryPropertiesFor>[1]
+): NumericComputedGeometryProperty[] => {
+  const staticallySupported = new Set(numericComputedGeometryPropertiesFor(geometry, staticTarget));
+  return numericPropertiesForSubgeometry(geometry, subgeometry).filter((property) =>
+    staticallySupported.has(property) && Number.isFinite(computedReferencePathValue(geometry, property))
+  );
+};
+
+const numericSubgeometryForAnchor = (
+  anchor: PointAnchor
+): ReferencePickNumericSubgeometry | null => anchor.mode === "derived"
+  ? { kind: "point", anchor }
+  : null;
+
+export const referencePickNumericSubgeometryKey = (
+  subgeometry: ReferencePickNumericSubgeometry
+) => JSON.stringify(subgeometry);
+
+export const referencePickCandidateOptionKey = (
+  option: ReferencePickCandidateOption
+) => JSON.stringify([
+  option.kind,
+  option.reference.base,
+  option.reference.pointKey ?? null,
+  option.kind === "numericProperty" ? referencePickNumericSubgeometryKey(option.subgeometry) : null
+]);
 
 const moduleDefinitionForScope = (
   namespace: SourceLexicalNamespaceIndex,
@@ -303,20 +400,38 @@ export const referencePickCandidates = ({
         : sourceElement
           ? numericGeometryStaticTargetForElementInDocument(sourceElement, context.elements)
           : undefined;
-      const properties = numericComputedGeometryPropertiesFor(
-        numericGeometry,
-        staticTarget
-      );
-      if (properties.length === 0) continue;
-      candidates.push({
-        elementId: element.id,
-        actualGeometryInterface,
-        options: [{
+      const numericOptions: ReferencePickNumericPropertyOption[] = [];
+      const bodyProperties = numericPropertiesForHit(numericGeometry, { kind: "body" }, staticTarget);
+      if (bodyProperties.length > 0) {
+        numericOptions.push({
           kind: "numericProperty",
           label: geometry.name,
           reference,
-          properties
-        }]
+          subgeometry: { kind: "body" },
+          properties: bodyProperties
+        });
+      }
+
+      for (const selectablePoint of selectablePointsForGeometry(numericGeometry, elementsById)) {
+        const subgeometry = numericSubgeometryForAnchor(selectablePoint.anchor);
+        if (!subgeometry) continue;
+        const properties = numericPropertiesForHit(numericGeometry, subgeometry, staticTarget);
+        if (properties.length === 0) continue;
+        numericOptions.push({
+          kind: "numericProperty",
+          label: selectablePoint.label,
+          reference,
+          subgeometry,
+          properties,
+          point: selectablePoint.point
+        });
+      }
+
+      if (numericOptions.length === 0) continue;
+      candidates.push({
+        elementId: element.id,
+        actualGeometryInterface,
+        options: numericOptions
       });
       continue;
     }

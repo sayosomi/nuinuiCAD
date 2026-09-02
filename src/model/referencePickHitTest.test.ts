@@ -24,6 +24,43 @@ const geometryCandidate = (elementId: string): ReferencePickCandidate => ({
   options: [{ kind: "geometry", label: elementId, reference: { base: elementId } }]
 });
 
+const numericSubgeometryCandidate = ({
+  elementId = "Base",
+  includeBody = true,
+  pointKeys = ["start", "end"],
+  x = 10,
+  y = 10
+}: {
+  elementId?: string;
+  includeBody?: boolean;
+  pointKeys?: string[];
+  x?: number;
+  y?: number;
+} = {}): ReferencePickCandidate => ({
+  elementId,
+  actualGeometryInterface: "path",
+  options: [
+    ...(includeBody ? [{
+      kind: "numericProperty" as const,
+      label: elementId,
+      reference: { base: elementId },
+      subgeometry: { kind: "body" as const },
+      properties: ["length" as const]
+    }] : []),
+    ...pointKeys.map((pointKey) => ({
+      kind: "numericProperty" as const,
+      label: elementId + "." + pointKey,
+      reference: { base: elementId },
+      subgeometry: {
+        kind: "point" as const,
+        anchor: { mode: "derived" as const, elementId, pointKey }
+      },
+      properties: ["startPoint.x" as const],
+      point: { kind: "point" as const, elementId: elementId + ":" + pointKey, name: pointKey, x, y }
+    }))
+  ]
+});
+
 describe("referencePickHitTest", () => {
   it("preserves direct and derived point references at the same coordinate", () => {
     const hits = hitTestReferencePickPoints({
@@ -73,5 +110,31 @@ describe("referencePickHitTest", () => {
       hits,
       [geometryCandidate("line"), geometryCandidate("curve")]
     )).toEqual(hits.slice(0, 2));
+  });
+
+  it("keeps coincident numeric semantic points distinct and makes body fallback explicit", () => {
+    const candidate = numericSubgeometryCandidate();
+    const hits = hitTestReferencePickPoints({
+      screen: { x: 10, y: 10 },
+      candidates: [candidate],
+      worldToScreen: (point) => point
+    });
+
+    expect(hits.map((hit) => hit.option.kind === "numericProperty" ? hit.option.subgeometry : null)).toEqual([
+      {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "end" }
+      },
+      {
+        kind: "point",
+        anchor: { mode: "derived", elementId: "Base", pointKey: "start" }
+      }
+    ]);
+    const bodyHit: CanvasGeometryHitCandidate = { elementId: "Base", kind: "line", name: "Base" };
+    expect(filterReferencePickGeometryHits([bodyHit], [candidate])).toEqual([bodyHit]);
+    expect(filterReferencePickGeometryHits(
+      [bodyHit],
+      [numericSubgeometryCandidate({ includeBody: false })]
+    )).toEqual([]);
   });
 });

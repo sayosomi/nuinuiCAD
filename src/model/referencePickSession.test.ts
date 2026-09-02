@@ -15,10 +15,12 @@ import {
 const hover = (
   candidateElementId: string,
   base: string,
-  pointKey?: string
+  pointKey?: string,
+  numericSubgeometry?: ReferencePickHover["numericSubgeometry"]
 ): ReferencePickHover => ({
   candidateElementId,
-  reference: { base, ...(pointKey ? { pointKey } : {}) }
+  reference: { base, ...(pointKey ? { pointKey } : {}) },
+  ...(numericSubgeometry ? { numericSubgeometry } : {})
 });
 
 describe("referencePickSession", () => {
@@ -70,6 +72,26 @@ describe("referencePickSession", () => {
     const selected = selectReferencePickNumericGeometry(initial, hover("line-b", "LineB"), ["length"]);
     expect(selected.numericProperty?.stage).toBe("propertySelection");
     expect(selected.numericProperty?.draft).toBeNull();
+  });
+
+  it("distinguishes numeric subgeometry hovers that share one canonical reference", () => {
+    const initial = startReferencePickSession({
+      expectedGeometryInterface: "path",
+      role: "numericPropertyBase",
+      multiplicity: "single",
+      numericProperty: { kind: "propertySelectionRequired" }
+    });
+    const start = hover("line", "Line", undefined, {
+      kind: "point",
+      anchor: { mode: "derived", elementId: "line", pointKey: "start" }
+    });
+    const end = hover("line", "Line", undefined, {
+      kind: "point",
+      anchor: { mode: "derived", elementId: "line", pointKey: "end" }
+    });
+    expect(start).not.toEqual(end);
+    expect(setReferencePickHover(initial, start).hover).toEqual(start);
+    expect(setReferencePickHover(setReferencePickHover(initial, start), end).hover).toEqual(end);
   });
 
   it("seeds, adds, removes, and deduplicates a multiple-value draft by authored reference", () => {

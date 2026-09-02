@@ -8,12 +8,13 @@ import type {
 } from "../components/DrawingCanvasHitTest";
 import type {
   ReferencePickCandidate,
+  ReferencePickNumericPropertyOption,
   ReferencePickPointOption
 } from "./referencePickCandidates";
 
 export type ReferencePickPointHit = PointPickHitTarget & {
   candidateElementId: string;
-  option: ReferencePickPointOption;
+  option: ReferencePickPointOption | (ReferencePickNumericPropertyOption & { point: NonNullable<ReferencePickNumericPropertyOption["point"]> });
 };
 
 export const hitTestReferencePickPoints = ({
@@ -28,13 +29,23 @@ export const hitTestReferencePickPoints = ({
   hitRadiusPx?: number;
 }): ReferencePickPointHit[] => {
   const pointTargets = candidates.flatMap<ReferencePickPointHit>((candidate) =>
-    candidate.options.flatMap((option) => option.kind === "point"
-      ? [{
+    candidate.options.flatMap<ReferencePickPointHit>((option): ReferencePickPointHit[] => {
+      if (option.kind === "point") {
+        return [{
           candidateElementId: candidate.elementId,
           option,
           screen: worldToScreen(option.point)
-        }]
-      : [])
+        }];
+      }
+      if (option.kind === "numericProperty" && option.point) {
+        return [{
+          candidateElementId: candidate.elementId,
+          option: option as ReferencePickNumericPropertyOption & { point: NonNullable<ReferencePickNumericPropertyOption["point"]> },
+          screen: worldToScreen(option.point)
+        }];
+      }
+      return [];
+    })
   );
   return hitTestPointPickCandidates(screen, pointTargets, hitRadiusPx);
 };
@@ -49,7 +60,8 @@ export const filterReferencePickGeometryHits = (
   const eligibleIds = new Set(
     candidates
       .filter((candidate) => candidate.options.some((option) =>
-        option.kind === "geometry" || option.kind === "numericProperty"
+        option.kind === "geometry" ||
+        (option.kind === "numericProperty" && option.subgeometry.kind === "body")
       ))
       .map((candidate) => candidate.elementId)
   );
