@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
 import type { StatementIdentity } from "../../src/document/statementIdentity";
 import { resolveModulePreviewValueStep } from "../../src/dsl/modulePreviewValueStep";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
@@ -20,6 +21,8 @@ import type {
   VscodeModulePreviewParameterValueBlur,
   VscodeModulePreviewParameterValueFocus,
   VscodeModulePreviewParameterReferencePickStartRequest,
+  VscodeModulePreviewModelPatchRequest,
+  VscodeModulePreviewModelPatchResult,
   VscodeModulePreviewReferencePickResult,
   VscodeModulePreviewReferencePickStartRequest,
   VscodeCanvasCommandId,
@@ -30,6 +33,7 @@ import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConf
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import { applySourceLineSplices } from "./textDocumentLineSplices";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
@@ -272,6 +276,51 @@ const isModulePreviewParametersUnavailable = (
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || documentKey(left) === documentKey(right);
+
+const isOpenDocument = (document: vscode.TextDocument): boolean => {
+  const openDocuments = vscode.workspace.textDocuments;
+  return !openDocuments || openDocuments.some((candidate) => sameDocument(candidate, document));
+};
+
+const visibleEditorFor = (document: vscode.TextDocument): vscode.TextEditor | undefined =>
+  (vscode.window.visibleTextEditors ?? []).find((editor) => sameDocument(editor.document, document));
+
+const isLineSplice = (value: unknown): value is LineSplice => {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<LineSplice>;
+  return Number.isInteger(candidate.startLine) &&
+    Number.isInteger(candidate.endLine) &&
+    candidate.startLine > 0 &&
+    candidate.endLine >= candidate.startLine - 1 &&
+    Array.isArray(candidate.replacementLines) &&
+    candidate.replacementLines.every((line) => typeof line === "string");
+};
+
+const isModulePreviewModelPatchRequest = (
+  message: unknown
+): message is VscodeModulePreviewModelPatchRequest => {
+  if (typeof message !== "object" || message === null) return false;
+  const candidate = message as Partial<VscodeModulePreviewModelPatchRequest>;
+  return candidate.type === "modulePreviewModelPatch" &&
+    Number.isInteger(candidate.operationId) &&
+    candidate.operationId > 0 &&
+    typeof candidate.sessionId === "string" &&
+    typeof candidate.documentUri === "string" &&
+    Number.isInteger(candidate.expectedDocumentVersion) &&
+    candidate.expectedDocumentVersion >= 0 &&
+    Number.isInteger(candidate.sourceRevision) &&
+    candidate.sourceRevision >= 0 &&
+    Number.isInteger(candidate.previewRevision) &&
+    candidate.previewRevision > 0 &&
+    typeof candidate.targetDefinitionStatementId === "string" &&
+    typeof candidate.runtimeElementId === "string" &&
+    typeof candidate.sourceStatementId === "string" &&
+    typeof candidate.normalizedSource === "string" &&
+    typeof candidate.expectedPatchedSource === "string" &&
+    Array.isArray(candidate.splices) &&
+    candidate.splices.length > 0 &&
+    candidate.splices.every(isLineSplice);
+};
 
 const documentChangeReasonFor = (
   reason: vscode.TextDocumentChangeReason | undefined
@@ -1044,6 +1093,112 @@ export const registerModulePreviewFeature = ({
       : { kind: "unavailable", documentVersion: session.document.version };
   };
 
+  const postModelPatchResult = (
+    session: ModulePreviewSession,
+    request: VscodeModulePreviewModelPatchRequest,
+    status: VscodeModulePreviewModelPatchResult["status"],
+    reason?: string
+  ): void => {
+    void session.panel.webview.postMessage({
+      type: "modulePreviewModelPatchResult",
+      operationId: request.operationId,
+      sessionId: request.sessionId,
+      documentUri: request.documentUri,
+      documentVersion: session.document.version,
+      status,
+      ...(reason ? { reason } : {})
+    } satisfies ExtensionToVscodeMessage);
+  };
+
+  const resyncModulePreview = (session: ModulePreviewSession): void => {
+    cancelActiveReferencePick(session);
+    refreshExistingTarget(session);
+    postAuthoritativeDocument(session);
+  };
+
+  const applyModulePreviewModelPatch = async (
+    session: ModulePreviewSession,
+    request: VscodeModulePreviewModelPatchRequest
+  ): Promise<void> => {
+    const stale = (reason: string) => {
+      resyncModulePreview(session);
+      postModelPatchResult(session, request, "stale", reason);
+    };
+    const rejected = (reason: string) => {
+      resyncModulePreview(session);
+      postModelPatchResult(session, request, "rejected", reason);
+    };
+
+    if (
+      request.sessionId !== session.sessionId ||
+      request.documentUri !== session.documentUri ||
+      sessions.get(session.documentUri) !== session ||
+      !isOpenDocument(session.document) ||
+      session.authoritativeDocumentVersion !== session.document.version
+    ) {
+      stale("Module Preview session is no longer authoritative.");
+      return;
+    }
+    if (session.document.version !== request.expectedDocumentVersion) {
+      stale("The source document changed during the Module Preview drag.");
+      return;
+    }
+
+    const current = currentTargetFor(session);
+    if (
+      current.sourceRevision !== request.sourceRevision ||
+      !current.target ||
+      current.target.definitionStatementId !== request.targetDefinitionStatementId
+    ) {
+      stale("The Module Preview target or source revision is stale.");
+      return;
+    }
+    const currentSource = session.document.getText();
+    if (normalizedSourceFor(currentSource) !== request.normalizedSource) {
+      stale("The authored source changed during the Module Preview drag.");
+      return;
+    }
+    const editor = visibleEditorFor(session.document);
+    if (!editor || !sameDocument(editor.document, session.document)) {
+      rejected("The authoritative source editor is not available.");
+      return;
+    }
+
+    let expectedSource: string;
+    try {
+      expectedSource = applyLineSplices(currentSource, request.splices);
+    } catch (error) {
+      rejected(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    if (expectedSource !== request.expectedPatchedSource) {
+      rejected("The proposed Module Preview source patch does not match the expected source.");
+      return;
+    }
+    let applied: boolean;
+    try {
+      applied = await applySourceLineSplices(
+        editor,
+        request.expectedDocumentVersion,
+        currentSource,
+        request.splices,
+        request.expectedPatchedSource
+      );
+    } catch (error) {
+      rejected(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    if (!applied) {
+      const changedDuringApply =
+        editor.document.version !== request.expectedDocumentVersion ||
+        editor.document.getText() !== currentSource;
+      if (changedDuringApply) stale("The source document changed while applying the Module Preview edit.");
+      else rejected("VS Code rejected the Module Preview source edit.");
+      return;
+    }
+    postModelPatchResult(session, request, "applied");
+  };
+
   const disposeSession = (session: ModulePreviewSession): void => {
     if (sessions.get(session.documentUri) !== session) return;
     cancelActiveReferencePick(session);
@@ -1121,6 +1276,15 @@ export const registerModulePreviewFeature = ({
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (isModulePreviewModelPatchRequest(message)) {
+        await applyModulePreviewModelPatch(session, message);
+        return;
+      }
+      if (typeof message === "object" && message !== null &&
+        (message as { type?: unknown }).type === "modulePreviewModelPatch") {
+        resyncModulePreview(session);
+        return;
+      }
       if (isModulePreviewReferencePickResult(message)) {
         handleReferencePickResult(session, message);
         return;

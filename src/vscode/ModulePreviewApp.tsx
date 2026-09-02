@@ -7,7 +7,11 @@ import {
 import { canvasRectangleSelectionForMembers } from "../commands/canvasRectangleSelectionCommands";
 import { dispatchCommand } from "../commands/commands";
 import { DrawingCanvas, type DrawingCanvasHandle } from "../components/DrawingCanvas";
-import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
+import type {
+  CanvasBezierHandleDragAction,
+  CanvasHostAdapter,
+  CanvasPointDragAction
+} from "../components/canvasHostAdapter";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
@@ -15,15 +19,19 @@ import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from ".
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
-import { useCadDocumentStore } from "../state/cadDocumentStore";
+import { applyLineSplices } from "../document/textPatch";
+import { buildModuleOwnerElementPatch } from "../document/moduleModelBridge";
+import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
+import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
 import { useCadUiStore } from "../state/cadUiStore";
-import type { EvaluationResult } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 import { buildModulePreviewEvaluationOptions } from "./modulePreviewEvaluation";
 import { modulePreviewParameterSnapshotFor } from "./modulePreviewParameterProjection";
 import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePick";
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
+  VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSnapshot,
   VscodeWebviewApi
 } from "./protocol";
@@ -56,6 +64,22 @@ type ValidModulePreview = {
   revision: number;
 };
 
+type ModulePreviewDragProof = {
+  sessionId: string;
+  documentUri: string;
+  documentVersion: number;
+  normalizedSource: string;
+  sourceRevision: number;
+  targetDefinitionStatementId: string;
+  previewRevision: number;
+  materialization: ModulePreviewRootResult["moduleMaterialization"];
+  runtimeElementId: string | null;
+  sourceStatementId: string | null;
+  baseElements: CadElement[];
+  baseEvaluation: EvaluationResult;
+  evaluationRevision: number;
+};
+
 const diagnosticMessagesFor = (document: AutomationDocument): string[] => {
   const state = document.getState();
   return [...state.currentCompiled.diagnostics, ...(state.currentCompiled.bindingIssueDiagnostics ?? [])]
@@ -76,6 +100,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const previewRef = useRef<ValidModulePreview | null>(null);
   const previewSession = useMemo(() => createModulePreviewSession(), []);
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
+  const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
+  const ephemeralElementsRef = useRef<CadElement[] | null>(null);
+  const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
+  const nextModelPatchOperationIdRef = useRef(1);
+  const pendingModelPatchOperationIdRef = useRef<number | null>(null);
   const [statusMessages, setStatusMessages] = useState<string[]>([
     "Open Module Preview from a Module definition in the Source Editor."
   ]);
@@ -137,8 +166,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   }, [api, previewSession]);
 
   const evaluationElements = useMemo(
-    () => preview?.root.compileResult.elements ?? [],
-    [preview]
+    () => ephemeralElements ?? preview?.root.compileResult.elements ?? [],
+    [ephemeralElements, preview]
   );
   const evaluationOptions = preview?.evaluationOptions ?? {};
   const evaluationState = useEvaluationEngine(
@@ -147,9 +176,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     preview?.revision ?? 0,
     rustTransport.transport
   );
+  const evaluationStateRef = useRef(evaluationState);
   useEffect(() => {
     evaluationRef.current = evaluationState.evaluation;
-  }, [evaluationState.evaluation]);
+    evaluationStateRef.current = evaluationState;
+  }, [evaluationState]);
+
+  const clearEphemeralPreview = useCallback(() => {
+    ephemeralElementsRef.current = null;
+    setEphemeralElements(null);
+    dragProofRef.current = null;
+    pendingModelPatchOperationIdRef.current = null;
+  }, []);
 
   const currentModulePreviewReferencePickContext = useCallback((
     request: VscodeModulePreviewReferencePickStartRequest
@@ -213,14 +251,15 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const renderElements = useMemo(() => {
     if (!preview) return [];
     const targetIds = new Set(preview.root.targetRuntimeElementIds);
-    return preview.root.compileResult.elements.filter((element) => targetIds.has(element.id));
-  }, [preview]);
+    return evaluationElements.filter((element) => targetIds.has(element.id));
+  }, [evaluationElements, preview]);
 
   const applyValidPreview = useCallback((
     root: ModulePreviewRootResult,
     moduleSemanticContext: CanvasHostAdapter["moduleSemanticContext"],
     nextStatusMessages: string[]
   ) => {
+    clearEphemeralPreview();
     let evaluationOptions: ReturnType<typeof buildModulePreviewEvaluationOptions>;
     try {
       evaluationOptions = buildModulePreviewEvaluationOptions(root);
@@ -233,32 +272,20 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return;
     }
     const revision = nextPreviewRevisionRef.current++;
-    const targetIds = new Set(root.targetRuntimeElementIds);
-    const nextRenderElements = root.compileResult.elements.filter((element) => targetIds.has(element.id));
-    useCadDocumentStore.setState({
-      elements: nextRenderElements,
-      modifiers: root.compileResult.modifiers ?? [],
-      visibilityRoles: root.compileResult.visibilityRoles ?? [],
-      visibilityProfiles: root.compileResult.visibilityProfiles ?? [],
-      activeVisibilityProfileId: root.compileResult.activeVisibilityProfileId ?? "",
-      evaluationLimitIndex: undefined,
-      previewElements: null,
-      previewCompiledDocument: null,
-      previewEvaluationLimitIndex: null,
-      compiledDocumentRevision: revision
-    });
-    useCadUiStore.getState().reconcileSelectionWithElements(nextRenderElements);
     const nextPreview = { root, evaluationOptions, moduleSemanticContext, revision };
     previewRef.current = nextPreview;
     setPreview(nextPreview);
     setStatusMessages(nextStatusMessages);
-  }, []);
+  }, [clearEphemeralPreview]);
 
   const applySessionSnapshot = useCallback((snapshot: ModulePreviewSessionSnapshot): void => {
     publishParameterSnapshot(snapshot);
     const root = snapshot.preview.result;
     const document = automationDocumentRef.current;
     if (!root || !document) {
+      clearEphemeralPreview();
+      previewRef.current = null;
+      setPreview(null);
       setStatusMessages([
         "Module Preview cannot evaluate the exact current target with the current inputs.",
         ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message)
@@ -279,9 +306,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, publishParameterSnapshot]);
+  }, [applyValidPreview, clearEphemeralPreview, publishParameterSnapshot]);
 
   const compileTargetAt = useCallback((normalizedSourceOffset: number) => {
+    clearEphemeralPreview();
     const document = automationDocumentRef.current;
     if (!document) return;
     const state = document.getState();
@@ -301,6 +329,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const root = snapshot?.preview.result ?? null;
     if (!snapshot || !root) {
       if (!snapshot) publishParameterUnavailable("target-unavailable");
+      previewRef.current = null;
+      setPreview(null);
       const diagnostics = snapshot?.inputDiagnostics.map((diagnostic) => diagnostic.message)
         ?? diagnosticMessagesFor(document);
       setStatusMessages([
@@ -323,7 +353,235 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       sourceLexicalNamespace: state.currentCompiled.sourceLexicalNamespace,
       statementInfoByElementId: state.currentCompiled.statementMap?.byElementId
     }, nextStatusMessages);
-  }, [applyValidPreview, previewSession, publishParameterSnapshot, publishParameterUnavailable]);
+  }, [applyValidPreview, clearEphemeralPreview, previewSession, publishParameterSnapshot, publishParameterUnavailable]);
+
+  const currentDragAuthority = useCallback(() => {
+    const document = automationDocumentRef.current;
+    const activePreview = previewRef.current;
+    const session = previewSession.getState();
+    const sessionId = sessionIdRef.current;
+    const documentUri = sessionDocumentUriRef.current;
+    const documentVersion = documentVersionRef.current;
+    const currentEvaluationState = evaluationStateRef.current;
+    if (
+      !document ||
+      !activePreview ||
+      !session ||
+      session.preview.kind !== "current" ||
+      session.preview.result !== activePreview.root ||
+      !sessionId ||
+      !documentUri ||
+      documentVersion === null ||
+      !evaluationStateIsCurrentFor(currentEvaluationState, activePreview.revision)
+    ) return null;
+
+    const documentState = document.getState();
+    const normalizedSource = normalizedSourceFor(document.getSource());
+    const sourceRevision = documentState.currentCompiled.spans.sourceMap.sourceRevision;
+    if (
+      documentState.currentCompiled.spans.sourceMap.source !== normalizedSource ||
+      session.sourceRevision !== sourceRevision ||
+      activePreview.root.target.definitionStatementId !== session.target.definitionStatementId
+    ) return null;
+    return {
+      sessionId,
+      documentUri,
+      documentVersion,
+      normalizedSource,
+      sourceRevision,
+      targetDefinitionStatementId: session.target.definitionStatementId,
+      previewRevision: activePreview.revision,
+      materialization: activePreview.root.moduleMaterialization,
+      baseElements: activePreview.root.compileResult.elements,
+      baseEvaluation: currentEvaluationState.evaluation,
+      evaluationRevision: currentEvaluationState.evaluationRevision
+    };
+  }, [previewSession]);
+
+  const captureDragProof = useCallback((): ModulePreviewDragProof | null => {
+    const authority = currentDragAuthority();
+    if (!authority) return null;
+    const proof: ModulePreviewDragProof = {
+      ...authority,
+      runtimeElementId: null,
+      sourceStatementId: null
+    };
+    dragProofRef.current = proof;
+    return proof;
+  }, [currentDragAuthority]);
+
+  const proofIsCurrent = useCallback((proof: ModulePreviewDragProof): boolean => {
+    const document = automationDocumentRef.current;
+    const activePreview = previewRef.current;
+    const session = previewSession.getState();
+    const documentVersion = documentVersionRef.current;
+    const currentEvaluationState = evaluationStateRef.current;
+    if (
+      !document ||
+      !activePreview ||
+      !session ||
+      session.preview.kind !== "current" ||
+      session.preview.result !== activePreview.root ||
+      documentVersion === null ||
+      proof.sessionId !== sessionIdRef.current ||
+      proof.documentUri !== sessionDocumentUriRef.current ||
+      proof.documentVersion !== documentVersion ||
+      proof.targetDefinitionStatementId !== session.target.definitionStatementId ||
+      proof.previewRevision !== activePreview.revision ||
+      proof.materialization !== activePreview.root.moduleMaterialization ||
+      proof.targetDefinitionStatementId !== activePreview.root.target.definitionStatementId
+    ) return false;
+    const documentState = document.getState();
+    if (
+      proof.normalizedSource !== normalizedSourceFor(document.getSource()) ||
+      proof.sourceRevision !== documentState.currentCompiled.spans.sourceMap.sourceRevision ||
+      proof.sourceRevision !== session.sourceRevision ||
+      currentEvaluationState.evaluationRevision !== proof.evaluationRevision ||
+      (currentEvaluationState.isStale && ephemeralElementsRef.current === null)
+    ) return false;
+    return true;
+  }, [previewSession]);
+
+  const sourceOwnerForDrag = useCallback((
+    action: CanvasPointDragAction | CanvasBezierHandleDragAction,
+    proof: ModulePreviewDragProof
+  ) => {
+    const document = automationDocumentRef.current;
+    const activePreview = previewRef.current;
+    if (!document || !activePreview) return null;
+    if (proof.runtimeElementId !== null && proof.runtimeElementId !== action.elementId) return null;
+    const documentState = document.getState();
+    const owner = sourceOwnerForRuntimeElementId({
+      statementMap: documentState.doc.statementMap,
+      moduleMaterialization: activePreview.root.moduleMaterialization,
+      moduleRuntimeContext: documentState.doc.moduleRuntimeContext
+    }, action.elementId);
+    if (!owner || owner.kind !== "moduleBody") return null;
+    if (proof.sourceStatementId !== null && proof.sourceStatementId !== owner.sourceStatementId) return null;
+    proof.runtimeElementId = action.elementId;
+    proof.sourceStatementId = owner.sourceStatementId;
+    return owner;
+  }, []);
+
+  const transformedElementsFor = useCallback((
+    action: CanvasPointDragAction | CanvasBezierHandleDragAction
+  ): CadElement[] | null => {
+    if ("bezierHandleRole" in action) {
+      return moveBezierHandleByDeltaInElements(action.baseElements, action.elementId, {
+        dx: action.dx,
+        dy: action.dy,
+        angleLocked: action.angleLocked,
+        distanceLocked: action.distanceLocked,
+        role: action.bezierHandleRole,
+        intermediatePointId: action.intermediatePointId,
+        baseEvaluation: action.baseEvaluation
+      });
+    }
+    return movePointElementByDeltaInElements(action.baseElements, action.elementId, {
+      dx: action.dx,
+      dy: action.dy,
+      angleLocked: action.angleLocked,
+      distanceLocked: action.distanceLocked,
+      baseEvaluation: action.baseEvaluation
+    });
+  }, []);
+
+  const dispatchPreviewGeometry = useCallback((
+    action: CanvasPointDragAction | CanvasBezierHandleDragAction
+  ) => {
+    const proof = dragProofRef.current;
+    if (
+      !proof ||
+      action.baseElements !== proof.baseElements ||
+      action.baseEvaluation !== proof.baseEvaluation ||
+      !proofIsCurrent(proof)
+    ) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: "Module Preview drag state is stale." };
+    }
+    if (!sourceOwnerForDrag(action, proof)) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: "Module Preview geometry has no writable authored owner." };
+    }
+    const nextElements = transformedElementsFor(action);
+    if (!nextElements) return { status: "noop" };
+    ephemeralElementsRef.current = nextElements;
+    setEphemeralElements(nextElements);
+    return { status: "applied" };
+  }, [clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
+
+  const dispatchCommitGeometry = useCallback((
+    action: CanvasPointDragAction | CanvasBezierHandleDragAction
+  ) => {
+    const proof = dragProofRef.current;
+    if (
+      !proof ||
+      action.baseElements !== proof.baseElements ||
+      action.baseEvaluation !== proof.baseEvaluation ||
+      !proofIsCurrent(proof)
+    ) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: "Module Preview drag state is stale." };
+    }
+    const owner = sourceOwnerForDrag(action, proof);
+    if (!owner) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: "Module Preview geometry has no writable authored owner." };
+    }
+    const nextElements = transformedElementsFor(action);
+    if (!nextElements) {
+      clearEphemeralPreview();
+      return { status: "noop" };
+    }
+    const before = action.baseElements.find((element) => element.id === action.elementId);
+    const after = nextElements.find((element) => element.id === action.elementId);
+    const document = automationDocumentRef.current;
+    if (!before || !after || !document) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: "Module Preview drag target is unavailable." };
+    }
+    const patch = buildModuleOwnerElementPatch(document.getState(), owner, before, after);
+    if (patch.status === "unapplied") {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: patch.reason };
+    }
+    if (patch.status === "noop") {
+      clearEphemeralPreview();
+      return { status: "noop" };
+    }
+    let expectedPatchedSource: string;
+    try {
+      expectedPatchedSource = applyLineSplices(document.getSource(), patch.splices);
+    } catch (error) {
+      clearEphemeralPreview();
+      return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+    }
+    const operationId = nextModelPatchOperationIdRef.current++;
+    const request: VscodeModulePreviewModelPatchRequest = {
+      type: "modulePreviewModelPatch",
+      operationId,
+      sessionId: proof.sessionId,
+      documentUri: proof.documentUri,
+      expectedDocumentVersion: proof.documentVersion,
+      normalizedSource: proof.normalizedSource,
+      sourceRevision: proof.sourceRevision,
+      targetDefinitionStatementId: proof.targetDefinitionStatementId,
+      previewRevision: proof.previewRevision,
+      runtimeElementId: proof.runtimeElementId ?? action.elementId,
+      sourceStatementId: proof.sourceStatementId ?? owner.sourceStatementId,
+      splices: patch.splices,
+      expectedPatchedSource
+    };
+    clearEphemeralPreview();
+    pendingModelPatchOperationIdRef.current = operationId;
+    try {
+      api.postMessage(request);
+    } catch (error) {
+      pendingModelPatchOperationIdRef.current = null;
+      return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+    }
+    return { status: "pending" };
+  }, [api, clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
 
   const executeSharedCanvasCommand = useCallback((commandId: VscodeCanvasCommandId) => {
     if (!nonWritingCanvasCommands.has(commandId)) return;
@@ -349,6 +607,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (message.type === "modulePreviewSession") {
         if (sessionIdRef.current !== message.sessionId) {
           parameterSessionRevisionRef.current = 0;
+          clearEphemeralPreview();
+          previewRef.current = null;
+          setPreview(null);
         }
         sessionIdRef.current = message.sessionId;
         sessionDocumentUriRef.current = message.documentUri;
@@ -395,6 +656,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "replaceTextDocument") {
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
+        clearEphemeralPreview();
         automationDocumentRef.current = AutomationDocument.fromSource(message.sourceText);
         documentVersionRef.current = message.documentVersion;
         publishParameterUnavailable("source-stale");
@@ -406,6 +668,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "commitText") {
         if (documentVersionRef.current !== null && message.documentVersion < documentVersionRef.current) return;
+        clearEphemeralPreview();
         const document = automationDocumentRef.current ?? AutomationDocument.fromSource(message.sourceText);
         if (document.getSource() !== message.sourceText) document.replaceSource(message.sourceText);
         automationDocumentRef.current = document;
@@ -424,12 +687,33 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       }
       if (message.type === "modulePreviewTargetUnavailable") {
         if (documentVersionRef.current !== message.documentVersion) return;
+        clearEphemeralPreview();
+        previewRef.current = null;
+        setPreview(null);
         publishParameterUnavailable("target-unavailable", null);
         const document = automationDocumentRef.current;
         setStatusMessages([
           "Module Preview target is not exact-current and was not rebound.",
           ...(document ? diagnosticMessagesFor(document) : [])
         ]);
+        return;
+      }
+      if (message.type === "modulePreviewModelPatchResult") {
+        if (
+          message.sessionId !== sessionIdRef.current ||
+          message.documentUri !== sessionDocumentUriRef.current ||
+          message.operationId !== pendingModelPatchOperationIdRef.current
+        ) return;
+        pendingModelPatchOperationIdRef.current = null;
+        clearEphemeralPreview();
+        if (message.status !== "applied") {
+          setStatusMessages([
+            message.status === "stale"
+              ? "Module Preview edit became stale and was rejected."
+              : "Module Preview edit was rejected.",
+            ...(message.reason ? [message.reason] : [])
+          ]);
+        }
         return;
       }
       if (message.type === "canvasThemeChanged") {
@@ -448,7 +732,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       window.removeEventListener("message", onMessage);
       rustTransport.dispose();
     };
-  }, [api, applySessionSnapshot, compileTargetAt, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
+  }, [api, applySessionSnapshot, clearEphemeralPreview, compileTargetAt, executeSharedCanvasCommand, previewSession, publishParameterSnapshot, publishParameterUnavailable, rustTransport]);
 
   const selectElement = useCallback<CanvasHostAdapter["selectElement"]>((elementId, selectionMode) => {
     const before = canvasSelectionSnapshot();
@@ -483,7 +767,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
   const hostAdapter = useMemo<CanvasHostAdapter>(() => ({
     elements: renderElements,
-    canonicalElements: renderElements,
+    canonicalElements: preview?.root.compileResult.elements ?? [],
+    runtimeElementIds: preview ? new Set(preview.root.targetRuntimeElementIds) : new Set(),
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: preview?.revision ?? 0,
     canvasTheme,
@@ -515,13 +800,17 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     flushSourceEditorOnCanvasPointerDown: () => "clean",
     setCommandErrorMessage: (message) => useCadUiStore.getState().setCommandErrorMessage(message),
     focusSourceEditor: () => undefined,
-    getCurrentCanonicalDocument: () => ({
-      elements: renderElements,
-      sourceRevision: automationDocumentRef.current?.getState().currentCompiled.spans.sourceMap.sourceRevision ?? 0,
-      compiledDocumentRevision: preview?.revision ?? 0,
-      sourceText: automationDocumentRef.current?.getSource() ?? "",
-      docText: automationDocumentRef.current?.getSource() ?? ""
-    }),
+    getCurrentCanonicalDocument: () => {
+      captureDragProof();
+      const document = automationDocumentRef.current;
+      return {
+        elements: preview?.root.compileResult.elements ?? [],
+        sourceRevision: document?.getState().currentCompiled.spans.sourceMap.sourceRevision ?? 0,
+        compiledDocumentRevision: preview?.revision ?? 0,
+        sourceText: document?.getSource() ?? "",
+        docText: document?.getSource() ?? ""
+      };
+    },
     panCanvasViewport: (dx, dy) => useCadUiStore.getState().panCanvasViewport(dx, dy),
     zoomCanvasViewportAt: (zoomFactor, anchor) => useCadUiStore.getState().zoomCanvasViewportAt(zoomFactor, anchor),
     selectElement,
@@ -530,8 +819,12 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     finalizeCanvasSelectionSession: () => undefined,
     commitCanvasRectangleSelection,
     clearCanvasSelection: () => useCadUiStore.getState().clearElementSelection(),
-    movePointElementByDelta: () => undefined,
-    moveBezierHandleByDelta: () => undefined,
+    movePointElementByDelta: (action) => action.commitMode === "preview"
+      ? dispatchPreviewGeometry(action)
+      : dispatchCommitGeometry(action),
+    moveBezierHandleByDelta: (action) => action.commitMode === "preview"
+      ? dispatchPreviewGeometry(action)
+      : dispatchCommitGeometry(action),
     applyPickedNumericReference: () => undefined,
     applyNumericExpressionReference: () => undefined,
     applyPickedLine: () => undefined,
@@ -588,6 +881,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     canvasRibbonRibbons,
     canvasTheme,
     canvasViewport,
+    captureDragProof,
+    dispatchCommitGeometry,
     executeSharedCanvasCommand,
     evaluationElements,
     evaluationState.evaluation,
@@ -598,6 +893,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     cancelModulePreviewReferencePick,
     measureCanvasTextWidth,
     preview,
+    dispatchPreviewGeometry,
     previewCanvasSelection,
     commitCanvasRectangleSelection,
     renderElements,
