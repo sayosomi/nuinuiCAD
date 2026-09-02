@@ -6,6 +6,7 @@ import {
 } from "../dsl/dslReferencePickQuery";
 import {
   referencePickCandidates,
+  referencePickNumericSubgeometryKey,
   type ReferencePickCandidate,
   type ReferencePickCandidateOption
 } from "../model/referencePickCandidates";
@@ -352,11 +353,16 @@ export const startVscodeReferencePickCanvasSession = ({
 
 const optionBelongsToSession = (
   session: VscodeReferencePickCanvasSessionLike,
-  candidateElementId: string,
-  reference: CanonicalGeometrySourceReference
+  selection: ReferencePickHover
 ): boolean => session.candidates.some((candidate) =>
-  candidate.elementId === candidateElementId &&
-  candidate.options.some((option) => referencePickReferenceKey(option.reference) === referencePickReferenceKey(reference))
+  candidate.elementId === selection.candidateElementId &&
+  candidate.options.some((option) =>
+    referencePickReferenceKey(option.reference) === referencePickReferenceKey(selection.reference) &&
+    (option.kind !== "numericProperty"
+      ? selection.numericSubgeometry === undefined
+      : selection.numericSubgeometry !== undefined &&
+        referencePickNumericSubgeometryKey(option.subgeometry) === referencePickNumericSubgeometryKey(selection.numericSubgeometry))
+  )
 );
 
 export const referencePickHoverForCanvasOption = (
@@ -364,14 +370,15 @@ export const referencePickHoverForCanvasOption = (
   option: ReferencePickCandidateOption
 ): ReferencePickHover => ({
   candidateElementId: candidate.elementId,
-  reference: option.reference
+  reference: option.reference,
+  ...(option.kind === "numericProperty" ? { numericSubgeometry: option.subgeometry } : {})
 });
 
 export const setVscodeReferencePickCanvasHover = <TSession extends VscodeReferencePickCanvasSessionLike>(
   session: TSession,
   hover: ReferencePickHover | null
 ): TSession => {
-  if (hover && !optionBelongsToSession(session, hover.candidateElementId, hover.reference)) return session;
+  if (hover && !optionBelongsToSession(session, hover)) return session;
   return { ...session, draft: setReferencePickHover(session.draft, hover) } as TSession;
 };
 
@@ -379,13 +386,17 @@ export const selectVscodeReferencePickCanvasDraft = <TSession extends VscodeRefe
   session: TSession,
   selection: ReferencePickHover | null
 ): TSession => {
-  if (selection && !optionBelongsToSession(session, selection.candidateElementId, selection.reference)) return session;
+  if (selection && !optionBelongsToSession(session, selection)) return session;
   if (session.target.role === "numericPropertyBase") {
     if (!selection) return { ...session, draft: selectReferencePickDraft(session.draft, null) } as TSession;
     const option = session.candidates
       .find((candidate) => candidate.elementId === selection.candidateElementId)
-      ?.options.find((candidate) => candidate.kind === "numericProperty" &&
-        referencePickReferenceKey(candidate.reference) === referencePickReferenceKey(selection.reference));
+      ?.options.find((candidateOption) =>
+        candidateOption.kind === "numericProperty" &&
+        referencePickReferenceKey(candidateOption.reference) === referencePickReferenceKey(selection.reference) &&
+        selection.numericSubgeometry !== undefined &&
+        referencePickNumericSubgeometryKey(candidateOption.subgeometry) === referencePickNumericSubgeometryKey(selection.numericSubgeometry)
+      );
     return option?.kind === "numericProperty"
       ? { ...session, draft: selectReferencePickNumericGeometry(session.draft, selection, option.properties) } as TSession
       : session;
@@ -452,9 +463,12 @@ export const referencePickCanvasResultMatchesSession = (
         result.numericCandidates.every(isValidNumericReferencePickCandidate) &&
         result.numericCandidates.every((candidate) => session.candidates.some((entry) =>
           entry.options.some((option) => option.kind === "numericProperty" &&
+            referencePickReferenceKey(option.reference) === referencePickReferenceKey(candidate.reference)
+          ) && candidate.properties.every((property) => entry.options.some((option) =>
+            option.kind === "numericProperty" &&
             referencePickReferenceKey(option.reference) === referencePickReferenceKey(candidate.reference) &&
-            candidate.properties.every((property) => option.properties.includes(property))
-          )
+            option.properties.includes(property)
+          ))
         ));
   }
   if (result.status !== "confirmed") return true;

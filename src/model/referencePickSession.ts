@@ -7,12 +7,18 @@ import type { NumericComputedGeometryProperty } from "../geometry/numericExpress
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
 import type { CanonicalGeometrySourceReference } from "./moduleSemanticCandidateBoundary";
+import {
+  referencePickNumericSubgeometryKey,
+  type ReferencePickNumericSubgeometry
+} from "./referencePickCandidates";
 
 export type ReferencePickSessionStatus = "active" | "confirmed" | "canceled";
 
 export type ReferencePickHover = {
   candidateElementId: ElementId;
   reference: CanonicalGeometrySourceReference;
+  /** Interaction-only identity for numeric subgeometry; never enters Source. */
+  numericSubgeometry?: ReferencePickNumericSubgeometry;
 };
 
 export type ReferencePickNumericPropertyDraft = {
@@ -50,6 +56,20 @@ export type StartReferencePickSessionInput = {
 export const referencePickDraftKey = (
   reference: CanonicalGeometrySourceReference
 ) => JSON.stringify([reference.base, reference.pointKey ?? null]);
+
+export const referencePickHoverKey = (hover: ReferencePickHover) => JSON.stringify([
+  hover.candidateElementId,
+  referencePickDraftKey(hover.reference),
+  hover.numericSubgeometry ? referencePickNumericSubgeometryKey(hover.numericSubgeometry) : null
+]);
+
+export const sameReferencePickHover = (
+  left: ReferencePickHover | null,
+  right: ReferencePickHover | null
+): boolean => {
+  if (!left || !right) return left === right;
+  return referencePickHoverKey(left) === referencePickHoverKey(right);
+};
 
 const uniqueReferences = (
   references: readonly CanonicalGeometrySourceReference[]

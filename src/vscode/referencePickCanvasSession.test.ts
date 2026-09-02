@@ -450,6 +450,63 @@ describe("VS Code Canvas reference pick session bridge", () => {
     });
   });
 
+  it("keeps numeric options with one canonical base reference exact across selection", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Base = segment(start: @A, end: @B)",
+      "point P = offset(from: @A, dx: @Base.length, dy: 0)"
+    ].join("\n");
+    const setupResult = setup(source, "@Base.length");
+    const started = startSession({ source, ...setupResult });
+    if (!started.session) throw new Error("session did not start");
+    const candidate = started.session.candidates.find((item) => item.options.some((option) =>
+      option.kind === "numericProperty" && option.reference.base === "Base"
+    ));
+    if (!candidate) throw new Error("numeric candidate missing");
+    const startOption = candidate.options.find((option) =>
+      option.kind === "numericProperty" &&
+      option.subgeometry.kind === "point" &&
+      option.subgeometry.anchor.pointKey === "start"
+    );
+    const endOption = candidate.options.find((option) =>
+      option.kind === "numericProperty" &&
+      option.subgeometry.kind === "point" &&
+      option.subgeometry.anchor.pointKey === "end"
+    );
+    if (!startOption || !endOption || startOption.kind !== "numericProperty" || endOption.kind !== "numericProperty") {
+      throw new Error("endpoint numeric options missing");
+    }
+
+    const selectedStart = selectVscodeReferencePickCanvasDraft(
+      started.session,
+      referencePickHoverForCanvasOption(candidate, startOption)
+    );
+    expect(selectedStart.draft.numericProperty?.properties).toEqual([
+      "startPoint.x", "startPoint.y", "startAngleDeg"
+    ]);
+    const rejectedEndProperty = selectVscodeReferencePickCanvasNumericProperty(selectedStart, "endPoint.x");
+    expect(rejectedEndProperty.draft.numericProperty?.stage).toBe("propertySelection");
+    expect(rejectedEndProperty.draft.numericProperty?.draft).toBeNull();
+
+    const selectedEnd = selectVscodeReferencePickCanvasDraft(
+      selectedStart,
+      referencePickHoverForCanvasOption(candidate, endOption)
+    );
+    expect(selectedEnd.draft.numericProperty?.properties).toEqual([
+      "endPoint.x", "endPoint.y", "endAngleDeg"
+    ]);
+    const confirmed = confirmVscodeReferencePickCanvasSession(
+      selectVscodeReferencePickCanvasNumericProperty(selectedEnd, "endPoint.x")
+    );
+    expect(confirmed.result).toMatchObject({
+      resultKind: "numericProperty",
+      reference: { base: "Base" },
+      property: "endPoint.x"
+    });
+  });
+
   it("keeps every numeric geometry candidate and exposes its actual computed properties", () => {
     const source = [
       "nui 1",
@@ -467,6 +524,7 @@ describe("VS Code Canvas reference pick session bridge", () => {
     expect(base?.properties).toContain("length");
     expect(base?.properties).not.toContain("radius");
     expect(arc?.properties).toContain("radius");
+    expect(referencePickCanvasResultMatchesSession(started.session, started.result)).toBe(true);
   });
 
   it("rejects numeric confirmations and allowlists with unsupported geometry-property pairs", () => {

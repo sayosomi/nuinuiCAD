@@ -143,4 +143,141 @@ describe("referencePickCandidates", () => {
     expect(referenceBases(referencePickCandidates({ compiled, evaluation, target: rootTarget })))
       .not.toContain("Local");
   });
+
+  it("curates endpoint-aware numeric properties for line, arc, and Bezier subgeometry", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 30, y: 0)",
+      "point C = coordinate(x: 15, y: 10)",
+      "line Line = segment(start: @A, end: @B)",
+      "arc Arc = arc(center: @A, radius: 20, start: 0, end: 90)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5:slot-a; @A:45:5:5:slot-b])",
+      "point Use = offset(from: @A, dx: @Line.length, dy: 0)"
+    ].join("\n");
+    const compiled = compileSource(source);
+    const evaluation = evaluateSource(compiled);
+    const target = targetAt(source, compiled, "@Line.length");
+    const candidates = referencePickCandidates({ compiled, evaluation, target });
+
+    const optionsFor = (name: string) => {
+      const geometry = [...evaluation.computedGeometry.values()].find((item) => item.name === name);
+      const candidate = candidates.find((item) => item.elementId === geometry?.elementId);
+      if (!candidate) throw new Error("missing numeric candidate: " + name);
+      return candidate.options.filter((option) => option.kind === "numericProperty");
+    };
+    const propertiesFor = (name: string, subgeometry: string) => {
+      const requested = JSON.parse(subgeometry) as { kind: string; anchor?: { pointKey?: string } };
+      const option = optionsFor(name).find((item) =>
+        item.subgeometry.kind === requested.kind &&
+        (requested.kind !== "point" ||
+          (item.subgeometry.kind === "point" && item.subgeometry.anchor.pointKey === requested.anchor?.pointKey))
+      );
+      if (!option || option.kind !== "numericProperty") throw new Error("missing numeric option: " + name + "/" + subgeometry);
+      return option.properties;
+    };
+
+    expect(propertiesFor("Line", JSON.stringify({ kind: "body" }))).toEqual(["length"]);
+    expect(propertiesFor("Line", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Line", pointKey: "start" }
+    }))).toEqual([
+      "startPoint.x", "startPoint.y", "startAngleDeg"
+    ]);
+    expect(propertiesFor("Line", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Line", pointKey: "end" }
+    }))).toEqual([
+      "endPoint.x", "endPoint.y", "endAngleDeg"
+    ]);
+
+    expect(propertiesFor("Arc", JSON.stringify({ kind: "body" }))).toEqual([
+      "length", "radius", "sweepAngleDeg"
+    ]);
+    expect(propertiesFor("Arc", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Arc", pointKey: "start" }
+    }))).toEqual([
+      "startPoint.x", "startPoint.y", "startAngleDeg", "startRadiusAngleDeg"
+    ]);
+    expect(propertiesFor("Arc", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Arc", pointKey: "end" }
+    }))).toEqual([
+      "endPoint.x", "endPoint.y", "endAngleDeg", "endRadiusAngleDeg"
+    ]);
+    expect(propertiesFor("Arc", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Arc", pointKey: "center" }
+    }))).toEqual(["centerPoint.x", "centerPoint.y"]);
+
+    expect(propertiesFor("Curve", JSON.stringify({ kind: "body" }))).toEqual(["length"]);
+    expect(propertiesFor("Curve", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: "start" }
+    }))).toEqual([
+      "startPoint.x", "startPoint.y", "startAngleDeg", "startHandleAngleDeg", "startHandleLength"
+    ]);
+    expect(propertiesFor("Curve", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: "end" }
+    }))).toEqual([
+      "endPoint.x", "endPoint.y", "endAngleDeg", "endHandleAngleDeg", "endHandleLength"
+    ]);
+    expect(propertiesFor("Curve", JSON.stringify({
+      kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: "intermediate:slot-a" }
+    }))).toEqual(["intermediatePoints[1].x", "intermediatePoints[1].y"]);
+
+    const curveGeometry = [...evaluation.computedGeometry.values()].find((item) => item.name === "Curve");
+    if (!curveGeometry || curveGeometry.kind !== "bezierCurve") throw new Error("missing Bezier geometry");
+    const reorderedEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map(evaluation.computedGeometry).set(curveGeometry.elementId, {
+        ...curveGeometry,
+        intermediateSlotIds: ["slot-b", "slot-a"]
+      })
+    };
+    const reorderedOptions = referencePickCandidates({ compiled, evaluation: reorderedEvaluation, target })
+      .find((candidate) => candidate.elementId === curveGeometry.elementId)?.options
+      .filter((option) => option.kind === "numericProperty") ?? [];
+    const reorderedIntermediate = (stableId: string) => reorderedOptions.find((option) =>
+      option.kind === "numericProperty" &&
+      option.subgeometry.kind === "point" &&
+      option.subgeometry.anchor.pointKey === "intermediate:" + stableId
+    );
+    expect(reorderedIntermediate("slot-a")?.properties).toEqual([
+      "intermediatePoints[2].x", "intermediatePoints[2].y"
+    ]);
+    expect(reorderedIntermediate("slot-b")?.properties).toEqual([
+      "intermediatePoints[1].x", "intermediatePoints[1].y"
+    ]);
+
+    const allProperties = optionsFor("Curve").flatMap((option) =>
+      option.kind === "numericProperty" ? option.properties : []
+    );
+    expect(allProperties).not.toContain("startTangentAngleDeg");
+    expect(allProperties).not.toContain("endTangentAngleDeg");
+  });
+
+  it("filters non-finite computed numeric values without making support a second authority", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "line Line = segment(start: @A, end: @B)",
+      "point Use = offset(from: @A, dx: @Line.length, dy: 0)"
+    ].join("\n");
+    const compiled = compileSource(source);
+    const evaluation = evaluateSource(compiled);
+    const lineGeometry = [...evaluation.computedGeometry.values()].find((item) => item.name === "Line");
+    if (!lineGeometry || lineGeometry.kind !== "line") throw new Error("missing line geometry");
+    const nonFiniteEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map(evaluation.computedGeometry).set(lineGeometry.elementId, {
+        ...lineGeometry,
+        length: Number.NaN
+      })
+    };
+    const target = targetAt(source, compiled, "@Line.length");
+    const options = referencePickCandidates({ compiled, evaluation: nonFiniteEvaluation, target })
+      .flatMap((candidate) => candidate.options)
+      .filter((option) => option.kind === "numericProperty");
+
+    expect(options.some((option) => option.subgeometry.kind === "body")).toBe(false);
+    expect(options.some((option) => option.properties.includes("startPoint.x"))).toBe(true);
+    expect(options.flatMap((option) => option.properties)).not.toContain("length");
+  });
 });
