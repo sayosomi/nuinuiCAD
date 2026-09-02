@@ -8,6 +8,7 @@ import {
   type BakeOperationPresentationInput,
   type BakeOutputTarget
 } from "./bakeOperationPresentation";
+import type { VscodeToExtensionMessage } from "../../src/vscode/protocol";
 
 const operation = (
   successfulTargetCount: number,
@@ -60,6 +61,24 @@ describe("Bake operation presentation", () => {
     expect(notifications.showWarningMessage).not.toHaveBeenCalled();
     expect(notifications.showErrorMessage).not.toHaveBeenCalled();
     expect(output.show).not.toHaveBeenCalled();
+  });
+
+  it("presents Module Preview results through the same structured Bake path", async () => {
+    const input = {
+      type: "bakeOperationResult",
+      surface: "modulePreview",
+      mode: "base",
+      ...operation(0, [skipped("text Memo", { code: "unsupported-geometry-kind", geometryKind: "text" })], "base")
+    } satisfies Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>;
+    const { output, notifications } = targets();
+
+    await presentBakeOperationResult(input, output, notifications);
+
+    expect(output.appendLine).toHaveBeenCalledWith(expect.stringContaining("Mode: base"));
+    expect(notifications.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: Bake created no targets and skipped 1 (unsupported geometry kind ×1).",
+      BAKE_SHOW_DETAILS_ACTION
+    );
   });
 
   it("warns for partial success with bounded reason-code aggregation and opens details on action", async () => {

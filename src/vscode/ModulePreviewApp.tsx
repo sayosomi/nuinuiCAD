@@ -27,6 +27,7 @@ import {
   resolveModulePreviewBakeTargets,
   type BakeResolvedTarget
 } from "../commands/bakeGeometry";
+import { bakeOperationSummaryForPlan } from "../commands/bakeOperationResult";
 import { buildModuleOwnerElementPatch } from "../document/moduleModelBridge";
 import { moveBezierHandleByDeltaInElements, movePointElementByDeltaInElements } from "../model/elementDragTransforms";
 import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
@@ -38,6 +39,7 @@ import { modulePreviewReferencePickTargetFor } from "./modulePreviewReferencePic
 import type {
   ExtensionToVscodeMessage,
   VscodeCanvasCommandId,
+  VscodeBakeOperationResult,
   VscodeBakeSettings,
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSnapshot,
@@ -115,6 +117,12 @@ type ModulePreviewBakeProof = ModulePreviewAuthority & {
   sourceOwners: ModulePreviewSourceOwnerProof[];
 };
 
+type PendingModulePreviewBakeResult = {
+  operationId: number;
+  mode: "current" | "base";
+  result: VscodeBakeOperationResult;
+};
+
 const bakeTargetsSignature = (targets: readonly BakeResolvedTarget[]) => JSON.stringify(
   targets.map((target) => ({
     targetId: target.targetId,
@@ -155,6 +163,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const dragProofRef = useRef<ModulePreviewDragProof | null>(null);
   const nextModelPatchOperationIdRef = useRef(1);
   const pendingModelPatchOperationIdRef = useRef<number | null>(null);
+  const pendingBakeResultRef = useRef<PendingModulePreviewBakeResult | null>(null);
   const [statusMessages, setStatusMessages] = useState<string[]>([
     "Open Module Preview from a Module definition in the Source Editor."
   ]);
@@ -237,6 +246,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     setEphemeralElements(null);
     dragProofRef.current = null;
     pendingModelPatchOperationIdRef.current = null;
+    pendingBakeResultRef.current = null;
   }, []);
 
   const currentModulePreviewReferencePickContext = useCallback((
@@ -807,7 +817,24 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       includeHiddenGeometry: settings.includeHiddenGeometry,
       includeDisabledGeometry: settings.includeDisabledGeometry
     });
-    if (!plan || plan.splices.length === 0) {
+    if (!plan) {
+      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      return;
+    }
+    const operationResult: VscodeBakeOperationResult = {
+      status: plan.splices.length > 0 ? "applied" : "nothing",
+      summary: bakeOperationSummaryForPlan(plan)
+    };
+    if (plan.splices.length === 0) {
+      if (operationResult.summary.skippedTargetCount > 0) {
+        api.postMessage({
+          type: "bakeOperationResult",
+          surface: "modulePreview",
+          mode,
+          ...operationResult
+        });
+        return;
+      }
       setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
       return;
     }
@@ -835,10 +862,12 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     };
     clearEphemeralPreview();
     pendingModelPatchOperationIdRef.current = operationId;
+    pendingBakeResultRef.current = { operationId, mode, result: operationResult };
     try {
       api.postMessage(request);
     } catch (error) {
       pendingModelPatchOperationIdRef.current = null;
+      pendingBakeResultRef.current = null;
       setStatusMessages([error instanceof Error ? error.message : String(error)]);
     }
   }, [api, bakeProofIsCurrent, captureBakeProof, clearEphemeralPreview, currentPreviewAuthority, rustTransport.transport]);
@@ -964,8 +993,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           message.documentUri !== sessionDocumentUriRef.current ||
           message.operationId !== pendingModelPatchOperationIdRef.current
         ) return;
+        const pendingBakeResult = pendingBakeResultRef.current;
         pendingModelPatchOperationIdRef.current = null;
         clearEphemeralPreview();
+        if (message.status === "applied" && pendingBakeResult?.operationId === message.operationId) {
+          api.postMessage({
+            type: "bakeOperationResult",
+            surface: "modulePreview",
+            mode: pendingBakeResult.mode,
+            ...pendingBakeResult.result
+          });
+          return;
+        }
         if (message.status !== "applied") {
           setStatusMessages([
             message.status === "stale"

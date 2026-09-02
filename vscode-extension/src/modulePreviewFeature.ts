@@ -101,6 +101,9 @@ export type RegisterModulePreviewFeatureOptions = {
   updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
   editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
+  presentBakeOperationResult?: (
+    message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
+  ) => Promise<void> | void;
   displayLanguageFor?: () => string;
 };
 
@@ -382,6 +385,7 @@ export const registerModulePreviewFeature = ({
   updateCanvasRibbonPosition,
   editCanvasRibbon,
   evaluateWithRust,
+  presentBakeOperationResult,
   displayLanguageFor = vscodeDisplayLanguage
 }: RegisterModulePreviewFeatureOptions): ModulePreviewFeature => {
   const sessions = new Map<string, ModulePreviewSession>();
@@ -1347,6 +1351,10 @@ export const registerModulePreviewFeature = ({
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
+      if (message.type === "bakeOperationResult") {
+        await presentBakeOperationResult?.(message);
+        return;
+      }
       if (isModulePreviewModelPatchRequest(message)) {
         await applyModulePreviewModelPatch(session, message);
         return;

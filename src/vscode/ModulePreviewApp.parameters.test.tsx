@@ -207,6 +207,42 @@ const selectPreviewElements = (elements: CadElement[]) => {
   );
 };
 
+const preparePartialBake = async () => {
+  const sourceText = [
+    "nui 1",
+    "module Preview() {",
+    "  point P = coordinate(x: 1, y: 2)",
+    "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
+    "}"
+  ].join("\n");
+  const fixture = previewFixtureFor(sourceText);
+  renderPreviewFixture(fixture);
+  const selected = fixture.root.compileResult.elements.filter((element) =>
+    (element.name === "P" || element.name === "Memo") && fixture.root.targetRuntimeElementIds.includes(element.id)
+  );
+  expect(selected).toHaveLength(2);
+  selectPreviewElements(selected);
+
+  await act(async () => {
+    window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "canvasCommand",
+        commandId: "bakeCurrentShape",
+        emitSkippedComments: false,
+        includeHiddenGeometry: false,
+        includeDisabledGeometry: false
+      }
+    }));
+    await Promise.resolve();
+  });
+
+  const request = mocks.postMessage.mock.calls
+    .map(([message]) => message)
+    .find((message): message is VscodeModulePreviewModelPatchRequest => message?.type === "modulePreviewModelPatch");
+  if (!request) throw new Error("expected partial Module Preview Bake patch");
+  return { fixture, request };
+};
+
 afterEach(() => {
   cleanup();
   mocks.queryModulePreviewTarget.mockReset();
@@ -482,6 +518,155 @@ describe("ModulePreviewApp parameter relay", () => {
     expect(fixture.document.getSource()).toBe(sourceText);
     expect(useCadDocumentStore.getState().sourceText).not.toContain("P_bake");
   });
+
+  it("posts exact structured skip details without a model patch when all Preview targets are skipped", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Preview() {",
+      "  text Memo = label(text: \"memo\", anchor: none, size: 3)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText);
+    renderPreviewFixture(fixture);
+    const skipped = fixture.root.compileResult.elements.find((element) =>
+      element.name === "Memo" && fixture.root.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(skipped).toBeDefined();
+    selectPreviewElements([skipped!]);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasCommand",
+          commandId: "bakeCurrentShape",
+          emitSkippedComments: false,
+          includeHiddenGeometry: false,
+          includeDisabledGeometry: false
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    const result = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "bakeOperationResult");
+    expect(result).toMatchObject({
+      type: "bakeOperationResult",
+      surface: "modulePreview",
+      mode: "current",
+      status: "nothing",
+      summary: {
+        successfulTargetCount: 0,
+        skippedTargetCount: 1,
+        skippedTargets: [{
+          targetId: skipped!.id,
+          reason: { code: "unsupported-geometry-kind", geometryKind: "text" }
+        }]
+      }
+    });
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewModelPatch" }));
+  });
+
+  it("holds partial Preview Bake diagnostics until the matching model patch is applied", async () => {
+    const { request } = await preparePartialBake();
+
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId + 1,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: 2,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+    });
+    expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: 2,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "modulePreviewModelPatchResult",
+          operationId: request.operationId,
+          sessionId: "module-preview-session:1",
+          documentUri: "file:///pattern.nui",
+          documentVersion: 2,
+          status: "applied"
+        }
+      }));
+      await Promise.resolve();
+    });
+
+    const results = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "bakeOperationResult");
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      surface: "modulePreview",
+      mode: "current",
+      status: "applied",
+      summary: {
+        successfulTargetCount: 1,
+        skippedTargetCount: 1,
+        skippedTargets: [{
+          sourceLabel: "text Memo",
+          reason: { code: "unsupported-geometry-kind", geometryKind: "text" }
+        }]
+      }
+    });
+  });
+
+  it.each(["stale", "rejected"] as const)(
+    "clears a pending Preview Bake result after a matching %s model patch result",
+    async (status) => {
+      const { request } = await preparePartialBake();
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "modulePreviewModelPatchResult",
+            operationId: request.operationId,
+            sessionId: "module-preview-session:1",
+            documentUri: "file:///pattern.nui",
+            documentVersion: 2,
+            status
+          }
+        }));
+        await Promise.resolve();
+      });
+
+      expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent("message", {
+          data: {
+            type: "modulePreviewModelPatchResult",
+            operationId: request.operationId,
+            sessionId: "module-preview-session:1",
+            documentUri: "file:///pattern.nui",
+            documentVersion: 2,
+            status: "applied"
+          }
+        }));
+        await Promise.resolve();
+      });
+      expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bakeOperationResult" }));
+    }
+  );
 
   it("uses the shared Base geometry semantics for Module Preview Bake", async () => {
     const sourceText = [

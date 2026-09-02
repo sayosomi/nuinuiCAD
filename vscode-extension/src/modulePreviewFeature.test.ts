@@ -4,7 +4,8 @@ import type {
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSetValueRequest,
   VscodeModulePreviewParameterSnapshot,
-  VscodeModulePreviewParameterValueFocus
+  VscodeModulePreviewParameterValueFocus,
+  VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
@@ -360,7 +361,11 @@ afterEach(() => {
 });
 
 describe("registerModulePreviewFeature", () => {
-  const openModulePatchFixture = () => {
+  const openModulePatchFixture = (options: {
+    presentBakeOperationResult?: (
+      message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
+    ) => Promise<void> | void;
+  } = {}) => {
     const source = [
       "nui 1",
       "module Pocket() {",
@@ -386,7 +391,8 @@ describe("registerModulePreviewFeature", () => {
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
+      evaluateWithRust: async () => ({}),
+      ...options
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     return { source, document, editor, panel, analysis, feature };
@@ -463,6 +469,32 @@ describe("registerModulePreviewFeature", () => {
       includeHiddenGeometry: false,
       includeDisabledGeometry: false
     })).toBe(true);
+    fixture.feature.dispose();
+  });
+
+  it("forwards Module Preview Bake results to the shared Extension Host presentation owner", async () => {
+    const presentBakeOperationResult = vi.fn(async () => undefined);
+    const fixture = openModulePatchFixture({ presentBakeOperationResult });
+    const message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }> = {
+      type: "bakeOperationResult",
+      surface: "modulePreview",
+      mode: "current",
+      status: "nothing",
+      summary: {
+        successfulTargetCount: 0,
+        skippedTargetCount: 1,
+        skippedTargets: [{
+          targetId: "target-1",
+          sourceElementId: "source-1",
+          sourceLabel: "text Memo",
+          reason: { code: "unsupported-geometry-kind", geometryKind: "text" }
+        }]
+      }
+    };
+
+    await fixture.panel.receive(message);
+
+    expect(presentBakeOperationResult).toHaveBeenCalledWith(message);
     fixture.feature.dispose();
   });
 

@@ -10,6 +10,7 @@ import {
 import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
+  presentModulePreviewBakeOperationResult,
   registerModulePreviewBakeFallback,
   registerModulePreviewHistoryFallback,
   deactivate as deactivateExtension
@@ -135,7 +136,8 @@ const registerModulePreview = (context: vscode.ExtensionContext): void => {
     editCanvasRibbon: () => {
       void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
     },
-    evaluateWithRust: (input) => rustProcessOwner.get().request(input)
+    evaluateWithRust: (input) => rustProcessOwner.get().request(input),
+    presentBakeOperationResult: presentModulePreviewBakeOperationResult
   });
   const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
     analysisSessions.delete(document.uri.toString());
