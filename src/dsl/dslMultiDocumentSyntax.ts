@@ -1,11 +1,12 @@
 import { parseDslSourceReference, readDslReferencePathSegments } from "./dslReferenceTokens";
 import { isBareDslIdentifierChar, splitDslTerms, unquoteDslString } from "./dslTokens";
-import type { DslAttribute, DslSpan } from "./dslTypes";
+import type { DslAttribute, DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 
 export type DslMultiDocumentSyntaxDiagnostic = {
   message: string;
   span: DslSpan;
   code: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 type ParsedStatementBase = {

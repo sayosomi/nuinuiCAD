@@ -41,6 +41,7 @@ describe("VS Code compiler diagnostics adapter", () => {
       {
         severity: "warning",
         message: "Drawing Modifier「Unused」はどこからも使用されていません。",
+        presentation: { key: "diagnostic.unused-drawing-modifier" },
         code: "unused-drawing-modifier",
         source: "nuinuiCAD",
         range: {
@@ -61,10 +62,16 @@ describe("VS Code compiler diagnostics adapter", () => {
     expect(diagnostics.every((item) => item.severity === "error")).toBe(true);
   });
 
-  it("maps severity, message, code, and source without rewriting production data", () => {
-    expect(toCompilerDiagnostic("abc", diagnostic({ severity: "error", message: "そのまま", code: "E" }))).toEqual({
+  it("maps severity, message, code, source, and presentation without rewriting production data", () => {
+    expect(toCompilerDiagnostic("abc", diagnostic({
       severity: "error",
       message: "そのまま",
+      code: "E",
+      presentation: { key: "diagnostic.example", parameters: { count: 2 } }
+    }))).toEqual({
+      severity: "error",
+      message: "そのまま",
+      presentation: { key: "diagnostic.example", parameters: { count: 2 } },
       code: "E",
       source: "nuinuiCAD",
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }
@@ -74,6 +81,32 @@ describe("VS Code compiler diagnostics adapter", () => {
       message: "warning",
       source: "nuinuiCAD",
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }
+    });
+  });
+
+  it("preserves presentation metadata on the main diagnostic and related information", () => {
+    const projected = toCompilerDiagnostic("abc\ndef", diagnostic({
+      code: "source-namespace-collision",
+      presentation: {
+        key: "diagnostic.source-namespace-collision",
+        parameters: { name: "A", firstLine: 1, firstKind: "point", secondKind: "group" }
+      },
+      physicalSpan: { segments: [{ from: 0, to: 1 }], sourceRevision: 1 },
+      relatedInformation: [{
+        message: "First export with this name",
+        physicalSpan: { segments: [{ from: 4, to: 5 }], sourceRevision: 1 },
+        presentation: { key: "diagnostic.related.first-export" }
+      }]
+    }));
+
+    expect(projected).toMatchObject({
+      presentation: {
+        key: "diagnostic.source-namespace-collision",
+        parameters: { name: "A" }
+      },
+      relatedInformation: [{
+        presentation: { key: "diagnostic.related.first-export" }
+      }]
     });
   });
 

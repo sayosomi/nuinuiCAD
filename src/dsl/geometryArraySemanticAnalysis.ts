@@ -88,6 +88,7 @@ const diagnostic = (statement: DslStatement, span: DslSpan, code: string, messag
     column: span.start + 1,
     code,
     message,
+    presentation: { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };

@@ -1,6 +1,6 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslRecordTypeReference, DslSpan } from "./dslTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import {
@@ -9,7 +9,7 @@ import {
   type GeometryArrayType
 } from "./geometryArrayTypes";
 
-export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
 export type DslScalarTypeParseResult = {
   declaredType: ScalarType | null;

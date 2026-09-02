@@ -14,7 +14,7 @@ import {
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
-import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslDiagnosticPresentation, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import {
   moduleParameterPresenceKey,
   parseAndCheckModuleScalarExpression,
@@ -92,6 +92,7 @@ type DiagnosticRelatedSource = {
   statementIndex: number;
   span: DslSpan;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 type LocalDiagnostic = ModuleScalarLocalDiagnostic & {
@@ -146,6 +147,7 @@ const toDiagnostic = (
     message: issue.message,
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
+    ...(issue.presentation ? { presentation: issue.presentation } : { presentation: { key: `diagnostic.${issue.code}` } }),
     ...(relatedInformation.length ? { relatedInformation } : {}),
     ...(issue.expectedType ? { expectedType: issue.expectedType } : {}),
     ...(issue.actualType ? { actualType: issue.actualType } : {})
@@ -156,6 +158,7 @@ const issue = (code: string, span: DslSpan, message: string, extra: Partial<Loca
   code,
   span,
   message,
+  presentation: { key: `diagnostic.${code}` },
   ...extra
 });
 
@@ -357,15 +360,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const relatedAt = (
     statementIndex: number,
     span: DslSpan | null | undefined,
-    message: string
-  ): DiagnosticRelatedSource[] => span ? [{ statementIndex, span, message }] : [];
+    message: string,
+    presentation?: DslDiagnosticPresentation
+  ): DiagnosticRelatedSource[] => span ? [{ statementIndex, span, message, ...(presentation ? { presentation } : {}) }] : [];
   const relatedForDeclaration = (
     declaration: SourceLexicalDeclaration,
     message = "Related declaration"
   ): DiagnosticRelatedSource[] => relatedAt(
     declaration.statementIndex,
     declaration.nameSpan ?? declaration.statement.keywordSpan,
-    message
+    message,
+    { key: "diagnostic.related.declaration" }
   );
   const definitionStates: DefinitionState[] = [];
   const stateByIndex = new Map<number, DefinitionState>();
@@ -406,7 +411,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             relatedSources: relatedAt(
               statementIndex,
               statement.parameters[previous.index].nameSpan ?? statement.keywordSpan,
-              "First parameter with this name"
+              "First parameter with this name",
+              { key: "diagnostic.related.first-parameter" }
             )
           }
         ));
@@ -434,7 +440,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return relatedAt(
       definition.statementIndex,
       preferType ? parameter.typeSpan ?? parameter.nameSpan : parameter.nameSpan ?? parameter.typeSpan,
-      message
+      message,
+      { key: preferType ? "diagnostic.related.expected-parameter-type" : "diagnostic.related.parameter-declaration" }
     );
   };
 
@@ -572,7 +579,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     if (lookup.kind === "iteration") {
       const statement = statements[lookup.statementIndex];
-      return statement ? relatedAt(lookup.statementIndex, statement.nameSpan ?? statement.keywordSpan, "Related iteration declaration") : [];
+      return statement
+        ? relatedAt(lookup.statementIndex, statement.nameSpan ?? statement.keywordSpan, "Related iteration declaration", { key: "diagnostic.related.iteration-declaration" })
+        : [];
     }
     if (lookup.kind === "resolved") return relatedForDeclaration(lookup.declaration);
     if (lookup.kind === "forward" || lookup.kind === "ambiguous") {
@@ -695,7 +704,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? relatedAt(
             scalarExport.exportedStatementIndex,
             statements[scalarExport.exportedStatementIndex]?.nameSpan ?? statements[scalarExport.exportedStatementIndex]?.keywordSpan,
-            scalarExport.kind === "private" ? "Related module member declaration" : "Related geometry declaration"
+            scalarExport.kind === "private" ? "Related module member declaration" : "Related geometry declaration",
+            { key: scalarExport.kind === "private" ? "diagnostic.related.module-member-declaration" : "diagnostic.related.geometry-declaration" }
           )
         : [];
       return scalarExport?.kind === "geometry"
@@ -1861,7 +1871,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             `record 値「${parsed.reference.pathText}」の nominal record 型が expected type と一致しません。`,
             baseSpan,
             resolved.target.kind === "recordValue"
-              ? relatedAt(resolved.target.statementIndex, statements[resolved.target.statementIndex]?.nameSpan, "Related record value")
+              ? relatedAt(resolved.target.statementIndex, statements[resolved.target.statementIndex]?.nameSpan, "Related record value", { key: "diagnostic.related.record-value" })
               : []
             );
         }
@@ -2119,7 +2129,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           if (previousIndex !== undefined) {
             const previous = statement.arguments[previousIndex];
             addLocal(statementIndex, issue("module-duplicate-argument", argument.labelSpan ?? argument.valueSpan, `argument「${argument.label}」が重複しています。`, {
-              relatedSources: relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name")
+              relatedSources: relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name", { key: "diagnostic.related.first-argument" })
             }));
           } else argumentIndexes.set(argument.label, argumentIndex);
           const parameter = calleeState?.parameterByName.get(argument.label) ?? calleeParameters
@@ -2128,7 +2138,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           if (!parameter) {
             addLocal(statementIndex, issue("module-unknown-argument", argument.labelSpan ?? argument.valueSpan, `module「${callee?.name ?? statement.moduleName}」にargument「${argument.label}」はありません。`, {
               relatedSources: calleeState
-                ? relatedAt(calleeState.statementIndex, calleeState.statement.nameSpan ?? calleeState.statement.keywordSpan, "Called module definition")
+                ? relatedAt(calleeState.statementIndex, calleeState.statement.nameSpan ?? calleeState.statement.keywordSpan, "Called module definition", { key: "diagnostic.related.called-module-definition" })
                 : []
             }));
           }
@@ -2416,7 +2426,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           addLocal(value.statementIndex, {
             code: "module-invalid-export",
             span: (statement!.kind === "typedDeclaration" || statement!.kind === "element" ? statement!.exportSpan : null) ?? statement!.nameSpan ?? statement!.keywordSpan,
-            message: "export は module 直下の名前付き record value にのみ指定できます。"
+            message: "export は module 直下の名前付き record value にのみ指定できます。",
+            presentation: { key: "diagnostic.module-invalid-export" }
           });
         }
         return result;
@@ -2432,7 +2443,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         addLocal(recordValue.value.statementIndex, {
           code: "module-duplicate-export",
           span: (statement!.kind === "typedDeclaration" || statement!.kind === "element" ? statement!.exportSpan : null) ?? statement!.nameSpan ?? statement!.keywordSpan,
-          message: `module export「${recordValue.value.name}」が重複しています。`
+          message: `module export「${recordValue.value.name}」が重複しています。`,
+          presentation: { key: "diagnostic.module-duplicate-export" }
         });
         continue;
       }
@@ -2498,7 +2510,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       relatedSources.push({
         statementIndex: relatedInstance.statementIndex,
         span: relatedStatement.moduleNameSpan ?? relatedStatement.keywordSpan,
-        message: "module recursion cycle に含まれる呼び出しです。"
+        message: "module recursion cycle に含まれる呼び出しです。",
+        presentation: { key: "diagnostic.related.module-recursion" }
       });
     }
     addLocal(
@@ -2519,7 +2532,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const relatedStatement = statements[related.statementIndex];
         if (!relatedStatement) return [];
         const physicalSpan = sourceSpanFor(spans, relatedStatement, related.span);
-        return physicalSpan ? [{ message: related.message, physicalSpan }] : [];
+        return physicalSpan ? [{
+          message: related.message,
+          physicalSpan,
+          ...(related.presentation ? { presentation: related.presentation } : {})
+        }] : [];
       });
       diagnostics.push(toDiagnostic(spans, statement, diagnostic, relatedInformation));
     }

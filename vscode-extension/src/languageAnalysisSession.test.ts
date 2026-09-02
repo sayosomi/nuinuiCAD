@@ -145,6 +145,7 @@ describe("VS Code document-scoped language analysis session", () => {
       {
         severity: "warning",
         message: "Drawing Modifier「Unused」はどこからも使用されていません。",
+        presentation: { key: "diagnostic.unused-drawing-modifier" },
         code: "unused-drawing-modifier",
         source: "nuinuiCAD",
         range: {

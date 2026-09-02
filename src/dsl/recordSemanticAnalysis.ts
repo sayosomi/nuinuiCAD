@@ -135,7 +135,8 @@ const diagnostic = (
   statement: DslStatement,
   span: DslSpan,
   code: string,
-  message: string
+  message: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>
 ): DslDiagnostic => {
   const physicalSpan = projectSpan(statement, span);
   return {
@@ -144,6 +145,10 @@ const diagnostic = (
     column: span.start + 1,
     code,
     message,
+    presentation: {
+      key: `diagnostic.${code}`,
+      ...(parameters ? { parameters } : {})
+    },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -174,18 +179,18 @@ const resolveRecordType = (
       const definition = definitionsByStatementIndex.get(lookup.declaration.statementIndex);
       if (definition) return { sourceName: type.name, span, typeIdentity: definition.statementId, resolution: "resolved" };
     }
-    diagnostics.push(diagnostic(statement, span, "record-type-not-record", `型名「${type.name}」は record definition を参照していません。`));
+    diagnostics.push(diagnostic(statement, span, "record-type-not-record", `型名「${type.name}」は record definition を参照していません。`, { name: type.name }));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "notRecord" };
   }
   if (lookup.kind === "forward") {
-    diagnostics.push(diagnostic(statement, span, "record-type-forward-reference", `record 型「${type.name}」はこの位置より後で宣言されているため、まだ参照できません。`));
+    diagnostics.push(diagnostic(statement, span, "record-type-forward-reference", `record 型「${type.name}」はこの位置より後で宣言されているため、まだ参照できません。`, { name: type.name }));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "forward" };
   }
   if (lookup.kind === "ambiguous") {
-    diagnostics.push(diagnostic(statement, span, "record-type-ambiguous", `record 型「${type.name}」は複数の宣言と一致するため一意に解決できません。`));
+    diagnostics.push(diagnostic(statement, span, "record-type-ambiguous", `record 型「${type.name}」は複数の宣言と一致するため一意に解決できません。`, { name: type.name }));
     return { sourceName: type.name, span, typeIdentity: null, resolution: "ambiguous" };
   }
-  diagnostics.push(diagnostic(statement, span, "record-type-undefined", `未定義の record 型「${type.name}」を参照しています。`));
+  diagnostics.push(diagnostic(statement, span, "record-type-undefined", `未定義の record 型「${type.name}」を参照しています。`, { name: type.name }));
   return { sourceName: type.name, span, typeIdentity: null, resolution: "undefined" };
 };
 
@@ -459,19 +464,19 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           if (lookup.declaration.kind === "recordValue") {
             targetTypeIdentity = valuesByStatementIndex.get(lookup.declaration.statementIndex)?.typeIdentity ?? null;
           } else {
-            diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
+            diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
           }
         } else if (lookup !== null && lookup.kind === "ambiguous") {
-          diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`));
+          diagnostics.push(diagnostic(statement, span, "record-value-ambiguous", `record 値「${name}」は複数の宣言と一致するため一意に解決できません。`, { name }));
         } else if (lookup !== null && parameterSemantic) {
           targetTypeIdentity = parameterSemantic.typeIdentity;
         } else if (lookup !== null && lookup.kind === "forward" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
-          diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`));
+          diagnostics.push(diagnostic(statement, span, "record-value-forward-reference", `record 値「${name}」はこの位置より後で宣言されているため、まだ参照できません。`, { name }));
         } else if (lookup !== null) {
-          diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`));
+          diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
         }
         if (targetTypeIdentity && typeReference.typeIdentity && targetTypeIdentity !== typeReference.typeIdentity) {
-          diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`));
+          diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`, { name, expected: statement.recordTypeReference.name }));
         }
         reference = { name, span, targetTypeIdentity };
       }
@@ -486,18 +491,18 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           if (targetLookup.declaration.kind === "recordDefinition") {
             targetDefinition = definitionsByStatementIndex.get(targetLookup.declaration.statementIndex) ?? null;
           } else {
-            diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-not-record", `constructor target「${candidate.name}」は record definition ではありません。`));
+            diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-not-record", `constructor target「${candidate.name}」は record definition ではありません。`, { name: candidate.name }));
           }
         } else if (targetLookup.kind === "forward") {
-          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-forward-reference", `record constructor「${candidate.name}」はこの位置より後で宣言されているため、まだ使用できません。`));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-forward-reference", `record constructor「${candidate.name}」はこの位置より後で宣言されているため、まだ使用できません。`, { name: candidate.name }));
         } else if (targetLookup.kind === "ambiguous") {
-          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-ambiguous", `record constructor「${candidate.name}」は複数の宣言と一致するため一意に解決できません。`));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-ambiguous", `record constructor「${candidate.name}」は複数の宣言と一致するため一意に解決できません。`, { name: candidate.name }));
         } else {
-          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-undefined", `未定義の record constructor「${candidate.name}」を参照しています。`));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-undefined", `未定義の record constructor「${candidate.name}」を参照しています。`, { name: candidate.name }));
         }
 
         if (targetDefinition && typeReference.typeIdentity && targetDefinition.statementId !== typeReference.typeIdentity) {
-          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-nominal-type-mismatch", `constructor「${candidate.name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-nominal-type-mismatch", `constructor「${candidate.name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`, { name: candidate.name, expected: statement.recordTypeReference.name }));
         }
 
         const localArgsSpan = {
@@ -520,13 +525,13 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           }
           const labelSpan = { start: initializerSpan.start + argument.keySpan.start, end: initializerSpan.start + argument.keySpan.end };
           if (firstLabel.has(argument.key)) {
-            diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-duplicate-field", `record constructor field「${argument.key}」が重複しています。`));
+            diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-duplicate-field", `record constructor field「${argument.key}」が重複しています。`, { field: argument.key }));
             continue;
           }
           firstLabel.add(argument.key);
           const field = knownFields.get(argument.key);
           if (!field) {
-            if (targetDefinition) diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-unknown-field", `record「${targetDefinition.name}」に field「${argument.key}」はありません。`));
+            if (targetDefinition) diagnostics.push(diagnostic(statement, labelSpan, "record-constructor-unknown-field", `record「${targetDefinition.name}」に field「${argument.key}」はありません。`, { record: targetDefinition.name, field: argument.key }));
             continue;
           }
           fields.push({
@@ -541,7 +546,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         if (targetDefinition) {
           for (const field of targetDefinition.fields) {
             if (!firstLabel.has(field.name)) {
-              diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-missing-field", `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`));
+              diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-constructor-missing-field", `record constructor「${targetDefinition.name}」に必須 field「${field.name}」がありません。`, { record: targetDefinition.name, field: field.name }));
             }
           }
         }

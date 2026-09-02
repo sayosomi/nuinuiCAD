@@ -4004,7 +4004,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(mocks.createDiagnosticCollection).toHaveBeenCalledWith("nuinuiCAD");
     expect(collection.set).toHaveBeenCalledWith(document.uri, [
       expect.objectContaining({
-        message: "引数「y」の値がありません。",
+        message: "Argument 'y' has no value.",
         code: "missing-attribute-value",
         source: "nuinuiCAD",
         severity: 0

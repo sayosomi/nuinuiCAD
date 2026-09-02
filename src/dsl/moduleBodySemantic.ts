@@ -1,4 +1,4 @@
-import type { DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import {
   geometryArrayTypeOfModuleParameter,
@@ -43,6 +43,7 @@ type ModuleBodyLocalDiagnostic = ModuleScalarLocalDiagnostic & {
     statementIndex: number;
     span: DslSpan;
     message: string;
+    presentation?: DslDiagnosticPresentation;
   }[];
 };
 
@@ -195,7 +196,8 @@ export const analyzeModuleBody = (
               ? [{
                   statementIndex: arrayReference.definitionStatementIndex,
                   span: arrayReference.parameterNameSpan,
-                  message: "Related parameter declaration"
+                  message: "Related parameter declaration",
+                  presentation: { key: "diagnostic.related.parameter-declaration" }
                 }]
               : []
           }

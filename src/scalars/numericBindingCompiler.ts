@@ -113,6 +113,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error", line: statement.line, column: span.start + 1, code, message, exactSpanOnly: true,
+    presentation: { key: `diagnostic.${code}` },
     ...(physicalSpan ? { physicalSpan } : {})
   };
 };

@@ -57,6 +57,7 @@ import {
   createNuiChoiceQuickFixProvider,
   NUI_CHOICE_QUICK_FIX_APPLY_COMMAND
 } from "./choiceQuickFixProvider";
+import { diagnosticMessageFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 type TestDocument = {
@@ -91,7 +92,7 @@ const vscodeDiagnosticFor = (
       new vscode.Position(compiler.range.start.line, compiler.range.start.character),
       new vscode.Position(compiler.range.end.line, compiler.range.end.character)
     ),
-    compiler.message,
+    diagnosticMessageFor(compiler, vscode.env.language),
     0
   );
   diagnostic.code = compiler.code;

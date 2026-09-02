@@ -315,6 +315,15 @@ const versionDiagnostic = (line: number, message: string): DslDiagnostic => ({
   message
 });
 
+/** Attach the code-derived presentation identity at the document boundary for
+ * legacy producers that already expose a stable code but do not need any
+ * semantic parameters. Parameterized producers attach their richer sidecar at
+ * their own construction site. */
+const withDiagnosticPresentation = (diagnostic: DslDiagnostic): DslDiagnostic =>
+  diagnostic.presentation || diagnostic.code === undefined
+    ? diagnostic
+    : { ...diagnostic, presentation: { key: `diagnostic.${diagnostic.code}` } };
+
 export const serializeDrawingProfileLines = (
   profiles: readonly DrawingProfile[]
 ): string[] => profiles.map((profile) => `profile ${formatDslName(profile.name)}`);
@@ -1241,7 +1250,7 @@ export const compileDslDocument = (
     ...sourceOutputPlacementDiagnostics,
     ...projectedCompilerDiagnostics,
     ...(sourceLexicalNamespace?.diagnostics ?? [])
-  ];
+  ].map(withDiagnosticPresentation);
 
   // missing-attribute-value ("well-formed but currently-empty named value" -
   // see dslArgScanner.ts) is deliberately excluded from the fatal gate here,
@@ -1620,7 +1629,7 @@ export const compileDslDocument = (
     ...(sourceLexicalNamespace?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
     ...(moduleSemanticCompilation?.diagnostics ?? [])
-  ];
+  ].map(withDiagnosticPresentation);
   // Task 48: see CompiledDslDocument.bindingIssueDiagnostics for why this is
   // never concatenated into allDiagnostics/finalDiagnostics below.
   const bindingIssueDiagnostics = scalarAnalysis
@@ -1774,7 +1783,7 @@ export const compileDslDocument = (
     ...(textTemplateCompilation ? textTemplateCompilation.diagnostics : []),
     ...(propertyReferenceSyntaxCompilation ? propertyReferenceSyntaxCompilation.diagnostics : []),
     ...(setStatementCompilation ? setStatementCompilation.diagnostics : [])
-  ];
+  ].map(withDiagnosticPresentation);
   // Same missing-attribute-value carve-out as the earlier fatal gate above.
   if (finalDiagnostics.some((item) => item.severity === "error" && item.code !== MISSING_ATTRIBUTE_VALUE_CODE)) {
     return {

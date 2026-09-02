@@ -143,6 +143,7 @@ const runtimeDiagnostic = (statement: DslStatement, span: DslSpan, code: string,
     column: span.start + 1,
     code,
     message,
+    presentation: { key: `diagnostic.${code}` },
     logicalSpan: span,
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})

@@ -43,9 +43,18 @@ export type DslDiagnosticNavigationTarget =
    * no-ops rather than falling back to any other position. */
   | { kind: "sourceSpan"; physicalSpan: DslPhysicalSpan };
 
+/** Clone-safe, locale-neutral identity for a diagnostic's user-facing text.
+ * The raw message remains the compatibility fallback for consumers that do
+ * not have a presentation catalog. */
+export type DslDiagnosticPresentation = {
+  key: string;
+  parameters?: Readonly<Record<string, string | number | boolean>>;
+};
+
 export type DslDiagnosticRelatedInformation = {
   message: string;
   physicalSpan: DslPhysicalSpan;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type DslDiagnostic = {
@@ -53,6 +62,7 @@ export type DslDiagnostic = {
   line: number;
   column: number;
   message: string;
+  presentation?: DslDiagnosticPresentation;
   sourceRevision?: SourceRevision;
   physicalSpan?: DslPhysicalSpan;
   /** Exact current source locations that explain the diagnostic's direct cause. */

@@ -565,7 +565,12 @@ describe("VS Code multi-document host lifecycle", () => {
     const diagnosticsState = host.diagnosticsStateFor(root);
     expect(diagnosticsState).toMatchObject({ status: "current", owner: "multi-document" });
     if (diagnosticsState.status === "current" && diagnosticsState.owner === "multi-document") {
-      expect(diagnosticsState.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).toContain("import-missing");
+      expect(diagnosticsState.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "import-missing",
+          presentation: { key: "diagnostic.import-missing" }
+        })
+      ]));
     }
 
     host.dispose();
@@ -600,7 +605,10 @@ describe("VS Code multi-document host lifecycle", () => {
     const state = host.diagnosticsStateFor(root);
     if (state.status === "current" && state.owner === "multi-document") {
       expect(state.snapshot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({ code: "unknown-construction" })
+        expect.objectContaining({
+          code: "unknown-construction",
+          presentation: expect.objectContaining({ key: "diagnostic.unknown-construction" })
+        })
       ]));
     }
     host.dispose();

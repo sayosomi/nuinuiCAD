@@ -1,4 +1,4 @@
-import type { DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 
 // Focused, independent parser for the v3-only mutation statement:
@@ -11,7 +11,7 @@ import { unquoteDslString } from "./dslTokens";
 // a raw {text, span} pair for the expression layer to re-tokenize, exactly like
 // typedDeclaration.initializer.
 
-export type DslSetParseDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslSetParseDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
 export type DslSetStatement = {
   kind: "set";

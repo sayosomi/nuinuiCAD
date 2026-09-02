@@ -32,7 +32,8 @@ export const moduleMutationOwnershipDiagnostics = (
       line: statement.line,
       column: site.span.start + 1,
       code: "module-geometry-parameter-mutation",
-      message: `module geometry parameter「${site.reference.source.trim()}」はmutationの書き込み対象にできません。`
+      message: `module geometry parameter「${site.reference.source.trim()}」はmutationの書き込み対象にできません。`,
+      presentation: { key: "diagnostic.module-geometry-parameter-mutation" }
     }];
   });
 };

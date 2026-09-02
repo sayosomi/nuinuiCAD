@@ -119,6 +119,7 @@ const modifierDefinitionsFromStatements = (
         column: 1,
         code: "invalid-drawing-profile-reference",
         message,
+        presentation: { key: "diagnostic.invalid-drawing-profile-reference" },
         ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
       });
       continue;
@@ -130,6 +131,7 @@ const modifierDefinitionsFromStatements = (
         column: 1,
         code: "duplicate-drawing-profile-override",
         message: `modifier の Drawing Profile「${lookup.declaration.name}」は1つだけ指定できます。`,
+        presentation: { key: "diagnostic.duplicate-drawing-profile-override" },
         ...(block.profileNameSpan ? { logicalSpan: block.profileNameSpan, statementIndex: sourceStatementIndex } : {})
       });
       continue;
@@ -732,6 +734,7 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       column: statement.nameSpan.start + 1,
       code: "unused-drawing-modifier",
       message: `Drawing Modifier「${statement.name}」はどこからも使用されていません。`,
+      presentation: { key: "diagnostic.unused-drawing-modifier" },
       logicalSpan: statement.nameSpan,
       statementIndex
     });

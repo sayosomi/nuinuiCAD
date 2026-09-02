@@ -1,5 +1,5 @@
 import type { AutomationDocumentState } from "../../src/document/automationDocument";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation } from "../../src/dsl/dslTypes";
 
 export type CompilerDiagnosticPosition = {
   line: number;
@@ -14,11 +14,15 @@ export type CompilerDiagnosticRange = {
 export type CompilerDiagnosticRelatedInformation = {
   message: string;
   range: CompilerDiagnosticRange;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type CompilerDiagnostic = {
   severity: DslDiagnostic["severity"];
   message: string;
+  presentation?: DslDiagnosticPresentation;
+  /** A separately localized suffix, such as the typo suggestion hint. */
+  suffixPresentation?: DslDiagnosticPresentation;
   range: CompilerDiagnosticRange;
   relatedInformation?: readonly CompilerDiagnosticRelatedInformation[];
   code?: string;
@@ -132,13 +136,19 @@ export const toCompilerDiagnostic = (
   const relatedInformation = (diagnostic.relatedInformation ?? [])
     .map((related) => {
       const relatedRange = rangeForPhysicalSpan(index, normalizedSource, related.physicalSpan);
-      return relatedRange ? { message: related.message, range: relatedRange } : null;
+      return relatedRange
+        ? {
+            message: related.message,
+            range: relatedRange,
+            ...(related.presentation ? { presentation: related.presentation } : {})
+          }
+        : null;
     })
     .filter((related): related is CompilerDiagnosticRelatedInformation => related !== null);
-
   return {
     severity: diagnostic.severity,
     message: diagnostic.message,
+    ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {}),
     range,
     ...(relatedInformation.length === 0 ? {} : { relatedInformation }),
     ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),

@@ -9,6 +9,7 @@ import type {
   ScalarExpressionResolvedReference
 } from "../scalars/typedExpressionAst";
 import type { ScalarType } from "../scalars/types";
+import type { DslDiagnosticPresentation } from "./dslTypes";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryBuiltinArgumentSemantic,
@@ -105,6 +106,7 @@ export type ModuleScalarLocalDiagnostic = {
   code: string;
   span: DslSpan;
   message: string;
+  presentation?: DslDiagnosticPresentation;
   expectedType?: ScalarType;
   actualType?: ScalarType;
 };
@@ -140,6 +142,7 @@ const localIssue = (code: string, span: DslSpan, message: string, extra: Partial
   code,
   span,
   message,
+  presentation: { key: `diagnostic.${code}` },
   ...extra
 });
 

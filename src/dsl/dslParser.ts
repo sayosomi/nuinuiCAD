@@ -69,6 +69,7 @@ const recordDiagnostics = (
     message: item.message,
     sourceRevision,
     ...(item.code ? { code: item.code } : {}),
+    ...(item.code ? { presentation: { key: `diagnostic.${item.code}` } } : {}),
     ...(physicalSpan ? { physicalSpan } : {})
   };
 });
@@ -183,6 +184,7 @@ const unknownRecordTypeDiagnostics = (
       line: statement.line,
       column: span.start + 1,
       code: "unknown-type",
+      presentation: { key: "diagnostic.unknown-type", parameters: { type: name } },
       message: moduleParameter
         ? `不明な型注釈です: ${name}。module parameter の型は number/string/boolean/choice(...)/point/line/path/point[]/line[]/path[] または record 型を指定してください。`
         : `不明な型注釈です: ${name}`,

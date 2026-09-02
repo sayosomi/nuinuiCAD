@@ -132,10 +132,14 @@ const relatedInformationForCompilerDiagnostic = (
   source: string,
   sourceIdentity: DocumentSourceIdentity,
   diagnostic: CompilerDiagnostic
-): readonly { message: string; location: DocumentQualifiedSourceLocation }[] =>
+): readonly { message: string; location: DocumentQualifiedSourceLocation; presentation?: CompilerDiagnostic["presentation"] }[] =>
   (diagnostic.relatedInformation ?? []).flatMap((related) => {
     const range = rangeForCompilerDiagnostic(source, related.range);
-    return range ? [{ message: related.message, location: qualifySourceLocation(sourceIdentity, range) }] : [];
+    return range ? [{
+      message: related.message,
+      location: qualifySourceLocation(sourceIdentity, range),
+      ...(related.presentation ? { presentation: related.presentation } : {})
+    }] : [];
   });
 
 const projectCompilerDiagnostic = (
@@ -150,6 +154,8 @@ const projectCompilerDiagnostic = (
     severity: diagnostic.severity,
     message: diagnostic.message,
     location: qualifySourceLocation(sourceIdentity, range),
+    ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {}),
+    ...(diagnostic.suffixPresentation ? { suffixPresentation: diagnostic.suffixPresentation } : {}),
     ...(relatedInformation.length > 0 ? { relatedInformation } : {}),
     ...(diagnostic.code === undefined ? {} : { code: diagnostic.code })
   };
@@ -167,9 +173,12 @@ const projectDslDiagnostic = (
 const diagnosticKey = (diagnostic: VscodeMultiDocumentDiagnostic): string => JSON.stringify([
   diagnostic.severity,
   diagnostic.code,
-  diagnostic.message,
+  diagnostic.presentation ?? null,
   diagnostic.location,
-  diagnostic.relatedInformation ?? []
+  (diagnostic.relatedInformation ?? []).map((related) => ({
+    location: related.location,
+    presentation: related.presentation ?? null
+  }))
 ]);
 
 const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = ({ graph, compiled }) => {
@@ -182,21 +191,23 @@ const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = 
     code: string,
     message: string,
     location: DocumentQualifiedSourceLocation,
-    relatedLocations: readonly DocumentQualifiedSourceLocation[] = []
+    relatedLocations: readonly DocumentQualifiedSourceLocation[] = [],
+    presentation: VscodeMultiDocumentDiagnostic["presentation"] = { key: `diagnostic.${code}` }
   ): void => {
     add({
       severity,
       code,
       message,
+      presentation,
       location,
       ...(relatedLocations.length > 0
-        ? { relatedInformation: relatedLocations.map((related) => ({ message, location: related })) }
+        ? { relatedInformation: relatedLocations.map((related) => ({ message, location: related, presentation })) }
         : {})
     });
   };
 
   for (const diagnostic of graph.diagnostics) {
-    addQualified("error", diagnostic.code, diagnostic.message, diagnostic.location, diagnostic.relatedLocations);
+    addQualified("error", diagnostic.code, diagnostic.message, diagnostic.location, diagnostic.relatedLocations, diagnostic.presentation);
   }
 
   for (const node of graph.nodes.values()) {
@@ -210,7 +221,8 @@ const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = 
         diagnostic.code,
         diagnostic.message,
         diagnostic.location,
-        diagnostic.relatedLocations
+        diagnostic.relatedLocations,
+        diagnostic.presentation
       );
     }
   }
@@ -222,7 +234,8 @@ const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = 
       diagnostic.code,
       diagnostic.message,
       diagnostic.location,
-      diagnostic.relatedLocations
+      diagnostic.relatedLocations,
+      diagnostic.presentation
     );
   }
 

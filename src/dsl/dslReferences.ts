@@ -80,6 +80,7 @@ const undefinedGeometryReferenceDiagnostic = (
   column: 1,
   code: "undefined-geometry-reference",
   message,
+  presentation: { key: "diagnostic.undefined-geometry-reference" },
   exactSpanOnly: true,
   ...(sourceSpan ? {
     logicalSpan: {
@@ -101,6 +102,7 @@ const invalidReferenceDiagnostic = (
   column: 1,
   code: "invalid-source-reference",
   message: `${message} (${reference})`,
+  presentation: { key: "diagnostic.invalid-source-reference" },
   ...(sourceSpan && relativeSpan ? {
     logicalSpan: {
       start: sourceSpan.start + relativeSpan.start,

@@ -51,6 +51,17 @@ export const bindingIssuesToDiagnostics = (
       column: (issue.span?.start ?? 0) + 1,
       code: issue.code,
       message: formatted.message,
+      presentation: {
+        key: `diagnostic.${issue.code}`,
+        parameters: (() : Readonly<Record<string, string | number | boolean>> => {
+          const bindingName = binding ? binding.name : issue.bindingId;
+          if (issue.code === "binding-cycle") {
+            return { name: bindingName, cycle: issue.relatedBindingIds.map((id) => bindingAnalysis.catalog.bindingsById.get(id)?.name ?? id).join(" → ") };
+          }
+          const referencedName = issue.origin.kind === "reference" ? issue.origin.reference.name : bindingName;
+          return { name: bindingName, referencedName };
+        })()
+      },
       exactSpanOnly: true,
       ...(physicalSpan ? { physicalSpan } : {}),
       bindingId: issue.bindingId,

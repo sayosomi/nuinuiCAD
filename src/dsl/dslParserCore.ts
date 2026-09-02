@@ -147,7 +147,8 @@ const diagnostic = (
   line: number,
   message: string,
   code?: string,
-  physicalSpan?: DslPhysicalSpan
+  physicalSpan?: DslPhysicalSpan,
+  presentation?: DslDiagnostic["presentation"]
 ): DslDiagnostic => ({
   severity: "error",
   line,
@@ -155,6 +156,7 @@ const diagnostic = (
   message,
   ...(code ? { code } : {}),
   ...(physicalSpan ? { physicalSpan } : {}),
+  ...(presentation ? { presentation } : code ? { presentation: { key: `diagnostic.${code}` } } : {}),
   ...(code && exactUnknownNameDiagnosticCodes.has(code) ? { exactSpanOnly: true as const } : {})
 });
 
@@ -623,7 +625,7 @@ const fromCall = (
   exportInfo?: { exportSpan: DslSpan }
 ): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!result.statement) return { diagnostics };
   return { statement: callStatementToDslStatement(result.statement, line, endLine, exportInfo), diagnostics };
@@ -636,7 +638,7 @@ const fromModule = (
   project: (span: DslSpan) => DslPhysicalSpan | null
 ): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!result.statement) return { diagnostics };
   return { statement: moduleStatementToDslStatement(result.statement, line, endLine), diagnostics };
@@ -655,7 +657,7 @@ const fromDeclaration = (
   project: (span: DslSpan) => DslPhysicalSpan | null
 ): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!result.statement) return { diagnostics };
   return { statement: declarationStatementToDslStatement(result.statement, line, endLine), diagnostics };
@@ -668,7 +670,7 @@ const fromSet = (
   project: (span: DslSpan) => DslPhysicalSpan | null
 ): ParsedLine => {
   const diagnostics = result.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!result.statement) return { diagnostics };
   return { statement: setStatementToDslStatement(result.statement, line, endLine), diagnostics };
@@ -682,7 +684,7 @@ const fromImport = (
 ): ParsedLine => {
   const parsed = parseDslImportStatement(logicalText);
   const diagnostics = parsed.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!parsed.statement) return { diagnostics };
   return { statement: multiDocumentStatementToDslStatement(parsed.statement, line, endLine), diagnostics };
@@ -696,7 +698,7 @@ const fromFileReExport = (
 ): ParsedLine => {
   const parsed = parseDslFileReExportStatement(logicalText);
   const diagnostics = parsed.diagnostics.map((item) =>
-    diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+    diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
   );
   if (!parsed.statement) return { diagnostics };
   return { statement: multiDocumentStatementToDslStatement(parsed.statement, line, endLine), diagnostics };
@@ -799,7 +801,7 @@ const parseLine = (
     }
     return {
       diagnostics: parsed.diagnostics.map((item) =>
-        diagnostic(line, item.message, item.code, project(item.span) ?? undefined)
+        diagnostic(line, item.message, item.code, project(item.span) ?? undefined, item.presentation)
       )
     };
   }
