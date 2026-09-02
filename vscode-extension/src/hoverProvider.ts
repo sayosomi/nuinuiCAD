@@ -3,6 +3,7 @@ import {
   queryDslGeometryHoverDeclarationRange,
   queryDslGeometryHoverTarget
 } from "../../src/dsl/dslHoverQuery";
+import { queryDslThemeRoleColors } from "../../src/dsl/dslThemeRoleColorQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
   geometryHoverMarkdown,
@@ -163,7 +164,25 @@ export const createNuiHoverProvider = (
 
     const rawSource = document.getText();
     const session = sessionFor(document);
+    if (session.getSource() !== rawSource) session.replaceSource(rawSource);
     const normalizedOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(position));
+    const source: SourceSnapshot = {
+      normalizedSource: normalizedSourceFor(rawSource),
+      sourceRevision: session.getSourceRevision()
+    };
+    const themeRole = queryDslThemeRoleColors({
+      source,
+      semantic: session.themeRoleColorSemanticSnapshot(source)
+    }).find(({ range }) => normalizedOffset >= range.from && normalizedOffset < range.to);
+    if (themeRole) {
+      return new vscode.Hover(
+        new vscode.MarkdownString(
+          `Theme role: ${themeRole.role}\n\nFollows the current Canvas theme. Choosing a color in the color picker converts this role to a fixed #RRGGBB color.`
+        ),
+        vscodeRangeForNormalized(document, rawSource, themeRole.range)
+      );
+    }
+
     const current = currentTargetFor(rawSource, session, normalizedOffset);
     if (!current) return undefined;
 
