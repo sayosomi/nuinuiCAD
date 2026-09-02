@@ -337,7 +337,9 @@ const parameterEditFor = (
   return { status: "ready", edit: { from: segment.from, to: segment.to, replacement } };
 };
 
-const serializeOwnedElement = (
+/** Serialize one resolved authored owner while preserving its source spans and
+ * rejecting any change that cannot be represented as a safe statement edit. */
+export const serializeOwnedElement = (
   compiled: CompiledDslDocument,
   owner: SourceOwner,
   before: CadElement,
@@ -402,6 +404,39 @@ const serializeOwnedElement = (
   }
   const patched = applyCharacterEdits(compiled.sourceLines, owner.statement, edits);
   return patched;
+};
+
+/**
+ * Build the narrow owner-level patch used by source-writing runtime surfaces.
+ * The caller supplies the already-resolved authored owner; this function keeps
+ * source freshness and the existing element serializer as the only authority.
+ */
+export const buildModuleOwnerElementPatch = (
+  current: CanonicalDocumentValue,
+  owner: SourceOwner,
+  before: CadElement,
+  after: CadElement
+): ModuleModelBridgeResult => {
+  if (current.docText !== current.sourceText) {
+    return unapplied("fatalな編集中テキストがあるためModule source bridgeを適用できません。");
+  }
+  const currentStatement = current.doc.statementMap.statementRangeById.get(owner.sourceStatementId);
+  if (
+    !currentStatement ||
+    currentStatement.statementIndex !== owner.sourceStatementIndex ||
+    currentStatement.sourceRevision !== current.doc.statementMap.sourceRevision
+  ) {
+    return unapplied("Module source ownerのstatement spanが古くなっています。");
+  }
+  const result = serializeOwnedElement(current.doc, owner, before, after);
+  if (result.status === "unapplied") return result;
+  if (result.status === "noop") return { status: "noop" };
+  try {
+    applyLineSplices(current.sourceText, [result.splice]);
+  } catch (error) {
+    return unapplied(error instanceof Error ? error.message : String(error));
+  }
+  return { status: "ready", splices: [result.splice] };
 };
 
 const moduleInstanceActivitySplice = (
