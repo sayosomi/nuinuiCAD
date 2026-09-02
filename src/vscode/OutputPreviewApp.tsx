@@ -66,6 +66,11 @@ import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
+import {
+  useVscodeWebviewPresentation,
+  webviewDiagnosticTextFor,
+  webviewPresentationTextFor
+} from "./webviewPresentation";
 
 type OutputPreviewEvaluationState = {
   outputKey: string | null;
@@ -110,11 +115,24 @@ type PanState = { pointerId: number; lastX: number; lastY: number };
 type OutputPreviewClientPoint = { clientX: number; clientY: number };
 type OutputPreviewViewportClientOrigin = { left: number; top: number };
 
-const diagnosticMessageFor = (state: ReturnType<typeof useCadDocumentStore.getState>): string =>
-  state.diagnostics[0]?.message ?? state.bindingIssueDiagnostics[0]?.message ?? "The current source cannot produce a valid output plan.";
+const diagnosticMessageFor = (
+  state: ReturnType<typeof useCadDocumentStore.getState>,
+  presentation: Parameters<typeof webviewDiagnosticTextFor>[0]
+): string => {
+  const diagnostic = state.diagnostics[0] ?? state.bindingIssueDiagnostics[0];
+  return diagnostic
+    ? webviewDiagnosticTextFor(presentation, diagnostic)
+    : "The current source cannot produce a valid output plan.";
+};
 
-const outputKindLabel = (candidate: OutputPreviewCandidate): string =>
-  candidate.kind === "print" ? "Print" : "SVG";
+const outputKindLabel = (
+  candidate: OutputPreviewCandidate,
+  presentation: Parameters<typeof webviewPresentationTextFor>[0]
+): string => webviewPresentationTextFor(
+  presentation,
+  candidate.kind === "print" ? "output.kind.print" : "output.kind.svg",
+  candidate.kind === "print" ? "Print" : "SVG"
+);
 
 const outputTextLines = (text: string): string[] => text.replace(/\r\n?/g, "\n").split("\n");
 const normalizedSourceForDrag = (text: string): string => text.replace(/\r\n/g, "\n");
@@ -238,6 +256,7 @@ const highlightedDrawableSvg = (
 };
 
 export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
+  const webviewPresentation = useVscodeWebviewPresentation();
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const docText = useCadDocumentStore((state) => state.docText);
   const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
@@ -1011,7 +1030,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const sourceNavigationRange = diagnosticSourceRange ?? canonicalSelectedCandidate?.sourceRange ?? null;
   const previewError = sourceIsCurrent
     ? selectedCandidate && evaluationState.outputKey === selectedCandidate.key ? evaluationState.error : null
-    : diagnosticMessageFor({ ...useCadDocumentStore.getState(), diagnostics, bindingIssueDiagnostics });
+    : diagnosticMessageFor({ ...useCadDocumentStore.getState(), diagnostics, bindingIssueDiagnostics }, webviewPresentation);
   const pageRects = plan ? outputPreviewPageRectsFor(plan, viewportSize, viewport) : [];
   const guideLines = plan ? outputPreviewGuideLinesFor(plan, viewportSize, viewport) : [];
   const paperBounds = plan?.kind === "svg" ? plan.bounds : null;
@@ -1032,7 +1051,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       <header className="output-preview-toolbar">
         <div className="output-preview-output-group">
           <select
-            aria-label="Output"
+            aria-label={webviewPresentationTextFor(webviewPresentation, "output.selector.label", "Output")}
             value={selectedOutputKey ?? ""}
             onChange={(event) => {
               clearExplicitReveal();
@@ -1040,10 +1059,12 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             }}
             disabled={canonicalCandidates.length === 0}
           >
-            {canonicalCandidates.length === 0 ? <option value="">No outputs</option> : null}
+            {canonicalCandidates.length === 0 ? (
+              <option value="">{webviewPresentationTextFor(webviewPresentation, "output.selector.noOutputs", "No outputs")}</option>
+            ) : null}
             {canonicalCandidates.map((candidate) => (
               <option key={candidate.key} value={candidate.key}>
-                {outputKindLabel(candidate)} · {candidate.output.name}
+                {outputKindLabel(candidate, webviewPresentation)} · {candidate.output.name}
               </option>
             ))}
           </select>
@@ -1054,7 +1075,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             tooltipBoundaryRef={workspaceRef}
             ribbon={{
               id: "output-preview-ribbon",
-              label: "Output Preview",
+              label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.title", "Output Preview"),
               x: null,
               y: 0,
               orientation: "horizontal",
@@ -1065,7 +1086,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                   type: "command",
                   commandId: "outputPreviewSourceNavigation",
                   icon: "crosshair",
-                  label: "Go to Source",
+                  label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.goToSource", "Go to Source"),
                   description: "",
                   showLabel: false,
                   available: Boolean(canonicalSelectedCandidate),
@@ -1087,7 +1108,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             tooltipBoundaryRef={workspaceRef}
             ribbon={{
               id: "output-preview-export-ribbon",
-              label: "Output Export",
+              label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.exportTitle", "Output Export"),
               x: null,
               y: 0,
               orientation: "horizontal",
@@ -1097,7 +1118,11 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 type: "command",
                 commandId: "outputPreviewExport",
                 icon: "file-down",
-                label: exportablePlan.kind === "print" ? "Export PDF" : "Export SVG",
+                label: webviewPresentationTextFor(
+                  webviewPresentation,
+                  exportablePlan.kind === "print" ? "output.ribbon.exportPdf" : "output.ribbon.exportSvg",
+                  exportablePlan.kind === "print" ? "Export PDF" : "Export SVG"
+                ),
                 description: "",
                 showLabel: true,
                 available: pendingExportRequestId === null,
@@ -1117,7 +1142,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           tooltipBoundaryRef={workspaceRef}
           ribbon={{
             id: "output-preview-reset-ribbon",
-            label: "Output Preview",
+            label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.title", "Output Preview"),
             x: null,
             y: 0,
             orientation: "horizontal",
@@ -1127,7 +1152,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               type: "command",
               commandId: "outputPreviewResetView",
               icon: "rotate-ccw",
-              label: "Reset Output Preview View",
+              label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.reset", "Reset Output Preview View"),
               description: "",
               showLabel: false,
               available: true
@@ -1145,7 +1170,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           tooltipBoundaryRef={workspaceRef}
           ribbon={{
             id: "output-preview-fit-ribbon",
-            label: "Output Preview",
+            label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.title", "Output Preview"),
             x: null,
             y: 0,
             orientation: "horizontal",
@@ -1156,7 +1181,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
                 type: "command",
                 commandId: "outputPreviewFit",
                 icon: "maximize",
-                label: "Fit Output Preview",
+                label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.fit", "Fit Output Preview"),
                 description: "",
                 showLabel: false,
                 available: Boolean(plan),
@@ -1176,7 +1201,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           tooltipBoundaryRef={workspaceRef}
           ribbon={{
             id: "output-preview-viewport-status-ribbon",
-            label: "Output Preview",
+            label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.title", "Output Preview"),
             x: null,
             y: 0,
             orientation: "horizontal",
@@ -1185,13 +1210,22 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               "output-preview-viewport-status",
               viewport,
               pointerWorldPoint,
-              "Output Preview status",
-              "Current Output Preview zoom and pointer position."
+              webviewPresentationTextFor(webviewPresentation, "output.viewportStatus.label", "Output Preview status"),
+              webviewPresentationTextFor(webviewPresentation, "output.viewportStatus.description", "Current Output Preview zoom and pointer position."),
+              {
+                zoom: webviewPresentationTextFor(webviewPresentation, "viewport.status.zoom", "ZOOM"),
+                x: webviewPresentationTextFor(webviewPresentation, "viewport.status.x", "X"),
+                y: webviewPresentationTextFor(webviewPresentation, "viewport.status.y", "Y")
+              }
             )]
           }}
           iconResolver={resolveVscodeLucideIcon}
         />
-        {evaluationState.evaluating ? <span className="output-preview-status">Evaluating…</span> : null}
+        {evaluationState.evaluating ? (
+          <span className="output-preview-status">
+            {webviewPresentationTextFor(webviewPresentation, "output.evaluating", "Evaluating…")}
+          </span>
+        ) : null}
       </header>
       <div
         ref={viewportRef}
@@ -1209,18 +1243,27 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       >
         {previewError ? (
           <div className="output-preview-state output-preview-error" role="alert">
-            <strong>Output Preview unavailable</strong>
+            <strong>{webviewPresentationTextFor(webviewPresentation, "output.unavailable", "Output Preview unavailable")}</strong>
             <span>{previewError}</span>
-            {sourceNavigationRange ? <button type="button" onClick={() => navigateToSourceRange(sourceNavigationRange)}>Go to source</button> : null}
+            {sourceNavigationRange ? (
+              <button type="button" onClick={() => navigateToSourceRange(sourceNavigationRange)}>
+                {webviewPresentationTextFor(webviewPresentation, "output.goToSource", "Go to source")}
+              </button>
+            ) : null}
           </div>
         ) : !selectedCandidate ? (
           <div className="output-preview-state" role="status">
-            <strong>No print or SVG outputs</strong>
-            <span>Add a print or svg declaration in the Source Editor.</span>
+            <strong>{webviewPresentationTextFor(webviewPresentation, "output.noOutputs", "No print or SVG outputs")}</strong>
+            <span>{webviewPresentationTextFor(webviewPresentation, "output.addDeclaration", "Add a print or svg declaration in the Source Editor.")}</span>
           </div>
         ) : plan ? (
           <>
-            <svg className="output-preview-plane" width="100%" height="100%" aria-label="Output preview">
+            <svg
+              className="output-preview-plane"
+              width="100%"
+              height="100%"
+              aria-label={webviewPresentationTextFor(webviewPresentation, "output.previewAriaLabel", "Output preview")}
+            >
               {paperRect ? <rect {...paperRect} data-output-preview-layer="output-fill" fill="#ffffff" /> : null}
               {pageRects.map((page, index) => <rect key={`page-fill-${index}`} {...page} data-output-preview-layer="page-fill" fill="#ffffff" />)}
               {plan.drawables.map((drawable) => drawableSvg(drawable, viewportSize, viewport))}

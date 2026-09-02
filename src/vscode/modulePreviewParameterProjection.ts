@@ -20,7 +20,8 @@ const diagnosticFor = (
       code: diagnostic.code,
       definitionStatementId: diagnostic.definitionStatementId,
       parameterIndex: diagnostic.parameterIndex,
-      message: diagnostic.message
+      message: diagnostic.message,
+      ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
     }
   : null;
 
@@ -74,7 +75,8 @@ export const modulePreviewParameterSnapshotFor = ({
     code: diagnostic.code,
     definitionStatementId: diagnostic.definitionStatementId,
     parameterIndex: diagnostic.parameterIndex,
-    message: diagnostic.message
+    message: diagnostic.message,
+    ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
   })),
   previewStatus: snapshot.preview.kind
 });

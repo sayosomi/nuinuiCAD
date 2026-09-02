@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { vscodeWebviewSurfaceDataAttribute } from "../../src/vscode/protocol";
 import type { ModulePreviewFeature } from "./modulePreviewFeature";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 
 export const NUI_MODULE_PREVIEW_PARAMETERS_VIEW_ID = "nuinuiCAD.modulePreviewParameters";
 
@@ -9,13 +10,15 @@ const modulePreviewParametersNonce = (): string => randomBytes(16).toString("hex
 
 const modulePreviewParametersWebviewHtml = (
   webview: vscode.Webview,
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  displayLanguageFor: () => string
 ): string => {
+  const presentation = webviewPresentationFor(displayLanguageFor());
   const script = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
   const style = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.css"));
   const nonce = modulePreviewParametersNonce();
   return `<!doctype html>
-<html lang="ja" ${vscodeWebviewSurfaceDataAttribute}="modulePreviewParameters">
+<html lang="${presentation.locale}" ${vscodeWebviewSurfaceDataAttribute}="modulePreviewParameters">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -31,7 +34,14 @@ const modulePreviewParametersWebviewHtml = (
 
 export const registerModulePreviewParametersFeature = (
   context: vscode.ExtensionContext,
-  modulePreviewFeature: ModulePreviewFeature
+  modulePreviewFeature: ModulePreviewFeature,
+  displayLanguageFor: () => string = () => {
+    try {
+      return (vscode as typeof vscode & { env?: { language?: string } }).env?.language ?? "en";
+    } catch {
+      return "en";
+    }
+  }
 ): vscode.Disposable => {
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(webviewView) {
@@ -39,7 +49,7 @@ export const registerModulePreviewParametersFeature = (
         enableScripts: true,
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")]
       };
-      webviewView.webview.html = modulePreviewParametersWebviewHtml(webviewView.webview, context);
+      webviewView.webview.html = modulePreviewParametersWebviewHtml(webviewView.webview, context, displayLanguageFor);
       const attachment = modulePreviewFeature.attachParameterView(webviewView.webview);
       webviewView.onDidDispose(() => attachment.dispose());
     }

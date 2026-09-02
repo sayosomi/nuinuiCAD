@@ -26,6 +26,7 @@ import type { CanvasTheme } from "./canvasTheme";
 import type { PickCandidate } from "../model/pickCandidates";
 import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { CommandId } from "../commands/commandTypes";
+import type { CanvasPresentation } from "./canvasPresentation";
 
 export type CanvasCommitMode = "preview" | "commit";
 export type { CanvasSelectionMode };
@@ -87,6 +88,7 @@ export type CanvasHostAdapter = {
   evaluationLimitIndex: number | undefined;
   compiledDocumentRevision: number;
   canvasTheme: CanvasTheme;
+  presentation?: CanvasPresentation;
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string | null;
   moduleSemanticContext: ModuleSemanticCandidateContext;

@@ -264,6 +264,31 @@ const createControlledRustApi = () => {
 };
 
 describe("Output Preview application", () => {
+  it("renders host-published Japanese empty-state presentation", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    render(<OutputPreviewApp api={api} />);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "webviewPresentation",
+          presentation: {
+            locale: "ja",
+            strings: {
+              "output.selector.label": "出力",
+              "output.selector.noOutputs": "出力なし",
+              "output.noOutputs": "印刷またはSVGの出力がありません",
+              "output.addDeclaration": "Source Editorにprintまたはsvg宣言を追加してください。"
+            },
+            diagnosticTemplates: {}
+          }
+        }
+      }));
+    });
+
+    expect(screen.getByRole("combobox", { name: "出力" })).toBeInTheDocument();
+    expect(screen.getByText("印刷またはSVGの出力がありません")).toBeInTheDocument();
+  });
+
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

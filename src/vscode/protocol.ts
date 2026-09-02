@@ -30,6 +30,7 @@ import type {
   VscodeInlineModuleSelectionResult,
   VscodeInlineModuleSelectionRequest
 } from "./inlineModuleProtocol";
+import type { VscodeWebviewPresentation } from "./webviewPresentation";
 
 export type {
   VscodeCanvasObservationElementSource,
@@ -116,6 +117,7 @@ export type {
   VscodeInlineModuleSelectionRequest,
   VscodeInlineModuleSelectionResult
 } from "./inlineModuleProtocol";
+export type { VscodeWebviewLocale, VscodeWebviewPresentation } from "./webviewPresentation";
 
 export const vscodeWebviewSurfaceKinds = [
   "canvas",
@@ -314,6 +316,7 @@ export type VscodeBenchmarkConfig = {
 };
 
 export type ExtensionToVscodeMessage =
+  | { type: "webviewPresentation"; presentation: VscodeWebviewPresentation }
   | { type: "replaceTextDocument"; sourceText: string; documentVersion: number }
   | { type: "commitText"; sourceText: string; documentVersion: number; reason: VscodeDocumentChangeReason }
   | VscodeMultiDocumentGraphPublication

@@ -30,6 +30,8 @@ import type {
   CanvasPointDragAction,
   CanvasBezierHandleDragAction
 } from "../components/canvasHostAdapter";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
+import type { VscodeWebviewPresentation } from "./webviewPresentation";
 import { useRevisionCoherentCanvasPresentation } from "../components/canvasRevisionPresentation";
 import { VscodeDragPreviewScheduler } from "./vscodeDragPreviewScheduler";
 import {
@@ -79,6 +81,7 @@ type VSCodeDrawingCanvasProps = {
   onEditCanvasRibbon?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
+  webviewPresentation?: VscodeWebviewPresentation | null;
   currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
   currentCoordinatePointConversionAuthorityFor?: (
     expectedDocumentVersion: number
@@ -105,6 +108,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     onEditCanvasRibbon,
     measureCanvasTextWidth,
     multiDocumentRuntimePresentation = null,
+    webviewPresentation = null,
     currentReferencePickAuthorityFor,
     currentCoordinatePointConversionAuthorityFor
   }, ref) {
@@ -176,6 +180,10 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       presentationVisibilityProfiles,
       moduleSemanticContext,
     ]);
+    const canvasPresentationAdapter = useMemo(
+      () => webviewCanvasPresentationFor(webviewPresentation),
+      [webviewPresentation]
+    );
     const canvasPresentation = useRevisionCoherentCanvasPresentation({
       current: currentCanvasPresentation,
       evaluation,
@@ -430,6 +438,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       evaluationLimitIndex: canvasPresentation.evaluationLimitIndex,
       compiledDocumentRevision: presentationCompiledDocumentRevision,
       canvasTheme,
+      presentation: canvasPresentationAdapter,
       visibilityProfiles: canvasPresentation.visibilityProfiles,
       activeVisibilityProfileId: canvasPresentation.activeVisibilityProfileId,
       moduleSemanticContext: canvasPresentation.moduleSemanticContext,
@@ -615,6 +624,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={viewportSize}
             ribbonCommandContext={ribbonCommandContext}
+            presentation={canvasPresentationAdapter}
             onCommand={executeRibbonCommand}
             onPositionCommit={onCanvasRibbonPositionCommit}
           />
@@ -625,6 +635,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       activeNumericReferencePickTarget,
       activePointPickTarget,
       canvasPresentation,
+      canvasPresentationAdapter,
       canvasViewport,
       commandLineSession,
       commitGeometryCommand,

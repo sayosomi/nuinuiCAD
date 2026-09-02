@@ -59,6 +59,8 @@ export type CommandRibbonViewProps = {
   dragging?: boolean;
   viewportAwareTooltips?: boolean;
   tooltipBoundaryRef?: RefObject<HTMLElement | null>;
+  handleAriaLabel?: string;
+  handleTitle?: string;
   iconResolver: (iconName: string) => LucideIcon;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onHandlePointerDown?: (
@@ -81,6 +83,8 @@ export const CommandRibbonView = ({
   dragging = false,
   viewportAwareTooltips = false,
   tooltipBoundaryRef,
+  handleAriaLabel,
+  handleTitle,
   iconResolver,
   onCommand,
   onHandlePointerDown,
@@ -195,8 +199,8 @@ export const CommandRibbonView = ({
         <button
           type="button"
           className="command-ribbon-handle"
-          aria-label={`${ribbon.label}を移動`}
-          title="ドラッグで移動"
+          aria-label={handleAriaLabel ?? `${ribbon.label}を移動`}
+          title={handleTitle ?? "ドラッグで移動"}
           onPointerDown={(event) => onHandlePointerDown?.(event, ribbon)}
           onPointerMove={onHandlePointerMove}
           onPointerUp={onHandlePointerUp}

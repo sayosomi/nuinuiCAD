@@ -66,6 +66,7 @@ import {
 import { inlineModuleCanvasTargetProofsFor } from "./inlineModuleCanvas";
 import { useVscodeMultiDocumentRuntimeEvaluation } from "./useVscodeMultiDocumentRuntimeEvaluation";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import { useVscodeWebviewPresentation } from "./webviewPresentation";
 
 type CanvasHistoryDirection = "undo" | "redo";
 
@@ -138,6 +139,7 @@ const canvasCreationSourcePositionIsValid = (position: unknown): position is { l
 };
 
 export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
+  const webviewPresentation = useVscodeWebviewPresentation();
   const elements = useCadDocumentStore(effectiveElements);
   const evaluationLimitIndex = useCadDocumentStore(effectiveEvaluationLimitIndex);
   const evaluationDocument = useCadDocumentStore(effectiveCompiledDocument);
@@ -1524,6 +1526,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         evaluation={evaluationState.evaluation}
         evaluationState={evaluationState}
         multiDocumentRuntimePresentation={multiDocumentRuntimePresentation}
+        webviewPresentation={webviewPresentation}
         canvasFocusRef={canvasFocusRef}
         canvasCreationRequest={canvasCreationRequest}
         canvasTheme={canvasTheme}
