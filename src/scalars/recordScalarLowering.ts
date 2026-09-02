@@ -12,7 +12,7 @@ import {
   resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
-import type { DslSpan } from "../dsl/dslTypes";
+import type { DslDiagnosticPresentation, DslSpan } from "../dsl/dslTypes";
 import type {
   BindingCatalog,
   BindingId,
@@ -64,6 +64,7 @@ export type RecordScalarPropertyIssue = {
     | "record-field-invalid-traversal";
   span: DslSpan;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 /** Source-side semantic identity retained independently of the scalar runtime slot. */
@@ -380,7 +381,8 @@ export const resolveRecordScalarProperties = ({
       claimInvalid(node, {
         code: "record-value-forward-reference",
         span: node.elementNameSpan,
-        message: `record 値「${node.elementName}」はこの位置より後で宣言されているため、まだ参照できません。`
+        message: `record 値「${node.elementName}」はこの位置より後で宣言されているため、まだ参照できません。`,
+        presentation: { key: "diagnostic.record-value-forward-reference", parameters: { name: node.elementName } }
       });
       return;
     }
@@ -388,7 +390,8 @@ export const resolveRecordScalarProperties = ({
       claimInvalid(node, {
         code: "record-value-ambiguous",
         span: node.elementNameSpan,
-        message: `record 値「${node.elementName}」は複数の宣言と一致するため一意に解決できません。`
+        message: `record 値「${node.elementName}」は複数の宣言と一致するため一意に解決できません。`,
+        presentation: { key: "diagnostic.record-value-ambiguous", parameters: { name: node.elementName } }
       });
       return;
     }
@@ -396,7 +399,8 @@ export const resolveRecordScalarProperties = ({
       claimInvalid(node, {
         code: "record-field-invalid-traversal",
         span: node.elementNameSpan,
-        message: `record 値「${lookup.declaration.name}」を namespace として traversal できません。`
+        message: `record 値「${lookup.declaration.name}」を namespace として traversal できません。`,
+        presentation: { key: "diagnostic.record-field-invalid-traversal", parameters: { target: lookup.declaration.name } }
       });
       return;
     }
@@ -411,7 +415,11 @@ export const resolveRecordScalarProperties = ({
       claimInvalid(node, {
         code: "record-field-unknown",
         span: node.propertySpan,
-        message: `record「${definition?.name ?? value?.typeReference.sourceName ?? lookup.declaration.name}」に field「${node.property}」はありません。`
+        message: `record「${definition?.name ?? value?.typeReference.sourceName ?? lookup.declaration.name}」に field「${node.property}」はありません。`,
+        presentation: {
+          key: "diagnostic.record-field-unknown",
+          parameters: { record: definition?.name ?? value?.typeReference.sourceName ?? lookup.declaration.name, field: node.property }
+        }
       });
       return;
     }
@@ -421,7 +429,8 @@ export const resolveRecordScalarProperties = ({
       claimInvalid(node, {
         code: "record-field-unavailable",
         span: node.span,
-        message: `record field「${node.elementName}.${node.property}」はこの実行コンテキストでは利用できません。`
+        message: `record field「${node.elementName}.${node.property}」はこの実行コンテキストでは利用できません。`,
+        presentation: { key: "diagnostic.record-field-unavailable", parameters: { target: `${node.elementName}.${node.property}` } }
       });
       return;
     }
@@ -484,27 +493,34 @@ const blockedRecordPropertyIssue = (
     return {
       code: "record-value-forward-reference",
       span: node.elementNameSpan,
-      message: `record 値「${node.elementName}」はこの位置より後で宣言されているため、まだ参照できません。`
+      message: `record 値「${node.elementName}」はこの位置より後で宣言されているため、まだ参照できません。`,
+      presentation: { key: "diagnostic.record-value-forward-reference", parameters: { name: node.elementName } }
     };
   }
   if (reason === "ambiguous") {
     return {
       code: "record-value-ambiguous",
       span: node.elementNameSpan,
-      message: `record 値「${node.elementName}」は複数の宣言と一致するため一意に解決できません。`
+      message: `record 値「${node.elementName}」は複数の宣言と一致するため一意に解決できません。`,
+      presentation: { key: "diagnostic.record-value-ambiguous", parameters: { name: node.elementName } }
     };
   }
   if (reason === "invalidTraversal") {
     return {
       code: "record-field-invalid-traversal",
       span: node.span,
-      message: `record field「${node.elementName}.${node.property}」の chained / namespace traversal は v1 では使用できません。`
+      message: `record field「${node.elementName}.${node.property}」の chained / namespace traversal は v1 では使用できません。`,
+      presentation: { key: "diagnostic.record-field-invalid-traversal", parameters: { target: `${node.elementName}.${node.property}` } }
     };
   }
   return {
     code: "record-field-unknown",
     span: node.propertySpan,
-    message: `record 値「${node.elementName}」に利用可能な field「${node.property}」はありません。`
+    message: `record 値「${node.elementName}」に利用可能な field「${node.property}」はありません。`,
+    presentation: {
+      key: "diagnostic.record-field-unknown",
+      parameters: { record: node.elementName, field: node.property }
+    }
   };
 };
 
@@ -547,7 +563,8 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         issues.push({
           code: "record-field-unavailable",
           span: node.span,
-          message: `record field「${node.elementName}.${node.property}」の scalar binding を取得できません。`
+          message: `record field「${node.elementName}.${node.property}」の scalar binding を取得できません。`,
+          presentation: { key: "diagnostic.record-field-unavailable", parameters: { target: `${node.elementName}.${node.property}` } }
         });
         return;
       }

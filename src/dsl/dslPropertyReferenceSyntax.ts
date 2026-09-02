@@ -28,7 +28,8 @@ const diagnosticAt = (
   statement: DslStatement,
   span: DslSpan,
   code: string,
-  message: string
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
 ): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -37,6 +38,7 @@ const diagnosticAt = (
     column: span.start + 1,
     code,
     message,
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -76,7 +78,16 @@ export const compilePropertyReferenceSyntax = ({
       );
       for (const issue of issues) {
         diagnostics.push(
-          diagnosticAt(spans, statement, { start: issue.start, end: issue.end }, issue.code, issue.message)
+          diagnosticAt(
+            spans,
+            statement,
+            { start: issue.start, end: issue.end },
+            issue.code,
+            issue.message,
+            issue.code === "missing-sigil"
+              ? { key: "diagnostic.missing-sigil", parameters: { reference: `${issue.elementToken}.${issue.query}` } }
+              : undefined
+          )
         );
       }
     }

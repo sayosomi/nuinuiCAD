@@ -131,6 +131,10 @@ import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized 
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
 import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
 import {
+  diagnosticRelatedTextFor,
+  diagnosticMessageFor
+} from "./diagnosticLocalization";
+import {
   revealInCanvasNotificationFor,
   type RevealInCanvasPresentationOutcome
 } from "./revealInCanvasPresentation";
@@ -263,14 +267,15 @@ const toVscodeDiagnosticRange = (range: CompilerDiagnosticRange): vscode.Range =
 
 const toVscodeDiagnostic = (
   document: vscode.TextDocument,
-  diagnostic: CompilerDiagnostic
+  diagnostic: CompilerDiagnostic,
+  displayLanguage: string = extensionDisplayLanguage()
 ): vscode.Diagnostic => {
   const severity = diagnostic.severity === "error"
     ? vscode.DiagnosticSeverity.Error
     : vscode.DiagnosticSeverity.Warning;
   const result = new vscode.Diagnostic(
     toVscodeDiagnosticRange(diagnostic.range),
-    diagnostic.message,
+    diagnosticMessageFor(diagnostic, displayLanguage),
     severity
   );
   if (diagnostic.code !== undefined) result.code = diagnostic.code;
@@ -279,7 +284,7 @@ const toVscodeDiagnostic = (
     result.relatedInformation = diagnostic.relatedInformation.map((related) =>
       new vscode.DiagnosticRelatedInformation(
         new vscode.Location(document.uri, toVscodeDiagnosticRange(related.range)),
-        related.message
+        diagnosticRelatedTextFor(related, displayLanguage)
       )
     );
   }
@@ -731,7 +736,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const targetKey = targetDocument?.uri.toString() ?? String(source.documentId);
     const result = new vscode.Diagnostic(
       normalizedRangeFor(source.normalizedSource, diagnostic.location.range),
-      diagnostic.message,
+      diagnosticMessageFor(diagnostic, extensionDisplayLanguage()),
       diagnostic.severity === "error" ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning
     );
     if (diagnostic.code !== undefined) result.code = diagnostic.code;
@@ -746,7 +751,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         const relatedUri = relatedDocument?.uri ?? vscode.Uri.parse(String(relatedSource.documentId));
         return [new vscode.DiagnosticRelatedInformation(
           new vscode.Location(relatedUri, normalizedRangeFor(relatedSource.normalizedSource, related.location.range)),
-          related.message
+          diagnosticRelatedTextFor(related, extensionDisplayLanguage())
         )];
       });
     }

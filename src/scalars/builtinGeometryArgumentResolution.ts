@@ -1,4 +1,5 @@
 import type { ScalarExpressionAst, ScalarSpan } from "./expressionAst";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import type { BindingResolution } from "./bindingResolution";
 import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import {
@@ -23,6 +24,7 @@ export type BuiltinGeometryArgumentResolutionIssue = {
   readonly code: BuiltinGeometryArgumentResolutionIssueCode;
   readonly span: ScalarSpan;
   readonly message: string;
+  readonly presentation?: DslDiagnosticPresentation;
   readonly occurrenceIndex: number | null;
   readonly expectedGeometryType?: ModuleGeometryInterfaceType;
   readonly actualGeometryType?: ModuleGeometryInterfaceType;
@@ -55,6 +57,21 @@ export type ResolveBuiltinGeometryArgumentsResult = {
 
 const invalidDirectArgumentMessage = (name: string, expected: ModuleGeometryInterfaceType): string =>
   `組み込み関数「${name}」のgeometry引数は、${expected}の直接参照である必要があります。`;
+
+const invalidReferencePresentation = (name: string): DslDiagnosticPresentation => ({
+  key: "diagnostic.builtin-geometry-argument-invalid-reference",
+  parameters: { reference: `@${name}` }
+});
+
+const invalidDirectArgumentPresentation = (name: string, expected: ModuleGeometryInterfaceType): DslDiagnosticPresentation => ({
+  key: "diagnostic.builtin-geometry-argument-invalid-direct",
+  parameters: { function: name, expected }
+});
+
+const invalidGeometryPropertyPresentation = (name: string, property: string, expected: ModuleGeometryInterfaceType): DslDiagnosticPresentation => ({
+  key: "diagnostic.builtin-geometry-argument-invalid-property",
+  parameters: { reference: `@${name}.${property}`, expected }
+});
 
 const invalidReferenceMessage = (name: string, resolution: BindingResolution): string => {
   if (resolution.kind === "undefined") return `geometry引数の参照「@${name}」は未定義です。`;
@@ -145,7 +162,8 @@ export const resolveBuiltinGeometryArguments = ({
         code: "builtin-geometry-argument-invalid",
         span: node.span,
         message: invalidReferenceMessage(node.name, resolution),
-        occurrenceIndex
+        occurrenceIndex,
+        presentation: invalidReferencePresentation(node.name)
       });
       return;
     }
@@ -156,7 +174,11 @@ export const resolveBuiltinGeometryArguments = ({
         message: typeMismatchMessage(expectedGeometryType, target.geometryType),
         occurrenceIndex,
         expectedGeometryType,
-        actualGeometryType: target.geometryType
+        actualGeometryType: target.geometryType,
+        presentation: {
+          key: "diagnostic.builtin-geometry-type-mismatch",
+          parameters: { expected: expectedGeometryType, actual: target.geometryType }
+        }
       });
     }
   };
@@ -164,13 +186,14 @@ export const resolveBuiltinGeometryArguments = ({
   const resolveDerivedPointGeometryProperty = (
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>
   ): void => {
-    const issue = (message: string): void => {
+    const issue = (message: string, presentation: DslDiagnosticPresentation): void => {
       geometryPropertyTargets.set(node.span.start, null);
       issues.push({
         code: "builtin-geometry-argument-invalid",
         span: node.span,
         message,
-        occurrenceIndex: null
+        occurrenceIndex: null,
+        presentation
       });
     };
     const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "point" });
@@ -179,12 +202,20 @@ export const resolveBuiltinGeometryArguments = ({
         geometryPropertyTargets.set(node.span.start, additionalTarget);
         return;
       }
-      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
       return;
     }
     const lookup = resolveSourceGeometryPath?.(node.elementName);
     if (!lookup || lookup.kind !== "resolved") {
-      issue(lookup ? sourceLookupMessage(node.elementName, lookup) : invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      issue(
+        lookup ? sourceLookupMessage(node.elementName, lookup) : invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
+        lookup
+          ? invalidReferencePresentation(node.elementName)
+          : invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
       return;
     }
     const declaration = lookup.declaration;
@@ -192,11 +223,17 @@ export const resolveBuiltinGeometryArguments = ({
       ? declaration.statement.category
       : null;
     if (!category || !isDerivedPointKeyForGeometryCategory(category, node.property)) {
-      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
       return;
     }
     if (moduleGeometryInterfaceTypeOfElement(declaration.statement) === null) {
-      issue(invalidGeometryPropertyMessage(node.elementName, node.property, "point"));
+      issue(
+        invalidGeometryPropertyMessage(node.elementName, node.property, "point"),
+        invalidGeometryPropertyPresentation(node.elementName, node.property, "point")
+      );
       return;
     }
     geometryPropertyTargets.set(node.span.start, {
@@ -254,7 +291,8 @@ export const resolveBuiltinGeometryArguments = ({
                   code: "builtin-geometry-argument-invalid",
                   span: nodeArgument.span,
                   message: invalidDirectArgumentMessage(node.name, parameterType),
-                  occurrenceIndex: null
+                  occurrenceIndex: null,
+                  presentation: invalidDirectArgumentPresentation(node.name, parameterType)
                 });
               }
               return;
@@ -277,7 +315,8 @@ export const resolveBuiltinGeometryArguments = ({
                 code: "builtin-geometry-argument-invalid",
                 span: nodeArgument.span,
                 message: invalidDirectArgumentMessage(node.name, parameterType),
-                occurrenceIndex: null
+                occurrenceIndex: null,
+                presentation: invalidDirectArgumentPresentation(node.name, parameterType)
               });
             }
             return;

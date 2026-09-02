@@ -149,6 +149,10 @@ describe("compileSetStatements: target resolution", () => {
     // on the `set` line, not the whole `set x = 2` statement or the `const`
     // declaration line above it.
     const [diagnostic] = diagnostics;
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.const-assignment",
+      parameters: { name: "x" }
+    });
     expect(diagnostic.exactSpanOnly).toBe(true);
     const source = ["const x: number = 1", "set x = 2"].join("\n");
     const [segment] = diagnostic.physicalSpan!.segments;
@@ -164,6 +168,10 @@ describe("compileSetStatements: target resolution", () => {
     const { setsByStatementIndex, diagnostics } = compileSetStatements({ statements, stableStatementIdByIndex, bindingAnalysis, spans });
     expect(setsByStatementIndex.size).toBe(0);
     expect(diagnostics).toEqual([expect.objectContaining({ code: INVALID_SET_TARGET_CODE })]);
+    expect(diagnostics[0]?.presentation).toEqual({
+      key: "diagnostic.invalid-set-target",
+      parameters: { name: "x" }
+    });
   });
 
   it("rejects a forGroup iteration binding target with invalid-set-target (mutability check, not the no-catalog branch)", () => {
@@ -233,6 +241,10 @@ describe("compileSetStatements: RHS typecheck", () => {
     const { setsByStatementIndex, diagnostics } = compileSetStatements({ statements, stableStatementIdByIndex, bindingAnalysis, spans });
     expect(setsByStatementIndex.size).toBe(0);
     expect(diagnostics).toEqual([expect.objectContaining({ code: SET_RHS_UNRESOLVED_CODE })]);
+    expect(diagnostics[0]?.presentation).toEqual({
+      key: "diagnostic.set-rhs-unresolved",
+      parameters: { name: "missing" }
+    });
   });
 
   it("rejects an RHS parse failure with no legacy fallback", () => {

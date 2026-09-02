@@ -13,7 +13,7 @@
 // every consumer occurrence comes from the compile-owned property/numeric
 // consumer indexes (built once per compile, O(1) get per binding here).
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation, DslSpan, DslStatement } from "../dsl/dslTypes";
 import { isRuntimeBindingDisplayFresh, type RuntimeBindingFreshnessInput } from "../model/runtimeBindingFreshness";
 import type { CadElement, ElementId, EvaluationResult } from "../types/geometry";
 import type { BindingAnalysis } from "./bindingAnalysis";
@@ -53,6 +53,23 @@ const structuredRuntimeContext = (
 ): Pick<RuntimeScalarDiagnostic, "runtimeContext"> =>
   context ? { runtimeContext: { ...context } } : {};
 
+const runtimePresentation = (
+  issueCode: string,
+  context: ScalarEvaluationErrorContext | undefined,
+  elements: readonly CadElement[] | undefined
+): DslDiagnosticPresentation => {
+  if (issueCode === "evaluation-geometry-builtin-disabled" && context?.kind === "geometryBuiltinTarget") {
+    const target = elements?.find((element) => element.id === context.targetElementId);
+    const base = target?.name && target.name.trim().length > 0 ? target.name : context.targetElementId;
+    const displayTarget = context.pointKey !== undefined ? `${base}.${context.pointKey}` : base;
+    return {
+      key: "diagnostic.runtime.evaluation-geometry-builtin-disabled.target",
+      parameters: { target: displayTarget, base }
+    };
+  }
+  return { key: `diagnostic.runtime.${issueCode}` };
+};
+
 const declarationDiagnostic = (
   bindingId: BindingId,
   issueCode: string,
@@ -70,6 +87,7 @@ const declarationDiagnostic = (
     column: nameSpan.start + 1,
     code: issueCode,
     message: runtimeIssueMessage(issueCode, context, input.elements),
+    presentation: runtimePresentation(issueCode, context, input.elements),
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
     origin: "runtime",
@@ -104,6 +122,7 @@ const consumerDiagnostic = (
     column: span.start + 1,
     code: issueCode,
     message: runtimeIssueMessage(issueCode, context, input.elements),
+    presentation: runtimePresentation(issueCode, context, input.elements),
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
     origin: "runtime",

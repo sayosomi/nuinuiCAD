@@ -134,6 +134,7 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 import * as vscode from "vscode";
 import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
 import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
+import { diagnosticTextFor } from "./diagnosticLocalization";
 import { VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
@@ -565,7 +566,16 @@ describe("VS Code multi-document host lifecycle", () => {
     const diagnosticsState = host.diagnosticsStateFor(root);
     expect(diagnosticsState).toMatchObject({ status: "current", owner: "multi-document" });
     if (diagnosticsState.status === "current" && diagnosticsState.owner === "multi-document") {
-      expect(diagnosticsState.snapshot.diagnostics.map((diagnostic) => diagnostic.code)).toContain("import-missing");
+      expect(diagnosticsState.snapshot.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "import-missing",
+          presentation: { key: "diagnostic.import-missing", parameters: { path: "./library.nui" } }
+        })
+      ]));
+      const importDiagnostic = diagnosticsState.snapshot.diagnostics.find((diagnostic) => diagnostic.code === "import-missing");
+      if (!importDiagnostic) throw new Error("missing production import diagnostic");
+      expect(diagnosticTextFor(importDiagnostic, "en")).toBe("The imported file './library.nui' was not found.");
+      expect(diagnosticTextFor(importDiagnostic, "ja-JP")).toBe("import先「./library.nui」が見つかりません。");
     }
 
     host.dispose();
@@ -600,8 +610,42 @@ describe("VS Code multi-document host lifecycle", () => {
     const state = host.diagnosticsStateFor(root);
     if (state.status === "current" && state.owner === "multi-document") {
       expect(state.snapshot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({ code: "unknown-construction" })
+        expect.objectContaining({
+          code: "unknown-construction",
+          presentation: expect.objectContaining({ key: "diagnostic.unknown-construction" })
+        })
       ]));
+    }
+    host.dispose();
+  });
+
+  it("preserves distinct legacy fallback diagnostics at the same location", async () => {
+    const rootPath = "/workspace/root.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./missing.nui\" as missing",
+      "group [ {"
+    ].join("\n");
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      const state = host.diagnosticsStateFor(root);
+      expect(state.status).toBe("current");
+      expect(state.owner).toBe("multi-document");
+    });
+
+    const state = host.diagnosticsStateFor(root);
+    if (state.status === "current" && state.owner === "multi-document") {
+      const legacy = state.snapshot.diagnostics.filter((diagnostic) =>
+        diagnostic.code === undefined && diagnostic.presentation === undefined
+      );
+      const groupOpenOffset = rootSource.indexOf("[");
+      const atGroup = legacy.filter((diagnostic) => diagnostic.location.range.from === groupOpenOffset);
+      expect(atGroup).toHaveLength(2);
+      expect(new Set(atGroup.map((diagnostic) => diagnostic.message)).size).toBe(2);
     }
     host.dispose();
   });

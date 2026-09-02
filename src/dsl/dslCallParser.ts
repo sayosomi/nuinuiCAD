@@ -10,10 +10,10 @@ import {
   type DslArgSpec,
 } from "./dslConstructions";
 import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
-import type { DslAttribute, DslSpan } from "./dslTypes";
+import type { DslAttribute, DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 import { unquoteDslString } from "./dslTokens";
 
-export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslCallDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
 export type DslCallStatement = {
   category: string;
@@ -108,8 +108,16 @@ const attrsFromArgs = (args: readonly ScannedArg[]): DslAttribute[] =>
     ...(arg.rawValueSpan ? { rawValueSpan: arg.rawValueSpan } : {}),
   }] : []);
 
-const diagnostic = (diagnostics: DslCallDiagnostic[], message: string, span: DslSpan, code?: string) =>
-  diagnostics.push(code ? { message, span, code } : { message, span });
+const diagnostic = (
+  diagnostics: DslCallDiagnostic[],
+  message: string,
+  span: DslSpan,
+  code?: string,
+  presentation?: DslDiagnosticPresentation
+) =>
+  diagnostics.push(code
+    ? { message, span, code, presentation: presentation ?? { key: `diagnostic.${code}` } }
+    : { message, span });
 
 /** A call whose `(` never finds its matching `)` (mid-edit, e.g. an unterminated
  * string swallowing the rest of the line). The statement returned alongside this
@@ -230,16 +238,27 @@ const validateArgs = (
     const message = categories.length > 0
       ? `category「${category}」と construction「${construction}」の組み合わせは不一致です。使用できる category: ${categories.join("、")}。${category} の候補: ${candidates}。`
       : `category「${category}」に construction「${construction}」はありません。候補: ${candidates}。`;
-    diagnostic(
-      diagnostics,
-      message,
-      constructionSpan ?? categorySpan,
-      constructionSpan
-        ? categories.length > 0
-          ? CONSTRUCTION_CATEGORY_MISMATCH_CODE
-          : "unknown-construction"
-        : undefined
-    );
+      diagnostic(
+        diagnostics,
+        message,
+        constructionSpan ?? categorySpan,
+        constructionSpan
+          ? categories.length > 0
+            ? CONSTRUCTION_CATEGORY_MISMATCH_CODE
+            : "unknown-construction"
+          : undefined,
+        constructionSpan
+          ? {
+              key: `diagnostic.${categories.length > 0 ? CONSTRUCTION_CATEGORY_MISMATCH_CODE : "unknown-construction"}`,
+              parameters: {
+                category,
+                construction,
+                ...(categories.length > 0 ? { categories: categories.join(", ") } : {}),
+                candidates
+              }
+            }
+          : undefined
+      );
     return null;
   }
 
@@ -260,7 +279,15 @@ const validateArgs = (
         diagnostics,
         `construction「${construction}」に引数「${arg.key}」はありません。候補: ${[...allowed.keys()].join("、")}。`,
         arg.keySpan!,
-        "unknown-construction-argument"
+        "unknown-construction-argument",
+        {
+          key: "diagnostic.unknown-construction-argument",
+          parameters: {
+            construction,
+            argument: arg.key,
+            candidates: [...allowed.keys()].join(", ")
+          }
+        }
       );
       continue;
     }
@@ -280,7 +307,8 @@ const validateArgs = (
         diagnostics,
         `${construction} は自身の図形を持たないため state: hidden を指定できません。visible か disabled を使ってください。`,
         arg.valueSpan,
-        "state-hidden-unsupported"
+        "state-hidden-unsupported",
+        { key: "diagnostic.state-hidden-unsupported", parameters: { construction } }
       );
       continue;
     }
@@ -289,7 +317,8 @@ const validateArgs = (
         diagnostics,
         `${construction} は自身の図形を持たないため color を指定できません。`,
         arg.valueSpan,
-        "color-unsupported"
+        "color-unsupported",
+        { key: "diagnostic.color-unsupported", parameters: { construction } }
       );
       continue;
     }

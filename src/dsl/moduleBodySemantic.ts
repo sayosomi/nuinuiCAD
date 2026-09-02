@@ -1,4 +1,4 @@
-import type { DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import {
   geometryArrayTypeOfModuleParameter,
@@ -43,6 +43,7 @@ type ModuleBodyLocalDiagnostic = ModuleScalarLocalDiagnostic & {
     statementIndex: number;
     span: DslSpan;
     message: string;
+    presentation?: DslDiagnosticPresentation;
   }[];
 };
 
@@ -191,11 +192,16 @@ export const analyzeModuleBody = (
             code: "module-optional-value-required",
             span: site.reference.nameSpan ?? site.reference.span,
             message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`,
+            presentation: {
+              key: "diagnostic.module-optional-value-required",
+              parameters: { name: arrayReference.parameterName }
+            },
             relatedSources: arrayReference.parameterNameSpan
               ? [{
                   statementIndex: arrayReference.definitionStatementIndex,
                   span: arrayReference.parameterNameSpan,
-                  message: "Related parameter declaration"
+                  message: "Related parameter declaration",
+                  presentation: { key: "diagnostic.related.parameter-declaration" }
                 }]
               : []
           }

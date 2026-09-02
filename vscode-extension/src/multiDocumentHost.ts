@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import * as vscode from "vscode";
 import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation } from "../../src/dsl/dslTypes";
 import {
   dslSemanticIdentityKey,
   type DslSemanticIdentity
@@ -67,12 +67,15 @@ export type VscodeMultiDocumentSemanticRootCompiler = (
 export type VscodeMultiDocumentDiagnosticRelatedInformation = {
   message: string;
   location: DocumentQualifiedSourceLocation;
+  presentation?: DslDiagnosticPresentation;
 };
 
 /** One exact graph-owned diagnostic before VS Code range/URI projection. */
 export type VscodeMultiDocumentDiagnostic = {
   severity: DslDiagnostic["severity"];
   message: string;
+  presentation?: DslDiagnosticPresentation;
+  suffixPresentation?: DslDiagnosticPresentation;
   location: DocumentQualifiedSourceLocation;
   relatedInformation?: readonly VscodeMultiDocumentDiagnosticRelatedInformation[];
   code?: string;

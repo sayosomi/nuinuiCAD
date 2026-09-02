@@ -275,7 +275,8 @@ export const buildSourceLexicalNamespaceIndex = (
           conflicting.statement.namePhysicalSpan
             ? [{
                 message: "First export with this name",
-                physicalSpan: conflicting.statement.namePhysicalSpan
+                physicalSpan: conflicting.statement.namePhysicalSpan,
+                presentation: { key: "diagnostic.related.first-export" }
               }]
             : undefined;
         diagnostics.push({
@@ -284,6 +285,15 @@ export const buildSourceLexicalNamespaceIndex = (
           column: (nameSpan?.start ?? declaration.statement.keywordSpan.start) + 1,
           message: `同じlexical scopeで名前「${name}」が衝突しています: ${conflicting.kind}(行 ${conflicting.statement.line}) と ${declaration.kind}。`,
           code: "source-namespace-collision",
+          presentation: {
+            key: "diagnostic.source-namespace-collision",
+            parameters: {
+              name,
+              firstKind: conflicting.kind,
+              secondKind: declaration.kind,
+              firstLine: conflicting.statement.line
+            }
+          },
           ...(declaration.statement.namePhysicalSpan
             ? { physicalSpan: declaration.statement.namePhysicalSpan }
             : { physicalSpan: declaration.statement.physicalSpan }),

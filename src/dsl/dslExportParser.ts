@@ -11,14 +11,19 @@ import {
   type DslModuleParseResult,
   type DslModuleParsedStatement
 } from "./dslModuleParser";
-import type { DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 
 export type DslExportedGeometryParseResult = {
   exportSpan: DslSpan;
   call: DslCallParseResult;
 };
 
-export type DslExportDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslExportDiagnostic = {
+  message: string;
+  span: DslSpan;
+  code?: string;
+  presentation?: DslDiagnosticPresentation;
+};
 
 export type DslExportParseResult = {
   exportSpan: DslSpan;

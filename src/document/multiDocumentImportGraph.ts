@@ -5,7 +5,7 @@ import {
   type SourceLexicalExternalNamespaceResolver,
   type SourceLexicalNamespaceIndex
 } from "../dsl/sourceLexicalNamespaceIndex";
-import type { DslDiagnostic, DslStatement, ParseDslResult } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation, DslStatement, ParseDslResult } from "../dsl/dslTypes";
 import type { DslPhysicalSpan } from "../dsl/logicalStatementSourceMap";
 import {
   qualifySemanticIdentity,
@@ -109,6 +109,7 @@ export type MultiDocumentGraphDiagnosticCode =
 export type MultiDocumentGraphDiagnostic = {
   code: MultiDocumentGraphDiagnosticCode;
   message: string;
+  presentation?: DslDiagnosticPresentation;
   location: DocumentQualifiedSourceLocation;
   relatedLocations?: readonly DocumentQualifiedSourceLocation[];
 };
@@ -297,17 +298,21 @@ const loadDiagnostic = (
   message?: string
 ): MultiDocumentGraphDiagnostic => {
   const suffix = message ? `: ${message}` : "";
+  const presentationFor = (
+    code: string,
+    parameters: Readonly<Record<string, string | number | boolean>>
+  ): DslDiagnosticPresentation => ({ key: `diagnostic.${code}`, parameters });
   switch (reason) {
     case "root-unaddressable":
-      return { code: "import-root-unaddressable", message: `import元から相対path「${path}」を解決できません${suffix}`, location };
+      return { code: "import-root-unaddressable", message: `import元から相対path「${path}」を解決できません${suffix}`, presentation: presentationFor("import-root-unaddressable", { path }), location };
     case "missing":
-      return { code: "import-missing", message: `import先「${path}」が見つかりません${suffix}`, location };
+      return { code: "import-missing", message: `import先「${path}」が見つかりません${suffix}`, presentation: presentationFor("import-missing", { path }), location };
     case "unreadable":
-      return { code: "import-unreadable", message: `import先「${path}」を読み込めません${suffix}`, location };
+      return { code: "import-unreadable", message: `import先「${path}」を読み込めません${suffix}`, presentation: presentationFor("import-unreadable", { path }), location };
     case "stale":
-      return { code: "import-load-stale", message: `import先「${path}」の読み込み結果がstaleです${suffix}`, location };
+      return { code: "import-load-stale", message: `import先「${path}」の読み込み結果がstaleです${suffix}`, presentation: presentationFor("import-load-stale", { path }), location };
     case "canceled":
-      return { code: "import-load-canceled", message: `import先「${path}」の読み込みがcancelされました${suffix}`, location };
+      return { code: "import-load-canceled", message: `import先「${path}」の読み込みがcancelされました${suffix}`, presentation: presentationFor("import-load-canceled", { path }), location };
   }
 };
 
@@ -358,6 +363,7 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
       diagnostics.push({
         code: "import-cycle",
         message: `import cycleを検出しました: ${chain}`,
+        presentation: { key: "diagnostic.import-cycle", parameters: { chain } },
         location: edge.importLocation,
         relatedLocations: cycleEdges
           .filter((candidate) => candidate !== edge)
@@ -422,6 +428,7 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
           diagnostics.push({
             code: "import-load-stale",
             message: `同じDocumentId「${targetSnapshot.documentId}」が異なるsaved source fingerprintで解決されたため、import graphを確定できません。`,
+            presentation: { key: "diagnostic.import-load-stale", parameters: { path: directive.importPath } },
             location: directive.location,
             ...(previousEdge ? { relatedLocations: [previousEdge.importLocation] } : {})
           });
@@ -443,6 +450,7 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
           diagnostics.push({
             code: "import-invalid-source",
             message: `import先「${directive.importPath}」は有効なnui ${NEW_DOCUMENT_DSL_MAJOR_VERSION} sourceではありません。`,
+            presentation: { key: "diagnostic.import-invalid-source", parameters: { path: directive.importPath } },
             location: directive.location
           });
           node.valid = false;
@@ -464,6 +472,7 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
           diagnostics.push({
             code: "import-invalid-dependency",
             message: `import先「${directive.importPath}」のdependency graphが無効です。`,
+            presentation: { key: "diagnostic.import-invalid-dependency", parameters: { path: directive.importPath } },
             location: directive.location
           });
           node.valid = false;

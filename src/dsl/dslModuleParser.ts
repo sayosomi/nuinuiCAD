@@ -2,6 +2,7 @@ import { scanCallArgs, type ScannedArg } from "./dslArgScanner";
 import { parseDslDeclaredValueType } from "./dslTypeParser";
 import type {
   DslAttribute,
+  DslDiagnosticPresentation,
   DslModuleArgument,
   DslModuleInstanceOption,
   DslModuleParameter,
@@ -11,7 +12,7 @@ import { invalidElementActivityMessage, parseElementActivityLiteral } from "./ds
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 
-export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
 type DslModuleStatementCommon = {
   name: string;
@@ -120,8 +121,14 @@ const parseName = (source: string, span: DslSpan): { name: string; nameSpan: Dsl
     ? { name: "", nameSpan: null }
     : { name: unquoteDslString(source.slice(span.start, span.end)), nameSpan: span };
 
-const diagnostic = (diagnostics: DslModuleDiagnostic[], message: string, span: DslSpan, code?: string) => {
-  diagnostics.push(code ? { message, span, code } : { message, span });
+const diagnostic = (
+  diagnostics: DslModuleDiagnostic[],
+  message: string,
+  span: DslSpan,
+  code?: string,
+  presentation?: DslDiagnosticPresentation
+) => {
+  diagnostics.push(code ? { message, span, code, presentation: presentation ?? { key: `diagnostic.${code}` } } : { message, span });
 };
 
 const moduleParameterType = (
@@ -164,7 +171,13 @@ const parameterFromArg = (source: string, arg: ScannedArg, diagnostics: DslModul
     diagnostic(diagnostics, "module parameter の default には `=` の後に値が必要です。", defaultSpan);
   }
   if (arg.optionalSpan && equals >= 0) {
-    diagnostic(diagnostics, "optional module parameter には default を指定できません。", defaultSpan ?? arg.valueSpan, "module-optional-default-conflict");
+    diagnostic(
+      diagnostics,
+      "optional module parameter には default を指定できません。",
+      defaultSpan ?? arg.valueSpan,
+      "module-optional-default-conflict",
+      { key: "diagnostic.module-optional-default-conflict", parameters: { parameter: arg.key ?? "" } }
+    );
   }
 
   const parsedType = typeSpan.start === typeSpan.end
@@ -250,7 +263,12 @@ const parseList = <T>(
   options: { allowOptionalKeys?: boolean } = {}
 ): { values: T[]; diagnostics: DslModuleDiagnostic[] } => {
   const scanned = scanCallArgs(source, span, options);
-  const diagnostics = scanned.errors.map((error) => ({ message: error.message, span: error.span, ...(error.code ? { code: error.code } : {}) }));
+  const diagnostics = scanned.errors.map((error) => ({
+    message: error.message,
+    span: error.span,
+    ...(error.code ? { code: error.code } : {}),
+    ...(error.presentation ? { presentation: error.presentation } : {})
+  }));
   const values = scanned.args.map((arg) => map(arg, diagnostics));
   return { values, diagnostics };
 };

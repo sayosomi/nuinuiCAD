@@ -1,6 +1,6 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslRecordTypeReference, DslSpan } from "./dslTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import {
@@ -9,7 +9,7 @@ import {
   type GeometryArrayType
 } from "./geometryArrayTypes";
 
-export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string };
+export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
 export type DslScalarTypeParseResult = {
   declaredType: ScalarType | null;
@@ -150,7 +150,8 @@ export const parseDslScalarType = (
     diagnostics.push({
       message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
       span: typeSpan,
-      code: "unknown-type"
+      code: "unknown-type",
+      presentation: { key: "diagnostic.unknown-type", parameters: { type: text } }
     });
     return { declaredType: null, choiceOptionSpans: [] };
   }
@@ -197,7 +198,8 @@ export const parseDslScalarType = (
         diagnostics.push({
           message: `choice option が重複しています: ${token.raw}`,
           span: token.span,
-          code: "invalid-choice-type"
+          code: "invalid-choice-type",
+          presentation: { key: "diagnostic.duplicate-choice-option", parameters: { option: token.raw } }
         });
         hasError = true;
         continue;

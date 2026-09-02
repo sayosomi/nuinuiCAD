@@ -115,6 +115,10 @@ describe("scanCallArgs", () => {
         message: "引数「x」の値がありません。",
         span: { start: source.indexOf("x:") + 3, end: source.indexOf("x:") + 3 },
         code: "missing-attribute-value",
+        presentation: {
+          key: "diagnostic.missing-attribute-value",
+          parameters: { parameter: "x" }
+        }
       },
     ]);
   });

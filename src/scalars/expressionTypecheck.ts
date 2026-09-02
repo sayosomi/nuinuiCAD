@@ -94,6 +94,10 @@ const checkOperandType = (state: TraversalState, operand: TypedScalarExpression,
     code: "scalar-type-mismatch",
     span: operand.span,
     message: `型が一致しません(期待: ${describeScalarType(requiredType)}, 実際: ${describeScalarType(operand.type)})。`,
+    presentation: {
+      key: "diagnostic.scalar-type-mismatch",
+      parameters: { expected: describeScalarType(requiredType), actual: describeScalarType(operand.type) }
+    },
     expectedType: requiredType,
     actualType: operand.type
   });
@@ -113,6 +117,10 @@ const checkBuiltinOperandType = (
     code: "scalar-type-mismatch",
     span: operand.span,
     message: `型が一致しません(期待: choice(...), 実際: ${describeScalarType(operand.type)})。`,
+    presentation: {
+      key: "diagnostic.scalar-type-mismatch",
+      parameters: { expected: "choice(...)" , actual: describeScalarType(operand.type) }
+    },
     actualType: operand.type
   });
   return false;
@@ -177,6 +185,10 @@ const checkEqualityBinary = (
         code: "scalar-type-mismatch",
         span: node.span,
         message: `equality演算子の両辺の型が一致しません(${describeScalarType(left.type)} vs ${describeScalarType(right.type)})。`,
+        presentation: {
+          key: "diagnostic.scalar-type-mismatch",
+          parameters: { expected: describeScalarType(left.type), actual: describeScalarType(right.type) }
+        },
         expectedType: left.type,
         actualType: right.type
       });
@@ -220,6 +232,10 @@ const checkNode = (
           choiceHintType !== null
             ? `choice literal "${node.raw}" はchoice(${choiceHintType.options.join(", ")})の要素ではありません。`
             : `choice literal "${node.raw}" を解決できるchoice型の文脈がありません。`,
+        presentation: {
+          key: "diagnostic.invalid-choice-literal",
+          parameters: { value: node.raw, expected: choiceHintType ? describeScalarType(choiceHintType) : "choice" }
+        },
         ...(choiceHintType !== null ? { expectedType: choiceHintType } : {})
       });
       return { kind: "choiceLiteral", span: node.span, value: node.raw, type: null };
@@ -285,7 +301,8 @@ const checkNode = (
         addDiagnostic(state, {
           code: "unknown-function",
           span: node.nameSpan,
-          message: `未知の組み込み関数「${node.name}」です。`
+          message: `未知の組み込み関数「${node.name}」です。`,
+          presentation: { key: "diagnostic.unknown-function", parameters: { name: node.name } }
         });
         return { kind: "call", span: node.span, nameSpan: node.nameSpan, name: node.name, target: null, args, type: null };
       }
@@ -352,7 +369,8 @@ const checkNode = (
         addDiagnostic(state, {
           code: "function-arity-mismatch",
           span: node.nameSpan,
-          message: `組み込み関数「${node.name}」の引数の数が一致しません(期待: ${arityText}, 実際: ${args.length})。`
+          message: `組み込み関数「${node.name}」の引数の数が一致しません(期待: ${arityText}, 実際: ${args.length})。`,
+          presentation: { key: "diagnostic.function-arity-mismatch", parameters: { name: node.name, expected: arityText, actual: args.length } }
         });
         return {
           kind: "call",
@@ -380,7 +398,8 @@ const checkNode = (
             addDiagnostic(state, {
               code: "duplicate-function-argument",
               span: nodeArgument.nameSpan,
-              message: `組み込み関数「${node.name}」の引数「${nodeArgument.name}」が重複しています。`
+              message: `組み込み関数「${node.name}」の引数「${nodeArgument.name}」が重複しています。`,
+              presentation: { key: "diagnostic.duplicate-function-argument", parameters: { name: node.name, argument: nodeArgument.name } }
             });
             continue;
           }
@@ -391,7 +410,8 @@ const checkNode = (
             addDiagnostic(state, {
               code: "unknown-function-argument",
               span: nodeArgument.nameSpan,
-              message: `組み込み関数「${node.name}」に引数「${nodeArgument.name}」はありません。`
+              message: `組み込み関数「${node.name}」に引数「${nodeArgument.name}」はありません。`,
+              presentation: { key: "diagnostic.unknown-function-argument", parameters: { name: node.name, argument: nodeArgument.name } }
             });
             continue;
           }
@@ -410,7 +430,8 @@ const checkNode = (
           addDiagnostic(state, {
             code: "missing-function-argument",
             span: node.span,
-            message: `組み込み関数「${node.name}」の引数「${parameter.name}」が不足しています。`
+            message: `組み込み関数「${node.name}」の引数「${parameter.name}」が不足しています。`,
+            presentation: { key: "diagnostic.missing-function-argument", parameters: { name: node.name, parameter: parameter.name } }
           });
         }
 
@@ -504,6 +525,10 @@ export const typecheckScalarExpression = (
       code: "scalar-type-mismatch",
       span: ast.span,
       message: `宣言された型と一致しません(期待: ${describeScalarType(context.expectedType)}, 実際: ${describeScalarType(type)})。`,
+      presentation: {
+        key: "diagnostic.scalar-type-mismatch",
+        parameters: { expected: describeScalarType(context.expectedType), actual: describeScalarType(type) }
+      },
       expectedType: context.expectedType,
       actualType: type
     });

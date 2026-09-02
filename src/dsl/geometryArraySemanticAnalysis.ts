@@ -7,8 +7,12 @@ import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { SourceLexicalLookupWithExternal } from "./sourceLexicalNamespaceIndex";
 import { geometryArrayTypeOfModuleParameter, geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
 import { parseGeometryArrayExpression, type GeometryArrayExpression } from "./geometryArrayExpression";
-import { resolveGeometryArrayExpression, type GeometryArraySemanticValue } from "./geometryArraySemantics";
-import type { GeometryArrayType } from "./geometryArrayTypes";
+import {
+  resolveGeometryArrayExpression,
+  type GeometryArrayMemberResolution,
+  type GeometryArraySemanticValue
+} from "./geometryArraySemantics";
+import { geometryArrayTypeName, type GeometryArrayType } from "./geometryArrayTypes";
 import { moduleGeometryInterfaceTypeOf, moduleGeometryInterfaceTypeOfElement, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 
 export type GeometryArraySourceTarget =
@@ -80,7 +84,13 @@ const projectSpan = (statement: DslStatement, span: DslSpan): DslPhysicalSpan | 
   return segments.length > 0 ? { segments, sourceRevision: statement.sourceRevision } : null;
 };
 
-const diagnostic = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnostic = (
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = projectSpan(statement, span);
   return {
     severity: "error",
@@ -88,6 +98,7 @@ const diagnostic = (statement: DslStatement, span: DslSpan, code: string, messag
     column: span.start + 1,
     code,
     message,
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -228,13 +239,21 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     const resolved = resolveGeometryArrayExpression<GeometryArraySourceTarget>({
       expectedType: type,
       expression,
-      resolveMember: (member) => {
+      resolveMember: (member): GeometryArrayMemberResolution<GeometryArraySourceTarget> => {
         const coordinate = coordinateMember(member.text);
         if (coordinate) {
           if (type.elementType !== "point") {
             return {
               kind: "invalid",
-              diagnostic: { code: "geometry-array-member-type-mismatch", message: "coordinate point は point[] の member としてのみ使用できます。", span: member.span }
+              diagnostic: {
+                code: "geometry-array-member-type-mismatch",
+                message: "coordinate point は point[] の member としてのみ使用できます。",
+                presentation: {
+                  key: "diagnostic.geometry-array-member-type-mismatch",
+                  parameters: { member: member.text, expected: geometryArrayTypeName(type), actual: "point[]" }
+                },
+                span: member.span
+              }
             };
           }
           return { kind: "resolved", value: { interfaceType: "point", target: { kind: "coordinate", source: coordinate } } };
@@ -258,7 +277,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         if (pointKey && type.elementType !== "point") {
           return {
             kind: "invalid",
-            diagnostic: { code: "geometry-array-member-type-mismatch", message: "derived point reference は point[] の member としてのみ使用できます。", span: member.span }
+            diagnostic: {
+              code: "geometry-array-member-type-mismatch",
+              message: "derived point reference は point[] の member としてのみ使用できます。",
+              presentation: {
+                key: "diagnostic.geometry-array-member-type-mismatch",
+                parameters: { member: member.text, expected: geometryArrayTypeName(type), actual: "point[]" }
+              },
+              span: member.span
+            }
           };
         }
 
@@ -278,7 +305,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                 if ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey)) {
                   return {
                     kind: "invalid",
-                    diagnostic: { code: "geometry-array-member-type-mismatch", message: `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`, span: member.span }
+                    diagnostic: {
+                      code: "geometry-array-member-type-mismatch",
+                      message: `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`,
+                      presentation: {
+                        key: "diagnostic.geometry-array-member-type-mismatch",
+                        parameters: { member: path.segments[0]!, expected: "point[]", actual: `${interfaceType}.${pointKey}` }
+                      },
+                      span: member.span
+                    }
                   };
                 }
                 return {
@@ -318,13 +353,29 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             : lookup.kind === "ambiguous"
               ? `geometry array member 参照が曖昧です: ${member.text}`
               : `未解決の geometry array member です: ${member.text}`;
-          return { kind: "invalid", diagnostic: { code: `geometry-array-member-${lookup.kind}`, message, span: member.span } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: `geometry-array-member-${lookup.kind}`,
+              message,
+              presentation: {
+                key: `diagnostic.geometry-array-member-${lookup.kind}`,
+                parameters: { member: member.text }
+              },
+              span: member.span
+            }
+          };
         }
         const baseInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
         if (!baseInterfaceType) {
           return {
             kind: "invalid",
-            diagnostic: { code: "geometry-array-member-not-geometry", message: `参照先「${member.text}」は geometry value ではありません。`, span: member.span }
+            diagnostic: {
+              code: "geometry-array-member-not-geometry",
+              message: `参照先「${member.text}」は geometry value ではありません。`,
+              presentation: { key: "diagnostic.geometry-array-member-not-geometry", parameters: { member: member.text } },
+              span: member.span
+            }
           };
         }
         if (pointKey) {
@@ -336,7 +387,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           ) {
             return {
               kind: "invalid",
-              diagnostic: { code: "geometry-array-member-type-mismatch", message: `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`, span: member.span }
+              diagnostic: {
+                code: "geometry-array-member-type-mismatch",
+                message: `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`,
+                presentation: {
+                  key: "diagnostic.geometry-array-member-type-mismatch",
+                  parameters: { member: sourceReference.pathText, expected: "point[]", actual: `derived point ${pointKey}` }
+                },
+                span: member.span
+              }
             };
           }
           return {
@@ -402,17 +461,36 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             : lookup.kind === "ambiguous"
               ? `geometry array 参照が曖昧です: ${sourceText}`
               : `未解決の geometry array 参照です: ${sourceText}`;
-          return { kind: "invalid", diagnostic: { code: `geometry-array-reference-${lookup.kind}`, message, span: sourceSpan } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: `geometry-array-reference-${lookup.kind}`,
+              message,
+              presentation: {
+                key: `diagnostic.geometry-array-reference-${lookup.kind}`,
+                parameters: { reference: sourceText }
+              },
+              span: sourceSpan
+            }
+          };
         }
         const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
         if (!target) {
-          return { kind: "invalid", diagnostic: { code: "geometry-array-reference-not-array", message: `参照先「${sourceText}」は geometry array ではありません。`, span: sourceSpan } };
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: "geometry-array-reference-not-array",
+              message: `参照先「${sourceText}」は geometry array ではありません。`,
+              presentation: { key: "diagnostic.geometry-array-reference-not-array", parameters: { reference: sourceText } },
+              span: sourceSpan
+            }
+          };
         }
         return { kind: "resolved", targetValueId: target.statementId, type: target.type };
       }
     });
 
-    for (const issue of resolved.diagnostics) diagnostics.push(diagnostic(statement, issue.span, issue.code, issue.message));
+    for (const issue of resolved.diagnostics) diagnostics.push(diagnostic(statement, issue.span, issue.code, issue.message, issue.presentation));
     semantic.value = resolved.value;
   }
 

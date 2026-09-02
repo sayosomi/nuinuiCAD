@@ -49,7 +49,8 @@ const fieldType = (
     diagnostics.push({
       message: `record field に geometry 型「${text}」は使用できません。v1 field は scalar 型のみです。`,
       span: typeSpan,
-      code: "record-field-geometry-unsupported"
+      code: "record-field-geometry-unsupported",
+      presentation: { key: "diagnostic.record-field-geometry-unsupported", parameters: { type: text } }
     });
     return { type: null, choiceOptionSpans: [] };
   }
@@ -65,7 +66,8 @@ const fieldType = (
     diagnostics.push({
       message: `record field に nested record 型「${text}」は使用できません。v1 field は scalar 型のみです。`,
       span: typeSpan,
-      code: "record-field-nested-unsupported"
+      code: "record-field-nested-unsupported",
+      presentation: { key: "diagnostic.record-field-nested-unsupported", parameters: { type: text } }
     });
     return { type: null, choiceOptionSpans: [] };
   }
@@ -74,7 +76,13 @@ const fieldType = (
     acceptedTypeDescription: "number/string/boolean/choice(...)"
   });
   for (let index = before; index < diagnostics.length; index += 1) {
-    if (diagnostics[index]?.code === "unknown-type") diagnostics[index] = { ...diagnostics[index]!, code: "record-field-invalid-type" };
+    if (diagnostics[index]?.code === "unknown-type") {
+      diagnostics[index] = {
+        ...diagnostics[index]!,
+        code: "record-field-invalid-type",
+        presentation: { key: "diagnostic.record-field-invalid-type", parameters: { type: text } }
+      };
+    }
   }
   return {
     type: parsed.declaredType,
@@ -206,7 +214,8 @@ export const parseDslRecordDefinitionStatement = (logicalText: string): DslRecor
       diagnostics.push({
         message: `record field「${field.name}」が重複しています。`,
         span: field.nameSpan,
-        code: "record-field-duplicate"
+        code: "record-field-duplicate",
+        presentation: { key: "diagnostic.record-field-duplicate", parameters: { name: field.name } }
       });
     } else {
       firstByName.set(field.name, field);
