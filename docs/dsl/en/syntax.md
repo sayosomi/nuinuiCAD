@@ -123,10 +123,10 @@ concatenated. A top-level import requires an alias:
 <!-- dsl-example: syntax-fragment -->
 ```nui
 nui 1
-import "./shared/measurements.nui" as measurements
+import "./library.nui" as lib
 
-const width: number = @measurements::width
-export @measurements::Panel
+instance front = lib::Panel(width: 60)
+export @lib::Panel
 ```
 
 Import paths are filesystem paths relative to the importing file. They must
@@ -136,13 +136,16 @@ and non-hoisted, so an alias cannot be referenced before its import. The alias
 is an ordinary lexical name, and `@alias::Name` traverses an imported public
 name.
 
-Only explicitly exported declarations are public to importers. Nested imports
-are supported, but their names are not transitively visible; import each
-dependency directly when it is used. The generic re-export spelling is
-`export @alias::Name`. It preserves the original declaration identity rather
-than creating another declaration. Rename-style re-exports and export-all are
-not supported. Declarations in different files retain document-qualified
-identities even when their names are the same.
+Only the imported document's explicit public API is available through its alias.
+The current production foundation supplies that API through top-level exported
+Modules; this generic section does not imply support for importing arbitrary
+top-level scalar or geometry declarations. Nested imports are supported, but
+their names are not transitively visible; import each dependency directly when
+it is used. The generic re-export spelling is `export @alias::Name`. It
+preserves the original declaration identity rather than creating another
+declaration. Rename-style re-exports and export-all are not supported.
+Declarations in different files retain document-qualified identities even when
+their names are the same.
 
 Imported semantics come from the dependency's saved disk contents. A dirty open
 dependency buffer does not change an importer. Missing, unreadable, invalid,
