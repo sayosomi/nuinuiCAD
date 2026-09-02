@@ -9,6 +9,7 @@ import type {
   CommandRibbonPresentation,
   CommandRibbonPresentationCommandItem
 } from "../components/CommandRibbonView";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import {
   VSCODE_CANVAS_RIBBON_ICON_SIZE,
   type VscodeCanvasRibbon,
@@ -33,6 +34,7 @@ export type VSCodeCanvasRibbonOverlayProps = {
   ribbonCommandContext: VscodeCanvasRibbonCommandContext;
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
+  presentation?: CanvasPresentation;
 };
 
 type PointerClientPosition = {
@@ -42,7 +44,8 @@ type PointerClientPosition = {
 
 const commandItemPresentationFor = (
   item: VscodeCanvasRibbonCommandItem,
-  ribbonCommandContext: VscodeCanvasRibbonCommandContext
+  ribbonCommandContext: VscodeCanvasRibbonCommandContext,
+  presentation?: CanvasPresentation
 ): CommandRibbonPresentationCommandItem => {
   const definition = vscodeCanvasRibbonCommandFor(item.commandId);
   return {
@@ -50,8 +53,14 @@ const commandItemPresentationFor = (
     type: "command",
     commandId: item.commandId,
     icon: item.icon || definition?.icon || "circle",
-    label: definition?.label ?? item.commandId,
-    description: definition?.description ?? "This command is unavailable.",
+    label: presentation?.text(
+      `canvas.ribbon.command.${item.commandId}.label`,
+      definition?.label ?? item.commandId
+    ) ?? definition?.label ?? item.commandId,
+    description: presentation?.text(
+      `canvas.ribbon.command.${item.commandId}.description`,
+      definition?.description ?? "This command is unavailable."
+    ) ?? definition?.description ?? "This command is unavailable.",
     showLabel: item.showLabel,
     available: definition?.isAvailable(ribbonCommandContext) ?? false,
     ...(definition?.isPressed
@@ -64,18 +73,28 @@ const vscodeCanvasRibbonPresentationsFor = (
   ribbons: VscodeCanvasRibbon[],
   canvasViewport: CanvasViewport,
   pointerWorldPoint: VscodeCanvasWorldPoint | null,
-  ribbonCommandContext: VscodeCanvasRibbonCommandContext
+  ribbonCommandContext: VscodeCanvasRibbonCommandContext,
+  presentation?: CanvasPresentation
 ): CommandRibbonPresentation[] => ribbons.map((ribbon) => ({
   id: ribbon.id,
-  label: ribbon.label,
+  label: ribbon.label === "Canvas Ribbon"
+    ? presentation?.text("canvas.ribbon.title", ribbon.label) ?? ribbon.label
+    : ribbon.label,
   x: ribbon.x,
   y: ribbon.y,
   orientation: ribbon.orientation,
   iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-  items: ribbon.items.map((item) => item.type === "value"
-    ? vscodeCanvasStatusPresentationFor(item.id, canvasViewport, pointerWorldPoint)
-    : commandItemPresentationFor(item, ribbonCommandContext))
+    items: ribbon.items.map((item) => item.type === "value"
+      ? vscodeCanvasStatusPresentationFor(
+          item.id,
+          canvasViewport,
+          pointerWorldPoint,
+          presentation?.text("canvas.status.label", "Canvas status"),
+          presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
+          presentation?.statusFields
+        )
+      : commandItemPresentationFor(item, ribbonCommandContext, presentation))
 }));
 
 const pointerWorldPointFor = (
@@ -99,7 +118,8 @@ export const VSCodeCanvasRibbonOverlay = ({
   viewportSize,
   ribbonCommandContext,
   onCommand,
-  onPositionCommit
+  onPositionCommit,
+  presentation
 }: VSCodeCanvasRibbonOverlayProps) => {
   const [pointerPosition, setPointerPosition] = useState<PointerClientPosition | null>(null);
   const [pointerWorldPoint, setPointerWorldPoint] = useState<VscodeCanvasWorldPoint | null>(null);
@@ -108,9 +128,10 @@ export const VSCodeCanvasRibbonOverlay = ({
       canvasRibbonRibbons,
       canvasViewport,
       pointerWorldPoint,
-      ribbonCommandContext
+      ribbonCommandContext,
+      presentation
     ),
-    [canvasRibbonRibbons, canvasViewport, pointerWorldPoint, ribbonCommandContext]
+    [canvasRibbonRibbons, canvasViewport, pointerWorldPoint, ribbonCommandContext, presentation]
   );
   const tracksPointer = canvasRibbonRibbons.some((ribbon) =>
     ribbon.items.some((item) => item.type === "value")
@@ -164,6 +185,11 @@ export const VSCodeCanvasRibbonOverlay = ({
       iconResolver={resolveVscodeLucideIcon}
       viewportAwareTooltips
       contextMenuData={vscodeCanvasRibbonContextData}
+      handlePresentation={(ribbon) => ({
+        ariaLabel: presentation?.text("canvas.ribbon.move", "{label}を移動", { label: ribbon.label })
+          ?? `${ribbon.label}を移動`,
+        title: presentation?.text("canvas.ribbon.drag", "ドラッグで移動") ?? "ドラッグで移動"
+      })}
       onCommand={onCommand}
       onPositionCommit={onPositionCommit}
     />

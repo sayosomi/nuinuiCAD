@@ -13,6 +13,7 @@ import { placeCanvasPopup } from "./canvasPopupPlacement";
 import { numericReferenceLabel, numericReferenceValue } from "./geometryDisplay";
 import { CanvasMeasuredPopup } from "./CanvasMeasuredPopup";
 import { CanvasOverlapCandidateMenu } from "./CanvasOverlapCandidateMenu";
+import type { CanvasPresentation } from "./canvasPresentation";
 
 type CanvasCandidateMenusProps = {
   measurementCandidateMenu: MeasurementCandidateMenu | null;
@@ -26,6 +27,7 @@ type CanvasCandidateMenusProps = {
   onApplyLinePickCandidate: (candidate: LinePickCandidate) => void;
   onActivateOverlapCandidate: (index: number) => void;
   onFocusCanvas: () => void;
+  presentation?: CanvasPresentation;
 };
 
 export const CanvasCandidateMenus = ({
@@ -39,7 +41,8 @@ export const CanvasCandidateMenus = ({
   onApplyPointPickCandidate,
   onApplyLinePickCandidate,
   onActivateOverlapCandidate,
-  onFocusCanvas
+  onFocusCanvas,
+  presentation
 }: CanvasCandidateMenusProps) => {
   const popupStyle = (screen: { x: number; y: number }, size: { width: number; height: number }) => {
     const placement = placeCanvasPopup(screen, size, viewportSize);
@@ -53,7 +56,7 @@ export const CanvasCandidateMenus = ({
         className="numeric-reference-candidate-menu"
         style={popupStyle(measurementCandidateMenu.screen, { width: 250, height: 280 })}
         role="menu"
-        aria-label="数値参照候補"
+        aria-label={presentation?.text("canvas.candidate.numericReference", "数値参照候補") ?? "数値参照候補"}
       >
         {measurementCandidateMenu.candidates.map((candidate) => (
           <button
@@ -65,9 +68,9 @@ export const CanvasCandidateMenus = ({
           >
             <span className="numeric-reference-candidate-main">
               <strong>{candidate.line.name}</strong>
-              <span>{numericReferenceLabel(candidate.line, candidate.property)}</span>
+              <span>{numericReferenceLabel(candidate.line, candidate.property, presentation)}</span>
             </span>
-            <small>{numericReferenceValue(candidate.line, candidate.property)}</small>
+            <small>{numericReferenceValue(candidate.line, candidate.property, presentation)}</small>
           </button>
         ))}
       </div>
@@ -77,7 +80,7 @@ export const CanvasCandidateMenus = ({
         className="measurement-candidate-menu"
         style={popupStyle(pointPickCandidateMenu.screen, { width: 180, height: 220 })}
         role="menu"
-        aria-label="点選択候補"
+        aria-label={presentation?.text("canvas.candidate.point", "点選択候補") ?? "点選択候補"}
       >
         {pointPickCandidateMenu.candidates.map((candidate) => (
           <button
@@ -97,7 +100,7 @@ export const CanvasCandidateMenus = ({
         className="line-pick-candidate-menu"
         style={popupStyle(linePickCandidateMenu.screen, { width: 180, height: 220 })}
         role="menu"
-        aria-label="線選択候補"
+        aria-label={presentation?.text("canvas.candidate.line", "線選択候補") ?? "線選択候補"}
       >
         {linePickCandidateMenu.candidates.map((candidate) => (
           <button
@@ -123,7 +126,8 @@ export const CanvasCandidateMenus = ({
         activeIndex={overlapCandidateSession.activeIndex}
         viewportSize={viewportSize}
         idPrefix="canvas-overlap-candidate"
-        ariaLabel="重なった要素の選択候補"
+        ariaLabel={presentation?.text("canvas.candidate.overlapSelection", "重なった要素の選択候補") ?? "重なった要素の選択候補"}
+        unnamedLabel={presentation?.text("canvas.candidate.unnamed", "(unnamed)") ?? "(unnamed)"}
         onFocusViewport={onFocusCanvas}
         onActivate={onActivateOverlapCandidate}
       />
@@ -136,7 +140,7 @@ export const CanvasCandidateMenus = ({
           `${elementId}:${name ?? ""}:${kind}`).join("|")}
         viewportSize={viewportSize}
         role="listbox"
-        ariaLabel="重なった要素の名前"
+        ariaLabel={presentation?.text("canvas.candidate.overlapNames", "重なった要素の名前") ?? "重なった要素の名前"}
       >
         {hoverIdentityCandidatePopup.candidates.map((candidate) => (
           <div key={candidate.elementId} role="option">

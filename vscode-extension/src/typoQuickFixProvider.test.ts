@@ -56,6 +56,7 @@ vi.mock("vscode", () => {
 
 import * as vscode from "vscode";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import { diagnosticMessageFor } from "./diagnosticLocalization";
 import {
   compilerDiagnosticsWithTypoSuggestions,
   createNuiTypoQuickFixApplyHandler,
@@ -226,8 +227,8 @@ describe("VS Code typo Quick Fix provider", () => {
       .find((diagnostic) => diagnostic.code === "undefined-binding");
     const ja = compilerDiagnosticsWithTypoSuggestions(uniqueSource, unique, "ja")
       .find((diagnostic) => diagnostic.code === "undefined-binding");
-    expect(en?.message).toContain("Did you mean 'width'?");
-    expect(ja?.message).toContain("「width」のことですか？");
+    expect(en && diagnosticMessageFor(en, "en")).toContain("Did you mean 'width'?");
+    expect(ja && diagnosticMessageFor(ja, "ja")).toContain("「width」のことですか？");
 
     const multipleSource = [
       "nui 1",
@@ -240,6 +241,7 @@ describe("VS Code typo Quick Fix provider", () => {
     const projected = compilerDiagnosticsWithTypoSuggestions(multipleSource, multiple, "en")
       .find((diagnostic) => diagnostic.code === "undefined-binding");
     expect(projected?.message).toBe(base?.message);
+    expect(projected?.suffixPresentation).toBeUndefined();
   });
 
   it("edits only the exact typo token, including inside an @ reference and CRLF document", async () => {

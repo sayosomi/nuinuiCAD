@@ -127,6 +127,64 @@ afterEach(() => {
 });
 
 describe("ModulePreviewParametersApp", () => {
+  it("renders host-published Japanese presentation while preserving authored parameter names", () => {
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "webviewPresentation",
+          presentation: {
+            locale: "ja",
+            strings: {
+              "modulePreview.parameters.title": "Module Previewパラメータ",
+              "modulePreview.parameters.target": "Target",
+              "modulePreview.parameters.context": "Context",
+              "modulePreview.parameters.parameter": "Parameter",
+              "modulePreview.parameters.value": "Value",
+              "modulePreview.parameters.default": "Default",
+              "modulePreview.parameters.required": "必須",
+              "modulePreview.parameters.optional": "任意",
+              "modulePreview.parameters.valueFor": "{name}の値",
+              "modulePreview.parameters.pickReferenceFor": "{name}の参照を選択",
+              "modulePreview.parameters.pick": "選択",
+              "modulePreview.parameters.useDefaultFor": "{name}にデフォルトを使用",
+              "modulePreview.parameters.useDefault": "デフォルトを使用",
+              "modulePreview.parameters.status.lastGood": "入力が不正なため、最後に有効だったプレビューを表示しています。",
+              "modulePreview.parameters.diagnostic.invalid-expression": "「{name}」の値はこのコンテキストで有効なModule引数式ではありません。"
+            },
+            diagnosticTemplates: {}
+          }
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          ...snapshot,
+          parameters: {
+            ...snapshot.parameters,
+            parameters: snapshot.parameters.parameters.map((parameter) => parameter.name === "width"
+              ? {
+                  ...parameter,
+                  diagnostic: {
+                    ...parameter.diagnostic!,
+                    presentation: {
+                      key: "modulePreview.parameters.diagnostic.invalid-expression",
+                      parameters: { name: parameter.name }
+                    }
+                  }
+                }
+              : parameter)
+          }
+        }
+      }));
+    });
+
+    expect(screen.getByRole("heading", { name: "Module Previewパラメータ" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Inner/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("widthの値")).toHaveValue("@scale * 4");
+    expect(screen.getByRole("status")).toHaveTextContent("入力が不正");
+    expect(screen.getByRole("alert")).toHaveTextContent("このコンテキストで有効なModule引数式ではありません");
+  });
+
   it("exposes contextual Pick actions for geometry rows only and routes the exact row proof", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: geometrySnapshot })));

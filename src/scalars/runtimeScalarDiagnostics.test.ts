@@ -184,6 +184,10 @@ describe("runtimeScalarDiagnostics", () => {
       targetElementId: "target-id",
       pointKey: "center"
     });
+    expect(namedDiagnostics[0]?.presentation).toEqual({
+      key: "diagnostic.runtime.evaluation-geometry-builtin-disabled.target",
+      parameters: { target: "Shoulder.center", base: "Shoulder" }
+    });
     expect(fallbackDiagnostics[0]?.runtimeContext).toEqual(namedDiagnostics[0]?.runtimeContext);
     expect(structuredClone(namedDiagnostics[0])).toEqual(namedDiagnostics[0]);
   });

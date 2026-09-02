@@ -431,6 +431,10 @@ describe("registerModulePreviewFeature", () => {
   it("applies one exact Module Preview model patch as one native undo transaction", async () => {
     const fixture = openModulePatchFixture();
     await fixture.panel.receive({ type: "webviewReady" });
+    expect(fixture.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webviewPresentation",
+      presentation: expect.objectContaining({ locale: "en" })
+    }));
     await fixture.panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
     await fixture.panel.receive(patchRequestFor(fixture));
 
@@ -695,6 +699,10 @@ describe("registerModulePreviewFeature", () => {
     const parameterView = createParameterWebview();
     feature.attachParameterView(parameterView as never);
     await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    expect(parameterView.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webviewPresentation",
+      presentation: expect.objectContaining({ locale: "ja" })
+    }));
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     expect(mocks.createWebviewPanel).toHaveBeenCalledWith(
       NUI_MODULE_PREVIEW_VIEW_TYPE,

@@ -125,7 +125,14 @@ export const classifySetTargetResolution = (resolution: BindingResolution | unde
  * SetStatementFieldRangeIndex exist only for in-place value stepping, never
  * exposed for external navigation) - inventing one is outside this module's
  * scope, so these diagnostics stay text-only in the Problems popover. */
-const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnosticAt = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error",
@@ -133,6 +140,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     column: span.start + 1,
     code,
     message,
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -218,7 +226,8 @@ export const compileSetStatements = ({
         statement,
         targetSpan,
         INVALID_SET_TARGET_CODE,
-        `"${statement.name}" は定義されていません。set の対象は宣言済みの let だけです。`
+        `"${statement.name}" は定義されていません。set の対象は宣言済みの let だけです。`,
+        { key: "diagnostic.invalid-set-target", parameters: { name: statement.name } }
       ));
       continue;
     }
@@ -290,7 +299,17 @@ export const compileSetStatements = ({
         : classification.reason === "not-let"
         ? `"${candidate.statement.name}" はlet宣言ではないため set の対象にできません。`
         : `"${candidate.statement.name}" の宣言型が確定していないため、set の対象にできません。`;
-      diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.targetSpan, code, message));
+      diagnostics.push(diagnosticAt(
+        spans,
+        candidate.statement,
+        candidate.targetSpan,
+        code,
+        message,
+        {
+          key: code === CONST_ASSIGNMENT_CODE ? "diagnostic.const-assignment" : "diagnostic.invalid-set-target",
+          parameters: { name: candidate.statement.name }
+        }
+      ));
       continue;
     }
     const binding = classification.binding;
@@ -305,7 +324,7 @@ export const compileSetStatements = ({
       : undefined;
     if (builtinGeometryResolution?.issues.length) {
       diagnostics.push(...builtinGeometryResolution.issues.map((issue) =>
-        diagnosticAt(spans, candidate.statement, issue.span, issue.code, issue.message)
+        diagnosticAt(spans, candidate.statement, issue.span, issue.code, issue.message, issue.presentation)
       ));
     }
 
@@ -325,7 +344,8 @@ export const compileSetStatements = ({
           candidate.statement,
           reference.span,
           SET_RHS_UNRESOLVED_CODE,
-          unresolvedReferenceMessage(reference.name, resolution)
+          unresolvedReferenceMessage(reference.name, resolution),
+          { key: "diagnostic.set-rhs-unresolved", parameters: { name: reference.name } }
         ));
         hasReferenceDiagnostic = true;
         return;
@@ -340,7 +360,8 @@ export const compileSetStatements = ({
           candidate.statement,
           reference.span,
           SET_RHS_INVALID_REFERENCE_CODE,
-          `"${reference.name}" は無効な宣言のため参照できません。`
+          `"${reference.name}" は無効な宣言のため参照できません。`,
+          { key: "diagnostic.set-rhs-invalid-reference", parameters: { name: reference.name } }
         ));
         hasReferenceDiagnostic = true;
         return;
@@ -358,7 +379,7 @@ export const compileSetStatements = ({
     });
     if (prepared.issues.length > 0) {
       diagnostics.push(...prepared.issues.map((issue) =>
-        diagnosticAt(spans, candidate.statement, issue.span, SET_RHS_INVALID_REFERENCE_CODE, issue.message)
+        diagnosticAt(spans, candidate.statement, issue.span, SET_RHS_INVALID_REFERENCE_CODE, issue.message, issue.presentation)
       ));
       continue;
     }
@@ -380,7 +401,7 @@ export const compileSetStatements = ({
     );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
-        diagnosticAt(spans, candidate.statement, issue.span, "geometry-property-invalid", issue.message)
+        diagnosticAt(spans, candidate.statement, issue.span, "geometry-property-invalid", issue.message, issue.presentation)
       ));
       continue;
     }
@@ -393,7 +414,7 @@ export const compileSetStatements = ({
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-        diagnosticAt(spans, candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message)
+        diagnosticAt(spans, candidate.statement, diagnostic.span, diagnostic.code, diagnostic.message, diagnostic.presentation)
       ));
       continue;
     }

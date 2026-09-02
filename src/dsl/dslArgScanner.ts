@@ -18,6 +18,7 @@ export type DslArgScanError = {
   message: string;
   span: DslSpan;
   code?: string;
+  presentation?: { key: string; parameters?: Readonly<Record<string, string | number | boolean>> };
 };
 
 export type DslNestingDelimiter = "(" | "[";
@@ -234,6 +235,7 @@ const addNamedArg = (
       message: `引数「${boundary.key}」の値がありません。`,
       span: valueSpan,
       code: MISSING_ATTRIBUTE_VALUE_CODE,
+      presentation: { key: `diagnostic.${MISSING_ATTRIBUTE_VALUE_CODE}`, parameters: { parameter: boundary.key } },
     });
   }
 };
@@ -264,6 +266,7 @@ export const scanCallArgs = (
           message: "空の引数があります。",
           span: { start: marker, end: Math.min(marker + 1, callSpan.end) },
           code: EMPTY_ARGUMENT_CODE,
+          presentation: { key: `diagnostic.${EMPTY_ARGUMENT_CODE}` },
         });
       }
       continue;
@@ -289,6 +292,7 @@ export const scanCallArgs = (
           message: `引数「${boundary.key}」の前に「,」が必要です。`,
           span: boundary.keySpan,
           code: MISSING_ARGUMENT_COMMA_CODE,
+          presentation: { key: `diagnostic.${MISSING_ARGUMENT_COMMA_CODE}`, parameters: { parameter: boundary.key } },
         });
       }
       const end = boundaries[boundaryIndex + 1]?.keySpan.start ?? segment.span.end;

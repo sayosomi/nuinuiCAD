@@ -119,6 +119,10 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_TYPE_MISMATCH_CODE);
+    expect(diagnostics[0].presentation).toMatchObject({
+      key: "diagnostic.scalar-type-mismatch",
+      parameters: { expected: expect.any(String), actual: expect.any(String) }
+    });
   });
 
   it.each([
@@ -250,7 +254,14 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: PROPERTY_BINDING_INVALID_CODE, message: expect.stringContaining("後") })
+      expect.objectContaining({
+        code: PROPERTY_BINDING_INVALID_CODE,
+        message: expect.stringContaining("後"),
+        presentation: {
+          key: "diagnostic.geometry-property-invalid",
+          parameters: { target: "Later.length" }
+        }
+      })
     ]));
   });
 
@@ -383,6 +394,10 @@ describe("compilePropertyBindings: unresolved", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_UNRESOLVED_CODE);
     expect(diagnostics[0].message).toContain("未定義");
+    expect(diagnostics[0].presentation).toEqual({
+      key: "diagnostic.property-binding-unresolved",
+      parameters: { name: "Missing" }
+    });
   });
 
   it("forward-declared name (same code, different message)", () => {
@@ -395,6 +410,10 @@ describe("compilePropertyBindings: unresolved", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_UNRESOLVED_CODE);
     expect(diagnostics[0].message).toContain("後で宣言");
+    expect(diagnostics[0].presentation).toEqual({
+      key: "diagnostic.property-binding-unresolved",
+      parameters: { name: "Later" }
+    });
   });
 });
 
@@ -408,6 +427,10 @@ describe("compilePropertyBindings: invalid", () => {
     expect(sourcesByOccurrenceKey.size).toBe(0);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].code).toBe(PROPERTY_BINDING_INVALID_CODE);
+    expect(diagnostics[0].presentation).toMatchObject({
+      key: "diagnostic.property-binding-invalid",
+      parameters: { name: "壊れた" }
+    });
   });
 
   it("rejects a property expression with the wrong result type", () => {

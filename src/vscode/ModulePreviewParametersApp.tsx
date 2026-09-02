@@ -9,31 +9,44 @@ import type {
   VscodeWebviewApi
 } from "./protocol";
 import { isExtensionToVscodeMessage } from "./vscodeRustTransport";
+import {
+  useVscodeWebviewPresentation,
+  webviewPresentationTextFor,
+  type WebviewPresentationParameters
+} from "./webviewPresentation";
 import "./modulePreviewParameters.css";
 
-const typeLabelFor = (parameter: VscodeModulePreviewParameter): string => {
-  if (!parameter.type) return "unknown";
+type PresentationText = (key: string, fallback: string, parameters?: WebviewPresentationParameters) => string;
+
+const typeLabelFor = (parameter: VscodeModulePreviewParameter, text: PresentationText): string => {
+  if (!parameter.type) return text("modulePreview.parameters.unknownType", "unknown");
   return parameter.type.kind;
 };
 
 const isReferencePickableParameter = (parameter: VscodeModulePreviewParameter): boolean =>
   parameter.type?.kind === "point" || parameter.type?.kind === "line" || parameter.type?.kind === "path";
 
-const unavailableMessageFor = (state: VscodeModulePreviewParametersUnavailable): string => {
+const unavailableMessageFor = (
+  state: VscodeModulePreviewParametersUnavailable,
+  text: PresentationText
+): string => {
   switch (state.reason) {
-    case "no-session": return "Open Module Preview to edit its parameters.";
-    case "not-ready": return "Module Preview is loading its exact current target.";
-    case "source-stale": return "Module Preview parameters are waiting for the refreshed source.";
-    case "target-unavailable": return "The Module Preview target is not available in the current source.";
-    case "disposed": return "The Module Preview panel is no longer available.";
+    case "no-session": return text("modulePreview.parameters.unavailable.no-session", "Open Module Preview to edit its parameters.");
+    case "not-ready": return text("modulePreview.parameters.unavailable.not-ready", "Module Preview is loading its exact current target.");
+    case "source-stale": return text("modulePreview.parameters.unavailable.source-stale", "Module Preview parameters are waiting for the refreshed source.");
+    case "target-unavailable": return text("modulePreview.parameters.unavailable.target-unavailable", "The Module Preview target is not available in the current source.");
+    case "disposed": return text("modulePreview.parameters.unavailable.disposed", "The Module Preview panel is no longer available.");
   }
 };
 
-const previewStatusMessageFor = (status: VscodeModulePreviewParameterSnapshot["previewStatus"]): string => {
+const previewStatusMessageFor = (
+  status: VscodeModulePreviewParameterSnapshot["previewStatus"],
+  text: PresentationText
+): string => {
   switch (status) {
-    case "current": return "Current preview";
-    case "lastGood": return "Showing the last valid preview while inputs are invalid.";
-    case "noValidPreview": return "No valid preview for the current inputs.";
+    case "current": return text("modulePreview.parameters.status.current", "Current preview");
+    case "lastGood": return text("modulePreview.parameters.status.lastGood", "Showing the last valid preview while inputs are invalid.");
+    case "noValidPreview": return text("modulePreview.parameters.status.noValidPreview", "No valid preview for the current inputs.");
   }
 };
 
@@ -46,7 +59,8 @@ const ParameterRow = ({
   onValueInputSelection,
   onValueInputBlur,
   onValueInputRefresh,
-  onReferencePick
+  onReferencePick,
+  text
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   parameter: VscodeModulePreviewParameter;
@@ -57,6 +71,7 @@ const ParameterRow = ({
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
+  text: PresentationText;
 }) => {
   const rowIdentity = `${snapshot.sessionId}:${snapshot.target.definitionStatementId}:${parameter.definitionStatementId}:${parameter.parameterIndex}`;
   const [draft, setDraft] = useState(parameter.value);
@@ -113,9 +128,9 @@ const ParameterRow = ({
     >
       <th scope="row">
         <span className="module-preview-parameter-name">{parameter.name}</span>
-        <span className="module-preview-parameter-type">{typeLabelFor(parameter)}</span>
-        {parameter.required ? <span className="module-preview-parameter-kind">required</span> : null}
-        {parameter.optional ? <span className="module-preview-parameter-kind">optional</span> : null}
+        <span className="module-preview-parameter-type">{typeLabelFor(parameter, text)}</span>
+        {parameter.required ? <span className="module-preview-parameter-kind">{text("modulePreview.parameters.required", "required")}</span> : null}
+        {parameter.optional ? <span className="module-preview-parameter-kind">{text("modulePreview.parameters.optional", "optional")}</span> : null}
       </th>
       <td>
         <div className="module-preview-parameter-input-row">
@@ -123,7 +138,7 @@ const ParameterRow = ({
             ref={inputRef}
             data-module-preview-parameter-identity={rowIdentity}
             className="module-preview-parameter-input"
-            aria-label={`Value for ${parameter.name}`}
+            aria-label={text("modulePreview.parameters.valueFor", "Value for {name}", { name: parameter.name })}
             aria-invalid={parameter.diagnostic ? "true" : "false"}
             aria-describedby={diagnosticId}
             value={draft}
@@ -143,16 +158,22 @@ const ParameterRow = ({
               type="button"
               className="module-preview-parameter-pick-button"
               data-module-preview-parameter-pick="true"
-              aria-label={`Pick reference for ${parameter.name}`}
+              aria-label={text("modulePreview.parameters.pickReferenceFor", "Pick reference for {name}", { name: parameter.name })}
               onClick={() => onReferencePick(parameter)}
             >
-              Pick
+              {text("modulePreview.parameters.pick", "Pick")}
             </button>
           ) : null}
         </div>
         {parameter.diagnostic ? (
           <div id={diagnosticId} className="module-preview-parameter-diagnostic" role="alert">
-            {parameter.diagnostic.message}
+            {parameter.diagnostic.presentation
+              ? text(
+                  parameter.diagnostic.presentation.key,
+                  parameter.diagnostic.message,
+                  parameter.diagnostic.presentation.parameters
+                )
+              : parameter.diagnostic.message}
           </div>
         ) : null}
       </td>
@@ -163,13 +184,13 @@ const ParameterRow = ({
             <button
               type="button"
               className="module-preview-parameter-default-button"
-              aria-label={`Use default for ${parameter.name}`}
+              aria-label={text("modulePreview.parameters.useDefaultFor", "Use default for {name}", { name: parameter.name })}
               onClick={() => {
                 pendingDraftRef.current = null;
                 onUseDefault(parameter);
               }}
             >
-              Use default
+              {text("modulePreview.parameters.useDefault", "Use default")}
             </button>
           </>
         ) : <span className="module-preview-parameter-no-default">—</span>}
@@ -187,7 +208,8 @@ const ParameterGroup = ({
   onValueInputSelection,
   onValueInputBlur,
   onValueInputRefresh,
-  onReferencePick
+  onReferencePick,
+  text
 }: {
   snapshot: VscodeModulePreviewParameterSnapshot;
   group: VscodeModulePreviewParameterSnapshot["parameters"];
@@ -198,16 +220,24 @@ const ParameterGroup = ({
   onValueInputBlur: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onValueInputRefresh: (parameter: VscodeModulePreviewParameter, input: HTMLInputElement) => void;
   onReferencePick: (parameter: VscodeModulePreviewParameter) => void;
+  text: PresentationText;
 }) => (
   <section
     className="module-preview-parameter-group"
     data-module-preview-parameter-group-kind={group.kind}
     data-module-preview-definition-id={group.definitionStatementId}
   >
-    <h2>{group.kind === "target" ? "Target" : "Context"}: {group.name}</h2>
+    <h2>{text(
+      group.kind === "target" ? "modulePreview.parameters.target" : "modulePreview.parameters.context",
+      group.kind === "target" ? "Target" : "Context"
+    )}: {group.name}</h2>
     <table>
       <thead>
-        <tr><th scope="col">Parameter</th><th scope="col">Value</th><th scope="col">Default</th></tr>
+        <tr>
+          <th scope="col">{text("modulePreview.parameters.parameter", "Parameter")}</th>
+          <th scope="col">{text("modulePreview.parameters.value", "Value")}</th>
+          <th scope="col">{text("modulePreview.parameters.default", "Default")}</th>
+        </tr>
       </thead>
       <tbody>
         {group.parameters.map((parameter) => (
@@ -222,6 +252,7 @@ const ParameterGroup = ({
             onValueInputBlur={onValueInputBlur}
             onValueInputRefresh={onValueInputRefresh}
             onReferencePick={onReferencePick}
+            text={text}
           />
         ))}
       </tbody>
@@ -230,6 +261,11 @@ const ParameterGroup = ({
 );
 
 export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) => {
+  const webviewPresentation = useVscodeWebviewPresentation();
+  const text = useCallback<PresentationText>(
+    (key, fallback, parameters) => webviewPresentationTextFor(webviewPresentation, key, fallback, parameters),
+    [webviewPresentation]
+  );
   const [snapshot, setSnapshot] = useState<VscodeModulePreviewParameterSnapshot | null>(null);
   const [unavailable, setUnavailable] = useState<VscodeModulePreviewParametersUnavailable | null>(null);
   const snapshotRef = useRef<VscodeModulePreviewParameterSnapshot | null>(null);
@@ -448,7 +484,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
   return (
     <main className="module-preview-parameters" data-module-preview-parameter-surface="true">
       <header className="module-preview-parameters-header">
-        <h1>Module Preview Parameters</h1>
+        <h1>{text("modulePreview.parameters.title", "Module Preview Parameters")}</h1>
         {snapshot ? <div className="module-preview-parameters-target">{snapshot.target.name}</div> : null}
       </header>
       {snapshot ? (
@@ -458,7 +494,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
             data-module-preview-preview-status={snapshot.previewStatus}
             role="status"
           >
-            {previewStatusMessageFor(snapshot.previewStatus)}
+            {previewStatusMessageFor(snapshot.previewStatus, text)}
           </div>
           <div className="module-preview-parameters-groups">
             {snapshot.ancestorContexts.map((group) => (
@@ -473,6 +509,7 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
                 onValueInputBlur={onValueInputBlur}
                 onValueInputRefresh={onValueInputRefresh}
                 onReferencePick={onReferencePick}
+                text={text}
               />
             ))}
             <ParameterGroup
@@ -485,12 +522,15 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
               onValueInputBlur={onValueInputBlur}
               onValueInputRefresh={onValueInputRefresh}
               onReferencePick={onReferencePick}
+              text={text}
             />
           </div>
         </>
       ) : (
         <div className="module-preview-parameters-unavailable" role="status">
-          {unavailable ? unavailableMessageFor(unavailable) : "Open Module Preview to edit its parameters."}
+          {unavailable
+            ? unavailableMessageFor(unavailable, text)
+            : text("modulePreview.parameters.unavailable.no-session", "Open Module Preview to edit its parameters.")}
         </div>
       )}
     </main>

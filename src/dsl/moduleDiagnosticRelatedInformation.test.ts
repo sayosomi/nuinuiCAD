@@ -51,8 +51,13 @@ describe("Module diagnostic related source information", () => {
     expect(spanText(source, diagnostic)).toBe("Output");
     expect(diagnostic.message).toBe("同じlexical scopeで名前「Output」が衝突しています: typedDeclaration(行 3) と geometry。");
     expect(diagnostic.severity).toBe("error");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.source-namespace-collision",
+      parameters: { name: "Output", firstKind: "typedDeclaration", firstLine: 3, secondKind: "geometry" }
+    });
     expect(relatedTexts(source, diagnostic)).toEqual(["Output"]);
     expect(diagnostic.relatedInformation?.map((related) => related.message)).toEqual(["First export with this name"]);
+    expect(diagnostic.relatedInformation?.[0]?.presentation).toEqual({ key: "diagnostic.related.first-export" });
     expect(diagnostics.filter((candidate) => candidate.code === "module-duplicate-export")).toHaveLength(0);
 
     const ordinarySource = [

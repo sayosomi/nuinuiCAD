@@ -195,6 +195,10 @@ describe("VS Code Output Preview Reveal lifecycle", () => {
 
     await sendToHost(state, { type: "webviewReady" });
     expect(revealMessagesFor(state.panel)).toHaveLength(0);
+    expect(state.panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webviewPresentation",
+      presentation: expect.objectContaining({ locale: "en" })
+    }));
     await sendToHost(state, { type: "webviewAuthoritativeDocumentReady", documentVersion: 4 });
     expect(revealMessagesFor(state.panel)).toEqual([{
       type: "outputPreviewReveal",

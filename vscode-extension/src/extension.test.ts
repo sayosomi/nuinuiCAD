@@ -83,6 +83,7 @@ type TestDiagnosticCollection = {
 
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as TestEditor | null,
+  displayLanguage: "en",
   visibleTextEditors: [] as TestEditor[],
   textDocuments: [] as TestDocument[],
   commandHandlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -232,7 +233,11 @@ vi.mock("vscode", () => {
     ) {}
   }
   return {
-    env: { language: "en" },
+    env: {
+      get language() {
+        return mocks.displayLanguage;
+      }
+    },
     window: {
       get activeTextEditor() {
         return mocks.activeTextEditor;
@@ -796,6 +801,7 @@ const elementIdFor = (document: TestDocument, name: string): string => {
 afterEach(() => {
   delete process.env.NUINUICAD_VSCODE_BENCHMARK_CONFIG;
   mocks.activeTextEditor = null;
+  mocks.displayLanguage = "en";
   mocks.activeTabInput = null;
   mocks.visibleTextEditors.length = 0;
   mocks.textDocuments.length = 0;
@@ -1152,7 +1158,31 @@ describe("VS Code production document lifecycle", () => {
     expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.exportCurrentOutput", expect.any(Function));
     const panel = openOutputPreviewPanelFor();
     expect(mocks.createWebviewPanel.mock.calls[0]?.[0]).toBe("nuinuiCAD.outputPreview");
-    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    expect(panel.webview.html).toContain('<html lang="en" data-nuinui-surface="outputPreview">');
+  });
+
+  it("uses the Extension Host locale for Canvas and Output Preview HTML and ready publication", async () => {
+    mocks.displayLanguage = "ja-JP";
+    setup();
+
+    const outputPanel = openOutputPreviewPanelFor();
+    expect(outputPanel.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    await messageHandlerFor(outputPanel)({ type: "webviewReady" });
+    expect(outputPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webviewPresentation",
+      presentation: expect.objectContaining({
+        locale: "ja",
+        strings: expect.objectContaining({ "output.noOutputs": "印刷またはSVGの出力がありません" })
+      })
+    }));
+
+    const canvasPanel = openPanelFor();
+    expect(canvasPanel.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    await messageHandlerFor(canvasPanel)({ type: "webviewReady" });
+    expect(canvasPanel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "webviewPresentation",
+      presentation: expect.objectContaining({ locale: "ja" })
+    }));
   });
 
   it("reveals the existing Output Preview instead of creating a second panel", () => {
@@ -1178,7 +1208,7 @@ describe("VS Code production document lifecycle", () => {
 
     const preview = mocks.panels.at(-1)!;
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
-    expect(preview.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    expect(preview.webview.html).toContain('<html lang="en" data-nuinui-surface="outputPreview">');
 
     await messageHandlerFor(preview)({ type: "webviewReady" });
     await messageHandlerFor(preview)({ type: "webviewAuthoritativeDocumentReady", documentVersion: documentA.version });
@@ -1205,7 +1235,7 @@ describe("VS Code production document lifecycle", () => {
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
     expect(mocks.createWebviewPanel.mock.calls.at(-1)?.[1]).toBe("a.nui — Output Preview");
-    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="outputPreview">');
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="en" data-nuinui-surface="outputPreview">');
     expect(previewB.reveal).not.toHaveBeenCalled();
   });
 
@@ -1219,7 +1249,7 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(2);
-    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="en" data-nuinui-surface="canvas">');
     expect(preview.reveal).not.toHaveBeenCalled();
   });
 
@@ -1266,7 +1296,7 @@ describe("VS Code production document lifecycle", () => {
     commandHandlerFor("nuinuiCAD.openCanvas")?.();
 
     expect(mocks.createWebviewPanel).toHaveBeenCalledTimes(3);
-    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(mocks.panels.at(-1)?.webview.html).toContain('<html lang="en" data-nuinui-surface="canvas">');
     expect(canvasB.reveal).not.toHaveBeenCalled();
   });
 
@@ -1575,7 +1605,7 @@ describe("VS Code production document lifecycle", () => {
     const panel = openPanelFor();
 
     expect(panel.webview.html).toContain('<body class="vscode-canvas-webview">');
-    expect(panel.webview.html).toContain('<html lang="ja" data-nuinui-surface="canvas">');
+    expect(panel.webview.html).toContain('<html lang="en" data-nuinui-surface="canvas">');
   });
 
   it("reuses and reveals the existing panel when the same document command runs twice", () => {
@@ -4080,7 +4110,7 @@ describe("VS Code compiler diagnostics lifecycle", () => {
     expect(mocks.createDiagnosticCollection).toHaveBeenCalledWith("nuinuiCAD");
     expect(collection.set).toHaveBeenCalledWith(document.uri, [
       expect.objectContaining({
-        message: "引数「y」の値がありません。",
+        message: "Argument 'y' has no value.",
         code: "missing-attribute-value",
         source: "nuinuiCAD",
         severity: 0

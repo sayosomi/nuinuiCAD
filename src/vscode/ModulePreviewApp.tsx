@@ -15,7 +15,8 @@ import type {
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import type { ModulePreviewRootResult } from "../dsl/modulePreviewRoot";
-import { createModulePreviewSession, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
+import { createModulePreviewSession, type ModulePreviewInputDiagnostic, type ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import { queryModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import { useEvaluationEngine } from "../geometry/useEvaluationEngine";
 import { evaluationStateIsCurrentFor } from "../geometry/useEvaluationEngine";
@@ -54,6 +55,13 @@ import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
 import { useVSCodeModulePreviewReferencePickSession } from "./useVSCodeModulePreviewReferencePickSession";
 import type { VscodeModulePreviewReferencePickStartRequest } from "./modulePreviewProtocol";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
+import {
+  useVscodeWebviewPresentation,
+  webviewDiagnosticTextFor,
+  webviewInputDiagnosticTextFor,
+  webviewPresentationTextFor
+} from "./webviewPresentation";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -144,14 +152,33 @@ const bakeTargetsSignature = (targets: readonly BakeResolvedTarget[]) => JSON.st
 
 const sourceOwnersSignature = (owners: readonly ModulePreviewSourceOwnerProof[]) => JSON.stringify(owners);
 
-const diagnosticMessagesFor = (document: AutomationDocument): string[] => {
+type ModulePreviewStatusMessage =
+  | { kind: "text"; key: string; fallback: string }
+  | { kind: "diagnostic"; message: string; presentation?: DslDiagnosticPresentation }
+  | { kind: "inputDiagnostic"; message: string; presentation?: DslDiagnosticPresentation }
+  | { kind: "raw"; message: string };
+
+const statusText = (key: string, fallback: string): ModulePreviewStatusMessage => ({ kind: "text", key, fallback });
+const statusDiagnostic = (diagnostic: { message: string; presentation?: DslDiagnosticPresentation }): ModulePreviewStatusMessage => ({
+  kind: "diagnostic",
+  message: diagnostic.message,
+  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
+});
+const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): ModulePreviewStatusMessage => ({
+  kind: "inputDiagnostic",
+  message: diagnostic.message,
+  ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
+});
+
+const diagnosticMessagesFor = (document: AutomationDocument): ModulePreviewStatusMessage[] => {
   const state = document.getState();
   return [...state.currentCompiled.diagnostics, ...(state.currentCompiled.bindingIssueDiagnostics ?? [])]
     .slice(0, 4)
-    .map((diagnostic) => diagnostic.message);
+    .map(statusDiagnostic);
 };
 
 export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
+  const webviewPresentation = useVscodeWebviewPresentation();
   const automationDocumentRef = useRef<AutomationDocument | null>(null);
   const documentVersionRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -163,6 +190,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const evaluationRef = useRef<EvaluationResult | null>(null);
   const previewRef = useRef<ValidModulePreview | null>(null);
   const previewSession = useMemo(() => createModulePreviewSession(), []);
+  const canvasPresentationAdapter = useMemo(
+    () => webviewCanvasPresentationFor(webviewPresentation),
+    [webviewPresentation]
+  );
   const [preview, setPreview] = useState<ValidModulePreview | null>(null);
   const [ephemeralElements, setEphemeralElements] = useState<CadElement[] | null>(null);
   const ephemeralElementsRef = useRef<CadElement[] | null>(null);
@@ -170,8 +201,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const nextModelPatchOperationIdRef = useRef(1);
   const pendingModelPatchRef = useRef<PendingModulePreviewModelPatch | null>(null);
   const pendingBakeResultRef = useRef<PendingModulePreviewBakeResult | null>(null);
-  const [statusMessages, setStatusMessages] = useState<string[]>([
-    "Open Module Preview from a Module definition in the Source Editor."
+  const [statusMessages, setStatusMessages] = useState<ModulePreviewStatusMessage[]>([
+    statusText("modulePreview.initial", "Open Module Preview from a Module definition in the Source Editor.")
   ]);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
@@ -326,7 +357,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const applyValidPreview = useCallback((
     root: ModulePreviewRootResult,
     moduleSemanticContext: CanvasHostAdapter["moduleSemanticContext"],
-    nextStatusMessages: string[]
+    nextStatusMessages: ModulePreviewStatusMessage[]
   ) => {
     clearEphemeralPreview();
     let evaluationOptions: ReturnType<typeof buildModulePreviewEvaluationOptions>;
@@ -335,9 +366,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     } catch {
       const document = automationDocumentRef.current;
       setStatusMessages(document ? [
-        "Module Preview could not build the current evaluation context.",
+        statusText("modulePreview.contextFailed", "Module Preview could not build the current evaluation context."),
         ...diagnosticMessagesFor(document)
-      ] : ["Module Preview could not build the current evaluation context."]);
+      ] : [statusText("modulePreview.contextFailed", "Module Preview could not build the current evaluation context.")]);
       return;
     }
     const revision = nextPreviewRevisionRef.current++;
@@ -356,18 +387,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       previewRef.current = null;
       setPreview(null);
       setStatusMessages([
-        "Module Preview cannot evaluate the exact current target with the current inputs.",
-        ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message)
+        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
+        ...snapshot.inputDiagnostics.map(statusInputDiagnostic)
       ]);
       return;
     }
     const state = document.getState();
     const nextStatusMessages = [
       ...(snapshot.preview.kind === "lastGood"
-        ? ["Module Preview is showing the last valid preview for the current target."]
+        ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
-      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
       moduleMaterialization: root.moduleMaterialization,
@@ -400,10 +431,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       if (!snapshot) publishParameterUnavailable("target-unavailable");
       previewRef.current = null;
       setPreview(null);
-      const diagnostics = snapshot?.inputDiagnostics.map((diagnostic) => diagnostic.message)
+      const diagnostics = snapshot?.inputDiagnostics.map(statusInputDiagnostic)
         ?? diagnosticMessagesFor(document);
       setStatusMessages([
-        "Module Preview cannot evaluate the exact current target with the current inputs.",
+        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
         ...diagnostics
       ]);
       return;
@@ -411,10 +442,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
 
     const nextStatusMessages = [
       ...(snapshot.preview.kind === "lastGood"
-        ? ["Module Preview is showing the last valid preview for the current target."]
+        ? [statusText("modulePreview.lastGood", "Module Preview is showing the last valid preview for the current target.")]
         : []),
-      ...snapshot.inputDiagnostics.map((diagnostic) => diagnostic.message),
-      ...root.diagnostics.map((diagnostic) => diagnostic.message)
+      ...snapshot.inputDiagnostics.map(statusInputDiagnostic),
+      ...root.diagnostics.map(statusDiagnostic)
     ];
     applyValidPreview(root, {
       moduleMaterialization: root.moduleMaterialization,
@@ -753,11 +784,11 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   ): Promise<void> => {
     const proof = captureBakeProof();
     if (!proof) {
-      setStatusMessages(["Module Preview Bake was rejected because its state is not exact-current."]);
+      setStatusMessages([statusText("modulePreview.bakeNotCurrent", "Module Preview Bake was rejected because its state is not exact-current.")]);
       return;
     }
     if (proof.resolvedTargets.length === 0) {
-      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      setStatusMessages([statusText("modulePreview.noWritableOwner", "Module Preview has no writable authored geometry selected for Bake.")]);
       return;
     }
 
@@ -781,16 +812,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
           rustTransport.transport
         );
       } catch {
-        setStatusMessages(["Module Preview Bake用のdisabled geometry評価に失敗しました。"]);
+        setStatusMessages([statusText("modulePreview.bakeDisabledEvaluationFailed", "Module Preview Bake could not evaluate disabled geometry.")]);
         return;
       }
       if (!bakeProofIsCurrent(proof)) {
-        setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+        setStatusMessages([statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")]);
         return;
       }
       const currentAuthority = currentPreviewAuthority();
       if (!currentAuthority) {
-        setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+        setStatusMessages([statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")]);
         return;
       }
       const currentTargets = resolveModulePreviewBakeTargets({
@@ -808,13 +839,13 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         disabledTargetIds.length !== currentDisabledTargetIds.length ||
         disabledTargetIds.some((id, index) => id !== currentDisabledTargetIds[index])
       ) {
-        setStatusMessages(["Module Preview Bake was rejected because its disabled targets became stale."]);
+        setStatusMessages([statusText("modulePreview.bakeDisabledTargetsStale", "Module Preview Bake was rejected because its disabled targets became stale.")]);
         return;
       }
     }
 
     if (!bakeProofIsCurrent(proof)) {
-      setStatusMessages(["Module Preview Bake was rejected because its state became stale."]);
+      setStatusMessages([statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")]);
       return;
     }
     const document = automationDocumentRef.current;
@@ -832,7 +863,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       includeDisabledGeometry: settings.includeDisabledGeometry
     });
     if (!plan) {
-      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      setStatusMessages([statusText("modulePreview.noWritableOwner", "Module Preview has no writable authored geometry selected for Bake.")]);
       return;
     }
     const operationResult: VscodeBakeOperationResult = {
@@ -849,14 +880,14 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         });
         return;
       }
-      setStatusMessages(["Module Preview has no writable authored geometry selected for Bake."]);
+      setStatusMessages([statusText("modulePreview.noWritableOwner", "Module Preview has no writable authored geometry selected for Bake.")]);
       return;
     }
     let expectedPatchedSource: string;
     try {
       expectedPatchedSource = applyLineSplices(document.getSource(), plan.splices);
     } catch (error) {
-      setStatusMessages([error instanceof Error ? error.message : String(error)]);
+      setStatusMessages([{ kind: "raw", message: error instanceof Error ? error.message : String(error) }]);
       return;
     }
     const operationId = nextModelPatchOperationIdRef.current++;
@@ -886,7 +917,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       api.postMessage(request);
     } catch (error) {
       clearPendingModelPatch();
-      setStatusMessages([error instanceof Error ? error.message : String(error)]);
+      setStatusMessages([{ kind: "raw", message: error instanceof Error ? error.message : String(error) }]);
     }
   }, [api, bakeProofIsCurrent, captureBakeProof, clearEphemeralPreview, clearPendingModelPatch, currentPreviewAuthority, rustTransport.transport]);
 
@@ -970,8 +1001,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersionRef.current = message.documentVersion;
         publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
-          ? ["Module Preview is waiting for the exact current target."]
-          : ["No valid Module Preview is available yet."]);
+          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
+          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         return;
       }
@@ -992,8 +1023,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         documentVersionRef.current = message.documentVersion;
         publishParameterUnavailable("source-stale");
         setStatusMessages(previewRef.current
-          ? ["Module Preview is waiting for the exact current target."]
-          : ["No valid Module Preview is available yet."]);
+          ? [statusText("modulePreview.waitingForTarget", "Module Preview is waiting for the exact current target.")]
+          : [statusText("modulePreview.noValid", "No valid Module Preview is available yet.")]);
         api.postMessage({ type: "webviewAuthoritativeDocumentReady", documentVersion: message.documentVersion });
         return;
       }
@@ -1011,7 +1042,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishParameterUnavailable("target-unavailable", null);
         const document = automationDocumentRef.current;
         setStatusMessages([
-          "Module Preview target is not exact-current and was not rebound.",
+          statusText("modulePreview.targetUnavailable", "Module Preview target is not exact-current and was not rebound."),
           ...(document ? diagnosticMessagesFor(document) : [])
         ]);
         return;
@@ -1038,9 +1069,9 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         if (message.status !== "applied") {
           setStatusMessages([
             message.status === "stale"
-              ? "Module Preview edit became stale and was rejected."
-              : "Module Preview edit was rejected.",
-            ...(message.reason ? [message.reason] : [])
+              ? statusText("modulePreview.editStale", "Module Preview edit became stale and was rejected.")
+              : statusText("modulePreview.editRejected", "Module Preview edit was rejected."),
+            ...(message.reason ? [{ kind: "raw" as const, message: message.reason }] : [])
           ]);
         }
         return;
@@ -1111,6 +1142,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     evaluationLimitIndex: undefined,
     compiledDocumentRevision: preview?.revision ?? 0,
     canvasTheme,
+    presentation: canvasPresentationAdapter,
     visibilityProfiles: preview?.root.compileResult.visibilityProfiles ?? [],
     activeVisibilityProfileId: preview?.root.compileResult.activeVisibilityProfileId ?? null,
     moduleSemanticContext: preview?.moduleSemanticContext ?? {},
@@ -1197,6 +1229,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             canvasRibbonRibbons={canvasRibbonRibbons}
             viewportSize={viewportSize}
             ribbonCommandContext={ribbonCommandContext}
+            presentation={canvasPresentationAdapter}
             onCommand={(item) => {
               const definition = vscodeCanvasRibbonCommandFor(item.commandId);
               if (!definition || !definition.isAvailable(ribbonCommandContext)) return;
@@ -1219,6 +1252,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     api,
     canvasRibbonRibbons,
     canvasTheme,
+    canvasPresentationAdapter,
     canvasViewport,
     captureDragProof,
     dispatchCommitGeometry,
@@ -1275,7 +1309,16 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             pointerEvents: "none"
           }}
         >
-          {statusMessages.map((message, index) => <div key={`${index}:${message}`}>{message}</div>)}
+          {statusMessages.map((message, index) => {
+            const rendered = message.kind === "text"
+              ? webviewPresentationTextFor(webviewPresentation, message.key, message.fallback)
+              : message.kind === "diagnostic"
+                ? webviewDiagnosticTextFor(webviewPresentation, message)
+                : message.kind === "inputDiagnostic"
+                  ? webviewInputDiagnosticTextFor(webviewPresentation, message)
+                  : message.message;
+            return <div key={`${index}:${rendered}`}>{rendered}</div>;
+          })}
         </div>
       ) : null}
       {!preview ? (
@@ -1289,7 +1332,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
             color: "var(--vscode-descriptionForeground)"
           }}
         >
-          No valid Module Preview
+          {webviewPresentationTextFor(webviewPresentation, "modulePreview.empty", "No valid Module Preview")}
         </div>
       ) : null}
     </main>

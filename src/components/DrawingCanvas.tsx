@@ -1421,7 +1421,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const intent = pendingPointerState.intent;
     const documentState = hostAdapter.getCurrentCanonicalDocument();
     if (documentState.docText !== documentState.sourceText) {
-      terminalPendingPointer("DSLの構文エラーを修復してからキャンバス操作を実行してください。");
+      terminalPendingPointer(hostAdapter.presentation?.text(
+        "canvas.pending.syntaxError",
+        "DSLの構文エラーを修復してからキャンバス操作を実行してください。"
+      ) ?? "DSLの構文エラーを修復してからキャンバス操作を実行してください。");
       return;
     }
     if (
@@ -1439,12 +1442,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       evaluationState?.evaluationRevision === documentState.compiledDocumentRevision &&
       evaluationState.status === "failed"
     ) {
-      terminalPendingPointer("評価に失敗したためキャンバス操作を続行できませんでした。");
+      terminalPendingPointer(hostAdapter.presentation?.text(
+        "canvas.pending.evaluationFailed",
+        "評価に失敗したためキャンバス操作を続行できませんでした。"
+      ) ?? "評価に失敗したためキャンバス操作を続行できませんでした。");
       return;
     }
     if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return;
     if (intent.staleTargetHint && !documentState.elements.some((element) => element.id === intent.staleTargetHint)) {
-      terminalPendingPointer("操作対象が更新中に削除されたためキャンバス操作を取り消しました。");
+      terminalPendingPointer(hostAdapter.presentation?.text(
+        "canvas.pending.targetDeleted",
+        "操作対象が更新中に削除されたためキャンバス操作を取り消しました。"
+      ) ?? "操作対象が更新中に削除されたためキャンバス操作を取り消しました。");
       return;
     }
     const resolved = applyPendingPointerTransition(resolvePendingCanvasPointer(pendingPointerStateRef.current));
@@ -1465,10 +1474,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const pointerId = pendingPointerState.intent.pointerId;
     const timeout = window.setTimeout(() => {
       if (pendingPointerStateRef.current.kind !== "waiting" || pendingPointerStateRef.current.intent.pointerId !== pointerId) return;
-      terminalPendingPointer("評価の待機がタイムアウトしたためキャンバス操作を取り消しました。");
+      terminalPendingPointer(hostAdapter.presentation?.text(
+        "canvas.pending.timeout",
+        "評価の待機がタイムアウトしたためキャンバス操作を取り消しました。"
+      ) ?? "評価の待機がタイムアウトしたためキャンバス操作を取り消しました。");
     }, Math.max(0, pendingPointerState.intent.deadlineAt - Date.now()));
     return () => window.clearTimeout(timeout);
-  }, [pendingPointerState, terminalPendingPointer]);
+  }, [hostAdapter.presentation, pendingPointerState, terminalPendingPointer]);
 
   useEffect(() => () => {
     const transition = cancelPendingCanvasPointer(pendingPointerStateRef.current);
@@ -1579,7 +1591,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
       hostAdapter.setCommandErrorMessage(
-        "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
+        hostAdapter.presentation?.text(
+          "canvas.pending.composition",
+          "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
+        ) ?? "日本語入力の確定中はキャンバス操作を開始できません。入力を確定してから再操作してください。"
       );
       return;
     }
@@ -1953,7 +1968,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
         onPointerLeave={handlePointerLeave}
         onAuxClick={(event) => event.preventDefault()}
       >
-        <canvas ref={canvasRef} aria-label="CAD drawing canvas" />
+        <canvas
+          ref={canvasRef}
+          aria-label={hostAdapter.presentation?.text("canvas.ariaLabel", "CAD drawing canvas") ?? "CAD drawing canvas"}
+        />
         <CanvasOverlay
           viewportSize={viewportSize}
           moduleInstanceSelectionFrames={moduleInstanceSelectionFrames}
@@ -1996,18 +2014,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
             feedback={pointDragFeedback}
             viewportSize={viewportSize}
             canvasTheme={canvasTheme}
+            presentation={hostAdapter.presentation?.axisLock}
           />
         ) : null}
         {hostAdapter.renderHostOverlay?.(viewportSize)}
         {renderFixedCanvasChrome ? (
-          <div className="canvas-display-controls" aria-label="キャンバス表示設定">
+          <div
+            className="canvas-display-controls"
+            aria-label={hostAdapter.presentation?.text("canvas.displaySettings", "キャンバス表示設定") ?? "キャンバス表示設定"}
+          >
             <button
               type="button"
               className={showCanvasPointNames ? "active-toggle" : ""}
               aria-pressed={showCanvasPointNames}
               onClick={() => hostAdapter.toggleCanvasPointNames?.()}
             >
-              点名
+              {hostAdapter.presentation?.text("canvas.display.pointNames", "点名") ?? "点名"}
             </button>
             <button
               type="button"
@@ -2015,7 +2037,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               aria-pressed={showCanvasGeometryNames}
               onClick={() => hostAdapter.toggleCanvasGeometryNames?.()}
             >
-              図形名
+              {hostAdapter.presentation?.text("canvas.display.geometryNames", "図形名") ?? "図形名"}
             </button>
             <button
               type="button"
@@ -2023,7 +2045,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               aria-pressed={showCanvasPoints}
               onClick={() => hostAdapter.toggleCanvasPoints()}
             >
-              点
+              {hostAdapter.presentation?.text("canvas.display.points", "点") ?? "点"}
             </button>
           </div>
         ) : null}
@@ -2039,14 +2061,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           onApplyLinePickCandidate={applyLinePickCandidate}
           onActivateOverlapCandidate={activateOverlapCandidate}
           onFocusCanvas={() => canvasFocusRef.current?.focus()}
+          presentation={hostAdapter.presentation}
         />
         {renderFixedCanvasChrome && evaluation.errors.length + evaluation.warnings.length > 0 ? (
           <div className="canvas-warning">
-            ⚠ {evaluation.errors.length + evaluation.warnings.length} 件のエラー/警告があります
+            {hostAdapter.presentation?.text(
+              "canvas.warning",
+              "⚠ {count} 件のエラー/警告があります",
+              { count: evaluation.errors.length + evaluation.warnings.length }
+            ) ?? `⚠ ${evaluation.errors.length + evaluation.warnings.length} 件のエラー/警告があります`}
           </div>
         ) : null}
         {renderFixedCanvasChrome ? (
-          <div className="canvas-scale-overlay">縮尺 {canvasViewport.zoom.toFixed(2)}px/mm</div>
+          <div className="canvas-scale-overlay">
+            {hostAdapter.presentation?.text("canvas.scale", "縮尺 {scale}px/mm", {
+              scale: canvasViewport.zoom.toFixed(2)
+            }) ?? `縮尺 ${canvasViewport.zoom.toFixed(2)}px/mm`}
+          </div>
         ) : null}
       </div>
     </section>

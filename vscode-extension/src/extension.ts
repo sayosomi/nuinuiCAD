@@ -106,6 +106,7 @@ import {
   vscodeWebviewSurfaceDataAttribute,
   type VscodeWebviewSurfaceKind
 } from "../../src/vscode/protocol";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import {
   VscodeWebviewSessionRegistry,
   type VscodeWebviewSessionBase
@@ -131,6 +132,10 @@ import {
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
 import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
+import {
+  diagnosticRelatedTextFor,
+  diagnosticMessageFor
+} from "./diagnosticLocalization";
 import {
   revealInCanvasNotificationFor,
   type RevealInCanvasPresentationOutcome
@@ -203,7 +208,7 @@ type LastBakeSurface =
   | { kind: "canvas"; session: DocumentSession }
   | { kind: "source"; document: vscode.TextDocument };
 
-const extensionDisplayLanguage = (): string => {
+export const extensionDisplayLanguage = (): string => {
   try {
     return vscode.env?.language ?? "en";
   } catch {
@@ -274,14 +279,15 @@ const toVscodeDiagnosticRange = (range: CompilerDiagnosticRange): vscode.Range =
 
 const toVscodeDiagnostic = (
   document: vscode.TextDocument,
-  diagnostic: CompilerDiagnostic
+  diagnostic: CompilerDiagnostic,
+  displayLanguage: string = extensionDisplayLanguage()
 ): vscode.Diagnostic => {
   const severity = diagnostic.severity === "error"
     ? vscode.DiagnosticSeverity.Error
     : vscode.DiagnosticSeverity.Warning;
   const result = new vscode.Diagnostic(
     toVscodeDiagnosticRange(diagnostic.range),
-    diagnostic.message,
+    diagnosticMessageFor(diagnostic, displayLanguage),
     severity
   );
   if (diagnostic.code !== undefined) result.code = diagnostic.code;
@@ -290,7 +296,7 @@ const toVscodeDiagnostic = (
     result.relatedInformation = diagnostic.relatedInformation.map((related) =>
       new vscode.DiagnosticRelatedInformation(
         new vscode.Location(document.uri, toVscodeDiagnosticRange(related.range)),
-        related.message
+        diagnosticRelatedTextFor(related, displayLanguage)
       )
     );
   }
@@ -328,11 +334,12 @@ const webviewHtml = (
   context: vscode.ExtensionContext,
   surfaceKind: VscodeWebviewSurfaceKind
 ): string => {
+  const presentation = webviewPresentationFor(extensionDisplayLanguage());
   const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.js"));
   const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, "dist", "webview.css"));
   const contentNonce = nonce();
   return `<!doctype html>
-<html lang="ja" ${vscodeWebviewSurfaceDataAttribute}="${surfaceKind}">
+<html lang="${presentation.locale}" ${vscodeWebviewSurfaceDataAttribute}="${surfaceKind}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -344,6 +351,13 @@ const webviewHtml = (
     <script nonce="${contentNonce}" src="${script}"></script>
   </body>
 </html>`;
+};
+
+const postWebviewPresentation = (panel: vscode.WebviewPanel): void => {
+  void panel.webview.postMessage({
+    type: "webviewPresentation",
+    presentation: webviewPresentationFor(extensionDisplayLanguage())
+  } satisfies ExtensionToVscodeMessage);
 };
 
 const rustBinaryPath = (context: vscode.ExtensionContext): string =>
@@ -768,7 +782,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     const targetKey = targetDocument?.uri.toString() ?? String(source.documentId);
     const result = new vscode.Diagnostic(
       normalizedRangeFor(source.normalizedSource, diagnostic.location.range),
-      diagnostic.message,
+      diagnosticMessageFor(diagnostic, extensionDisplayLanguage()),
       diagnostic.severity === "error" ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning
     );
     if (diagnostic.code !== undefined) result.code = diagnostic.code;
@@ -783,7 +797,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         const relatedUri = relatedDocument?.uri ?? vscode.Uri.parse(String(relatedSource.documentId));
         return [new vscode.DiagnosticRelatedInformation(
           new vscode.Location(relatedUri, normalizedRangeFor(relatedSource.normalizedSource, related.location.range)),
-          related.message
+          diagnosticRelatedTextFor(related, extensionDisplayLanguage())
         )];
       });
     }
@@ -1765,6 +1779,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.authoritativeDocumentVersion = null;
         session.pendingCanvasFocus = null;
         postCanvasThemeGeneration(panel, activeCanvasThemeGeneration);
+        postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });

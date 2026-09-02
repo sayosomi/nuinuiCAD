@@ -241,6 +241,10 @@ export const applyArgs = (
           column: (sourceSpan?.start ?? 0) + 1,
           code: "geometry-reference-type-mismatch",
           message: "参照先「" + target.name + "」は線・曲線ではありません。",
+          presentation: {
+            key: "diagnostic.geometry-reference-type-mismatch",
+            parameters: { target: target.name }
+          },
           ...(sourceSpan ? { logicalSpan: sourceSpan } : {})
         });
       }
@@ -267,6 +271,7 @@ export const applyArgs = (
         column: sourceSpan.start + issue.span.start + 1,
         code: issue.code,
         message: issue.message,
+        presentation: { key: `diagnostic.${issue.code}` },
         logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
       });
       return true;
@@ -282,6 +287,7 @@ export const applyArgs = (
       column: sourceSpan.start + issue.span.start + 1,
       code: issue.code,
       message: issue.message,
+      presentation: issue.presentation ?? { key: `diagnostic.${issue.code}` },
       logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
     });
     return checked.diagnostics.length > 0 || checked.type === null;
@@ -430,6 +436,7 @@ export const applyArgs = (
           column: pointsArg.valueSpan.start + issue.span.start + 1,
           code: issue.code,
           message: issue.message,
+          presentation: { key: `diagnostic.${issue.code}` },
           logicalSpan: {
             start: pointsArg.valueSpan.start + issue.span.start,
             end: pointsArg.valueSpan.start + issue.span.end

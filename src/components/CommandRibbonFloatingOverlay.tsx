@@ -24,6 +24,10 @@ export type CommandRibbonFloatingOverlayProps = {
   iconResolver: (iconName: string) => import("lucide-react").LucideIcon;
   viewportAwareTooltips?: boolean;
   contextMenuData?: string;
+  handlePresentation?: (ribbon: CommandRibbonPresentation) => {
+    ariaLabel: string;
+    title: string;
+  };
   onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
   onPositionChange?: (ribbonId: string, position: RibbonPosition) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
@@ -46,6 +50,7 @@ export const CommandRibbonFloatingOverlay = ({
   iconResolver,
   viewportAwareTooltips = false,
   contextMenuData,
+  handlePresentation,
   onCommand,
   onPositionChange,
   onPositionCommit,
@@ -221,6 +226,8 @@ export const CommandRibbonFloatingOverlay = ({
               iconResolver={iconResolver}
               viewportAwareTooltips={viewportAwareTooltips}
               tooltipBoundaryRef={viewportAwareTooltips ? overlayRef : undefined}
+              handleAriaLabel={handlePresentation?.(ribbon).ariaLabel}
+              handleTitle={handlePresentation?.(ribbon).title}
               onCommand={onCommand}
               dragging={draggingRibbonId === ribbon.id}
               onHandlePointerDown={startDrag}

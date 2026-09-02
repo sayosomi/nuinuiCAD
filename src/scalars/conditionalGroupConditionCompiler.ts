@@ -47,7 +47,14 @@ export type ConditionalGroupConditionCompilation = {
  * occurrence that failed to resolve has no separate resolved-index entry to
  * jump to (Task 45's own consumer rows already fall back to a whole-element
  * jump for this same reason - "no Task 43 span index of its own"). */
-const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnosticAt = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error",
@@ -55,6 +62,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     column: span.start + 1,
     code,
     message,
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -110,7 +118,8 @@ export const compileConditionalGroupConditions = ({
       if (!resolution || resolution.kind !== "resolved") {
         diagnostics.push(diagnosticAt(
           spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_UNRESOLVED_CODE,
-          unresolvedReferenceMessage(reference.name, resolution)
+          unresolvedReferenceMessage(reference.name, resolution),
+          { key: "diagnostic.conditional-group-condition-unresolved", parameters: { name: reference.name } }
         ));
         hasReferenceDiagnostic = true;
         return;
@@ -119,7 +128,8 @@ export const compileConditionalGroupConditions = ({
       if (entry?.status.kind === "invalid") {
         diagnostics.push(diagnosticAt(
           spans, statement, reference.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE,
-          `"${reference.name}" は無効な宣言のため参照できません。`
+          `"${reference.name}" は無効な宣言のため参照できません。`,
+          { key: "diagnostic.conditional-group-condition-invalid", parameters: { name: reference.name } }
         ));
         hasReferenceDiagnostic = true;
       }
@@ -134,7 +144,7 @@ export const compileConditionalGroupConditions = ({
     });
     if (prepared.issues.length > 0) {
       diagnostics.push(...prepared.issues.map((issue) =>
-        diagnosticAt(spans, statement, issue.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE, issue.message)
+        diagnosticAt(spans, statement, issue.span, CONDITIONAL_GROUP_CONDITION_INVALID_CODE, issue.message, issue.presentation)
       ));
       return;
     }
@@ -152,7 +162,7 @@ export const compileConditionalGroupConditions = ({
     );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
-        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message)
+        diagnosticAt(spans, statement, issue.span, "geometry-property-invalid", issue.message, issue.presentation)
       ));
       return;
     }
@@ -164,7 +174,7 @@ export const compileConditionalGroupConditions = ({
     });
     if (checked.diagnostics.length > 0) {
       diagnostics.push(...checked.diagnostics.map((diagnostic) =>
-        diagnosticAt(spans, statement, diagnostic.span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE, diagnostic.message)
+        diagnosticAt(spans, statement, diagnostic.span, CONDITIONAL_GROUP_CONDITION_TYPE_MISMATCH_CODE, diagnostic.message, diagnostic.presentation)
       ));
       return;
     }

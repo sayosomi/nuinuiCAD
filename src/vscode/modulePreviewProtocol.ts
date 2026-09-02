@@ -1,5 +1,6 @@
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { DslModuleParameterType } from "../dsl/dslTypes";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import type { DslNumericTypeOptions } from "../dsl/dslNumericTypeOptions";
 import type { CanonicalGeometrySourceReference } from "../model/moduleSemanticCandidateBoundary";
 import type { LineSplice } from "../document/textPatch";
@@ -26,6 +27,7 @@ export type VscodeModulePreviewParameterDiagnostic = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type VscodeModulePreviewParameter = {

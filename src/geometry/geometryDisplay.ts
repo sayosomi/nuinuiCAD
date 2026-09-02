@@ -15,6 +15,7 @@ import type {
   ComputedPoint
 } from "../types/geometry";
 import { bezierCurveEndpointPoints } from "./lineMeasurements";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 
 export type GeometryInfoRow = {
   label: string;
@@ -45,10 +46,11 @@ export const numericReferenceExpression = (
 
 export const numericReferenceValue = (
   geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
-  property: NumericMeasurementKey
+  property: NumericMeasurementKey,
+  presentation?: Pick<CanvasPresentation, "undefinedValue" | "numericReferenceLabels">
 ) => {
   const value = computedReferencePathValue(geometry, property);
-  if (value === undefined) return "未定義";
+  if (value === undefined) return presentation?.undefinedValue ?? "未定義";
   if (property === "sweepAngleDeg") return `${formatNumber(value)}°`;
   if (property.toLowerCase().includes("angle") || property.endsWith("Deg")) return formatAngleDeg(value);
   if (property === "length" || property === "radius" || property.endsWith("Length")) return formatMillimeters(value);
@@ -57,8 +59,9 @@ export const numericReferenceValue = (
 
 export const numericReferenceLabel = (
   geometry: ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline,
-  property: NumericMeasurementKey
-) => propertyLabels[property];
+  property: NumericMeasurementKey,
+  presentation?: Pick<CanvasPresentation, "numericReferenceLabels">
+) => presentation?.numericReferenceLabels?.[property] ?? propertyLabels[property];
 
 export const pointCoordinateRows = (point: ComputedPoint): GeometryInfoRow[] => [
   { label: "座標", value: formatCoordinate(point) }

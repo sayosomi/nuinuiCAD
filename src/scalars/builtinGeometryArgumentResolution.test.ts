@@ -136,7 +136,11 @@ describe("resolveBuiltinGeometryArguments", () => {
       expect.objectContaining({
         code: "builtin-geometry-type-mismatch",
         expectedGeometryType: expected,
-        actualGeometryType: actual
+        actualGeometryType: actual,
+        presentation: {
+          key: "diagnostic.builtin-geometry-type-mismatch",
+          parameters: { expected, actual }
+        }
       })
     ]);
     expect(result.references.every((reference) => reference.kind === "resolvedGeometry")).toBe(true);
@@ -154,6 +158,10 @@ describe("resolveBuiltinGeometryArguments", () => {
     ]);
 
     expect(undefinedResult.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid" });
+    expect(undefinedResult.issues[0]?.presentation).toEqual({
+      key: "diagnostic.builtin-geometry-argument-invalid-reference",
+      parameters: { reference: "@Missing" }
+    });
     expect(undefinedResult.issues[0]?.message).toContain("未定義");
     expect(forwardResult.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid" });
     expect(forwardResult.issues[0]?.message).toContain("後で宣言");

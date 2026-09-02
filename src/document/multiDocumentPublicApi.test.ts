@@ -116,9 +116,21 @@ describe("multi-document public API catalog", () => {
       resolveImportCatalog: () => libraryCatalog
     });
 
-    expect(catalog.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
-      "private-reexport-target",
-      "missing-reexport-target"
+    expect(catalog.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "private-reexport-target",
+        presentation: {
+          key: "diagnostic.private-reexport-target",
+          parameters: { importAlias: "common", exportedName: "Hidden" }
+        }
+      }),
+      expect.objectContaining({
+        code: "missing-reexport-target",
+        presentation: {
+          key: "diagnostic.missing-reexport-target",
+          parameters: { importAlias: "common", exportedName: "Missing" }
+        }
+      })
     ]);
     expect(catalog.valid).toBe(false);
   });
@@ -146,7 +158,11 @@ describe("multi-document public API catalog", () => {
 
     expect(catalog.publicEntriesByName.get("Pocket")?.identity).toEqual(localPocket.identity);
     expect(catalog.diagnostics).toEqual([
-      expect.objectContaining({ code: "duplicate-public-export", location })
+      expect.objectContaining({
+        code: "duplicate-public-export",
+        location,
+        presentation: { key: "diagnostic.duplicate-public-export", parameters: { name: "Pocket" } }
+      })
     ]);
     expect(catalog.valid).toBe(false);
   });

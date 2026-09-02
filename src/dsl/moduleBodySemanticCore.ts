@@ -197,7 +197,8 @@ export const analyzeModuleBody = ({
       addLocal(entry.exportedStatementIndex, {
         code: "module-duplicate-export",
         span,
-        message: `module export「${entry.name}」が重複しています。`
+        message: `module export「${entry.name}」が重複しています。`,
+        presentation: { key: "diagnostic.module-duplicate-export", parameters: { name: entry.name } }
       });
       return;
     }
@@ -251,7 +252,12 @@ export const analyzeModuleBody = ({
     if (!raw.includes("{")) return false;
     const scanned = scanTextTemplateLiteral(source, valueSpan);
     if (scanned.kind === "error") {
-      addLocal(statementIndex, { code: `module-${scanned.issueCode}`, span: scanned.span, message: scanned.message });
+      addLocal(statementIndex, {
+        code: `module-${scanned.issueCode}`,
+        span: scanned.span,
+        message: scanned.message,
+        presentation: { key: `diagnostic.module-${scanned.issueCode}` }
+      });
       return true;
     }
     for (const hole of scanned.segments.filter((segment): segment is Extract<typeof segment, { kind: "hole" }> => segment.kind === "hole")) {
@@ -357,7 +363,11 @@ export const analyzeModuleBody = ({
       addLocal(statementIndex, {
         code: "module-forbidden-body-statement",
         span: statement.keywordSpan,
-        message: `module body では「${statement.kind}」statementを使用できません。`
+        message: `module body では「${statement.kind}」statementを使用できません。`,
+        presentation: {
+          key: "diagnostic.module-forbidden-body-statement",
+          parameters: { statement: statement.kind }
+        }
       });
     }
     const bodySemantic: ModuleBodyStatementSemantic | null = statementId
@@ -395,7 +405,8 @@ export const analyzeModuleBody = ({
           addLocal(statementIndex, {
             code: "module-invalid-export",
             span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
-            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
+            presentation: { key: "diagnostic.module-invalid-export" }
           });
         } else if (statementId) {
           registerExport({
@@ -429,7 +440,11 @@ export const analyzeModuleBody = ({
         addLocal(statementIndex, target.diagnostic ?? {
           code: "module-invalid-set-target",
           span: statement.nameSpan ?? statement.keywordSpan,
-          message: `set target「${statement.name}」を解決できません。`
+          message: `set target「${statement.name}」を解決できません。`,
+          presentation: {
+            key: "diagnostic.module-invalid-set-target",
+            parameters: { target: statement.name }
+          }
         });
       }
     } else if (statement.kind === "group" || statement.kind === "element") {
@@ -439,7 +454,8 @@ export const analyzeModuleBody = ({
           addLocal(statementIndex, {
             code: "module-invalid-export",
             span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
-            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。"
+            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
+            presentation: { key: "diagnostic.module-invalid-export" }
           });
         } else if (statementId) {
           registerExport({

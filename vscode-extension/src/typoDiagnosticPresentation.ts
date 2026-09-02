@@ -9,8 +9,6 @@ import {
   toCompilerDiagnostic,
   type CompilerDiagnostic
 } from "./compilerDiagnostics";
-import { createTranslator, resolveLocale } from "./localization";
-import { typoSuggestionTranslationCatalog } from "./typoSuggestionLocalization";
 
 let displayLanguageFor: (() => string) | undefined;
 
@@ -47,8 +45,8 @@ export const projectCompilerDiagnosticsWithTypoSuggestions = (
 ): CompilerDiagnostic[] => {
   if (!semantic.compiled) return [...baseDiagnostics];
 
-  const translate = createTranslator(typoSuggestionTranslationCatalog, resolveLocale(displayLanguage));
-  const suffixByDiagnostic = new Map<string, string>();
+  void displayLanguage;
+  const suffixCandidateByDiagnostic = new Map<string, string>();
 
   for (const diagnostic of dslDiagnosticsFor(semantic)) {
     if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) continue;
@@ -56,16 +54,24 @@ export const projectCompilerDiagnosticsWithTypoSuggestions = (
     if (!result || result.candidates.length !== 1) continue;
     const projected = toCompilerDiagnostic(semantic.sourceText ?? source.normalizedSource, diagnostic);
     if (!projected || !isDslTypoSuggestionDiagnosticCode(projected.code)) continue;
-    suffixByDiagnostic.set(
+    suffixCandidateByDiagnostic.set(
       diagnosticKey(projected),
-      translate("typoSuggestion.diagnosticSuffix", { candidate: result.candidates[0]!.label })
+      result.candidates[0]!.label
     );
   }
 
   return baseDiagnostics.map((diagnostic) => {
     if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) return diagnostic;
-    const suffix = suffixByDiagnostic.get(diagnosticKey(diagnostic));
-    return suffix ? { ...diagnostic, message: `${diagnostic.message} ${suffix}` } : diagnostic;
+    const candidate = suffixCandidateByDiagnostic.get(diagnosticKey(diagnostic));
+    return candidate
+      ? {
+          ...diagnostic,
+          suffixPresentation: {
+            key: "typoSuggestion.diagnosticSuffix",
+            parameters: { candidate }
+          }
+        }
+      : diagnostic;
   });
 };
 

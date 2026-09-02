@@ -158,6 +158,7 @@ describe("nui1 drawing modifier source model", () => {
         severity: "warning",
         code: "unused-drawing-modifier",
         message: "Drawing Modifier「Unused」はどこからも使用されていません。",
+        presentation: { key: "diagnostic.unused-drawing-modifier", parameters: { name: "Unused" } },
         physicalSpan: expect.objectContaining({
           segments: [{ from: nameStart, to: nameStart + "Unused".length }]
         })

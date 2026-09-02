@@ -14,6 +14,7 @@ import {
 } from "./geometryArraySemanticAnalysis";
 import { geometryArrayTypeOfModuleParameter } from "./geometryArraySourceAnnotations";
 import {
+  geometryArrayTypeName,
   isGeometryArrayTypeAssignable,
   type GeometryArrayType
 } from "./geometryArrayTypes";
@@ -135,7 +136,13 @@ const physicalSpanFor = (statement: DslStatement, span: DslSpan) => {
   return segments.length ? { segments, sourceRevision: statement.sourceRevision } : null;
 };
 
-const runtimeDiagnostic = (statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const runtimeDiagnostic = (
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  parameters?: Readonly<Record<string, string | number | boolean>>
+): DslDiagnostic => {
   const physicalSpan = physicalSpanFor(statement, span);
   return {
     severity: "error",
@@ -143,6 +150,7 @@ const runtimeDiagnostic = (statement: DslStatement, span: DslSpan, code: string,
     column: span.start + 1,
     code,
     message,
+    presentation: { key: `diagnostic.${code}`, ...(parameters ? { parameters } : {}) },
     logicalSpan: span,
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
@@ -365,7 +373,8 @@ export const buildModuleGeometryArrayRuntime = ({
           statement,
           argument.valueSpan,
           "geometry-array-assignability-mismatch",
-          `geometry array argument「${parameter.name}」の型が一致しません。`
+          `geometry array argument「${parameter.name}」の型が一致しません。`,
+          { actual: resolved.actualType ? geometryArrayTypeName(resolved.actualType) : "unknown", expected: geometryArrayTypeName(parameter.type) }
         ));
       } else if (resolved.value) {
         value = { type: parameter.type, members: resolved.value.members };
@@ -378,7 +387,13 @@ export const buildModuleGeometryArrayRuntime = ({
         if (coordinate) {
           const actual: GeometryArrayType = { kind: "geometryArray", elementType: "point" };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」に point を渡せません。`));
+          addDiagnostic(runtimeDiagnostic(
+            statement,
+            span,
+            "geometry-array-member-type-mismatch",
+            `geometry array argument「${parameter.name}」に point を渡せません。`,
+            { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: "point" }
+          ));
           } else members.push({ interfaceType: "point", alias: null, anchor: coordinateAnchor(coordinate) ?? undefined });
           continue;
         }
@@ -394,7 +409,13 @@ export const buildModuleGeometryArrayRuntime = ({
         }
         const pointKey = sourceReference.property;
         if (pointKey && parameter.type.elementType !== "point") {
-          addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", "derived point reference は point[] の member としてのみ使用できます。"));
+          addDiagnostic(runtimeDiagnostic(
+            statement,
+            span,
+            "geometry-array-member-type-mismatch",
+            "derived point reference は point[] の member としてのみ使用できます。",
+            { member: member.text, expected: "point[]", actual: parameter.type.elementType }
+          ));
           continue;
         }
 
@@ -414,13 +435,25 @@ export const buildModuleGeometryArrayRuntime = ({
               const ownerDefinitionId = instanceSource.stableStatementIdByIndex.get(ownerIndex);
               if (interfaceType && ownerDefinitionId) {
                 if (pointKey && ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey))) {
-                  addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`));
+                  addDiagnostic(runtimeDiagnostic(
+                    statement,
+                    span,
+                    "geometry-array-member-type-mismatch",
+                    `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`,
+                    { member: member.text, expected: "point[]", actual: `derived point ${pointKey}` }
+                  ));
                   continue;
                 }
                 const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
                 const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
                 if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
-                  addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
+                  addDiagnostic(runtimeDiagnostic(
+                    statement,
+                    span,
+                    "geometry-array-member-type-mismatch",
+                    `geometry array argument「${parameter.name}」の member 型が一致しません。`,
+                    { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: geometryArrayTypeName(actual) }
+                  ));
                   continue;
                 }
                 const baseAlias = sourceAliasForTarget({
@@ -445,19 +478,37 @@ export const buildModuleGeometryArrayRuntime = ({
         if (lookup.kind === "resolved") {
           const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
           if (!interfaceType) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-not-geometry", `参照先「${member.text}」は geometry value ではありません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-not-geometry",
+              `参照先「${member.text}」は geometry value ではありません。`,
+              { member: member.text }
+            ));
             continue;
           }
           const sourceStatement = lookup.declaration.statement;
           if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;
           if (pointKey && !isDerivedPointKeyForGeometryCategory(sourceStatement.category, pointKey)) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `derived point「${pointKey}」を参照先「${sourceReference.pathText}」から解決できません。`,
+              { member: member.text, expected: "point[]", actual: `derived point ${pointKey}` }
+            ));
             continue;
           }
           const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
           const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `geometry array argument「${parameter.name}」の member 型が一致しません。`,
+              { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: geometryArrayTypeName(actual) }
+            ));
             continue;
           }
           const baseAlias = sourceAliasForTarget({
@@ -479,20 +530,38 @@ export const buildModuleGeometryArrayRuntime = ({
           const child = childContextFor(callerPath, lookup.declaration.statementId);
           const exportEntry = child ? exportsByPath.get(pathKey(child.path))?.get(path.segments[1]!) : undefined;
           if (!exportEntry) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "module-undefined-export", `module export「${path.segments[1]}」が見つかりません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "module-undefined-export",
+              `module export「${path.segments[1]}」が見つかりません。`,
+              { target: path.segments[1]! }
+            ));
             continue;
           }
           const exportedStatement = sourceForPath(callerPath).statements[exportEntry.exported.exportedStatementIndex];
           const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
           if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `module export「${path.segments[1]}」の derived point「${pointKey}」を解決できません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `module export「${path.segments[1]}」の derived point「${pointKey}」を解決できません。`,
+              { member: member.text, expected: "point[]", actual: `derived point ${pointKey}` }
+            ));
             continue;
           }
           const memberInterfaceType: ModuleGeometryInterfaceType = pointKey ? "point" : interfaceType;
           const actual: GeometryArrayType = { kind: "geometryArray", elementType: memberInterfaceType };
           if (!isGeometryArrayTypeAssignable(actual, parameter.type)) {
-            addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-type-mismatch", `geometry array argument「${parameter.name}」の member 型が一致しません。`));
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `geometry array argument「${parameter.name}」の member 型が一致しません。`,
+              { member: member.text, expected: geometryArrayTypeName(parameter.type), actual: geometryArrayTypeName(actual) }
+            ));
             continue;
           }
           const alias = aliasWithPointKey(exportEntry.alias, pointKey);
@@ -503,7 +572,13 @@ export const buildModuleGeometryArrayRuntime = ({
           });
           continue;
         }
-        addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-member-unresolved", `未解決の geometry array member です: ${member.text}`));
+        addDiagnostic(runtimeDiagnostic(
+          statement,
+          span,
+          "geometry-array-member-unresolved",
+          `未解決の geometry array member です: ${member.text}`,
+          { member: member.text }
+        ));
       }
       if (members.length === parsed.expression.members.length) value = { type: parameter.type, members };
     }
@@ -585,12 +660,24 @@ export const buildModuleGeometryArrayRuntime = ({
       const resolved = lowerArrayExport(currentPath, deferred.instanceStatementId, deferred.exportName, nextVisited);
       const statement = currentSource.statements[semantic.statementIndex];
       if (!resolved.actualType) {
-        if (statement) addDiagnostic(runtimeDiagnostic(statement, semantic.value.sourceSpan, "module-undefined-export", `module geometry array export「${deferred.exportName}」が見つかりません。`));
+        if (statement) addDiagnostic(runtimeDiagnostic(
+          statement,
+          semantic.value.sourceSpan,
+          "module-undefined-export",
+          `module geometry array export「${deferred.exportName}」が見つかりません。`,
+          { target: deferred.exportName }
+        ));
         sourceValueCache.set(key, null);
         return null;
       }
       if (!isGeometryArrayTypeAssignable(resolved.actualType, semantic.type)) {
-        if (statement) addDiagnostic(runtimeDiagnostic(statement, semantic.value.sourceSpan, "geometry-array-assignability-mismatch", `module geometry array export「${deferred.exportName}」の型が一致しません。`));
+        if (statement) addDiagnostic(runtimeDiagnostic(
+          statement,
+          semantic.value.sourceSpan,
+          "geometry-array-assignability-mismatch",
+          `module geometry array export「${deferred.exportName}」の型が一致しません。`,
+          { actual: geometryArrayTypeName(resolved.actualType), expected: geometryArrayTypeName(semantic.type) }
+        ));
         sourceValueCache.set(key, null);
         return null;
       }

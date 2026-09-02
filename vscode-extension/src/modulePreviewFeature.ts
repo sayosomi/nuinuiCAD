@@ -39,6 +39,7 @@ import {
   type OutputPreviewHistoryDirection
 } from "./outputPreviewHistory";
 import { applySourceLineSplices } from "./textDocumentLineSplices";
+import { webviewPresentationFor } from "./webviewPresentationLocalization";
 
 export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
@@ -1371,6 +1372,10 @@ export const registerModulePreviewFeature = ({
       if (message.type === "webviewReady") {
         session.webviewReady = true;
         postSessionIdentity(session);
+        void panel.webview.postMessage({
+          type: "webviewPresentation",
+          presentation: webviewPresentationFor(displayLanguageFor())
+        } satisfies ExtensionToVscodeMessage);
         postAuthoritativeDocument(session);
         void panel.webview.postMessage({
           type: "canvasRibbonConfiguration",
@@ -1525,6 +1530,10 @@ export const registerModulePreviewFeature = ({
       }
       const messageDisposable = webview.onDidReceiveMessage((message: unknown) => {
         if (isModulePreviewParameterViewReady(message)) {
+          void webview.postMessage({
+            type: "webviewPresentation",
+            presentation: webviewPresentationFor(displayLanguageFor())
+          } satisfies ExtensionToVscodeMessage);
           if (boundParameterSession) {
             const retained = boundParameterSession.retainedParameterMessage;
             if (retained && isCurrentParameterMessage(boundParameterSession, retained)) {

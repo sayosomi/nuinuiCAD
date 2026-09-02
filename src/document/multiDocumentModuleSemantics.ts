@@ -26,6 +26,7 @@ import {
   type DocumentQualifiedSourceLocation
 } from "./multiDocumentPrimitives";
 import type { MultiDocumentPublicApiEntry } from "./multiDocumentPublicApi";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   buildModuleDocumentationMetadata,
@@ -81,6 +82,7 @@ export const moduleDeclarationContributor: MultiDocumentDeclarationContributor<M
 export type MultiDocumentModuleSemanticDiagnostic = {
   code: "module-recursion" | "module-semantic-invalid";
   message: string;
+  presentation?: DslDiagnosticPresentation;
   location: DocumentQualifiedSourceLocation;
   relatedLocations?: readonly DocumentQualifiedSourceLocation[];
 };
@@ -241,6 +243,7 @@ export const analyzeMultiDocumentModuleSemantics = (
     diagnostics.push({
       code: "module-recursion",
       message: `module recursion は許可されていません:「${instance.name}」。`,
+      presentation: { key: "diagnostic.module-recursion", parameters: { name: instance.name } },
       location,
       ...(relatedLocations.length > 0 ? { relatedLocations } : {})
     });
@@ -257,7 +260,12 @@ export const analyzeMultiDocumentModuleSemantics = (
         ? sourceLocationForStatement(node, node.artifact.parsed.statements.indexOf(statement))
         : null;
       return location
-        ? [{ code: "module-semantic-invalid", message: diagnostic.message, location }]
+        ? [{
+            code: "module-semantic-invalid",
+            message: diagnostic.message,
+            presentation: diagnostic.presentation ?? { key: "diagnostic.module-semantic-invalid" },
+            location
+          }]
         : [];
     });
   });
