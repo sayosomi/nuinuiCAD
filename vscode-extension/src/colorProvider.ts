@@ -55,55 +55,79 @@ const exactDocumentColorsFor = (
 export const createNuiColorProvider = (
   sessionFor: NuiColorSessionFor,
   canvasThemeFor: NuiCanvasThemeFor = () => null
-): vscode.DocumentColorProvider => ({
-  provideDocumentColors: (document) => {
-    const exact = exactDocumentColorsFor(document, sessionFor);
-    if (!exact) return [];
-    const fixedSemantic = exact.session.fixedColorSemanticSnapshot(exact.source);
-    const fixedColors = queryDslFixedColors({ source: exact.source, semantic: fixedSemantic }).map(({ color, range }) => new vscode.ColorInformation(
-      vscodeRangeForNormalized(document, exact.rawSource, range),
-      new vscode.Color(color.red, color.green, color.blue, color.alpha)
-    ));
-    const canvasTheme = canvasThemeFor();
-    if (!canvasTheme) return fixedColors;
-    const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
-    const themeRoleColors = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).flatMap(({ role, range }) => {
-      const color = parseCssColor(canvasTheme[role]);
-      return color
-        ? [new vscode.ColorInformation(
-            vscodeRangeForNormalized(document, exact.rawSource, range),
-            new vscode.Color(color.red / 255, color.green / 255, color.blue / 255, color.alpha)
-          )]
-        : [];
-    });
-    return [...fixedColors, ...themeRoleColors];
-  },
-  provideColorPresentations: (color, context) => {
-    const document = context.document;
-    const documentUri = document.uri.toString();
-    const documentVersion = document.version;
-    const exact = exactDocumentColorsFor(document, sessionFor);
-    if (!exact) return [];
+): vscode.DocumentColorProvider => {
+  return {
+    provideDocumentColors: (document) => {
+      const exact = exactDocumentColorsFor(document, sessionFor);
+      if (!exact) return [];
+      const fixedSemantic = exact.session.fixedColorSemanticSnapshot(exact.source);
+      const fixedColors = queryDslFixedColors({ source: exact.source, semantic: fixedSemantic }).map(({ color, range }) => new vscode.ColorInformation(
+        vscodeRangeForNormalized(document, exact.rawSource, range),
+        new vscode.Color(color.red, color.green, color.blue, color.alpha)
+      ));
+      const canvasTheme = canvasThemeFor();
+      if (!canvasTheme) return fixedColors;
+      const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
+      const themeRoleColors = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).flatMap(({ role, range }) => {
+        const color = parseCssColor(canvasTheme[role]);
+        return color
+          ? [new vscode.ColorInformation(
+              vscodeRangeForNormalized(document, exact.rawSource, range),
+              new vscode.Color(color.red / 255, color.green / 255, color.blue / 255, color.alpha)
+            )]
+          : [];
+      });
+      return [...fixedColors, ...themeRoleColors];
+    },
+    provideColorPresentations: (color, context) => {
+      const document = context.document;
+      const documentUri = document.uri.toString();
+      const documentVersion = document.version;
+      const exact = exactDocumentColorsFor(document, sessionFor);
+      if (!exact) return [];
 
-    const normalizedRange = {
-      from: normalizedOffsetFromRaw(exact.rawSource, document.offsetAt(context.range.start)),
-      to: normalizedOffsetFromRaw(exact.rawSource, document.offsetAt(context.range.end))
-    };
-    const semantic = exact.session.fixedColorSemanticSnapshot(exact.source);
-    const fixedColor = queryDslFixedColors({ source: exact.source, semantic }).find(({ range, hex }) =>
-      range.from === normalizedRange.from &&
-      range.to === normalizedRange.to &&
-      exact.source.normalizedSource.slice(range.from, range.to) === hex
-    );
-    if (
-      !fixedColor ||
-      document.uri.toString() !== documentUri ||
-      document.version !== documentVersion ||
-      document.getText() !== exact.rawSource
-    ) return [];
+      const normalizedRange = {
+        from: normalizedOffsetFromRaw(exact.rawSource, document.offsetAt(context.range.start)),
+        to: normalizedOffsetFromRaw(exact.rawSource, document.offsetAt(context.range.end))
+      };
+      const currentDocument = (): boolean =>
+        document.uri.toString() === documentUri &&
+        document.version === documentVersion &&
+        document.getText() === exact.rawSource;
 
-    const presentation = new vscode.ColorPresentation(fixedColorTextFor(color));
-    presentation.textEdit = vscode.TextEdit.replace(context.range, presentation.label);
-    return [presentation];
-  }
-});
+      const semantic = exact.session.fixedColorSemanticSnapshot(exact.source);
+      const fixedColor = queryDslFixedColors({ source: exact.source, semantic }).find(({ range, hex }) =>
+        range.from === normalizedRange.from &&
+        range.to === normalizedRange.to &&
+        exact.source.normalizedSource.slice(range.from, range.to) === hex
+      );
+      if (fixedColor) {
+        if (!currentDocument()) return [];
+        const presentation = new vscode.ColorPresentation(fixedColorTextFor(color));
+        presentation.textEdit = vscode.TextEdit.replace(context.range, presentation.label);
+        return [presentation];
+      }
+
+      const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
+      const themeRole = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).find(({ range }) =>
+        range.from === normalizedRange.from && range.to === normalizedRange.to
+      );
+      if (!themeRole || !currentDocument()) return [];
+
+      const currentThemeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
+      const currentThemeRole = queryDslThemeRoleColors({
+        source: exact.source,
+        semantic: currentThemeSemantic
+      }).find(({ role, range }) =>
+        role === themeRole.role &&
+        range.from === normalizedRange.from &&
+        range.to === normalizedRange.to
+      );
+      if (!currentThemeRole || !currentDocument()) return [];
+
+      const presentation = new vscode.ColorPresentation(fixedColorTextFor(color));
+      presentation.textEdit = vscode.TextEdit.replace(context.range, presentation.label);
+      return [presentation];
+    }
+  };
+};

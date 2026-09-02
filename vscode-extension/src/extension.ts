@@ -1132,7 +1132,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
     colorProviderRegistration?.dispose();
     colorProviderRegistration = vscode.languages.registerColorProvider(
       nuiColorSelector,
-      createNuiColorProvider(languageAnalysisSessionFor, canvasThemeWarningFeature.currentCanvasTheme)
+      createNuiColorProvider(
+        languageAnalysisSessionFor,
+        canvasThemeWarningFeature.currentCanvasTheme
+      )
     );
   };
   refreshNativeColorProvider = refreshColorProvider;
