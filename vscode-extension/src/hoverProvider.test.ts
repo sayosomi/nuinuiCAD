@@ -241,7 +241,7 @@ describe("VS Code native nui Hover provider", () => {
     ) as vscode.Hover | undefined;
 
     expect((hover?.contents as vscode.MarkdownString).value).toBe(
-      "Theme role: accent\n\nFollows the current Canvas theme. This is a semantic color preview, not a fixed color. Color picker changes aren't applied; use #RRGGBB for a fixed color."
+      "Theme role: accent\n\nFollows the current Canvas theme. Choosing a color in the color picker converts this role to a fixed #RRGGBB color."
     );
     expect(hover?.range).toMatchObject({
       start: { line: 2, character: "  color: ".length },

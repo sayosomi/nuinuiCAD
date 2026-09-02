@@ -214,6 +214,13 @@ vi.mock("vscode", () => {
 
     constructor(public readonly label: string) {}
   }
+  class TextEdit {
+    constructor(public readonly range: unknown, public readonly newText: string) {}
+
+    static replace(range: unknown, newText: string) {
+      return new TextEdit(range, newText);
+    }
+  }
   class SnippetString {
     constructor(public readonly value: string) {}
   }
@@ -340,6 +347,7 @@ vi.mock("vscode", () => {
     DiagnosticRelatedInformation,
     CompletionItem,
     ColorPresentation,
+    TextEdit,
     SnippetString,
     FoldingRange
   };
@@ -4516,7 +4524,7 @@ describe("VS Code native fixed-color lifecycle", () => {
     expect(mocks.colorRegistrations[3]!.disposable.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it("wires rejected semantic color edits to the exact native error notification", async () => {
+  it("converts semantic color edits without wiring an error notification", async () => {
     const source = ["nui 1", "modifier Guide {", "  color: accent", "}"].join("\n");
     const document = documentFor("/tmp/colors.nui", "file:///tmp/colors.nui", source);
     const editor = editorFor(document);
@@ -4539,12 +4547,18 @@ describe("VS Code native fixed-color lifecycle", () => {
       end: document.positionAt(start + "accent".length)
     };
 
-    provider.provideColorPresentations({ red: 1, green: 0, blue: 0, alpha: 1 }, { document, range });
-    provider.provideColorPresentations({ red: 0, green: 1, blue: 0, alpha: 1 }, { document, range });
+    const first = provider.provideColorPresentations({ red: 1, green: 0, blue: 0, alpha: 1 }, { document, range });
+    const second = provider.provideColorPresentations({ red: 0, green: 1, blue: 0, alpha: 1 }, { document, range });
 
-    const message = "Theme role \"accent\" follows the current Canvas theme and can't be changed with the color picker. Use a fixed #RRGGBB color to choose a custom color.";
-    expect(mocks.showErrorMessage).toHaveBeenCalledTimes(1);
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(message);
+    expect(first).toEqual([expect.objectContaining({
+      label: "#ff0000",
+      textEdit: expect.objectContaining({ range, newText: "#ff0000" })
+    })]);
+    expect(second).toEqual([expect.objectContaining({
+      label: "#00ff00",
+      textEdit: expect.objectContaining({ range, newText: "#00ff00" })
+    })]);
+    expect(mocks.showErrorMessage).not.toHaveBeenCalled();
   });
 });
 

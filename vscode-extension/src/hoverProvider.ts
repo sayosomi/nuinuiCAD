@@ -177,7 +177,7 @@ export const createNuiHoverProvider = (
     if (themeRole) {
       return new vscode.Hover(
         new vscode.MarkdownString(
-          `Theme role: ${themeRole.role}\n\nFollows the current Canvas theme. This is a semantic color preview, not a fixed color. Color picker changes aren't applied; use #RRGGBB for a fixed color.`
+          `Theme role: ${themeRole.role}\n\nFollows the current Canvas theme. Choosing a color in the color picker converts this role to a fixed #RRGGBB color.`
         ),
         vscodeRangeForNormalized(document, rawSource, themeRole.range)
       );

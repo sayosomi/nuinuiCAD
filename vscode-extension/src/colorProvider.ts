@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import { queryDslFixedColors } from "../../src/dsl/dslFixedColorQuery";
 import { queryDslThemeRoleColors } from "../../src/dsl/dslThemeRoleColorQuery";
 import type { CanvasTheme } from "../../src/components/canvasTheme";
-import type { DrawingModifierThemeRole } from "../../src/types/geometry";
 import { parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
@@ -19,7 +18,6 @@ export const nuiColorSelector: vscode.DocumentSelector = {
 
 export type NuiColorSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
 export type NuiCanvasThemeFor = () => CanvasTheme | null;
-export type NuiThemeRoleColorEditAttempt = (role: DrawingModifierThemeRole) => void;
 
 type ExactDocumentColors = {
   rawSource: string;
@@ -33,17 +31,6 @@ const hexComponent = (value: number) => Math.round(Math.min(1, Math.max(0, value
 
 const fixedColorTextFor = (color: vscode.Color) =>
   `#${hexComponent(color.red)}${hexComponent(color.green)}${hexComponent(color.blue)}`;
-
-const sameColor = (
-  color: vscode.Color,
-  effective: { red: number; green: number; blue: number; alpha: number }
-): boolean => {
-  const epsilon = 0.000001;
-  return Math.abs(color.red - effective.red / 255) <= epsilon &&
-    Math.abs(color.green - effective.green / 255) <= epsilon &&
-    Math.abs(color.blue - effective.blue / 255) <= epsilon &&
-    Math.abs(color.alpha - effective.alpha) <= epsilon;
-};
 
 const exactDocumentColorsFor = (
   document: vscode.TextDocument,
@@ -67,11 +54,8 @@ const exactDocumentColorsFor = (
 
 export const createNuiColorProvider = (
   sessionFor: NuiColorSessionFor,
-  canvasThemeFor: NuiCanvasThemeFor = () => null,
-  onThemeRoleColorEditAttempt?: NuiThemeRoleColorEditAttempt
+  canvasThemeFor: NuiCanvasThemeFor = () => null
 ): vscode.DocumentColorProvider => {
-  const rejectedThemeRoleEdits = new Set<string>();
-
   return {
     provideDocumentColors: (document) => {
       const exact = exactDocumentColorsFor(document, sessionFor);
@@ -130,10 +114,6 @@ export const createNuiColorProvider = (
       );
       if (!themeRole || !currentDocument()) return [];
 
-      const canvasTheme = canvasThemeFor();
-      const effectiveColor = canvasTheme ? parseCssColor(canvasTheme[themeRole.role]) : null;
-      if (!effectiveColor) return [];
-
       const currentThemeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
       const currentThemeRole = queryDslThemeRoleColors({
         source: exact.source,
@@ -145,17 +125,8 @@ export const createNuiColorProvider = (
       );
       if (!currentThemeRole || !currentDocument()) return [];
 
-      const presentation = new vscode.ColorPresentation(currentThemeRole.role);
-      const rejectionKey = `${documentUri}:${documentVersion}:${normalizedRange.from}:${normalizedRange.to}:${currentThemeRole.role}`;
-      if (sameColor(color, effectiveColor)) {
-        rejectedThemeRoleEdits.delete(rejectionKey);
-        return [presentation];
-      }
-
-      if (!rejectedThemeRoleEdits.has(rejectionKey)) {
-        rejectedThemeRoleEdits.add(rejectionKey);
-        onThemeRoleColorEditAttempt?.(currentThemeRole.role);
-      }
+      const presentation = new vscode.ColorPresentation(fixedColorTextFor(color));
+      presentation.textEdit = vscode.TextEdit.replace(context.range, presentation.label);
       return [presentation];
     }
   };
