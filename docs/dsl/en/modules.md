@@ -52,10 +52,11 @@ module Helper() {
 }
 ```
 
-An ordinary top-level `module` is private to its defining document. Nested
-Module definitions are never file declarations, and `export module` inside a
-Module body is rejected. Import a library with an alias and call a public
-Module by its qualified name:
+The generic [file-import and cross-file name rules](syntax.md#file-imports-and-cross-file-names)
+apply to Module libraries. An ordinary top-level `module` is private to its
+defining document. Nested Module definitions are never file declarations, and
+`export module` inside a Module body is rejected. Import a library with an alias
+and call a public Module by its qualified name:
 
 <!-- dsl-example: syntax-fragment -->
 ```nui
@@ -64,12 +65,13 @@ import "./library.nui" as lib
 instance front = lib::Panel(width: 60)
 ```
 
-Imports and Module definitions are resolved in source order. Private, missing,
-wrong-family, invalid, stale, or cyclic dependency targets fail closed. A
-file-level `export @lib::Panel` re-exports the original public Module identity;
-it does not create a second Module declaration. Imported Module arguments are
-checked in the caller's lexical context, while defaults, body names, private
-helpers, exports, and nested calls remain owned by the defining document.
+For a Module library, `export module` is the explicit public API. A file-level
+`export @lib::Panel` follows the generic re-export rule and preserves the
+original public Module identity; it does not create a second Module declaration.
+Private, missing, wrong-family, invalid, stale, or cyclic Module dependency
+targets fail closed. Imported Module arguments are checked in the caller's
+lexical context, while defaults, body names, private helpers, exports, and
+nested calls remain owned by the defining document.
 
 For an optional parameter, `hasValue(@parameter)` returns whether the caller
 supplied a value. The optional value itself may be read only in a branch whose

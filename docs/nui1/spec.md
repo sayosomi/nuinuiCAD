@@ -8,11 +8,11 @@ document is the normative language contract and source of truth for the
 completed nui1 migration.
 
 The migration is a destructive replacement. nui1 does not accept ambiguous nui3
-compatibility syntax, and the project has no nui3 compatibility layer,
+compatibility syntax, and the project has no nui3 compatibility parser,
 converter, importer, or migration wizard. `docs/dsl.md` documents the
 implemented nui1 language.
 
-The persisted document remains one `.nui` source-text file. Source text is the
+Each persisted document remains one `.nui` source-text file. Source text is the
 durable source of truth, and source edits preserve statement-level identity and
 user layout.
 
@@ -42,6 +42,51 @@ nui 1
 The parser and compiler must not design an ambiguous compatibility grammar that
 accepts both nui3 and nui1 spellings. The final supported document format is
 nui1, and it is the current production format.
+
+## Multi-document imports
+
+Each `.nui` source file is an independent ordinary `nui 1` document. Documents
+are not concatenated. A file may import another `.nui` document with a
+top-level import declaration:
+
+```text
+import "./path/file.nui" as alias
+```
+
+Imports require an alias, are processed in source order, and are not hoisted. An
+import path is an importer-relative `./...` or `../...` filesystem path that
+must end in `.nui`. nui1 does not provide package search, URL imports,
+absolute-path imports, or extension inference.
+
+An import alias participates in the ordinary lexical namespace of the importing
+document. The alias is traversed with `::` and the `@` reference marker:
+
+```text
+@alias::Name
+```
+
+Only the imported document's explicit public API is available through its alias.
+Nested imports are supported, but names from a nested dependency are not
+transitively visible; each importing document must import a dependency it uses.
+A generic file-level re-export uses:
+
+```text
+export @alias::Name
+```
+
+This re-exports the original declaration identity and does not create a second
+declaration. nui1 has no rename-style re-export form and no export-all form.
+Semantic and source identity across files is document-qualified, so declarations
+with the same name in different documents remain distinct.
+
+Imported dependency semantics use saved disk contents as their authority. A
+dirty open dependency buffer does not change the importing document. Missing,
+unreadable, invalid, stale, or cyclic dependencies fail closed; the importer
+does not use last-good imported semantics.
+
+The Rust evaluator does not parse, load, or resolve `.nui` imports. The
+TypeScript source-semantic multi-document layer owns this import foundation and
+supplies the resolved document-qualified semantics to its consumers.
 
 ## Module documentation comments
 
@@ -1192,7 +1237,7 @@ The following are not part of the initial language:
 - classes
 - an object model
 - inheritance
-- an import/package system
+- package search, URL imports, absolute-path imports, and extension inference
 - dependency auto-sorting
 - forward references
 - module closure or implicit outer capture
