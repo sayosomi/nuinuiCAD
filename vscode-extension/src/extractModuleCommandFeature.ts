@@ -279,8 +279,12 @@ const ordinaryTargetFor = (
     : null;
 };
 
-/** Re-proves observation-owned Canvas sources against the current semantic/materialization state. */
-export const collectExtractModuleCanvasTargets = ({
+type ExtractModuleCanvasTargetProjection = {
+  targets: readonly StatementIdentity[];
+  executionRejection: string | null;
+};
+
+const extractModuleCanvasTargetProjectionFor = ({
   snapshot,
   source,
   compiled
@@ -288,7 +292,7 @@ export const collectExtractModuleCanvasTargets = ({
   snapshot: VscodeCanvasObservationSnapshot | null | undefined;
   source: SourceSnapshot;
   compiled: CompiledDslDocument;
-}): readonly StatementIdentity[] => {
+}): ExtractModuleCanvasTargetProjection => {
   if (
     !snapshot ||
     snapshot.selectionSubject.kind !== "elements" ||
@@ -301,7 +305,7 @@ export const collectExtractModuleCanvasTargets = ({
     compiled.spans.sourceMap.source !== source.normalizedSource ||
     compiled.spans.sourceMap.sourceRevision !== source.sourceRevision ||
     compiled.statementMap?.sourceRevision !== source.sourceRevision
-  ) return [];
+  ) return { targets: [], executionRejection: null };
 
   const sourcesByRuntimeElementId = new Map<string, VscodeCanvasObservationElementSource[]>();
   for (const candidate of snapshot.selectedElementSources) {
@@ -311,25 +315,46 @@ export const collectExtractModuleCanvasTargets = ({
   }
 
   const targets = new Map<StatementIdentity, number>();
+  let executionRejection: string | null = null;
   for (const runtimeElementId of snapshot.selectedElementIds) {
     const candidates = sourcesByRuntimeElementId.get(runtimeElementId);
-    if (!candidates || candidates.length === 0) return [];
+    if (!candidates || candidates.length === 0) return { targets: [], executionRejection: null };
     const distinctCandidates = new Map(candidates.map((candidate) => [JSON.stringify(candidate), candidate] as const));
-    if (distinctCandidates.size !== 1) return [];
+    if (distinctCandidates.size !== 1) return { targets: [], executionRejection: null };
     const candidate = distinctCandidates.values().next().value as VscodeCanvasObservationElementSource | undefined;
-    if (!candidate) return [];
-    if ("runtimeKind" in candidate && candidate.runtimeKind === "moduleBody") continue;
+    if (!candidate) return { targets: [], executionRejection: null };
+    if ("runtimeKind" in candidate && candidate.runtimeKind === "moduleBody") {
+      executionRejection ??= "Canvas の選択に materialized moduleBody descendant が含まれています。";
+      continue;
+    }
     const target = "runtimeKind" in candidate
       ? moduleInstanceTargetFor(candidate, compiled, source)
       : ordinaryTargetFor(candidate, compiled, source);
-    if (!target) return [];
+    if (!target) return { targets: [], executionRejection: null };
     targets.set(target.statementId, target.statementIndex);
   }
 
-  return [...targets.entries()]
-    .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
-    .map(([statementId]) => statementId);
+  return {
+    targets: [...targets.entries()]
+      .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
+      .map(([statementId]) => statementId),
+    executionRejection
+  };
 };
+
+/** Re-proves observation-owned Canvas sources against the current semantic/materialization state. */
+export const collectExtractModuleCanvasTargets = ({
+  snapshot,
+  source,
+  compiled
+}: {
+  snapshot: VscodeCanvasObservationSnapshot | null | undefined;
+  source: SourceSnapshot;
+  compiled: CompiledDslDocument;
+}): readonly StatementIdentity[] => extractModuleCanvasTargetProjectionFor({ snapshot, source, compiled }).targets;
+
+const extractModuleCanvasExecutionRejectionMessage = (reason: string): string =>
+  `nuinuiCAD: ${reason} Extract Module は authored source owner または concrete Module instance のみ実行できます。対象を選択解除してから再実行してください。`;
 
 const canvasObservationFor = (
   endpoint: ExtractModuleCanvasEndpoint
@@ -488,9 +513,15 @@ export const registerVscodeExtractModuleCommandFeature = ({
       canvasEndpoint = activeCanvasEndpoint();
       const snapshot = canvasEndpoint ? canvasObservationFor(canvasEndpoint) : null;
       const canvasExact = canvasEndpoint ? exactCanvasStateFor(canvasEndpoint) : null;
-      const canvasTargets = canvasEndpoint && snapshot && canvasExact
-        ? collectExtractModuleCanvasTargets({ snapshot, source: canvasExact.source, compiled: canvasExact.compiled })
-        : [];
+      const canvasProjection = canvasEndpoint && snapshot && canvasExact
+        ? extractModuleCanvasTargetProjectionFor({ snapshot, source: canvasExact.source, compiled: canvasExact.compiled })
+        : null;
+      const canvasTargets = canvasProjection?.targets ?? [];
+      if (canvasProjection?.executionRejection) {
+        void vscode.window.showErrorMessage(extractModuleCanvasExecutionRejectionMessage(canvasProjection.executionRejection));
+        refreshContext();
+        return;
+      }
       if (!canvasEndpoint || !snapshot || !canvasExact || canvasTargets.length === 0) {
         void vscode.window.showErrorMessage("nuinuiCAD: No authored Extract target is selected on the current Canvas.");
         refreshContext();
@@ -563,13 +594,19 @@ export const registerVscodeExtractModuleCommandFeature = ({
     const currentCanvasExact = currentEndpoint && currentCanvasSnapshot
       ? exactSourceStateFor(currentEndpoint.document, languageAnalysisSessionFor)
       : null;
-    const currentCanvasTargets = currentEndpoint && currentCanvasSnapshot && currentCanvasExact
-      ? collectExtractModuleCanvasTargets({
+    const currentCanvasProjection = currentEndpoint && currentCanvasSnapshot && currentCanvasExact
+      ? extractModuleCanvasTargetProjectionFor({
           snapshot: currentCanvasSnapshot,
           source: currentCanvasExact.source,
           compiled: currentCanvasExact.compiled
         })
-      : [];
+      : null;
+    if (currentCanvasProjection?.executionRejection) {
+      void vscode.window.showErrorMessage(extractModuleCanvasExecutionRejectionMessage(currentCanvasProjection.executionRejection));
+      refreshContext();
+      return;
+    }
+    const currentCanvasTargets = currentCanvasProjection?.targets ?? [];
     const stillCurrent = currentExact.rawSource === capturedRawSource &&
       capturedDocument.version === capturedVersion &&
       (origin === "source"

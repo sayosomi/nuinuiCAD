@@ -157,6 +157,7 @@ const compiledFor = (text: string) => {
 
 const commandFeatureFor = (input: {
   editor?: ReturnType<typeof editorFor>;
+  canvasEditor?: ReturnType<typeof editorFor>;
   session: ReturnType<typeof createLanguageAnalysisSession>;
   endpoint?: ExtractModuleCanvasEndpoint | null;
   navigate?: (endpoint: ExtractModuleCanvasEndpoint, sourceOffset: number) => boolean;
@@ -174,7 +175,7 @@ const commandFeatureFor = (input: {
   return registerVscodeExtractModuleCommandFeature({
     languageAnalysisSessionFor: () => input.session,
     activeSourceEditor: () => input.editor as never,
-    sourceEditorForDocument: () => input.editor as never,
+    sourceEditorForDocument: () => (input.canvasEditor ?? input.editor) as never,
     activeCanvasEndpoint: () => input.endpoint ?? null,
     navigateCanvasToSourceOffset: input.navigate ?? vi.fn(() => true),
     applySourceLineSplices: input.apply ?? (async () => true)
@@ -237,9 +238,10 @@ describe("VS Code Extract Module command feature", () => {
     const first = elements.find((element) => element.name === "First");
     const second = elements.find((element) => element.name === "Second");
     const ordinary = elements.find((element) => element.name === "Ordinary");
-    expect(first && second && ordinary).toBeTruthy();
-    if (!first || !second || !ordinary) return;
-    const selectedIds = [second.id, ordinary.id, first.id, second.id];
+    const body = elements.find((element) => element.name === "Body");
+    expect(first && second && ordinary && body).toBeTruthy();
+    if (!first || !second || !ordinary || !body) return;
+    const selectedIds = [second.id, ordinary.id, first.id, second.id, body.id];
     const selectedSources = selectedElementSourcesForCanvasObservation(selectedIds, compiled, elements);
     const targets = collectExtractModuleCanvasTargets({
       snapshot: observationFor({ selectedElementIds: selectedIds, selectedElementSources: selectedSources }),
@@ -252,6 +254,39 @@ describe("VS Code Extract Module command feature", () => {
       return statement?.name ? [statement.name] : [];
     });
     expect(names).toEqual(["First", "Second", "Ordinary"]);
+  });
+
+  it("rejects a mixed authored and moduleBody Canvas selection before naming or mutation", async () => {
+    const { session, compiled, sourceSnapshot } = compiledFor(moduleSource);
+    const elements = compiled.document?.elements ?? [];
+    const first = elements.find((element) => element.name === "First");
+    const body = elements.find((element) => element.name === "Body");
+    expect(first && body).toBeTruthy();
+    if (!first || !body) return;
+    const selectedElementIds = [first.id, body.id];
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(selectedElementIds, compiled, elements);
+    const editor = editorFor(() => moduleSource, { start: 0, end: 0, active: 0 }, "file:///mixed-extract.nui");
+    const endpoint: ExtractModuleCanvasEndpoint = {
+      document: editor.document as never,
+      panel: { webview: {} } as never,
+      isAuthoritativeReady: () => true,
+      observation: () => observationFor({ selectedElementIds, selectedElementSources, documentVersion: 1 }) as never
+    };
+    const apply = vi.fn(async () => true);
+    mocks.showInputBox.mockImplementation(() => {
+      throw new Error("naming flow must not start for a mixed moduleBody selection");
+    });
+    const feature = commandFeatureFor({ session, canvasEditor: editor, endpoint, apply });
+
+    await mocks.commandHandler?.();
+    await flushCommand();
+
+    expect(mocks.showInputBox).not.toHaveBeenCalled();
+    expect(mocks.showQuickPick).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("moduleBody descendant"));
+    expect(collectExtractModuleCanvasTargets({ snapshot: observationFor({ selectedElementIds, selectedElementSources }), source: sourceSnapshot, compiled })).toHaveLength(1);
+    feature.dispose();
   });
 
   it("rejects a moduleBody-only Canvas selection and stale observation", () => {
