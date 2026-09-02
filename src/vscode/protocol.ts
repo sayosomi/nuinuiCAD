@@ -24,6 +24,11 @@ import type {
 } from "./referencePickProtocol";
 import type { VscodeRuntimeDiagnosticsToExtensionMessage } from "./runtimeDiagnosticsProtocol";
 import type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
+import type {
+  VscodeInlineModuleCanvasTargetsPublication,
+  VscodeInlineModuleSelectionResult,
+  VscodeInlineModuleSelectionRequest
+} from "./inlineModuleProtocol";
 
 export type {
   VscodeCanvasObservationElementSource,
@@ -91,6 +96,13 @@ export type {
   VscodeMultiDocumentSourceSnapshot
 } from "./multiDocumentGraphTransport";
 export type { VscodeCanvasCreationCommandId } from "./vscodeCanvasCreationCommands";
+export type {
+  VscodeInlineModuleCanvasTargetProof,
+  VscodeInlineModuleCanvasTargetsPublication,
+  VscodeInlineModuleGeneratedGroupProof,
+  VscodeInlineModuleSelectionRequest,
+  VscodeInlineModuleSelectionResult
+} from "./inlineModuleProtocol";
 
 export const vscodeWebviewSurfaceKinds = [
   "canvas",
@@ -184,6 +196,8 @@ export type VscodeToExtensionMessage =
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsToExtensionMessage
   | VscodeCanvasObservationToExtensionMessage
+  | VscodeInlineModuleCanvasTargetsPublication
+  | VscodeInlineModuleSelectionResult
   | VscodeCanvasThemeToExtensionMessage
   | VscodeReferencePickToExtensionMessage
   | VscodeModulePreviewParameterViewMessage
@@ -292,6 +306,7 @@ export type ExtensionToVscodeMessage =
   | VscodeExtensionToReferencePickMessage
   | { type: "canvasSourceDefinitionRequest"; requestId: number }
   | { type: "canvasNavigationRequest"; requestId: number; documentVersion: number; normalizedSourceOffset: number }
+  | VscodeInlineModuleSelectionRequest
   | { type: "focusCanvas"; requestId: number }
   | {
       type: "canvasHistoryResult";

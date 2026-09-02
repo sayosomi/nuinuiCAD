@@ -137,6 +137,10 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui"
         },
         {
+          "command": "nuinuiCAD.inlineModuleInstance",
+          "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.convertPointToXYOffset",
           "when": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -1119,6 +1123,11 @@
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
         {
+          "command": "nuinuiCAD.inlineModuleInstance",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.inlineModuleCanvasTarget",
+          "group": "1_modification@7"
+        },
+        {
           "command": "nuinuiCAD.bakeCurrentShape",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.canvasHasSelection"
         },
@@ -1176,6 +1185,11 @@
           "command": "nuinuiCAD.openModulePreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
           "group": "navigation@3"
+        },
+        {
+          "command": "nuinuiCAD.inlineModuleInstance",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget",
+          "group": "1_modification@7"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
@@ -1238,6 +1252,11 @@
         "title": "nuinuiCAD: Open Module Preview",
         "shortTitle": "Open Module Preview",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
+      },
+      {
+        "command": "nuinuiCAD.inlineModuleInstance",
+        "title": "nuinuiCAD: Inline Module Instance",
+        "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
@@ -1533,6 +1552,21 @@
           "type": "boolean",
           "default": false,
           "description": "Bake対象にdisabled geometryを含めます。"
+        },
+        "nuinuiCAD.inlineModule.emitOmittedBranchComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inline Moduleで省略された分岐をコメントとして残します。"
+        },
+        "nuinuiCAD.inlineModule.includeHiddenInstances": {
+          "type": "boolean",
+          "default": false,
+          "description": "Inline Module対象にhidden Module instanceを含めます。"
+        },
+        "nuinuiCAD.inlineModule.includeDisabledInstances": {
+          "type": "boolean",
+          "default": false,
+          "description": "Inline Module対象にdisabled Module instanceを含めます。"
         },
         "nuinuiCAD.canvasRibbon.ribbons": {
           "type": "array",
