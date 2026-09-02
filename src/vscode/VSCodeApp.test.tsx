@@ -5,6 +5,8 @@ import { selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
 import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
 import type { SourceCreationCommitMetadata } from "../commands/commandTypes";
+import { planInlineModule } from "../document/inlineModulePlanner";
+import { applyLineSplices } from "../document/textPatch";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import type { CadElement, EvaluationResult } from "../types/geometry";
@@ -1754,6 +1756,141 @@ describe("VSCodeApp Canvas history coordinator", () => {
       requestId: 321,
       status: "failed",
       reason: "no-revealable-runtime-target"
+    });
+  });
+
+  it("reselects current materializations for a generated group inside a reusable Module body", async () => {
+    const source = [
+      "nui 1",
+      "module Leaf() {",
+      "  point P = coordinate(x: 80, y: 0)",
+      "}",
+      "module Outer() {",
+      "  instance FirstChild = Leaf()",
+      "  instance SecondChild = Leaf()",
+      "}",
+      "instance First = Outer()",
+      "instance Second = Outer()"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 61 }
+      }));
+    });
+    const before = useCadDocumentStore.getState();
+    const childIndexes = before.doc.statements.flatMap((statement, index) =>
+      statement.kind === "moduleInstance" && (statement.name === "FirstChild" || statement.name === "SecondChild")
+        ? [index]
+        : []
+    );
+    const childTargets = childIndexes.map((childIndex) => ({
+      childIndex,
+      statementId: before.doc.statementMap?.statementIdByStatementIndex?.get(childIndex)
+    }));
+    expect(childTargets).toHaveLength(2);
+    expect(childTargets.every((target) => target.statementId)).toBe(true);
+    if (childTargets.some((target) => !target.statementId)) return;
+    const oldChildRuntimeIds = new Set(
+      before.doc.moduleMaterialization?.executionStatements
+        .filter((entry) => childIndexes.includes(entry.sourceStatementIndex))
+        .map((entry) => entry.runtimeElementId) ?? []
+    );
+
+    const planned = planInlineModule({
+      source: {
+        normalizedSource: source,
+        sourceRevision: before.currentSourceRevision
+      },
+      compiled: before.doc,
+      targets: childTargets.map((target) => ({ documentKey: null, statementId: target.statementId! })),
+      policy: {
+        emitOmittedBranchComments: true,
+        includeHiddenInstances: false,
+        includeDisabledInstances: false
+      }
+    });
+    expect(planned.status).toBe("planned");
+    if (planned.status !== "planned") return;
+    expect(planned.targets.filter((target) => target.status === "inlined")).toHaveLength(2);
+    const nextSource = applyLineSplices(source, planned.splices);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: nextSource, documentVersion: 62, reason: "edit" }
+      }));
+    });
+    const after = useCadDocumentStore.getState();
+    const generatedGroupIndexes = after.doc.statements.flatMap((statement, index) =>
+      statement.kind === "group" && (statement.name === "FirstChild" || statement.name === "SecondChild")
+        ? [index]
+        : []
+    );
+    expect(generatedGroupIndexes).toHaveLength(2);
+    const generatedGroups = generatedGroupIndexes.map((index) => after.doc.statements[index]);
+    expect(generatedGroups.every((statement) => statement?.kind === "group")).toBe(true);
+    if (generatedGroups.some((statement) => statement?.kind !== "group")) return;
+
+    const generatedGroupMaterializations = after.doc.moduleMaterialization!.executionStatements
+      .filter((entry) => generatedGroupIndexes.includes(entry.sourceStatementIndex))
+      .map((entry) => entry.runtimeElementId)
+      .filter((id) => after.elements.some((element) => element.id === id));
+    expect(generatedGroupMaterializations.length).toBeGreaterThanOrEqual(4);
+    const generatedGroupMaterializationsInSourceOrder = generatedGroupIndexes.flatMap((groupIndex) =>
+      after.doc.moduleMaterialization!.executionStatements
+        .filter((entry) => entry.sourceStatementIndex === groupIndex)
+        .map((entry) => entry.runtimeElementId)
+        .filter((id) => after.elements.some((element) => element.id === id))
+    );
+    const generatedGeometryMaterializations = generatedGroupMaterializationsInSourceOrder.flatMap((groupId) =>
+      after.elements.filter((element) => element.parentGroupId === groupId && element.name === "P").map((element) => element.id)
+    );
+    expect(generatedGeometryMaterializations.length).toBeGreaterThanOrEqual(4);
+    for (const element of after.elements.filter((element) => element.name === "P")) {
+      drawingCanvasProps.evaluation.computedGeometry.set(element.id, {
+        kind: "point",
+        elementId: element.id,
+        name: element.name,
+        x: 80,
+        y: 0
+      });
+    }
+    await act(async () => {
+      publishAllCurrentElementsAsPresented();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "inlineModuleSelectionRequest",
+          requestId: 621,
+          documentVersion: 62,
+          normalizedSource: nextSource,
+          generatedGroups: generatedGroupIndexes.map((generatedGroupIndex, index) => {
+            const generatedGroup = generatedGroups[index]!;
+            return {
+              sourceStatementIndex: generatedGroupIndex,
+              sourceRange: {
+                from: generatedGroup.documentRange.from,
+                to: generatedGroup.documentRange.to
+              },
+              generatedGroupName: generatedGroup.name
+            };
+          })
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementIds).toEqual(generatedGeometryMaterializations);
+    expect(useCadUiStore.getState().selectedElementIds.some((id) => oldChildRuntimeIds.has(id))).toBe(false);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "inlineModuleSelectionResult",
+      requestId: 621,
+      documentVersion: 62,
+      status: "selected",
+      selectedRuntimeElementIds: generatedGeometryMaterializations
     });
   });
 
