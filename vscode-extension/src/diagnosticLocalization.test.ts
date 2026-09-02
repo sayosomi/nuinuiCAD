@@ -44,6 +44,72 @@ describe("diagnostic presentation localization", () => {
     expect(diagnosticTextFor(diagnostic, "ja")).toBe("不明な型注釈です: TailoredRecord");
   });
 
+  it("interpolates dynamic import facts in both display languages", () => {
+    const diagnostic = {
+      message: "legacy import fallback",
+      presentation: {
+        key: "diagnostic.import-missing",
+        parameters: { path: "./tailored.nui" }
+      }
+    };
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("The imported file './tailored.nui' was not found.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("import先「./tailored.nui」が見つかりません。");
+  });
+
+  it("keeps a producer-owned Drawing Modifier name in translated Problems text", () => {
+    const source = "nui 1\nmodifier TailoredModifier {\n  state: visible,\n}\n";
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "unused-drawing-modifier"
+    );
+    if (!diagnostic) throw new Error("missing production Drawing Modifier diagnostic");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.unused-drawing-modifier",
+      parameters: { name: "TailoredModifier" }
+    });
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Drawing Modifier 'TailoredModifier' is not used anywhere.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("Drawing Modifier「TailoredModifier」はどこからも使用されていません。");
+  });
+
+  it("keeps a Module parameter name through semantic projection in both display languages", () => {
+    const source = [
+      "nui 1",
+      "module TailoredModule(value?: number) {",
+      "  const copy: number = @value",
+      "}"
+    ].join("\n");
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "module-optional-value-required"
+    );
+    if (!diagnostic) throw new Error("missing production Module diagnostic");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.module-optional-value-required",
+      parameters: { name: "value" }
+    });
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Check optional Module parameter 'value' before using it.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("optional Module parameter「value」を確認してから使用してください。");
+  });
+
+  it("keeps a property binding reference name through the production compiler path", () => {
+    const source = [
+      "nui 1",
+      "for i in range(from: 0, count: 1, showGenerated: @Missing) {",
+      "}"
+    ].join("\n");
+    const document = AutomationDocument.fromSource(source);
+    const diagnostic = compilerDiagnosticsForState(document.getSource(), document.getState()).find(
+      (candidate) => candidate.code === "property-binding-unresolved"
+    );
+    if (!diagnostic) throw new Error("missing production property binding diagnostic");
+    expect(diagnostic.presentation).toEqual({
+      key: "diagnostic.property-binding-unresolved",
+      parameters: { name: "Missing" }
+    });
+    expect(diagnosticTextFor(diagnostic, "en")).toBe("Property binding reference 'Missing' could not be resolved.");
+    expect(diagnosticTextFor(diagnostic, "ja-JP")).toBe("property bindingの参照「Missing」を解決できません。");
+  });
+
   it("uses the raw message when metadata is absent or not supported", () => {
     const raw: Pick<DslDiagnostic, "message"> = { message: "そのままのfallback" };
     expect(diagnosticTextFor(raw, "en")).toBe("そのままのfallback");

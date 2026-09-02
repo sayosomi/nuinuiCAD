@@ -405,7 +405,11 @@ const resolveAndTypecheck = ({
       code,
       diagnostic.span,
       diagnostic.message,
-      { expectedType: diagnostic.expectedType, actualType: diagnostic.actualType }
+      {
+        expectedType: diagnostic.expectedType,
+        actualType: diagnostic.actualType,
+        presentation: diagnostic.presentation
+      }
     ));
   }
   const type = diagnostics.length === 0 && !invalidGeometryProperty ? checked.type : null;

@@ -41,7 +41,7 @@ describe("VS Code compiler diagnostics adapter", () => {
       {
         severity: "warning",
         message: "Drawing Modifier「Unused」はどこからも使用されていません。",
-        presentation: { key: "diagnostic.unused-drawing-modifier" },
+        presentation: { key: "diagnostic.unused-drawing-modifier", parameters: { name: "Unused" } },
         code: "unused-drawing-modifier",
         source: "nuinuiCAD",
         range: {

@@ -113,7 +113,14 @@ type Candidate = {
  * resolve, so - unlike a BindingIssue || runtime diagnostic - there is no
  * separately-resolved index entry to navigate to; these carry an exact span
  * for the gutter but no navigationTarget. */
-const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnosticAt = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error",
@@ -121,7 +128,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     column: span.start + 1,
     code,
     message,
-    presentation: { key: `diagnostic.${code}` },
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -227,13 +234,27 @@ export const compilePropertyBindings = ({
     const referenceResolutions = candidate.references.map((reference, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
       if (!resolution || resolution.kind !== "resolved") {
-        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, PROPERTY_BINDING_UNRESOLVED_CODE, unresolvedMessage(reference.name, resolution)));
+        diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          reference.span,
+          PROPERTY_BINDING_UNRESOLVED_CODE,
+          unresolvedMessage(reference.name, resolution),
+          { key: "diagnostic.property-binding-unresolved", parameters: { name: reference.name } }
+        ));
         invalidReference = true;
         return undefined;
       }
       const entry = bindingAnalysis.entriesById.get(resolution.binding.id);
       if (resolution.binding.declaredType === null || entry?.status.kind === "invalid") {
-        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, PROPERTY_BINDING_INVALID_CODE, `"${reference.name}" は無効な宣言のため参照できません。`));
+        diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          reference.span,
+          PROPERTY_BINDING_INVALID_CODE,
+          `"${reference.name}" は無効な宣言のため参照できません。`,
+          { key: "diagnostic.property-binding-invalid", parameters: { name: reference.name } }
+        ));
         invalidReference = true;
       }
       return resolution;
@@ -248,7 +269,7 @@ export const compilePropertyBindings = ({
     });
     if (prepared.issues.length > 0) {
       diagnostics.push(...prepared.issues.map((issue) =>
-        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message, issue.presentation)
       ));
       continue;
     }
@@ -268,7 +289,7 @@ export const compilePropertyBindings = ({
     );
     if (geometryResolution.issues.length > 0) {
       diagnostics.push(...geometryResolution.issues.map((issue) =>
-        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message)
+        diagnosticAt(spans, candidate.statement, issue.span, PROPERTY_BINDING_INVALID_CODE, issue.message, issue.presentation)
       ));
       continue;
     }
@@ -284,9 +305,17 @@ export const compilePropertyBindings = ({
         candidate.statement,
         diagnostic.span,
         PROPERTY_BINDING_TYPE_MISMATCH_CODE,
-        diagnostic.message
+        diagnostic.message,
+        diagnostic.presentation
       )));
-      if (checked.diagnostics.length === 0) diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.span, PROPERTY_BINDING_INVALID_CODE, `"${candidate.parameterKey}" のtyped expressionを解決できません。`));
+      if (checked.diagnostics.length === 0) diagnostics.push(diagnosticAt(
+        spans,
+        candidate.statement,
+        candidate.span,
+        PROPERTY_BINDING_INVALID_CODE,
+        `"${candidate.parameterKey}" のtyped expressionを解決できません。`,
+        { key: "diagnostic.property-binding-invalid", parameters: { name: candidate.parameterKey } }
+      ));
       continue;
     }
 
@@ -294,7 +323,21 @@ export const compilePropertyBindings = ({
       const resolution = referenceResolutions[0];
       if (!resolution || resolution.kind !== "resolved" || !resolution.binding.declaredType || !isScalarTypeAssignable(resolution.binding.declaredType, candidate.expectedType)) {
         const actual = resolution?.kind === "resolved" ? resolution.binding.declaredType : null;
-        diagnostics.push(diagnosticAt(spans, candidate.statement, candidate.ast.span, PROPERTY_BINDING_TYPE_MISMATCH_CODE, `"${candidate.parameterKey}" の型が一致しません(期待: ${describeScalarType(candidate.expectedType)}, 実際: ${actual ? describeScalarType(actual) : "unknown"})。`));
+        diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          candidate.ast.span,
+          PROPERTY_BINDING_TYPE_MISMATCH_CODE,
+          `"${candidate.parameterKey}" の型が一致しません(期待: ${describeScalarType(candidate.expectedType)}, 実際: ${actual ? describeScalarType(actual) : "unknown"})。`,
+          {
+            key: "diagnostic.property-binding-type-mismatch",
+            parameters: {
+              name: candidate.parameterKey,
+              expected: describeScalarType(candidate.expectedType),
+              actual: actual ? describeScalarType(actual) : "unknown"
+            }
+          }
+        ));
         continue;
       }
       sourcesByOccurrenceKey.set(candidate.key, {

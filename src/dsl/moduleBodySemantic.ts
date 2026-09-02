@@ -192,6 +192,10 @@ export const analyzeModuleBody = (
             code: "module-optional-value-required",
             span: site.reference.nameSpan ?? site.reference.span,
             message: `optional module parameter「${arrayReference.parameterName}」は hasValue(@${arrayReference.parameterName}) で存在を確認してから参照してください。`,
+            presentation: {
+              key: "diagnostic.module-optional-value-required",
+              parameters: { name: arrayReference.parameterName }
+            },
             relatedSources: arrayReference.parameterNameSpan
               ? [{
                   statementIndex: arrayReference.definitionStatementIndex,

@@ -105,7 +105,7 @@ export const diagnosticForExport = (
       column: target.memberSpan.start + 1,
       code: "module-geometry-type-mismatch",
       message: `module export「${target.exportName}」の型またはderived point accessorが一致しません。`,
-      presentation: { key: "diagnostic.module-geometry-type-mismatch" }
+      presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: target.exportName } }
     };
   }
   return null;
@@ -131,7 +131,10 @@ export const diagnosticForExportNamespace = (
       message: privateMember
         ? `module member「${target.exportName}」はexportされていないため参照できません。`
         : `module export「${target.exportName}」が見つかりません。`,
-      presentation: { key: `diagnostic.${privateMember ? "module-private-member" : "module-undefined-export"}` }
+      presentation: {
+        key: `diagnostic.${privateMember ? "module-private-member" : "module-undefined-export"}`,
+        parameters: { target: target.exportName }
+      }
     };
   }
   return null;

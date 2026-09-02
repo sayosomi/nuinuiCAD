@@ -4,7 +4,7 @@ import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
-import type { DslDiagnostic, DslSpan, DslStatement } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { RecordValueSemantic } from "../dsl/recordSemanticAnalysis";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { parameterKeyForArg } from "../dsl/dslConstructions";
@@ -61,6 +61,7 @@ export type PreparedScalarExpressionIssue = {
   code: string;
   span: DslSpan;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type PreparedScalarExpressionDependency = {
@@ -182,7 +183,12 @@ const compileDiagnostic = (
   span: DslSpan,
   code: string,
   message: string,
-  extra?: { expectedType?: ScalarType; actualType?: ScalarType; bindingId?: BindingId }
+  extra?: {
+    expectedType?: ScalarType;
+    actualType?: ScalarType;
+    bindingId?: BindingId;
+    presentation?: DslDiagnostic["presentation"];
+  }
 ): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
@@ -191,7 +197,7 @@ const compileDiagnostic = (
     column: span.start + 1,
     code,
     message,
-    presentation: { key: `diagnostic.${code}` },
+    presentation: extra?.presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {}),
     ...(extra?.expectedType ? { expectedType: extra.expectedType } : {}),
@@ -484,7 +490,10 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[binding.statementIndex];
     if (!statement) continue;
     for (const issue of geometryResolution.issues) {
-      diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, { bindingId: binding.id }));
+      diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
+        bindingId: binding.id,
+        presentation: issue.presentation
+      }));
     }
     if (effectivePrepareScalarExpression) {
       const prepared = effectivePrepareScalarExpression({
@@ -496,7 +505,10 @@ export const analyzeTypedDeclarations = ({
       });
       preparedByBindingId.set(binding.id, prepared);
       for (const issue of prepared.issues ?? []) {
-        diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, { bindingId: binding.id }));
+        diagnostics.push(compileDiagnostic(spans, statement, issue.span, issue.code, issue.message, {
+          bindingId: binding.id,
+          presentation: issue.presentation
+        }));
       }
     }
   }
@@ -623,11 +635,15 @@ export const analyzeTypedDeclarations = ({
       compileDiagnostic(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, {
         expectedType: diagnostic.expectedType,
         actualType: diagnostic.actualType,
-        bindingId: binding.id
+        bindingId: binding.id,
+        presentation: diagnostic.presentation
       })
     ));
     diagnostics.push(...geometryPropertyResolution.issues.map((issue) =>
-      compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, { bindingId: binding.id })
+      compileDiagnostic(spans, statement, issue.span, "geometry-property-invalid", issue.message, {
+        bindingId: binding.id,
+        presentation: issue.presentation
+      })
     ));
   }
   return {

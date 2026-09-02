@@ -243,7 +243,7 @@ export const analyzeMultiDocumentModuleSemantics = (
     diagnostics.push({
       code: "module-recursion",
       message: `module recursion は許可されていません:「${instance.name}」。`,
-      presentation: { key: "diagnostic.module-recursion" },
+      presentation: { key: "diagnostic.module-recursion", parameters: { name: instance.name } },
       location,
       ...(relatedLocations.length > 0 ? { relatedLocations } : {})
     });

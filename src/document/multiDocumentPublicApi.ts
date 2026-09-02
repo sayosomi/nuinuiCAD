@@ -99,7 +99,7 @@ const duplicateDiagnostic = (
 ): MultiDocumentPublicApiDiagnostic => ({
   code: "duplicate-public-export",
   message: `公開名「${name}」が重複しています。`,
-  presentation: { key: "diagnostic.duplicate-public-export" },
+  presentation: { key: "diagnostic.duplicate-public-export", parameters: { name } },
   location,
   relatedLocations: [previous.reExportPath.at(-1) ?? previous.declaration]
 });
@@ -153,7 +153,7 @@ export const buildMultiDocumentPublicApiCatalog = <Metadata = unknown>(
       diagnostics.push({
         code: "invalid-reexport-target",
         message: `re-export元のimport「${reExport.importAlias}」を安全に解決できません。`,
-        presentation: { key: "diagnostic.invalid-reexport-target" },
+        presentation: { key: "diagnostic.invalid-reexport-target", parameters: { importAlias: reExport.importAlias } },
         location: reExport.location
       });
       continue;
@@ -163,7 +163,10 @@ export const buildMultiDocumentPublicApiCatalog = <Metadata = unknown>(
       diagnostics.push({
         code: "private-reexport-target",
         message: `「${reExport.importAlias}::${reExport.exportedName}」は公開されていないためre-exportできません。`,
-        presentation: { key: "diagnostic.private-reexport-target" },
+        presentation: {
+          key: "diagnostic.private-reexport-target",
+          parameters: { importAlias: reExport.importAlias, exportedName: reExport.exportedName }
+        },
         location: reExport.location,
         relatedLocations: target.declarations.map((declaration) => declaration.declaration)
       });
@@ -173,7 +176,10 @@ export const buildMultiDocumentPublicApiCatalog = <Metadata = unknown>(
       diagnostics.push({
         code: "missing-reexport-target",
         message: `「${reExport.importAlias}::${reExport.exportedName}」に対応する公開宣言がありません。`,
-        presentation: { key: "diagnostic.missing-reexport-target" },
+        presentation: {
+          key: "diagnostic.missing-reexport-target",
+          parameters: { importAlias: reExport.importAlias, exportedName: reExport.exportedName }
+        },
         location: reExport.location
       });
       continue;

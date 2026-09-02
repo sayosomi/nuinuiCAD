@@ -98,7 +98,12 @@ export const TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE = "text-template-hole-unresolved
 export const TEXT_TEMPLATE_HOLE_INVALID_CODE = "text-template-hole-invalid";
 export const TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE = "interpolation-type-mismatch";
 
-type OccurrenceDiagnostic = { readonly span: ScalarSpan; readonly code: string; readonly message: string };
+type OccurrenceDiagnostic = {
+  readonly span: ScalarSpan;
+  readonly code: string;
+  readonly message: string;
+  readonly presentation?: DslDiagnostic["presentation"];
+};
 
 type ParsedHole = {
   readonly raw: TextTemplateRawHoleSegment;
@@ -243,7 +248,8 @@ export const analyzeTextTemplate = (
       diagnostics.push(...geometryResolution.issues.map((issue) => ({
         span: issue.span,
         code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
-        message: issue.message
+        message: issue.message,
+        presentation: issue.presentation
       })));
       continue;
     }
@@ -293,7 +299,12 @@ export const analyzeTextTemplate = (
       // a typed reference with a non-typed one - the same
       // TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE fail-closed diagnostic applies.
       if (!resolution || resolution.kind !== "resolved") {
-        diagnostics.push({ span: reference.span, code: TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE, message: unresolvedReferenceMessage(reference.name, resolution) });
+        diagnostics.push({
+          span: reference.span,
+          code: TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE,
+          message: unresolvedReferenceMessage(reference.name, resolution),
+          presentation: { key: "diagnostic.text-template-hole-unresolved", parameters: { reference: reference.name } }
+        });
         hasReferenceDiagnostic = true;
         return;
       }
@@ -301,7 +312,8 @@ export const analyzeTextTemplate = (
         diagnostics.push({
           span: reference.span,
           code: TEXT_TEMPLATE_HOLE_UNRESOLVED_CODE,
-          message: `"${reference.name}" は型付き宣言ではないため、型付き参照を含むtext埋め込みの中では使用できません。`
+          message: `"${reference.name}" は型付き宣言ではないため、型付き参照を含むtext埋め込みの中では使用できません。`,
+          presentation: { key: "diagnostic.text-template-hole-unresolved", parameters: { reference: reference.name } }
         });
         hasReferenceDiagnostic = true;
         return;
@@ -309,7 +321,12 @@ export const analyzeTextTemplate = (
       referenceResolutions.push(resolution);
       const entry = bindingAnalysis!.entriesById.get(resolution.binding.id);
       if (entry?.status.kind === "invalid") {
-        diagnostics.push({ span: reference.span, code: TEXT_TEMPLATE_HOLE_INVALID_CODE, message: `"${reference.name}" は無効な宣言のため参照できません。` });
+        diagnostics.push({
+          span: reference.span,
+          code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
+          message: `"${reference.name}" は無効な宣言のため参照できません。`,
+          presentation: { key: "diagnostic.text-template-hole-invalid", parameters: { reference: reference.name } }
+        });
         hasReferenceDiagnostic = true;
         return;
       }
@@ -335,7 +352,8 @@ export const analyzeTextTemplate = (
       diagnostics.push(...prepared.issues.map((issue) => ({
         span: issue.span,
         code: TEXT_TEMPLATE_HOLE_INVALID_CODE,
-        message: issue.message
+        message: issue.message,
+        presentation: issue.presentation
       })));
       continue;
     }
@@ -357,7 +375,12 @@ export const analyzeTextTemplate = (
       geometryPropertyReferences: geometryResolution.geometryPropertyReferences
     });
     if (checked.diagnostics.length > 0) {
-      diagnostics.push(...checked.diagnostics.map((diagnostic) => ({ span: diagnostic.span, code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE, message: diagnostic.message })));
+      diagnostics.push(...checked.diagnostics.map((diagnostic) => ({
+        span: diagnostic.span,
+        code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
+        message: diagnostic.message,
+        presentation: diagnostic.presentation
+      })));
       continue;
     }
     const holeSegmentBase = { span: hole.raw.span, contentSpan: hole.raw.contentSpan, cookedInsertOffset: hole.raw.cookedInsertOffset } as const;
@@ -372,7 +395,8 @@ export const analyzeTextTemplate = (
       diagnostics.push({
         span: hole.raw.contentSpan,
         code: TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE,
-        message: `テキスト埋め込みはstring、number、またはbooleanである必要があります(実際: ${actual})。`
+        message: `テキスト埋め込みはstring、number、またはbooleanである必要があります(実際: ${actual})。`,
+        presentation: { key: "diagnostic.interpolation-type-mismatch", parameters: { actual } }
       });
     }
   }
@@ -402,7 +426,14 @@ export type TextTemplateCompilation = {
  * compileDiagnostic. No navigationTarget: a failed hole occurrence never
  * reaches templatesByOccurrenceKey, so there is no resolved index entry to
  * jump to for it. */
-const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnosticAt = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error",
@@ -410,7 +441,7 @@ const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, spa
     column: span.start + 1,
     code,
     message,
-    presentation: { key: `diagnostic.${code}` },
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     exactSpanOnly: true,
     ...(physicalSpan ? { physicalSpan } : {})
   };
@@ -466,7 +497,7 @@ export const compileTextTemplates = ({
       sourceOrderByElementId
     );
     if (occurrenceDiagnostics.length > 0) {
-      diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message)));
+      diagnostics.push(...occurrenceDiagnostics.map((diagnostic) => diagnosticAt(spans, statement, diagnostic.span, diagnostic.code, diagnostic.message, diagnostic.presentation)));
       return;
     }
     if (template) templatesByOccurrenceKey.set(propertyBindingOccurrenceKey(statementIndex, "text"), template);

@@ -92,8 +92,15 @@ describe("multi-document import graph", () => {
       })
     ]));
     expect(graph.diagnostics).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "import-invalid-source", message: expect.stringContaining("nui 1") }),
-      expect.objectContaining({ code: "import-invalid-dependency" })
+      expect.objectContaining({
+        code: "import-invalid-source",
+        message: expect.stringContaining("nui 1"),
+        presentation: { key: "diagnostic.import-invalid-source", parameters: { path: "./legacy.nui" } }
+      }),
+      expect.objectContaining({
+        code: "import-invalid-dependency",
+        presentation: { key: "diagnostic.import-invalid-dependency", parameters: { path: "./middle.nui" } }
+      })
     ]));
   });
 
@@ -233,7 +240,14 @@ describe("multi-document import graph", () => {
     expect(graph.valid).toBe(false);
     expect(graph.edges).toHaveLength(2);
     expect(graph.edges.every((edge) => edge.status === "cycle" && edge.failureReason === "cycle")).toBe(true);
-    expect(graph.diagnostics.filter((diagnostic) => diagnostic.code === "import-cycle")).toHaveLength(2);
+    expect(graph.diagnostics.filter((diagnostic) => diagnostic.code === "import-cycle")).toEqual([
+      expect.objectContaining({
+        presentation: expect.objectContaining({ key: "diagnostic.import-cycle", parameters: expect.objectContaining({ chain: expect.stringContaining("A") }) })
+      }),
+      expect.objectContaining({
+        presentation: expect.objectContaining({ key: "diagnostic.import-cycle", parameters: expect.objectContaining({ chain: expect.stringContaining("B") }) })
+      })
+    ]);
   });
 
   it("reports structured load failures on the importing statement", async () => {
@@ -253,6 +267,10 @@ describe("multi-document import graph", () => {
     expect(graph.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
       "import-missing",
       "import-unreadable"
+    ]);
+    expect(graph.diagnostics.map((diagnostic) => diagnostic.presentation)).toEqual([
+      { key: "diagnostic.import-missing", parameters: { path: "./missing.nui" } },
+      { key: "diagnostic.import-unreadable", parameters: { path: "./secret.nui" } }
     ]);
     expect(graph.edges.map((edge) => edge.failureReason)).toEqual(["missing", "unreadable"]);
     expect(graph.valid).toBe(false);

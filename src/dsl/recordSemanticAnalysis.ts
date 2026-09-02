@@ -1,5 +1,5 @@
 import { matchingDslDelimiter, scanCallArgs } from "./dslArgScanner";
-import type { DslDiagnostic, DslRecordTypeReference, DslSpan, DslStatement } from "./dslTypes";
+import type { DslDiagnostic, DslDiagnosticPresentation, DslRecordTypeReference, DslSpan, DslStatement } from "./dslTypes";
 import type { DslPhysicalSpan } from "./logicalStatementSourceMap";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
@@ -57,6 +57,7 @@ export type RecordConstructorParseIssue = {
   code: string;
   span: DslSpan;
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 /**
@@ -251,7 +252,8 @@ export const parseRecordConstructorFields = ({
       start: initializerSpan.start + error.span.start,
       end: initializerSpan.start + error.span.end
     },
-    message: error.message
+    message: error.message,
+    ...(error.presentation ? { presentation: error.presentation } : {})
   }));
   const knownFields = new Map(definition.fields.map((field) => [field.name, field] as const));
   const firstLabel = new Set<string>();
@@ -277,7 +279,8 @@ export const parseRecordConstructorFields = ({
       issues.push({
         code: "record-constructor-duplicate-field",
         span: labelSpan,
-        message: `record constructor field「${argument.key}」が重複しています。`
+        message: `record constructor field「${argument.key}」が重複しています。`,
+        presentation: { key: "diagnostic.record-constructor-duplicate-field", parameters: { field: argument.key } }
       });
       continue;
     }
@@ -287,7 +290,8 @@ export const parseRecordConstructorFields = ({
       issues.push({
         code: "record-constructor-unknown-field",
         span: labelSpan,
-        message: `record「${definition.name}」に field「${argument.key}」はありません。`
+        message: `record「${definition.name}」に field「${argument.key}」はありません。`,
+        presentation: { key: "diagnostic.record-constructor-unknown-field", parameters: { record: definition.name, field: argument.key } }
       });
       continue;
     }
@@ -305,7 +309,8 @@ export const parseRecordConstructorFields = ({
       issues.push({
         code: "record-constructor-missing-field",
         span: candidate.nameSpan,
-        message: `record constructor「${definition.name}」に必須 field「${field.name}」がありません。`
+        message: `record constructor「${definition.name}」に必須 field「${field.name}」がありません。`,
+        presentation: { key: "diagnostic.record-constructor-missing-field", parameters: { record: definition.name, field: field.name } }
       });
     }
   }
@@ -512,7 +517,13 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         const scanned = scanCallArgs(statement.initializer, localArgsSpan);
         for (const error of scanned.errors) {
           const span = { start: initializerSpan.start + error.span.start, end: initializerSpan.start + error.span.end };
-          diagnostics.push(diagnostic(statement, span, error.code ?? "record-constructor-invalid-argument", error.message));
+          diagnostics.push(diagnostic(
+            statement,
+            span,
+            error.code ?? "record-constructor-invalid-argument",
+            error.message,
+            error.presentation?.parameters
+          ));
         }
         const knownFields = new Map(targetDefinition?.fields.map((field) => [field.name, field] as const) ?? []);
         const firstLabel = new Set<string>();

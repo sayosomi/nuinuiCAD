@@ -72,6 +72,7 @@ const diagnostic = (line: number, message: string): DslDiagnostic => ({
 const undefinedGeometryReferenceDiagnostic = (
   line: number,
   message: string,
+  reference: string,
   sourceSpan: DslSpan | undefined,
   relativeSpan: DslSpan
 ): DslDiagnostic => ({
@@ -80,7 +81,7 @@ const undefinedGeometryReferenceDiagnostic = (
   column: 1,
   code: "undefined-geometry-reference",
   message,
-  presentation: { key: "diagnostic.undefined-geometry-reference" },
+  presentation: { key: "diagnostic.undefined-geometry-reference", parameters: { reference } },
   exactSpanOnly: true,
   ...(sourceSpan ? {
     logicalSpan: {
@@ -102,7 +103,7 @@ const invalidReferenceDiagnostic = (
   column: 1,
   code: "invalid-source-reference",
   message: `${message} (${reference})`,
-  presentation: { key: "diagnostic.invalid-source-reference" },
+  presentation: { key: "diagnostic.invalid-source-reference", parameters: { reference } },
   ...(sourceSpan && relativeSpan ? {
     logicalSpan: {
       start: sourceSpan.start + relativeSpan.start,
@@ -196,6 +197,7 @@ export const resolveId = (
   diagnostics.push(undefinedGeometryReferenceDiagnostic(
     line,
     `参照先が見つかりません: ${unresolvedToken}`,
+    unresolvedToken,
     sourceSpan,
     reference.pathRange
   ));

@@ -9,6 +9,7 @@ import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 
 export interface TypedScalarNumberLiteralNode {
   readonly kind: "numberLiteral";
@@ -185,6 +186,7 @@ export interface ScalarExpressionTypecheckDiagnostic {
   readonly code: ScalarExpressionTypecheckIssueCode;
   readonly span: ScalarSpan;
   readonly message: string;
+  readonly presentation?: DslDiagnosticPresentation;
   readonly expectedType?: ScalarType;
   readonly actualType?: ScalarType;
 }

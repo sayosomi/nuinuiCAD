@@ -408,6 +408,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           statement.parameters[parameterIndex].nameSpan ?? statement.keywordSpan,
           `module parameter「${parameter.name}」が重複しています。`,
           {
+            presentation: { key: "diagnostic.module-parameter-duplicate", parameters: { parameter: parameter.name } },
             relatedSources: relatedAt(
               statementIndex,
               statement.parameters[previous.index].nameSpan ?? statement.keywordSpan,
@@ -717,7 +718,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               "module-geometry-reference-in-scalar",
               qualified.memberSpan,
               `scalar expression ではgeometry export「${qualified.exportName}」を参照できません。`,
-              { relatedSources }
+              {
+                relatedSources,
+                presentation: { key: "diagnostic.module-geometry-reference-in-scalar", parameters: { name: qualified.exportName } }
+              }
             )
           }
         : {
@@ -730,7 +734,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               scalarExport?.kind === "private"
                 ? `module member「${qualified.exportName}」はexportされていないため参照できません。`
                 : `module export「${qualified.exportName}」が見つかりません。`,
-              { relatedSources }
+              {
+                relatedSources,
+                presentation: {
+                  key: scalarExport?.kind === "private" ? "diagnostic.module-private-member" : "diagnostic.module-undefined-export",
+                  parameters: { target: qualified.exportName }
+                }
+              }
             )
           };
     }
@@ -750,7 +760,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : qualified.kind === "outerCapture"
             ? `module body から outer module instance「${qualified.instanceName}」を暗黙 capture できません。`
             : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
-      return { target: null, type: null, resolution, diagnostic: issue(code, qualified.memberSpan, message, { relatedSources: qualified.relatedSources }) };
+      return {
+        target: null,
+        type: null,
+        resolution,
+        diagnostic: issue(code, qualified.memberSpan, message, {
+          relatedSources: qualified.relatedSources,
+          presentation: {
+            key: `diagnostic.${code}`,
+            parameters: { name: qualified.instanceName }
+          }
+        })
+      };
     }
     const record = recordSourceLookup(statementIndex, ownerIndex, name, referenceSpan);
     if (record.kind === "record") {
@@ -761,7 +782,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         diagnostic: issue(
           "module-record-value-in-scalar",
           referenceSpan,
-          `record 値「${name}」は scalar expression では参照できません。record field を指定してください。`
+          `record 値「${name}」は scalar expression では参照できません。record field を指定してください。`,
+          { presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name } } }
         )
       };
     }
@@ -782,7 +804,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           },
           type: null,
           resolution: "invalid",
-          diagnostic: issue("module-record-value-in-scalar", referenceSpan, `record parameter「${name}」は scalar expression では参照できません。record field を指定してください.`, { relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index) })
+          diagnostic: issue("module-record-value-in-scalar", referenceSpan, `record parameter「${name}」は scalar expression では参照できません。record field を指定してください.`, {
+            relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index),
+            presentation: { key: "diagnostic.module-record-value-in-scalar", parameters: { name } }
+          })
         };
       }
       const type = scalarTypeOf(lookup.parameter.parameter.type);
@@ -794,7 +819,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             target: null,
             type: null,
             resolution: "invalid",
-            diagnostic: issue("module-scalar-geometry-reference", referenceSpan, `scalar expression では geometry parameter「${name}」を参照できません。`, { relatedSources: parameterRelated })
+            diagnostic: issue("module-scalar-geometry-reference", referenceSpan, `scalar expression では geometry parameter「${name}」を参照できません。`, {
+              relatedSources: parameterRelated,
+              presentation: { key: "diagnostic.module-scalar-geometry-reference", parameters: { name } }
+            })
           };
         }
         if (lookup.parameter.parameter.optional && !presenceFacts.has(moduleParameterPresenceKey(target.definitionStatementId, target.parameterIndex))) {
@@ -802,7 +830,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             target,
             type: null,
             resolution: "invalid",
-            diagnostic: issue("module-optional-value-required", referenceSpan, `optional module parameter「${name}」は hasValue(@${name}) で存在を確認してから参照してください。`, { relatedSources: parameterRelated })
+            diagnostic: issue("module-optional-value-required", referenceSpan, `optional module parameter「${name}」は hasValue(@${name}) で存在を確認してから参照してください。`, {
+              relatedSources: parameterRelated,
+              presentation: { key: "diagnostic.module-optional-value-required", parameters: { name } }
+            })
           };
         }
         return { target, type, resolution: "resolved" };
@@ -812,7 +843,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         target: geometryTarget,
         type: null,
         resolution: "invalid",
-        diagnostic: issue("module-scalar-geometry-reference", { start: 0, end: 0 }, `scalar expression では geometry parameter「${name}」を参照できません。`, { relatedSources: parameterRelated })
+        diagnostic: issue("module-scalar-geometry-reference", { start: 0, end: 0 }, `scalar expression では geometry parameter「${name}」を参照できません。`, {
+          relatedSources: parameterRelated,
+          presentation: { key: "diagnostic.module-scalar-geometry-reference", parameters: { name } }
+        })
       };
     }
     if (lookup.kind === "iteration") {
@@ -822,35 +856,38 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           target: null,
           type: null,
           resolution: "outerCapture",
-          diagnostic: issue("module-outer-capture", { start: 0, end: 0 }, `module body から outer scalar「${name}」を暗黙 capture できません。`, { relatedSources: relatedForLookup(lookup) })
+          diagnostic: issue("module-outer-capture", { start: 0, end: 0 }, `module body から outer scalar「${name}」を暗黙 capture できません。`, {
+            relatedSources: relatedForLookup(lookup),
+            presentation: { key: "diagnostic.module-outer-capture", parameters: { name } }
+          })
         };
       }
       return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
     }
-    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`) };
-    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup) }) };
-    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", { start: 0, end: 0 }, `module scalar「${name}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup) }) };
-    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
-    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup) }) };
+    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", { start: 0, end: 0 }, `未定義のmodule scalar「${name}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-reference", parameters: { name } } }) };
+    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", { start: 0, end: 0 }, `module scalar「${name}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-forward-reference", parameters: { name } } }) };
+    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", { start: 0, end: 0 }, `module scalar「${name}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-ambiguous-reference", parameters: { name } } }) };
+    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-invalid-reference", parameters: { name: lookup.name } } }) };
+    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", { start: 0, end: 0 }, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-invalid-reference", parameters: { name: lookup.declaration.name } } }) };
     const declaration = lookup.declaration;
     const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(declaration);
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
       const type = declaration.statement.declaredType;
       if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
-        return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", declaration.nameSpan ?? declaration.statement.keywordSpan, `module body から outer scalar「${name}」を暗黙 capture できません。`, { relatedSources: declarationRelated }) };
+        return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", declaration.nameSpan ?? declaration.statement.keywordSpan, `module body から outer scalar「${name}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name } } }) };
       }
       const statementId = statementIdAt(stableStatementIdByIndex, declaration.statementIndex);
       if (boundaryOwnerIndex !== null) return { target: { kind: "moduleLocal", statementId, statementIndex: declaration.statementIndex }, type, resolution: "resolved" };
       const binding = bindingByStatementIndex.get(declaration.statementIndex);
-      if (!binding) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-document-binding-unavailable", declaration.nameSpan ?? declaration.statement.keywordSpan, `document scalar「${name}」のbinding identityを取得できません。`, { relatedSources: declarationRelated }) };
+      if (!binding) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-document-binding-unavailable", declaration.nameSpan ?? declaration.statement.keywordSpan, `document scalar「${name}」のbinding identityを取得できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-document-binding-unavailable", parameters: { name } } }) };
       return { target: { kind: "documentBinding", bindingId: binding.bindingId, statementId: binding.statementId, statementIndex: declaration.statementIndex }, type, resolution: "resolved" };
     }
     const geometryTarget = declarationGeometryTarget(declaration, stableStatementIdByIndex);
     if (geometryTarget) {
-      return { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-geometry-reference-in-scalar", declaration.nameSpan ?? declaration.statement.keywordSpan, `scalar expression では geometry「${name}」を参照できません。`, { relatedSources: declarationRelated }) };
+      return { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-geometry-reference-in-scalar", declaration.nameSpan ?? declaration.statement.keywordSpan, `scalar expression では geometry「${name}」を参照できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-geometry-reference-in-scalar", parameters: { name } } }) };
     }
-    return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", declaration.nameSpan ?? declaration.statement.keywordSpan, `「${name}」はscalar bindingではありません。`, { relatedSources: declarationRelated }) };
+    return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", declaration.nameSpan ?? declaration.statement.keywordSpan, `「${name}」はscalar bindingではありません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-invalid-reference", parameters: { name } } }) };
   };
 
   const resolveDefaultScalar = (definition: DefinitionState, parameterIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
@@ -858,15 +895,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (ownParameter) {
       const relatedSources = relatedForParameter(definition, ownParameter.index);
       if (ownParameter.index >= parameterIndex) {
-        return { target: null, type: null, resolution: "forward", diagnostic: issue("module-default-parameter-order", reference.span, `default は earlier parameter のみ参照できます:「${reference.name}」。`, { relatedSources }) };
+        return { target: null, type: null, resolution: "forward", diagnostic: issue("module-default-parameter-order", reference.span, `default は earlier parameter のみ参照できます:「${reference.name}」。`, { relatedSources, presentation: { key: "diagnostic.module-default-parameter-order", parameters: { name: reference.name } } }) };
       }
       const type = scalarTypeOf(ownParameter.parameter.type);
       if (ownParameter.parameter.optional) {
-        return { target: scalarParameterTarget(definition, ownParameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`, { relatedSources }) };
+        return { target: scalarParameterTarget(definition, ownParameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`, { relatedSources, presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.name } } }) };
       }
       return type
         ? { target: scalarParameterTarget(definition, ownParameter), type, resolution: "resolved" }
-        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar parameterではありません。`, { relatedSources }) };
+        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar parameterではありません。`, { relatedSources, presentation: { key: "diagnostic.module-default-invalid-reference", parameters: { name: reference.name } } }) };
     }
     const definitionSiteScopes = scopeChain(
       sourceNamespace.scopeIndex,
@@ -884,18 +921,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "parameter") {
       const type = scalarTypeOf(lookup.parameter.parameter.type);
       if (lookup.parameter.parameter.optional) {
-        return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`, { relatedSources }) };
+        return { target: scalarParameterTarget(lookup.definition, lookup.parameter), type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.name}」は default で直接参照できません。hasValue(@${reference.name}) を使用してください。`, { relatedSources, presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.name } } }) };
       }
       return type
         ? { target: scalarParameterTarget(lookup.definition, lookup.parameter), type, resolution: "resolved" }
-        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`, { relatedSources }) };
+        : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalarではありません。`, { relatedSources, presentation: { key: "diagnostic.module-default-invalid-reference", parameters: { name: reference.name } } }) };
     }
     if (lookup.kind === "iteration") return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
-    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", reference.span, `未定義のmodule scalar「${reference.name}」を参照しています。`) };
-    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", reference.span, `module scalar「${reference.name}」はこの位置より後で宣言されています。`, { relatedSources }) };
-    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", reference.span, `module scalar「${reference.name}」を一意に解決できません。`, { relatedSources }) };
-    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
-    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources }) };
+    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-reference", reference.span, `未定義のmodule scalar「${reference.name}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-reference", parameters: { name: reference.name } } }) };
+    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-reference", reference.span, `module scalar「${reference.name}」はこの位置より後で宣言されています。`, { relatedSources, presentation: { key: "diagnostic.module-forward-reference", parameters: { name: reference.name } } }) };
+    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-reference", reference.span, `module scalar「${reference.name}」を一意に解決できません。`, { relatedSources, presentation: { key: "diagnostic.module-ambiguous-reference", parameters: { name: reference.name } } }) };
+    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-invalid-reference", parameters: { name: lookup.name } } }) };
+    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-invalid-reference", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources, presentation: { key: "diagnostic.module-invalid-reference", parameters: { name: lookup.declaration.name } } }) };
     const declaration = lookup.declaration;
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
       const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
@@ -905,13 +942,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return { target: { kind: "moduleLocal", statementId, statementIndex: declaration.statementIndex }, type, resolution: "resolved" };
       }
       const binding = bindingByStatementIndex.get(declaration.statementIndex);
-      if (!binding) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-document-binding-unavailable", reference.span, `definition site のscalar「${reference.name}」のbinding identityを取得できません。`, { relatedSources }) };
+      if (!binding) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-document-binding-unavailable", reference.span, `definition site のscalar「${reference.name}」のbinding identityを取得できません。`, { relatedSources, presentation: { key: "diagnostic.module-document-binding-unavailable", parameters: { name: reference.name } } }) };
       return { target: { kind: "documentBinding", bindingId: binding.bindingId, statementId: binding.statementId, statementIndex: declaration.statementIndex }, type, resolution: "resolved" };
     }
     const geometryTarget = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
     return geometryTarget
-      ? { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-geometry-reference-in-default", reference.span, `default ではgeometry「${reference.name}」を参照できません。`, { relatedSources }) }
-      : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar bindingではありません。`, { relatedSources }) };
+      ? { target: geometryTarget, type: null, resolution: "invalid", diagnostic: issue("module-geometry-reference-in-default", reference.span, `default ではgeometry「${reference.name}」を参照できません。`, { relatedSources, presentation: { key: "diagnostic.module-geometry-reference-in-default", parameters: { name: reference.name } } }) }
+      : { target: null, type: null, resolution: "invalid", diagnostic: issue("module-default-invalid-reference", reference.span, `default の参照先「${reference.name}」はscalar bindingではありません。`, { relatedSources, presentation: { key: "diagnostic.module-default-invalid-reference", parameters: { name: reference.name } } }) };
   };
 
   const resolveBodyScalar = (statementIndex: number, ownerIndex: number, reference: { name: string; span: DslSpan }, presenceFacts: ReadonlySet<string> = new Set()): ReferenceResolution => {
@@ -940,7 +977,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const relatedSources = relatedForParameter(lookup.definition, lookup.parameter.index);
     if (!lookup.parameter.parameter.optional) {
-      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は optional module parameter ではありません。`, { relatedSources }) };
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は optional module parameter ではありません。`, { relatedSources, presentation: { key: "diagnostic.module-has-value-parameter", parameters: { name: reference.name } } }) };
     }
     const target = scalarTypeOf(lookup.parameter.parameter.type)
       ? scalarParameterTarget(lookup.definition, lookup.parameter)
@@ -953,7 +990,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             }
           : null);
     if (!target) {
-      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は scalar または geometry の optional module parameter ではありません。`, { relatedSources }) };
+      return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-has-value-parameter", reference.span, `hasValue の対象「${reference.name}」は scalar または geometry の optional module parameter ではありません。`, { relatedSources, presentation: { key: "diagnostic.module-has-value-parameter", parameters: { name: reference.name } } }) };
     }
     return { target, type: scalarTypeOf(lookup.parameter.parameter.type), resolution: "resolved" };
   };
@@ -963,7 +1000,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind !== "iteration") return null;
     const iterationOwner = moduleOwnerIndexOf(statements, lookup.statementIndex);
     if (iterationOwner !== ownerIndex) {
-      return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer scalar「${reference.name}」を暗黙 capture できません。`, { relatedSources: relatedForLookup(lookup) }) };
+      return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer scalar「${reference.name}」を暗黙 capture できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.name } } }) };
     }
     return { target: { ...lookup }, type: { kind: "number" }, resolution: "resolved" };
   };
@@ -1023,7 +1060,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const parameterRelated = relatedForParameter(definition, parameterIndex, true);
       const scalarType = scalarTypeOf(parameter.type);
       if (!scalarType) {
-        addLocal(definition.statementIndex, issue("module-geometry-default", parameter.defaultSpan ?? definition.statement.keywordSpan, `geometry parameter「${parameter.name}」には default を指定できません。`, { relatedSources: relatedForParameter(definition, parameterIndex) }));
+        addLocal(definition.statementIndex, issue("module-geometry-default", parameter.defaultSpan ?? definition.statement.keywordSpan, `geometry parameter「${parameter.name}」には default を指定できません。`, { relatedSources: relatedForParameter(definition, parameterIndex), presentation: { key: "diagnostic.module-geometry-default", parameters: { name: parameter.name } } }));
         continue;
       }
       const defaultSpan = parameter.defaultSpan;
@@ -1047,7 +1084,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     for (const declaration of directDeclarations) {
       const parameter = definition.parameterByName.get(declaration.name);
       if (parameter && declaration.statementIndex !== definition.statementIndex) {
-        addLocal(declaration.statementIndex, issue("module-parameter-collision", declaration.nameSpan ?? declaration.statement.keywordSpan, `parameter「${declaration.name}」と同じmodule scopeで名前が衝突しています。`, { relatedSources: relatedForParameter(definition, parameter.index) }));
+        addLocal(declaration.statementIndex, issue("module-parameter-collision", declaration.nameSpan ?? declaration.statement.keywordSpan, `parameter「${declaration.name}」と同じmodule scopeで名前が衝突しています。`, { relatedSources: relatedForParameter(definition, parameter.index), presentation: { key: "diagnostic.module-parameter-collision", parameters: { name: declaration.name } } }));
       }
     }
   }
@@ -1235,7 +1272,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             "module-outer-capture",
             span,
             `module body から outer record「${base}」を暗黙 capture できません。`,
-            { relatedSources: relatedForDeclaration(lookup.declaration) }
+            {
+              relatedSources: relatedForDeclaration(lookup.declaration),
+              presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } }
+            }
           )
         };
       }
@@ -1255,21 +1295,21 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return {
         kind: "blocked",
         resolution: "forward",
-        diagnostic: issue("module-record-forward-reference", span, `record 値「${base}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup) })
+        diagnostic: issue("module-record-forward-reference", span, `record 値「${base}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-record-forward-reference", parameters: { name: base } } })
       };
     }
     if (lookup.kind === "ambiguous" && lookup.declarations.some((declaration) => declaration.kind === "recordValue")) {
       return {
         kind: "blocked",
         resolution: "ambiguous",
-        diagnostic: issue("module-record-ambiguous-reference", span, `record 値「${base}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup) })
+        diagnostic: issue("module-record-ambiguous-reference", span, `record 値「${base}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-record-ambiguous-reference", parameters: { name: base } } })
       };
     }
     if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "recordValue") {
       return {
         kind: "blocked",
         resolution: "invalid",
-        diagnostic: issue("module-record-invalid-reference", span, `record 値「${lookup.declaration.name}」は namespace ではありません。`, { relatedSources: relatedForLookup(lookup) })
+        diagnostic: issue("module-record-invalid-reference", span, `record 値「${lookup.declaration.name}」は namespace ではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-record-invalid-reference", parameters: { name: lookup.declaration.name } } })
       };
     }
     return { kind: "notRecord" };
@@ -1364,7 +1404,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : qualified.kind === "outerCapture"
             ? `module body から outer module instance「${qualified.instanceName}」を暗黙 capture できません。`
             : `未定義のmodule instance「${qualified.instanceName}」を参照しています。`;
-    addLocal(statementIndex, issue(code, qualified.memberSpan, message, { relatedSources: qualified.relatedSources }));
+    addLocal(statementIndex, issue(code, qualified.memberSpan, message, {
+      relatedSources: qualified.relatedSources,
+      presentation: code === "module-geometry-type-mismatch"
+        ? { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: qualified.instanceName } }
+        : { key: `diagnostic.${code}`, parameters: { name: qualified.instanceName } }
+    }));
   };
 
   const coordinateScalar = (
@@ -1435,7 +1480,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
       if (options.allowNone) return semantic(null, "resolved");
-      addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`));
+      addLocal(statementIndex, issue("module-geometry-none", semanticSpan, `geometry ${expectedDiagnosticType} reference に none は指定できません。`, { presentation: { key: "diagnostic.module-geometry-none", parameters: { expected: expectedDiagnosticType } } }));
       return semantic(null, "invalid");
     }
     if (trimmed.startsWith("(") || trimmed.startsWith("[")) {
@@ -1454,7 +1499,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         coordinate && expected === "point" && options.allowCoordinate === false
           ? "このgeometry reference parameterではcoordinate形式を指定できません。"
           : `geometry reference の形式が一致しません(期待: ${expectedDiagnosticType})。`,
-        { relatedSources: expectedRelatedSources }
+        {
+          relatedSources: expectedRelatedSources,
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: rawValue.trim() || expectedDiagnosticType } }
+        }
       ));
       return semantic(null, "invalid");
     }
@@ -1465,7 +1513,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         start: semanticSpan.start + relativeSpan.start,
         end: semanticSpan.start + Math.max(relativeSpan.end, relativeSpan.start + 1)
       };
-      addLocal(statementIndex, issue("invalid-source-reference", invalidSpan, parsedReference.message));
+      addLocal(statementIndex, issue("invalid-source-reference", invalidSpan, parsedReference.message, {
+        presentation: { key: "diagnostic.invalid-source-reference", parameters: { reference: trimmed } }
+      }));
       return semantic(null, "invalid");
     }
     const reference = parsedReference.reference;
@@ -1480,7 +1530,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? role === "lineEndpointReference" ? "lineEndpointReference" : "derivedPoint"
       : role;
     const rejectAccessor = (message: string) => {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, message));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, message, {
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     };
     if (pointKey && !isKnownDerivedPointKey(pointKey)) return rejectAccessor(`geometry reference「${pointKey}」は既知のpoint anchorではありません。`);
@@ -1510,7 +1562,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       addLocal(statementIndex, issue(
         "module-record-value-in-geometry",
         baseSpan,
-        `record 値「${base}」は geometry reference では使用できません。`
+        `record 値「${base}」は geometry reference では使用できません。`,
+        { presentation: { key: "diagnostic.module-record-value-in-geometry", parameters: { name: base } } }
       ));
       return semantic(null, "invalid", null, derivedRole);
     }
@@ -1536,48 +1589,63 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
           : parameterTarget?.geometryKind === expected;
       if (!parameterTarget || !compatible) {
-        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, { relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForParameter(lookup.definition, lookup.parameter.index, true) }));
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+          relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForParameter(lookup.definition, lookup.parameter.index, true),
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+        }));
         return semantic(null, "invalid", null, derivedRole);
       }
       if (lookup.parameter.parameter.optional && !options.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
-        addLocal(statementIndex, issue("module-optional-value-required", baseSpan, `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`, { relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index) }));
+        addLocal(statementIndex, issue("module-optional-value-required", baseSpan, `optional module parameter「${base}」は hasValue(@${base}) で存在を確認してから参照してください。`, { relatedSources: relatedForParameter(lookup.definition, lookup.parameter.index), presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: base } } }));
         return semantic(null, "invalid", null, derivedRole);
       }
       return semantic(pointTarget, "resolved", null, derivedRole);
     }
     if (lookup.kind === "undefined") {
-      addLocal(statementIndex, issue("module-undefined-geometry-reference", baseSpan, `未定義のgeometry「${base}」を参照しています。`));
+      addLocal(statementIndex, issue("module-undefined-geometry-reference", baseSpan, `未定義のgeometry「${base}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-geometry-reference", parameters: { name: base } } }));
       return semantic(null, "undefined", null, derivedRole);
     }
     if (lookup.kind === "iteration") {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, { relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForLookup(lookup) }));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, {
+        relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForLookup(lookup),
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     }
     if (lookup.kind === "forward") {
-      addLocal(statementIndex, issue("module-forward-geometry-reference", baseSpan, `geometry「${base}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup) }));
+      addLocal(statementIndex, issue("module-forward-geometry-reference", baseSpan, `geometry「${base}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-forward-geometry-reference", parameters: { name: base } } }));
       return semantic(null, "forward", null, derivedRole);
     }
     if (lookup.kind === "ambiguous") {
-      addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `geometry「${base}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup) }));
+      addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `geometry「${base}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { name: base } } }));
       return semantic(null, "invalid", null, derivedRole);
     }
     if (lookup.kind === "invalidOverlayTraversal") {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { relatedSources: expectedRelatedSources }));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${lookup.name}」はparameter/iteration namespaceではありません。`, {
+        relatedSources: expectedRelatedSources,
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: lookup.name } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     }
     if (lookup.kind === "invalidTraversal") {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForLookup(lookup) }));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${lookup.declaration.name}」はnamespace/containerではありません。`, {
+        relatedSources: expectedRelatedSources.length ? expectedRelatedSources : relatedForLookup(lookup),
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: lookup.declaration.name } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     }
     const target = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(lookup.declaration);
     if (!target) {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, { relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated }));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `「${base}」はgeometryではありません。`, {
+        relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     }
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
-      addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, { relatedSources: declarationRelated }));
+      addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
       return semantic(null, "outerCapture", null, derivedRole);
     }
     const pointTarget = pointKey && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, pointKey)
@@ -1590,7 +1658,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType)
         : target.geometryKind === expected;
     if (!compatible) {
-      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, { relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated }));
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+        relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+      }));
       return semantic(null, "invalid", null, derivedRole);
     }
     return semantic(pointTarget, "resolved", null, derivedRole);
@@ -1670,7 +1741,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           diagnostic: issue(
             "module-record-field-unknown",
             reference.propertySpan,
-            `record「${record.definition.name}」に field「${reference.property}」はありません。`
+            `record「${record.definition.name}」に field「${reference.property}」はありません。`,
+            { presentation: { key: "diagnostic.module-record-field-unknown", parameters: { record: record.definition.name, field: reference.property } } }
           )
         };
       }
@@ -1691,7 +1763,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             "module-optional-value-required",
             reference.elementNameSpan,
             `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`,
-            { relatedSources: parameterDefinition ? relatedForParameter(parameterDefinition, recordParameterTarget.parameterIndex) : [] }
+            {
+              relatedSources: parameterDefinition ? relatedForParameter(parameterDefinition, recordParameterTarget.parameterIndex) : [],
+              presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.elementName } }
+            }
           )
         };
       }
@@ -1709,7 +1784,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       target: null,
       type: null,
       resolution: "invalid",
-      diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`)
+      diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`, { presentation: { key: "diagnostic.module-unknown-geometry-property", parameters: { property: reference.property } } })
     });
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
@@ -1753,10 +1828,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const parameterTarget = geometryParameterTarget(lookup.definition, lookup.parameter);
       const relatedSources = relatedForParameter(lookup.definition, lookup.parameter.index);
       if (!parameterTarget) {
-        return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometry parameterではありません。`, { relatedSources }) };
+        return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometry parameterではありません。`, { relatedSources, presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
       }
       if (lookup.parameter.parameter.optional && !reference.presenceFacts?.has(moduleParameterPresenceKey(parameterTarget.definitionStatementId, parameterTarget.parameterIndex))) {
-        return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`, { relatedSources }) };
+        return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`, { relatedSources, presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.elementName } } }) };
       }
       const interfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.parameter.type);
       const type = numericGeometryPropertySupportedByStaticTarget(
@@ -1768,18 +1843,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (!type) return unknownProperty();
       return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type, resolution: "resolved" };
     }
-    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`) };
-    if (lookup.kind === "iteration") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: relatedForLookup(lookup) }) };
-    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-geometry-reference", reference.span, `geometry「${reference.elementName}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup) }) };
-    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup) }) };
-    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`) };
-    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup) }) };
+    if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-geometry-reference", parameters: { name: reference.elementName } } }) };
+    if (lookup.kind === "iteration") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
+    if (lookup.kind === "forward") return { target: null, type: null, resolution: "forward", diagnostic: issue("module-forward-geometry-reference", reference.span, `geometry「${reference.elementName}」はこの位置より後で宣言されています。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-forward-geometry-reference", parameters: { name: reference.elementName } } }) };
+    if (lookup.kind === "ambiguous") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `geometry「${reference.elementName}」を一意に解決できません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { name: reference.elementName } } }) };
+    if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.name } } }) };
+    if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.declaration.name } } }) };
     const declarationRelated = relatedForDeclaration(lookup.declaration);
     const geometryTarget = declarationGeometryPropertyTarget(lookup.declaration, stableStatementIdByIndex, reference.property);
-    if (!geometryTarget) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: declarationRelated }) };
+    if (!geometryTarget) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
-      return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated }) };
+      return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } } }) };
     }
     const type = numericGeometryPropertySupportedByStaticTarget(
       numericGeometryTargetForSourceStatement(
@@ -1841,7 +1916,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolution: ModuleRecordReferenceSemantic["resolution"],
       message: string,
       diagnosticSpan = span,
-      relatedSources: readonly DiagnosticRelatedSource[] = []
+      relatedSources: readonly DiagnosticRelatedSource[] = [],
+      presentation?: DslDiagnosticPresentation
     ): ModuleRecordReferenceSemantic => {
       addLocal(statementIndex, issue(
         resolution === "forward" ? "module-record-forward-reference" :
@@ -1849,7 +1925,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             "module-record-reference-invalid",
         diagnosticSpan,
         message,
-        { relatedSources }
+        { relatedSources, ...(presentation ? { presentation } : {}) }
       ));
       return { source: raw, span, typeIdentity: null, target: null, constructor: null, resolution };
     };
@@ -1872,7 +1948,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             baseSpan,
             resolved.target.kind === "recordValue"
               ? relatedAt(resolved.target.statementIndex, statements[resolved.target.statementIndex]?.nameSpan, "Related record value", { key: "diagnostic.related.record-value" })
-              : []
+              : [],
+            { key: "diagnostic.module-record-invalid-reference", parameters: { name: parsed.reference.pathText } }
             );
         }
         const resolvedRecordParameter = resolved.target.kind === "recordParameter" ? resolved.target : null;
@@ -1886,7 +1963,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           return invalid(
             "invalid",
             `optional module parameter「${parsed.reference.pathText}」は hasValue(@${parsed.reference.pathText}) で存在を確認してから参照してください。`,
-            baseSpan
+            baseSpan,
+            [],
+            { key: "diagnostic.module-optional-value-required", parameters: { name: parsed.reference.pathText } }
           );
         }
         return {
@@ -1916,10 +1995,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? recordAnalysis!.definitionsByStatementIndex.get(targetLookup.declaration.statementIndex)
       : undefined;
     if (!targetDefinition) {
-      return invalid("invalid", `record constructor「${constructor.name}」は expected record definition ではありません。`, constructor.nameSpan);
+      return invalid("invalid", `record constructor「${constructor.name}」は expected record definition ではありません。`, constructor.nameSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: constructor.name } });
     }
     if (targetDefinition.statementId !== expectedTypeIdentity) {
-      return invalid("invalid", `constructor「${constructor.name}」の nominal record 型が expected type と一致しません。`, constructor.nameSpan);
+      return invalid("invalid", `constructor「${constructor.name}」の nominal record 型が expected type と一致しません。`, constructor.nameSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: constructor.name } });
     }
     const fields = analyzeRecordConstructorFields(statementIndex, ownerIndex, constructor.fields, presenceFacts);
     return {
@@ -2114,7 +2193,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               ? `module callee「${statement.moduleName}」を一意に解決できません。`
               : `module「${statement.moduleName}」が見つかりません。`;
         addLocal(statementIndex, issue(moduleCalleeDiagnosticCode(calleeResolution), span, message, {
-          relatedSources: lookup.kind === "external" ? [] : relatedForLookup(lookup)
+          relatedSources: lookup.kind === "external" ? [] : relatedForLookup(lookup),
+          presentation: {
+            key: `diagnostic.${moduleCalleeDiagnosticCode(calleeResolution)}`,
+            parameters: { name: statement.moduleName }
+          }
         }));
       }
 
@@ -2129,7 +2212,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           if (previousIndex !== undefined) {
             const previous = statement.arguments[previousIndex];
             addLocal(statementIndex, issue("module-duplicate-argument", argument.labelSpan ?? argument.valueSpan, `argument「${argument.label}」が重複しています。`, {
-              relatedSources: relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name", { key: "diagnostic.related.first-argument" })
+              relatedSources: relatedAt(statementIndex, previous.labelSpan ?? previous.valueSpan, "First argument with this name", { key: "diagnostic.related.first-argument" }),
+              presentation: { key: "diagnostic.module-duplicate-argument", parameters: { argument: argument.label } }
             }));
           } else argumentIndexes.set(argument.label, argumentIndex);
           const parameter = calleeState?.parameterByName.get(argument.label) ?? calleeParameters
@@ -2139,7 +2223,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             addLocal(statementIndex, issue("module-unknown-argument", argument.labelSpan ?? argument.valueSpan, `module「${callee?.name ?? statement.moduleName}」にargument「${argument.label}」はありません。`, {
               relatedSources: calleeState
                 ? relatedAt(calleeState.statementIndex, calleeState.statement.nameSpan ?? calleeState.statement.keywordSpan, "Called module definition", { key: "diagnostic.related.called-module-definition" })
-                : []
+                : [],
+              presentation: {
+                key: "diagnostic.module-unknown-argument",
+                parameters: { module: callee?.name ?? statement.moduleName, argument: argument.label }
+              }
             }));
           }
         }
@@ -2149,7 +2237,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           const parameterRelated = calleeState ? relatedForParameter(calleeState, parameter.parameterIndex) : [];
           const parameterTypeRelated = calleeState ? relatedForParameter(calleeState, parameter.parameterIndex, true) : [];
           if (!argument) {
-            if (parameter.required) addLocal(statementIndex, issue("module-missing-argument", statement.moduleNameSpan ?? statement.keywordSpan, `required argument「${parameter.name}」がありません。`, { relatedSources: parameterRelated }));
+            if (parameter.required) addLocal(statementIndex, issue("module-missing-argument", statement.moduleNameSpan ?? statement.keywordSpan, `required argument「${parameter.name}」がありません。`, { relatedSources: parameterRelated, presentation: { key: "diagnostic.module-missing-argument", parameters: { parameter: parameter.name } } }));
             const state = parameter.optional
               ? "optionalOmitted"
               : parameter.defaultValue !== null
@@ -2404,7 +2492,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           addLocal(value.statementIndex, issue(
             "module-optional-value-required",
             value.reference?.span ?? statement?.nameSpan ?? statement?.keywordSpan ?? { start: 0, end: 0 },
-            `optional module parameter の record 値「${value.reference?.name ?? value.name}」は hasValue で存在を確認してから参照してください。`
+            `optional module parameter の record 値「${value.reference?.name ?? value.name}」は hasValue で存在を確認してから参照してください。`,
+            { presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: value.reference?.name ?? value.name } } }
           ));
           target = null;
         }
@@ -2444,7 +2533,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           code: "module-duplicate-export",
           span: (statement!.kind === "typedDeclaration" || statement!.kind === "element" ? statement!.exportSpan : null) ?? statement!.nameSpan ?? statement!.keywordSpan,
           message: `module export「${recordValue.value.name}」が重複しています。`,
-          presentation: { key: "diagnostic.module-duplicate-export" }
+          presentation: { key: "diagnostic.module-duplicate-export", parameters: { name: recordValue.value.name } }
         });
         continue;
       }
@@ -2520,7 +2609,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         "module-recursion",
         statement.moduleNameSpan ?? statement.keywordSpan,
         `module recursion は許可されていません:「${statement.moduleName}」。`,
-        { relatedSources }
+        {
+          relatedSources,
+          presentation: { key: "diagnostic.module-recursion", parameters: { name: statement.moduleName } }
+        }
       )
     );
   }

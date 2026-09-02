@@ -109,11 +109,18 @@ type Candidate = {
   elementId?: ElementId;
 };
 
-const diagnosticAt = (spans: DiagnosticSpanContext, statement: DslStatement, span: DslSpan, code: string, message: string): DslDiagnostic => {
+const diagnosticAt = (
+  spans: DiagnosticSpanContext,
+  statement: DslStatement,
+  span: DslSpan,
+  code: string,
+  message: string,
+  presentation?: DslDiagnostic["presentation"]
+): DslDiagnostic => {
   const physicalSpan = exactPhysicalSpan(spans, statement, span);
   return {
     severity: "error", line: statement.line, column: span.start + 1, code, message, exactSpanOnly: true,
-    presentation: { key: `diagnostic.${code}` },
+    presentation: presentation ?? { key: `diagnostic.${code}` },
     ...(physicalSpan ? { physicalSpan } : {})
   };
 };
@@ -372,7 +379,8 @@ export const compileNumericBindings = ({
           candidate.statement,
           reference.span,
           NUMERIC_BINDING_ITERATION_REFERENCE_CODE,
-          `for の反復変数「${reference.name}」は数値式で裸の名前として参照できません。「@${reference.name}」を使用してください。`
+          `for の反復変数「${reference.name}」は数値式で裸の名前として参照できません。「@${reference.name}」を使用してください。`,
+          { key: "diagnostic.numeric-binding-iteration-reference", parameters: { name: reference.name } }
         ));
       }
       continue;
@@ -389,7 +397,14 @@ export const compileNumericBindings = ({
     candidate.references.forEach((reference, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
       if (!resolution || resolution.kind === "undefined" || resolution.kind === "forward") {
-        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, NUMERIC_BINDING_UNRESOLVED_CODE, unresolvedReferenceMessage(reference.name, resolution)));
+        diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          reference.span,
+          NUMERIC_BINDING_UNRESOLVED_CODE,
+          unresolvedReferenceMessage(reference.name, resolution),
+          { key: "diagnostic.numeric-binding-unresolved", parameters: { name: reference.name } }
+        ));
         rejected = true;
         return;
       }
@@ -409,7 +424,17 @@ export const compileNumericBindings = ({
       const entry = bindingAnalysis.entriesById.get(binding.id);
       if (entry?.status.kind === "invalid") { rejected = true; return; } // binding diagnostics already own this cause.
       if (binding.declaredType?.kind !== "number") {
-        diagnostics.push(diagnosticAt(spans, candidate.statement, reference.span, NUMERIC_BINDING_TYPE_MISMATCH_CODE, `型が一致しません(期待: number, 実際: ${binding.declaredType?.kind ?? "unknown"})。`));
+        diagnostics.push(diagnosticAt(
+          spans,
+          candidate.statement,
+          reference.span,
+          NUMERIC_BINDING_TYPE_MISMATCH_CODE,
+          `型が一致しません(期待: number, 実際: ${binding.declaredType?.kind ?? "unknown"})。`,
+          {
+            key: "diagnostic.numeric-binding-type-mismatch",
+            parameters: { expected: "number", actual: binding.declaredType?.kind ?? "unknown" }
+          }
+        ));
         rejected = true;
         return;
       }
@@ -474,7 +499,8 @@ export const compileNumericBindings = ({
             candidate.statement,
             { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
             NUMERIC_BINDING_UNRESOLVED_CODE,
-            issue.message
+            issue.message,
+            issue.presentation
           )));
           continue;
         }
@@ -501,7 +527,8 @@ export const compileNumericBindings = ({
               candidate.statement,
               { start: candidate.valueSpan.start + issue.span.start, end: candidate.valueSpan.start + issue.span.end },
               issue.code,
-              issue.message
+              issue.message,
+              issue.presentation
             ));
           }
           if (typedRefs.length === 0 || !hasLegacyOwnedReference) continue;

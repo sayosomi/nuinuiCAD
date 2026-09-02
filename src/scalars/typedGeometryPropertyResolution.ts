@@ -11,11 +11,13 @@ import type { ElementNameContext } from "../model/elementNames";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { CadElement, ElementId } from "../types/geometry";
 import type { ScalarExpressionAst } from "./expressionAst";
+import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 import type { ScalarExpressionResolvedGeometryProperty } from "./typedExpressionAst";
 
 export type GeometryPropertyResolutionIssue = {
   span: { start: number; end: number };
   message: string;
+  presentation?: DslDiagnosticPresentation;
 };
 
 export type TypedGeometryPropertyResolutionContext = {
@@ -94,7 +96,11 @@ export const resolveGeometryPropertyMetadata = (
       );
       if (!reference) {
         geometryPropertyReferences.set(node.span.start, null);
-        issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」を一意に解決できません。` });
+        issues.push({
+          span: node.elementNameSpan,
+          message: `要素「${node.elementName}」を一意に解決できません。`,
+          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
+        });
         return;
       }
       // Numeric normalization is intentionally retained as the canonical
@@ -117,18 +123,30 @@ export const resolveGeometryPropertyMetadata = (
         : choiceGeometryPropertyTypeFor(targetElement, reference.property);
       if (!type) {
         geometryPropertyReferences.set(node.span.start, null);
-        issues.push({ span: node.propertySpan, message: `要素プロパティ「${node.property}」は公開されたgeometry propertyとして使用できません。` });
+        issues.push({
+          span: node.propertySpan,
+          message: `要素プロパティ「${node.property}」は公開されたgeometry propertyとして使用できません。`,
+          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
+        });
         return;
       }
       const targetSourceOrder = sourceOrderByElementId.get(targetElementId);
       if (targetSourceOrder === undefined) {
         geometryPropertyReferences.set(node.span.start, null);
-        issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」のsource orderを解決できません。` });
+        issues.push({
+          span: node.elementNameSpan,
+          message: `要素「${node.elementName}」のsource orderを解決できません。`,
+          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
+        });
         return;
       }
       if (context?.currentSourceOrder !== undefined && targetSourceOrder >= context.currentSourceOrder) {
         geometryPropertyReferences.set(node.span.start, null);
-        issues.push({ span: node.elementNameSpan, message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。` });
+        issues.push({
+          span: node.elementNameSpan,
+          message: `要素「${node.elementName}」はこの式より後、または同じ位置にあるため参照できません。`,
+          presentation: { key: "diagnostic.geometry-property-invalid", parameters: { target: `${node.elementName}.${node.property}` } }
+        });
         return;
       }
       geometryPropertyReferences.set(node.span.start, {

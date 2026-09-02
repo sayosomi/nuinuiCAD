@@ -69,7 +69,7 @@ const recordDiagnostics = (
     message: item.message,
     sourceRevision,
     ...(item.code ? { code: item.code } : {}),
-    ...(item.code ? { presentation: { key: `diagnostic.${item.code}` } } : {}),
+    ...(item.presentation ? { presentation: item.presentation } : item.code ? { presentation: { key: `diagnostic.${item.code}` } } : {}),
     ...(physicalSpan ? { physicalSpan } : {})
   };
 });

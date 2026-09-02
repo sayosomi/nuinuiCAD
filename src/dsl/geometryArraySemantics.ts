@@ -1,4 +1,4 @@
-import type { DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
 import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type { GeometryArrayExpression, GeometryArrayLiteralMember } from "./geometryArrayExpression";
 import {
@@ -11,6 +11,7 @@ export type GeometryArraySemanticDiagnostic = {
   code: string;
   message: string;
   span: DslSpan;
+  presentation?: DslDiagnosticPresentation;
 };
 
 /** Opaque definition-backed geometry handle supplied by the existing resolver. */
@@ -81,7 +82,11 @@ const memberTypeMismatch = (
 ): GeometryArraySemanticDiagnostic => ({
   code: "geometry-array-member-type-mismatch",
   message: `geometry array member の型が一致しません: ${geometryArrayTypeName(expectedType)} には ${expectedType.elementType} が必要ですが ${actualType} が渡されています。`,
-  span: member.span
+  span: member.span,
+  presentation: {
+    key: "diagnostic.geometry-array-member-type-mismatch",
+    parameters: { member: member.text, expected: geometryArrayTypeName(expectedType), actual: actualType }
+  }
 });
 
 /**
@@ -102,7 +107,11 @@ export const resolveGeometryArrayExpression = <TTarget>(
         diagnostics: [{
           code: "geometry-array-assignability-mismatch",
           message: `geometry array の型が一致しません: ${geometryArrayTypeName(resolution.type)} は ${geometryArrayTypeName(input.expectedType)} に代入できません。`,
-          span: input.expression.span
+          span: input.expression.span,
+          presentation: {
+            key: "diagnostic.geometry-array-assignability-mismatch",
+            parameters: { actual: geometryArrayTypeName(resolution.type), expected: geometryArrayTypeName(input.expectedType) }
+          }
         }]
       };
     }

@@ -287,7 +287,7 @@ export const applyArgs = (
       column: sourceSpan.start + issue.span.start + 1,
       code: issue.code,
       message: issue.message,
-      presentation: { key: `diagnostic.${issue.code}` },
+      presentation: issue.presentation ?? { key: `diagnostic.${issue.code}` },
       logicalSpan: { start: sourceSpan.start + issue.span.start, end: sourceSpan.start + issue.span.end }
     });
     return checked.diagnostics.length > 0 || checked.type === null;

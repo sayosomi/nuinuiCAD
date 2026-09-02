@@ -174,14 +174,16 @@ const diagnosticKey = (diagnostic: VscodeMultiDocumentDiagnostic): string => JSO
   diagnostic.severity,
   diagnostic.code,
   diagnostic.presentation ?? null,
+  diagnostic.code === undefined && diagnostic.presentation === undefined ? diagnostic.message : null,
   diagnostic.location,
   (diagnostic.relatedInformation ?? []).map((related) => ({
     location: related.location,
-    presentation: related.presentation ?? null
+    presentation: related.presentation ?? null,
+    message: related.presentation === undefined ? related.message : null
   }))
 ]);
 
-const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = ({ graph, compiled }) => {
+export const projectVscodeModuleDiagnostics: VscodeMultiDocumentDiagnosticsProjector = ({ graph, compiled }) => {
   const diagnostics: VscodeMultiDocumentDiagnostic[] = [];
   const add = (diagnostic: VscodeMultiDocumentDiagnostic | null): void => {
     if (diagnostic) diagnostics.push(diagnostic);

@@ -150,7 +150,8 @@ export const parseDslScalarType = (
     diagnostics.push({
       message: `不明な型注釈です: ${text}(${accepted} のいずれかを指定してください)`,
       span: typeSpan,
-      code: "unknown-type"
+      code: "unknown-type",
+      presentation: { key: "diagnostic.unknown-type", parameters: { type: text } }
     });
     return { declaredType: null, choiceOptionSpans: [] };
   }
@@ -197,7 +198,8 @@ export const parseDslScalarType = (
         diagnostics.push({
           message: `choice option が重複しています: ${token.raw}`,
           span: token.span,
-          code: "invalid-choice-type"
+          code: "invalid-choice-type",
+          presentation: { key: "diagnostic.duplicate-choice-option", parameters: { option: token.raw } }
         });
         hasError = true;
         continue;
