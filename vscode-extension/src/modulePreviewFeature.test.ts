@@ -335,12 +335,19 @@ describe("registerModulePreviewFeature", () => {
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
+      evaluateWithRust: async () => ({}),
+      displayLanguageFor: () => "ja-JP"
     });
     const parameterView = createParameterWebview();
     feature.attachParameterView(parameterView as never);
     await parameterView.receive({ type: "modulePreviewParametersViewReady" });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    expect(mocks.createWebviewPanel).toHaveBeenCalledWith(
+      NUI_MODULE_PREVIEW_VIEW_TYPE,
+      "Module プレビュー",
+      2,
+      expect.any(Object)
+    );
     await panel.receive({ type: "webviewReady" });
     await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
 

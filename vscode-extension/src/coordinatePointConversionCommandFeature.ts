@@ -24,6 +24,7 @@ import {
 import type { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 import {
+  coordinatePointConversionTranslatorFor,
   presentCoordinatePointConversionResult,
   type CoordinatePointConversionOutputTarget
 } from "./coordinatePointConversionPresentation";
@@ -70,6 +71,7 @@ export type CoordinatePointConversionFeatureHost = {
   isSourceEditorActive?: () => boolean;
   refreshElementsTree?: () => void;
   output?: () => CoordinatePointConversionOutputTarget;
+  displayLanguageFor?: () => string;
 };
 
 export type VscodeCoordinatePointConversionFeature = vscode.Disposable & {
@@ -111,7 +113,7 @@ type ActiveNativeRequest = {
   canvasTargetSources: readonly CoordinatePointConversionCanvasTarget[] | null;
 };
 
-type CoordinatePointConversionQuickPickItem = vscode.QuickPickItem & (
+type CoordinatePointConversionQuickPickItem = Omit<vscode.QuickPickItem, "kind"> & (
   | { kind: "base"; baseKey: string }
   | { kind: "canvas" }
 );
@@ -121,6 +123,14 @@ const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): bo
 
 const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor is vscode.TextEditor =>
   Boolean(editor) && editor!.document.uri.scheme === "file" && editor!.document.fileName.endsWith(".nui");
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
+};
 
 const documentKey = (document: vscode.TextDocument): string => document.uri.toString();
 
@@ -323,7 +333,8 @@ export const registerVscodeCoordinatePointConversionFeature = ({
   activeExplorerDocument,
   isSourceEditorActive,
   refreshElementsTree,
-  output
+  output,
+  displayLanguageFor = vscodeDisplayLanguage
 }: CoordinatePointConversionFeatureHost): VscodeCoordinatePointConversionFeature => {
   const runtimeEvaluation = createNuiRuntimeEvaluationService({
     rustProcessOwner,
@@ -396,21 +407,26 @@ export const registerVscodeCoordinatePointConversionFeature = ({
   };
 
   const nativeQuickPickItemsFor = (
-    session: CoordinatePointConversionSession
-  ): readonly CoordinatePointConversionQuickPickItem[] => [
-    {
-      label: "$(location) Pick base point on Canvas",
-      description: "Switch to visual base-point picking",
-      kind: "canvas"
-    },
-    ...coordinatePointConversionReferenceSuggestions(session).map((suggestion) => ({
-      label: suggestion.canonicalToken,
-      description: "Legal shared base point",
-      detail: `${suggestion.detail} · ${suggestion.searchAliases.join(", ")}`,
-      kind: "base" as const,
-      baseKey: suggestion.baseKey
-    }))
-  ];
+    session: CoordinatePointConversionSession,
+    displayLanguage: string
+  ): readonly CoordinatePointConversionQuickPickItem[] => {
+    const translator = coordinatePointConversionTranslatorFor(displayLanguage);
+    const items: CoordinatePointConversionQuickPickItem[] = [
+      {
+        label: translator("coordinatePointConversion.picker.pickCanvas"),
+        description: translator("coordinatePointConversion.picker.description"),
+        kind: "canvas"
+      },
+      ...coordinatePointConversionReferenceSuggestions(session).map((suggestion) => ({
+        label: suggestion.canonicalToken,
+        description: translator("coordinatePointConversion.picker.legalCandidate"),
+        detail: `${suggestion.detail} · ${suggestion.searchAliases.join(", ")}`,
+        kind: "base" as const,
+        baseKey: suggestion.baseKey
+      }))
+    ];
+    return items;
+  };
 
   const conversionResultFor = (
     request: CoordinatePointConversionStartRequest,
@@ -450,7 +466,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       showInformationMessage: (message) => vscode.window.showInformationMessage(message),
       showWarningMessage: (message, action) => vscode.window.showWarningMessage(message, action),
       showErrorMessage: (message, action) => vscode.window.showErrorMessage(message, action)
-    });
+    }, displayLanguageFor());
   };
 
   const cancelActiveRequest = (): void => {
@@ -486,7 +502,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
           showInformationMessage: (message) => vscode.window.showInformationMessage(message),
           showWarningMessage: (message, action) => vscode.window.showWarningMessage(message, action),
           showErrorMessage: (message, action) => vscode.window.showErrorMessage(message, action)
-        });
+        }, displayLanguageFor());
         if (result.origin === "source" || result.origin === "explorer") {
           void vscode.window.showTextDocument(current.editor.document, {
             viewColumn: current.editor.viewColumn,
@@ -813,8 +829,12 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       canvasTargetSources: origin === "canvas" ? canvasTargetSources ?? [] : null
     };
     activeNativeRequest = native;
-    const selected = await vscode.window.showQuickPick(nativeQuickPickItemsFor(started.session), {
-      placeHolder: mode === "xy" ? "Select a shared base point for XY offset" : "Select a shared base point for angle-distance offset",
+    const displayLanguage = displayLanguageFor();
+    const translator = coordinatePointConversionTranslatorFor(displayLanguage);
+    const selected = await vscode.window.showQuickPick(nativeQuickPickItemsFor(started.session, displayLanguage), {
+      placeHolder: mode === "xy"
+        ? translator("coordinatePointConversion.picker.xyPlaceholder")
+        : translator("coordinatePointConversion.picker.anglePlaceholder"),
       matchOnDescription: true,
       matchOnDetail: true
     });
@@ -841,7 +861,9 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     );
     if (!resolution || editor.document.version !== resolution.documentVersion) {
       setSourceContext(false);
-      void vscode.window.showErrorMessage("nuinuiCAD: Source Editorのカーソル位置に変換できるcoordinate pointがありません。");
+      void vscode.window.showErrorMessage(
+        coordinatePointConversionTranslatorFor(displayLanguageFor())("coordinatePointConversion.source.noTarget")
+      );
       return;
     }
     await startNative(mode, "source", [resolution.targetId], editor, resolution.snapshot);

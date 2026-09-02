@@ -151,8 +151,8 @@ describe("native Quick Fix composition", () => {
     const actions = actionsFor(document, provider, diagnostic);
 
     expect(actions.map((action) => action.title)).toEqual([
-      '"left" に置き換え',
-      '"right" に置き換え'
+      "Replace with 'left'",
+      "Replace with 'right'"
     ]);
     expect(actions.every((action) => action.command?.command === NUI_CHOICE_QUICK_FIX_APPLY_COMMAND)).toBe(true);
   });

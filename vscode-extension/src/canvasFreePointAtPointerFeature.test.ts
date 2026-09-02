@@ -160,7 +160,7 @@ describe("Canvas free point at pointer feature", () => {
     document.version = 2;
     feature.handleAuthoritativeDocumentReady(token, document, document.version);
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
 
     mocks.showErrorMessage.mockClear();
     authoritativeReady = false;
@@ -175,7 +175,7 @@ describe("Canvas free point at pointer feature", () => {
     authoritativeReady = true;
     feature.handleAuthoritativeDocumentReady(token, document, document.version);
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 
@@ -377,7 +377,7 @@ describe("Canvas free point at pointer feature", () => {
     feature.handleAuthoritativeDocumentReady(token, document, 2);
 
     expect(postFreePointAtPointer).not.toHaveBeenCalled();
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 
@@ -416,7 +416,7 @@ describe("Canvas free point at pointer feature", () => {
     feature.handleAuthoritativeDocumentReady(token, document, 3);
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 
@@ -583,7 +583,7 @@ describe("Canvas free point at pointer feature", () => {
     void mocks.commands.get(VSCODE_CANVAS_FREE_POINT_AT_POINTER_COMMAND_ID)?.();
 
     expect(postFreePointAtPointer).toHaveBeenCalledTimes(1);
-    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("古くなっています"));
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("Source insertion position is stale"));
     feature.dispose();
   });
 

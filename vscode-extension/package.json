@@ -1,7 +1,7 @@
 {
   "name": "nuinuicad",
   "displayName": "nuinuiCAD",
-  "description": "2D parametric CAD for sewing pattern drafting in VS Code.",
+  "description": "%extension.description%",
   "version": "0.0.0",
   "publisher": "yosomi",
   "private": true,
@@ -19,7 +19,7 @@
       "activitybar": [
         {
           "id": "nuinuiCAD.explorer",
-          "title": "nuinuiCAD Explorer",
+          "title": "%views.explorerContainer%",
           "icon": "media/spline.svg"
         }
       ]
@@ -28,16 +28,16 @@
       "nuinuiCAD.explorer": [
         {
           "id": "nuinuiCAD.elements",
-          "name": "Elements"
+          "name": "%views.elements%"
         },
         {
           "id": "nuinuiCAD.explorerMock",
-          "name": "Explorer Mock",
+          "name": "%views.explorerMock%",
           "type": "webview"
         },
         {
           "id": "nuinuiCAD.modulePreviewParameters",
-          "name": "Module Preview Parameters",
+          "name": "%views.modulePreviewParameters%",
           "type": "webview"
         }
       ]
@@ -45,11 +45,11 @@
     "submenus": [
       {
         "id": "nuinuiCAD.create",
-        "label": "Create"
+        "label": "%submenu.create%"
       },
       {
         "id": "nuinuiCAD.convertPoint",
-        "label": "Convert"
+        "label": "%submenu.convert%"
       }
     ],
     "keybindings": [
@@ -1549,52 +1549,52 @@
       }
     ],
     "configuration": {
-      "title": "nuinuiCAD",
+      "title": "%configuration.title%",
       "properties": {
         "nuinuiCAD.developer.mcpObservation.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "application",
-          "description": "Enable the private developer-only loopback observation bridge used by nuinuiCAD MCP/E2E tooling. Reload the Extension Host after changing this setting."
+          "description": "%configuration.developer.mcpObservation.enabled.description%"
         },
         "nuinuiCAD.bake.emitSkippedComments": {
           "type": "boolean",
           "default": true,
-          "description": "Bakeできない対象の位置に理由コメントを挿入します。"
+          "description": "%configuration.bake.emitSkippedComments.description%"
         },
         "nuinuiCAD.bake.includeHiddenGeometry": {
           "type": "boolean",
           "default": false,
-          "description": "Bake対象にhidden geometryを含めます。"
+          "description": "%configuration.bake.includeHiddenGeometry.description%"
         },
         "nuinuiCAD.bake.includeDisabledGeometry": {
           "type": "boolean",
           "default": false,
-          "description": "Bake対象にdisabled geometryを含めます。"
+          "description": "%configuration.bake.includeDisabledGeometry.description%"
         },
         "nuinuiCAD.inlineModule.emitOmittedBranchComments": {
           "type": "boolean",
           "default": true,
-          "description": "Inline Moduleで省略された分岐をコメントとして残します。"
+          "description": "%configuration.inlineModule.emitOmittedBranchComments.description%"
         },
         "nuinuiCAD.inlineModule.includeHiddenInstances": {
           "type": "boolean",
           "default": false,
-          "description": "Inline Module対象にhidden Module instanceを含めます。"
+          "description": "%configuration.inlineModule.includeHiddenInstances.description%"
         },
         "nuinuiCAD.inlineModule.includeDisabledInstances": {
           "type": "boolean",
           "default": false,
-          "description": "Inline Module対象にdisabled Module instanceを含めます。"
+          "description": "%configuration.inlineModule.includeDisabledInstances.description%"
         },
         "nuinuiCAD.canvasRibbon.ribbons": {
           "type": "array",
           "scope": "application",
-          "description": "Canvas Ribbons shown in the nuinuiCAD VS Code Canvas.",
+          "description": "%configuration.canvasRibbon.ribbons.description%",
           "default": [
             {
               "id": "canvas-ribbon",
-              "label": "Canvas Ribbon",
+              "label": "%configuration.canvasRibbon.defaultLabel%",
               "x": null,
               "y": 12,
               "orientation": "horizontal",
@@ -1655,7 +1655,7 @@
         "nuinuiCAD.canvasQuickCreate.commands": {
           "type": "array",
           "scope": "application",
-          "description": "Creation commands shown in the Canvas Create submenu, in order.",
+          "description": "%configuration.canvasQuickCreate.commands.description%",
           "default": [],
           "uniqueItems": true,
           "items": {
@@ -1686,6 +1686,33 @@
               "addSymmetricMove",
               "addText",
               "addThreePointArcLine"
+            ],
+            "enumDescriptions": [
+              "%configuration.canvasQuickCreate.enum.addAngleLengthLine%",
+              "%configuration.canvasQuickCreate.enum.addArcLine%",
+              "%configuration.canvasQuickCreate.enum.addBezierBulgePoint%",
+              "%configuration.canvasQuickCreate.enum.addBezierCurve%",
+              "%configuration.canvasQuickCreate.enum.addBezierExtremePoint%",
+              "%configuration.canvasQuickCreate.enum.addCommonTangentLine%",
+              "%configuration.canvasQuickCreate.enum.addCopyLine%",
+              "%configuration.canvasQuickCreate.enum.addCornerRadiusArcLine%",
+              "%configuration.canvasQuickCreate.enum.addDivisionPoint%",
+              "%configuration.canvasQuickCreate.enum.addEdge%",
+              "%configuration.canvasQuickCreate.enum.addExtendTrim%",
+              "%configuration.canvasQuickCreate.enum.addFreePoint%",
+              "%configuration.canvasQuickCreate.enum.addIntersectionPoint%",
+              "%configuration.canvasQuickCreate.enum.addLine%",
+              "%configuration.canvasQuickCreate.enum.addLineDivisionPoint%",
+              "%configuration.canvasQuickCreate.enum.addLineTangentOffsetPoint%",
+              "%configuration.canvasQuickCreate.enum.addMove%",
+              "%configuration.canvasQuickCreate.enum.addOffsetLine%",
+              "%configuration.canvasQuickCreate.enum.addOffsetPoint%",
+              "%configuration.canvasQuickCreate.enum.addPolarOffsetPoint%",
+              "%configuration.canvasQuickCreate.enum.addSplitLine%",
+              "%configuration.canvasQuickCreate.enum.addSymmetricCopyLine%",
+              "%configuration.canvasQuickCreate.enum.addSymmetricMove%",
+              "%configuration.canvasQuickCreate.enum.addText%",
+              "%configuration.canvasQuickCreate.enum.addThreePointArcLine%"
             ]
           }
         }

@@ -310,10 +310,10 @@ describe("VS Code native nui rename provider", () => {
     fatalSession.replaceSource(fatalDocument.getText());
     const fatalProvider = createNuiRenameProvider(() => fatalSession);
     expect(() => prepareAt(fatalProvider, fatalDocument, new vscode.Position(1, 6))).toThrow(
-      "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。"
+      "Rename is unavailable because the current Source has errors. Fix them and try again."
     );
     expect(() => editsAt(fatalProvider, fatalDocument, new vscode.Position(1, 6), "Renamed")).toThrow(
-      "現在のソースにエラーがあるため、リネームできません。エラーを修正してから再試行してください。"
+      "Rename is unavailable because the current Source has errors. Fix them and try again."
     );
 
     const collisionSource = [
@@ -327,13 +327,13 @@ describe("VS Code native nui rename provider", () => {
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       "result"
-    )).toThrow("「result」は3行目に既に存在します。");
+    )).toThrow("'result' already exists in this scope on line 3.");
     expect(() => editsAt(
       collisionProvider,
       collisionDocument,
       positionAtText(collisionDocument, collisionSource, "@width", 1),
       ""
-    )).toThrow("名前は空にできません。");
+    )).toThrow("Enter a valid name.");
 
     const captureSource = [
       "nui 1",
@@ -349,7 +349,7 @@ describe("VS Code native nui rename provider", () => {
       captureDocument,
       positionAtText(captureDocument, captureSource, "@outer", 1),
       "inner"
-    )).toThrow("「outer」の参照先が変わるため、リネームできません。");
+    )).toThrow("Rename would change the reference resolved by 'outer'.");
 
     const moduleCollisionSource = [
       "nui 1",
@@ -364,7 +364,7 @@ describe("VS Code native nui rename provider", () => {
       moduleCollisionDocument,
       positionAtText(moduleCollisionDocument, moduleCollisionSource, "width: number"),
       "length"
-    )).toThrow("「length」は2行目に既に存在します。");
+    )).toThrow("'length' already exists in this scope on line 2.");
 
     const elementCollisionSource = [
       "nui 1",
@@ -377,12 +377,23 @@ describe("VS Code native nui rename provider", () => {
       elementCollisionDocument,
       positionAtText(elementCollisionDocument, elementCollisionSource, "A ="),
       "B"
-    )).toThrow("「B」は3行目に既に存在します。");
+    )).toThrow("'B' already exists in this scope on line 3.");
 
     expect(renameRejectionMessage({
       reason: "same-scope-collision",
       conflictingName: "result"
-    })).toBe("「result」はこのスコープに既に存在します。");
+    })).toBe("'result' already exists in this scope.");
+
+    expect(renameRejectionMessage({
+      reason: "same-scope-collision",
+      conflictingName: "result"
+    }, "ja-JP")).toBe("'result' はこのスコープですでに存在します。");
+
+    expect(renameRejectionMessage({
+      reason: "same-scope-collision",
+      conflictingName: "result",
+      conflictingLine: 3
+    }, "ja-JP")).toBe("'result' はこのスコープの 3 行目にすでに存在します。");
 
     const iterationSource = [
       "nui 1",

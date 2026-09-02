@@ -17,6 +17,7 @@ import {
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { choiceQuickFixTranslatorFor } from "./choiceQuickFixLocalization";
 import { configureNuiTypoDiagnosticPresentation } from "./typoDiagnosticPresentation";
 import {
   createNuiTypoQuickFixApplyHandler,
@@ -76,6 +77,15 @@ type ConstructionCategoryQuickFixPayload = {
 };
 
 export type NuiChoiceQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+
+const vscodeDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    // Focused host mocks may omit vscode.env.
+    return "en";
+  }
+};
 
 const isSupportedDocument = (document: vscode.TextDocument): boolean =>
   document.uri.scheme === "file" && document.fileName.endsWith(".nui");
@@ -189,7 +199,8 @@ const constructionCategoryPayloadFor = (
 });
 
 const createNuiChoiceOnlyQuickFixProvider = (
-  sessionFor: NuiChoiceQuickFixSessionFor
+  sessionFor: NuiChoiceQuickFixSessionFor,
+  displayLanguageFor: () => string
 ): vscode.CodeActionProvider => ({
   provideCodeActions: (document, _range, context) => {
     if (!isSupportedDocument(document)) return [];
@@ -217,6 +228,7 @@ const createNuiChoiceOnlyQuickFixProvider = (
       semantic.currentCompiled.statements,
       semantic.currentCompiled.diagnostics
     );
+    const translate = choiceQuickFixTranslatorFor(displayLanguageFor());
     const actions: vscode.CodeAction[] = [];
 
     semantic.currentCompiled.diagnostics.forEach((diagnostic, index) => {
@@ -237,7 +249,7 @@ const createNuiChoiceOnlyQuickFixProvider = (
           }
         });
         for (const plan of plans) {
-          const title = `Change category to '${plan.targetCategory}'`;
+          const title = translate("choiceQuickFix.changeCategory", { category: plan.targetCategory });
           const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
           action.diagnostics = [target];
           action.command = {
@@ -252,14 +264,17 @@ const createNuiChoiceOnlyQuickFixProvider = (
 
       const descriptors = nativeDescriptorsFor(fingerprint.code, descriptorsByDiagnostic[index] ?? []);
       for (const descriptor of descriptors) {
-        const action = new vscode.CodeAction(descriptor.label, vscode.CodeActionKind.QuickFix);
+        const title = fingerprint.code === INVALID_CHOICE_LITERAL_CODE
+          ? translate("choiceQuickFix.replace", { candidate: descriptor.action.insert })
+          : translate("choiceQuickFix.addDeclaredType");
+        const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
         action.diagnostics = [target];
         if (fingerprint.code === INVALID_CHOICE_LITERAL_CODE && descriptors.length === 1) {
           action.isPreferred = true;
         }
         action.command = {
           command: NUI_CHOICE_QUICK_FIX_APPLY_COMMAND,
-          title: descriptor.label,
+          title,
           arguments: [{
             ...payloadFor(document, source, fingerprint, descriptor),
             uri: documentUri,
@@ -528,11 +543,12 @@ const createNuiChoiceOnlyQuickFixApplyHandler = (
 };
 
 export const createNuiChoiceQuickFixProvider = (
-  sessionFor: NuiChoiceQuickFixSessionFor
+  sessionFor: NuiChoiceQuickFixSessionFor,
+  displayLanguageFor: () => string = vscodeDisplayLanguage
 ): vscode.CodeActionProvider => {
-  configureNuiTypoDiagnosticPresentation(() => vscode.env?.language ?? "en");
-  const choiceProvider = createNuiChoiceOnlyQuickFixProvider(sessionFor);
-  const typoProvider = createNuiTypoQuickFixProvider(sessionFor);
+  configureNuiTypoDiagnosticPresentation(displayLanguageFor);
+  const choiceProvider = createNuiChoiceOnlyQuickFixProvider(sessionFor, displayLanguageFor);
+  const typoProvider = createNuiTypoQuickFixProvider(sessionFor, displayLanguageFor);
 
   return {
     provideCodeActions: (document, range, context, token) => {

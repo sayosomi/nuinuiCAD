@@ -1,8 +1,44 @@
 import type { BakeFailureReason, BakeSkippedTarget } from "../../src/commands/bakeGeometry";
 import type { VscodeBakeOperationResult } from "../../src/vscode/protocol";
+import { createTranslator, resolveLocale, type TranslationCatalog } from "./localization";
 
 export const BAKE_SHOW_DETAILS_ACTION = "Show Details";
 const MAX_NOTIFICATION_REASON_GROUPS = 3;
+
+const bakeTranslationCatalog = {
+  "bake.showDetails": { en: "Show Details", ja: "詳細を表示" },
+  "bake.partialSuccess": {
+    en: "nuinuiCAD: Bake created {successful} target(s) and skipped {skipped}{suffix}.",
+    ja: "nuinuiCAD: Bake は {successful} 件を作成し、{skipped} 件をスキップしました{suffix}。"
+  },
+  "bake.noSuccess": {
+    en: "nuinuiCAD: Bake created no targets and skipped {skipped}{suffix}.",
+    ja: "nuinuiCAD: Bake は対象を作成できず、{skipped} 件をスキップしました{suffix}。"
+  },
+  "bake.otherReasons": { en: "other {count} reason types", ja: "その他 {count} 種類の理由" },
+  "bake.details.mode": { en: "Mode", ja: "モード" },
+  "bake.details.successfulTargets": { en: "Successful targets", ja: "成功した対象" },
+  "bake.details.skippedTargets": { en: "Skipped targets", ja: "スキップした対象" },
+  "bake.details.skippedTargetDetails": { en: "Skipped target details", ja: "スキップした対象の詳細" },
+  "bake.details.targetId": { en: "targetId", ja: "targetId" },
+  "bake.details.sourceElementId": { en: "sourceElementId", ja: "sourceElementId" },
+  "bake.details.reason": { en: "reason", ja: "理由" },
+  "bake.details.geometryKind": { en: "geometryKind", ja: "ジオメトリの種類" },
+  "bake.details.diagnostics": { en: "diagnostics", ja: "診断" },
+  "bake.details.none": { en: "none", ja: "なし" },
+  "bake.details.detail": { en: "detail", ja: "詳細" },
+  "bake.reason.unsupported-geometry-kind": { en: "unsupported geometry kind", ja: "未対応のジオメトリの種類" },
+  "bake.reason.evaluation-failed": { en: "evaluation failed", ja: "評価に失敗" },
+  "bake.reason.unevaluated": { en: "not evaluated", ja: "未評価" },
+  "bake.reason.geometry-unavailable": { en: "geometry unavailable", ja: "ジオメトリを利用できない" },
+  "bake.reason.not-losslessly-representable": { en: "cannot be represented exactly", ja: "正確に表現できない" }
+} satisfies TranslationCatalog;
+
+const bakeTranslatorFor = (displayLanguage: string) =>
+  createTranslator(bakeTranslationCatalog, resolveLocale(displayLanguage));
+
+export const bakeShowDetailsActionFor = (displayLanguage: string): string =>
+  bakeTranslatorFor(displayLanguage)("bake.showDetails");
 
 type BakeMode = "current" | "base";
 
@@ -26,7 +62,11 @@ export type BakeNotificationTarget = {
   showErrorMessage: (message: string, action: string) => PromiseLike<string | undefined>;
 };
 
-const aggregateReasonCodes = (skippedTargets: readonly BakeSkippedTarget[]): string => {
+const aggregateReasonCodes = (
+  skippedTargets: readonly BakeSkippedTarget[],
+  displayLanguage: string
+): string => {
+  const translator = bakeTranslatorFor(displayLanguage);
   const counts = new Map<BakeFailureReason["code"], number>();
   for (const target of skippedTargets) {
     counts.set(target.reason.code, (counts.get(target.reason.code) ?? 0) + 1);
@@ -36,28 +76,36 @@ const aggregateReasonCodes = (skippedTargets: readonly BakeSkippedTarget[]): str
   );
   const visible = entries
     .slice(0, MAX_NOTIFICATION_REASON_GROUPS)
-    .map(([code, count]) => `${code} ×${count}`);
+    .map(([code, count]) => `${translator(`bake.reason.${code}`)} ×${count}`);
   const remainingKinds = entries.length - visible.length;
-  if (remainingKinds > 0) visible.push(`ほか${remainingKinds}種類`);
+  if (remainingKinds > 0) {
+    visible.push(translator("bake.otherReasons", { count: remainingKinds }));
+  }
   return visible.join(", ");
 };
 
 export const bakeOperationNotificationFor = (
-  input: BakeOperationPresentationInput
+  input: BakeOperationPresentationInput,
+  displayLanguage = "en"
 ): BakeOperationNotification | null => {
+  const translator = bakeTranslatorFor(displayLanguage);
   const { successfulTargetCount, skippedTargetCount, skippedTargets } = input.summary;
   if (skippedTargetCount === 0) return null;
-  const reasons = aggregateReasonCodes(skippedTargets);
-  const suffix = reasons ? `（${reasons}）` : "";
+  const reasons = aggregateReasonCodes(skippedTargets, displayLanguage);
+  const suffix = reasons ? ` (${reasons})` : "";
   if (successfulTargetCount > 0) {
     return {
       severity: "warning",
-      message: `nuinuiCAD: Bake は${successfulTargetCount}件成功し、${skippedTargetCount}件をスキップしました${suffix}。`
+      message: translator("bake.partialSuccess", {
+        successful: successfulTargetCount,
+        skipped: skippedTargetCount,
+        suffix
+      })
     };
   }
   return {
     severity: "error",
-    message: `nuinuiCAD: Bake は成功せず、${skippedTargetCount}件をスキップしました${suffix}。`
+    message: translator("bake.noSuccess", { skipped: skippedTargetCount, suffix })
   };
 };
 
@@ -70,15 +118,16 @@ const stableDiagnosticDetail = (diagnostic: unknown): string => {
   }
 };
 
-const reasonDetailLines = (reason: BakeFailureReason): string[] => {
+const reasonDetailLines = (reason: BakeFailureReason, displayLanguage: string): string[] => {
+  const translator = bakeTranslatorFor(displayLanguage);
   switch (reason.code) {
     case "unsupported-geometry-kind":
-      return [`  geometryKind: ${reason.geometryKind}`];
+      return [`  ${translator("bake.details.geometryKind")}: ${reason.geometryKind}`];
     case "evaluation-failed":
       return reason.diagnostics.length === 0
-        ? ["  diagnostics: none"]
+        ? [`  ${translator("bake.details.diagnostics")}: ${translator("bake.details.none")}`]
         : [
-            "  diagnostics:",
+            `  ${translator("bake.details.diagnostics")}:`,
             ...reason.diagnostics.map((diagnostic) => `    - ${stableDiagnosticDetail(diagnostic)}`)
           ];
     case "unevaluated":
@@ -86,31 +135,42 @@ const reasonDetailLines = (reason: BakeFailureReason): string[] => {
       return [];
     case "not-losslessly-representable":
       return [
-        `  geometryKind: ${reason.geometryKind}`,
-        ...(reason.detail ? [`  detail: ${reason.detail}`] : [])
+        `  ${translator("bake.details.geometryKind")}: ${reason.geometryKind}`,
+        ...(reason.detail ? [`  ${translator("bake.details.detail")}: ${reason.detail}`] : [])
       ];
   }
 };
 
-const skippedTargetLines = (target: BakeSkippedTarget, index: number): string[] => [
+const skippedTargetLines = (
+  target: BakeSkippedTarget,
+  index: number,
+  displayLanguage: string
+): string[] => {
+  const translator = bakeTranslatorFor(displayLanguage);
+  return [
   `${index + 1}. ${target.sourceLabel}`,
-  `  targetId: ${target.targetId}`,
-  `  sourceElementId: ${target.sourceElementId}`,
-  `  reason: ${target.reason.code}`,
-  ...reasonDetailLines(target.reason)
-];
+  `  ${translator("bake.details.targetId")}: ${target.targetId}`,
+  `  ${translator("bake.details.sourceElementId")}: ${target.sourceElementId}`,
+  `  ${translator("bake.details.reason")}: ${target.reason.code}`,
+  ...reasonDetailLines(target.reason, displayLanguage)
+  ];
+};
 
-export const formatBakeOperationDetails = (input: BakeOperationPresentationInput): string => {
+export const formatBakeOperationDetails = (
+  input: BakeOperationPresentationInput,
+  displayLanguage = "en"
+): string => {
+  const translator = bakeTranslatorFor(displayLanguage);
   const { successfulTargetCount, skippedTargetCount, skippedTargets } = input.summary;
   const lines = [
-    `Mode: ${input.mode}`,
-    `Successful targets: ${successfulTargetCount}`,
-    `Skipped targets: ${skippedTargetCount}`
+    `${translator("bake.details.mode")}: ${input.mode}`,
+    `${translator("bake.details.successfulTargets")}: ${successfulTargetCount}`,
+    `${translator("bake.details.skippedTargets")}: ${skippedTargetCount}`
   ];
   if (skippedTargets.length > 0) {
-    lines.push("", "Skipped target details:");
+    lines.push("", `${translator("bake.details.skippedTargetDetails")}:`);
     skippedTargets.forEach((target, index) => {
-      lines.push(...skippedTargetLines(target, index));
+      lines.push(...skippedTargetLines(target, index, displayLanguage));
     });
   }
   return lines.join("\n");
@@ -119,15 +179,17 @@ export const formatBakeOperationDetails = (input: BakeOperationPresentationInput
 export const presentBakeOperationResult = async (
   input: BakeOperationPresentationInput,
   output: BakeOutputTarget,
-  notifications: BakeNotificationTarget
+  notifications: BakeNotificationTarget,
+  displayLanguage = "en"
 ): Promise<void> => {
   output.clear();
-  output.appendLine(formatBakeOperationDetails(input));
+  output.appendLine(formatBakeOperationDetails(input, displayLanguage));
 
-  const notification = bakeOperationNotificationFor(input);
+  const notification = bakeOperationNotificationFor(input, displayLanguage);
   if (!notification) return;
+  const showDetailsAction = bakeShowDetailsActionFor(displayLanguage);
   const selectedAction = notification.severity === "warning"
-    ? await notifications.showWarningMessage(notification.message, BAKE_SHOW_DETAILS_ACTION)
-    : await notifications.showErrorMessage(notification.message, BAKE_SHOW_DETAILS_ACTION);
-  if (selectedAction === BAKE_SHOW_DETAILS_ACTION) output.show(true);
+    ? await notifications.showWarningMessage(notification.message, showDetailsAction)
+    : await notifications.showErrorMessage(notification.message, showDetailsAction);
+  if (selectedAction === showDetailsAction) output.show(true);
 };

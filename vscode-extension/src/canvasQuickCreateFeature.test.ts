@@ -9,6 +9,8 @@ type TestItem = {
 };
 
 type TestQuickPick = {
+  placeholder?: string;
+  title?: string;
   items: TestItem[];
   selectedItems: TestItem[];
   buttons: Array<{ tooltip?: string }>;
@@ -336,6 +338,26 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
     await pending;
     expect(postCreationCommand).toHaveBeenCalledWith("addBezierCurve");
     expect(picker.dispose).toHaveBeenCalledTimes(1);
+    feature.dispose();
+  });
+
+  it("uses the current display language for native creation presentation", async () => {
+    const token = {};
+    const postCreationCommand = vi.fn();
+    const feature = registerVscodeCanvasQuickCreateFeature({
+      activeCanvasEndpoint: () => ({ sessionToken: token, isCurrent: () => true, postCreationCommand }),
+      displayLanguageFor: () => "ja-JP"
+    });
+    const pending = mocks.commands.get(VSCODE_CANVAS_CREATE_GEOMETRY_COMMAND_ID)?.();
+    const picker = mocks.quickPicks[0]!;
+
+    expect(picker.placeholder).toBe("ジオメトリを作成");
+    expect(itemWithCommand(picker, "addBezierCurve")).toMatchObject({
+      label: "ベジェ曲線",
+      description: "ベジェ曲線を作成"
+    });
+    picker.fireHide();
+    await pending;
     feature.dispose();
   });
 

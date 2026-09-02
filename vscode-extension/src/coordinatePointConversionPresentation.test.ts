@@ -53,7 +53,7 @@ describe("coordinate point conversion presentation", () => {
     expect(output.clear).toHaveBeenCalledOnce();
     expect(output.appendLine).toHaveBeenCalledWith(expect.stringContaining("target-not-eligible"));
     expect(notifications.showWarningMessage).toHaveBeenCalledWith(
-      expect.stringContaining("1件を変換し、1件をスキップ"),
+      expect.stringContaining("Converted 1 coordinate point(s) and skipped 1"),
       COORDINATE_POINT_CONVERSION_SHOW_DETAILS_ACTION
     );
   });
@@ -69,9 +69,22 @@ describe("coordinate point conversion presentation", () => {
     }), output, notifications);
 
     expect(notifications.showErrorMessage).toHaveBeenCalledWith(
-      expect.stringContaining("適用できませんでした"),
+      expect.stringContaining("Could not apply coordinate-point conversion"),
       COORDINATE_POINT_CONVERSION_SHOW_DETAILS_ACTION
     );
     expect(output.show).toHaveBeenCalledWith(true);
+  });
+
+  it("uses Japanese notification and action copy for the same result", async () => {
+    const { output, notifications } = targets();
+    vi.mocked(notifications.showWarningMessage).mockResolvedValue("詳細を表示");
+    await presentCoordinatePointConversionResult(resultFor(), output, notifications, "ja-JP");
+
+    expect(notifications.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("座標点を 1 件変換し、1 件をスキップ"),
+      "詳細を表示"
+    );
+    expect(output.show).toHaveBeenCalledWith(true);
+    expect(output.appendLine).toHaveBeenCalledWith(expect.stringContaining("対象が変換対象外"));
   });
 });

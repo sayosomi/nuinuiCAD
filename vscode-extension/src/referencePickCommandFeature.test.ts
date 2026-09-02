@@ -336,9 +336,28 @@ describe("registerVscodeReferencePickFeature", () => {
     expect(ensureCanvas).not.toHaveBeenCalled();
     expect(mocks.bridgeFactory).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "nuinuiCAD: Source Editorのカーソル位置にCanvasから選択できる参照先がありません。"
+      "nuinuiCAD: There is no reference target that can be selected from Canvas at the current Source caret position."
     );
 
+    feature.dispose();
+  });
+
+  it("uses Japanese copy for the same non-pickable Source caret", async () => {
+    const editor = createEditor();
+    editor.selection = { active: { offset: 0 } };
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(source);
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: vi.fn(),
+      displayLanguageFor: () => "ja-JP"
+    });
+
+    await mocks.commands.get(VSCODE_REFERENCE_PICK_COMMAND_ID)?.();
+
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith(
+      "nuinuiCAD: 現在の Source のキャレット位置には、Canvas から選択できる参照先がありません。"
+    );
     feature.dispose();
   });
 

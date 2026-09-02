@@ -129,6 +129,7 @@ import {
 } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import { normalizedOffsetFromRaw, normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
 import { presentBakeOperationResult } from "./bakeOperationPresentation";
+import { canvasPresentationTextFor } from "./canvasPresentationLocalization";
 import {
   revealInCanvasNotificationFor,
   type RevealInCanvasPresentationOutcome
@@ -190,8 +191,13 @@ type LastBakeSurface =
   | { kind: "canvas"; session: DocumentSession }
   | { kind: "source"; document: vscode.TextDocument };
 
-const staleSourceAnchorError = "現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。";
-const sourceAnchorError = "nuinuiCAD: Sourceの挿入位置を先に確定してください。Sourceでキャレットを明示的に移動してから再試行してください。";
+const extensionDisplayLanguage = (): string => {
+  try {
+    return vscode.env?.language ?? "en";
+  } catch {
+    return "en";
+  }
+};
 
 const sourcePositionAfterCommitIsValid = (
   document: vscode.TextDocument,
@@ -534,8 +540,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     requestId: number,
     operationId: number
   ) => void = () => undefined;
-  let handleCoordinatePointConversionDocumentChange = (): void => undefined;
-  let handleCoordinatePointConversionDocumentClose = (): void => undefined;
+  let handleCoordinatePointConversionDocumentChange = (_document: vscode.TextDocument): void => { void _document; };
+  let handleCoordinatePointConversionDocumentClose = (_document: vscode.TextDocument): void => { void _document; };
   let handleInlineModuleCanvasTargetsPublication: VscodeInlineModuleCommandFeature["handleCanvasTargetsPublication"] = () => undefined;
   let handleInlineModuleCanvasAuthoritativeDocumentReady: VscodeInlineModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
   let handleInlineModuleDocumentChange: VscodeInlineModuleCommandFeature["handleDocumentChange"] = () => undefined;
@@ -1900,7 +1906,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         await presentBakeOperationResult(message, bakeOutputChannelFor(), {
           showWarningMessage: (notification, action) => vscode.window.showWarningMessage(notification, action),
           showErrorMessage: (notification, action) => vscode.window.showErrorMessage(notification, action)
-        });
+        }, extensionDisplayLanguage());
         return;
       }
       if (message.type === "bakeSourceResult") {
@@ -1908,7 +1914,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         session.pendingBake = null;
         const hasStructuredSkips = sourceBakeRequestsWithStructuredSkips.delete(message.requestId);
         if (message.status === "nothing" && !hasStructuredSkips) {
-          void vscode.window.showErrorMessage("nuinuiCAD: Bakeできるジオメトリがありません。");
+          void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.noBakeTarget", extensionDisplayLanguage()));
         }
         if (message.status === "stale") resync(session);
         return;
@@ -2143,16 +2149,16 @@ export const activate = (context: vscode.ExtensionContext): void => {
           if (!isCurrent()) return;
           const retained = sourceAuthoringPositionFeature.sourceAuthoringPositionFor(session.document);
           if (!retained) {
-            void vscode.window.showErrorMessage(sourceAnchorError);
+            void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.sourceAnchor", extensionDisplayLanguage()));
             return;
           }
           if (retained.documentVersion !== session.document.version) {
-            void vscode.window.showErrorMessage(staleSourceAnchorError);
+            void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.staleSourceAnchor", extensionDisplayLanguage()));
             return;
           }
           const request = sourceAuthoringPositionFeature.beginCanvasCreation(session, session.document);
           if (!request) {
-            void vscode.window.showErrorMessage(staleSourceAnchorError);
+            void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.staleSourceAnchor", extensionDisplayLanguage()));
             return;
           }
           void session.panel.webview.postMessage({
@@ -2211,7 +2217,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         : null
     );
     if (!session) {
-      void vscode.window.showErrorMessage("nuinuiCAD: アクティブなCanvasがありません。Canvasを開いてから実行してください。");
+      void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.noActiveCanvas", extensionDisplayLanguage()));
       return;
     }
     void session.panel.webview.postMessage({ type: "canvasCommand", commandId } satisfies ExtensionToVscodeMessage);
@@ -2239,7 +2245,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
     if (surface?.kind !== "source") {
-      void vscode.window.showErrorMessage("nuinuiCAD: .nuiのSource EditorまたはCanvasをアクティブにしてください。");
+      void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.sourceOrCanvasRequired", extensionDisplayLanguage()));
       return;
     }
     const editor = surface.editor;
@@ -2261,7 +2267,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         })
       : null;
     if (!target) {
-      void vscode.window.showErrorMessage("nuinuiCAD: Source Editorのカーソル位置にBake対象がありません。");
+      void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.noBakeTarget", extensionDisplayLanguage()));
       return;
     }
     const key = documentKey(document);
@@ -2358,7 +2364,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     }
 
     if (isNuiOutputPreviewTab(activeEditorTabInput())) {
-      void vscode.window.showErrorMessage("nuinuiCAD requires a matching active Output Preview session.");
+      void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.matchingOutputPreview", extensionDisplayLanguage()));
       return;
     }
 
@@ -2372,7 +2378,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       return;
     }
 
-    void vscode.window.showErrorMessage("nuinuiCAD requires an active .nui Text Editor or Output Preview.");
+    void vscode.window.showErrorMessage(canvasPresentationTextFor("canvas.sourceOrOutputPreview", extensionDisplayLanguage()));
   });
   const goToSourceDefinitionCommand = vscode.commands.registerCommand(
     "nuinuiCAD.goToSourceDefinition",
