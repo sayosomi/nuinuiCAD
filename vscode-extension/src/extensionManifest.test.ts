@@ -71,6 +71,7 @@ const commandIds = [
   "nuinuiCAD.openOutputPreview",
   "nuinuiCAD.openModulePreview",
   "nuinuiCAD.inlineModuleInstance",
+  "nuinuiCAD.extractModule",
   "nuinuiCAD.goToSourceDefinition",
   "nuinuiCAD.revealInCanvas",
   "nuinuiCAD.revealInOutputPreview",
@@ -154,6 +155,8 @@ const bakeSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.bakeSourceTarge
 const modulePreviewContextWhen = `${sourcePaletteWhen} && nuinuiCAD.modulePreviewSourceTarget`;
 const inlineModuleSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.inlineModuleSourceTarget`;
 const inlineModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.inlineModuleCanvasTarget";
+const extractModuleSourceContextWhen = `${sourcePaletteWhen} && nuinuiCAD.extractModuleSourceTarget`;
+const extractModuleCanvasContextWhen = "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'element' && nuinuiCAD.extractModuleCanvasTarget";
 const sourceOrCanvasPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.canvas'";
 const sourceOrOutputPreviewPaletteWhen = "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui) || activeWebviewPanelId == 'nuinuiCAD.outputPreview'";
 const canvasPaletteWhen = "activeWebviewPanelId == 'nuinuiCAD.canvas'";
@@ -197,6 +200,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Open Module Preview",
       "nuinuiCAD: Inline Module Instance",
+      "nuinuiCAD: Extract Module",
       "nuinuiCAD: Go to Source Definition",
       "nuinuiCAD: Reveal in Canvas",
       "nuinuiCAD: Reveal in Output Preview",
@@ -355,6 +359,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.inlineModuleInstance", when: sourceOrCanvasPaletteWhen },
+      { command: "nuinuiCAD.extractModule", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.convertPointToXYOffset", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.convertPointToAngleDistanceOffset", when: sourceOrCanvasPaletteWhen },
       { command: "nuinuiCAD.replaceGeometryReferences", when: sourcePaletteWhen },
@@ -427,6 +432,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "navigation@2" },
       { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@3" },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "1_modification@7" },
+      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "1_modification@8" },
       { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
       { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "1_modification@2" },
       { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
@@ -454,6 +460,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.clearOutputPreviewFocus", when: "webviewId == 'nuinuiCAD.outputPreview' && (webviewSection == 'blank' || webviewSection == 'place')" },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasElementWhen },
       { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleCanvasContextWhen, group: "1_modification@7" },
+      { command: "nuinuiCAD.extractModule", when: extractModuleCanvasContextWhen, group: "1_modification@8" },
       { command: "nuinuiCAD.bakeCurrentShape", when: canvasElementWhen },
       { command: "nuinuiCAD.bakeBaseShape", when: canvasElementWhen },
       { command: "nuinuiCAD.modulePreview.fitDrawing", when: modulePreviewBlankWhen },
@@ -471,6 +478,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.openOutputPreview",
       "nuinuiCAD.openModulePreview",
       "nuinuiCAD.inlineModuleInstance",
+      "nuinuiCAD.extractModule",
       "nuinuiCAD.pickReferenceFromCanvas",
       "nuinuiCAD.convertPoint",
       "nuinuiCAD.stepSourceValueForward",
