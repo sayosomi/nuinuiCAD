@@ -321,14 +321,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
       ) });
       return;
     }
-    if (currentSession.origin === "canvas") {
-      const elements = useCadDocumentStore.getState().elements;
-      useCadUiStore.getState().applySelection(elements, {
-        selectedElementId: applied.plan.successfulTargetIds.at(-1) ?? null,
-        selectedElementIds: [...applied.plan.successfulTargetIds],
-        selectionAnchorElementId: applied.plan.successfulTargetIds[0] ?? null
-      });
-    } else if (currentSession.origin === "source") {
+    if (currentSession.origin === "source") {
       useCadUiStore.getState().clearElementSelection();
     }
     pendingOperationRef.current = { operationId, session: currentSession, plan: applied.plan };
