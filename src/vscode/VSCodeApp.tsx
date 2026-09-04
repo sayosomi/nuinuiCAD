@@ -64,6 +64,7 @@ import {
   type VscodeMultiDocumentCanvasRuntimeSnapshot
 } from "./multiDocumentRuntimeTransport";
 import { inlineModuleCanvasTargetProofsFor } from "./inlineModuleCanvas";
+import { currentRuntimeElementIdsForSourceStatementIndexes } from "./coordinatePointConversionSelection";
 import { useVscodeMultiDocumentRuntimeEvaluation } from "./useVscodeMultiDocumentRuntimeEvaluation";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
 import {
@@ -130,7 +131,7 @@ type PendingCanvasFreePointSelectionRestore = {
 type PendingCoordinatePointConversionSelection = {
   requestId: number;
   documentVersion: number;
-  successfulTargetIds: string[];
+  successfulTargetSourceStatementIndexes: number[];
   expectedDocumentGeneration: number;
 };
 
@@ -504,12 +505,18 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     const current = currentAuthoritativeDocument(pending.documentVersion);
     if (!current) return;
     pendingCoordinatePointConversionSelectionRef.current = null;
+    const currentRuntimeElementIds = currentRuntimeElementIdsForSourceStatementIndexes(
+      current.compiled,
+      pending.successfulTargetSourceStatementIndexes
+    );
+    if (!currentRuntimeElementIds) return;
     if (replaceCanvasSelection(
-      pending.successfulTargetIds,
-      pending.successfulTargetIds.at(-1),
+      currentRuntimeElementIds,
+      currentRuntimeElementIds.at(-1),
       false,
       "requested",
-      new Set(pending.successfulTargetIds)
+      new Set(currentRuntimeElementIds),
+      current.compiled.document.elements
     )) publishCanvasObservation(pending.documentVersion);
   }, [currentAuthoritativeDocument, publishCanvasObservation]);
 
@@ -521,7 +528,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     pendingCoordinatePointConversionSelectionRef.current = {
       requestId: message.requestId,
       documentVersion: message.documentVersion,
-      successfulTargetIds: [...message.successfulTargetIds],
+      successfulTargetSourceStatementIndexes: [...message.successfulTargetSourceStatementIndexes],
       expectedDocumentGeneration: hostDocumentGenerationRef.current
     };
   }, []);
@@ -1225,18 +1232,24 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       } else if (message.type === "coordinatePointConversionSelection") {
         const current = currentAuthoritativeDocument(message.documentVersion);
-        if (message.successfulTargetIds.length === 0) return;
+        if (message.successfulTargetSourceStatementIndexes.length === 0) return;
         if (!current) {
           deferCoordinatePointConversionSelection(message);
           return;
         }
         pendingCoordinatePointConversionSelectionRef.current = null;
+        const currentRuntimeElementIds = currentRuntimeElementIdsForSourceStatementIndexes(
+          current.compiled,
+          message.successfulTargetSourceStatementIndexes
+        );
+        if (!currentRuntimeElementIds) return;
         if (replaceCanvasSelection(
-          message.successfulTargetIds,
-          message.successfulTargetIds.at(-1),
+          currentRuntimeElementIds,
+          currentRuntimeElementIds.at(-1),
           false,
           "requested",
-          new Set(message.successfulTargetIds)
+          new Set(currentRuntimeElementIds),
+          current.compiled.document.elements
         )) publishCanvasObservation(message.documentVersion);
         return;
       } else if (message.type === "canvasThemeChanged") {
