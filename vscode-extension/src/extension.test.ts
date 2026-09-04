@@ -3302,7 +3302,7 @@ describe("VS Code production document lifecycle", () => {
       type: "coordinatePointConversionSelection",
       requestId: expect.any(Number),
       documentVersion: document.version,
-      successfulTargetIds: [canvasTargetId]
+      successfulTargetSourceStatementIndexes: [2]
     });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionStart",

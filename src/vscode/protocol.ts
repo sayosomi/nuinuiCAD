@@ -368,7 +368,7 @@ export type ExtensionToVscodeMessage =
       type: "coordinatePointConversionSelection";
       requestId: number;
       documentVersion: number;
-      successfulTargetIds: readonly string[];
+      successfulTargetSourceStatementIndexes: readonly number[];
     }
   | {
       type: "canvasCommand";
