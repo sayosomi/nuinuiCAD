@@ -85,7 +85,7 @@ afterEach(() => {
 });
 
 describe("useVSCodeCoordinatePointConversionSession", () => {
-  it("posts an owned commit and selects only targets that the plan applied", () => {
+  it("posts an owned commit without applying pre-edit Canvas target IDs", () => {
     useCadDocumentStore.getState().replaceTextDocument(source, {
       currentFilePath: "/tmp/conversion.nui",
       dirtySinceSave: false
@@ -128,7 +128,7 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
     act(() => hook.result.current.confirm());
 
     expect(postCanvasCommit).toHaveBeenCalled();
-    expect(useCadUiStore.getState().selectedElementIds).toEqual([goodId]);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
     expect(postCanvasCommit).toHaveBeenCalledWith(1, request.requestId);
     expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionResult",
@@ -161,7 +161,7 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
 
     expect(postCanvasCommit).toHaveBeenCalledWith(1, request.requestId);
     expect(hook.result.current.session).toBeNull();
-    expect(useCadUiStore.getState().selectedElementIds).toEqual([goodId]);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
     expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
       type: "coordinatePointConversionResult",
       status: "applied"
