@@ -127,6 +127,13 @@ export type VscodeMultiDocumentLanguageSemanticSnapshot = {
   compiled: CompiledDslDocument;
 };
 
+/** Completion-only root compiler. It may preserve authoring diagnostics, but
+ * must attach the exact graph/runtime authority supplied by the host. */
+export type VscodeMultiDocumentCompletionSemanticRootCompiler = (input: {
+  graph: MultiDocumentImportGraph<unknown>;
+  source: RootCurrentSourceSnapshot;
+}) => CompiledDslDocument | null;
+
 export type VscodeMultiDocumentRenameProofFactory = (input: {
   primaryGraph: MultiDocumentImportGraph<unknown>;
   primaryIndex: MultiDocumentSemanticOccurrenceIndex;
@@ -140,6 +147,7 @@ export type VscodeMultiDocumentHostOptions = {
   declarationContributors?: readonly MultiDocumentDeclarationContributor<unknown>[];
   identityProjector?: VscodeMultiDocumentIdentityProjector;
   semanticRootCompiler?: VscodeMultiDocumentSemanticRootCompiler;
+  completionSemanticRootCompiler?: VscodeMultiDocumentCompletionSemanticRootCompiler;
   diagnosticsProjector?: VscodeMultiDocumentDiagnosticsProjector;
   canvasRuntimeProjector?: VscodeMultiDocumentCanvasRuntimeProjector;
   /** Family semantic owners may supply their existing exact rename proof. */
@@ -619,20 +627,11 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   async languageSemanticSnapshotFor(
     document: vscode.TextDocument
   ): Promise<VscodeMultiDocumentLanguageSemanticSnapshot | null> {
-    if (!supportedDocument(document)) return null;
-    await this.activateRoot(document);
-    const documentId = this.documentIdForUri(document.uri);
-    const state = this.rootByDocumentId.get(documentId);
-    if (state?.pending) await state.pending;
-    const compiled = state?.compiled;
-    const graph = state?.graph;
+    const current = await this.currentRootSemanticStateFor(document);
+    if (!current) return null;
+    const { documentId, graph, compiled } = current;
     if (
-      !state || !graph || !compiled ||
-      state.documentUri !== document.uri.toString() ||
-      state.documentVersion !== document.version ||
-      graph.rootDocumentId !== documentId ||
-      graph.rootSource.kind !== "root-current" ||
-      graph.rootSource.normalizedSource !== normalizedSourceFor(document.getText()) ||
+      !compiled ||
       compiled.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
       compiled.spans.sourceMap.sourceRevision !== graph.rootSource.sourceRevision ||
       compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")
@@ -645,6 +644,86 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       sourceRevision: graph.rootSource.sourceRevision,
       sourceText: graph.rootSource.normalizedSource,
       compiled
+    };
+  }
+
+  /**
+   * Return the exact current semantic source needed by Completion. A valid
+   * root uses the same compile as the strict language snapshot. An incomplete
+   * root may use the Module family's narrow tolerant compiler, which must
+   * prove the dependency graph and runtime context independently.
+   */
+  async completionSemanticSnapshotFor(
+    document: vscode.TextDocument
+  ): Promise<VscodeMultiDocumentLanguageSemanticSnapshot | null> {
+    const current = await this.currentRootSemanticStateFor(document);
+    if (!current) return null;
+    const { documentId, state, graph, compiled, normalizedSource, sourceRevision } = current;
+    const exact = compiled &&
+      compiled.spans.sourceMap.source === normalizedSource &&
+      compiled.spans.sourceMap.sourceRevision === sourceRevision &&
+      !compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
+      (!this.options.semanticRootCompiler || (
+        compiled.moduleRuntimeContext?.graph === graph &&
+        compiled.moduleRuntimeContext.rootDocumentId === documentId
+      ));
+    if (exact) return { sourceRevision, sourceText: normalizedSource, compiled };
+
+    const tolerantCompiler = this.options.completionSemanticRootCompiler;
+    if (!tolerantCompiler) return null;
+    const tolerant = tolerantCompiler({
+      graph,
+      source: {
+        kind: "root-current",
+        documentId,
+        normalizedSource,
+        sourceRevision
+      }
+    });
+    const latest = this.rootByDocumentId.get(documentId);
+    if (
+      !tolerant ||
+      latest !== state ||
+      latest.rootGeneration !== state.rootGeneration ||
+      latest.documentVersion !== document.version ||
+      normalizedSourceFor(document.getText()) !== normalizedSource ||
+      tolerant.spans.sourceMap.source !== normalizedSource ||
+      tolerant.spans.sourceMap.sourceRevision !== sourceRevision
+    ) return null;
+    return { sourceRevision, sourceText: normalizedSource, compiled: tolerant };
+  }
+
+  private async currentRootSemanticStateFor(document: vscode.TextDocument): Promise<{
+    documentId: DocumentId;
+    state: RootState;
+    graph: MultiDocumentImportGraph<unknown>;
+    compiled: CompiledDslDocument | null;
+    normalizedSource: string;
+    sourceRevision: number;
+  } | null> {
+    if (!supportedDocument(document)) return null;
+    await this.activateRoot(document);
+    const documentId = this.documentIdForUri(document.uri);
+    const state = this.rootByDocumentId.get(documentId);
+    if (state?.pending) await state.pending;
+    const graph = state?.graph;
+    const normalizedSource = normalizedSourceFor(document.getText());
+    if (
+      !state ||
+      !graph ||
+      state.documentUri !== document.uri.toString() ||
+      state.documentVersion !== document.version ||
+      graph.rootDocumentId !== documentId ||
+      graph.rootSource.kind !== "root-current" ||
+      graph.rootSource.normalizedSource !== normalizedSource
+    ) return null;
+    return {
+      documentId,
+      state,
+      graph,
+      compiled: state.compiled,
+      normalizedSource,
+      sourceRevision: graph.rootSource.sourceRevision
     };
   }
 

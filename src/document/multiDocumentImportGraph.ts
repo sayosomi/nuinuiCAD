@@ -390,7 +390,12 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
     nodes.set(node.documentId, node);
 
     const nextStackDocumentIds = [...stackDocumentIds, node.documentId];
-    if (artifact.syntaxValid) {
+    // Keep the root's import edges available while its current source is
+    // being authored. The root remains invalid, so the graph still fails the
+    // strict validity gate; a completion-only adapter may use these exact
+    // dependency artifacts after proving that every dependency is current.
+    // Saved dependencies never take this tolerant traversal path.
+    if (artifact.syntaxValid || stackDocumentIds.length === 0) {
       for (const directive of artifact.imports) {
         const edge: MutableEdge = {
           importerDocumentId: node.documentId,

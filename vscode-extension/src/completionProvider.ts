@@ -147,7 +147,7 @@ export const createNuiCompletionProvider = (
 
     const multiDocument = activeVscodeMultiDocumentHost();
     if (!multiDocument) return provideFor(source);
-    return multiDocument.languageSemanticSnapshotFor(document).then((snapshot) =>
+    return multiDocument.completionSemanticSnapshotFor(document).then((snapshot) =>
       snapshot
         ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)
         : provideFor(source)
