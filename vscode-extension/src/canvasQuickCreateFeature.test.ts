@@ -5,37 +5,25 @@ type TestItem = {
   description?: string;
   commandId: string;
   alwaysShow?: boolean;
-  buttons?: Array<{ tooltip?: string }>;
 };
 
 type TestQuickPick = {
   placeholder?: string;
-  title?: string;
   items: TestItem[];
   selectedItems: TestItem[];
-  buttons: Array<{ tooltip?: string }>;
   show: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
   fireValue: (value: string) => void;
   fireAccept: () => void;
   fireHide: () => void;
-  fireTriggerButton: (button: { tooltip?: string }) => void;
-  fireTriggerItemButton: (item: TestItem, button: { tooltip?: string }) => void;
 };
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
   executeCommand: vi.fn(),
-  showQuickPick: vi.fn(),
   createQuickPick: vi.fn(),
-  configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
   getConfiguration: vi.fn(() => ({
-    get: () => mocks.setting,
-    update: (section: string, value: unknown, target: unknown) => {
-      mocks.configurationUpdates.push({ section, value, target });
-      mocks.setting = value;
-      return Promise.resolve();
-    }
+    get: () => mocks.setting
   })),
   configurationListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   quickPicks: [] as TestQuickPick[],
@@ -61,26 +49,17 @@ const createTestQuickPick = (): TestQuickPick => {
   const valueChanged = eventSource<string>();
   const accepted = eventSource<void>();
   const hidden = eventSource<void>();
-  const triggeredButton = eventSource<{ tooltip?: string }>();
-  const triggeredItemButton = eventSource<{ item: TestItem; button: { tooltip?: string } }>();
   const picker = {
     items: [] as TestItem[],
     selectedItems: [] as TestItem[],
-    buttons: [] as Array<{ tooltip?: string }>,
     show: vi.fn(),
     dispose: vi.fn(),
     onDidChangeValue: (listener: (value: string) => void) => valueChanged.subscribe(listener),
     onDidAccept: (listener: () => void) => accepted.subscribe(listener),
     onDidHide: (listener: () => void) => hidden.subscribe(listener),
-    onDidTriggerButton: (listener: (button: { tooltip?: string }) => void) => triggeredButton.subscribe(listener),
-    onDidTriggerItemButton: (listener: (event: { item: TestItem; button: { tooltip?: string } }) => void) =>
-      triggeredItemButton.subscribe(listener),
     fireValue: (value: string) => valueChanged.fire(value),
     fireAccept: () => accepted.fire(undefined),
-    fireHide: () => hidden.fire(undefined),
-    fireTriggerButton: (button: { tooltip?: string }) => triggeredButton.fire(button),
-    fireTriggerItemButton: (item: TestItem, button: { tooltip?: string }) =>
-      triggeredItemButton.fire({ item, button })
+    fireHide: () => hidden.fire(undefined)
   };
   mocks.quickPicks.push(picker);
   return picker;
@@ -95,8 +74,7 @@ vi.mock("vscode", () => ({
     executeCommand: mocks.executeCommand
   },
   window: {
-    createQuickPick: mocks.createQuickPick,
-    showQuickPick: mocks.showQuickPick
+    createQuickPick: mocks.createQuickPick
   },
   workspace: {
     getConfiguration: mocks.getConfiguration,
@@ -104,10 +82,6 @@ vi.mock("vscode", () => ({
       mocks.configurationListeners.push(listener);
       return disposable();
     }
-  },
-  ConfigurationTarget: { Global: 1 },
-  ThemeIcon: class ThemeIcon {
-    constructor(readonly id: string) {}
   },
   Disposable: {
     from: (...items: Array<{ dispose: () => void }>) => disposable(() => {
@@ -146,20 +120,12 @@ const itemWithCommand = (picker: TestQuickPick, commandId: string): TestItem => 
   return item;
 };
 
-const buttonWithTooltip = (item: TestItem, tooltip: string): { tooltip?: string } => {
-  const button = item.buttons?.find((candidate) => candidate.tooltip === tooltip);
-  if (!button) throw new Error(`Missing ${tooltip} button on ${item.commandId}`);
-  return button;
-};
-
 beforeEach(() => {
   mocks.commands.clear();
   mocks.executeCommand.mockReset();
   mocks.executeCommand.mockResolvedValue(undefined);
-  mocks.showQuickPick.mockReset();
   mocks.createQuickPick.mockReset();
   mocks.createQuickPick.mockImplementation(createTestQuickPick);
-  mocks.configurationUpdates.length = 0;
   mocks.getConfiguration.mockClear();
   mocks.configurationListeners.length = 0;
   mocks.quickPicks.length = 0;
@@ -206,99 +172,16 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
     feature.dispose();
   });
 
-  it("uses the persisted setting through the native Quick Pick manager", async () => {
+  it("opens the application-scoped Quick Create setting without a transient manager", async () => {
     mocks.setting = ["addLine", "addArcLine"];
     const feature = registerVscodeCanvasQuickCreateFeature({ activeCanvasEndpoint: () => null });
     const command = mocks.commands.get(VSCODE_CANVAS_CONFIGURE_QUICK_CREATE_COMMAND_ID);
-    const pending = command?.();
-    const picker = mocks.quickPicks[0]!;
+    await command?.();
 
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addLine", "addArcLine"]);
-    expect(picker.items[0]?.buttons?.map(({ tooltip }) => tooltip)).toEqual(["Move Down", "Remove"]);
-    expect(picker.items[1]?.buttons?.map(({ tooltip }) => tooltip)).toEqual(["Move Up", "Remove"]);
-
-    mocks.showQuickPick.mockResolvedValue({ commandId: "addBezierCurve" });
-    picker.fireTriggerButton(picker.buttons[0]!);
-    await flush();
-    expect(mocks.configurationUpdates.at(-1)).toEqual({
-      section: VSCODE_CANVAS_QUICK_CREATE_SETTING,
-      value: ["addLine", "addArcLine", "addBezierCurve"],
-      target: 1
-    });
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual([
-      "addLine", "addArcLine", "addBezierCurve"
-    ]);
-    picker.fireTriggerItemButton(
-      itemWithCommand(picker, "addBezierCurve"),
-      buttonWithTooltip(itemWithCommand(picker, "addBezierCurve"), "Move Up")
-    );
-    await flush();
-    expect(mocks.setting).toEqual(["addLine", "addBezierCurve", "addArcLine"]);
-
-    picker.fireTriggerItemButton(
-      itemWithCommand(picker, "addLine"),
-      buttonWithTooltip(itemWithCommand(picker, "addLine"), "Remove")
-    );
-    await flush();
-    expect(mocks.setting).toEqual(["addBezierCurve", "addArcLine"]);
-
-    picker.fireTriggerItemButton(
-      itemWithCommand(picker, "addBezierCurve"),
-      buttonWithTooltip(itemWithCommand(picker, "addBezierCurve"), "Move Down")
-    );
-    await flush();
-    expect(mocks.setting).toEqual(["addArcLine", "addBezierCurve"]);
-
-    picker.fireHide();
-    await pending;
-    expect(picker.dispose).toHaveBeenCalledTimes(1);
-    feature.dispose();
-  });
-
-  it("opens Add candidates in the existing alphabetical order and supports full catalog capacity", async () => {
-    mocks.setting = ["addLine", "unknown", "addLine"];
-    const feature = registerVscodeCanvasQuickCreateFeature({ activeCanvasEndpoint: () => null });
-    const pending = mocks.commands.get(VSCODE_CANVAS_CONFIGURE_QUICK_CREATE_COMMAND_ID)?.();
-    const picker = mocks.quickPicks[0]!;
-    mocks.showQuickPick.mockResolvedValue({ commandId: "addAngleLengthLine" });
-    picker.fireTriggerButton(picker.buttons[0]!);
-    await flush();
-    const addItems = mocks.showQuickPick.mock.calls[0]?.[0] as TestItem[];
-    expect(addItems.map(({ commandId }) => commandId)).toEqual(
-      vscodeCanvasCreationCommands.map(({ commandId }) => commandId).sort()
-        .filter((commandId) => commandId !== "addLine")
-    );
-    expect(mocks.setting).toEqual(["addLine", "addAngleLengthLine"]);
-
-    mocks.setting = vscodeCanvasCreationCommands.map(({ commandId }) => commandId);
-    picker.fireTriggerButton(picker.buttons[0]!);
-    await flush();
-    expect(mocks.showQuickPick).toHaveBeenCalledTimes(1);
-    expect(picker.items).toHaveLength(vscodeCanvasCreationCommands.length);
-    picker.fireHide();
-    await pending;
-    feature.dispose();
-  });
-
-  it("normalizes unknown and duplicate persisted values before mutations and leaves cancellation unchanged", async () => {
-    mocks.setting = ["addLine", "unknown", "addLine", "addArcLine"];
-    const feature = registerVscodeCanvasQuickCreateFeature({ activeCanvasEndpoint: () => null });
-    const pending = mocks.commands.get(VSCODE_CANVAS_CONFIGURE_QUICK_CREATE_COMMAND_ID)?.();
-    const picker = mocks.quickPicks[0]!;
-    expect(picker.items.map(({ commandId }) => commandId)).toEqual(["addLine", "addArcLine"]);
-    picker.fireTriggerItemButton(
-      itemWithCommand(picker, "addArcLine"),
-      buttonWithTooltip(itemWithCommand(picker, "addArcLine"), "Remove")
-    );
-    await flush();
-    expect(mocks.setting).toEqual(["addLine"]);
-    const updatesBeforeCancelledAdd = mocks.configurationUpdates.length;
-    mocks.showQuickPick.mockResolvedValue(undefined);
-    picker.fireTriggerButton(picker.buttons[0]!);
-    await flush();
-    expect(mocks.configurationUpdates).toHaveLength(updatesBeforeCancelledAdd);
-    picker.fireHide();
-    await pending;
+    expect(mocks.executeCommand.mock.calls.filter(([commandId]) => commandId === "workbench.action.openSettings"))
+      .toEqual([["workbench.action.openSettings", VSCODE_CANVAS_QUICK_CREATE_SETTING]]);
+    expect(mocks.createQuickPick).not.toHaveBeenCalled();
+    expect(mocks.setting).toEqual(["addLine", "addArcLine"]);
     feature.dispose();
   });
 
@@ -353,8 +236,27 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
 
     expect(picker.placeholder).toBe("ジオメトリを作成");
     expect(itemWithCommand(picker, "addBezierCurve")).toMatchObject({
-      label: "ベジェ曲線",
+      label: "Bezier Curve",
       description: "ベジェ曲線を作成"
+    });
+    picker.fireHide();
+    await pending;
+    feature.dispose();
+  });
+
+  it("keeps the canonical English label and localized creation description in English", async () => {
+    const token = {};
+    const postCreationCommand = vi.fn();
+    const feature = registerVscodeCanvasQuickCreateFeature({
+      activeCanvasEndpoint: () => ({ sessionToken: token, isCurrent: () => true, postCreationCommand }),
+      displayLanguageFor: () => "en-US"
+    });
+    const pending = mocks.commands.get(VSCODE_CANVAS_CREATE_GEOMETRY_COMMAND_ID)?.();
+    const picker = mocks.quickPicks[0]!;
+
+    expect(itemWithCommand(picker, "addBezierCurve")).toMatchObject({
+      label: "Bezier Curve",
+      description: "Create Bezier Curve"
     });
     picker.fireHide();
     await pending;

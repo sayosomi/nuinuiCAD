@@ -11,7 +11,6 @@ import {
 } from "../../src/vscode/vscodeCanvasCreationCommands";
 import {
   canvasQuickCreateDescriptionFor,
-  canvasQuickCreateLabelFor,
   canvasQuickCreateTranslatorFor
 } from "./canvasQuickCreateLocalization";
 
@@ -39,64 +38,16 @@ type QuickPickCreationItem = vscode.QuickPickItem & {
   commandId: VscodeCanvasCreationCommandId;
 };
 
-type QuickCreateManagerItem = QuickPickCreationItem & {
-  buttons: readonly vscode.QuickInputButton[];
-};
-
-type QuickCreateButtons = {
-  add: vscode.QuickInputButton;
-  moveUp: vscode.QuickInputButton;
-  moveDown: vscode.QuickInputButton;
-  remove: vscode.QuickInputButton;
-};
-
-const quickCreateButtonsFor = (displayLanguage: string): QuickCreateButtons => {
-  const translator = canvasQuickCreateTranslatorFor(displayLanguage);
-  return {
-    add: { iconPath: new vscode.ThemeIcon("add"), tooltip: translator("canvasQuickCreate.button.add") },
-    moveUp: { iconPath: new vscode.ThemeIcon("arrow-up"), tooltip: translator("canvasQuickCreate.button.moveUp") },
-    moveDown: { iconPath: new vscode.ThemeIcon("arrow-down"), tooltip: translator("canvasQuickCreate.button.moveDown") },
-    remove: { iconPath: new vscode.ThemeIcon("trash"), tooltip: translator("canvasQuickCreate.button.remove") }
-  };
-};
-
 const quickPickItemsFor = (
   entries: readonly VscodeCanvasCreationCommand[],
   displayLanguage: string,
   alwaysShow = false
 ): QuickPickCreationItem[] => entries.map((entry) => ({
-  label: canvasQuickCreateLabelFor(entry.commandId, displayLanguage),
+  label: entry.quickPickLabel,
   description: canvasQuickCreateDescriptionFor(entry.commandId, displayLanguage),
   commandId: entry.commandId,
   alwaysShow
 }));
-
-const commandOrderForAddCandidates = (
-  entries: readonly VscodeCanvasCreationCommand[]
-): VscodeCanvasCreationCommand[] => [...entries].sort((left, right) => {
-  if (left.commandId < right.commandId) return -1;
-  if (left.commandId > right.commandId) return 1;
-  return 0;
-});
-
-const quickCreateManagerItemsFor = (
-  commandIds: readonly VscodeCanvasCreationCommandId[],
-  buttons: QuickCreateButtons,
-  displayLanguage: string
-): QuickCreateManagerItem[] => commandIds.map((commandId, index) => {
-  const entry = vscodeCanvasCreationCommands.find((candidate) => candidate.commandId === commandId);
-  if (!entry) throw new Error(`Unknown VS Code Canvas creation command: ${commandId}`);
-  return {
-    label: canvasQuickCreateLabelFor(commandId, displayLanguage),
-    description: canvasQuickCreateDescriptionFor(commandId, displayLanguage),
-    commandId,
-    buttons: [
-      ...(index > 0 ? [buttons.moveUp] : []),
-      ...(index < commandIds.length - 1 ? [buttons.moveDown] : []),
-      buttons.remove
-    ]
-  };
-});
 
 export const registerVscodeCanvasQuickCreateFeature = ({
   activeCanvasEndpoint,
@@ -178,101 +129,11 @@ export const registerVscodeCanvasQuickCreateFeature = ({
     return result;
   };
 
-  const configureQuickCreate = (): Promise<void> => {
-    const displayLanguage = displayLanguageFor();
-    const picker = vscode.window.createQuickPick<QuickCreateManagerItem>();
-    const buttons = quickCreateButtonsFor(displayLanguage);
-    let settled = false;
-    let resolveManager: () => void = () => undefined;
-    let finish: () => void = () => undefined;
-    const close = (): void => finish();
-    activePickerClosers.add(close);
-
-    const result = new Promise<void>((resolve) => {
-      resolveManager = resolve;
-    });
-    const listeners: vscode.Disposable[] = [];
-    let mutationQueue: Promise<void> = Promise.resolve();
-    const setItems = (commands: readonly VscodeCanvasCreationCommandId[]): void => {
-      picker.items = quickCreateManagerItemsFor(commands, buttons, displayLanguage);
-    };
-    const readCurrent = (): VscodeCanvasCreationCommandId[] => readQuickCreateCommands();
-    const persist = (commands: VscodeCanvasCreationCommandId[]): Promise<void> => {
-      mutationQueue = mutationQueue
-        .then(async () => {
-          await vscode.workspace.getConfiguration().update(
-            VSCODE_CANVAS_QUICK_CREATE_SETTING,
-            commands,
-            vscode.ConfigurationTarget.Global
-          );
-          setItems(commands);
-        })
-        .catch(() => undefined);
-      return mutationQueue;
-    };
-    const addCommand = async (): Promise<void> => {
-      if (settled) return;
-      const current = readCurrent();
-      setItems(current);
-      const configured = new Set(current);
-      const candidates = commandOrderForAddCandidates(
-        vscodeCanvasCreationCommands.filter((entry) => !configured.has(entry.commandId))
-      );
-      if (candidates.length === 0) return;
-      const selected = await vscode.window.showQuickPick(quickPickItemsFor(candidates, displayLanguage), {
-        placeHolder: canvasQuickCreateTranslatorFor(displayLanguage)("canvasQuickCreate.placeholder.addCommand"),
-        matchOnDescription: true
-      });
-      if (settled || !selected || !isVscodeCanvasCreationCommandId(selected.commandId)) return;
-      const latest = readCurrent();
-      if (latest.includes(selected.commandId)) return;
-      await persist([...latest, selected.commandId]);
-    };
-    const onItemButton = ({ item, button }: vscode.QuickPickItemButtonEvent<QuickCreateManagerItem>): void => {
-      if (settled) return;
-      const current = readCurrent();
-      const index = current.indexOf(item.commandId);
-      if (index < 0) return;
-      const next = [...current];
-      if (button === buttons.moveUp && index > 0) {
-        [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
-      } else if (button === buttons.moveDown && index < next.length - 1) {
-        [next[index], next[index + 1]] = [next[index + 1]!, next[index]!];
-      } else if (button === buttons.remove) {
-        next.splice(index, 1);
-      } else {
-        return;
-      }
-      void persist(next);
-    };
-
-    finish = (): void => {
-      if (settled) return;
-      settled = true;
-      activePickerClosers.delete(close);
-      for (const listener of listeners) listener.dispose();
-      picker.dispose();
-      void mutationQueue.then(resolveManager, resolveManager);
-    };
-
-    const translator = canvasQuickCreateTranslatorFor(displayLanguage);
-    picker.title = translator("canvasQuickCreate.title.configure");
-    picker.placeholder = translator("canvasQuickCreate.placeholder.configuredCommands");
-    picker.matchOnDescription = false;
-    picker.buttons = [buttons.add];
-    setItems(readCurrent());
-    listeners.push(picker.onDidTriggerButton((button) => {
-      if (button === buttons.add) void addCommand();
-    }));
-    listeners.push(picker.onDidTriggerItemButton(onItemButton));
-    listeners.push(picker.onDidAccept(() => finish()));
-    listeners.push(picker.onDidHide(() => finish()));
-    try {
-      picker.show();
-    } catch {
-      finish();
-    }
-    return result;
+  const configureQuickCreate = (): void => {
+    void vscode.commands.executeCommand(
+      "workbench.action.openSettings",
+      VSCODE_CANVAS_QUICK_CREATE_SETTING
+    );
   };
 
   const createGeometry = async (): Promise<void> => {
