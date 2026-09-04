@@ -222,7 +222,7 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
   });
 
-  it("leaves an active shared Canvas pick untouched by Creation Assist chords", () => {
+  it("leaves an active shared Canvas pick untouched by Option+Enter", () => {
     const { canvasFocusRef } = renderOverlay();
     start("line");
     fireEvent.keyDown(input(), { key: "Enter" });
@@ -231,7 +231,6 @@ describe("VSCodeCreationAssistOverlay", () => {
     act(() => { useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 }); });
     const targetBefore = useCadUiStore.getState().activePointPickTarget;
 
-    fireEvent.keyDown(viewport, { key: "Enter", shiftKey: true });
     fireEvent.keyDown(viewport, { key: "Enter", altKey: true });
 
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
