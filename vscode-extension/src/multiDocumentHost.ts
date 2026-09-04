@@ -1145,12 +1145,20 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       };
     }
 
+    const candidateUris = new Map<DocumentId, vscode.Uri>();
+    for (const uri of uris) {
+      const documentId = this.documentIdForUri(uri);
+      if (documentId !== rootIndex.graph.rootDocumentId) candidateUris.set(documentId, uri);
+    }
+    for (const state of this.rootByDocumentId.values()) {
+      if (state.documentId === rootIndex.graph.rootDocumentId) continue;
+      candidateUris.set(state.documentId, vscode.Uri.parse(state.documentUri));
+    }
+
     const indexes: MultiDocumentSemanticOccurrenceIndex[] = [];
     const graphs: MultiDocumentImportGraph<unknown>[] = [];
     const compiledByDocument = new Map<DocumentId, CompiledDslDocument>();
-    for (const uri of uris) {
-      const documentId = this.documentIdForUri(uri);
-      if (documentId === rootIndex.graph.rootDocumentId) continue;
+    for (const [documentId, uri] of candidateUris) {
       const active = this.rootByDocumentId.get(documentId);
       if (active?.pending) await active.pending;
       if (active?.index) {

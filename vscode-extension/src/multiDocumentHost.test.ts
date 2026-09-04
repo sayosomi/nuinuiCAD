@@ -135,8 +135,10 @@ import * as vscode from "vscode";
 import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
 import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
 import { diagnosticTextFor } from "./diagnosticLocalization";
+import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
+import { createNuiRenameProvider } from "./renameProvider";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 
 const encoder = new TextEncoder();
@@ -876,6 +878,153 @@ describe("VS Code multi-document host lifecycle", () => {
       [`file://${libraryPath}`, "Renamed"],
       [`file://${rootPath}`, "Renamed"]
     ]);
+
+    host.dispose();
+  });
+
+  it("renames a definition-root Module across active and saved reverse importers through the native provider", async () => {
+    const mainPath = "/workspace/main.nui";
+    const facadePath = "/workspace/facade.nui";
+    const libraryPath = "/workspace/library.nui";
+    const mainSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "import \"./facade.nui\" as facade",
+      "instance direct = library::Panel()",
+      "instance reexport = facade::Panel()"
+    ].join("\n");
+    const facadeSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "export @library::Panel"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(facadePath, encoder.encode(facadeSource));
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const main = documentFor(mainPath, mainSource);
+    const library = documentFor(libraryPath, librarySource);
+    mocks.textDocuments = [main];
+    mocks.findFiles.mockResolvedValue([]);
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(main.uri.toString())?.nodes).toHaveLength(3);
+    });
+    mocks.textDocuments.push(library);
+    mocks.openListeners[0]?.(library);
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(library.uri.toString())?.nodes).toHaveLength(1);
+    });
+
+    const provider = createNuiRenameProvider(() => createLanguageAnalysisSession(librarySource));
+    const declarationLine = librarySource.split("\n")[1]!;
+    const declarationPosition = new vscode.Position(1, declarationLine.indexOf("Panel") + 2);
+    await expect(provider.prepareRename!(library, declarationPosition, undefined as never)).resolves.toMatchObject({
+      placeholder: "Panel",
+      range: {
+        start: { line: 1, character: declarationLine.indexOf("Panel") },
+        end: { line: 1, character: declarationLine.indexOf("Panel") + "Panel".length }
+      }
+    });
+
+    const edit = await provider.provideRenameEdits!(library, declarationPosition, "Renamed", undefined as never);
+    const replacements = (edit as { replacements: Array<{
+      uri: TestUri;
+      range: { start: { line: number; character: number }; end: { line: number; character: number } };
+      newText: string;
+    }> }).replacements;
+    const sourceByUri = new Map([
+      [library.uri.toString(), librarySource],
+      [vscode.Uri.file(facadePath).toString(), facadeSource],
+      [main.uri.toString(), mainSource]
+    ]);
+    const offsetFor = (source: string, position: { line: number; character: number }): number => {
+      const lines = source.split("\n");
+      return lines.slice(0, position.line).reduce((offset, line) => offset + line.length + 1, 0) + position.character;
+    };
+    expect(replacements.map((replacement) => {
+      const source = sourceByUri.get(replacement.uri.toString())!;
+      const from = offsetFor(source, replacement.range.start);
+      const to = offsetFor(source, replacement.range.end);
+      return [replacement.uri.toString(), source.slice(from, to), replacement.newText];
+    })).toEqual([
+      [`file://${facadePath}`, "Panel", "Renamed"],
+      [`file://${libraryPath}`, "Panel", "Renamed"],
+      [`file://${mainPath}`, "Panel", "Renamed"],
+      [`file://${mainPath}`, "Panel", "Renamed"]
+    ]);
+    expect(replacements.map((replacement) => [
+      replacement.uri.toString(),
+      replacement.range.start.line,
+      replacement.range.start.character,
+      replacement.range.end.line,
+      replacement.range.end.character
+    ])).toEqual([
+      [`file://${facadePath}`, 2, facadeSource.split("\n")[2]!.indexOf("Panel"), 2, facadeSource.split("\n")[2]!.indexOf("Panel") + "Panel".length],
+      [`file://${libraryPath}`, 1, declarationLine.indexOf("Panel"), 1, declarationLine.indexOf("Panel") + "Panel".length],
+      [`file://${mainPath}`, 3, mainSource.split("\n")[3]!.indexOf("Panel"), 3, mainSource.split("\n")[3]!.indexOf("Panel") + "Panel".length],
+      [`file://${mainPath}`, 4, mainSource.split("\n")[4]!.indexOf("Panel"), 4, mainSource.split("\n")[4]!.indexOf("Panel") + "Panel".length]
+    ]);
+
+    host.dispose();
+  });
+
+  it("fails closed at a definition-root Module when an active reverse importer is invalid", async () => {
+    const mainPath = "/workspace/main.nui";
+    const libraryPath = "/workspace/library.nui";
+    const mainSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "instance direct = library::Panel()"
+    ].join("\n");
+    const invalidMainSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "instance direct = library::"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const main = documentFor(mainPath, mainSource);
+    const library = documentFor(libraryPath, librarySource);
+    mocks.textDocuments = [main];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(main.uri.toString())?.nodes).toHaveLength(2);
+    });
+    mocks.textDocuments.push(library);
+    mocks.openListeners[0]?.(library);
+    await vi.waitFor(() => {
+      expect(latestCurrentGraphFor(library.uri.toString())?.nodes).toHaveLength(1);
+    });
+
+    const sessionFor = vi.fn(() => createLanguageAnalysisSession(librarySource));
+    const provider = createNuiRenameProvider(sessionFor);
+    const invalidMain = documentFor(mainPath, invalidMainSource, { version: 2 });
+    mocks.textDocuments = [invalidMain, library];
+    mocks.changeListeners[0]?.({ document: invalidMain });
+    await vi.waitFor(() => {
+      expect(host.diagnosticsStateFor(invalidMain)).toMatchObject({ status: "current" });
+      expect(latestCurrentGraphFor(invalidMain.uri.toString())?.nodes).toHaveLength(2);
+    });
+
+    const declarationLine = librarySource.split("\n")[1]!;
+    const declarationPosition = new vscode.Position(1, declarationLine.indexOf("Panel") + 2);
+    await expect(provider.provideRenameEdits!(library, declarationPosition, "Renamed", undefined as never)).rejects.toThrow(
+      "Rename could not be applied."
+    );
+    expect(sessionFor).not.toHaveBeenCalled();
 
     host.dispose();
   });
