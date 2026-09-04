@@ -39,6 +39,20 @@ const unavailableMessageFor = (
   }
 };
 
+const parameterMessageIsSuperseded = (
+  current: { sessionId: string | null; documentVersion: number | null; sessionRevision: number } | null,
+  next: { sessionId: string | null; documentVersion: number | null; sessionRevision: number }
+): boolean => {
+  if (!current || current.sessionId !== next.sessionId) return false;
+  if (current.documentVersion === null || next.documentVersion === null) {
+    return next.sessionRevision <= current.sessionRevision;
+  }
+  if (next.documentVersion !== current.documentVersion) {
+    return next.documentVersion < current.documentVersion;
+  }
+  return next.sessionRevision <= current.sessionRevision;
+};
+
 const previewStatusMessageFor = (
   status: VscodeModulePreviewParameterSnapshot["previewStatus"],
   text: PresentationText
@@ -365,18 +379,19 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
       if (!isExtensionToVscodeMessage(event.data)) return;
       const message: ExtensionToVscodeMessage = event.data;
       if (message.type === "modulePreviewParameterSnapshot") {
-        setSnapshot((current) => {
-          if (
-            current &&
-            current.sessionId === message.sessionId &&
-            message.sessionRevision <= current.sessionRevision
-          ) return current;
-          return message;
-        });
+        const current = snapshotRef.current ?? unavailableRef.current;
+        if (parameterMessageIsSuperseded(current, message)) return;
+        snapshotRef.current = message;
+        unavailableRef.current = null;
+        setSnapshot(message);
         setUnavailable(null);
         return;
       }
       if (message.type === "modulePreviewParametersUnavailable") {
+        const current = snapshotRef.current ?? unavailableRef.current;
+        if (parameterMessageIsSuperseded(current, message)) return;
+        snapshotRef.current = null;
+        unavailableRef.current = message;
         setUnavailable(message);
         setSnapshot(null);
         return;
