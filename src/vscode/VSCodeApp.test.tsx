@@ -391,6 +391,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const elements = useCadDocumentStore.getState().elements;
     const first = elements.find((element) => element.name === "A")!;
     const second = elements.find((element) => element.name === "B")!;
+    const sourceOwners = sourceOwnerByRuntimeElementId(useCadDocumentStore.getState().doc);
+    const secondSourceStatementIndex = sourceOwners.get(second.id)!.sourceStatementIndex;
     useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(elements.map((element) => element.id)));
 
     await act(async () => {
@@ -399,7 +401,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
           type: "coordinatePointConversionSelection",
           requestId: 3,
           documentVersion: 7,
-          successfulTargetIds: [second.id]
+          successfulTargetSourceStatementIndexes: [secondSourceStatementIndex]
         }
       }));
     });
@@ -423,6 +425,9 @@ describe("VSCodeApp Canvas history coordinator", () => {
     const elements = useCadDocumentStore.getState().elements;
     const first = elements.find((element) => element.name === "A")!;
     const second = elements.find((element) => element.name === "B")!;
+    const sourceOwners = sourceOwnerByRuntimeElementId(useCadDocumentStore.getState().doc);
+    const secondSourceStatementIndex = sourceOwners.get(second.id)!.sourceStatementIndex;
+    const firstSourceStatementIndex = sourceOwners.get(first.id)!.sourceStatementIndex;
     useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(elements.map((element) => element.id)));
 
     await act(async () => {
@@ -431,7 +436,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
           type: "coordinatePointConversionSelection",
           requestId: 4,
           documentVersion: 8,
-          successfulTargetIds: [second.id]
+          successfulTargetSourceStatementIndexes: [secondSourceStatementIndex]
         }
       }));
     });
@@ -451,7 +456,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
           type: "coordinatePointConversionSelection",
           requestId: 5,
           documentVersion: 7,
-          successfulTargetIds: [first.id]
+          successfulTargetSourceStatementIndexes: [firstSourceStatementIndex]
         }
       }));
     });
@@ -463,7 +468,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
           type: "coordinatePointConversionSelection",
           requestId: 6,
           documentVersion: 9,
-          successfulTargetIds: [first.id]
+          successfulTargetSourceStatementIndexes: [firstSourceStatementIndex]
         }
       }));
       window.dispatchEvent(new MessageEvent("message", {
@@ -471,6 +476,164 @@ describe("VSCodeApp Canvas history coordinator", () => {
       }));
     });
     expect(useCadUiStore.getState().selectedElementIds).toEqual([second.id]);
+  });
+
+  it("repairs Canvas selection to the post-edit runtime ID after coordinate conversion", async () => {
+    const preEditSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const postEditSource = preEditSource.replace(
+      "point Target = coordinate(x: 10, y: 5)",
+      "point Target = offset(from: @Base, dx: 10, dy: 5)"
+    );
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: preEditSource, documentVersion: 1 }
+      }));
+    });
+    const preEditState = useCadDocumentStore.getState();
+    const preEditTarget = preEditState.elements.find((element) => element.name === "Target")!;
+    const preEditOwner = sourceOwnerByRuntimeElementId(preEditState.doc).get(preEditTarget.id)!;
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      preEditState.elements,
+      new Set(preEditState.elements.map((element) => element.id))
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 701,
+          documentVersion: 2,
+          successfulTargetSourceStatementIndexes: [preEditOwner.sourceStatementIndex]
+        }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: postEditSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    const postEditState = useCadDocumentStore.getState();
+    const postEditTarget = postEditState.elements.find((element) => element.name === "Target")!;
+    expect(postEditTarget.type).toBe("offsetPoint");
+    expect(postEditTarget.id).not.toBe(preEditTarget.id);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([postEditTarget.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(postEditTarget.id);
+    expect(useCadUiStore.getState().selectedElementIds).not.toContain(preEditTarget.id);
+  });
+
+  it("preserves successful Canvas target order while excluding skipped members", async () => {
+    const preEditSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point First = coordinate(x: 10, y: 5)",
+      "point Skipped = coordinate(x: 20, y: 5)",
+      "point Last = coordinate(x: 30, y: 5)"
+    ].join("\n");
+    const postEditSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point First = offset(from: @Base, dx: 10, dy: 5)",
+      "point Skipped = coordinate(x: 20, y: 5)",
+      "point Last = polar(from: @Base, angle: 45, distance: 30)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: preEditSource, documentVersion: 1 }
+      }));
+    });
+    const preEditState = useCadDocumentStore.getState();
+    const preEditOwners = sourceOwnerByRuntimeElementId(preEditState.doc);
+    const firstSourceStatementIndex = preEditOwners.get(
+      preEditState.elements.find((element) => element.name === "First")!.id
+    )!.sourceStatementIndex;
+    const lastSourceStatementIndex = preEditOwners.get(
+      preEditState.elements.find((element) => element.name === "Last")!.id
+    )!.sourceStatementIndex;
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 702,
+          documentVersion: 2,
+          successfulTargetSourceStatementIndexes: [lastSourceStatementIndex, firstSourceStatementIndex]
+        }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: postEditSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    const postEditElements = useCadDocumentStore.getState().elements;
+    const postEditFirst = postEditElements.find((element) => element.name === "First")!;
+    const postEditSkipped = postEditElements.find((element) => element.name === "Skipped")!;
+    const postEditLast = postEditElements.find((element) => element.name === "Last")!;
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([postEditLast.id, postEditFirst.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(postEditFirst.id);
+    expect(useCadUiStore.getState().selectedElementIds).not.toContain(postEditSkipped.id);
+  });
+
+  it("fails closed without partial Canvas selection when a Source owner is missing", async () => {
+    const preEditSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)"
+    ].join("\n");
+    const postEditSource = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: preEditSource, documentVersion: 1 }
+      }));
+    });
+    const preEditState = useCadDocumentStore.getState();
+    const base = preEditState.elements.find((element) => element.name === "Base")!;
+    const target = preEditState.elements.find((element) => element.name === "Target")!;
+    const targetSourceStatementIndex = sourceOwnerByRuntimeElementId(preEditState.doc).get(target.id)!.sourceStatementIndex;
+    useCadUiStore.getState().setCanvasSelectionEligibility(
+      preEditState.elements,
+      new Set(preEditState.elements.map((element) => element.id))
+    );
+    selectElement(base.id);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 703,
+          documentVersion: 2,
+          successfulTargetSourceStatementIndexes: [targetSourceStatementIndex, 99]
+        }
+      }));
+    });
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: postEditSource, documentVersion: 2, reason: "edit" }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([base.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(base.id);
   });
 
   it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {

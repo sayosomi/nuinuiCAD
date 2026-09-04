@@ -273,15 +273,19 @@ const resolveCanvasTargetIdsFor = (
   return { status: "resolved", targets: resolvedTargets };
 };
 
-const canvasRuntimeIdsFor = (
+const canvasSourceStatementIndexesFor = (
   resolvedTargets: readonly ResolvedCoordinatePointConversionCanvasTarget[],
   successfulTargetIds: readonly string[]
-): readonly string[] | null => {
-  const runtimeIdsByElementId = new Map(resolvedTargets.map((target) => [target.elementId, target.runtimeElementId] as const));
-  const runtimeIds = successfulTargetIds.map((targetId) => runtimeIdsByElementId.get(targetId));
-  if (runtimeIds.some((runtimeId) => runtimeId === undefined)) return null;
-  const resolvedRuntimeIds = runtimeIds as string[];
-  return new Set(resolvedRuntimeIds).size === resolvedRuntimeIds.length ? resolvedRuntimeIds : null;
+): readonly number[] | null => {
+  const sourceStatementIndexesByElementId = new Map(
+    resolvedTargets.map((target) => [target.elementId, target.sourceStatementIndex] as const)
+  );
+  const sourceStatementIndexes = successfulTargetIds.map((targetId) => sourceStatementIndexesByElementId.get(targetId));
+  if (sourceStatementIndexes.some((sourceStatementIndex) => sourceStatementIndex === undefined)) return null;
+  const resolvedSourceStatementIndexes = sourceStatementIndexes as number[];
+  return new Set(resolvedSourceStatementIndexes).size === resolvedSourceStatementIndexes.length
+    ? resolvedSourceStatementIndexes
+    : null;
 };
 
 const sourceTargetResolutionFor = async (
@@ -682,12 +686,12 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       return;
     }
 
-    const successfulCanvasTargetIds = current.request.origin === "canvas"
+    const successfulCanvasTargetSourceStatementIndexes = current.request.origin === "canvas"
       ? current.canvasTargetSources && revalidated.resolvedCanvasTargets
-        ? canvasRuntimeIdsFor(revalidated.resolvedCanvasTargets, applied.plan.successfulTargetIds)
+        ? canvasSourceStatementIndexesFor(revalidated.resolvedCanvasTargets, applied.plan.successfulTargetIds)
         : null
       : null;
-    if (current.request.origin === "canvas" && !successfulCanvasTargetIds) {
+    if (current.request.origin === "canvas" && !successfulCanvasTargetSourceStatementIndexes) {
       const reason: CoordinatePointConversionSkip["reason"] = {
         code: "revalidation-failed",
         message: presentationText("coordinatePointConversion.revalidation.canvasSelectionMappingFailed")
@@ -713,7 +717,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
         type: "coordinatePointConversionSelection",
         requestId: current.request.requestId,
         documentVersion,
-        successfulTargetIds: [...successfulCanvasTargetIds!]
+        successfulTargetSourceStatementIndexes: [...successfulCanvasTargetSourceStatementIndexes!]
       } satisfies import("../../src/vscode/protocol").ExtensionToVscodeMessage);
     }
     await presentResult(conversionResultFor(current.request, "applied", applied.plan, documentVersion));

@@ -121,9 +121,11 @@ owns the captured target/base-candidate session, while
 planning, math, and statement-splice authority. Source, Canvas, and Explorer
 capture the same proof-carrying request and use the Extension Host's native
 QuickPick for the primary legal shared-base interaction. Native apply performs
-one statement-level Source edit; Canvas-origin success sends only the successful
-target IDs through a narrow selection adapter. The existing Webview conversion
-and point-pick path remains an explicit Canvas visual-pick adapter, and only
+one statement-level Source edit; Canvas-origin success crosses the host
+boundary using ordinary Source ownership/source statement identity through a
+narrow selection adapter, and the Webview resolves current runtime IDs after
+the authoritative source edit before replacing Canvas selection. The existing
+Webview conversion and point-pick path remains an explicit Canvas visual-pick adapter, and only
 that choice may create or reveal Canvas for a Source-origin request. No
 cross-surface sticky target or alternate conversion semantics are introduced.
 
