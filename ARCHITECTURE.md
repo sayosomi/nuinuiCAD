@@ -1124,15 +1124,19 @@ Module-family graph, semantic, and exact compiler diagnostic projection.
 composes that selected compiler/semantic layer with runtime diagnostics and
 Canvas-theme warnings. A root without imported dependencies stays on the local
 session path, while an imported root exposes only its exact current graph
-snapshot to Problems:
+snapshot to Problems. During incomplete root authoring, the graph owner still
+loads root import edges and keeps the graph invalid for strict consumers;
+Completion alone may receive a current-root tolerant semantic snapshot after
+the existing dependency, public-catalog, and Module-runtime proofs succeed:
 
 ```text
 VS Code TextDocument
 → one URI-scoped multi-document host / saved graph coordinator
 ├→ Module contributor → analyzeMultiDocumentModuleSemantics
 ├→ createModuleRuntimeContext → exact graph-root compile
+├→ completion-only current-root bridge → same graph/catalog/runtime authority
 ├→ Module graph/semantic/compiler diagnostics → DiagnosticCollection
-│  ├→ queryDslCompletion → CompletionItemProvider
+│  ├→ queryDslCompletion → CompletionItemProvider (exact or completion-only)
 │  └→ queryDslSignatureHelp → SignatureHelpProvider
 ├→ queryMultiDocumentDefinition / queryMultiDocumentReferences
 │  └→ DefinitionProvider / ReferenceProvider
@@ -1163,7 +1167,8 @@ are not alternate diagnostic owners.
 current compiler diagnostics, source revision, and fail-closed semantic / exact
 current source-structure snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
 conversion adapter. `completionProvider.ts` first asks the active
-multi-document host for its exact graph-root semantic snapshot, then projects
+multi-document host for its exact or completion-only current-root semantic
+snapshot, then projects
 `queryDslCompletion` candidates to `CompletionItem`s; it retains the session
 and completion recovery path when that snapshot is unavailable. Completion
 semantics, filtering, ranking, and truncation remain owned by the production

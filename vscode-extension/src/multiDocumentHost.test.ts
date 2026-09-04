@@ -473,6 +473,8 @@ describe("VS Code multi-document host lifecycle", () => {
 
     const semantic = await host.languageSemanticSnapshotFor(root);
     expect(semantic).not.toBeNull();
+    const completionSemantic = await host.completionSemanticSnapshotFor(root);
+    expect(completionSemantic).not.toBeNull();
     const source = { normalizedSource: rootSource, sourceRevision: semantic!.sourceRevision };
     const completion = queryDslCompletion({
       source,
@@ -496,6 +498,140 @@ describe("VS Code multi-document host lifecycle", () => {
     ]);
 
     host.dispose();
+  });
+
+  it("provides imported Module completion from an actually incomplete root", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Pa"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(async () => {
+      expect(await host.languageSemanticSnapshotFor(root)).toBeNull();
+      const snapshot = await host.completionSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const result = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("lib::Pa") + "lib::Pa".length,
+        semantic: snapshot!
+      });
+      expect(result?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+    });
+    host.dispose();
+  });
+
+  it("provides facade-qualified imported Module completion from an actually incomplete root", async () => {
+    const rootPath = "/workspace/root.nui";
+    const facadePath = "/workspace/facade.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./facade.nui\" as facade",
+      "instance use = facade::Pa"
+    ].join("\n");
+    const facadeSource = [
+      "nui 1",
+      "import \"./library.nui\" as library",
+      "export @library::Panel"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(facadePath, encoder.encode(facadeSource));
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(async () => {
+      const snapshot = await host.completionSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const result = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.indexOf("facade::Pa") + "facade::Pa".length,
+        semantic: snapshot!
+      });
+      expect(result?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+    });
+    host.dispose();
+  });
+
+  it("does not expose private dependency Modules through incomplete imported completion", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "module Private() {",
+      "}",
+      "export module Panel() {",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    await vi.waitFor(async () => {
+      const snapshot = await host.completionSemanticSnapshotFor(root);
+      expect(snapshot).not.toBeNull();
+      const result = queryDslCompletion({
+        source: { normalizedSource: rootSource, sourceRevision: snapshot!.sourceRevision },
+        position: rootSource.length,
+        semantic: snapshot!
+      });
+      expect(result?.candidates.map((candidate) => candidate.label)).toContain("Panel");
+      expect(result?.candidates.map((candidate) => candidate.label)).not.toContain("Private");
+    });
+    host.dispose();
+  });
+
+  it("fails closed for unavailable or invalid imported completion authority", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Pa"
+    ].join("\n");
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const unavailableHost = createVscodeModuleMultiDocumentHost();
+    unavailableHost.start();
+    await vi.waitFor(async () => {
+      expect(await unavailableHost.completionSemanticSnapshotFor(root)).toBeNull();
+    });
+    unavailableHost.dispose();
+
+    mocks.files.set(libraryPath, encoder.encode("nui 3\n"));
+    const invalidHost = createVscodeModuleMultiDocumentHost();
+    invalidHost.start();
+    await vi.waitFor(async () => {
+      expect(await invalidHost.completionSemanticSnapshotFor(root)).toBeNull();
+    });
+    invalidHost.dispose();
   });
 
   it("publishes exact imported Canvas runtime and fails closed for dirty or deleted dependencies", async () => {
