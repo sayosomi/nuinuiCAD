@@ -81,7 +81,10 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.creationAssist.stepProgress": { en: "Step {current} of {total}", ja: "{total}ステップ中{current}ステップ" },
   "canvas.creationAssist.complete": { en: "Complete", ja: "完了" },
   "canvas.creationAssist.shortcutsAriaLabel": { en: "Creation assist shortcuts", ja: "作成アシストのショートカット" },
-  "canvas.creationAssist.shortcuts": { en: "Enter next · Shift+Enter pick · Esc cancel", ja: "Enter 次へ · Shift+Enter 選択 · Esc キャンセル" },
+  "canvas.creationAssist.shortcuts": {
+    en: "Enter next · Shift+Enter back · macOS Option+Enter pick · Windows/Linux Alt+Enter pick · Esc cancel",
+    ja: "Enter 次へ · Shift+Enter 戻る · macOS Option+Enter 選択 · Windows/Linux Alt+Enter 選択 · Esc キャンセル"
+  },
   "canvas.creationAssist.recipeStepsAriaLabel": { en: "Creation recipe steps", ja: "作成レシピのステップ" },
   "canvas.creationAssist.notSupplied": { en: "Not supplied", ja: "未指定" },
   "canvas.creationAssist.filled": { en: "Filled", ja: "入力済み" },

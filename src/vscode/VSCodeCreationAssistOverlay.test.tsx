@@ -105,15 +105,16 @@ describe("VSCodeCreationAssistOverlay", () => {
   });
 
   it.each([
-    ["ja", "VS Code作成アシスト", "3ステップ中1ステップ", "空Enterで無名のまま進みます。", "キャンセル"],
-    ["en", "VS Code creation assist", "Step 1 of 3", "Press Enter with an empty value to continue unnamed.", "Cancel"]
-  ] as const)("uses the Extension Host presentation for creation-assist chrome and help (%s)", (language, formName, progress, help, cancel) => {
+    ["ja", "VS Code作成アシスト", "3ステップ中1ステップ", "空Enterで無名のまま進みます。", "キャンセル", "Enter 次へ · Shift+Enter 戻る · macOS Option+Enter 選択 · Windows/Linux Alt+Enter 選択 · Esc キャンセル"],
+    ["en", "VS Code creation assist", "Step 1 of 3", "Press Enter with an empty value to continue unnamed.", "Cancel", "Enter next · Shift+Enter back · macOS Option+Enter pick · Windows/Linux Alt+Enter pick · Esc cancel"]
+  ] as const)("uses the Extension Host presentation for creation-assist chrome and help (%s)", (language, formName, progress, help, cancel, shortcuts) => {
     renderOverlay(vi.fn(), undefined, webviewCanvasPresentationFor(webviewPresentationFor(language)));
     start("line");
 
     expect(screen.getByRole("form", { name: formName })).toBeInTheDocument();
     expect(screen.getByText(progress)).toBeInTheDocument();
     expect(screen.getByText(help)).toBeInTheDocument();
+    expect(screen.getByText(shortcuts)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: cancel })).toBeInTheDocument();
   });
 
@@ -171,16 +172,71 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(third).toHaveAttribute("tabindex", "0");
   });
 
-  it("uses Shift+Enter to enter shared pick without digit step jumps", () => {
+  it("uses Shift+Enter as non-destructive Back without digit step jumps", () => {
+    renderOverlay();
+    start("freePoint");
+    fireEvent.change(input(), { target: { value: "Point A" } });
+    fireEvent.keyDown(input(), { key: "Enter" });
+    fireEvent.change(input(), { target: { value: "12" } });
+    fireEvent.keyDown(input(), { key: "Enter" });
+    const suppliedArgs = useCadUiStore.getState().commandLineSession?.args;
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
+
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual(suppliedArgs);
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual(suppliedArgs);
+
+    fireEvent.keyDown(input(), { key: "Enter", shiftKey: true });
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual(suppliedArgs);
+  });
+
+  it("uses macOS Option/Windows/Linux Alt+Enter to start the shared pick and focus Canvas", () => {
     const { canvasFocusRef } = renderOverlay();
     start("freePoint");
     fireEvent.keyDown(input(), { key: "Enter" });
     const viewport = canvasFocusRef.current!;
-    fireEvent.keyDown(viewport, { key: "Enter", shiftKey: true });
-    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    commandContext.focusCanvas.mockImplementation(() => viewport.focus());
+
+    fireEvent.keyDown(input(), { key: "Enter", altKey: true });
+
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "x" });
-    fireEvent.keyDown(viewport, { key: "3" });
+    expect(document.activeElement).toBe(viewport);
+  });
+
+  it("keeps ordinary Name input Enter behavior for Alt+Enter without creating pick state", () => {
+    renderOverlay();
+    start("freePoint");
+    fireEvent.change(input(), { target: { value: "Point A" } });
+
+    fireEvent.keyDown(input(), { key: "Enter", altKey: true });
+
     expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeNumericReferencePickTarget).toBeNull();
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+  });
+
+  it("leaves an active shared Canvas pick untouched by Creation Assist chords", () => {
+    const { canvasFocusRef } = renderOverlay();
+    start("line");
+    fireEvent.keyDown(input(), { key: "Enter" });
+    const viewport = canvasFocusRef.current!;
+    viewport.focus();
+    act(() => { useCadUiStore.getState().setActivePickCursor({ elementId: "point-a", optionIndex: 0 }); });
+    const targetBefore = useCadUiStore.getState().activePointPickTarget;
+
+    fireEvent.keyDown(viewport, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(viewport, { key: "Enter", altKey: true });
+
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+    expect(useCadUiStore.getState().activePointPickTarget).toEqual(targetBefore);
+    expect(useCadUiStore.getState().activePickCursor).toEqual({ elementId: "point-a", optionIndex: 0 });
   });
 
   it("clears a filled reference step through the session owner and refreshes its pick target", () => {
@@ -290,7 +346,7 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(screen.getByRole("listbox", { name: "変数候補" })).toBeInTheDocument();
 
     commandContext.focusCanvas.mockImplementation(() => canvasFocusRef.current?.focus());
-    fireEvent.keyDown(ratioInput, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(ratioInput, { key: "Enter", altKey: true });
     const canvas = canvasFocusRef.current!;
     expect(useCadUiStore.getState().activeNumericReferencePickTarget).toMatchObject({ parameterKey: "ratio" });
     expect(document.activeElement).toBe(canvas);
