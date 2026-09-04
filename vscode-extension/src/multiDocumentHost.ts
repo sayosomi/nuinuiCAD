@@ -629,7 +629,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   ): Promise<VscodeMultiDocumentLanguageSemanticSnapshot | null> {
     const current = await this.currentRootSemanticStateFor(document);
     if (!current) return null;
-    const { documentId, state, graph, compiled } = current;
+    const { documentId, graph, compiled } = current;
     if (
       !compiled ||
       compiled.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
