@@ -39,6 +39,65 @@ const previewBindingStates = (
 };
 
 describe("createModulePreviewSession", () => {
+  it("activates a default-only Module without materializing a Preview value", () => {
+    const source = [
+      "nui 1",
+      "module Alternate(size: number = 30) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @size)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point AltStart");
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected preview target");
+
+    const session = createModulePreviewSession();
+    const state = session.activate({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target
+    });
+
+    expect(state?.preview.kind).toBe("current");
+    expect(targetParameter(state!, "size")?.value).toBe("");
+    expect(previewBindingStates(state!, target.definitionStatementId)).toEqual([
+      ["size", "defaultedOmitted"]
+    ]);
+    expect(source).toBe([
+      "nui 1",
+      "module Alternate(size: number = 30) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @size)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}"
+    ].join("\n"));
+  });
+
+  it("keeps an omitted required parameter without a default invalid", () => {
+    const source = [
+      "nui 1",
+      "module Required(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point P");
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected preview target");
+
+    const state = createModulePreviewSession().activate({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target
+    });
+    expect(state?.preview.kind).toBe("noValidPreview");
+    expect(state?.inputDiagnostics).toEqual([
+      expect.objectContaining({ code: "required-value-missing", parameterIndex: 0 })
+    ]);
+  });
+
   it("restores expression text per exact Module definition and keeps last-good data across invalid input", () => {
     const source = [
       "nui 1",

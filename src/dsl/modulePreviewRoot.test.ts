@@ -112,6 +112,140 @@ describe("compileModulePreviewRoot", () => {
     })).toBeNull();
   });
 
+  it("evaluates an omitted default-only scalar parameter in Module geometry", () => {
+    const source = [
+      "nui 1",
+      "module Alternate(size: number = 30) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @size)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point AltStart");
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected preview target");
+
+    const result = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target
+    });
+
+    expect(result).not.toBeNull();
+    if (!result) throw new Error("expected default-only preview result");
+    const previewInstance = result.moduleSemanticAnalysis.instancesByStatementId.get(
+      `module-preview-call:${target.definitionStatementId}:0`
+    );
+    expect(previewInstance?.parameterBindings).toEqual([
+      expect.objectContaining({
+        parameterName: "size",
+        state: "defaultedOmitted",
+        argumentIndex: null
+      })
+    ]);
+    const previewEnd = result.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && result.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(previewEnd).toBeDefined();
+    expect(evaluatePreview(result).computedGeometry.get(previewEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 30
+    });
+  });
+
+  it("materializes omitted scalar defaults through the existing Module runtime", () => {
+    const source = [
+      "nui 1",
+      "module Alternate(size: number = 30, rise: number = 4) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @rise)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}"
+    ].join("\n");
+    const original = source;
+    const compiled = compileWithIds(source);
+    const target = targetAt(source, compiled, "point AltStart");
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected preview target");
+
+    const result = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      arguments: []
+    });
+
+    expect(result).not.toBeNull();
+    expect(source).toBe(original);
+    if (!result) throw new Error("expected default-only preview result");
+    const previewInstance = result.moduleSemanticAnalysis.instancesByStatementId.get(
+      `module-preview-call:${target.definitionStatementId}:0`
+    );
+    expect(previewInstance?.parameterBindings.map((binding) => [
+      binding.parameterName,
+      binding.state,
+      binding.argumentIndex
+    ])).toEqual([
+      ["size", "defaultedOmitted", null],
+      ["rise", "defaultedOmitted", null]
+    ]);
+    const syntheticCall = result.candidateCompiledDocument.statements.find(
+      (statement) => statement.kind === "moduleInstance" && statement.name === "__module_preview_0"
+    );
+    expect(syntheticCall?.kind).toBe("moduleInstance");
+    expect(syntheticCall?.kind === "moduleInstance" ? syntheticCall.arguments : []).toHaveLength(0);
+
+    const evaluation = evaluatePreview(result);
+    expect(evaluation.errors).toEqual([]);
+    const previewEnd = result.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && result.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(previewEnd).toBeDefined();
+    expect(evaluation.computedGeometry.get(previewEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 4
+    });
+  });
+
+  it("keeps default-only preview isolated from unrelated document errors", () => {
+    const source = [
+      "nui 1",
+      "module Alternate(size: number = 30) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @size)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}",
+      "module Broken(input: unknown) {",
+      "}"
+    ].join("\n");
+    const compiled = compileWithIds(source);
+    expect(compiled.document).toBeNull();
+    const target = targetAt(source, compiled, "point AltStart");
+    expect(target).not.toBeNull();
+    if (!target) throw new Error("expected preview target");
+
+    const result = compileModulePreviewRoot({
+      source: { normalizedSource: source, sourceRevision: 41 },
+      semantic: { sourceRevision: 41, compiled },
+      target,
+      arguments: []
+    });
+    expect(result).not.toBeNull();
+    if (!result) throw new Error("expected isolated default-only preview result");
+    const previewEnd = result.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && result.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(previewEnd).toBeDefined();
+    expect(evaluatePreview(result).computedGeometry.get(previewEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 30
+    });
+  });
+
   it("evaluates nested preview arguments in the ancestor parameter context without granting body outer capture", () => {
     const source = [
       "nui 1",

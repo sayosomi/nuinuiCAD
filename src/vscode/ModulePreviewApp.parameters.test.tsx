@@ -143,11 +143,11 @@ const snapshot = {
 
 const source = "nui 1\nmodule Preview(width: number) {\n}\n";
 
-const previewFixtureFor = (sourceText: string) => {
+const previewFixtureFor = (sourceText: string, moduleName = "Preview") => {
   const document = AutomationDocument.fromSource(sourceText);
   const compiled = document.getState().currentCompiled;
   const sourceRevision = compiled.spans.sourceMap.sourceRevision;
-  const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "Preview");
+  const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === moduleName);
   if (!definition) throw new Error("expected Preview definition");
   const root = compileModulePreviewRoot({
     source: { normalizedSource: sourceText, sourceRevision },
@@ -343,6 +343,147 @@ describe("ModulePreviewApp parameter relay", () => {
     });
 
     expect(screen.getByText("Source EditorのModule定義からModule Previewを開いてください。")).toBeInTheDocument();
+  });
+
+  it("renders an omitted default-only Module Preview through the live session boundary", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Alternate(size: number = 30) {",
+      "  point AltStart = coordinate(x: 0, y: 0)",
+      "  point AltEnd = coordinate(x: @size, y: @size)",
+      "  line AltLine = segment(start: @AltStart, end: @AltEnd)",
+      "}"
+    ].join("\n");
+    const fixture = previewFixtureFor(sourceText, "Alternate");
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue(fixture.root.target);
+    mocks.evaluationState = {
+      evaluation: fixture.evaluation,
+      evaluationRevision: 1,
+      evaluationRequestRevision: 1,
+      mode: "reference",
+      source: "reference",
+      status: "ready",
+      rustEligible: false,
+      isStale: false,
+      error: null
+    };
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(fixture.document);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Alternate") }
+      }));
+    });
+
+    const parameterSnapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .at(-1);
+    expect(parameterSnapshot).toMatchObject({
+      previewStatus: "current",
+      parameters: {
+        name: "Alternate",
+        parameters: [expect.objectContaining({
+          name: "size",
+          defaultSourceText: "30",
+          value: "",
+          diagnostic: null
+        })]
+      },
+      inputDiagnostics: []
+    });
+    expect(mocks.session.activate).toHaveBeenCalledTimes(1);
+    expect(mocks.session.activate.mock.calls[0]?.[0].arguments).toBeUndefined();
+    expect(screen.queryByText("No valid Module Preview")).not.toBeInTheDocument();
+
+    const state = mocks.session.getState() as ModulePreviewSessionSnapshot | null;
+    expect(state?.preview.kind).toBe("current");
+    if (!state || state.preview.kind !== "current") throw new Error("expected current Module Preview state");
+    const liveRoot = state.preview.result;
+    const liveEnd = liveRoot.compileResult.elements.find((element) =>
+      element.name === "AltEnd" && liveRoot.targetRuntimeElementIds.includes(element.id)
+    );
+    expect(liveEnd).toBeDefined();
+    expect(fixture.evaluation.computedGeometry.get(liveEnd!.id)).toMatchObject({
+      kind: "point",
+      x: 30,
+      y: 30
+    });
+    expect((mocks.hostAdapter as CanvasHostAdapter | null)?.elements).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "AltEnd" })])
+    );
+    const syntheticCall = liveRoot.candidateCompiledDocument.statements.find(
+      (statement) => statement.kind === "moduleInstance" && statement.name === "__module_preview_0"
+    );
+    expect(syntheticCall?.kind).toBe("moduleInstance");
+    expect(syntheticCall?.kind === "moduleInstance" ? syntheticCall.arguments : []).toHaveLength(0);
+    expect(fixture.document.getSource()).toBe(sourceText);
+  });
+
+  it("keeps an omitted required Module parameter invalid at the live session boundary", async () => {
+    const sourceText = [
+      "nui 1",
+      "module Required(width: number) {",
+      "  point P = coordinate(x: @width, y: 0)",
+      "}"
+    ].join("\n");
+    const document = AutomationDocument.fromSource(sourceText);
+    const compiled = document.getState().currentCompiled;
+    const definition = compiled.moduleSemanticAnalysis?.definitions.find((candidate) => candidate.name === "Required");
+    if (!definition) throw new Error("expected Required definition");
+    const requiredTarget: ModulePreviewTarget = {
+      definitionStatementId: definition.statementId,
+      definitionStatementIndex: definition.statementIndex,
+      name: definition.name
+    };
+    const actual = await vi.importActual<typeof import("../dsl/modulePreviewState")>("../dsl/modulePreviewState");
+    const liveSession = actual.createModulePreviewSession();
+    mocks.session.activate.mockImplementation((input) => liveSession.activate(input));
+    mocks.session.getState.mockImplementation(() => liveSession.getState());
+    mocks.queryModulePreviewTarget.mockReturnValue(requiredTarget);
+    vi.spyOn(AutomationDocument, "fromSource").mockReturnValue(document);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: sourceText.indexOf("module Required") }
+      }));
+    });
+
+    const parameterSnapshot = mocks.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === "modulePreviewParameterSnapshot")
+      .at(-1);
+    expect(parameterSnapshot).toMatchObject({
+      previewStatus: "noValidPreview",
+      parameters: {
+        name: "Required",
+        parameters: [expect.objectContaining({ name: "width", value: "", diagnostic: expect.objectContaining({
+          code: "required-value-missing"
+        }) })]
+      },
+      inputDiagnostics: [expect.objectContaining({ code: "required-value-missing" })]
+    });
+    expect(screen.getByText("No valid Module Preview")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent('Parameter "width" requires a value.');
+    expect(document.getSource()).toBe(sourceText);
   });
 
   it("routes accepted value and unavailable-default actions through the live session", () => {
