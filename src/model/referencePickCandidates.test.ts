@@ -219,7 +219,14 @@ describe("referencePickCandidates", () => {
     ]);
     expect(propertiesFor("Curve", JSON.stringify({
       kind: "point", anchor: { mode: "derived", elementId: "Curve", pointKey: "intermediate:slot-a" }
-    }))).toEqual(["intermediatePoints[1].x", "intermediatePoints[1].y"]);
+    }))).toEqual([
+      "intermediatePoints[1].x",
+      "intermediatePoints[1].y",
+      "intermediatePoints[1].incomingHandleAngleDeg",
+      "intermediatePoints[1].incomingHandleLength",
+      "intermediatePoints[1].outgoingHandleAngleDeg",
+      "intermediatePoints[1].outgoingHandleLength"
+    ]);
 
     const curveGeometry = [...evaluation.computedGeometry.values()].find((item) => item.name === "Curve");
     if (!curveGeometry || curveGeometry.kind !== "bezierCurve") throw new Error("missing Bezier geometry");
@@ -239,10 +246,20 @@ describe("referencePickCandidates", () => {
       option.subgeometry.anchor.pointKey === "intermediate:" + stableId
     );
     expect(reorderedIntermediate("slot-a")?.properties).toEqual([
-      "intermediatePoints[2].x", "intermediatePoints[2].y"
+      "intermediatePoints[2].x",
+      "intermediatePoints[2].y",
+      "intermediatePoints[2].incomingHandleAngleDeg",
+      "intermediatePoints[2].incomingHandleLength",
+      "intermediatePoints[2].outgoingHandleAngleDeg",
+      "intermediatePoints[2].outgoingHandleLength"
     ]);
     expect(reorderedIntermediate("slot-b")?.properties).toEqual([
-      "intermediatePoints[1].x", "intermediatePoints[1].y"
+      "intermediatePoints[1].x",
+      "intermediatePoints[1].y",
+      "intermediatePoints[1].incomingHandleAngleDeg",
+      "intermediatePoints[1].incomingHandleLength",
+      "intermediatePoints[1].outgoingHandleAngleDeg",
+      "intermediatePoints[1].outgoingHandleLength"
     ]);
 
     const allProperties = optionsFor("Curve").flatMap((option) =>
@@ -250,6 +267,42 @@ describe("referencePickCandidates", () => {
     );
     expect(allProperties).not.toContain("startTangentAngleDeg");
     expect(allProperties).not.toContain("endTangentAngleDeg");
+  });
+
+  it("filters unavailable intermediate angles while retaining zero current lengths", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 30, y: 0)",
+      "point C = coordinate(x: 15, y: 10)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5:slot-a])",
+      "point Use = offset(from: @A, dx: @Curve.intermediatePoints[1].x, dy: 0)"
+    ].join("\n");
+    const compiled = compileSource(source);
+    const evaluation = evaluateSource(compiled);
+    const curveGeometry = [...evaluation.computedGeometry.values()].find((item) => item.name === "Curve");
+    if (!curveGeometry || curveGeometry.kind !== "bezierCurve") throw new Error("missing Bezier geometry");
+    const zeroHandleEvaluation: EvaluationResult = {
+      ...evaluation,
+      computedGeometry: new Map(evaluation.computedGeometry).set(curveGeometry.elementId, {
+        ...curveGeometry,
+        segments: [
+          { ...curveGeometry.segments[0], control2: curveGeometry.segments[0].end },
+          { ...curveGeometry.segments[1], control1: curveGeometry.segments[1].start }
+        ]
+      })
+    };
+    const target = targetAt(source, compiled, "@Curve.intermediatePoints[1].x");
+    const options = referencePickCandidates({ compiled, evaluation: zeroHandleEvaluation, target })
+      .flatMap((candidate) => candidate.options)
+      .flatMap((option) => option.kind === "numericProperty" && option.subgeometry.kind === "point" && option.subgeometry.anchor.pointKey === "intermediate:slot-a" ? [option] : []);
+    expect(options).toHaveLength(1);
+    expect(options[0]?.properties).toEqual([
+      "intermediatePoints[1].x",
+      "intermediatePoints[1].y",
+      "intermediatePoints[1].incomingHandleLength",
+      "intermediatePoints[1].outgoingHandleLength"
+    ]);
   });
 
   it("filters non-finite computed numeric values without making support a second authority", () => {

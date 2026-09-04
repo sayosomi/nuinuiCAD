@@ -1,0 +1,18 @@
+nui 1
+
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: 10, y: 10)
+point C = coordinate(x: 5, y: 5)
+curve Curve = bezier(
+  start: @A,
+  end: @B,
+  startAngle: 0,
+  startLength: 4,
+  endAngle: 180,
+  endLength: 4,
+  intermediates: [@C: 45: 3: 4: mid],
+)
+const incomingAngle: number = @Curve.intermediatePoints[1].incomingHandleAngleDeg
+const incomingLength: number = @Curve.intermediatePoints[1].incomingHandleLength
+const outgoingAngle: number = @Curve.intermediatePoints[1].outgoingHandleAngleDeg
+const outgoingLength: number = @Curve.intermediatePoints[1].outgoingHandleLength

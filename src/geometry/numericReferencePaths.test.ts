@@ -241,6 +241,10 @@ describe("numericReferencePaths", () => {
     expect(computedNumericReferenceValue(curveGeometry, "endHandleLength")).toBe(20);
     expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].x")).toBe(40);
     expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].y")).toBe(10);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].incomingHandleAngleDeg")).toBe(180);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].incomingHandleLength")).toBe(10);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].outgoingHandleAngleDeg")).toBe(0);
+    expect(computedNumericReferenceValue(curveGeometry, "intermediatePoints[1].outgoingHandleLength")).toBe(10);
   });
 
   it("uses endpoint-to-interior direction semantics for every path family", () => {
@@ -353,6 +357,34 @@ describe("numericReferencePaths", () => {
     expect(computedNumericReferenceValue(degenerate, "startHandleLength")).toBe(0);
     expect(computedNumericReferenceValue(degenerate, "endHandleAngleDeg")).toBeUndefined();
     expect(computedNumericReferenceValue(degenerate, "endHandleLength")).toBe(0);
+    expect(computedNumericReferenceValue(degenerate, "intermediatePoints[1].incomingHandleAngleDeg")).toBeUndefined();
+    expect(computedNumericReferenceValue(degenerate, "intermediatePoints[1].incomingHandleLength")).toBe(0);
+    expect(computedNumericReferenceValue(degenerate, "intermediatePoints[1].outgoingHandleAngleDeg")).toBeUndefined();
+    expect(computedNumericReferenceValue(degenerate, "intermediatePoints[1].outgoingHandleLength")).toBe(0);
+
+    const incomingZero = {
+      ...curveGeometry,
+      segments: [
+        { ...curveGeometry.segments[0], control2: curveGeometry.segments[0].end },
+        { ...curveGeometry.segments[1], control1: { x: 40, y: 20 } }
+      ]
+    } satisfies ComputedBezierCurve;
+    expect(computedNumericReferenceValue(incomingZero, "intermediatePoints[1].incomingHandleAngleDeg")).toBe(270);
+    expect(computedNumericReferenceValue(incomingZero, "intermediatePoints[1].incomingHandleLength")).toBe(0);
+    expect(computedNumericReferenceValue(incomingZero, "intermediatePoints[1].outgoingHandleAngleDeg")).toBe(90);
+    expect(computedNumericReferenceValue(incomingZero, "intermediatePoints[1].outgoingHandleLength")).toBe(10);
+
+    const outgoingZero = {
+      ...curveGeometry,
+      segments: [
+        { ...curveGeometry.segments[0], control2: { x: 30, y: 0 } },
+        { ...curveGeometry.segments[1], control1: curveGeometry.segments[1].start }
+      ]
+    } satisfies ComputedBezierCurve;
+    expect(computedNumericReferenceValue(outgoingZero, "intermediatePoints[1].incomingHandleAngleDeg")).toBe(225);
+    expect(computedNumericReferenceValue(outgoingZero, "intermediatePoints[1].incomingHandleLength")).toBe(Math.sqrt(200));
+    expect(computedNumericReferenceValue(outgoingZero, "intermediatePoints[1].outgoingHandleAngleDeg")).toBe(45);
+    expect(computedNumericReferenceValue(outgoingZero, "intermediatePoints[1].outgoingHandleLength")).toBe(0);
   });
 
   it("keeps statically supported paths visible when runtime direction is undefined", () => {

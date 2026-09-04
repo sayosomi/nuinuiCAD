@@ -274,7 +274,7 @@ public geometry-property paths.
 | point | x, y |
 | line/path | length, startAngleDeg, endAngleDeg, startPoint.x, startPoint.y, endPoint.x, endPoint.y |
 | arc | line/path properties plus radius, sweepAngleDeg, startRadiusAngleDeg, endRadiusAngleDeg, centerPoint.x, centerPoint.y |
-| Bezier | line/path properties plus startHandleAngleDeg, startHandleLength, endHandleAngleDeg, endHandleLength, and only statically proven intermediatePoints[n].x/y |
+| Bezier | line/path properties plus startHandleAngleDeg, startHandleLength, endHandleAngleDeg, endHandleLength, and, for each statically proven authored intermediate point n, intermediatePoints[n].x, intermediatePoints[n].y, intermediatePoints[n].incomingHandleAngleDeg, intermediatePoints[n].incomingHandleLength, intermediatePoints[n].outgoingHandleAngleDeg, intermediatePoints[n].outgoingHandleLength |
 | polyline | line/path properties |
 | image | originPoint.x, originPoint.y, widthMm, heightMm, scale, angleDeg, naturalWidthPx, naturalHeightPx, sourceDpi, targetPixelsPerMm |
 | text | anchorPoint.x, anchorPoint.y, fontSize |
@@ -293,8 +293,19 @@ the path. For an arc, startRadiusAngleDeg and endRadiusAngleDeg are the
 normalized directions from the center to the corresponding endpoints;
 sweepAngleDeg remains signed and preserves meaningful full turns such as 360
 and -360. Bezier handle angles and lengths describe the resulting
-endpoint-to-control geometry. If a direction cannot be determined, the
-property remains statically valid but has no current numeric value.
+endpoint-to-control geometry. Intermediate-point indexes are 1-based in the
+current path traversal order, and the values are read from the current
+evaluated cubic segments: the incoming handle uses the prior segment's
+`control2` and the outgoing handle uses the next segment's `control1`, both
+measured from the current join. Thus path reversal and other geometry-
+preserving transformations expose current traversal geometry rather than
+authored intermediate metadata. Handle angles are normalized Y-up directions
+in degrees, and handle lengths are millimetres. At a zero-length intermediate
+handle, its angle is derived as 180 degrees opposite the other handle's finite
+direction. If both intermediate handles have zero length, both angle
+properties are unavailable while both length properties remain 0. If a
+direction cannot otherwise be determined, the property remains statically
+valid but has no current numeric value.
 
 Arc construction arguments retain their construction spelling, including
 start: and end:; those arguments are distinct from the public computed

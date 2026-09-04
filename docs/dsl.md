@@ -18,8 +18,12 @@ Numeric geometry properties use canonical English source keys and are
 target-aware. Points expose x/y; lines, paths, and polylines expose length,
 endpoint directions (startAngleDeg and endAngleDeg), and endpoint coordinates;
 arcs add radius, signed sweep, radial endpoint angles, and center coordinates;
-Beziers add current handle angles/lengths and only proven intermediate point
-indices. Images expose their origin, dimensions, scale, angle, and pixel/DPI
+Beziers add current endpoint handle angles/lengths and, for each statically
+proven authored intermediate point in current traversal order, x/y plus
+incoming/outgoing handle angles and lengths. Intermediate handle values come
+from the current evaluated cubic controls; angles are Y-up degrees, lengths
+are millimetres, and both angles are unavailable when both handles are zero.
+Images expose their origin, dimensions, scale, angle, and pixel/DPI
 metadata; text exposes its anchor and font size. Label/text size must be finite
 and strictly greater than zero; zero or negative size produces an evaluation
 error and no computed Text geometry. startAngleDeg/endAngleDeg

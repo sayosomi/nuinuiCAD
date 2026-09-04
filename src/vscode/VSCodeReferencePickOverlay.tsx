@@ -101,12 +101,12 @@ const referencePickPropertyHelp = (
   property: NumericComputedGeometryProperty,
   presentation: CanvasPresentation | undefined
 ): string => {
-  const intermediatePoint = property.match(/^intermediatePoints\[(\d+)\]\.(x|y)$/);
+  const intermediatePoint = property.match(/^intermediatePoints\[(\d+)\]\.(x|y|incomingHandleAngleDeg|incomingHandleLength|outgoingHandleAngleDeg|outgoingHandleLength)$/);
   if (intermediatePoint) {
     const index = Number(intermediatePoint[1]);
-    const axis = intermediatePoint[2];
+    const propertyName = intermediatePoint[2];
     return presentation?.text(
-      `canvas.referencePick.propertyHelp.intermediatePoint.${axis}`,
+      `canvas.referencePick.propertyHelp.intermediatePoint.${propertyName}`,
       "",
       { index }
     ) ?? "";

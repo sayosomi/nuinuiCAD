@@ -245,6 +245,17 @@ fn direction_angle(from: Option<&Value>, to: Option<&Value>) -> Option<f64> {
     Some(normalize_degrees(dy.atan2(dx).to_degrees()))
 }
 
+fn finite_direction_angle(from: Option<&Value>, to: Option<&Value>) -> Option<f64> {
+    direction_angle(from, to).filter(|angle| angle.is_finite())
+}
+
+fn finite_point_distance(from: Option<&Value>, to: Option<&Value>) -> Option<f64> {
+    let (from_x, from_y) = point_coordinates(from)?;
+    let (to_x, to_y) = point_coordinates(to)?;
+    let distance = (to_x - from_x).hypot(to_y - from_y);
+    distance.is_finite().then_some(distance)
+}
+
 fn reverse_direction(angle: Option<f64>) -> Option<f64> {
     angle.map(|value| normalize_degrees(value + 180.0))
 }
@@ -469,12 +480,44 @@ pub(crate) fn computed_reference_value(geometry: &Value, property: &str) -> Opti
 
 fn intermediate_point_value(segments: &[Value], property: &str) -> Option<f64> {
     let rest = property.strip_prefix("intermediatePoints[")?;
-    let (index_text, axis_text) = rest.split_once("].")?;
+    let (index_text, property_name) = rest.split_once("].")?;
     let index = index_text.parse::<usize>().ok()?.checked_sub(1)?;
-    if axis_text != "x" && axis_text != "y" {
+    let incoming_segment = segments.get(index)?;
+    if property_name == "x" || property_name == "y" {
+        return point_axis_value(incoming_segment.get("end"), property_name);
+    }
+    if !matches!(
+        property_name,
+        "incomingHandleAngleDeg"
+            | "incomingHandleLength"
+            | "outgoingHandleAngleDeg"
+            | "outgoingHandleLength"
+    ) {
         return None;
     }
-    point_axis_value(segments.get(index)?.get("end"), axis_text)
+    let outgoing_segment = segments.get(index + 1)?;
+    let knot = incoming_segment.get("end");
+    let incoming_length = finite_point_distance(knot, incoming_segment.get("control2"))?;
+    let outgoing_length = finite_point_distance(knot, outgoing_segment.get("control1"))?;
+    let incoming_angle = finite_direction_angle(knot, incoming_segment.get("control2"));
+    let outgoing_angle = finite_direction_angle(knot, outgoing_segment.get("control1"));
+    let resolved_incoming_angle = incoming_angle.or_else(|| {
+        (incoming_length <= GEOMETRY_EPSILON)
+            .then(|| reverse_direction(outgoing_angle))
+            .flatten()
+    });
+    let resolved_outgoing_angle = outgoing_angle.or_else(|| {
+        (outgoing_length <= GEOMETRY_EPSILON)
+            .then(|| reverse_direction(incoming_angle))
+            .flatten()
+    });
+    match property_name {
+        "incomingHandleAngleDeg" => resolved_incoming_angle,
+        "incomingHandleLength" => Some(incoming_length),
+        "outgoingHandleAngleDeg" => resolved_outgoing_angle,
+        "outgoingHandleLength" => Some(outgoing_length),
+        _ => None,
+    }
 }
 
 pub(crate) fn parameter_value<'a>(element: &'a Value, key: &str) -> Option<&'a Value> {
@@ -1051,5 +1094,165 @@ mod tests {
             Some(0.0)
         );
         assert_eq!(computed_reference_value(&bezier, "endHandleAngleDeg"), None);
+    }
+
+    #[test]
+    fn exposes_current_bezier_intermediate_handle_geometry_and_degeneracy() {
+        let bezier = json!({
+            "kind": "bezierCurve",
+            "segments": [
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 2.0, "y": 0.0},
+                    "control2": {"x": 8.0, "y": 0.0},
+                    "end": {"x": 10.0, "y": 0.0}
+                },
+                {
+                    "start": {"x": 10.0, "y": 0.0},
+                    "control1": {"x": 12.0, "y": 0.0},
+                    "control2": {"x": 18.0, "y": 0.0},
+                    "end": {"x": 20.0, "y": 0.0}
+                }
+            ],
+            "length": 20.0
+        });
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].x"),
+            Some(10.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].y"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].incomingHandleAngleDeg"),
+            Some(180.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].incomingHandleLength"),
+            Some(2.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].outgoingHandleAngleDeg"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].outgoingHandleLength"),
+            Some(2.0)
+        );
+
+        let incoming_zero = json!({
+            "kind": "bezierCurve",
+            "segments": [
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 2.0, "y": 0.0},
+                    "control2": {"x": 10.0, "y": 0.0},
+                    "end": {"x": 10.0, "y": 0.0}
+                },
+                {
+                    "start": {"x": 10.0, "y": 0.0},
+                    "control1": {"x": 10.0, "y": 3.0},
+                    "control2": {"x": 18.0, "y": 0.0},
+                    "end": {"x": 20.0, "y": 0.0}
+                }
+            ]
+        });
+        assert_eq!(
+            computed_reference_value(
+                &incoming_zero,
+                "intermediatePoints[1].incomingHandleAngleDeg"
+            ),
+            Some(270.0)
+        );
+        assert_eq!(
+            computed_reference_value(
+                &incoming_zero,
+                "intermediatePoints[1].outgoingHandleAngleDeg"
+            ),
+            Some(90.0)
+        );
+        assert_eq!(
+            computed_reference_value(&incoming_zero, "intermediatePoints[1].incomingHandleLength"),
+            Some(0.0)
+        );
+
+        let outgoing_zero = json!({
+            "kind": "bezierCurve",
+            "segments": [
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 2.0, "y": 0.0},
+                    "control2": {"x": 8.0, "y": 0.0},
+                    "end": {"x": 10.0, "y": 0.0}
+                },
+                {
+                    "start": {"x": 10.0, "y": 0.0},
+                    "control1": {"x": 10.0, "y": 0.0},
+                    "control2": {"x": 18.0, "y": 0.0},
+                    "end": {"x": 20.0, "y": 0.0}
+                }
+            ]
+        });
+        assert_eq!(
+            computed_reference_value(
+                &outgoing_zero,
+                "intermediatePoints[1].incomingHandleAngleDeg"
+            ),
+            Some(180.0)
+        );
+        assert_eq!(
+            computed_reference_value(
+                &outgoing_zero,
+                "intermediatePoints[1].outgoingHandleAngleDeg"
+            ),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&outgoing_zero, "intermediatePoints[1].outgoingHandleLength"),
+            Some(0.0)
+        );
+
+        let both_zero = json!({
+            "kind": "bezierCurve",
+            "segments": [
+                {
+                    "start": {"x": 0.0, "y": 0.0},
+                    "control1": {"x": 1.0, "y": 0.0},
+                    "control2": {"x": 10.0, "y": 0.0},
+                    "end": {"x": 10.0, "y": 0.0}
+                },
+                {
+                    "start": {"x": 10.0, "y": 0.0},
+                    "control1": {"x": 10.0, "y": 0.0},
+                    "control2": {"x": 19.0, "y": 0.0},
+                    "end": {"x": 20.0, "y": 0.0}
+                }
+            ]
+        });
+        assert_eq!(
+            computed_reference_value(&both_zero, "intermediatePoints[1].incomingHandleLength"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&both_zero, "intermediatePoints[1].outgoingHandleLength"),
+            Some(0.0)
+        );
+        assert_eq!(
+            computed_reference_value(&both_zero, "intermediatePoints[1].incomingHandleAngleDeg"),
+            None
+        );
+        assert_eq!(
+            computed_reference_value(&both_zero, "intermediatePoints[1].outgoingHandleAngleDeg"),
+            None
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[0].x"),
+            None
+        );
+        assert_eq!(
+            computed_reference_value(&bezier, "intermediatePoints[1].tangentAngleDeg"),
+            None
+        );
     }
 }

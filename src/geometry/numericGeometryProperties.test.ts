@@ -4,6 +4,7 @@ import {
   NUMERIC_COMPUTED_GEOMETRY_PROPERTIES,
   NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS,
   numericGeometryPropertiesForStaticTarget,
+  numericGeometryMeasurementPropertiesForStaticTarget,
   numericGeometryPropertySupportedByStaticTarget,
   numericGeometryPropertyUnitFor,
   numericGeometryStaticTargetForConstruction,
@@ -30,6 +31,10 @@ describe("numeric geometry property contract", () => {
     expect(numericGeometryPropertyUnitFor("radius")).toBe("mm");
     expect(numericGeometryPropertyUnitFor("startHandleLength")).toBe("mm");
     expect(numericGeometryPropertyUnitFor("endHandleLength")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("intermediatePoints[4].incomingHandleAngleDeg")).toBe("°");
+    expect(numericGeometryPropertyUnitFor("intermediatePoints[4].outgoingHandleAngleDeg")).toBe("°");
+    expect(numericGeometryPropertyUnitFor("intermediatePoints[4].incomingHandleLength")).toBe("mm");
+    expect(numericGeometryPropertyUnitFor("intermediatePoints[4].outgoingHandleLength")).toBe("mm");
     expect(numericGeometryPropertyUnitFor("widthMm")).toBe("mm");
     expect(numericGeometryPropertyUnitFor("heightMm")).toBe("mm");
     expect(numericGeometryPropertyUnitFor("fontSize")).toBe("mm");
@@ -75,8 +80,16 @@ describe("numeric geometry property contract", () => {
       "endHandleLength",
       "intermediatePoints[1].x",
       "intermediatePoints[1].y",
+      "intermediatePoints[1].incomingHandleAngleDeg",
+      "intermediatePoints[1].incomingHandleLength",
+      "intermediatePoints[1].outgoingHandleAngleDeg",
+      "intermediatePoints[1].outgoingHandleLength",
       "intermediatePoints[2].x",
-      "intermediatePoints[2].y"
+      "intermediatePoints[2].y",
+      "intermediatePoints[2].incomingHandleAngleDeg",
+      "intermediatePoints[2].incomingHandleLength",
+      "intermediatePoints[2].outgoingHandleAngleDeg",
+      "intermediatePoints[2].outgoingHandleLength"
     ]);
     expect(numericGeometryPropertiesForStaticTarget(
       numericGeometryStaticTargetForConstruction("line", "offset")
@@ -166,6 +179,8 @@ describe("numeric geometry property contract", () => {
     } as CadElement;
     const target = numericGeometryStaticTargetForElementInDocument(bezier, [bezier, split]);
     expect(numericGeometryPropertySupportedByStaticTarget(target, "intermediatePoints[1].x")).toBe(true);
+    expect(numericGeometryPropertySupportedByStaticTarget(target, "intermediatePoints[1].incomingHandleLength")).toBe(true);
+    expect(numericGeometryPropertySupportedByStaticTarget(target, "intermediatePoints[2].outgoingHandleAngleDeg")).toBe(false);
     expect(numericGeometryPropertySupportedByStaticTarget(
       numericGeometryStaticTargetForElementInDocument(split, [bezier, split]),
       "intermediatePoints[1].x"
@@ -181,5 +196,24 @@ describe("numeric geometry property contract", () => {
       numericGeometryStaticTargetForConstruction("curve", "bezier"),
       "endTangentAngleDeg"
     )).toBe(false);
+  });
+
+  it("includes only dynamic intermediate handle measurements in the canonical measurement surface", () => {
+    const target = numericGeometryStaticTargetForConstruction("curve", "bezier", {
+      intermediatePointCount: 1
+    });
+    expect(numericGeometryMeasurementPropertiesForStaticTarget(target)).toEqual([
+      "length",
+      "startAngleDeg",
+      "endAngleDeg",
+      "startHandleAngleDeg",
+      "startHandleLength",
+      "endHandleAngleDeg",
+      "endHandleLength",
+      "intermediatePoints[1].incomingHandleAngleDeg",
+      "intermediatePoints[1].incomingHandleLength",
+      "intermediatePoints[1].outgoingHandleAngleDeg",
+      "intermediatePoints[1].outgoingHandleLength"
+    ]);
   });
 });

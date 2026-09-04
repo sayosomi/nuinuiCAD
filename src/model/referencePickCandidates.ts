@@ -156,7 +156,11 @@ const numericPropertiesForSubgeometry = (
     const index = slot + 1;
     return [
       `intermediatePoints[${index}].x`,
-      `intermediatePoints[${index}].y`
+      `intermediatePoints[${index}].y`,
+      `intermediatePoints[${index}].incomingHandleAngleDeg`,
+      `intermediatePoints[${index}].incomingHandleLength`,
+      `intermediatePoints[${index}].outgoingHandleAngleDeg`,
+      `intermediatePoints[${index}].outgoingHandleLength`
     ];
   }
   return [];
