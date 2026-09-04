@@ -155,6 +155,14 @@ const DEFERRED_BEZIER_HANDLE_DRAG_THRESHOLD_PX = 3;
 const POINT_DRAG_THRESHOLD_PX = 8;
 const DEFERRED_POINTER_TIMEOUT_MS = 5000;
 
+const deferPointerGestureCleanup = (callback: () => void): void => {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback);
+    return;
+  }
+  void Promise.resolve().then(callback);
+};
+
 const canvasPointerBoundaryFallbackShouldRun = (event: PointerEvent): boolean => {
   const target = event.target;
   return !(target instanceof Element && target.closest(
@@ -198,6 +206,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   const bezierHandleDragRef = useRef<BezierHandleDragState | null>(null);
   const pendingEditorFocusRef = useRef<{ pointerId: number } | null>(null);
   const [reactHandledPointerEvents] = useState(() => new WeakSet<Event>());
+  // A webview can surface one physical primary press through both React and
+  // the native fallback as distinct events. Keep a short-lived pointer ledger
+  // until termination so fallback delivery cannot repeat the gesture.
+  const recentPrimaryPointerIdsRef = useRef(new Set<number>());
   const pendingPointerStateRef = useRef(initialPendingCanvasPointerState());
   const rectangleSelectionRef = useRef<CanvasRectangleSelectionSessionState | null>(null);
   const [captureLedger] = useState(createCanvasPointerCaptureLedger);
@@ -872,7 +884,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, []);
 
   const markReactPointerEvent = (event: ReactPointerEvent): void => {
-    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
+    const nativeEvent = event.nativeEvent;
+    reactHandledPointerEvents.add(nativeEvent ?? event as unknown as Event);
+    if (nativeEvent && event.type === "pointerdown" && event.button === 0) {
+      recentPrimaryPointerIdsRef.current.add(event.pointerId);
+    }
   };
 
   const setOverlapSession = useCallback((session: CanvasOverlapSessionState | null) => {
@@ -1587,6 +1603,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const nativeEvent = (event as { nativeEvent?: Event }).nativeEvent;
+    const isNativeFallbackEvent = !nativeEvent;
+    if (isNativeFallbackEvent && event.button === 0) {
+      if (recentPrimaryPointerIdsRef.current.has(event.pointerId)) return;
+      recentPrimaryPointerIdsRef.current.add(event.pointerId);
+    }
     markReactPointerEvent(event);
     const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
@@ -1892,6 +1914,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     markReactPointerEvent(event);
+    deferPointerGestureCleanup(() => recentPrimaryPointerIdsRef.current.delete(event.pointerId));
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(releasePendingCanvasPointer(
         pendingPointerStateRef.current,
@@ -1909,6 +1932,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
 
   const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
     markReactPointerEvent(event);
+    deferPointerGestureCleanup(() => recentPrimaryPointerIdsRef.current.delete(event.pointerId));
     if (pendingPointerStateRef.current.kind === "waiting") {
       applyPendingPointerTransition(cancelPendingCanvasPointer(pendingPointerStateRef.current, event.pointerId));
       discardEditorFocusReservation(event.pointerId);

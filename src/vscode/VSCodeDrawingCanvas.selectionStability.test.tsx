@@ -504,6 +504,92 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
   });
 
+  it("applies a candidate-line pointer exactly once when React and the native fallback both receive it", async () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const sourceCursor = currentCanvasCreationCursor();
+    const evaluation = evaluateElements(state.elements);
+    const container = document.createElement("div");
+    document.body.append(container);
+    let blockReactPointerBoundary = false;
+    const stopReactPointerBoundary = (event: Event) => {
+      if (blockReactPointerBoundary) event.stopImmediatePropagation();
+    };
+    container.addEventListener("pointerdown", stopReactPointerBoundary);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision),
+      { requestId: 1, sourceCursor }
+    ), { container });
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Expected Canvas viewport");
+    const recipe = creationRecipeForType("offsetLine");
+    if (!recipe) throw new Error("Missing Offset Line creation recipe");
+
+    act(() => {
+      expect(startCommandLineCreationForRecipe(recipe, {
+        currentSourceCursor: () => sourceCursor,
+        sourceCreationOrigin: "canvas-retained"
+      })).toBe(true);
+    });
+    const nameInput = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    const lineInput = screen.getByRole<HTMLInputElement>("textbox");
+    lineInput.focus();
+    fireEvent.keyDown(lineInput, { key: "Enter", altKey: true });
+
+    const lineId = state.elements.find((element) => element.name === "AB")!.id;
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(document.activeElement).toBe(viewport);
+
+    const clickLine = async (pointerId: number) => {
+      const line = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
+      if (!line) throw new Error("Expected the rendered AB line");
+      await act(async () => {
+        fireEvent.pointerDown(line, {
+          button: 0,
+          buttons: 1,
+          ...renderedLineMidpoint(line),
+          pointerId
+        });
+        // Model the webview boundary delivering the same physical press to the
+        // native fallback as a second native event before this task drains. The
+        // React boundary handles the first delivery; the fallback is the only
+        // path for this duplicate delivery.
+        blockReactPointerBoundary = true;
+        const duplicateLine = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
+        if (!duplicateLine) throw new Error("Expected the rendered AB line after the first delivery");
+        fireEvent.pointerDown(duplicateLine, {
+          button: 0,
+          buttons: 1,
+          ...renderedLineMidpoint(duplicateLine),
+          pointerId
+        });
+        blockReactPointerBoundary = false;
+        fireEvent.pointerUp(duplicateLine, {
+          buttons: 0,
+          ...renderedLineMidpoint(duplicateLine),
+          pointerId
+        });
+        await Promise.resolve();
+      });
+    };
+
+    await clickLine(1);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+
+    await clickLine(2);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+    view.unmount();
+    container.removeEventListener("pointerdown", stopReactPointerBoundary);
+    container.remove();
+  });
+
   it("routes Shift+Enter from the Canvas-owned pick through Creation Assist as non-destructive Back", () => {
     useCadDocumentStore.getState().replaceTextDocument(baseline, {
       currentFilePath: null,
