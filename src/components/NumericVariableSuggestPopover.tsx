@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { NumericReferenceOption } from "../geometry/numericReferenceOptions";
+import type { CanvasPresentation } from "./canvasPresentation";
 
 type ViewportPlacement = {
   bottom: number | "auto";
@@ -41,7 +42,8 @@ export const NumericVariableSuggestPopover = ({
   onApply,
   onHover,
   anchorRef,
-  className
+  className,
+  presentation
 }: {
   options: NumericReferenceOption[];
   activeIndex: number;
@@ -50,6 +52,7 @@ export const NumericVariableSuggestPopover = ({
   /** When supplied, escape an overflow-clipped command bar through a viewport portal. */
   anchorRef?: RefObject<HTMLElement | null>;
   className?: string;
+  presentation?: CanvasPresentation;
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<ViewportPlacement | null>(null);
@@ -88,7 +91,7 @@ export const NumericVariableSuggestPopover = ({
       className ?? ""
     ].filter(Boolean).join(" ")}
     role="listbox"
-    aria-label="変数候補"
+    aria-label={presentation?.text("canvas.creationAssist.numericCandidates", "変数候補") ?? "変数候補"}
     style={placement ? { ...placement, overflowY: "auto" } : undefined}
   >
     {options.map((option, index) => <button data-suggestion-index={index} key={option.expression} type="button" role="option" aria-selected={index === activeIndex} className={index === activeIndex ? "active-suggestion" : ""} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => onHover(index)} onClick={() => onApply(option)}><strong>{option.label}</strong><small>{option.detail}</small></button>)}

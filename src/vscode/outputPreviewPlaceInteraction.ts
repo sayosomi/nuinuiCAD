@@ -4,6 +4,7 @@ import type {
   OutputPlaceReferenceNavigation
 } from "../output/outputPlaceProjection";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import {
   outputPreviewWorldToScreen,
   type OutputPreviewViewport,
@@ -121,10 +122,20 @@ export const outputPreviewPlacePropertyRows = (
   }] : []);
 };
 
-export const outputPreviewPlaceDragReason = (projection: OutputPlaceProjection): string | null => {
+export const outputPreviewPlaceDragReason = (
+  projection: OutputPlaceProjection,
+  presentation?: CanvasPresentation
+): string | null => {
   if (projection.dragability.draggable) return null;
   const axes = projection.dragability.reason.issues.map(({ axis }) => axis.toUpperCase()).join("/");
   return axes.length > 0
-    ? `Cannot drag: ${axes} in at must be direct finite numeric literals.`
-    : "Cannot drag: at must use direct finite numeric literals.";
+    ? presentation?.text(
+        "output.place.dragReason.axes",
+        "Cannot drag: {axes} in at must be direct finite numeric literals.",
+        { axes }
+      ) ?? `Cannot drag: ${axes} in at must be direct finite numeric literals.`
+    : presentation?.text(
+        "output.place.dragReason.default",
+        "Cannot drag: at must use direct finite numeric literals."
+      ) ?? "Cannot drag: at must use direct finite numeric literals.";
 };

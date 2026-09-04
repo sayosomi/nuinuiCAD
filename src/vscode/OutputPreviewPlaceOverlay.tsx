@@ -18,6 +18,7 @@ import {
 } from "./outputPreviewPlaceDrag";
 import type { OutputPreviewViewport, OutputPreviewViewportSize } from "./outputPreviewViewport";
 import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import "./outputPreviewPlaceOverlay.css";
 
 type OutputPreviewPlaceCandidateSession = {
@@ -54,6 +55,7 @@ type OutputPreviewPlaceOverlayProps = {
   onPreviewDrag?: (proof: OutputPreviewPlaceDragProof, coordinates: { x: number; y: number }) => boolean;
   onCommitDrag?: (proof: OutputPreviewPlaceDragProof, coordinates: { x: number; y: number }) => boolean;
   onCancelDrag?: (proof: OutputPreviewPlaceDragProof) => void;
+  presentation?: CanvasPresentation;
 };
 
 const OUTPUT_PREVIEW_PLACE_DRAG_THRESHOLD_PX = 3;
@@ -73,7 +75,8 @@ export const OutputPreviewPlaceOverlay = ({
   onBeginDrag,
   onPreviewDrag,
   onCommitDrag,
-  onCancelDrag
+  onCancelDrag,
+  presentation
 }: OutputPreviewPlaceOverlayProps) => {
   const handles = useMemo(
     () => outputPreviewPlaceHandlesFor(projections, viewportSize, viewport),
@@ -252,7 +255,7 @@ export const OutputPreviewPlaceOverlay = ({
   const detailHandle = detailPlaceId ? handles.find(({ placeId }) => placeId === detailPlaceId) ?? null : null;
   const detailProjection = detailHandle?.projection ?? null;
   const detailRows = detailProjection ? outputPreviewPlacePropertyRows(detailProjection, sourceText) : [];
-  const dragReason = detailProjection ? outputPreviewPlaceDragReason(detailProjection) : null;
+  const dragReason = detailProjection ? outputPreviewPlaceDragReason(detailProjection, presentation) : null;
   const detailPlacement = detailHandle
     ? placeCanvasPopup(detailHandle.screen, { width: 320, height: 260 }, viewportSize)
     : null;
@@ -440,7 +443,11 @@ export const OutputPreviewPlaceOverlay = ({
             type="button"
             className={`output-preview-place-handle${highlightedPlaceId === handle.placeId ? " is-active" : ""}${isDragging ? " is-dragging" : ""}`}
             style={{ left: handle.screen.x, top: handle.screen.y, cursor: isDragging ? "grabbing" : handle.cursor }}
-            aria-label={`Place ${handle.projection.groupName}`}
+            aria-label={presentation?.text(
+              "output.place.ariaLabel",
+              "Place {name}",
+              { name: handle.projection.groupName }
+            ) ?? `Place ${handle.projection.groupName}`}
             data-place-id={handle.placeId}
             data-draggable={handle.projection.dragability.draggable ? "true" : "false"}
             data-dragging={isDragging ? "true" : "false"}
@@ -475,12 +482,19 @@ export const OutputPreviewPlaceOverlay = ({
           candidates={candidateHandles.map((candidate) => ({
             id: candidate.placeId,
             name: candidate.projection.groupName,
-            detail: `place in ${candidate.projection.layoutName}`
+            detail: presentation?.text(
+              "output.place.placeIn",
+              "place in {name}",
+              { name: candidate.projection.layoutName }
+            ) ?? `place in ${candidate.projection.layoutName}`
           }))}
           activeIndex={candidateActiveIndex}
           viewportSize={viewportSize}
           idPrefix="output-preview-place-candidate"
-          ariaLabel="Overlapping place handles"
+          ariaLabel={presentation?.text(
+            "output.place.candidateMenu",
+            "Overlapping place handles"
+          ) ?? "Overlapping place handles"}
           className="output-preview-place-candidate-menu"
           autoFocus
           contextMenuData={placeContextMenuData}
@@ -494,7 +508,11 @@ export const OutputPreviewPlaceOverlay = ({
         <aside
           className="output-preview-place-popover"
           style={{ left: detailPlacement.left, top: detailPlacement.top }}
-          aria-label={`Place details for ${detailProjection.groupName}`}
+          aria-label={presentation?.text(
+            "output.place.detailsAriaLabel",
+            "Place details for {name}",
+            { name: detailProjection.groupName }
+          ) ?? `Place details for ${detailProjection.groupName}`}
           data-vscode-context={placeContextMenuData}
           onPointerDown={(event) => event.stopPropagation()}
           onPointerEnter={() => {
@@ -518,7 +536,11 @@ export const OutputPreviewPlaceOverlay = ({
               className="output-preview-place-popover-context"
               onClick={() => onNavigate(detailProjection.statementRange)}
             >
-              placed in {detailProjection.layoutName}
+              {presentation?.text(
+                "output.place.placedIn",
+                "placed in {name}",
+                { name: detailProjection.layoutName }
+              ) ?? `placed in ${detailProjection.layoutName}`}
             </button>
           </div>
 

@@ -4,6 +4,8 @@ import { compileFreshCanonicalText } from "../document/canonicalDocument";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
 import { startCoordinatePointConversionSession } from "../commands/coordinatePointConversionSession";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import { webviewCanvasPresentationFor } from "../vscode/webviewCanvasPresentation";
 import { CommandLineBar } from "./CommandLineBar";
 
 const conversionSession = () => {
@@ -83,5 +85,31 @@ describe("CommandLineBar coordinate point conversion", () => {
 
     expect(callbacks.onStartPick).toHaveBeenCalledTimes(1);
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["ja", "点をXYオフセットに変換", "1件の対象 · 共通の基準点を1つ選択", "座標変換の基準参照", "Canvasで選択", "適用（Enter）", "キャンセル（Esc）"],
+    ["en", "Convert Point to XY Offset", "1 target · choose one shared base point", "Coordinate conversion base reference", "Pick on Canvas", "Apply (Enter)", "Cancel (Esc)"]
+  ] as const)("uses the Extension Host presentation for coordinate-conversion chrome (%s)", (language, title, status, inputLabel, pick, apply, cancel) => {
+    render(
+      <CommandLineBar
+        presentation={webviewCanvasPresentationFor(webviewPresentationFor(language))}
+        coordinatePointConversion={{
+          session: { ...conversionSession(), query: "@Ba" },
+          onQuery: vi.fn(),
+          onSelectBase: vi.fn(),
+          onStartPick: vi.fn(),
+          onConfirm: vi.fn(),
+          onCancel: vi.fn()
+        }}
+      />
+    );
+
+    expect(screen.getByRole("form", { name: title })).toBeInTheDocument();
+    expect(screen.getByText(status)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: inputLabel })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: pick })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: apply })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: cancel })).toBeInTheDocument();
   });
 });

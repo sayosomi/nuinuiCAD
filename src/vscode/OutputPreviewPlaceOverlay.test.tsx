@@ -2,6 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
 import type { OutputPreviewPlaceDragProof } from "./outputPreviewPlaceDrag";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import { OutputPreviewPlaceOverlay } from "./OutputPreviewPlaceOverlay";
 
 const sourceText = `${".".repeat(80)}group`;
@@ -55,6 +57,28 @@ const projection = ({
 afterEach(() => cleanup());
 
 describe("OutputPreviewPlaceOverlay", () => {
+  it.each([
+    ["ja", "Frontを配置", "Frontの配置詳細", "Patternに配置"],
+    ["en", "Place Front", "Place details for Front", "placed in Pattern"]
+  ] as const)("uses the Extension Host presentation for placement chrome (%s)", (language, handle, details, place) => {
+    render(
+      <OutputPreviewPlaceOverlay
+        projections={[projection({ placeId: "a", groupName: "Front" })]}
+        sourceText={sourceText}
+        viewportSize={{ width: 400, height: 300 }}
+        viewport={{ panX: 0, panY: 0, zoom: 1 }}
+        onNavigate={vi.fn()}
+        onHighlightPlaceIdChange={vi.fn()}
+        presentation={webviewCanvasPresentationFor(webviewPresentationFor(language))}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: handle })).toBeInTheDocument();
+    fireEvent.pointerEnter(screen.getByRole("button", { name: handle }));
+    expect(screen.getByRole("complementary", { name: details })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: place })).toBeInTheDocument();
+  });
+
   it("uses grab only for draggable handles and shows the non-draggable reason on hover", () => {
     const onHighlight = vi.fn();
     render(

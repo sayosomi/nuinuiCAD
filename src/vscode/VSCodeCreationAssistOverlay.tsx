@@ -59,6 +59,7 @@ import {
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
 import type { EvaluationResult } from "../types/geometry";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 
 type VSCodeCreationAssistOverlayProps = {
   canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -66,6 +67,7 @@ type VSCodeCreationAssistOverlayProps = {
   evaluation: EvaluationResult;
   evaluationIsCurrent?: boolean;
   postCanonicalSourceText: (sourceText: string) => void;
+  presentation?: CanvasPresentation;
 };
 
 const isTextEntryTarget = (target: EventTarget | null) => {
@@ -97,7 +99,8 @@ export const VSCodeCreationAssistOverlay = ({
   commandContext,
   evaluation,
   evaluationIsCurrent = true,
-  postCanonicalSourceText
+  postCanonicalSourceText,
+  presentation
 }: VSCodeCreationAssistOverlayProps) => {
   const session = useCadUiStore((state) => state.commandLineSession);
   const sourceRevision = useCadDocumentStore((state) => state.sourceRevision);
@@ -501,7 +504,7 @@ export const VSCodeCreationAssistOverlay = ({
       <section
         ref={dockRef}
         className="vscode-creation-assist-dock vscode-creation-assist-restart"
-        aria-label="Creation assist"
+        aria-label={presentation?.text("canvas.creationAssist.restartAriaLabel", "Creation assist") ?? "Creation assist"}
         onKeyDown={(event) => {
           if (isImeComposingKeyEvent(event)) return;
           if (event.key === "Enter" && event.target === event.currentTarget) {
@@ -511,11 +514,13 @@ export const VSCodeCreationAssistOverlay = ({
         }}
       >
         <div className="vscode-creation-assist-restart-copy">
-          <strong>Creation canceled</strong>
-          <span>Restart the same recipe from the current document?</span>
+          <strong>{presentation?.text("canvas.creationAssist.canceled", "Creation canceled") ?? "Creation canceled"}</strong>
+          <span>{presentation?.text("canvas.creationAssist.restartPrompt", "Restart the same recipe from the current document?") ?? "Restart the same recipe from the current document?"}</span>
         </div>
         <div className="vscode-creation-assist-actions">
-          <button ref={startAgainButtonRef} type="button" onClick={restart}>Start again</button>
+          <button ref={startAgainButtonRef} type="button" onClick={restart}>
+            {presentation?.text("canvas.creationAssist.startAgain", "Start again") ?? "Start again"}
+          </button>
         </div>
       </section>
     );
@@ -525,7 +530,7 @@ export const VSCodeCreationAssistOverlay = ({
   const isLineList = step?.kind === "lineList";
   const lineListDraftCount = activeLinePickTarget?.draftLineIds?.length ?? 0;
   const stepLabel = commandLineStepLabel(step);
-  const inputHelp = commandLineStepHelp(step);
+  const inputHelp = commandLineStepHelp(step, presentation);
   const activeStepIndex = session.currentStepIndex;
   const focusStepButton = (index: number) => {
     const boundedIndex = Math.max(0, Math.min(index, session.recipe.steps.length - 1));
@@ -543,7 +548,7 @@ export const VSCodeCreationAssistOverlay = ({
     <form
       ref={dockRef as RefObject<HTMLFormElement>}
       className="vscode-creation-assist-dock"
-      aria-label="VS Code creation assist"
+      aria-label={presentation?.text("canvas.creationAssist.ariaLabel", "VS Code creation assist") ?? "VS Code creation assist"}
       onSubmit={handleSubmit}
       onCompositionStart={() => setCommandLineInputComposing(true)}
       onCompositionEnd={() => setCommandLineInputComposing(false)}
@@ -551,15 +556,30 @@ export const VSCodeCreationAssistOverlay = ({
       <div className="vscode-creation-assist-header">
         <div className="vscode-creation-assist-title">
           <strong>{session.recipe.type}</strong>
-          <span>{step ? `Step ${Math.min(session.currentStepIndex + 1, session.recipe.steps.length)} of ${session.recipe.steps.length}` : "Complete"}</span>
+          <span>{step
+            ? presentation?.text(
+                "canvas.creationAssist.stepProgress",
+                "Step {current} of {total}",
+                {
+                  current: Math.min(session.currentStepIndex + 1, session.recipe.steps.length),
+                  total: session.recipe.steps.length
+                }
+              ) ?? `Step ${Math.min(session.currentStepIndex + 1, session.recipe.steps.length)} of ${session.recipe.steps.length}`
+            : presentation?.text("canvas.creationAssist.complete", "Complete") ?? "Complete"}</span>
           <span aria-live="polite">{stepLabel}</span>
         </div>
-        <div className="vscode-creation-assist-legend" aria-label="Creation assist shortcuts">
-          Enter next · Shift+Enter pick · Esc cancel
+        <div
+          className="vscode-creation-assist-legend"
+          aria-label={presentation?.text("canvas.creationAssist.shortcutsAriaLabel", "Creation assist shortcuts") ?? "Creation assist shortcuts"}
+        >
+          {presentation?.text("canvas.creationAssist.shortcuts", "Enter next · Shift+Enter pick · Esc cancel") ?? "Enter next · Shift+Enter pick · Esc cancel"}
         </div>
       </div>
 
-      <ol className="vscode-creation-assist-navigator" aria-label="Creation recipe steps">
+      <ol
+        className="vscode-creation-assist-navigator"
+        aria-label={presentation?.text("canvas.creationAssist.recipeStepsAriaLabel", "Creation recipe steps") ?? "Creation recipe steps"}
+      >
         {session.recipe.steps.map((recipeStep, index) => {
           const filled = hasCommandLineStepValue(session, index);
           const active = session.currentStepIndex === index;
@@ -597,11 +617,13 @@ export const VSCodeCreationAssistOverlay = ({
                 <span className="vscode-creation-assist-step-number">{index + 1}</span>
                 <span className="vscode-creation-assist-step-copy">
                   <strong>{commandLineStepLabel(recipeStep)}</strong>
-                  <small>{completed?.value ?? "Not supplied"}</small>
+                  <small>{completed?.value ?? (presentation?.text("canvas.creationAssist.notSupplied", "Not supplied") ?? "Not supplied")}</small>
                 </span>
                 <span
                   className="vscode-creation-assist-step-filled"
-                  aria-label={filled ? "Filled" : undefined}
+                  aria-label={filled
+                    ? presentation?.text("canvas.creationAssist.filled", "Filled") ?? "Filled"
+                    : undefined}
                   data-filled-marker={filled ? "true" : "false"}
                 >{filled ? "✓" : ""}</span>
               </button>
@@ -615,7 +637,11 @@ export const VSCodeCreationAssistOverlay = ({
           <div className="vscode-creation-assist-entry">
             <label htmlFor="vscode-creation-assist-input">{stepLabel}</label>
             <span className="vscode-creation-assist-help">{inputHelp}</span>
-            {isLineList ? <span className="vscode-creation-assist-selection-count">{lineListDraftCount} selected</span> : null}
+            {isLineList ? (
+              <span className="vscode-creation-assist-selection-count">
+                {presentation?.text("canvas.creationAssist.selectedCount", "{count} selected", { count: lineListDraftCount }) ?? `${lineListDraftCount} selected`}
+              </span>
+            ) : null}
             {step.kind === "name" || step.kind === "number" || isCommandLineReferenceStep(step.kind) ? (
               <div className="vscode-creation-assist-input-wrap">
                 <input
@@ -623,14 +649,22 @@ export const VSCodeCreationAssistOverlay = ({
                   ref={inputRef}
                   value={inputValue}
                   aria-label={stepLabel}
-                  placeholder={isCommandLineReferenceStep(step.kind) ? "Search candidates" : step.kind === "name" ? "Optional name" : "Value or expression"}
+                  placeholder={isCommandLineReferenceStep(step.kind)
+                    ? presentation?.text("canvas.creationAssist.searchCandidates", "Search candidates") ?? "Search candidates"
+                    : step.kind === "name"
+                      ? presentation?.text("canvas.creationAssist.optionalName", "Optional name") ?? "Optional name"
+                      : presentation?.text("canvas.creationAssist.valueOrExpression", "Value or expression") ?? "Value or expression"}
                   onChange={handleInputChange}
                   onKeyDown={handleInputKeyDown}
                   onSelect={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                   onClick={(event) => setNumberSuggestionSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
                 />
                 {referenceSuggestionsOpen ? (
-                  <ul className="vscode-creation-assist-suggestions" role="listbox" aria-label="Reference candidates">
+                  <ul
+                    className="vscode-creation-assist-suggestions"
+                    role="listbox"
+                    aria-label={presentation?.text("canvas.creationAssist.referenceCandidates", "Reference candidates") ?? "Reference candidates"}
+                  >
                     {visibleSuggestions.map((suggestion, index) => (
                       <li key={suggestion.pickRefKey}>
                         <button
@@ -655,6 +689,7 @@ export const VSCodeCreationAssistOverlay = ({
                     onApply={applyNumberSuggestion}
                     anchorRef={inputRef}
                     className="vscode-creation-assist-numeric-suggestions"
+                    presentation={presentation}
                   />
                 ) : null}
               </div>
@@ -663,16 +698,26 @@ export const VSCodeCreationAssistOverlay = ({
         ) : null}
         <div className="vscode-creation-assist-actions">
           {step?.kind === "number" || isCommandLineReferenceStep(step?.kind) ? (
-            <button type="button" onClick={() => startCommandLinePickForCurrentStep(completionCommandContext)}>Pick on Canvas</button>
+            <button type="button" onClick={() => startCommandLinePickForCurrentStep(completionCommandContext)}>
+              {presentation?.text("canvas.creationAssist.pickOnCanvas", "Pick on Canvas") ?? "Pick on Canvas"}
+            </button>
           ) : null}
           {isLineList && Array.isArray(activeLinePickTarget?.draftLineIds) ? (
-            <button type="button" onClick={() => finishLinePick(completionCommandContext)}>Finish selection</button>
+            <button type="button" onClick={() => finishLinePick(completionCommandContext)}>
+              {presentation?.text("canvas.creationAssist.finishSelection", "Finish selection") ?? "Finish selection"}
+            </button>
           ) : null}
           {((step?.kind === "number" || isCommandLineReferenceStep(step?.kind)) && hasCommandLineStepValue(session, session.currentStepIndex)) ? (
-            <button type="button" onClick={() => clearCommandLineStepValue()}>Clear</button>
+            <button type="button" onClick={() => clearCommandLineStepValue()}>
+              {presentation?.text("canvas.creationAssist.clear", "Clear") ?? "Clear"}
+            </button>
           ) : null}
-          <button type="button" disabled={activeStepIndex <= 0} onClick={() => retreatCommandLineStep()}>Back</button>
-          <button type="button" onClick={cancelWithRestart}>Cancel</button>
+          <button type="button" disabled={activeStepIndex <= 0} onClick={() => retreatCommandLineStep()}>
+            {presentation?.text("canvas.creationAssist.back", "Back") ?? "Back"}
+          </button>
+          <button type="button" onClick={cancelWithRestart}>
+            {presentation?.text("canvas.creationAssist.cancel", "Cancel") ?? "Cancel"}
+          </button>
         </div>
       </div>
       {session.error ? <p className="vscode-creation-assist-error" role="alert">{session.error}</p> : null}

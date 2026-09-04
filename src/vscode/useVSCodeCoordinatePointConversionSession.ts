@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanonicalDocumentValue } from "../document/canonicalDocument";
+import type { CanvasPresentation } from "../components/canvasPresentation";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import {
   applyCoordinatePointConversionPlan,
@@ -70,12 +71,14 @@ export const useVSCodeCoordinatePointConversionSession = ({
   api,
   currentContextFor,
   currentAuthorityFor,
-  postCanvasCommit
+  postCanvasCommit,
+  presentation
 }: {
   api: VscodeWebviewApi | null;
   currentContextFor: () => VscodeCoordinatePointConversionCurrentContext | null;
   currentAuthorityFor: (documentVersion: number) => VscodeCoordinatePointConversionAuthority | null;
   postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
+  presentation?: CanvasPresentation;
 }) => {
   const [session, setSession] = useState<CoordinatePointConversionSession | null>(null);
   const sessionRef = useRef<CoordinatePointConversionSession | null>(null);
@@ -111,7 +114,12 @@ export const useVSCodeCoordinatePointConversionSession = ({
     const current = currentContextFor();
     if (!current || !contextMatchesAuthority(request, currentAuthorityFor(request.documentVersion), current)) {
       pendingStartRef.current = null;
-      postRejected(request, emptyReason("現在のSourceと変換要求が一致しません。"));
+      postRejected(request, emptyReason(
+        presentation?.text(
+          "canvas.coordinateConversion.error.sourceMismatch",
+          "現在のSourceと変換要求が一致しません。"
+        ) ?? "現在のSourceと変換要求が一致しません。"
+      ));
       return;
     }
     if (!current.evaluationIsCurrent) {
@@ -133,7 +141,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
       return;
     }
     replaceSession(started.session);
-  }, [api, currentAuthorityFor, currentContextFor, postRejected, replaceSession]);
+  }, [api, currentAuthorityFor, currentContextFor, postRejected, presentation, replaceSession]);
 
   useEffect(() => {
     const active = sessionRef.current;
@@ -232,14 +240,22 @@ export const useVSCodeCoordinatePointConversionSession = ({
       authority,
       current
     ) || !current.evaluationIsCurrent) {
-      replaceSession({ ...currentSession, error: emptyReason("現在の文書または評価結果が古くなっています。") });
+      replaceSession({ ...currentSession, error: emptyReason(
+        presentation?.text(
+          "canvas.coordinateConversion.error.staleContext",
+          "現在の文書または評価結果が古くなっています。"
+        ) ?? "現在の文書または評価結果が古くなっています。"
+      ) });
       return;
     }
     const base = coordinatePointConversionSelectedBase(currentSession) ?? coordinatePointConversionBaseForInput(currentSession, currentSession.query);
     if (!base) {
       replaceSession({ ...currentSession, error: {
         code: "base-not-candidate",
-        message: "基準点を選択するか、参照名を入力してください。"
+        message: presentation?.text(
+          "canvas.coordinateConversion.error.baseRequired",
+          "基準点を選択するか、参照名を入力してください。"
+        ) ?? "基準点を選択するか、参照名を入力してください。"
       } });
       return;
     }
@@ -294,7 +310,12 @@ export const useVSCodeCoordinatePointConversionSession = ({
     }
     const committed = useCadDocumentStore.getState().commitLineSplices(applied.plan.splices);
     if (committed.status !== "applied") {
-      replaceSession({ ...currentSession, error: emptyReason("変換結果をSource Editorへ反映できませんでした。") });
+      replaceSession({ ...currentSession, error: emptyReason(
+        presentation?.text(
+          "canvas.coordinateConversion.error.applyFailed",
+          "変換結果をSource Editorへ反映できませんでした。"
+        ) ?? "変換結果をSource Editorへ反映できませんでした。"
+      ) });
       return;
     }
     if (currentSession.origin === "canvas") {
@@ -310,7 +331,7 @@ export const useVSCodeCoordinatePointConversionSession = ({
     pendingOperationRef.current = { operationId, session: currentSession, plan: applied.plan };
     replaceSession(null);
     postCanvasCommit(operationId, currentSession.requestId);
-  }, [api, currentAuthorityFor, currentContextFor, postCanvasCommit, replaceSession]);
+  }, [api, currentAuthorityFor, currentContextFor, postCanvasCommit, presentation, replaceSession]);
 
   const cancel = useCallback(() => replaceSession(null), [replaceSession]);
 

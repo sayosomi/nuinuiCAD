@@ -6,7 +6,9 @@ import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
 import type { CadElement, ComputedLine, EvaluationResult } from "../types/geometry";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import type { VscodeReferencePickCanvasSession } from "./referencePickCanvasSession";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import { VSCodeReferencePickOverlay } from "./VSCodeReferencePickOverlay";
 
 const sessionFor = ({
@@ -92,7 +94,8 @@ type OverlayCallbacks = {
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
   overrides: Partial<OverlayCallbacks> = {},
-  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {}
+  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {},
+  presentation?: ReturnType<typeof webviewCanvasPresentationFor>
 ) => {
   const viewport = document.createElement("div");
   viewport.tabIndex = 0;
@@ -120,6 +123,7 @@ const renderOverlay = (
       onSelectNumericProperty={callbacks.onSelectNumericProperty}
       onConfirm={callbacks.onConfirm}
       onCancel={callbacks.onCancel}
+      presentation={presentation}
     />,
     { container: viewport }
   );
@@ -207,6 +211,23 @@ const numericLineStartCandidate: ReferencePickCandidate = {
 };
 
 describe("VSCodeReferencePickOverlay", () => {
+  it.each([
+    ["ja", "選択 · 線", "線の選択対象", "Enter 決定", "決定"],
+    ["en", "Pick · Line", "Line target", "Enter Done", "Done"]
+  ] as const)("uses the Extension Host presentation for reference-pick chrome (%s)", (language, badge, target, shortcut, done) => {
+    renderOverlay(
+      sessionFor({ expectedGeometryInterface: "line" }),
+      {},
+      {},
+      webviewCanvasPresentationFor(webviewPresentationFor(language))
+    );
+
+    expect(screen.getByText(badge)).toBeInTheDocument();
+    expect(screen.getByText(target)).toBeInTheDocument();
+    expect(screen.getByText(shortcut)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: done })).toBeInTheDocument();
+  });
+
   it("reuses the Canvas bottom-right transient hint and theme contract", () => {
     const { viewport, view } = renderOverlay(sessionFor());
     const status = screen.getByRole("status");

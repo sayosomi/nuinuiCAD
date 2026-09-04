@@ -43,6 +43,38 @@ export const coordinatePointConversionTranslationCatalog = {
   "coordinatePointConversion.source.noTarget": {
     en: "nuinuiCAD: No coordinate point can be converted at the Source Editor cursor position.",
     ja: "nuinuiCAD: Source Editor のカーソル位置に変換できる coordinate point がありません。"
+  },
+  "coordinatePointConversion.revalidation.canvasTargetUnavailable": {
+    en: "Canvas conversion targets could not be resolved against the current Extension Host evaluation. Try the command again.",
+    ja: "Canvasの変換対象を現在のExtension Host評価へ再解決できません。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.canvasTargetChanged": {
+    en: "The Canvas conversion target selection changed. Try the command again.",
+    ja: "Canvasの変換対象選択が変化しました。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.documentChanged": {
+    en: "The current document, Source, or selection changed. Try the command again.",
+    ja: "現在の文書、Source、または選択が変化しました。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.staleEvaluation": {
+    en: "The current document or evaluation result is stale. Try the command again.",
+    ja: "現在の文書または評価結果が古くなっています。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.evaluationUnavailable": {
+    en: "The current document or evaluation result could not be obtained. Try the command again.",
+    ja: "現在の文書または評価結果を取得できませんでした。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.baseNotCandidate": {
+    en: "The selected base point is not a current legal shared candidate. Try the command again.",
+    ja: "選択した基準点は現在の合法な共有候補ではありません。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.canvasSelectionMappingFailed": {
+    en: "The conversion result could not be mapped to the current Canvas selection. Try the command again.",
+    ja: "変換結果をCanvasの現在の選択へ対応付けできません。コマンドをもう一度実行してください。"
+  },
+  "coordinatePointConversion.revalidation.canvasOpenedStale": {
+    en: "The current document changed before Canvas could open. Try the command again.",
+    ja: "Canvasを開く前に現在の文書が変化しました。コマンドをもう一度実行してください。"
   }
 } satisfies TranslationCatalog;
 

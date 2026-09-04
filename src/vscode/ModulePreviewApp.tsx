@@ -615,18 +615,24 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       !proofIsCurrent(proof)
     ) {
       clearEphemeralPreview();
-      return { status: "rejected", reason: "Module Preview drag state is stale." };
+      return {
+        status: "rejected",
+        reason: webviewPresentationTextFor(webviewPresentation, "modulePreview.dragStale", "Module Preview drag state is stale.")
+      };
     }
     if (!sourceOwnerForDrag(action, proof)) {
       clearEphemeralPreview();
-      return { status: "rejected", reason: "Module Preview geometry has no writable authored owner." };
+      return {
+        status: "rejected",
+        reason: webviewPresentationTextFor(webviewPresentation, "modulePreview.noWritableOwner", "Module Preview geometry has no writable authored owner.")
+      };
     }
     const nextElements = transformedElementsFor(action);
     if (!nextElements) return { status: "noop" };
     ephemeralElementsRef.current = nextElements;
     setEphemeralElements(nextElements);
     return { status: "applied" };
-  }, [clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
+  }, [clearEphemeralPreview, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor, webviewPresentation]);
 
   const dispatchCommitGeometry = useCallback((
     action: CanvasPointDragAction | CanvasBezierHandleDragAction
@@ -639,12 +645,18 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       !proofIsCurrent(proof)
     ) {
       clearEphemeralPreview();
-      return { status: "rejected", reason: "Module Preview drag state is stale." };
+      return {
+        status: "rejected",
+        reason: webviewPresentationTextFor(webviewPresentation, "modulePreview.dragStale", "Module Preview drag state is stale.")
+      };
     }
     const owner = sourceOwnerForDrag(action, proof);
     if (!owner) {
       clearEphemeralPreview();
-      return { status: "rejected", reason: "Module Preview geometry has no writable authored owner." };
+      return {
+        status: "rejected",
+        reason: webviewPresentationTextFor(webviewPresentation, "modulePreview.noWritableOwner", "Module Preview geometry has no writable authored owner.")
+      };
     }
     const nextElements = transformedElementsFor(action);
     if (!nextElements) {
@@ -656,7 +668,10 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     const document = automationDocumentRef.current;
     if (!before || !after || !document) {
       clearEphemeralPreview();
-      return { status: "rejected", reason: "Module Preview drag target is unavailable." };
+      return {
+        status: "rejected",
+        reason: webviewPresentationTextFor(webviewPresentation, "modulePreview.dragTargetUnavailable", "Module Preview drag target is unavailable.")
+      };
     }
     const patch = buildModuleOwnerElementPatch(document.getState(), owner, before, after);
     if (patch.status === "unapplied") {
@@ -703,7 +718,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       return { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
     }
     return { status: "pending" };
-  }, [api, clearEphemeralPreview, clearPendingModelPatch, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor]);
+  }, [api, clearEphemeralPreview, clearPendingModelPatch, proofIsCurrent, sourceOwnerForDrag, transformedElementsFor, webviewPresentation]);
 
   const sourceOwnersForBakeTargets = useCallback((
     authority: ModulePreviewAuthority,
@@ -1221,6 +1236,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               onSelect={selectModulePreviewReferencePick}
               onConfirm={confirmModulePreviewReferencePick}
               onCancel={cancelModulePreviewReferencePick}
+              presentation={canvasPresentationAdapter}
             />
           ) : null}
           <VSCodeCanvasRibbonOverlay

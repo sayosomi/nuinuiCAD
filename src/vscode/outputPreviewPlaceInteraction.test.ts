@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OutputPlaceProjection } from "../output/outputPlaceProjection";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import {
   normalizedRangeForOutputPlaceValue,
   outputPreviewPlaceCandidatesAtScreen,
@@ -100,5 +102,18 @@ describe("Output Preview place interaction model", () => {
       references: []
     };
     expect(normalizedRangeForOutputPlaceValue(value, 3, 10)).toBeNull();
+  });
+
+  it("localizes the non-draggable reason through the Webview presentation", () => {
+    const nonDraggable = projection({ placeId: "a", x: 0, y: 0, draggable: false });
+
+    expect(outputPreviewPlaceDragReason(
+      nonDraggable,
+      webviewCanvasPresentationFor(webviewPresentationFor("en"))
+    )).toBe("Cannot drag: X in at must be direct finite numeric literals.");
+    expect(outputPreviewPlaceDragReason(
+      nonDraggable,
+      webviewCanvasPresentationFor(webviewPresentationFor("ja"))
+    )).toBe("ドラッグできません: at の X は直接の有限数値リテラルである必要があります。");
   });
 });

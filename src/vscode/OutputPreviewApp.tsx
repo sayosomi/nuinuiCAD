@@ -66,6 +66,7 @@ import { resolveVscodeLucideIcon } from "./vscodeCanvasRibbonIcons";
 import { vscodeViewportStatusPresentationFor } from "./vscodeViewportStatus";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { useNativePointerBoundaryFallback } from "../components/nativePointerBoundaryFallback";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
 import {
   useVscodeWebviewPresentation,
   webviewDiagnosticTextFor,
@@ -122,7 +123,11 @@ const diagnosticMessageFor = (
   const diagnostic = state.diagnostics[0] ?? state.bindingIssueDiagnostics[0];
   return diagnostic
     ? webviewDiagnosticTextFor(presentation, diagnostic)
-    : "The current source cannot produce a valid output plan.";
+    : webviewPresentationTextFor(
+        presentation,
+        "output.noValidPlan",
+        "The current source cannot produce a valid output plan."
+      );
 };
 
 const outputKindLabel = (
@@ -257,6 +262,10 @@ const highlightedDrawableSvg = (
 
 export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
   const webviewPresentation = useVscodeWebviewPresentation();
+  const canvasPresentationAdapter = useMemo(
+    () => webviewCanvasPresentationFor(webviewPresentation),
+    [webviewPresentation]
+  );
   const sourceText = useCadDocumentStore((state) => state.sourceText);
   const docText = useCadDocumentStore((state) => state.docText);
   const currentSourceRevision = useCadDocumentStore((state) => state.currentSourceRevision);
@@ -1281,6 +1290,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               onHighlightPlaceIdChange={setHighlightedPlaceId}
               clearInteractionKey={clearPlaceInteractionKey}
               focusViewport={() => viewportRef.current?.focus()}
+              presentation={canvasPresentationAdapter}
               placeContextMenuData={vscodeWebviewContextDataFor("place")}
               dragContextKey={dragContextKey}
               onBeginDrag={beginPlaceDrag}

@@ -3243,7 +3243,11 @@ describe("VS Code production document lifecycle", () => {
     expect(items.filter((item) => item.kind === "base").every((item) => item.detail?.includes("@"))).toBe(true);
   });
 
-  it("fails closed when Source changes before the native base is applied", async () => {
+  it.each([
+    ["en", "nuinuiCAD: Could not apply coordinate-point conversion (revalidation failed ×1).", "Skipped target details", "Show Details"],
+    ["ja", "nuinuiCAD: 座標点の変換を適用できませんでした (再検証に失敗 ×1)。", "スキップした対象の詳細", "詳細を表示"]
+  ] as const)("uses host-localized native revalidation presentation when Source changes (%s)", async (language, notification, details, showDetails) => {
+    mocks.displayLanguage = language;
     const source = [
       "nui 1",
       "point Base = coordinate(x: 0, y: 0)",
@@ -3264,7 +3268,11 @@ describe("VS Code production document lifecycle", () => {
     const base = (mocks.showQuickPick.mock.calls[0]?.[0] as Array<{ kind?: string }>).find((item) => item.kind === "base");
     resolvePick?.(base);
 
-    await vi.waitFor(() => expect(mocks.showErrorMessage).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mocks.showErrorMessage).toHaveBeenCalledWith(notification, showDetails));
+    const output = mocks.createOutputChannel.mock.results.at(-1)?.value as {
+      appendLine: ReturnType<typeof vi.fn>;
+    } | undefined;
+    expect(output?.appendLine).toHaveBeenCalledWith(expect.stringContaining(details));
     expect(editor.edit).not.toHaveBeenCalled();
   });
 

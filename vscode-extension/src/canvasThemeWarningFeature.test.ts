@@ -14,7 +14,7 @@ const sourceSnapshotFor = (source: string, sourceRevision = 1) => ({
   sourceRevision
 });
 
-const warningsFor = (source: string, background: string) => {
+const warningsFor = (source: string, background: string, displayLanguage = "en") => {
   const normalizedSource = source.replace(/\r\n/g, "\n");
   const snapshot = sourceSnapshotFor(normalizedSource);
   const parsed = parseDslSnapshot(snapshot);
@@ -27,7 +27,8 @@ const warningsFor = (source: string, background: string) => {
         assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `warning-test:${index}`]))
       })
     },
-    background
+    background,
+    displayLanguage
   });
 };
 
@@ -41,6 +42,20 @@ const modifierSource = (colors: readonly string[]): string => [
 ].join("\n");
 
 describe("fixed-color Canvas contrast warnings", () => {
+  it("localizes the warning presentation without changing its range or severity", () => {
+    const source = modifierSource(["#999999"]);
+    const english = warningsFor(source, "#ffffff", "en")[0];
+    const japanese = warningsFor(source, "#ffffff", "ja-JP")[0];
+
+    expect(english?.message).toBe("Fixed modifier color #999999 has low contrast against the current Canvas background.");
+    expect(japanese?.message).toBe("固定modifier色 #999999 は現在のCanvas背景とのコントラストが低くなっています。");
+    expect(japanese).toMatchObject({
+      severity: "warning",
+      code: "modifier-fixed-color-low-contrast",
+      range: english?.range
+    });
+  });
+
   it("uses the existing contrast formula and warns strictly below 3:1", () => {
     const foreground = parseCssColor("#ffffff");
     const background = parseCssColor("#000000");
