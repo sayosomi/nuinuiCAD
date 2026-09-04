@@ -361,6 +361,8 @@ export type ExtensionToVscodeMessage =
       mode: "xy" | "angle-distance";
       targetIds: readonly string[];
       origin: "source" | "canvas" | "explorer";
+      /** The existing conversion session is being used as a Canvas base-pick adapter. */
+      canvasBasePick?: boolean;
     }
   | {
       type: "coordinatePointConversionSelection";
