@@ -12,7 +12,7 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.ariaLabel"]).toBe("CAD作図キャンバス");
     expect(presentation.strings["canvas.commandError.staleSourceAnchor"]).toBe("現在のSource位置が古くなっています。現在のSourceでキャレットを再確定してから再試行してください。");
     expect(presentation.strings["canvas.commandError.pointer"]).toBe("Canvas上にポインターを置いてから実行してください。");
-    expect(presentation.strings["canvas.creationAssist.shortcuts"]).toBe("Enter 次へ · Shift+Enter 選択 · Esc キャンセル");
+    expect(presentation.strings["canvas.creationAssist.shortcuts"]).toBe("Enter 次へ · Shift+Enter 戻る · macOS Option+Enter 選択 · Windows/Linux Alt+Enter 選択 · Esc キャンセル");
     expect(presentation.strings["canvas.referencePick.done"]).toBe("決定");
     expect(presentation.strings["canvas.coordinateConversion.apply"]).toBe("適用（Enter）");
     expect(presentation.strings["output.place.candidateMenu"]).toBe("重なっている配置ハンドル");

@@ -452,6 +452,11 @@ export const VSCodeCreationAssistOverlay = ({
       }
       if (!active) return;
 
+      const canvasOwnsPick = target === viewport && (
+        activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
+      );
+      if (canvasOwnsPick) return;
+
       if (isModifierEnter(event) && (target === viewport || inDock || isTextEntryTarget(target))) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -464,7 +469,16 @@ export const VSCodeCreationAssistOverlay = ({
       ) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        startCommandLinePickForCurrentStep(completionCommandContext);
+        retreatCommandLineStep();
+        return;
+      }
+      if (
+        event.key === "Enter" && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey &&
+        (target === viewport || inDock || isTextEntryTarget(target))
+      ) {
+        if (!startCommandLinePickForCurrentStep(completionCommandContext)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
         return;
       }
       if (event.key === "Enter" && target === viewport) {
@@ -572,7 +586,10 @@ export const VSCodeCreationAssistOverlay = ({
           className="vscode-creation-assist-legend"
           aria-label={presentation?.text("canvas.creationAssist.shortcutsAriaLabel", "Creation assist shortcuts") ?? "Creation assist shortcuts"}
         >
-          {presentation?.text("canvas.creationAssist.shortcuts", "Enter next · Shift+Enter pick · Esc cancel") ?? "Enter next · Shift+Enter pick · Esc cancel"}
+          {presentation?.text(
+            "canvas.creationAssist.shortcuts",
+            "Enter next · Shift+Enter back · macOS Option+Enter pick · Windows/Linux Alt+Enter pick · Esc cancel"
+          ) ?? "Enter next · Shift+Enter back · macOS Option+Enter pick · Windows/Linux Alt+Enter pick · Esc cancel"}
         </div>
       </div>
 
