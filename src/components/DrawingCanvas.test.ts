@@ -5,6 +5,11 @@ import { registerSourceEditSession } from "../editor/sourceEditSession";
 import { dispatchCommand } from "../commands/commands";
 import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
+import {
+  startCommandLineCreationForRecipe,
+  submitCommandLineInput
+} from "../commands/commandLineSessionCommands";
+import { COMMAND_LINE_PICK_TARGET_ID } from "../commands/commandLinePickRouting";
 import type { SourceEditSession } from "../editor/sourceEditSession";
 import { evaluateElements } from "../geometry/evaluate";
 import { canvasPresentationEligibleElementIds } from "../geometry/canvasDrawingBounds";
@@ -12,8 +17,9 @@ import { makeNumericExpression } from "../geometry/numericExpressions";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import { LEGACY_CANVAS_THEME } from "./canvasTheme";
 import { sampleElements } from "../sampleData";
+import { initialCadDocumentState } from "../state/cadDocumentStore";
 import { DEFAULT_CANVAS_VIEWPORT, useCadDocumentStore, useCadStore } from "../state/useCadStore";
-import { useCadUiStore } from "../state/cadUiStore";
+import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { DrawingCanvasTestHost } from "./DrawingCanvas.testHost";
 import type { CanvasHostAdapter } from "./canvasHostAdapter";
@@ -1924,6 +1930,37 @@ describe("DrawingCanvas point dragging", () => {
       type: "offsetLine",
       baseLineIds: ["line-ab"]
     });
+  });
+
+  it("routes a command-line Offset Line Canvas click into the shared virtual line-list draft", () => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadUiStore.setState(initialCadUiState());
+    const recipe = creationRecipeForType("offsetLine");
+    if (!recipe) throw new Error("Missing Offset Line creation recipe");
+
+    expect(startCommandLineCreationForRecipe(recipe)).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: COMMAND_LINE_PICK_TARGET_ID,
+      parameterKey: "baseLineIds",
+      draftLineIds: []
+    });
+
+    const { viewport } = renderDrawingCanvas();
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: COMMAND_LINE_PICK_TARGET_ID,
+      parameterKey: "baseLineIds",
+      draftLineIds: ["line-ab"]
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
   });
 
   it("shows a candidate menu when multiple line pick targets overlap", () => {
