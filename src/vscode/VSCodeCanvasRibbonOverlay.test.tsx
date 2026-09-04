@@ -5,6 +5,8 @@ import type { CanvasViewport } from "../state/cadUiStore";
 import { estimatedRibbonSize } from "../components/commandRibbonFloatingGeometry";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
+import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
 import {
   VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
   vscodeCanvasStatusPresentationFor
@@ -18,6 +20,18 @@ const ribbonWithStatus: VscodeCanvasRibbon[] = [{
   y: 12,
   orientation: "horizontal",
   items: [{ id: "status", type: "value", valueId: "canvasZoom" }]
+}];
+
+const ribbonWithCommands: VscodeCanvasRibbon[] = [{
+  id: "ribbon",
+  label: "Canvas Ribbon",
+  x: null,
+  y: 12,
+  orientation: "horizontal",
+  items: [
+    { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false },
+    { id: "point-names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: false }
+  ]
 }];
 
 const commandContext = {
@@ -172,5 +186,47 @@ describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
     expect(status).not.toHaveAttribute("data-command-id");
     fireEvent.click(status);
     expect(onCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe("VSCodeCanvasRibbonOverlay command presentation", () => {
+  it("uses a concise localized tooltip for Edit Canvas Ribbon and informative defaults elsewhere", () => {
+    const onCommand = vi.fn();
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const view = render(
+      <div ref={canvasFocusRef}>
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
+          canvasRibbonRibbons={ribbonWithCommands}
+          viewportSize={{ width: 400, height: 300 }}
+          ribbonCommandContext={commandContext}
+          presentation={webviewCanvasPresentationFor(webviewPresentationFor("ja-JP"))}
+          onCommand={onCommand}
+        />
+      </div>
+    );
+
+    const editButton = screen.getByRole("button", { name: "Canvas リボンを編集" });
+    const editTooltip = document.getElementById(editButton.getAttribute("aria-describedby")!);
+    expect(editButton).not.toHaveAttribute("title");
+    expect(editTooltip?.textContent).toBe("Canvas リボンを編集");
+
+    const pointNamesButton = screen.getByRole("button", { name: "点名" });
+    const pointNamesTooltip = document.getElementById(pointNamesButton.getAttribute("aria-describedby")!);
+    expect(pointNamesTooltip?.textContent).toBe("点名: Canvasの点名を表示または非表示にします。");
+    expect(view.container.querySelector(".command-ribbon-handle")).toHaveAttribute("title", "ドラッグで移動");
+    expect(view.container.querySelector(".command-ribbon")).toHaveAttribute(
+      "data-vscode-context",
+      vscodeCanvasRibbonContextData
+    );
+
+    fireEvent.click(editButton);
+    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({
+      commandId: "editCanvasRibbon",
+      label: "Canvas リボンを編集",
+      description: "Canvas リボン項目のVS Code設定を開きます。",
+      tooltipText: "Canvas リボンを編集"
+    }));
   });
 });
