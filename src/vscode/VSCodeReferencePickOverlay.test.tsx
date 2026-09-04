@@ -586,7 +586,7 @@ describe("VSCodeReferencePickOverlay", () => {
             label: "Base",
             reference: { base: "Base" },
             subgeometry: { kind: "body" },
-            properties: ["sweepAngleDeg"]
+            properties: ["sweepAngleDeg", "intermediatePoints[2].outgoingHandleLength"]
           }]
         }]
       }),
@@ -596,6 +596,7 @@ describe("VSCodeReferencePickOverlay", () => {
     );
     fireEvent.pointerDown(japanese.viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getByRole("option", { name: /sweepAngleDeg — 円弧の中心角/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /intermediatePoints\[2\]\.outgoingHandleLength — 中間点2の出側ハンドル長/ })).toBeInTheDocument();
     japanese.view.unmount();
     japanese.viewport.remove();
   });

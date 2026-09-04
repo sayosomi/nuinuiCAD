@@ -86,9 +86,16 @@ export const NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS: Readonly<Record<
   fontSize: "mm"
 };
 
-/** Returns a public property's display unit; unknown and dynamic coordinates stay unitless. */
-export const numericGeometryPropertyUnitFor = (property: string): NumericGeometryPropertyUnit =>
-  NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS[property as (typeof NUMERIC_COMPUTED_GEOMETRY_PROPERTIES)[number]] ?? "bare";
+/** Returns a public property's display unit; unknown properties and dynamic coordinates stay unitless. */
+export const numericGeometryPropertyUnitFor = (property: string): NumericGeometryPropertyUnit => {
+  const staticUnit = NUMERIC_COMPUTED_GEOMETRY_PROPERTY_UNITS[
+    property as (typeof NUMERIC_COMPUTED_GEOMETRY_PROPERTIES)[number]
+  ];
+  if (staticUnit) return staticUnit;
+  if (/^intermediatePoints\[\d+\]\.(incomingHandleAngleDeg|outgoingHandleAngleDeg)$/.test(property)) return "°";
+  if (/^intermediatePoints\[\d+\]\.(incomingHandleLength|outgoingHandleLength)$/.test(property)) return "mm";
+  return "bare";
+};
 
 /** Canonical measurement subset used by numeric-reference pickers. */
 export const NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES = [
@@ -105,7 +112,13 @@ export const NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTIES = [
   "endHandleLength"
 ] as const;
 
-type NumericComputedGeometryDynamicProperty = `intermediatePoints[${number}].${"x" | "y"}`;
+type NumericComputedGeometryDynamicProperty = `intermediatePoints[${number}].${
+  | "x"
+  | "y"
+  | "incomingHandleAngleDeg"
+  | "incomingHandleLength"
+  | "outgoingHandleAngleDeg"
+  | "outgoingHandleLength"}`;
 export type NumericComputedGeometryProperty =
   | (typeof NUMERIC_COMPUTED_GEOMETRY_PROPERTIES)[number]
   | NumericComputedGeometryDynamicProperty;
@@ -116,7 +129,8 @@ const NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTY_SET = new Set<string>(
 );
 
 export const isKnownNumericComputedGeometryProperty = (property: string): boolean =>
-  NUMERIC_COMPUTED_GEOMETRY_PROPERTY_SET.has(property) || /^intermediatePoints\[\d+\]\.(x|y)$/.test(property);
+  NUMERIC_COMPUTED_GEOMETRY_PROPERTY_SET.has(property) ||
+  /^intermediatePoints\[\d+\]\.(x|y|incomingHandleAngleDeg|incomingHandleLength|outgoingHandleAngleDeg|outgoingHandleLength)$/.test(property);
 
 export const isNumericComputedGeometryProperty = (
   property: unknown
@@ -202,7 +216,11 @@ const withProvenIntermediatePoints = (
     ...properties,
     ...Array.from({ length: count }, (_, index) => [
       `intermediatePoints[${index + 1}].x` as NumericComputedGeometryProperty,
-      `intermediatePoints[${index + 1}].y` as NumericComputedGeometryProperty
+      `intermediatePoints[${index + 1}].y` as NumericComputedGeometryProperty,
+      `intermediatePoints[${index + 1}].incomingHandleAngleDeg` as NumericComputedGeometryProperty,
+      `intermediatePoints[${index + 1}].incomingHandleLength` as NumericComputedGeometryProperty,
+      `intermediatePoints[${index + 1}].outgoingHandleAngleDeg` as NumericComputedGeometryProperty,
+      `intermediatePoints[${index + 1}].outgoingHandleLength` as NumericComputedGeometryProperty
     ]).flat()
   ];
 };
@@ -379,5 +397,6 @@ export const numericGeometryStaticTargetForComputedGeometry = (
 export const numericGeometryMeasurementPropertiesForStaticTarget = (
   target: NumericGeometryStaticTarget | null | undefined
 ): readonly NumericComputedGeometryProperty[] => numericGeometryPropertiesForStaticTarget(target).filter((property) =>
-  NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTY_SET.has(property)
+  NUMERIC_COMPUTED_GEOMETRY_MEASUREMENT_PROPERTY_SET.has(property) ||
+  /^intermediatePoints\[\d+\]\.(incomingHandleAngleDeg|incomingHandleLength|outgoingHandleAngleDeg|outgoingHandleLength)$/.test(property)
 );

@@ -713,7 +713,13 @@ distinct available points, and a non-positive or non-finite scale is invalid.
 **Description:** `bezier` creates a cubic Bezier path between its start and end
 points. Handle angles are in degrees and handle lengths are millimetres.
 Optional intermediate points split the path into ordered cubic segments, each
-with its own handle data.
+with its own handle data. Their public computed properties use 1-based current
+traversal indexes: `.intermediatePoints[n].x`, `.y`,
+`.incomingHandleAngleDeg`, `.incomingHandleLength`, `.outgoingHandleAngleDeg`,
+and `.outgoingHandleLength`. The handle values are derived from the current
+join controls rather than authored metadata; a zero-length handle takes the
+opposite finite direction when possible, while both angles are unavailable
+when both handles are zero.
 
 **Notes:** Bezier geometry is broad `path` geometry. It can be consumed by
 `path[]` operations and by the Bezier-specific point constructions when the

@@ -39,9 +39,15 @@ readable; disabled, failed, or not-yet-evaluated geometry is unavailable.
 Only numeric computed properties and schema-declared choice properties are
 available as scalar reads. A line can expose measurements such as `.length`,
 while an arc's `.direction` is a choice whose exact type is documented by the
-construction. String and boolean element properties are not general scalar
-geometry-property reads. A property must also be valid for the value's
-interface and available at the read position.
+construction. Bezier intermediate points use 1-based current traversal
+indexes: each proven index exposes `.x`, `.y`, `.incomingHandleAngleDeg`,
+`.incomingHandleLength`, `.outgoingHandleAngleDeg`, and
+`.outgoingHandleLength`. These handle values come from the current evaluated
+cubic controls at the join, in Y-up degrees and millimetres; a zero-length
+handle uses the opposite finite direction when available, and both angles are
+unavailable when both handles are zero. String and boolean element properties
+are not general scalar geometry-property reads. A property must also be valid
+for the value's interface and available at the read position.
 
 ## Function calls and interpolation
 

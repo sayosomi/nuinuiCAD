@@ -478,6 +478,23 @@ describe("queryDslCompletion", () => {
     expect(result && source.slice(result.replacementRange.from, result.replacementRange.to)).toBe("ra");
   });
 
+  it("completes the canonical intermediate Bezier handle properties for proven indexes", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])",
+      "const value: number = @Curve.intermediatePoints[1].incomingHandle"
+    ].join("\n");
+    const result = exactQuery(source, "@Curve.intermediatePoints[1].incomingHandle");
+    expect(labels(result)).toEqual(expect.arrayContaining([
+      "intermediatePoints[1].incomingHandleAngleDeg",
+      "intermediatePoints[1].incomingHandleLength"
+    ]));
+    expect(labels(result)).not.toContain("intermediatePoints[2].x");
+  });
+
   it("returns choice literals and mutable set targets only", () => {
     const source = [
       "nui 1",

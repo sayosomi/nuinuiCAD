@@ -311,6 +311,16 @@ const directionAngle = (from: { x: number; y: number }, to: { x: number; y: numb
     : normalizeDirectionDegrees((Math.atan2(dy, dx) * 180) / Math.PI);
 };
 
+const finiteDirectionAngle = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+  const angle = directionAngle(from, to);
+  return angle !== undefined && Number.isFinite(angle) ? angle : undefined;
+};
+
+const finitePointDistance = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  return Number.isFinite(distance) ? distance : undefined;
+};
+
 const reverseDirection = (angle: number | undefined) =>
   angle === undefined ? undefined : normalizeDirectionDegrees(angle + 180);
 
@@ -475,7 +485,7 @@ export const computedReferencePathValue = (geometry: ComputedGeometry | undefine
     );
     const first = geometry.segments[0];
     const last = geometry.segments.at(-1);
-    const intermediateMatch = property.match(/^intermediatePoints\[(\d+)\]\.(x|y)$/);
+    const intermediateMatch = property.match(/^intermediatePoints\[(\d+)\]\.(x|y|incomingHandleAngleDeg|incomingHandleLength|outgoingHandleAngleDeg|outgoingHandleLength)$/);
     if (property === "length") return geometry.length;
     if (property === "startAngleDeg") return directions.start;
     if (property === "endAngleDeg") return directions.end;
@@ -492,7 +502,33 @@ export const computedReferencePathValue = (geometry: ComputedGeometry | undefine
       return last ? directionAngle(last.control2, last.end) : undefined;
     }
     if (intermediateMatch) {
-      return geometry.segments[Number(intermediateMatch[1]) - 1]?.end[intermediateMatch[2] as "x" | "y"];
+      const index = Number(intermediateMatch[1]) - 1;
+      const propertyName = intermediateMatch[2];
+      const incomingSegment = geometry.segments[index];
+      if (propertyName === "x" || propertyName === "y") {
+        return incomingSegment?.end[propertyName];
+      }
+      const outgoingSegment = geometry.segments[index + 1];
+      if (!incomingSegment || !outgoingSegment) return undefined;
+      const knot = incomingSegment.end;
+      const incomingLength = finitePointDistance(knot, incomingSegment.control2);
+      const outgoingLength = finitePointDistance(knot, outgoingSegment.control1);
+      const incomingAngle = finiteDirectionAngle(knot, incomingSegment.control2);
+      const outgoingAngle = finiteDirectionAngle(knot, outgoingSegment.control1);
+      const resolvedIncomingAngle = incomingAngle ?? (
+        incomingLength !== undefined && incomingLength <= EPSILON
+          ? reverseDirection(outgoingAngle)
+          : undefined
+      );
+      const resolvedOutgoingAngle = outgoingAngle ?? (
+        outgoingLength !== undefined && outgoingLength <= EPSILON
+          ? reverseDirection(incomingAngle)
+          : undefined
+      );
+      if (propertyName === "incomingHandleAngleDeg") return resolvedIncomingAngle;
+      if (propertyName === "incomingHandleLength") return incomingLength;
+      if (propertyName === "outgoingHandleAngleDeg") return resolvedOutgoingAngle;
+      return outgoingLength;
     }
     return undefined;
   }

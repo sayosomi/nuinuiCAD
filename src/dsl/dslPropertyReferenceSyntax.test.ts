@@ -84,6 +84,40 @@ describe("nui 1 bare element-property reference diagnostic (Task 51)", () => {
     expect(errors).toEqual([]);
   });
 
+  it("accepts proven intermediate Bezier handle properties and rejects unsupported indexes or names", () => {
+    const base = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 20, y: 0)",
+      "point C = coordinate(x: 10, y: 10)",
+      "curve Curve = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5, intermediates: [@C:45:5:5])"
+    ];
+    for (const property of [
+      "x",
+      "y",
+      "incomingHandleAngleDeg",
+      "incomingHandleLength",
+      "outgoingHandleAngleDeg",
+      "outgoingHandleLength"
+    ]) {
+      const source = [...base, `const value: number = @Curve.intermediatePoints[1].${property}`].join("\n");
+      expect(
+        compileDslDocument(source, { assignedStatementIds: assignedStatementIds(source) }).diagnostics
+          .filter((diagnostic) => diagnostic.severity === "error"),
+        property
+      ).toEqual([]);
+    }
+
+    const invalidIndex = [...base, "const value: number = @Curve.intermediatePoints[2].x"].join("\n");
+    expect(compileDslDocument(invalidIndex, { assignedStatementIds: assignedStatementIds(invalidIndex) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "geometry-property-invalid" })
+    ]));
+    const invalidProperty = [...base, "const value: number = @Curve.intermediatePoints[1].tangentAngleDeg"].join("\n");
+    expect(compileDslDocument(invalidProperty, { assignedStatementIds: assignedStatementIds(invalidProperty) }).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "geometry-property-invalid" })
+    ]));
+  });
+
   it("accepts scoped geometry properties in const and let initializers", () => {
     const oneLevel = [
       "nui 1",

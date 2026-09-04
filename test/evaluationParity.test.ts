@@ -286,6 +286,22 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("asserts current intermediate Bezier handle properties through the Rust production boundary", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-bezier-intermediate-handle-properties.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "incomingAngle"), 225);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "incomingLength"), 3);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "outgoingAngle"), 45);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "outgoingLength"), 4);
+    }
+  }, 30000);
+
   it("asserts nui1 trigonometric scalar, geometry, module, and text values in both evaluators", () => {
     const fixture = readParityFixture(repoRoot, "nui1-trigonometric-functions.nui");
     const options = optionsFor(fixture);

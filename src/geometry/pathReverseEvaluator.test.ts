@@ -217,6 +217,10 @@ describe("evaluatePathReverseElement", () => {
       expect(reversedCurve.segments.map((segment) => segment.end.elementId)).toEqual(["c", "b", "a"]);
       expect(computedReferencePathValue(reversedCurve, "intermediatePoints[1].x")).toBe(20);
       expect(computedReferencePathValue(reversedCurve, "intermediatePoints[2].x")).toBe(10);
+      expect(computedReferencePathValue(reversedCurve, "intermediatePoints[1].incomingHandleAngleDeg")).toBe(0);
+      expect(computedReferencePathValue(reversedCurve, "intermediatePoints[1].outgoingHandleAngleDeg")).toBe(180);
+      expect(computedReferencePathValue(reversedCurve, "intermediatePoints[2].incomingHandleAngleDeg")).toBe(0);
+      expect(computedReferencePathValue(reversedCurve, "intermediatePoints[2].outgoingHandleAngleDeg")).toBe(180);
       expect(reversed.computedGeometry.get("after-b")).toMatchObject({ x: 11, y: 2 });
       expect(reversed.computedGeometry.get("after-c")).toMatchObject({ x: 21, y: 2 });
 
