@@ -17,6 +17,7 @@ export type CommandRibbonPresentationCommandItem = {
   iconColor?: string;
   label: string;
   description: string;
+  tooltipText?: string;
   showLabel: boolean;
   available: boolean;
   nativeDisabled?: boolean;
@@ -247,7 +248,9 @@ export const CommandRibbonView = ({
           }
 
           const Icon = iconResolver(item.icon);
-          const title = item.description ? `${item.label}: ${item.description}` : item.label;
+          const tooltipText = item.tooltipText ?? (
+            item.description ? `${item.label}: ${item.description}` : item.label
+          );
           return (
             <span
               key={item.id}
@@ -268,7 +271,6 @@ export const CommandRibbonView = ({
                 aria-disabled={item.available ? undefined : "true"}
                 aria-pressed={item.pressed === undefined ? undefined : item.pressed}
                 disabled={item.nativeDisabled}
-                title={title}
                 data-command-id={item.commandId}
                 style={{
                   minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
@@ -296,7 +298,7 @@ export const CommandRibbonView = ({
                 role="tooltip"
                 style={tooltipStyleFor(tooltipId)}
               >
-                {title}
+                {tooltipText}
               </span>
             </span>
           );
