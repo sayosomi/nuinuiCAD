@@ -454,7 +454,7 @@ export const VSCodeCreationAssistOverlay = ({
 
       const canvasOwnsPick = target === viewport && (
         activePointPickTarget || activeNumericReferencePickTarget || activeLinePickTarget
-      );
+      ) && !(event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey);
       if (canvasOwnsPick) return;
 
       if (isModifierEnter(event) && (target === viewport || inDock || isTextEntryTarget(target))) {

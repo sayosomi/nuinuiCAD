@@ -3,8 +3,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createRef } from "react";
-import { act, fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { creationRecipeForType } from "../commands/creationRecipes";
+import { startCommandLineCreationForRecipe } from "../commands/commandLineSessionCommands";
+import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
 import type { EvaluationResult } from "../types/geometry";
@@ -65,11 +68,16 @@ const evaluationState = (
   ...overrides
 });
 
-const renderCurrent = (evaluation: EvaluationResult, state: EvaluationEngineState) => (
+const renderCurrent = (
+  evaluation: EvaluationResult,
+  state: EvaluationEngineState,
+  canvasCreationRequest?: { requestId: number; sourceCursor: SourceCreationCursor }
+) => (
   <VSCodeDrawingCanvas
     evaluation={evaluation}
     evaluationState={state}
     canvasFocusRef={createRef()}
+    canvasCreationRequest={canvasCreationRequest}
     postCanonicalSourceText={vi.fn()}
     currentReferencePickAuthorityFor={() => null}
   />
@@ -125,6 +133,20 @@ const renderedLineMidpoint = (line: SVGLineElement) => ({
   clientX: (Number(line.getAttribute("x1")) + Number(line.getAttribute("x2"))) / 2,
   clientY: (Number(line.getAttribute("y1")) + Number(line.getAttribute("y2"))) / 2
 });
+
+const currentCanvasCreationCursor = (): SourceCreationCursor => {
+  const state = useCadDocumentStore.getState();
+  const line = state.elements.find((element) => element.name === "AB");
+  if (!line) throw new Error("Expected the AB line in the current document");
+  const info = state.doc.statementMap.byElementId.get(line.id);
+  if (!info) throw new Error("Expected source metadata for the AB line");
+  return {
+    sourceRevision: state.sourceRevision,
+    line: Math.max(info.range.endLine, info.endLine),
+    lineCount: state.sourceText.split("\n").length,
+    elementId: line.id
+  };
+};
 
 const clickRenderedGeometry = (
   target: Element,
@@ -419,6 +441,106 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(JSON.parse(viewport.dataset.vscodeContext ?? "{}")).toMatchObject({
       webviewSection: "blank"
     });
+  });
+
+  it("routes Creation Assist Option+Enter and a production webview-boundary Canvas pointer through the shared line-list draft", async () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const sourceCursor = currentCanvasCreationCursor();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision),
+      { requestId: 1, sourceCursor }
+    ));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Expected Canvas viewport");
+    const recipe = creationRecipeForType("offsetLine");
+    if (!recipe) throw new Error("Missing Offset Line creation recipe");
+
+    act(() => {
+      expect(startCommandLineCreationForRecipe(recipe, {
+        currentSourceCursor: () => sourceCursor,
+        sourceCreationOrigin: "canvas-retained"
+      })).toBe(true);
+    });
+    const nameInput = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    const lineInput = screen.getByRole<HTMLInputElement>("textbox");
+    lineInput.focus();
+    fireEvent.keyDown(lineInput, { key: "Enter", altKey: true });
+
+    const lineId = state.elements.find((element) => element.name === "AB")!.id;
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: "__command-line__",
+      parameterKey: "baseLineIds",
+      draftLineIds: []
+    });
+    expect(document.activeElement).toBe(viewport);
+
+    const line = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
+    if (!line) throw new Error("Expected the rendered AB line");
+    const pointer = renderedLineMidpoint(line);
+    const blockReactPointerBoundary = (event: Event) => event.stopImmediatePropagation();
+    view.container.addEventListener("pointerdown", blockReactPointerBoundary);
+    fireEvent.pointerDown(line, {
+      button: 0,
+      buttons: 1,
+      ...pointer,
+      pointerId: 1
+    });
+    await act(async () => { await Promise.resolve(); });
+    view.container.removeEventListener("pointerdown", blockReactPointerBoundary);
+
+    expect(useCadUiStore.getState().activeLinePickTarget).toMatchObject({
+      elementId: "__command-line__",
+      parameterKey: "baseLineIds",
+      draftLineIds: [lineId]
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).not.toHaveProperty("baseLineIds");
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+  });
+
+  it("routes Shift+Enter from the Canvas-owned pick through Creation Assist as non-destructive Back", () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const sourceCursor = currentCanvasCreationCursor();
+    const evaluation = evaluateElements(state.elements);
+    const view = render(renderCurrent(
+      evaluation,
+      evaluationState(evaluation, state.compiledDocumentRevision, state.compiledDocumentRevision),
+      { requestId: 1, sourceCursor }
+    ));
+    const viewport = view.container.querySelector<HTMLDivElement>(".canvas-viewport");
+    if (!viewport) throw new Error("Expected Canvas viewport");
+    const recipe = creationRecipeForType("offsetLine");
+    if (!recipe) throw new Error("Missing Offset Line creation recipe");
+
+    act(() => {
+      expect(startCommandLineCreationForRecipe(recipe, {
+        currentSourceCursor: () => sourceCursor,
+        sourceCreationOrigin: "canvas-retained"
+      })).toBe(true);
+    });
+    const nameInput = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(nameInput, { target: { value: "Offset" } });
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    const suppliedArgs = useCadUiStore.getState().commandLineSession?.args;
+    expect(suppliedArgs).toEqual({ name: "Offset" });
+    expect(document.activeElement).toBe(viewport);
+
+    fireEvent.keyDown(viewport, { key: "Enter", shiftKey: true });
+
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(0);
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual(suppliedArgs);
+    expect(useCadUiStore.getState().activeLinePickTarget).toBeNull();
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
   it("keeps rendered SVG geometry targetable in the production stylesheet", () => {
