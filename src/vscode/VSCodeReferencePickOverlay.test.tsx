@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { LEGACY_CANVAS_THEME } from "../components/canvasTheme";
+import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
 import type { ReferencePickCandidate } from "../model/referencePickCandidates";
 import type { ReferencePickHover, ReferencePickNumericPropertySession } from "../model/referencePickSession";
 import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
@@ -94,7 +95,7 @@ type OverlayCallbacks = {
 const renderOverlay = (
   session: VscodeReferencePickCanvasSession,
   overrides: Partial<OverlayCallbacks> = {},
-  surface: { elements?: CadElement[]; evaluation?: EvaluationResult } = {},
+  surface: { elements?: CadElement[]; evaluation?: EvaluationResult; evaluationIsCurrent?: boolean } = {},
   presentation?: ReturnType<typeof webviewCanvasPresentationFor>
 ) => {
   const viewport = document.createElement("div");
@@ -124,6 +125,7 @@ const renderOverlay = (
       onConfirm={callbacks.onConfirm}
       onCancel={callbacks.onCancel}
       presentation={presentation}
+      evaluationIsCurrent={surface.evaluationIsCurrent ?? true}
     />,
     { container: viewport }
   );
@@ -372,7 +374,7 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(viewport.style.cursor).toBe("pointer");
     fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
     expect(screen.getByRole("listbox", { name: "Reference Pick numeric properties" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /長さ/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /length/ })).toBeInTheDocument();
     expect(onSelect).toHaveBeenCalledWith({
       candidateElementId: "Base",
       reference: { base: "Base" },
@@ -444,6 +446,222 @@ describe("VSCodeReferencePickOverlay", () => {
     expect(screen.getByRole("listbox", { name: "Reference Pick numeric properties" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /startPoint\.x/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /長さ/ })).toBeNull();
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("cycles overlapping point candidates with shared wheel normalization and consumes the wheel event", () => {
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "point",
+        candidates: [
+          pointCandidate({ elementId: "A", reference: { base: "A" } }),
+          pointCandidate({ elementId: "B", reference: { base: "B" } })
+        ]
+      })
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const canvasWheel = vi.fn();
+    viewport.addEventListener("wheel", canvasWheel);
+
+    const first = candidateWheelDeltaFor({ remainder: 0, deltaY: 12, deltaMode: 0, viewportHeight: 480 });
+    const firstEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true });
+    act(() => viewport.dispatchEvent(firstEvent));
+    expect(first.cycles).toBe(0);
+    expect(firstEvent.defaultPrevented).toBe(true);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+
+    const second = candidateWheelDeltaFor({ ...first, deltaY: 12, deltaMode: 0, viewportHeight: 480 });
+    const secondEvent = new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true });
+    act(() => viewport.dispatchEvent(secondEvent));
+    expect(second.cycles).toBe(1);
+    expect(secondEvent.defaultPrevented).toBe(true);
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+    expect(canvasWheel).not.toHaveBeenCalled();
+
+    const wrapped = candidateWheelDeltaFor({ remainder: 0, deltaY: 24, deltaMode: 0, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 24, deltaMode: 0, cancelable: true })));
+    expect(wrapped.cycles).toBe(1);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+
+    viewport.removeEventListener("wheel", canvasWheel);
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("accumulates numeric-property wheel deltas by line and page mode and wraps candidates", () => {
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        candidates: [numericLineCandidate]
+      }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation }
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+
+    const first = candidateWheelDeltaFor({ remainder: 0, deltaY: 1, deltaMode: 1, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true })));
+    expect(first.cycles).toBe(0);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+
+    const second = candidateWheelDeltaFor({ ...first, deltaY: 1, deltaMode: 1, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, deltaMode: 1, cancelable: true })));
+    expect(second.cycles).toBe(1);
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    const page = candidateWheelDeltaFor({ remainder: 0, deltaY: 1, deltaMode: 2, viewportHeight: 480 });
+    const pageEvent = new WheelEvent("wheel", { deltaY: 1, deltaMode: 2, cancelable: true });
+    act(() => viewport.dispatchEvent(pageEvent));
+    expect(page.cycles).toBe(1);
+    expect(pageEvent.defaultPrevented).toBe(true);
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("resets partial wheel motion on direction reversal and when a menu lifecycle restarts", () => {
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "point",
+        candidates: [
+          pointCandidate({ elementId: "A", reference: { base: "A" } }),
+          pointCandidate({ elementId: "B", reference: { base: "B" } })
+        ]
+      })
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+
+    const forward = candidateWheelDeltaFor({ remainder: 0, deltaY: 20, deltaMode: 0, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 20, deltaMode: 0, cancelable: true })));
+    expect(forward.cycles).toBe(0);
+    const reversed = candidateWheelDeltaFor({ ...forward, deltaY: -1, deltaMode: 0, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -1, deltaMode: 0, cancelable: true })));
+    expect(reversed.remainder).toBe(-1);
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    const reverseThreshold = candidateWheelDeltaFor({ ...reversed, deltaY: -23, deltaMode: 0, viewportHeight: 480 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -23, deltaMode: 0, cancelable: true })));
+    expect(reverseThreshold.cycles).toBe(-1);
+    expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    act(() => viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 12, deltaMode: 0, cancelable: true })));
+    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it("shows canonical numeric property keys in English and inline help in Japanese", () => {
+    const english = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        candidates: [numericLineStartCandidate]
+      }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation },
+      webviewCanvasPresentationFor(webviewPresentationFor("en"))
+    );
+    fireEvent.pointerDown(english.viewport, { button: 0, clientX: 220, clientY: 240 });
+    expect(screen.getByRole("option", { name: /startPoint\.x/ })).toBeInTheDocument();
+    expect(screen.queryByText("始点のX座標")).toBeNull();
+    english.view.unmount();
+    english.viewport.remove();
+
+    const japanese = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        candidates: [{
+          ...numericLineCandidate,
+          options: [{
+            kind: "numericProperty",
+            label: "Base",
+            reference: { base: "Base" },
+            subgeometry: { kind: "body" },
+            properties: ["sweepAngleDeg"]
+          }]
+        }]
+      }),
+      {},
+      { elements: [numericLineElement], evaluation: numericLineEvaluation },
+      webviewCanvasPresentationFor(webviewPresentationFor("ja-JP"))
+    );
+    fireEvent.pointerDown(japanese.viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getByRole("option", { name: /sweepAngleDeg — 円弧の中心角/ })).toBeInTheDocument();
+    japanese.view.unmount();
+    japanese.viewport.remove();
+  });
+
+  it("keeps a selectable canonical property visible when Reference Pick has no help text", () => {
+    const onSelectNumericProperty = vi.fn<(property: NumericComputedGeometryProperty) => void>();
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        candidates: [{
+          ...numericLineCandidate,
+          options: [{
+            kind: "numericProperty",
+            label: "Base",
+            reference: { base: "Base" },
+            subgeometry: { kind: "body" },
+            properties: ["x"]
+          }]
+        }]
+      }),
+      { onSelectNumericProperty },
+      { elements: [numericLineElement], evaluation: numericLineEvaluation },
+      webviewCanvasPresentationFor(webviewPresentationFor("ja-JP"))
+    );
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 240 });
+    expect(screen.getByRole("option", { name: /^x@Base$/ })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(onSelectNumericProperty).toHaveBeenCalledWith("x");
+
+    view.unmount();
+    viewport.remove();
+  });
+
+  it.each([
+    [true, numericLineEvaluation, true],
+    [false, numericLineEvaluation, false],
+    [true, { ...numericLineEvaluation, computedGeometry: new Map([["Base", { ...numericLineGeometry, length: Number.NaN }]]) }, false],
+    [true, { ...numericLineEvaluation, computedGeometry: new Map() }, false]
+  ] as const)("shows the canonical pending numeric draft and only a proven finite current value", (evaluationIsCurrent, evaluation, hasValue) => {
+    const draft = {
+      candidateElementId: "Base",
+      reference: { base: "Base" },
+      property: "length" as const
+    };
+    const { viewport, view } = renderOverlay(
+      sessionFor({
+        expectedGeometryInterface: "path",
+        role: "numericPropertyBase",
+        numericProperty: {
+          target: { kind: "propertySelectionRequired" },
+          stage: "draft",
+          selectedGeometry: { candidateElementId: "Base", reference: { base: "Base" }, numericSubgeometry: { kind: "body" } },
+          properties: ["length"],
+          draft
+        },
+        candidates: [numericLineCandidate]
+      }),
+      {},
+      { elements: [numericLineElement], evaluation, evaluationIsCurrent },
+      webviewCanvasPresentationFor(webviewPresentationFor("en"))
+    );
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("@Base.length");
+    if (hasValue) expect(status).toHaveTextContent("@Base.length = 200 mm");
+    else expect(status).not.toHaveTextContent("200 mm");
 
     view.unmount();
     viewport.remove();

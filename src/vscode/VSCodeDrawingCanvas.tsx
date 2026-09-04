@@ -608,6 +608,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
               onConfirm={confirmReferencePick}
               onCancel={cancelReferencePick}
               presentation={canvasPresentationAdapter}
+              evaluationIsCurrent={creationCommandContext.evaluationIsCurrent ?? false}
             />
           ) : null}
           {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
