@@ -4,6 +4,7 @@ import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { vscodeObservationState } from "./vscodeObservationState";
 import { coordinatePointConversionCanvasTargetsFor } from "./coordinatePointConversionCommandFeature";
+import type { NuiElementsTreeNode } from "./elementsTreeProvider";
 import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 
@@ -3183,6 +3184,47 @@ describe("VS Code production document lifecycle", () => {
     expect(editor.edit).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes Explorer conversion eligibility when the Source caret is ineligible", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Target = coordinate(x: 10, y: 5)",
+      "line Guide = segment(start: @Base, end: @Target)"
+    ].join("\n");
+    const document = documentFor("/tmp/explorer-conversion-context.nui", "file:///tmp/explorer-conversion-context.nui", source);
+    const editor = editorFor(document);
+    editor.selection = {
+      anchor: { line: 0, character: 0 },
+      active: { line: 0, character: 0 },
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 }
+    };
+    setup(false, editor, [document]);
+    emitActiveEditorChange(editor);
+
+    const treeHost = mocks.registerElementsTreeFeature.mock.calls[0]?.[0] as {
+      treeItemContextValueFor?: (node: NuiElementsTreeNode) => string | undefined;
+    };
+    const treeNodeFor = (name: string, detail: string): NuiElementsTreeNode => {
+      const from = source.indexOf(`${detail} ${name}`);
+      return {
+        symbol: {
+          name,
+          detail,
+          kind: "object",
+          range: { from, to: from + `${detail} ${name}`.length },
+          selectionRange: { from, to: from + name.length },
+          children: []
+        }
+      };
+    };
+
+    await vi.waitFor(() => expect(treeHost.treeItemContextValueFor?.(treeNodeFor("Target", "point"))).toBe(
+      "nuinuiCAD.coordinatePointConversionTarget"
+    ));
+    expect(treeHost.treeItemContextValueFor?.(treeNodeFor("Guide", "line"))).toBeUndefined();
+  });
+
   it.each([
     ["nuinuiCAD.convertPointToXYOffset", "xy"],
     ["nuinuiCAD.convertPointToAngleDistanceOffset", "angle-distance"]
@@ -3461,6 +3503,7 @@ describe("VS Code production document lifecycle", () => {
       type: "coordinatePointConversionStart",
       mode: "xy",
       origin: "canvas",
+      canvasBasePick: true,
       targetIds: [canvasTargetId]
     })));
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -3499,6 +3542,7 @@ describe("VS Code production document lifecycle", () => {
       type: "coordinatePointConversionStart",
       mode: "xy",
       origin: "source",
+      canvasBasePick: true,
       targetIds: [targetId]
     })));
   });

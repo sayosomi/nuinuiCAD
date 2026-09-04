@@ -127,6 +127,13 @@ type PendingCanvasFreePointSelectionRestore = {
   selection: SelectionSnapshot;
 };
 
+type PendingCoordinatePointConversionSelection = {
+  requestId: number;
+  documentVersion: number;
+  successfulTargetIds: string[];
+  expectedDocumentGeneration: number;
+};
+
 type CanvasCreationRequestContext = {
   requestId: number;
   sourceCursor: SourceCreationCursor;
@@ -188,6 +195,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const pendingCanvasFreePointCommitRef = useRef<PendingCanvasFreePointCommit | null>(null);
   const pendingCanvasFreePointSelectionRef = useRef<PendingCanvasFreePointSelection | null>(null);
   const pendingCanvasFreePointSelectionRestoreRef = useRef<PendingCanvasFreePointSelectionRestore | null>(null);
+  const pendingCoordinatePointConversionSelectionRef = useRef<PendingCoordinatePointConversionSelection | null>(null);
   const canvasCreationRequestIdRef = useRef<number | null>(null);
   const canvasHistoryInFlightRef = useRef<CanvasHistoryDirection | null>(null);
   const pendingCanvasHistoryRef = useRef<CanvasHistoryDirection[]>([]);
@@ -490,6 +498,34 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, currentAuthoritativeDocument, multiDocumentRuntimePresentation]);
 
+  const applyPendingCoordinatePointConversionSelection = useCallback(() => {
+    const pending = pendingCoordinatePointConversionSelectionRef.current;
+    if (!pending) return;
+    const current = currentAuthoritativeDocument(pending.documentVersion);
+    if (!current) return;
+    pendingCoordinatePointConversionSelectionRef.current = null;
+    if (replaceCanvasSelection(
+      pending.successfulTargetIds,
+      pending.successfulTargetIds.at(-1),
+      false,
+      "requested",
+      new Set(pending.successfulTargetIds)
+    )) publishCanvasObservation(pending.documentVersion);
+  }, [currentAuthoritativeDocument, publishCanvasObservation]);
+
+  const deferCoordinatePointConversionSelection = useCallback((
+    message: Extract<ExtensionToVscodeMessage, { type: "coordinatePointConversionSelection" }>
+  ): void => {
+    const currentDocumentVersion = latestHostDocumentVersionRef.current;
+    if (currentDocumentVersion === null || message.documentVersion <= currentDocumentVersion) return;
+    pendingCoordinatePointConversionSelectionRef.current = {
+      requestId: message.requestId,
+      documentVersion: message.documentVersion,
+      successfulTargetIds: [...message.successfulTargetIds],
+      expectedDocumentGeneration: hostDocumentGenerationRef.current
+    };
+  }, []);
+
   const publishInlineModuleCanvasTargets = useCallback((documentVersion: number) => {
     const current = currentAuthoritativeDocument(documentVersion);
     if (!current) return;
@@ -612,6 +648,13 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       message: Extract<ExtensionToVscodeMessage, { type: "replaceTextDocument" | "commitText" }>
     ): void => {
       const nextGeneration = hostDocumentGenerationRef.current + 1;
+      const pendingCoordinateSelection = pendingCoordinatePointConversionSelectionRef.current;
+      if (pendingCoordinateSelection && (
+        message.documentVersion !== pendingCoordinateSelection.documentVersion ||
+        nextGeneration !== pendingCoordinateSelection.expectedDocumentGeneration + 1
+      )) {
+        pendingCoordinatePointConversionSelectionRef.current = null;
+      }
       const pending = pendingCanvasFreePointSelectionRef.current;
       const isPendingCreationEcho = message.type === "commitText" &&
         message.reason === "edit" &&
@@ -1182,7 +1225,12 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       } else if (message.type === "coordinatePointConversionSelection") {
         const current = currentAuthoritativeDocument(message.documentVersion);
-        if (!current || message.successfulTargetIds.length === 0) return;
+        if (message.successfulTargetIds.length === 0) return;
+        if (!current) {
+          deferCoordinatePointConversionSelection(message);
+          return;
+        }
+        pendingCoordinatePointConversionSelectionRef.current = null;
         if (replaceCanvasSelection(
           message.successfulTargetIds,
           message.successfulTargetIds.at(-1),
@@ -1488,6 +1536,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishCanonicalRuntimeDiagnostics(message.documentVersion);
         publishCanvasObservation(message.documentVersion);
         publishInlineModuleCanvasTargets(message.documentVersion);
+        applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "commitText") {
         if (isStaleHostDocumentVersion(latestHostDocumentVersionRef.current, message.documentVersion)) return;
         observeHostSourceMessage(message);
@@ -1516,6 +1565,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         publishCanvasObservation(message.documentVersion);
         publishInlineModuleCanvasTargets(message.documentVersion);
         tryApplyPendingCanvasFreePointSelection();
+        applyPendingCoordinatePointConversionSelection();
       } else if (message.type === "benchmarkConfig") {
         setBenchmarkConfig(message.config);
       }
@@ -1526,7 +1576,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       deferredCanvasNavigationRequestRef.current = null;
       deferredInlineModuleSelectionRequestRef.current = null;
     };
-  }, [api, currentAuthoritativeDocument, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, currentAuthoritativeDocument, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {

@@ -81,7 +81,9 @@ export const useVSCodeCoordinatePointConversionSession = ({
   presentation?: CanvasPresentation;
 }) => {
   const [session, setSession] = useState<CoordinatePointConversionSession | null>(null);
+  const [canvasBasePick, setCanvasBasePick] = useState(false);
   const sessionRef = useRef<CoordinatePointConversionSession | null>(null);
+  const canvasBasePickRef = useRef(false);
   const pendingStartRef = useRef<CoordinatePointConversionStartRequest | null>(null);
   const pendingOperationRef = useRef<PendingOperation | null>(null);
   const nextOperationIdRef = useRef(1);
@@ -89,6 +91,10 @@ export const useVSCodeCoordinatePointConversionSession = ({
   const replaceSession = useCallback((next: CoordinatePointConversionSession | null) => {
     sessionRef.current = next;
     setSession(next);
+    if (!next) {
+      canvasBasePickRef.current = false;
+      setCanvasBasePick(false);
+    }
   }, []);
 
   const postRejected = useCallback((request: CoordinatePointConversionStartRequest, reason: CoordinatePointConversionSkip["reason"]) => {
@@ -140,6 +146,8 @@ export const useVSCodeCoordinatePointConversionSession = ({
       postRejected(request, started.reason);
       return;
     }
+    canvasBasePickRef.current = request.canvasBasePick === true;
+    setCanvasBasePick(canvasBasePickRef.current);
     replaceSession(started.session);
   }, [api, currentAuthorityFor, currentContextFor, postRejected, presentation, replaceSession]);
 
@@ -215,11 +223,6 @@ export const useVSCodeCoordinatePointConversionSession = ({
   const setQuery = useCallback((query: string) => {
     const current = sessionRef.current;
     if (current) replaceSession(setCoordinatePointConversionQuery({ ...current, selectedBaseKey: null }, query));
-  }, [replaceSession]);
-
-  const selectBase = useCallback((key: string) => {
-    const current = sessionRef.current;
-    if (current) replaceSession(selectCoordinatePointConversionBase(current, key));
   }, [replaceSession]);
 
   const confirm = useCallback(() => {
@@ -333,6 +336,14 @@ export const useVSCodeCoordinatePointConversionSession = ({
     postCanvasCommit(operationId, currentSession.requestId);
   }, [api, currentAuthorityFor, currentContextFor, postCanvasCommit, presentation, replaceSession]);
 
+  const selectBase = useCallback((key: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const next = selectCoordinatePointConversionBase(current, key);
+    replaceSession(next);
+    if (canvasBasePickRef.current && next.selectedBaseKey === key) confirm();
+  }, [confirm, replaceSession]);
+
   const cancel = useCallback(() => replaceSession(null), [replaceSession]);
 
   const startPick = useCallback(() => {
@@ -340,5 +351,5 @@ export const useVSCodeCoordinatePointConversionSession = ({
     useCadUiStore.getState().setActivePointPickTarget(coordinatePointConversionPickTarget());
   }, []);
 
-  return { session, setQuery, selectBase, startPick, confirm, cancel };
+  return { session, canvasBasePick, setQuery, selectBase, startPick, confirm, cancel };
 };

@@ -409,6 +409,70 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(useCadUiStore.getState().selectedElementIds).not.toContain(first.id);
   });
 
+  it("defers native conversion selection until the matching authoritative Source version", async () => {
+    const source = sourceForSelectionChronology(0);
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const elements = useCadDocumentStore.getState().elements;
+    const first = elements.find((element) => element.name === "A")!;
+    const second = elements.find((element) => element.name === "B")!;
+    useCadUiStore.getState().setCanvasSelectionEligibility(elements, new Set(elements.map((element) => element.id)));
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 4,
+          documentVersion: 8,
+          successfulTargetIds: [second.id]
+        }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: source, documentVersion: 8, reason: "edit" }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([second.id]);
+    expect(useCadUiStore.getState().selectedElementId).toBe(second.id);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 5,
+          documentVersion: 7,
+          successfulTargetIds: [first.id]
+        }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([second.id]);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "coordinatePointConversionSelection",
+          requestId: 6,
+          documentVersion: 9,
+          successfulTargetIds: [first.id]
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "commitText", sourceText: source, documentVersion: 10, reason: "edit" }
+      }));
+    });
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([second.id]);
+  });
+
   it("dispatches only runtime-validated Canvas creation messages through the shared command registry", async () => {
     const dispatchCommand = vi.spyOn(commandRegistry, "dispatchCommand").mockReturnValue(false);
     const api = { postMessage: vi.fn() };
