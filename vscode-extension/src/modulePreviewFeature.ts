@@ -662,7 +662,6 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     if (
       !current.target ||
-      current.sourceRevision !== snapshot.sourceRevision ||
       current.target.definitionStatementId !== snapshot.target.definitionStatementId ||
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name
@@ -762,13 +761,11 @@ export const registerModulePreviewFeature = ({
     ) return false;
     const current = currentTargetFor(session);
     if (message.type === "modulePreviewParametersUnavailable") {
-      return message.sourceRevision === current.sourceRevision &&
-        (message.targetDefinitionStatementId === null ||
-          message.targetDefinitionStatementId === session.targetDefinitionStatementId);
+      return message.targetDefinitionStatementId === null ||
+        message.targetDefinitionStatementId === session.targetDefinitionStatementId;
     }
     return Boolean(
       current.target &&
-      message.sourceRevision === current.sourceRevision &&
       message.target.definitionStatementId === session.targetDefinitionStatementId &&
       message.target.definitionStatementId === current.target.definitionStatementId &&
       message.target.definitionStatementIndex === current.target.definitionStatementIndex &&
@@ -855,7 +852,6 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     if (
       !current.target ||
-      current.sourceRevision !== message.sourceRevision ||
       current.target.definitionStatementId !== message.targetDefinitionStatementId ||
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name
@@ -897,7 +893,6 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     if (
       !current.target ||
-      current.sourceRevision !== message.sourceRevision ||
       current.target.definitionStatementId !== message.targetDefinitionStatementId ||
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name
@@ -956,7 +951,6 @@ export const registerModulePreviewFeature = ({
     const current = currentTargetFor(session);
     if (
       !current.target ||
-      current.sourceRevision !== proof.sourceRevision ||
       current.target.definitionStatementId !== snapshot.target.definitionStatementId ||
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name

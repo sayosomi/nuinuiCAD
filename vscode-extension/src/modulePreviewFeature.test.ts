@@ -309,36 +309,47 @@ const parameterSnapshotFor = ({
 
 const parameterSetValueFor = (
   snapshot: VscodeModulePreviewParameterSnapshot,
-  expression: string
+  expression: string,
+  parameterIndex = 0
 ): VscodeModulePreviewParameterSetValueRequest => ({
+  ...parameterActionProofFor(snapshot, parameterIndex),
   type: "modulePreviewParameterSetValue",
-  sessionId: snapshot.sessionId,
-  documentUri: snapshot.documentUri,
-  documentVersion: snapshot.documentVersion,
-  sourceRevision: snapshot.sourceRevision,
-  sessionRevision: snapshot.sessionRevision,
-  targetDefinitionStatementId: snapshot.target.definitionStatementId,
-  definitionStatementId: snapshot.target.definitionStatementId,
-  parameterIndex: 0,
   expression
 });
 
+const parameterActionProofFor = (
+  snapshot: VscodeModulePreviewParameterSnapshot,
+  parameterIndex = 0
+) => {
+  const parameter = [
+    ...snapshot.ancestorContexts.flatMap((group) => group.parameters),
+    ...snapshot.parameters.parameters
+  ].find((candidate) => candidate.parameterIndex === parameterIndex);
+  if (!parameter) throw new Error(`expected parameter row ${parameterIndex}`);
+  return {
+    sessionId: snapshot.sessionId,
+    documentUri: snapshot.documentUri,
+    documentVersion: snapshot.documentVersion,
+    sourceRevision: snapshot.sourceRevision,
+    sessionRevision: snapshot.sessionRevision,
+    targetDefinitionStatementId: snapshot.target.definitionStatementId,
+    definitionStatementId: parameter.definitionStatementId,
+    parameterIndex
+  };
+};
+
 const parameterValueFocusFor = (
   snapshot: VscodeModulePreviewParameterSnapshot,
-  overrides: Partial<Omit<VscodeModulePreviewParameterValueFocus, "type">> = {}
+  overrides: Partial<Omit<VscodeModulePreviewParameterValueFocus, "type">> = {},
+  parameterIndex = 0
 ): VscodeModulePreviewParameterValueFocus => ({
+  ...parameterActionProofFor(snapshot, parameterIndex),
   type: "modulePreviewParameterValueFocus",
-  sessionId: snapshot.sessionId,
-  documentUri: snapshot.documentUri,
-  documentVersion: snapshot.documentVersion,
-  sourceRevision: snapshot.sourceRevision,
-  sessionRevision: snapshot.sessionRevision,
-  targetDefinitionStatementId: snapshot.target.definitionStatementId,
-  definitionStatementId: snapshot.parameters.parameters[0]!.definitionStatementId,
-  parameterIndex: 0,
-  value: snapshot.parameters.parameters[0]!.value,
+  value: [...snapshot.ancestorContexts.flatMap((group) => group.parameters), ...snapshot.parameters.parameters]
+    .find((parameter) => parameter.parameterIndex === parameterIndex)!.value,
   selectionStart: 0,
-  selectionEnd: snapshot.parameters.parameters[0]!.value.length,
+  selectionEnd: [...snapshot.ancestorContexts.flatMap((group) => group.parameters), ...snapshot.parameters.parameters]
+    .find((parameter) => parameter.parameterIndex === parameterIndex)!.value.length,
   focusGeneration: 1,
   ...overrides
 });
@@ -1391,6 +1402,242 @@ describe("registerModulePreviewFeature", () => {
       NUI_MODULE_PREVIEW_VALUE_INPUT_FOCUS_CONTEXT,
       true
     );
+
+    feature.dispose();
+  });
+
+  it("accepts exact-current Parameter View proofs across independent Preview and analysis revisions", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point, width: number = 4) {",
+      "  point P = offset(from: @anchor, dx: @width, dy: 0)",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const analysis = createLanguageAnalysisSession(source);
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("point P")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => analysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    const previewSourceRevision = analysis.getSourceRevision();
+
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    analysis.replaceSource(source.replace("x: 0", "x: 1"));
+    analysis.replaceSource(source);
+    const analysisSourceRevision = analysis.getSourceRevision();
+    expect(analysisSourceRevision).not.toBe(previewSourceRevision);
+
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    const target = analysis.definitionSemanticSnapshot({
+      normalizedSource: source,
+      sourceRevision: analysisSourceRevision
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+    if (!sessionId || !target) throw new Error("expected exact-current Module Preview target");
+
+    const baseSnapshot = parameterSnapshotFor({
+      sessionId,
+      document,
+      target,
+      sourceRevision: previewSourceRevision,
+      parameterType: { kind: "point" },
+      value: ""
+    });
+    const missingDiagnostic = {
+      code: "required-value-missing" as const,
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      message: "Parameter 'anchor' is required."
+    };
+    const snapshot: VscodeModulePreviewParameterSnapshot = {
+      ...baseSnapshot,
+      parameters: {
+        ...baseSnapshot.parameters,
+        parameters: [
+          {
+            ...baseSnapshot.parameters.parameters[0]!,
+            name: "anchor",
+            diagnostic: missingDiagnostic
+          },
+          {
+            ...baseSnapshot.parameters.parameters[0]!,
+            parameterIndex: 1,
+            name: "width",
+            type: { kind: "number" },
+            numericTypeOptions: { step: 2, min: 0, max: 10 },
+            optional: false,
+            required: false,
+            defaultSourceText: "4",
+            value: "2",
+            diagnostic: null
+          }
+        ]
+      },
+      inputDiagnostics: [missingDiagnostic],
+      previewStatus: "noValidPreview"
+    };
+    await panel.receive({
+      type: "modulePreviewParametersUnavailable",
+      sessionId,
+      documentUri: document.uri.toString(),
+      documentVersion: document.version,
+      sourceRevision: previewSourceRevision,
+      sessionRevision: 0,
+      targetDefinitionStatementId: target.statementId,
+      reason: "not-ready"
+    });
+    await panel.receive(snapshot);
+
+    feature.attachParameterView(parameterView as never);
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
+    expect(snapshot.parameters.parameters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "anchor", value: "", diagnostic: missingDiagnostic }),
+      expect.objectContaining({ name: "width", value: "2", defaultSourceText: "4" })
+    ]));
+
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive(parameterSetValueFor(snapshot, "3", 1));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sourceRevision: previewSourceRevision,
+      definitionStatementId: target.statementId,
+      parameterIndex: 1,
+      expression: "3"
+    }));
+
+    panel.webview.postMessage.mockClear();
+    const useDefault = {
+      type: "modulePreviewParameterUseDefault" as const,
+      ...parameterActionProofFor(snapshot, 1)
+    };
+    await parameterView.receive(useDefault);
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewUseDefault",
+      sourceRevision: previewSourceRevision,
+      parameterIndex: 1
+    }));
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive({ ...useDefault, sourceRevision: analysisSourceRevision });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewUseDefault"
+    }));
+
+    await parameterView.receive(parameterValueFocusFor(snapshot, {
+      selectionStart: 0,
+      selectionEnd: 1
+    }, 1));
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get(NUI_MODULE_PREVIEW_VALUE_STEP_FORWARD_COMMAND_ID)!();
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sourceRevision: previewSourceRevision,
+      parameterIndex: 1,
+      expression: "4"
+    }));
+
+    panel.webview.postMessage.mockClear();
+    const parameterReferenceProof = {
+      type: "modulePreviewParameterReferencePickStart" as const,
+      ...parameterActionProofFor(snapshot)
+    };
+    await parameterView.receive({ ...parameterReferenceProof, sourceRevision: analysisSourceRevision });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickStartRequest"
+    }));
+    await parameterView.receive({ ...parameterReferenceProof, sessionId: "stale-session" });
+    await parameterView.receive({ ...parameterReferenceProof, targetDefinitionStatementId: "stale-target" });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewReferencePickStartRequest"
+    }));
+
+    await parameterView.receive(parameterReferenceProof);
+    const start = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; requestId?: number })
+      .find((message) => message.type === "modulePreviewReferencePickStartRequest");
+    if (!start?.requestId) throw new Error("expected exact Preview reference pick request");
+    const referenceProof = {
+      requestId: start.requestId,
+      ...parameterActionProofFor(snapshot),
+      expectedGeometryInterface: "point" as const,
+      role: "geometry" as const,
+      multiplicity: "single" as const
+    };
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...referenceProof,
+      sourceRevision: analysisSourceRevision,
+      status: "confirmed" as const,
+      resultKind: "geometry" as const,
+      references: [{ base: "Top" }]
+    });
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...referenceProof,
+      sessionId: "stale-session",
+      status: "confirmed" as const,
+      resultKind: "geometry" as const,
+      references: [{ base: "Top" }]
+    });
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...referenceProof,
+      targetDefinitionStatementId: "stale-target",
+      status: "confirmed" as const,
+      resultKind: "geometry" as const,
+      references: [{ base: "Top" }]
+    });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...referenceProof,
+      status: "started" as const,
+      candidateReferences: [{ base: "Top" }]
+    });
+    await panel.receive({
+      type: "modulePreviewReferencePickResult",
+      ...referenceProof,
+      status: "confirmed" as const,
+      resultKind: "geometry" as const,
+      references: [{ base: "Top" }]
+    });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sourceRevision: previewSourceRevision,
+      definitionStatementId: target.statementId,
+      parameterIndex: 0,
+      expression: "@Top"
+    }));
+
+    const staleAction = parameterSetValueFor(snapshot, "stale", 1);
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive({ ...staleAction, sessionId: "stale-session" });
+    await parameterView.receive({ ...staleAction, documentVersion: 2 });
+    await parameterView.receive({ ...staleAction, targetDefinitionStatementId: "stale-target" });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
+    expect(document.version).toBe(1);
+    expect(document.getText()).toBe(source);
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith("undo");
 
     feature.dispose();
   });
