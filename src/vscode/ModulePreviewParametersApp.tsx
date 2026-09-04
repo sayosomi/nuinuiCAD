@@ -40,13 +40,18 @@ const unavailableMessageFor = (
 };
 
 const parameterMessageIsSuperseded = (
-  current: { sessionId: string | null; sessionRevision: number } | null,
-  next: { sessionId: string | null; sessionRevision: number }
-): boolean => Boolean(
-  current &&
-  current.sessionId === next.sessionId &&
-  next.sessionRevision <= current.sessionRevision
-);
+  current: { sessionId: string | null; documentVersion: number | null; sessionRevision: number } | null,
+  next: { sessionId: string | null; documentVersion: number | null; sessionRevision: number }
+): boolean => {
+  if (!current || current.sessionId !== next.sessionId) return false;
+  if (current.documentVersion === null || next.documentVersion === null) {
+    return next.sessionRevision <= current.sessionRevision;
+  }
+  if (next.documentVersion !== current.documentVersion) {
+    return next.documentVersion < current.documentVersion;
+  }
+  return next.sessionRevision <= current.sessionRevision;
+};
 
 const previewStatusMessageFor = (
   status: VscodeModulePreviewParameterSnapshot["previewStatus"],

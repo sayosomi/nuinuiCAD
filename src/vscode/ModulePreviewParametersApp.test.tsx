@@ -171,6 +171,47 @@ describe("ModulePreviewParametersApp", () => {
     expect(screen.queryByText("Module Preview parameters are waiting for the refreshed source.")).not.toBeInTheDocument();
   });
 
+  it("orders same-session messages by document version before session revision", () => {
+    const newerDocumentVersion = snapshot.documentVersion + 1;
+    const newerSourceStale = {
+      type: "modulePreviewParametersUnavailable" as const,
+      sessionId: snapshot.sessionId,
+      documentUri: snapshot.documentUri,
+      documentVersion: newerDocumentVersion,
+      sourceRevision: snapshot.sourceRevision + 1,
+      sessionRevision: snapshot.sessionRevision,
+      targetDefinitionStatementId: snapshot.target.definitionStatementId,
+      reason: "source-stale" as const
+    };
+    const restoredSnapshot = {
+      ...snapshot,
+      documentVersion: newerDocumentVersion,
+      sourceRevision: snapshot.sourceRevision + 1,
+      sessionRevision: snapshot.sessionRevision + 1
+    };
+    const olderDocumentSourceStale = {
+      ...newerSourceStale,
+      documentVersion: snapshot.documentVersion,
+      sourceRevision: snapshot.sourceRevision,
+      sessionRevision: snapshot.sessionRevision + 2
+    };
+    render(<ModulePreviewParametersApp api={api} />);
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: newerSourceStale })));
+    expect(screen.queryByLabelText("Value for width")).not.toBeInTheDocument();
+    expect(screen.getByText("Module Preview parameters are waiting for the refreshed source.")).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: restoredSnapshot })));
+    expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: olderDocumentSourceStale })));
+    expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
+    expect(screen.queryByText("Module Preview parameters are waiting for the refreshed source.")).not.toBeInTheDocument();
+  });
+
   it("renders host-published Japanese presentation while preserving authored parameter names", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => {
