@@ -11,7 +11,7 @@ const vscodeMocks = vi.hoisted(() => ({
     Value: 7,
     Operator: 8
   },
-  multiDocumentHost: null as { languageSemanticSnapshotFor: ReturnType<typeof vi.fn> } | null
+  multiDocumentHost: null as { completionSemanticSnapshotFor: ReturnType<typeof vi.fn> } | null
 }));
 
 vi.mock("vscode", () => {
@@ -159,7 +159,7 @@ describe("VS Code native nui completion provider", () => {
       "}"
     ].join("\n"));
     const host = {
-      languageSemanticSnapshotFor: vi.fn(async () => snapshot)
+      completionSemanticSnapshotFor: vi.fn(async () => snapshot)
     };
     vscodeMocks.multiDocumentHost = host;
     const session = createLanguageAnalysisSession(source);
@@ -172,7 +172,7 @@ describe("VS Code native nui completion provider", () => {
       undefined as never
     ) as vscode.CompletionItem[];
 
-    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledWith(document);
+    expect(host.completionSemanticSnapshotFor).toHaveBeenCalledWith(document);
     expect(items.map((item) => item.label)).toContain("Panel");
     expect(items.find((item) => item.label === "Panel")?.kind).toBe(vscodeMocks.CompletionItemKind.Module);
   });
@@ -186,7 +186,7 @@ describe("VS Code native nui completion provider", () => {
     ].join("\n");
     const snapshot = await importedModuleSnapshotFor(source, "nui 1");
     const host = {
-      languageSemanticSnapshotFor: vi.fn(async () => snapshot)
+      completionSemanticSnapshotFor: vi.fn(async () => snapshot)
     };
     vscodeMocks.multiDocumentHost = host;
     const session = createLanguageAnalysisSession(source);
@@ -202,7 +202,7 @@ describe("VS Code native nui completion provider", () => {
     ) as vscode.CompletionItem[];
     const labels = items.map((item) => item.label);
 
-    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledWith(document);
+    expect(host.completionSemanticSnapshotFor).toHaveBeenCalledWith(document);
     expect(labels).toEqual(expect.arrayContaining([
       "length",
       "startAngleDeg",
@@ -223,7 +223,7 @@ describe("VS Code native nui completion provider", () => {
   it("keeps the established local completion path when the host snapshot is unavailable", async () => {
     const source = "nui 1\nconst value: number = ab";
     const host = {
-      languageSemanticSnapshotFor: vi.fn(async () => null)
+      completionSemanticSnapshotFor: vi.fn(async () => null)
     };
     vscodeMocks.multiDocumentHost = host;
     const session = createLanguageAnalysisSession(source);
@@ -235,7 +235,7 @@ describe("VS Code native nui completion provider", () => {
       undefined as never
     ) as vscode.CompletionItem[];
 
-    expect(host.languageSemanticSnapshotFor).toHaveBeenCalledOnce();
+    expect(host.completionSemanticSnapshotFor).toHaveBeenCalledOnce();
     expect(items.map((item) => item.label)).toContain("abs");
   });
 

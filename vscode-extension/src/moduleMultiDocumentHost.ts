@@ -10,16 +10,21 @@ import {
   moduleDeclarationContributor
 } from "../../src/document/multiDocumentModuleSemantics";
 import type { MultiDocumentRenameDocumentProof } from "../../src/document/multiDocumentLanguageQueries";
-import type { MultiDocumentGraphNode } from "../../src/document/multiDocumentImportGraph";
+import type {
+  MultiDocumentGraphNode,
+  MultiDocumentImportGraph
+} from "../../src/document/multiDocumentImportGraph";
 import {
   qualifySourceLocation,
   sourceIdentityOf,
+  type DocumentId,
   type DocumentQualifiedSourceLocation,
   type DocumentSourceIdentity,
   type DocumentTextRange
 } from "../../src/document/multiDocumentPrimitives";
 import {
   VscodeMultiDocumentHost,
+  type VscodeMultiDocumentCompletionSemanticRootCompiler,
   type VscodeMultiDocumentDiagnostic,
   type VscodeMultiDocumentDiagnosticsProjector,
   type VscodeMultiDocumentHostOptions,
@@ -94,6 +99,79 @@ const exactModuleRootCompile: VscodeMultiDocumentSemanticRootCompiler = (graph) 
     !sameStatementIds(compiledStatementIds, rootNode.artifact.statementIdByStatementIndex)
   ) return null;
   return compiled;
+};
+
+/**
+ * Build the Completion-only root semantic view. The graph builder still marks
+ * an incomplete root invalid, but it has loaded the root's imports through the
+ * existing saved-artifact/public-catalog path. Only the root validity bit and
+ * root semantic diagnostics are relaxed here; every dependency must remain
+ * exact and valid before the shared Module runtime context is admitted.
+ */
+const completionModuleRootCompile: VscodeMultiDocumentCompletionSemanticRootCompiler = ({ graph, source }) => {
+  if (
+    graph.rootDocumentId !== source.documentId ||
+    graph.rootSource.kind !== "root-current" ||
+    graph.rootSource.normalizedSource !== source.normalizedSource ||
+    graph.rootSource.sourceRevision !== source.sourceRevision ||
+    graph.diagnostics.length > 0
+  ) return null;
+
+  const rootNode = graph.nodes.get(source.documentId);
+  if (!rootNode || rootNode.artifact.source !== graph.rootSource || !rootNode.publicApi.valid) return null;
+  if (graph.edges.some((edge) => edge.status !== "resolved")) return null;
+  if ([...graph.nodes].some(([documentId, node]) =>
+    documentId !== source.documentId && (!node.valid || !node.publicApi.valid)
+  )) return null;
+  if ([...graph.dependencyFingerprints].some(([documentId]) => documentId === source.documentId)) return null;
+  for (const [documentId] of graph.nodes) {
+    if (documentId !== source.documentId && !graph.dependencyFingerprints.has(documentId)) return null;
+  }
+
+  const completionNodes = new Map<DocumentId, MultiDocumentGraphNode<unknown>>();
+  for (const [documentId, node] of graph.nodes) {
+    completionNodes.set(
+      documentId,
+      documentId === source.documentId ? { ...node, valid: true } : node
+    );
+  }
+  const completionGraph: MultiDocumentImportGraph<unknown> = {
+    ...graph,
+    nodes: completionNodes,
+    valid: true
+  };
+  const analysis = analyzeMultiDocumentModuleSemantics(completionGraph);
+  const rootAnalysis = analysis.analysesByDocument.get(source.documentId);
+  if (!rootAnalysis || analysis.analysesByDocument.size !== completionGraph.nodes.size) return null;
+  if (analysis.diagnostics.some((diagnostic) => diagnostic.location.source.documentId !== source.documentId)) return null;
+
+  const completionAnalysis = {
+    ...analysis,
+    valid: true,
+    diagnostics: []
+  };
+  const context = createModuleRuntimeContext(completionGraph, completionAnalysis);
+  if (
+    !context.valid ||
+    context.graph !== completionGraph ||
+    context.rootDocumentId !== source.documentId
+  ) return null;
+
+  const compiled = compileDslDocument(source.normalizedSource, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: source.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex
+  });
+  if (
+    !compiled.sourceLexicalNamespace ||
+    compiled.spans.sourceMap.source !== source.normalizedSource ||
+    compiled.spans.sourceMap.sourceRevision !== source.sourceRevision
+  ) return null;
+  return {
+    ...compiled,
+    moduleSemanticAnalysis: rootAnalysis,
+    moduleRuntimeContext: context
+  };
 };
 
 const moduleIdentityProjector: VscodeMultiDocumentHostOptions["identityProjector"] = (
@@ -310,6 +388,7 @@ const moduleRenameProofFactory: VscodeMultiDocumentRenameProofFactory = ({
 const moduleMultiDocumentHostOptions: VscodeMultiDocumentHostOptions = {
   declarationContributors: [moduleDeclarationContributor],
   semanticRootCompiler: exactModuleRootCompile,
+  completionSemanticRootCompiler: completionModuleRootCompile,
   diagnosticsProjector: projectVscodeModuleDiagnostics,
   canvasRuntimeProjector: projectVscodeMultiDocumentCanvasRuntime,
   identityProjector: moduleIdentityProjector,
