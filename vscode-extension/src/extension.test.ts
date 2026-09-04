@@ -5,6 +5,7 @@ import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } 
 import { vscodeObservationState } from "./vscodeObservationState";
 import { coordinatePointConversionCanvasTargetsFor } from "./coordinatePointConversionCommandFeature";
 import type { VscodeMultiDocumentDiagnosticsState } from "./multiDocumentHost";
+import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
 
 type MockPosition = { line: number; character: number };
 type MockSelection = {
@@ -2575,6 +2576,74 @@ describe("VS Code production document lifecycle", () => {
     document.setSourceText("nui 1\n// changed\n");
     emitDocumentChange(document);
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "commitText", documentVersion: 2 }));
+  });
+
+  it("replays a retained graph after the current Canvas acknowledges authoritative Source", async () => {
+    const document = documentFor(
+      "/tmp/cold-graph-replay.nui",
+      "file:///tmp/cold-graph-replay.nui",
+      "nui 1\n"
+    );
+    const editor = editorFor(document);
+    const publication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: document.version,
+      status: "building" as const,
+      graph: null
+    };
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), publication);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    const messages = panel.webview.postMessage.mock.calls.map(([message]) => message);
+    const replaceTextIndex = messages.findIndex((message) => message?.type === "replaceTextDocument");
+    const publicationIndexes = messages
+      .map((message, index) => message === publication ? index : -1)
+      .filter((index) => index >= 0);
+    expect(publicationIndexes).toHaveLength(2);
+    expect(publicationIndexes[1]).toBeGreaterThan(replaceTextIndex);
+  });
+
+  it("does not replay a retained graph for a stale or non-current Canvas acknowledgement", async () => {
+    const document = documentFor(
+      "/tmp/stale-cold-graph-replay.nui",
+      "file:///tmp/stale-cold-graph-replay.nui",
+      "nui 1\n"
+    );
+    const editor = editorFor(document);
+    const publication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: document.version,
+      status: "building" as const,
+      graph: null
+    };
+    publishVscodeMultiDocumentGraphPublication(document.uri.toString(), publication);
+    setup(false, editor, [document]);
+    const firstPanel = openPanelFor(editor);
+    const firstHandler = messageHandlerFor(firstPanel);
+    await firstHandler({ type: "webviewReady" });
+
+    document.version = 2;
+    firstPanel.webview.postMessage.mockClear();
+    await firstHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+    expect(firstPanel.webview.postMessage).not.toHaveBeenCalledWith(publication);
+
+    document.version = 1;
+    firstPanel.dispose();
+    const secondPanel = openPanelFor(editor);
+    const secondHandler = messageHandlerFor(secondPanel);
+    await secondHandler({ type: "webviewReady" });
+    secondPanel.webview.postMessage.mockClear();
+    firstPanel.webview.postMessage.mockClear();
+
+    await firstHandler({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    expect(firstPanel.webview.postMessage).not.toHaveBeenCalledWith(publication);
+    expect(secondPanel.webview.postMessage).not.toHaveBeenCalledWith(publication);
   });
 
   it("retains an immediate Canvas free-point invocation until the changed document is authoritative again", async () => {

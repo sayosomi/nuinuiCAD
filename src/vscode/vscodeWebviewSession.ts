@@ -64,6 +64,12 @@ export class VscodeWebviewSessionRegistry<T extends VscodeWebviewSessionBase> {
     if (publication) this.postPublication(session, publication);
   }
 
+  replayLatestMultiDocumentGraphPublication(session: T): void {
+    if (this.byKey.get(vscodeWebviewSessionKey(session.documentUri, session.surfaceKind)) !== session) return;
+    const publication = latestMultiDocumentPublicationByDocument.get(session.documentUri);
+    if (publication) this.postPublication(session, publication);
+  }
+
   delete(documentUri: string, surfaceKind: VscodeWebviewSurfaceKind): boolean {
     return this.byKey.delete(vscodeWebviewSessionKey(documentUri, surfaceKind));
   }
