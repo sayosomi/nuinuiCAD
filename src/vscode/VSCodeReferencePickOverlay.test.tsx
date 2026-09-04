@@ -211,18 +211,21 @@ const numericLineStartCandidate: ReferencePickCandidate = {
 };
 
 describe("VSCodeReferencePickOverlay", () => {
-  it("uses the Extension Host presentation for reference-pick chrome", () => {
+  it.each([
+    ["ja", "選択 · 線", "線の選択対象", "Enter 決定", "決定"],
+    ["en", "Pick · Line", "Line target", "Enter Done", "Done"]
+  ] as const)("uses the Extension Host presentation for reference-pick chrome (%s)", (language, badge, target, shortcut, done) => {
     renderOverlay(
       sessionFor({ expectedGeometryInterface: "line" }),
       {},
       {},
-      webviewCanvasPresentationFor(webviewPresentationFor("ja"))
+      webviewCanvasPresentationFor(webviewPresentationFor(language))
     );
 
-    expect(screen.getByText("選択 · 線")).toBeInTheDocument();
-    expect(screen.getByText("線の選択対象")).toBeInTheDocument();
-    expect(screen.getByText("Enter 決定")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "決定" })).toBeInTheDocument();
+    expect(screen.getByText(badge)).toBeInTheDocument();
+    expect(screen.getByText(target)).toBeInTheDocument();
+    expect(screen.getByText(shortcut)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: done })).toBeInTheDocument();
   });
 
   it("reuses the Canvas bottom-right transient hint and theme contract", () => {

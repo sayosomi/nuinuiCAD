@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   postMessage: vi.fn(),
   evaluateElementsWithRust: vi.fn(),
   hostAdapter: null as unknown,
-  evaluationState: null as unknown
+  evaluationState: null as unknown,
+  dragPointTransform: null as unknown
 }));
 
 vi.mock("../components/DrawingCanvas", () => ({
@@ -24,6 +25,21 @@ vi.mock("../components/DrawingCanvas", () => ({
     return null;
   }
 }));
+
+vi.mock("../model/elementDragTransforms", async () => {
+  const actual = await vi.importActual<typeof import("../model/elementDragTransforms")>("../model/elementDragTransforms");
+  return {
+    ...actual,
+    movePointElementByDeltaInElements: (
+      ...args: Parameters<typeof actual.movePointElementByDeltaInElements>
+    ): ReturnType<typeof actual.movePointElementByDeltaInElements> => {
+      const override = mocks.dragPointTransform as (
+        ...overrideArgs: Parameters<typeof actual.movePointElementByDeltaInElements>
+      ) => ReturnType<typeof actual.movePointElementByDeltaInElements> | null;
+      return override ? override(...args) : actual.movePointElementByDeltaInElements(...args);
+    }
+  };
+});
 
 vi.mock("../geometry/useEvaluationEngine", async () => {
   const actual = await vi.importActual<typeof import("../geometry/useEvaluationEngine")>("../geometry/useEvaluationEngine");
@@ -269,6 +285,29 @@ const prepareEphemeralDragFixture = () => {
   return { source, fixture, sourceBefore, hostAdapter, base, point, curve };
 };
 
+const publishPresentation = (language: "ja" | "en") => {
+  act(() => window.dispatchEvent(new MessageEvent("message", {
+    data: {
+      type: "webviewPresentation",
+      presentation: {
+        locale: language,
+        strings: {
+          "modulePreview.dragStale": language === "ja"
+            ? "Module Previewのドラッグ状態が古くなっています。"
+            : "Module Preview drag state is stale.",
+          "modulePreview.noWritableOwner": language === "ja"
+            ? "Module Previewのジオメトリに書き込み可能な作成元がありません。"
+            : "Module Preview geometry has no writable authored owner.",
+          "modulePreview.dragTargetUnavailable": language === "ja"
+            ? "Module Previewのドラッグ対象を利用できません。"
+            : "Module Preview drag target is unavailable."
+        },
+        diagnosticTemplates: {}
+      }
+    }
+  })));
+};
+
 afterEach(() => {
   cleanup();
   mocks.queryModulePreviewTarget.mockReset();
@@ -280,6 +319,7 @@ afterEach(() => {
   mocks.evaluateElementsWithRust.mockReset();
   mocks.hostAdapter = null;
   mocks.evaluationState = null;
+  mocks.dragPointTransform = null;
   useCadUiStore.getState().setSelectedElementIds([]);
   vi.restoreAllMocks();
 });
@@ -445,6 +485,88 @@ describe("ModulePreviewApp parameter relay", () => {
     expect(fixture.document.getSource()).toBe(source);
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
     expect(mocks.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewModelPatch" }));
+  });
+
+  it.each([
+    ["ja", "Module Previewのドラッグ状態が古くなっています。"],
+    ["en", "Module Preview drag state is stale."]
+  ] as const)("uses the host locale for stale Module Preview drag rejection (%s)", (language, reason) => {
+    const { source, fixture, point } = prepareEphemeralDragFixture();
+    publishPresentation(language);
+    const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    const base = previewHostAdapter.getCurrentCanonicalDocument();
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      data: { type: "commitText", sourceText: source, documentVersion: 2, reason: "edit" }
+    })));
+
+    let result: unknown;
+    act(() => {
+      result = (mocks.hostAdapter as CanvasHostAdapter).movePointElementByDelta({
+        elementId: point.id,
+        dx: 1,
+        dy: 0,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "commit",
+        baseElements: base.elements,
+        baseEvaluation: fixture.evaluation
+      });
+    });
+
+    expect(result).toEqual({ status: "rejected", reason });
+  });
+
+  it.each([
+    ["ja", "Module Previewのジオメトリに書き込み可能な作成元がありません。"],
+    ["en", "Module Preview geometry has no writable authored owner."]
+  ] as const)("uses the host locale for no-writable-owner Module Preview drag rejection (%s)", (language, reason) => {
+    const { fixture } = prepareEphemeralDragFixture();
+    publishPresentation(language);
+    const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    const base = previewHostAdapter.getCurrentCanonicalDocument();
+
+    let result: unknown;
+    act(() => {
+      result = previewHostAdapter.movePointElementByDelta({
+        elementId: "unowned-preview-element",
+        dx: 1,
+        dy: 0,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "preview",
+        baseElements: base.elements,
+        baseEvaluation: fixture.evaluation
+      });
+    });
+
+    expect(result).toEqual({ status: "rejected", reason });
+  });
+
+  it.each([
+    ["ja", "Module Previewのドラッグ対象を利用できません。"],
+    ["en", "Module Preview drag target is unavailable."]
+  ] as const)("uses the host locale for unavailable Module Preview drag targets (%s)", (language, reason) => {
+    const { fixture, point } = prepareEphemeralDragFixture();
+    publishPresentation(language);
+    const previewHostAdapter = mocks.hostAdapter as CanvasHostAdapter;
+    const base = previewHostAdapter.getCurrentCanonicalDocument();
+    mocks.dragPointTransform = (elements: CadElement[]) => elements.filter((element) => element.id !== point.id);
+
+    let result: unknown;
+    act(() => {
+      result = previewHostAdapter.movePointElementByDelta({
+        elementId: point.id,
+        dx: 1,
+        dy: 0,
+        angleLocked: false,
+        distanceLocked: false,
+        commitMode: "commit",
+        baseElements: base.elements,
+        baseEvaluation: fixture.evaluation
+      });
+    });
+
+    expect(result).toEqual({ status: "rejected", reason });
   });
 
   it("keeps a pending drag patch through its exact authoritative commit acknowledgement", () => {

@@ -104,14 +104,17 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(navigateButton(1)).toHaveClass("is-active");
   });
 
-  it("uses the Extension Host presentation for creation-assist chrome and help", () => {
-    renderOverlay(vi.fn(), undefined, webviewCanvasPresentationFor(webviewPresentationFor("ja")));
+  it.each([
+    ["ja", "VS Code作成アシスト", "3ステップ中1ステップ", "空Enterで無名のまま進みます。", "キャンセル"],
+    ["en", "VS Code creation assist", "Step 1 of 3", "Press Enter with an empty value to continue unnamed.", "Cancel"]
+  ] as const)("uses the Extension Host presentation for creation-assist chrome and help (%s)", (language, formName, progress, help, cancel) => {
+    renderOverlay(vi.fn(), undefined, webviewCanvasPresentationFor(webviewPresentationFor(language)));
     start("line");
 
-    expect(screen.getByRole("form", { name: "VS Code作成アシスト" })).toBeInTheDocument();
-    expect(screen.getByText("3ステップ中1ステップ")).toBeInTheDocument();
-    expect(screen.getByText("空Enterで無名のまま進みます。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "キャンセル" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: formName })).toBeInTheDocument();
+    expect(screen.getByText(progress)).toBeInTheDocument();
+    expect(screen.getByText(help)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: cancel })).toBeInTheDocument();
   });
 
   it("describes a default-bearing division ratio as blank when empty Enter advances", () => {

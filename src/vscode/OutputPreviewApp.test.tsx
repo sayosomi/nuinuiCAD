@@ -289,6 +289,37 @@ describe("Output Preview application", () => {
     expect(screen.getByText("印刷またはSVGの出力がありません")).toBeInTheDocument();
   });
 
+  it.each([
+    ["ja", "現在のSourceから有効な出力プランを作成できません。"],
+    ["en", "The current source cannot produce a valid output plan."]
+  ] as const)("renders the host-localized no-valid-plan fallback (%s)", (language, message) => {
+    useCadDocumentStore.setState(initialCadDocumentState());
+    useCadDocumentStore.getState().commitText(source, "test");
+    useCadDocumentStore.setState((state) => ({
+      sourceText: `${state.sourceText}\n// pending source`,
+      diagnostics: [],
+      bindingIssueDiagnostics: []
+    }));
+    render(<OutputPreviewApp api={api} />);
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "webviewPresentation",
+          presentation: {
+            locale: language,
+            strings: {
+              "output.unavailable": language === "ja" ? "出力プレビューを利用できません" : "Output Preview unavailable",
+              "output.noValidPlan": message
+            },
+            diagnosticTemplates: {}
+          }
+        }
+      }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+  });
+
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

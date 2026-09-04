@@ -57,7 +57,10 @@ const projection = ({
 afterEach(() => cleanup());
 
 describe("OutputPreviewPlaceOverlay", () => {
-  it("uses the Extension Host presentation for placement chrome", () => {
+  it.each([
+    ["ja", "Frontを配置", "Frontの配置詳細", "Patternに配置"],
+    ["en", "Place Front", "Place details for Front", "placed in Pattern"]
+  ] as const)("uses the Extension Host presentation for placement chrome (%s)", (language, handle, details, place) => {
     render(
       <OutputPreviewPlaceOverlay
         projections={[projection({ placeId: "a", groupName: "Front" })]}
@@ -66,14 +69,14 @@ describe("OutputPreviewPlaceOverlay", () => {
         viewport={{ panX: 0, panY: 0, zoom: 1 }}
         onNavigate={vi.fn()}
         onHighlightPlaceIdChange={vi.fn()}
-        presentation={webviewCanvasPresentationFor(webviewPresentationFor("ja"))}
+        presentation={webviewCanvasPresentationFor(webviewPresentationFor(language))}
       />
     );
 
-    expect(screen.getByRole("button", { name: "Frontを配置" })).toBeInTheDocument();
-    fireEvent.pointerEnter(screen.getByRole("button", { name: "Frontを配置" }));
-    expect(screen.getByRole("complementary", { name: "Frontの配置詳細" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Patternに配置" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: handle })).toBeInTheDocument();
+    fireEvent.pointerEnter(screen.getByRole("button", { name: handle }));
+    expect(screen.getByRole("complementary", { name: details })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: place })).toBeInTheDocument();
   });
 
   it("uses grab only for draggable handles and shows the non-draggable reason on hover", () => {
