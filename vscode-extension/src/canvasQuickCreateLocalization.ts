@@ -10,22 +10,6 @@ export const canvasQuickCreateTranslationCatalog = {
     en: "Create geometry",
     ja: "ジオメトリを作成"
   },
-  "canvasQuickCreate.placeholder.addCommand": {
-    en: "Add Quick Create command",
-    ja: "クイック作成コマンドを追加"
-  },
-  "canvasQuickCreate.title.configure": {
-    en: "Configure Quick Create",
-    ja: "クイック作成を設定"
-  },
-  "canvasQuickCreate.placeholder.configuredCommands": {
-    en: "Configured creation commands",
-    ja: "設定済みの作成コマンド"
-  },
-  "canvasQuickCreate.button.add": { en: "Add", ja: "追加" },
-  "canvasQuickCreate.button.moveUp": { en: "Move Up", ja: "上へ移動" },
-  "canvasQuickCreate.button.moveDown": { en: "Move Down", ja: "下へ移動" },
-  "canvasQuickCreate.button.remove": { en: "Remove", ja: "削除" },
   "canvasQuickCreate.description.create": {
     en: "Create {action}",
     ja: "{action}を作成"
@@ -60,17 +44,12 @@ export const canvasQuickCreateTranslationCatalog = {
 export const canvasQuickCreateTranslatorFor = (displayLanguage: string) =>
   createTranslator(canvasQuickCreateTranslationCatalog, resolveLocale(displayLanguage));
 
-export const canvasQuickCreateLabelFor = (
-  commandId: VscodeCanvasCreationCommandId,
-  displayLanguage: string
-): string => canvasQuickCreateTranslatorFor(displayLanguage)(`canvasQuickCreate.command.${commandId}`);
-
 export const canvasQuickCreateDescriptionFor = (
   commandId: VscodeCanvasCreationCommandId,
   displayLanguage: string
 ): string => {
   const translator = canvasQuickCreateTranslatorFor(displayLanguage);
   return translator("canvasQuickCreate.description.create", {
-    action: canvasQuickCreateLabelFor(commandId, displayLanguage)
+    action: translator(`canvasQuickCreate.command.${commandId}`)
   });
 };
