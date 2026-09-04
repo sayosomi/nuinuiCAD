@@ -127,6 +127,50 @@ afterEach(() => {
 });
 
 describe("ModulePreviewParametersApp", () => {
+  it("keeps exact current rows when an older source-stale message arrives after the snapshot", () => {
+    const requiredDiagnostic = {
+      code: "required-value-missing" as const,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      message: "Parameter 'width' is required."
+    };
+    const currentSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...snapshot,
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) =>
+          parameter.name === "width"
+            ? { ...parameter, value: "", diagnostic: requiredDiagnostic }
+            : parameter
+        )
+      },
+      inputDiagnostics: [requiredDiagnostic],
+      previewStatus: "noValidPreview"
+    };
+    const sourceStale = {
+      type: "modulePreviewParametersUnavailable" as const,
+      sessionId: currentSnapshot.sessionId,
+      documentUri: currentSnapshot.documentUri,
+      documentVersion: currentSnapshot.documentVersion,
+      sourceRevision: currentSnapshot.sourceRevision,
+      sessionRevision: currentSnapshot.sessionRevision - 1,
+      targetDefinitionStatementId: currentSnapshot.target.definitionStatementId,
+      reason: "source-stale" as const
+    };
+    render(<ModulePreviewParametersApp api={api} />);
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: sourceStale })));
+    expect(screen.getByText("Module Preview parameters are waiting for the refreshed source.")).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: currentSnapshot })));
+    expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Parameter 'width' is required.");
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: sourceStale })));
+    expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
+    expect(screen.queryByText("Module Preview parameters are waiting for the refreshed source.")).not.toBeInTheDocument();
+  });
+
   it("renders host-published Japanese presentation while preserving authored parameter names", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => {
@@ -585,7 +629,8 @@ describe("ModulePreviewParametersApp", () => {
     })));
     expect(api.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "modulePreviewParameterValueBlur" }));
 
-    act(() => window.dispatchEvent(new MessageEvent("message", { data: snapshot })));
+    const refreshedSnapshot = { ...snapshot, sessionRevision: snapshot.sessionRevision + 2 };
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: refreshedSnapshot })));
     const replacementInput = screen.getByLabelText("Value for width");
     replacementInput.focus();
     vi.mocked(api.postMessage).mockClear();
