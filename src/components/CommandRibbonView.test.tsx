@@ -84,7 +84,8 @@ describe("CommandRibbonView", () => {
     );
     expect(document.getElementById(describedBy!)).not.toHaveStyle({ position: "fixed" });
     expect(unavailable.closest(".command-ribbon")).not.toHaveClass("has-viewport-aware-tooltips");
-    expect(unavailable).toHaveAttribute("title", "Unavailable: This command is unavailable.");
+    expect(unavailable).toHaveAttribute("aria-label", "Unavailable");
+    expect(unavailable).not.toHaveAttribute("title");
     fireEvent.focus(unavailable);
     expect(document.getElementById(describedBy!)).toHaveTextContent(
       "Unavailable: This command is unavailable."
@@ -118,6 +119,8 @@ describe("CommandRibbonView", () => {
     const names = screen.getByRole("button", { name: "Toggle Point Names" });
     const describedBy = names.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
+    expect(names).toHaveAttribute("aria-label", "Toggle Point Names");
+    expect(names).not.toHaveAttribute("title");
     expect(document.getElementById(describedBy!)).toHaveTextContent(
       "Toggle Point Names: Show or hide Canvas point names."
     );
@@ -148,9 +151,36 @@ describe("CommandRibbonView", () => {
 
     const button = screen.getByRole("button", { name: "Go to Source" });
     const tooltip = document.getElementById(button.getAttribute("aria-describedby")!);
-    expect(button).toHaveAttribute("title", "Go to Source");
+    expect(button).not.toHaveAttribute("title");
     expect(tooltip?.textContent).toBe("Go to Source");
     expect(view.container.querySelector(".command-ribbon-tooltip")).toHaveTextContent("Go to Source");
+  });
+
+  it("uses an explicit tooltip override without the command description", () => {
+    render(
+      <CommandRibbonView
+        ribbon={{
+          ...ribbonFor("horizontal"),
+          items: [{
+            id: "edit",
+            type: "command",
+            commandId: "editCanvasRibbon",
+            icon: "circle",
+            label: "Canvas リボンを編集",
+            description: "Open the VS Code setting for Canvas Ribbon items.",
+            tooltipText: "Canvas リボンを編集",
+            showLabel: false,
+            available: true
+          }]
+        }}
+        iconResolver={() => Circle}
+      />
+    );
+
+    const button = screen.getByRole("button", { name: "Canvas リボンを編集" });
+    const tooltip = document.getElementById(button.getAttribute("aria-describedby")!);
+    expect(button).not.toHaveAttribute("title");
+    expect(tooltip?.textContent).toBe("Canvas リボンを編集");
   });
 
   it("keeps a one-item VS Code vertical Ribbon handle beside its item column", () => {

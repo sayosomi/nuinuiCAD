@@ -530,9 +530,9 @@ describe("Output Preview application", () => {
     expect(sourceNavigation.closest(".command-ribbon")).toHaveAttribute("data-ribbon-id", "output-preview-ribbon");
     expect(maximize.closest(".command-ribbon")).toHaveAttribute("data-ribbon-id", "output-preview-fit-ribbon");
     expect(sourceNavigation.closest(".command-ribbon")).not.toBe(maximize.closest(".command-ribbon"));
-    expect(sourceNavigation).toHaveAttribute("title", "Go to Source");
+    expect(sourceNavigation).not.toHaveAttribute("title");
     expect(document.getElementById(sourceNavigation.getAttribute("aria-describedby")!)?.textContent).toBe("Go to Source");
-    expect(maximize).toHaveAttribute("title", "Fit Output Preview");
+    expect(maximize).not.toHaveAttribute("title");
     expect(document.getElementById(maximize.getAttribute("aria-describedby")!)?.textContent).toBe("Fit Output Preview");
 
     act(() => {

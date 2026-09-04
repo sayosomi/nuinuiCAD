@@ -48,19 +48,22 @@ const commandItemPresentationFor = (
   presentation?: CanvasPresentation
 ): CommandRibbonPresentationCommandItem => {
   const definition = vscodeCanvasRibbonCommandFor(item.commandId);
+  const label = presentation?.text(
+    `canvas.ribbon.command.${item.commandId}.label`,
+    definition?.label ?? item.commandId
+  ) ?? definition?.label ?? item.commandId;
+  const description = presentation?.text(
+    `canvas.ribbon.command.${item.commandId}.description`,
+    definition?.description ?? "This command is unavailable."
+  ) ?? definition?.description ?? "This command is unavailable.";
   return {
     id: item.id,
     type: "command",
     commandId: item.commandId,
     icon: item.icon || definition?.icon || "circle",
-    label: presentation?.text(
-      `canvas.ribbon.command.${item.commandId}.label`,
-      definition?.label ?? item.commandId
-    ) ?? definition?.label ?? item.commandId,
-    description: presentation?.text(
-      `canvas.ribbon.command.${item.commandId}.description`,
-      definition?.description ?? "This command is unavailable."
-    ) ?? definition?.description ?? "This command is unavailable.",
+    label,
+    description,
+    ...(item.commandId === "editCanvasRibbon" ? { tooltipText: label } : {}),
     showLabel: item.showLabel,
     available: definition?.isAvailable(ribbonCommandContext) ?? false,
     ...(definition?.isPressed
