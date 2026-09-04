@@ -5,8 +5,9 @@ import { useCanvasOverlayData } from "../components/useCanvasOverlayData";
 import { type ViewportSize, worldToScreen } from "../components/canvasViewport";
 import { canvasThemeCssVariables, type CanvasTheme } from "../components/canvasTheme";
 import { CanvasOverlapCandidateMenu } from "../components/CanvasOverlapCandidateMenu";
-import { propertyLabels } from "../geometry/numericExpressionProperties";
-import type { NumericComputedGeometryProperty } from "../geometry/numericExpressions";
+import { candidateWheelDeltaFor } from "../components/canvasCandidateWheel";
+import { computedReferencePathValue, type NumericComputedGeometryProperty } from "../geometry/numericExpressions";
+import { formatValue } from "../geometry/numericReferencePaths";
 import {
   filterReferencePickGeometryHits,
   hitTestReferencePickPoints
@@ -49,6 +50,8 @@ type VSCodeReferencePickOverlayProps = {
   onConfirm: () => void;
   onCancel: () => void;
   presentation?: CanvasPresentation;
+  /** Proof that the render evaluation is current for the current document. */
+  evaluationIsCurrent?: boolean;
 };
 
 const pointerScreenPoint = (event: PointerEvent, viewport: HTMLDivElement) => {
@@ -88,6 +91,29 @@ type ReferencePickPointCandidateMenu = {
   requestId: number;
 };
 
+const referencePickPointMenuKey = (menu: ReferencePickPointCandidateMenu): string => JSON.stringify([
+  menu.requestId,
+  menu.anchor,
+  menu.hits.map((hit) => [hit.candidateElementId, referencePickCandidateOptionKey(hit.option)])
+]);
+
+const referencePickPropertyHelp = (
+  property: NumericComputedGeometryProperty,
+  presentation: CanvasPresentation | undefined
+): string => {
+  const intermediatePoint = property.match(/^intermediatePoints\[(\d+)\]\.(x|y)$/);
+  if (intermediatePoint) {
+    const index = Number(intermediatePoint[1]);
+    const axis = intermediatePoint[2];
+    return presentation?.text(
+      `canvas.referencePick.propertyHelp.intermediatePoint.${axis}`,
+      "",
+      { index }
+    ) ?? "";
+  }
+  return presentation?.text(`canvas.referencePick.propertyHelp.${property}`, "") ?? "";
+};
+
 export const VSCodeReferencePickOverlay = ({
   canvasFocusRef,
   viewportSize,
@@ -103,11 +129,17 @@ export const VSCodeReferencePickOverlay = ({
   onSelectNumericProperty,
   onConfirm,
   onCancel,
-  presentation
+  presentation,
+  evaluationIsCurrent = false
 }: VSCodeReferencePickOverlayProps) => {
   const [pointCandidateMenu, setPointCandidateMenuState] = useState<ReferencePickPointCandidateMenu | null>(null);
   const pointCandidateMenuRef = useRef<ReferencePickPointCandidateMenu | null>(null);
+  const pointWheelRemainderRef = useRef(0);
   const setPointCandidateMenu = useCallback((next: ReferencePickPointCandidateMenu | null) => {
+    const previous = pointCandidateMenuRef.current;
+    if (!previous || !next || referencePickPointMenuKey(previous) !== referencePickPointMenuKey(next)) {
+      pointWheelRemainderRef.current = 0;
+    }
     pointCandidateMenuRef.current = next;
     setPointCandidateMenuState(next);
   }, []);
@@ -121,7 +153,18 @@ export const VSCodeReferencePickOverlay = ({
   };
   const [numericPropertyMenu, setNumericPropertyMenuState] = useState<ReferencePickNumericPropertyMenu | null>(null);
   const numericPropertyMenuRef = useRef<ReferencePickNumericPropertyMenu | null>(null);
+  const numericPropertyWheelRemainderRef = useRef(0);
   const setNumericPropertyMenu = useCallback((next: ReferencePickNumericPropertyMenu | null) => {
+    const previous = numericPropertyMenuRef.current;
+    const sameMenu = previous && next &&
+      previous.requestId === next.requestId &&
+      previous.anchor.x === next.anchor.x &&
+      previous.anchor.y === next.anchor.y &&
+      previous.candidateElementId === next.candidateElementId &&
+      referencePickDraftKey(previous.reference) === referencePickDraftKey(next.reference) &&
+      previous.properties.length === next.properties.length &&
+      previous.properties.every((property, index) => property === next.properties[index]);
+    if (!sameMenu) numericPropertyWheelRemainderRef.current = 0;
     numericPropertyMenuRef.current = next;
     setNumericPropertyMenuState(next);
   }, []);
@@ -267,6 +310,55 @@ export const VSCodeReferencePickOverlay = ({
     const next = ((menu.activeIndex + offset) % menu.properties.length + menu.properties.length) % menu.properties.length;
     setNumericPropertyMenu({ ...menu, activeIndex: next });
   }, [session.request.requestId, setNumericPropertyMenu]);
+
+  const handleReferencePickWheel = useCallback((event: WheelEvent) => {
+    if (session.draft.status !== "active") return;
+    const requestId = session.request.requestId;
+    const numericMenu = numericPropertyMenuRef.current;
+    if (numericMenu && numericMenu.requestId === requestId) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const next = candidateWheelDeltaFor({
+        remainder: numericPropertyWheelRemainderRef.current,
+        deltaY: event.deltaY,
+        deltaMode: event.deltaMode,
+        viewportHeight: viewportSize.height
+      });
+      numericPropertyWheelRemainderRef.current = next.remainder;
+      if (next.cycles !== 0) cycleNumericProperty(next.cycles);
+      return;
+    }
+    const pointMenu = pointCandidateMenuRef.current;
+    if (!pointMenu || pointMenu.requestId !== requestId) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const next = candidateWheelDeltaFor({
+      remainder: pointWheelRemainderRef.current,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      viewportHeight: viewportSize.height
+    });
+    pointWheelRemainderRef.current = next.remainder;
+    if (next.cycles !== 0) cyclePointCandidate(next.cycles);
+  }, [cycleNumericProperty, cyclePointCandidate, session.draft.status, session.request.requestId, viewportSize.height]);
+
+  useEffect(() => {
+    const viewport = canvasFocusRef.current;
+    if (!viewport || session.draft.status !== "active") return;
+    viewport.addEventListener("wheel", handleReferencePickWheel, { capture: true, passive: false });
+    return () => viewport.removeEventListener("wheel", handleReferencePickWheel, { capture: true });
+  }, [canvasFocusRef, handleReferencePickWheel, session.draft.status]);
+
+  useEffect(() => {
+    pointWheelRemainderRef.current = 0;
+    numericPropertyWheelRemainderRef.current = 0;
+    if (pointCandidateMenuRef.current?.requestId !== session.request.requestId) {
+      pointCandidateMenuRef.current = null;
+    }
+    if (numericPropertyMenuRef.current?.requestId !== session.request.requestId) {
+      numericPropertyMenuRef.current = null;
+    }
+  }, [session.draft.status, session.request.requestId]);
 
   useEffect(() => {
     const viewport = canvasFocusRef.current;
@@ -572,7 +664,7 @@ export const VSCodeReferencePickOverlay = ({
     : selectionCount === 0
       ? presentation?.text("canvas.referencePick.instruction.selectCandidate", "Select a candidate") ?? "Select a candidate"
       : presentation?.text("canvas.referencePick.instruction.referenceSelected", "Reference selected") ?? "Reference selected";
-  const currentPointCandidateMenu = pointCandidateMenu?.requestId === session.request.requestId
+  const currentPointCandidateMenu = session.draft.status === "active" && pointCandidateMenu?.requestId === session.request.requestId
     ? pointCandidateMenu
     : null;
   const pointMenuCandidates = currentPointCandidateMenu?.hits.map((hit, index) => ({
@@ -580,17 +672,27 @@ export const VSCodeReferencePickOverlay = ({
     name: referencePickSourceForReference(hit.option.reference),
     detail: `${hit.option.label} · ${hit.candidateElementId}`
   })) ?? [];
-  const currentNumericPropertyMenu = numericPropertyMenu?.requestId === session.request.requestId
+  const currentNumericPropertyMenu = session.draft.status === "active" && numericPropertyMenu?.requestId === session.request.requestId
     ? numericPropertyMenu
     : null;
   const numericPropertyMenuCandidates = currentNumericPropertyMenu?.properties.map((property, index) => ({
     id: `${index}-${property}`,
-    name: presentation?.text(
-      `geometry.property.${property}`,
-      propertyLabels[property as keyof typeof propertyLabels] ?? property
-    ) ?? propertyLabels[property as keyof typeof propertyLabels] ?? property,
+    name: [property, referencePickPropertyHelp(property, presentation)].filter(Boolean).join(" — "),
     detail: referencePickSourceForReference(currentNumericPropertyMenu.reference)
   })) ?? [];
+  const numericDraft = numericPropertyState?.stage === "draft" ? numericPropertyState.draft : null;
+  const numericDraftFeedback = numericDraft
+    ? (() => {
+        const expression = `${referencePickSourceForReference(numericDraft.reference)}.${numericDraft.property}`;
+        const geometry = evaluationIsCurrent
+          ? evaluation.computedGeometry.get(numericDraft.candidateElementId)
+          : undefined;
+        const value = computedReferencePathValue(geometry, numericDraft.property);
+        return typeof value === "number" && Number.isFinite(value)
+          ? `${expression} = ${formatValue(value, numericDraft.property)}`
+          : expression;
+      })()
+    : null;
 
   return (
     <>
@@ -724,7 +826,7 @@ export const VSCodeReferencePickOverlay = ({
         }}
       >
         <strong>{presentation?.text("canvas.referencePick.targetStatus", "{target} target", { target: targetLabel }) ?? `${targetLabel} target`}</strong>
-        <small style={{ color: canvasTheme.muted }}>{instruction}</small>
+        <small style={{ color: canvasTheme.muted }}>{numericDraftFeedback ?? instruction}</small>
         <span className="point-drag-axis-lock-action">
           {presentation?.text("canvas.referencePick.enterDone", "Enter Done") ?? "Enter Done"}
         </span>
