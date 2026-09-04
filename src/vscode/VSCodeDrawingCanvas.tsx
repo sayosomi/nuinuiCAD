@@ -300,6 +300,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
     }, [canvasPresentation.renderEvaluation, canvasPresentation.renderEvaluationState, compiledDocumentRevision, currentSourceRevision, elements, sourceText]);
     const {
       session: coordinatePointConversionSession,
+      canvasBasePick: coordinatePointConversionCanvasBasePick,
       setQuery: setCoordinatePointConversionQuery,
       selectBase: selectCoordinatePointConversionBase,
       startPick: startCoordinatePointConversionPick,
@@ -609,7 +610,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
               presentation={canvasPresentationAdapter}
             />
           ) : null}
-          {coordinatePointConversionSession ? (
+          {coordinatePointConversionSession && !coordinatePointConversionCanvasBasePick ? (
             <CommandLineBar
               coordinatePointConversion={{
                 session: coordinatePointConversionSession,
@@ -671,6 +672,7 @@ export const VSCodeDrawingCanvas = forwardRef<DrawingCanvasHandle, VSCodeDrawing
       postCanvasPointerPosition,
       postCanonicalSourceText,
       coordinatePointConversionSession,
+      coordinatePointConversionCanvasBasePick,
       setCoordinatePointConversionQuery,
       selectCoordinatePointConversionBase,
       startCoordinatePointConversionPick,

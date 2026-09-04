@@ -138,6 +138,37 @@ describe("useVSCodeCoordinatePointConversionSession", () => {
     expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
+  it("applies a Canvas visual base pick without a second confirmation", () => {
+    const { goodId, baseId } = prepareConversion();
+    useCadDocumentStore.setState({
+      commitLineSplices: vi.fn(() => ({ status: "applied" as const }))
+    });
+    const api = { postMessage: vi.fn() } satisfies VscodeWebviewApi;
+    const postCanvasCommit = vi.fn();
+    const hook = renderHook(() => useVSCodeCoordinatePointConversionSession({
+      api,
+      currentContextFor,
+      currentAuthorityFor: authorityFor,
+      postCanvasCommit
+    }));
+
+    dispatch({ ...request, targetIds: [goodId], canvasBasePick: true });
+    const base = hook.result.current.session!.baseCandidates.find((candidate) => candidate.sourceElementId === baseId);
+    expect(base).toBeDefined();
+    if (!base) return;
+
+    act(() => hook.result.current.selectBase(base.key));
+
+    expect(postCanvasCommit).toHaveBeenCalledWith(1, request.requestId);
+    expect(hook.result.current.session).toBeNull();
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([goodId]);
+    expect(api.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionResult",
+      status: "applied"
+    }));
+    hook.unmount();
+  });
+
   it.each([
     ["ja", "現在のSourceと変換要求が一致しません。"],
     ["en", "The current Source does not match the conversion request."]

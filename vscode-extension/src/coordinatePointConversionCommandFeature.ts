@@ -404,7 +404,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     const current = vscode.window.activeTextEditor;
     const enabled = Boolean(resolution && current && current.document.version === resolution.documentVersion && sameDocument(current.document, editor.document));
     setSourceContext(enabled);
-    if (enabled) void refreshExplorerTargets(editor.document);
+    void refreshExplorerTargets(editor.document);
     return enabled;
   };
 
@@ -761,12 +761,13 @@ export const registerVscodeCoordinatePointConversionFeature = ({
       }
     }
     endpoint.panel.reveal(vscode.ViewColumn.Beside, true);
-    const canvasRequest = current.request.origin === "canvas" && current.canvasTargetSources
-      ? {
-          ...current.request,
-          targetIds: current.canvasTargetSources.map((target) => target.runtimeElementId)
-        }
-      : current.request;
+    const canvasRequest = {
+      ...current.request,
+      canvasBasePick: true,
+      ...(current.request.origin === "canvas" && current.canvasTargetSources
+        ? { targetIds: current.canvasTargetSources.map((target) => target.runtimeElementId) }
+        : {})
+    };
     startCanvasRequest(canvasRequest, current.editor, endpoint);
   };
 
