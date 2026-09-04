@@ -1864,7 +1864,11 @@ export const activate = (context: vscode.ExtensionContext): void => {
         return;
       }
       if (message.type === "webviewAuthoritativeDocumentReady") {
-        if (message.documentVersion !== session.document.version) return;
+        if (
+          message.documentVersion !== session.document.version ||
+          sessions.get(session.documentUri, "canvas") !== session ||
+          !isOpenDocument(session.document)
+        ) return;
         session.authoritativeDocumentVersion = message.documentVersion;
         completeCanvasHistory(session);
         canvasFreePointAtPointerFeature?.handleAuthoritativeDocumentReady(
@@ -1876,6 +1880,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         handleExtractModuleCanvasAuthoritativeDocumentReady(session.document, message.documentVersion);
         deliverPendingCanvasNavigation(session);
         deliverPendingBake(session);
+        sessions.replayLatestMultiDocumentGraphPublication(session);
         return;
       }
       if (message.type === "canvasSourceDefinitionResult") {

@@ -102,4 +102,70 @@ describe("VS Code Webview session identity", () => {
     expect(postMessage).toHaveBeenCalledWith(publication);
     registry.clear();
   });
+
+  it("replays the retained publication only to the exact registered session", () => {
+    const documentUri = "file:///replay-exact-session.nui";
+    const publication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: 4,
+      status: "building" as const,
+      graph: null
+    };
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const currentPost = vi.fn();
+    const stalePost = vi.fn();
+    const current = sessionFor(documentUri, "canvas", "current", currentPost);
+    const stale = sessionFor(documentUri, "canvas", "stale", stalePost);
+    publishVscodeMultiDocumentGraphPublication(documentUri, publication);
+    registry.set(current);
+
+    registry.replayLatestMultiDocumentGraphPublication(stale);
+    registry.replayLatestMultiDocumentGraphPublication(current);
+
+    expect(stalePost).not.toHaveBeenCalled();
+    expect(currentPost).toHaveBeenCalledWith(publication);
+    registry.clear();
+  });
+
+  it("does not send a replay when no publication is retained", () => {
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const postMessage = vi.fn();
+    const session = sessionFor("file:///replay-without-publication.nui", "canvas", "canvas", postMessage);
+    registry.set(session);
+
+    registry.replayLatestMultiDocumentGraphPublication(session);
+
+    expect(postMessage).not.toHaveBeenCalled();
+    registry.clear();
+  });
+
+  it("keeps later publications on the normal live fan-out path after replay", () => {
+    const documentUri = "file:///replay-followed-by-publication.nui";
+    const registry = new VscodeWebviewSessionRegistry<TestSession>();
+    const canvasPost = vi.fn();
+    const canvas = sessionFor(documentUri, "canvas", "canvas", canvasPost);
+    registry.set(canvas);
+    const firstPublication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: 1,
+      status: "building" as const,
+      graph: null
+    };
+    const laterPublication = {
+      type: "multiDocumentGraphPublication" as const,
+      documentVersion: 2,
+      status: "invalidated" as const,
+      graph: null
+    };
+    publishVscodeMultiDocumentGraphPublication(documentUri, firstPublication);
+    registry.replayLatestMultiDocumentGraphPublication(canvas);
+    publishVscodeMultiDocumentGraphPublication(documentUri, laterPublication);
+
+    expect(canvasPost.mock.calls.map(([message]) => message)).toEqual([
+      firstPublication,
+      firstPublication,
+      laterPublication
+    ]);
+    registry.clear();
+  });
 });
