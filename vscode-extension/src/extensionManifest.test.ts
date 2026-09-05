@@ -259,7 +259,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Select Instance",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
-      "nuinuiCAD: Reset Output Preview View",
+      "nuinuiCAD: Reset Output Preview Pan and Zoom",
       "nuinuiCAD: Fit Output Preview",
       "nuinuiCAD: Clear Output Preview Focus",
       "nuinuiCAD: Export Current Output",
@@ -307,12 +307,12 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
   });
 
-  it("keeps Reset Output Preview View surface-only with no shortcut or target enablement", async () => {
+  it("keeps Reset Output Preview Pan and Zoom surface-only with no shortcut or target enablement", async () => {
     const manifest = await readManifest();
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.resetOutputPreviewView");
     expect(command).toEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
-      title: "nuinuiCAD: Reset Output Preview View"
+      title: "nuinuiCAD: Reset Output Preview Pan and Zoom"
     });
     expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
       command: "nuinuiCAD.resetOutputPreviewView",

@@ -1365,7 +1365,7 @@
       },
       {
         "command": "nuinuiCAD.resetOutputPreviewView",
-        "title": "nuinuiCAD: Reset Output Preview View"
+        "title": "nuinuiCAD: Reset Output Preview Pan and Zoom"
       },
       {
         "command": "nuinuiCAD.fitOutputPreview",

@@ -1161,7 +1161,7 @@ export const OutputPreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
               type: "command",
               commandId: "outputPreviewResetView",
               icon: "rotate-ccw",
-              label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.reset", "Reset Output Preview View"),
+              label: webviewPresentationTextFor(webviewPresentation, "output.ribbon.reset", "Reset Output Preview Pan and Zoom"),
               description: "",
               showLabel: false,
               available: true
