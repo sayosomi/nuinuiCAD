@@ -7,6 +7,7 @@ describe("parameterPickCommandId", () => {
     ["lineEndpointReference", "startPointPick"],
     ["lineReference", "startLinePick"],
     ["lineReferenceList", "startLinePick"],
+    ["pointReferenceList", "startPointPick"],
     ["number", "startNumericReferencePick"],
   ] as const)("maps %s to the existing %s Canvas-pick command", (kind, commandId) => {
     expect(parameterPickCommandId(kind)).toBe(commandId);

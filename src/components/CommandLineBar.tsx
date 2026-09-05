@@ -22,6 +22,7 @@ import {
   applyPickReference,
   applySelectedPickCandidate,
   finishLinePick,
+  finishPointPick,
   selectPickCandidateByOffset,
   selectPickOptionByOffset
 } from "../commands/pickCommands";
@@ -104,6 +105,10 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
   const lineListDraftSignature = useCadUiStore((state) =>
     state.activeLinePickTarget?.draftLineIds?.join("\0") ?? ""
   );
+  const pointListDraftSignature = useCadUiStore((state) =>
+    state.activePointPickTarget?.draftPointAnchors ? JSON.stringify(state.activePointPickTarget.draftPointAnchors) : ""
+  );
+  const pointListDraftCount = useCadUiStore((state) => state.activePointPickTarget?.draftPointAnchors?.length ?? 0);
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const progressButtonRefs = useRef(new Map<number, HTMLButtonElement>());
@@ -144,7 +149,7 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
   const isEditing = session ? isEditingCommandLineStep(session) : false;
   const stepKey = step && step.kind !== "name" ? step.key : null;
   const stepIdentity = session
-    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${stepKey ?? "name"}:${step?.kind === "lineList" ? lineListDraftSignature : ""}`
+    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${stepKey ?? "name"}:${step?.kind === "lineList" ? lineListDraftSignature : step?.kind === "pointList" ? pointListDraftSignature : ""}`
     : "";
   const inputValue = inputState.step === stepIdentity
     ? inputState.value
@@ -288,9 +293,10 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
   const candidates = useMemo(
     () => {
       void lineListDraftSignature;
+      void pointListDraftSignature;
       return session && isCommandLineReferenceStep(step?.kind) ? activePickCandidates(evaluation) : [];
     },
-    [evaluation, lineListDraftSignature, session, step?.kind]
+    [evaluation, lineListDraftSignature, pointListDraftSignature, session, step?.kind]
   );
   const suggestions = useMemo<ReferenceSuggestion[]>(() => {
     if (!session || !isCommandLineReferenceStep(step?.kind)) return [];
@@ -602,7 +608,9 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
               <span className="command-line-bar-help">
                 Canvasで選択できます{step.kind === "lineList" && lineListDraftSignature
                   ? `（選択済み ${lineListDraftSignature.split("\0").length}件）`
-                  : ""}
+                  : step.kind === "pointList"
+                    ? `（選択済み ${pointListDraftCount}件）`
+                    : ""}
               </span>
             ) : null}
             {isCommandLineReferenceStep(step.kind) && !isEditing && !inputValue.trim() ? (
@@ -682,6 +690,9 @@ const CreationCommandLineBar = ({ commandContext, evaluation, evaluationIsCurren
                 ) : null}
                 {step.kind === "lineList" ? (
                   <button type="button" onClick={() => { clearPendingSuggestionState(); finishLinePick(); }}>選択を完了</button>
+                ) : null}
+                {step.kind === "pointList" ? (
+                  <button type="button" onClick={() => { clearPendingSuggestionState(); finishPointPick(); }}>選択を完了</button>
                 ) : null}
                 {canSkip ? <button type="button" onClick={() => { clearPendingSuggestionState(); skipCommandLineStep(); }}>スキップ</button> : null}
                 {isEditing ? (

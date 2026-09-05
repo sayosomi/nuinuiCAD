@@ -2,6 +2,7 @@ import { dispatchCommand } from "../commands/commands";
 import { findParameterDefinition } from "../parameters/parameterDefinitions";
 import { effectiveElements, useCadDocumentStore } from "../state/cadDocumentStore";
 import { useCadUiStore } from "../state/cadUiStore";
+import { pointAnchorName } from "./commandLineProgress";
 
 export const PickModeStatus = () => {
   const elements = useCadDocumentStore(effectiveElements);
@@ -17,19 +18,25 @@ export const PickModeStatus = () => {
     ? findParameterDefinition(element, target.parameterKey)
     : null;
   const isLineList = Boolean(lineTarget && definition?.kind === "lineReferenceList");
+  const isPointList = Boolean(pointTarget && definition?.kind === "pointReferenceList");
   const selectedCount = lineTarget?.draftLineIds?.length ?? 0;
   const selectedLineNames = (lineTarget?.draftLineIds ?? []).map(
     (id) => elements.find((candidate) => candidate.id === id)?.name ?? id
   );
+  const selectedPointCount = pointTarget?.draftPointAnchors?.length ?? 0;
+  const selectedPointNames = (pointTarget?.draftPointAnchors ?? []).map((anchor) => pointAnchorName(anchor, elements));
   const instruction = pointTarget
-    ? "Canvasまたは構成リストから点を選択"
+    ? isPointList
+      ? `点を順番に仮選択中（${selectedPointCount}件）。Canvas上で追加できます。`
+      : "Canvasまたは構成リストから点を選択"
     : numericTarget
       ? "線・曲線を選び、使用する値を明示的に選択"
       : isLineList
         ? `線を仮選択中（${selectedCount}件）。Canvas上で追加・解除できます。`
         : "Canvasまたは構成リストから線を選択";
   const finish = () => {
-    if (pointTarget) dispatchCommand("cancelPointPick");
+    if (isPointList) dispatchCommand("finishPointPick");
+    else if (pointTarget) dispatchCommand("cancelPointPick");
     else if (numericTarget) dispatchCommand("cancelNumericReferencePick");
     else if (isLineList) dispatchCommand("finishLinePick");
     else dispatchCommand("cancelLinePick");
@@ -52,11 +59,22 @@ export const PickModeStatus = () => {
             ) : null}
           </span>
         ) : null}
+        {isPointList ? (
+          <span className="pick-mode-status-selection" aria-label={`選択済み ${selectedPointCount} 件`}>
+            <span>選択済み {selectedPointCount}件</span>
+            {selectedPointNames.slice(0, 4).map((name, index) => (
+              <span key={`${name}-${index}`} className="pick-mode-status-chip">{name}</span>
+            ))}
+            {selectedPointNames.length > 4 ? (
+              <span className="pick-mode-status-chip">+{selectedPointNames.length - 4}</span>
+            ) : null}
+          </span>
+        ) : null}
       </span>
       <button type="button" onClick={finish}>
-        {isLineList ? "選択を完了" : "選択を終了"}
+        {isLineList || isPointList ? "選択を完了" : "選択を終了"}
       </button>
-      {isLineList ? <kbd title="⌘Enter / Ctrl+Enter で選択を完了">⌘↵</kbd> : null}
+      {isLineList || isPointList ? <kbd title="⌘Enter / Ctrl+Enter で選択を完了">⌘↵</kbd> : null}
       <kbd>Esc</kbd>
     </aside>
   );

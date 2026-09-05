@@ -30,7 +30,7 @@ export type DslReferenceCompletionOption = {
 export type DslLiveStatementIdentity = ReadonlyMap<number, ElementId>;
 
 const referenceKind = (kind: ParameterValueKind) =>
-  kind === "reference" || kind === "lineEndpointReference" || kind === "lineReference" || kind === "lineReferenceList";
+  kind === "reference" || kind === "lineEndpointReference" || kind === "lineReference" || kind === "lineReferenceList" || kind === "pointReferenceList";
 
 /**
  * Reconstructs live CadElement-shaped objects (stable id/other fields from the
@@ -114,11 +114,12 @@ export const dslReferenceCompletionOptions = ({
   };
   const targetElementId = statementElementIds.get(cursorLine) ?? "__dsl-reference-completion__";
   const candidates = pickCandidates([...elements], evaluation, {
-    activePointPickTarget: kind === "reference" || kind === "lineEndpointReference"
+    activePointPickTarget: kind === "reference" || kind === "lineEndpointReference" || kind === "pointReferenceList"
       ? {
           elementId: targetElementId,
           parameterKey: parameterKey ?? "__reference__",
-          insertionIndex: live.length
+          insertionIndex: live.length,
+          ...(kind === "pointReferenceList" ? { draftPointAnchors: [] } : {})
         }
       : null,
     activeLinePickTarget: kind === "lineReference" || kind === "lineReferenceList"

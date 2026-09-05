@@ -28,6 +28,8 @@ export type ActivePointPickTarget = {
    * is a virtual target that is not in the document yet (future command-line
    * creation). Candidates must precede this index. */
   insertionIndex?: number;
+  /** Present only while editing a pointReferenceList; changes remain uncommitted until finish. */
+  draftPointAnchors?: PointAnchor[];
   measurementSlot?: MeasurementPointSlot;
   nextParameterKey?: ParameterKey;
   pickFlow?: "lineEndpointPair" | "lineAndPoint" | "endpointPair" | "endpointAndPoint";

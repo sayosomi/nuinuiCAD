@@ -370,6 +370,16 @@ export const applyArgs = (
           next = setParameterValue(next, parameterKey, [...refs]);
         }
         break;
+      case "pointReferenceList":
+        {
+          const sourceLowered = lowerSourceGeometryArrayPointReferenceList(value, resolvers.index, next);
+          const refs = sourceLowered ?? referenceListItems(value).map((item) => {
+            const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
+            return anchor(item.text, itemSpan);
+          });
+          next = setParameterValue(next, parameterKey, [...refs]);
+        }
+        break;
       case "text":
       case "choice":
         next = setParameterValue(next, parameterKey, unquoteDslString(value));
@@ -416,44 +426,48 @@ export const applyArgs = (
 
   const pointsArg = byName.get("points");
   if (pointsArg && next.type === "polyline") {
-    const moduleLowered = resolvers.resolvePointReferenceList?.(
-      pointsArg.value,
-      resolvers.index,
-      resolvers.line,
-      diagnostics,
-      next,
-      pointsArg.valueSpan
-    ) ?? null;
-    const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayPointReferenceList(pointsArg.value, resolvers.index, next);
-    if (sourceLowered) {
-      next = { ...next, points: [...sourceLowered] };
+    if (pointsArg.value.trim() === "") {
+      next = { ...next, points: [] };
     } else {
-      const parsed = parseGeometryArrayExpression(pointsArg.value);
-      for (const issue of parsed.diagnostics) {
-        diagnostics.push({
-          severity: "error",
-          line: resolvers.line,
-          column: pointsArg.valueSpan.start + issue.span.start + 1,
-          code: issue.code,
-          message: issue.message,
-          presentation: { key: `diagnostic.${issue.code}` },
-          logicalSpan: {
-            start: pointsArg.valueSpan.start + issue.span.start,
-            end: pointsArg.valueSpan.start + issue.span.end
-          }
-        });
-      }
-      if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
-        next = {
-          ...next,
-          points: parsed.expression.members.map((member) => {
-            const span = {
-              start: pointsArg.valueSpan.start + member.span.start,
-              end: pointsArg.valueSpan.start + member.span.end
-            };
-            return anchor(member.text, span);
-          })
-        };
+      const moduleLowered = resolvers.resolvePointReferenceList?.(
+        pointsArg.value,
+        resolvers.index,
+        resolvers.line,
+        diagnostics,
+        next,
+        pointsArg.valueSpan
+      ) ?? null;
+      const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayPointReferenceList(pointsArg.value, resolvers.index, next);
+      if (sourceLowered) {
+        next = { ...next, points: [...sourceLowered] };
+      } else {
+        const parsed = parseGeometryArrayExpression(pointsArg.value);
+        for (const issue of parsed.diagnostics) {
+          diagnostics.push({
+            severity: "error",
+            line: resolvers.line,
+            column: pointsArg.valueSpan.start + issue.span.start + 1,
+            code: issue.code,
+            message: issue.message,
+            presentation: { key: `diagnostic.${issue.code}` },
+            logicalSpan: {
+              start: pointsArg.valueSpan.start + issue.span.start,
+              end: pointsArg.valueSpan.start + issue.span.end
+            }
+          });
+        }
+        if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
+          next = {
+            ...next,
+            points: parsed.expression.members.map((member) => {
+              const span = {
+                start: pointsArg.valueSpan.start + member.span.start,
+                end: pointsArg.valueSpan.start + member.span.end
+              };
+              return anchor(member.text, span);
+            })
+          };
+        }
       }
     }
   }

@@ -84,6 +84,8 @@ const ordinaryArgText = (element: CadElement, parameterKey: string, refs: DslSer
       return refs.token(value as string, element);
     case "lineReferenceList":
       return `[${(value as unknown as string[]).map((id) => refs.token(id, element)).join(", ")}]`;
+    case "pointReferenceList":
+      return `[${(value as unknown as PointAnchor[]).map((anchor) => refs.anchor(anchor, element)).join(", ")}]`;
     case "text":
       return quoteDslString(value as string);
     case "boolean":

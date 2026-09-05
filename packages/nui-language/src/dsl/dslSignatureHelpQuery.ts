@@ -118,6 +118,8 @@ const parameterTypeFor = (definition: ParameterDefinition): string | undefined =
       return "point";
     case "lineReference":
       return "line";
+    case "pointReferenceList":
+      return "point[]";
     default:
       // `lineEndpointReference` and `lineReferenceList` have no single
       // established nui1 type spelling. Their documentation carries the
@@ -156,6 +158,8 @@ const genericParameterDocumentationKeyFor = (definition: ParameterDefinition): s
       return "signatureHelp.parameter.lineReference";
     case "lineReferenceList":
       return "signatureHelp.parameter.lineReferenceList";
+    case "pointReferenceList":
+      return "signatureHelp.parameter.pointReferenceList";
     case "number":
       return "signatureHelp.parameter.number";
     case "boolean":

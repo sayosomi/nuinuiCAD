@@ -9,7 +9,9 @@ import {
   applyPickedNumericReference,
   applyPickedPoint,
   applySelectedPickCandidate,
+  cancelPointPick,
   finishLinePick,
+  finishPointPick,
   selectPickCandidateByOffset
 } from "./pickCommands";
 import {
@@ -20,6 +22,7 @@ import {
   startCommandLineCreationForRecipe,
   startCommandLineStepEdit,
   startCommandLineNumericReferencePick,
+  startCommandLinePickForCurrentStep,
   submitCommandLineInput
 } from "./commandLineSessionCommands";
 import { COMMAND_LINE_PICK_TARGET_ID } from "./commandLinePickRouting";
@@ -169,6 +172,114 @@ describe("command-line pick routing", () => {
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadDocumentStore.getState().past).toHaveLength(pastBefore + 1);
     expect(useCadDocumentStore.getState().sourceText).toContain("segment(");
+  });
+
+  it("keeps an ordered point-list draft until Finish and preserves duplicates", () => {
+    const pointA = byName("A");
+    const pointB = byName("B");
+    const beforeText = useCadDocumentStore.getState().sourceText;
+
+    expect(startCommandLineCreation("polyline")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true);
+    expect(startCommandLinePickForCurrentStep()).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
+      elementId: COMMAND_LINE_PICK_TARGET_ID,
+      parameterKey: "points",
+      draftPointAnchors: []
+    });
+
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(useCadUiStore.getState().commandLineSession?.args.points).toBeUndefined();
+    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
+      referenceAnchor(pointA.id),
+      referenceAnchor(pointB.id),
+      referenceAnchor(pointA.id)
+    ]);
+
+    finishPointPick();
+    expect(useCadUiStore.getState().commandLineSession?.args.points).toEqual([
+      referenceAnchor(pointA.id),
+      referenceAnchor(pointB.id),
+      referenceAnchor(pointA.id)
+    ]);
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(2);
+
+    expect(confirmCommandLineSession()).toBe(true);
+    const created = useCadDocumentStore.getState().elements.at(-1);
+    expect(created).toMatchObject({
+      type: "polyline",
+      points: [
+        referenceAnchor(pointA.id),
+        referenceAnchor(pointB.id),
+        referenceAnchor(pointA.id)
+      ],
+      closed: false
+    });
+    expect(useCadDocumentStore.getState().sourceText).not.toBe(beforeText);
+  });
+
+  it("cancels an active point-list pick without committing its draft", () => {
+    const pointA = byName("A");
+
+    expect(startCommandLineCreation("polyline")).toBe(true);
+    submitCommandLineInput("");
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
+      referenceAnchor(pointA.id)
+    ]);
+
+    cancelPointPick();
+    expect(useCadUiStore.getState().commandLineSession?.args.points).toBeUndefined();
+    expect(useCadUiStore.getState().commandLineSession?.currentStepIndex).toBe(1);
+  });
+
+  it("keeps canonical source-aware anchors in the ordered point-list draft", () => {
+    const pointA = byName("A");
+
+    expect(startCommandLineCreation("polyline")).toBe(true);
+    submitCommandLineInput("");
+    applyPickedPoint({
+      pickedPointAnchor: referenceAnchor(pointA.id),
+      pickedPointSourceReference: { base: "A" }
+    });
+
+    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
+      referenceAnchor("A")
+    ]);
+  });
+
+  it("restores a point-list draft after cancelling an isolated edit", () => {
+    const pointA = byName("A");
+    const pointB = byName("B");
+    const recipe: CreationRecipe = {
+      type: "polyline",
+      steps: [
+        { kind: "point", key: "startPoint", prompt: "始点" },
+        { kind: "pointList", key: "points", prompt: "点" },
+        { kind: "name", autoSuggest: true }
+      ]
+    };
+
+    expect(startCommandLineCreationForRecipe(recipe)).toBe(true);
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+    expect(useCadUiStore.getState().activePointPickTarget?.draftPointAnchors).toEqual([
+      referenceAnchor(pointB.id)
+    ]);
+
+    expect(startCommandLineStepEdit(0)).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget?.parameterKey).toBe("startPoint");
+    expect(cancelCommandLineStepEdit()).toBe(true);
+    expect(useCadUiStore.getState().activePointPickTarget).toMatchObject({
+      parameterKey: "points",
+      draftPointAnchors: [referenceAnchor(pointB.id)]
+    });
+    expect(useCadUiStore.getState().commandLineSession?.args).toEqual({
+      startPoint: referenceAnchor(pointA.id)
+    });
   });
 
   it("keeps completed progress isolated while every pick route edits a step", () => {

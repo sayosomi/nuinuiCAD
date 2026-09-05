@@ -6,6 +6,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import type { CanvasPresentation } from "../components/canvasPresentation";
 import { dispatchCommand } from "../commands/commands";
 import { applyPickedLine, applyPickedPoint } from "../commands/pickCommands";
+import { referenceAnchor } from "../model/pointAnchors";
 import {
   startCommandLineCreationForRecipe,
   syncCommandLinePickTarget
@@ -371,6 +372,37 @@ describe("VSCodeCreationAssistOverlay", () => {
     expect(useCadUiStore.getState().commandLineSession).toBeNull();
     expect(useCadDocumentStore.getState().sourceText).not.toBe(source);
     expect(screen.queryByRole("button", { name: "Finish selection" })).not.toBeInTheDocument();
+  });
+
+  it("uses the shared point-list count and explicit Finish selection action", () => {
+    renderOverlay();
+    start("polyline");
+    fireEvent.keyDown(input(), { key: "Enter" });
+    expect(screen.getByText("0 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finish selection" })).toBeInTheDocument();
+
+    const elements = useCadDocumentStore.getState().elements;
+    const pointA = elements.find((element) => element.name === "A")!;
+    const pointB = elements.find((element) => element.name === "B")!;
+    act(() => {
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointB.id) });
+      applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) });
+    });
+    expect(screen.getByText("3 selected")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Finish selection" }));
+    expect(useCadUiStore.getState().commandLineSession).toBeNull();
+    expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({
+      type: "polyline",
+      points: [
+        referenceAnchor(pointA.id),
+        referenceAnchor(pointB.id),
+        referenceAnchor(pointA.id)
+      ],
+      closed: false
+    });
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
   it("cancels the whole session, shows Start again, and restarts from the current document", () => {

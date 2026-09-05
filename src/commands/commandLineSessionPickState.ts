@@ -6,6 +6,7 @@ import {
   isEditingCommandLineStep,
   type CommandLineSession
 } from "./commandLineSession";
+import type { ElementId, PointAnchor } from "../types/geometry";
 
 type CommandLinePickFields = Pick<
   CadUiState,
@@ -54,6 +55,17 @@ export const commandLinePickStateForSession = (
       activePickCursor
     };
   }
+  if (step?.kind === "pointList") {
+    const draftPointAnchors = isEditingCommandLineStep(session!) && Array.isArray(session!.editingDraft)
+      ? [...session!.editingDraft] as unknown as PointAnchor[]
+      : restoredPickState?.pointListDraftPointAnchors ? [...restoredPickState.pointListDraftPointAnchors] : [];
+    return {
+      activePointPickTarget: target ? { ...target, draftPointAnchors } : null,
+      activeNumericReferencePickTarget: null,
+      activeLinePickTarget: null,
+      activePickCursor
+    };
+  }
   if (step?.kind === "line") {
     return {
       activePointPickTarget: null,
@@ -64,7 +76,7 @@ export const commandLinePickStateForSession = (
   }
   if (step?.kind === "lineList") {
     const draftLineIds = isEditingCommandLineStep(session!) && Array.isArray(session!.editingDraft)
-      ? [...session!.editingDraft]
+      ? [...session!.editingDraft] as unknown as ElementId[]
       : restoredPickState?.lineListDraftLineIds ? [...restoredPickState.lineListDraftLineIds] : [];
     return {
       activePointPickTarget: null,
@@ -112,10 +124,15 @@ export const editingReturnPickStateFor = (
     activeLineDraftLineIds && activeLineDraftLineIds.length > 0
     ? [...activeLineDraftLineIds]
     : null;
+  const activePointDraftPointAnchors = ui.activePointPickTarget?.draftPointAnchors;
+  const pointListDraftPointAnchors = step?.kind === "pointList" && pointTargetOwned &&
+    activePointDraftPointAnchors && activePointDraftPointAnchors.length > 0
+    ? [...activePointDraftPointAnchors]
+    : null;
   const activePickCursor = pointTargetOwned || lineTargetOwned || numericTargetOwned
       ? ui.activePickCursor ? { ...ui.activePickCursor } : null
       : null;
-  return numericReferencePickProperty || lineListDraftLineIds || activePickCursor
-    ? { numericReferencePickProperty, lineListDraftLineIds, activePickCursor }
+  return numericReferencePickProperty || lineListDraftLineIds || pointListDraftPointAnchors || activePickCursor
+    ? { numericReferencePickProperty, lineListDraftLineIds, pointListDraftPointAnchors, activePickCursor }
     : null;
 };

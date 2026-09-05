@@ -23,14 +23,27 @@ const pointReferenceIds = (anchor: PointAnchor) => {
 };
 
 const referenceIdsForStepValue = (
-  kind: "point" | "endpoint" | "line" | "lineList" | "number",
+  kind: "point" | "endpoint" | "line" | "lineList" | "pointList" | "number",
   value: CreationArgumentValue | undefined
 ): ElementId[] => {
   if (value === undefined) return [];
   if (kind === "point") return pointReferenceIds(value as PointAnchor);
   if (kind === "endpoint") return [(value as LineEndpointReference).lineId];
   if (kind === "line") return typeof value === "string" ? [value] : [];
-  if (kind === "lineList") return Array.isArray(value) ? value : [];
+  if (kind === "lineList") {
+    return Array.isArray(value)
+      ? (value as unknown[]).filter((item): item is ElementId => typeof item === "string")
+      : [];
+  }
+  if (kind === "pointList") {
+    return Array.isArray(value)
+      ? (value as unknown[]).flatMap((item) =>
+          item && typeof item === "object" && "mode" in item
+            ? pointReferenceIds(item as PointAnchor)
+            : []
+        )
+      : [];
+  }
   return numericReferenceIds(value as NumericValue);
 };
 

@@ -82,6 +82,7 @@ const literalForValue = (kind: ParameterValueKind, value: unknown): string | nul
     case "lineEndpointReference":
     case "lineReference":
     case "lineReferenceList":
+    case "pointReferenceList":
       return null;
     default:
       return null;
@@ -110,6 +111,7 @@ const safeLiteralFor = (
     case "lineEndpointReference":
     case "lineReference":
     case "lineReferenceList":
+    case "pointReferenceList":
       return null;
     default:
       return null;
@@ -141,6 +143,19 @@ const moduleReferenceLiteralFor = (kind: ParameterValueKind, value: unknown): st
   if (kind === "lineReference") return qualified(value);
   if (kind === "lineReferenceList" && Array.isArray(value)) {
     const tokens = value.map(qualified);
+    return tokens.every((token): token is string => token !== null) ? `[${tokens.join(", ")}]` : null;
+  }
+  if (kind === "pointReferenceList" && Array.isArray(value)) {
+    const tokens = value.map((item) => {
+      if (!item || typeof item !== "object" || !("mode" in item)) return null;
+      const anchor = item as { mode?: string; pointId?: unknown; elementId?: unknown; pointKey?: unknown };
+      if (anchor.mode === "reference") return qualified(anchor.pointId);
+      if (anchor.mode === "derived") {
+        const base = qualified(anchor.elementId);
+        return base && typeof anchor.pointKey === "string" ? `${base}.${anchor.pointKey}` : null;
+      }
+      return null;
+    });
     return tokens.every((token): token is string => token !== null) ? `[${tokens.join(", ")}]` : null;
   }
   return null;

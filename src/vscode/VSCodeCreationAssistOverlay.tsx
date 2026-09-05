@@ -28,7 +28,8 @@ import type { CreationRecipe, CreationStep } from "../commands/creationRecipes";
 import {
   activePickCandidates,
   applyPickReference,
-  finishLinePick
+  finishLinePick,
+  finishPointPick
 } from "../commands/pickCommands";
 import { commandLineTypedBindingSuggestions } from "../commands/commandLineTypedBindingSuggestions";
 import { creationPlacementForTarget } from "../model/elementCreationPlacement";
@@ -113,6 +114,9 @@ export const VSCodeCreationAssistOverlay = ({
   const activeNumericReferencePickTarget = useCadUiStore((state) => state.activeNumericReferencePickTarget);
   const activeLinePickTarget = useCadUiStore((state) => state.activeLinePickTarget);
   const lineListDraftSignature = activeLinePickTarget?.draftLineIds?.join("\0") ?? "";
+  const pointListDraftSignature = activePointPickTarget?.draftPointAnchors
+    ? JSON.stringify(activePointPickTarget.draftPointAnchors)
+    : "";
   const [restartRecipe, setRestartRecipe] = useState<CreationRecipe | null>(null);
   const [inputState, setInputState] = useState({ identity: "", value: "" });
   const [numberSuggestionSelection, setNumberSuggestionSelection] = useState<{
@@ -153,7 +157,7 @@ export const VSCodeCreationAssistOverlay = ({
   );
   const completedCurrentStep = completedSteps.find((item) => item.stepIndex === session?.currentStepIndex);
   const stepIdentity = session && isCanvasOriginSession
-    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "complete"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : activeLinePickTarget?.draftLineIds?.join("\0") ?? ""}`
+    ? `${session.startedAtRevision}:${session.currentStepIndex}:${session.editingStepIndex ?? "new"}:${step?.kind ?? "complete"}:${step?.kind === "name" ? completedCurrentStep?.value ?? "" : step?.kind === "number" ? completedCurrentStep?.value ?? "" : step?.kind === "pointList" ? pointListDraftSignature : activeLinePickTarget?.draftLineIds?.join("\0") ?? ""}`
     : "";
   const existingInputValue = session && isCanvasOriginSession
     ? stepValueForInput(session, step, completedSteps)
@@ -240,11 +244,12 @@ export const VSCodeCreationAssistOverlay = ({
   const candidates = useMemo(
     () => {
       void lineListDraftSignature;
+      void pointListDraftSignature;
       return session && isCanvasOriginSession && isCommandLineReferenceStep(step?.kind)
         ? activePickCandidates(evaluation)
         : [];
     },
-    [evaluation, isCanvasOriginSession, lineListDraftSignature, session, step?.kind]
+    [evaluation, isCanvasOriginSession, lineListDraftSignature, pointListDraftSignature, session, step?.kind]
   );
   const suggestions = useMemo(() => {
     if (!session || !isCanvasOriginSession || !isCommandLineReferenceStep(step?.kind)) return [];
@@ -543,6 +548,8 @@ export const VSCodeCreationAssistOverlay = ({
   if (!session) return null;
   const isLineList = step?.kind === "lineList";
   const lineListDraftCount = activeLinePickTarget?.draftLineIds?.length ?? 0;
+  const isPointList = step?.kind === "pointList";
+  const pointListDraftCount = activePointPickTarget?.draftPointAnchors?.length ?? 0;
   const stepLabel = commandLineStepLabel(step);
   const inputHelp = commandLineStepHelp(step, presentation);
   const activeStepIndex = session.currentStepIndex;
@@ -654,9 +661,9 @@ export const VSCodeCreationAssistOverlay = ({
           <div className="vscode-creation-assist-entry">
             <label htmlFor="vscode-creation-assist-input">{stepLabel}</label>
             <span className="vscode-creation-assist-help">{inputHelp}</span>
-            {isLineList ? (
+            {isLineList || isPointList ? (
               <span className="vscode-creation-assist-selection-count">
-                {presentation?.text("canvas.creationAssist.selectedCount", "{count} selected", { count: lineListDraftCount }) ?? `${lineListDraftCount} selected`}
+                {presentation?.text("canvas.creationAssist.selectedCount", "{count} selected", { count: isPointList ? pointListDraftCount : lineListDraftCount }) ?? `${isPointList ? pointListDraftCount : lineListDraftCount} selected`}
               </span>
             ) : null}
             {step.kind === "name" || step.kind === "number" || isCommandLineReferenceStep(step.kind) ? (
@@ -721,6 +728,11 @@ export const VSCodeCreationAssistOverlay = ({
           ) : null}
           {isLineList && Array.isArray(activeLinePickTarget?.draftLineIds) ? (
             <button type="button" onClick={() => finishLinePick(completionCommandContext)}>
+              {presentation?.text("canvas.creationAssist.finishSelection", "Finish selection") ?? "Finish selection"}
+            </button>
+          ) : null}
+          {isPointList && Array.isArray(activePointPickTarget?.draftPointAnchors) ? (
+            <button type="button" onClick={() => finishPointPick(completionCommandContext)}>
               {presentation?.text("canvas.creationAssist.finishSelection", "Finish selection") ?? "Finish selection"}
             </button>
           ) : null}

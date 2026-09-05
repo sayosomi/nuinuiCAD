@@ -5,7 +5,7 @@ import {
   type ElementCreationTarget
 } from "../model/elementCreationPlacement";
 import { fallbackElementName, makeUniqueElementName } from "../model/elementNames";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import type {
   CreationArgumentValue,
   CreationArgs,
@@ -70,14 +70,16 @@ export type CommandLineEditingReturnPickState = {
   numericReferencePickProperty: NumericMeasurementKey | null;
   /** Unconfirmed multi-line selection owned by the active line-list prompt. */
   lineListDraftLineIds: ElementId[] | null;
+  /** Unconfirmed ordered point selection owned by the active point-list prompt. */
+  pointListDraftPointAnchors: PointAnchor[] | null;
   /** Candidate cursor owned by the active command-line reference prompt. */
   activePickCursor: { elementId: ElementId; optionIndex: number } | null;
 };
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
-const cloneStepValue = (value: CommandLineStepValue | null) =>
-  Array.isArray(value) ? [...value] : value;
+const cloneStepValue = (value: CommandLineStepValue | null): CommandLineStepValue | null =>
+  Array.isArray(value) ? [...value] as PointAnchor[] | ElementId[] : value;
 
 const cloneEditingReturnPickState = (
   value: CommandLineEditingReturnPickState | null | undefined
@@ -85,6 +87,7 @@ const cloneEditingReturnPickState = (
   ? {
       ...value,
       lineListDraftLineIds: value.lineListDraftLineIds ? [...value.lineListDraftLineIds] : null,
+      pointListDraftPointAnchors: value.pointListDraftPointAnchors ? [...value.pointListDraftPointAnchors] : null,
       activePickCursor: value.activePickCursor ? { ...value.activePickCursor } : null
     }
   : null;

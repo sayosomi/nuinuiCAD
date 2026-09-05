@@ -37,6 +37,7 @@
   "configuration.canvasQuickCreate.enum.addOffsetLine": "Create an offset line",
   "configuration.canvasQuickCreate.enum.addOffsetPoint": "Create an offset point",
   "configuration.canvasQuickCreate.enum.addPolarOffsetPoint": "Create a polar offset point",
+  "configuration.canvasQuickCreate.enum.addPolyline": "Create a polyline",
   "configuration.canvasQuickCreate.enum.addSplitLine": "Split a line",
   "configuration.canvasQuickCreate.enum.addSymmetricCopyLine": "Create a symmetric copied line",
   "configuration.canvasQuickCreate.enum.addSymmetricMove": "Move lines symmetrically",

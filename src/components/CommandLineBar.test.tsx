@@ -13,7 +13,8 @@ import {
 } from "../commands/commandLineSessionCommands";
 import { creationRecipeForType } from "../commands/creationRecipes";
 import { startSession } from "../commands/commandLineSession";
-import { activePickCandidates, applyPickReference } from "../commands/pickCommands";
+import { activePickCandidates, applyPickReference, applyPickedPoint } from "../commands/pickCommands";
+import { referenceAnchor } from "../model/pointAnchors";
 import { pickRefForOption } from "../model/pickReferences";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
@@ -758,6 +759,28 @@ describe("CommandLineBar", () => {
     expect(screen.queryByRole("button", { name: "選択を完了" })).toBeNull();
     act(() => { startCommandLineCreation("offsetLine"); });
     expect(screen.getByRole("button", { name: "選択を完了" })).toBeInTheDocument();
+  });
+
+  it("shows point-list count and Finish selection through the shared reference-step UI", () => {
+    useCadDocumentStore.getState().commitText([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)"
+    ].join("\n"), "test");
+    renderBar();
+    act(() => { startCommandLineCreation("polyline"); });
+
+    const pointA = useCadDocumentStore.getState().elements.find((element) => element.name === "A")!;
+    act(() => { applyPickedPoint({ pickedPointAnchor: referenceAnchor(pointA.id) }); });
+    expect(screen.getByText(/Canvasで選択できます（選択済み 1件）/)).toBeInTheDocument();
+    const finish = screen.getByRole("button", { name: "選択を完了" });
+    expect(finish).toBeInTheDocument();
+    fireEvent.click(finish);
+
+    expect(useCadUiStore.getState().commandLineSession?.args.points).toEqual([
+      referenceAnchor(pointA.id)
+    ]);
+    expect(useCadUiStore.getState().activePointPickTarget).toBeNull();
   });
 
   it("keeps Tab inside an open reference list but otherwise falls through from the input", () => {
