@@ -21,9 +21,8 @@ export const currentCompiledSemanticSnapshotFor = (
   const normalizedSource = normalizedSourceFor(sourceText);
   const sourceRevision = state.currentCompiled.spans.sourceMap.sourceRevision;
   if (
-    state.status === "fatal" ||
     state.currentCompiled.spans.sourceMap.source !== normalizedSource ||
-    state.currentCompiled.spans.sourceMap.sourceRevision !== sourceRevision
+    sourceRevision !== session.getSourceRevision()
   ) return undefined;
 
   return {

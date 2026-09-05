@@ -28,7 +28,7 @@ describe("VS Code runtime evaluation semantic snapshot", () => {
     });
   });
 
-  it("fails closed for stale source/revision and fatal current source without last-good fallback", () => {
+  it("keeps fatal current compiled semantics separate from runtime evaluation", () => {
     const session = createLanguageAnalysisSession(validSource);
 
     expect(session.runtimeEvaluationSnapshot()?.sourceText).toBe(validSource);
@@ -38,7 +38,11 @@ describe("VS Code runtime evaluation semantic snapshot", () => {
     expect(currentCompiledSemanticSnapshotFor(session, {
       normalizedSource: fatalSource,
       sourceRevision: session.getSourceRevision()
-    })).toBeUndefined();
+    })).toMatchObject({
+      sourceText: fatalSource,
+      sourceRevision: session.getSourceRevision(),
+      compiled: expect.any(Object)
+    });
   });
 
   it("advances document and compiled proof after repairing fatal source", () => {

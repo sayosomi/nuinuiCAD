@@ -493,8 +493,11 @@ document is compiled as another graph root.
 
 The host obtains an exact-current compiled semantic view through the
 workspace-entry `currentCompiledSemanticSnapshotFor` proof. That workspace-only
-access retains recoverable current-source diagnostics while rejecting fatal or
-stale source proof; it does not expose a second session lifecycle or evaluator.
+access exposes exact-current `currentCompiled` semantics, including partial fatal
+current compile attempts, while requiring exact source/sourceRevision proof.
+`runtimeEvaluationSnapshot()` remains the separate evaluable/last-good proof.
+Host caller source/revision mismatches fail closed; the workspace entry does not
+expose a second session lifecycle or evaluator.
 
 The host watches `**/*.nui` saves/creates/deletes and invalidates coordinator-owned
 reverse dependencies before rebuilding affected open roots. Public References and

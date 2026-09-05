@@ -53,7 +53,17 @@ describe("nui-language workspace package surfaces", () => {
       sourceRevision: session.getSourceRevision()
     });
 
-    session.replaceSource("nui 1\npoint A = coordinate(");
-    expect(currentCompiledSemanticSnapshotFor(session)).toBeUndefined();
+    const fatalSource = "nui 1\r\npoint A = coordinate(";
+    const normalizedFatalSource = fatalSource.replace(/\r\n/g, "\n");
+    session.replaceSource(fatalSource);
+
+    expect(session.runtimeEvaluationSnapshot()).toBeNull();
+
+    const fatalSnapshot = currentCompiledSemanticSnapshotFor(session);
+    expect(fatalSnapshot).toBeDefined();
+    expect(fatalSnapshot?.sourceText).toBe(normalizedFatalSource);
+    expect(fatalSnapshot?.sourceRevision).toBe(session.getSourceRevision());
+    expect(fatalSnapshot?.compiled.spans.sourceMap.source).toBe(normalizedFatalSource);
+    expect(fatalSnapshot?.compiled.spans.sourceMap.sourceRevision).toBe(session.getSourceRevision());
   });
 });
