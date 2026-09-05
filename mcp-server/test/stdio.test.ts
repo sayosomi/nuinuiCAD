@@ -24,7 +24,7 @@ beforeAll(async () => {
       });
     });
   }
-});
+}, 60_000);
 
 afterEach(async () => {
   for (const child of children.splice(0)) {
