@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLanguageAnalysisSession } from "../../vscode-extension/src/languageAnalysisSession";
+import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import {
   queryDslSignatureHelp,
   type DslSignatureHelpQueryResult
@@ -132,12 +132,12 @@ describe("DSL Signature Help query", () => {
       ")"
     ].join("\n");
     const position = source.indexOf("instance Use") + "instance Use = M(value: 1, ".length;
-    const session = createLanguageAnalysisSession(source);
+    const session = createNuiLanguageSession(source);
     const sourceSnapshot = snapshotFor(source, session.getSourceRevision());
     const result = queryDslSignatureHelp({
       source: sourceSnapshot,
       position,
-      semantic: session.signatureHelpSemanticSnapshot(sourceSnapshot)
+      semantic: session.currentCompiledSemanticBridge() ?? undefined
     });
 
     expect(result?.signatures[0]?.parameters).toEqual([
@@ -150,11 +150,14 @@ describe("DSL Signature Help query", () => {
 
   it("does not use stale Module semantics", () => {
     const source = "nui 1\nmodule M(value: number) {\n}\ninstance Use = M(value: 1)";
-    const session = createLanguageAnalysisSession(source);
+    const session = createNuiLanguageSession(source);
     const oldSnapshot = snapshotFor(source, session.getSourceRevision());
     session.replaceSource("nui 1\nmodule Other(value: number) {\n}\ninstance Use = Other(value: 1)");
 
-    expect(session.signatureHelpSemanticSnapshot(oldSnapshot)).toBeUndefined();
-    expect(queryDslSignatureHelp({ source: oldSnapshot, position: source.length })).toBeNull();
+    expect(queryDslSignatureHelp({
+      source: oldSnapshot,
+      position: source.length,
+      semantic: session.currentCompiledSemanticBridge() ?? undefined
+    })).toBeNull();
   });
 });

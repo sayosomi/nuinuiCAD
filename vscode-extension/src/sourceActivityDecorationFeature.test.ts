@@ -116,11 +116,7 @@ const snapshotFor = (
   documentVersion = 1
 ): NuiRuntimeEvaluationSnapshot => {
   const session = createLanguageAnalysisSession(source);
-  const sourceSnapshot = {
-    normalizedSource: source.replace(/\r\n/g, "\n"),
-    sourceRevision: session.getSourceRevision()
-  };
-  const semantic = session.runtimeEvaluationSemanticSnapshot(sourceSnapshot);
+  const semantic = session.runtimeEvaluationSnapshot();
   if (!semantic) throw new Error("expected exact-current compiled source");
   const evaluation = evaluateElementsReference(
     semantic.compiled.document.elements,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLanguageAnalysisSession } from "../../vscode-extension/src/languageAnalysisSession";
+import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
 
 const source = [
@@ -20,14 +20,14 @@ const source = [
 ].join("\n");
 
 const query = () => {
-  const session = createLanguageAnalysisSession(source);
+  const session = createNuiLanguageSession(source);
   const snapshot = { normalizedSource: source, sourceRevision: session.getSourceRevision() };
   const position = source.indexOf("instance Use") + "instance Use = Pocket(width: ".length;
   return {
     session,
     snapshot,
     position,
-    semantic: session.signatureHelpSemanticSnapshot(snapshot)
+    semantic: session.currentCompiledSemanticBridge() ?? undefined
   };
 };
 

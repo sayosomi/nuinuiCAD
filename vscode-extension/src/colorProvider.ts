@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
-import { queryDslFixedColors } from "../../src/dsl/dslFixedColorQuery";
-import { queryDslThemeRoleColors } from "../../src/dsl/dslThemeRoleColorQuery";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { CanvasTheme } from "../../src/components/canvasTheme";
 import { parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -16,13 +14,13 @@ export const nuiColorSelector: vscode.DocumentSelector = {
   scheme: "file"
 };
 
-export type NuiColorSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiColorSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 export type NuiCanvasThemeFor = () => CanvasTheme | null;
 
 type ExactDocumentColors = {
   rawSource: string;
   source: SourceSnapshot;
-  session: NuiLanguageAnalysisSession;
+  session: NuiLanguageSession;
 };
 
 const hexComponent = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255)
@@ -60,15 +58,13 @@ export const createNuiColorProvider = (
     provideDocumentColors: (document) => {
       const exact = exactDocumentColorsFor(document, sessionFor);
       if (!exact) return [];
-      const fixedSemantic = exact.session.fixedColorSemanticSnapshot(exact.source);
-      const fixedColors = queryDslFixedColors({ source: exact.source, semantic: fixedSemantic }).map(({ color, range }) => new vscode.ColorInformation(
+      const fixedColors = exact.session.fixedColors().map(({ color, range }) => new vscode.ColorInformation(
         vscodeRangeForNormalized(document, exact.rawSource, range),
         new vscode.Color(color.red, color.green, color.blue, color.alpha)
       ));
       const canvasTheme = canvasThemeFor();
       if (!canvasTheme) return fixedColors;
-      const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
-      const themeRoleColors = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).flatMap(({ role, range }) => {
+      const themeRoleColors = exact.session.themeRoleColors().flatMap(({ role, range }) => {
         const color = parseCssColor(canvasTheme[role]);
         return color
           ? [new vscode.ColorInformation(
@@ -95,8 +91,7 @@ export const createNuiColorProvider = (
         document.version === documentVersion &&
         document.getText() === exact.rawSource;
 
-      const semantic = exact.session.fixedColorSemanticSnapshot(exact.source);
-      const fixedColor = queryDslFixedColors({ source: exact.source, semantic }).find(({ range, hex }) =>
+      const fixedColor = exact.session.fixedColors().find(({ range, hex }) =>
         range.from === normalizedRange.from &&
         range.to === normalizedRange.to &&
         exact.source.normalizedSource.slice(range.from, range.to) === hex
@@ -108,17 +103,12 @@ export const createNuiColorProvider = (
         return [presentation];
       }
 
-      const themeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
-      const themeRole = queryDslThemeRoleColors({ source: exact.source, semantic: themeSemantic }).find(({ range }) =>
+      const themeRole = exact.session.themeRoleColors().find(({ range }) =>
         range.from === normalizedRange.from && range.to === normalizedRange.to
       );
       if (!themeRole || !currentDocument()) return [];
 
-      const currentThemeSemantic = exact.session.themeRoleColorSemanticSnapshot(exact.source);
-      const currentThemeRole = queryDslThemeRoleColors({
-        source: exact.source,
-        semantic: currentThemeSemantic
-      }).find(({ role, range }) =>
+      const currentThemeRole = exact.session.themeRoleColors().find(({ role, range }) =>
         role === themeRole.role &&
         range.from === normalizedRange.from &&
         range.to === normalizedRange.to

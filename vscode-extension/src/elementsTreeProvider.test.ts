@@ -22,11 +22,12 @@ vi.mock("vscode", () => ({
 }));
 
 import { parseDslSnapshot } from "../../src/dsl/dslParser";
+import { queryDslDocumentSymbols } from "../../src/dsl/dslDocumentSymbolQuery";
 import {
   createNuiElementsTreeProvider,
   NUI_ELEMENTS_VIEW_ID
 } from "./elementsTreeProvider";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 
 type TestDocument = {
   fileName: string;
@@ -46,18 +47,20 @@ const sessionFor = (initialSource: string) => {
     getSource: vi.fn(() => currentSource),
     getSourceRevision: vi.fn(() => 1),
     replaceSource: vi.fn((source: string) => { currentSource = source; }),
-    documentSymbolSyntaxSnapshot: vi.fn((source: { normalizedSource: string; sourceRevision: number }) => {
-      if (source.normalizedSource !== currentSource.replace(/\r\n/g, "\n") || source.sourceRevision !== 1) return undefined;
+    documentSymbols: vi.fn(() => {
+      const source = {
+        normalizedSource: currentSource.replace(/\r\n/g, "\n"),
+        sourceRevision: 1
+      };
       const parsed = parseDslSnapshot(source);
-      return {
-        sourceRevision: source.sourceRevision,
-        sourceText: source.normalizedSource,
+      return queryDslDocumentSymbols({
+        source,
         statements: parsed.statements,
         sourceMap: parsed.sourceMap
-      };
+      });
     })
   };
-  return session as unknown as NuiLanguageAnalysisSession;
+  return session as unknown as NuiLanguageSession;
 };
 
 describe("VS Code Elements tree provider", () => {
@@ -106,7 +109,7 @@ describe("VS Code Elements tree provider", () => {
     );
     expect(unsupported.getChildren()).toEqual([]);
 
-    session.documentSymbolSyntaxSnapshot = vi.fn(() => undefined);
+    session.documentSymbols = vi.fn(() => []);
     const stale = createNuiElementsTreeProvider(
       () => documentFor("nui 1\npoint A = coordinate(x: 0, y: 0)") as never,
       () => session

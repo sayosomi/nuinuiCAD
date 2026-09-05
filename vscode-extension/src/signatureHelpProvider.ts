@@ -14,7 +14,7 @@ import {
   resolveLocale,
   signatureHelpTranslationCatalog
 } from "./localization";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
@@ -115,7 +115,7 @@ export const projectDslSignatureHelp = (
   return help;
 };
 
-export type NuiSignatureHelpSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiSignatureHelpSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 export const createNuiSignatureHelpProvider = (
   sessionFor: NuiSignatureHelpSessionFor,
@@ -133,16 +133,23 @@ export const createNuiSignatureHelpProvider = (
       sourceRevision: session.getSourceRevision()
     };
     const provideFor = (querySource: SourceSnapshot, semanticSource?: DslSignatureHelpSemanticSnapshot) => {
+      if (!semanticSource) {
+        const result = session.signatureHelp(normalizedOffsetAt(normalizedSource, position));
+        return result ? projectDslSignatureHelp(result, displayLanguageFor()) : undefined;
+      }
       const result = queryDslSignatureHelp({
         source: querySource,
         position: normalizedOffsetAt(querySource.normalizedSource, position),
-        semantic: semanticSource ?? session.signatureHelpSemanticSnapshot(querySource)
+        semantic: semanticSource
       });
       return result ? projectDslSignatureHelp(result, displayLanguageFor()) : undefined;
     };
 
     const multiDocument = activeVscodeMultiDocumentHost();
-    if (!multiDocument) return provideFor(source);
+    if (!multiDocument) {
+      const result = session.signatureHelp(normalizedOffsetAt(normalizedSource, position));
+      return result ? projectDslSignatureHelp(result, displayLanguageFor()) : undefined;
+    }
     return multiDocument.languageSemanticSnapshotFor(document).then((snapshot) =>
       snapshot
         ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)

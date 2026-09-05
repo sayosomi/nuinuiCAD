@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticBridgeFor
+} from "./languageAnalysisSession";
 import type {
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSetValueRequest,
@@ -416,7 +419,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = fixture.panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession")?.sessionId;
-    const target = fixture.analysis.definitionSemanticSnapshot({
+    const target = currentCompiledSemanticBridgeFor(fixture.analysis, {
       normalizedSource: fixture.source,
       sourceRevision: fixture.analysis.getSourceRevision()
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
@@ -727,7 +730,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionMessage = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession");
-    const target = analysis.definitionSemanticSnapshot({
+    const target = currentCompiledSemanticBridgeFor(analysis, {
       normalizedSource: source,
       sourceRevision: analysis.getSourceRevision()
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
@@ -843,7 +846,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession")?.sessionId;
-    const target = analysis.definitionSemanticSnapshot({
+    const target = currentCompiledSemanticBridgeFor(analysis, {
       normalizedSource: source,
       sourceRevision: analysis.getSourceRevision()
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
@@ -961,7 +964,7 @@ describe("registerModulePreviewFeature", () => {
       normalizedSourceOffset: source.indexOf("module Outer")
     }));
 
-    const semantic = sessionFor(document).definitionSemanticSnapshot({
+    const semantic = currentCompiledSemanticBridgeFor(sessionFor(document), {
       normalizedSource: source,
       sourceRevision: sessionFor(document).getSourceRevision()
     });
@@ -1031,7 +1034,7 @@ describe("registerModulePreviewFeature", () => {
       requestId: secondStart.requestId
     }));
 
-    const innerTarget = sessionFor(document).definitionSemanticSnapshot({
+    const innerTarget = currentCompiledSemanticBridgeFor(sessionFor(document), {
       normalizedSource: source,
       sourceRevision: sessionFor(document).getSourceRevision()
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Inner");
@@ -1237,7 +1240,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionMessage = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession");
-    const target = analysis.definitionSemanticSnapshot({
+    const target = currentCompiledSemanticBridgeFor(analysis, {
       normalizedSource: source,
       sourceRevision: analysis.getSourceRevision()
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
@@ -1446,7 +1449,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionId = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession")?.sessionId;
-    const target = analysis.definitionSemanticSnapshot({
+    const target = currentCompiledSemanticBridgeFor(analysis, {
       normalizedSource: source,
       sourceRevision: analysisSourceRevision
     })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
@@ -1678,7 +1681,7 @@ describe("registerModulePreviewFeature", () => {
     const sessionMessage = panel.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string; documentUri?: string })
       .find((message) => message.type === "modulePreviewSession");
-    const semantic = analysis.definitionSemanticSnapshot({
+    const semantic = currentCompiledSemanticBridgeFor(analysis, {
       normalizedSource: source,
       sourceRevision: analysis.getSourceRevision()
     });
@@ -1892,10 +1895,11 @@ describe("registerModulePreviewFeature", () => {
     const sessionA = panelA.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession");
-    const targetA = analyses.get(documentA.uri.toString())?.definitionSemanticSnapshot({
+    const analysisA = analyses.get(documentA.uri.toString());
+    const targetA = analysisA ? currentCompiledSemanticBridgeFor(analysisA, {
       normalizedSource: source,
-      sourceRevision: analyses.get(documentA.uri.toString())?.getSourceRevision() ?? 0
-    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+      sourceRevision: analysisA.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket") : undefined;
     if (!sessionA?.sessionId || !targetA) throw new Error("expected exact session A");
     const snapshotA = parameterSnapshotFor({
       sessionId: sessionA.sessionId,
@@ -1916,10 +1920,11 @@ describe("registerModulePreviewFeature", () => {
     const sessionB = panelB.webview.postMessage.mock.calls
       .map(([message]) => message as { type?: string; sessionId?: string })
       .find((message) => message.type === "modulePreviewSession");
-    const targetB = analyses.get(documentB.uri.toString())?.definitionSemanticSnapshot({
+    const analysisB = analyses.get(documentB.uri.toString());
+    const targetB = analysisB ? currentCompiledSemanticBridgeFor(analysisB, {
       normalizedSource: source,
-      sourceRevision: analyses.get(documentB.uri.toString())?.getSourceRevision() ?? 0
-    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket");
+      sourceRevision: analysisB.getSourceRevision()
+    })?.compiled?.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "Pocket") : undefined;
     if (!sessionB?.sessionId || !targetB) throw new Error("expected exact session B");
     const snapshotB = parameterSnapshotFor({
       sessionId: sessionB.sessionId,

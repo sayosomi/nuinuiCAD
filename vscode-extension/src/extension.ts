@@ -14,6 +14,7 @@ import {
 } from "./compilerDiagnostics";
 import {
   createLanguageAnalysisSession,
+  currentCompiledSemanticBridgeFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
@@ -854,17 +855,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
       .filter((diagnostic): diagnostic is CompilerDiagnostic => diagnostic !== null)
       .map((diagnostic) => toVscodeDiagnostic(document, diagnostic));
     const canvasSession = sessions.get(key, "canvas");
-    const source = {
-      normalizedSource: normalizedSourceFor(sourceText),
-      sourceRevision: session.getSourceRevision()
-    };
     const canvasThemeWarnings = canvasSession
       ? canvasThemeWarningFeature.warningsFor({
           sessionToken: canvasSession,
           documentUri: key,
           documentVersion: document.version,
-          source,
-          semantic: session.fixedColorSemanticSnapshot(source)
+          fixedColors: session.fixedColors()
         })
       : [];
 
@@ -975,7 +971,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       normalizedSource,
       sourceRevision: analysis.getSourceRevision()
     };
-    const semantic = analysis.definitionSemanticSnapshot(source);
+    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
     const info = semantic?.compiled.statementMap?.byElementId.get(elementId);
     if (!info || info.line < 1) return null;
     const line = Math.max(info.range.endLine, info.endLine) - 1;
@@ -2263,7 +2259,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sourceRevision: analysis.getSourceRevision()
     };
     const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
-    const semantic = analysis.definitionSemanticSnapshot(source);
+    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
     const target = semantic?.compiled
       ? queryDslCanvasSourceTarget({
           source,
@@ -2317,7 +2313,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: sessionForDocument.getSourceRevision()
     };
-    const semantic = sessionForDocument.definitionSemanticSnapshot(source);
+    const semantic = currentCompiledSemanticBridgeFor(sessionForDocument, source);
     if (!semantic?.compiled?.statementMap) {
       presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
       return;

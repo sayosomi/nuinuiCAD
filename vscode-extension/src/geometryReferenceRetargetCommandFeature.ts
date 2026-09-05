@@ -7,7 +7,10 @@ import {
   type DslGeometryReferenceRetargetTarget,
   type DslGeometryReferenceRetargetSemanticSnapshot
 } from "../../src/dsl/dslGeometryReferenceRetargetQuery";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  currentCompiledSemanticBridgeFor,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
 import { geometryReferenceRetargetTranslatorFor } from "./geometryReferenceRetargetLocalization";
 import {
   normalizedOffsetFromRaw,
@@ -61,7 +64,7 @@ const sourceStateForEditor = (
     rawSource,
     editor.document.offsetAt(editor.selection.active)
   );
-  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
   return {
     rawSource,
     normalizedSourceOffset,

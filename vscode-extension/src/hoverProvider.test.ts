@@ -80,17 +80,11 @@ const documentFor = (
   return document;
 };
 
-const sourceSnapshotFor = (session: ReturnType<typeof createLanguageAnalysisSession>, source: string) => ({
-  normalizedSource: source.replace(/\r\n/g, "\n"),
-  sourceRevision: session.getSourceRevision()
-});
-
 const runtimeSnapshotFor = (
   session: ReturnType<typeof createLanguageAnalysisSession>,
-  source: string,
   elementName = "A"
 ): NuiRuntimeEvaluationSnapshot => {
-  const semantic = session.runtimeEvaluationSemanticSnapshot(sourceSnapshotFor(session, source));
+  const semantic = session.runtimeEvaluationSnapshot();
   if (!semantic) throw new Error("expected current runtime semantic snapshot");
   const element = semantic.compiled.document.elements.find((candidate) => candidate.name === elementName);
   if (!element) throw new Error(`expected ${elementName} element`);
@@ -153,7 +147,7 @@ describe("VS Code native nui Hover provider", () => {
     ].join("\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
-    const snapshot = runtimeSnapshotFor(session, source);
+    const snapshot = runtimeSnapshotFor(session);
     const evaluateCurrent = vi.fn(async () => snapshot);
     const provider = createNuiHoverProvider(
       () => session,
@@ -346,7 +340,7 @@ describe("VS Code native nui Hover provider", () => {
       tokenFor(cancellation)
     );
     cancellation.cancelled = true;
-    pending.resolve(runtimeSnapshotFor(session, source));
+    pending.resolve(runtimeSnapshotFor(session));
 
     expect(await result).toBeUndefined();
   });
@@ -366,7 +360,7 @@ describe("VS Code native nui Hover provider", () => {
       new vscode.Position(1, "point ".length),
       tokenFor()
     );
-    const snapshot = runtimeSnapshotFor(session, source);
+    const snapshot = runtimeSnapshotFor(session);
     document.setSource("nui 1\npoint C = coordinate(x: 3, y: 4)");
     pending.resolve(snapshot);
 
@@ -382,7 +376,7 @@ describe("VS Code native nui Hover provider", () => {
     const source = normalized.replace(/\n/g, "\r\n");
     const document = documentFor(source);
     const session = createLanguageAnalysisSession(source);
-    const snapshot = runtimeSnapshotFor(session, source, "前身頃");
+    const snapshot = runtimeSnapshotFor(session, "前身頃");
     const provider = createNuiHoverProvider(
       () => session,
       { evaluateCurrent: vi.fn(async () => snapshot) } as NuiHoverRuntimeEvaluationService
