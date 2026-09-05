@@ -1861,7 +1861,7 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: ["loop-line"] });
   });
 
-  it("adds a base line while line picking is active", () => {
+  it("adds a base line while line picking is active", async () => {
     useCadStore.setState({
       elements: [
         ...sampleElements,
@@ -1904,6 +1904,13 @@ describe("DrawingCanvas point dragging", () => {
     expect(draftLine).toBeInTheDocument();
     expect(draftLine).toHaveAttribute("data-line-pick-candidate", "true");
     expect(container.querySelector(".overlay-draft-line-pick-marker")).toBeInTheDocument();
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    await act(async () => { await Promise.resolve(); });
     fireEvent.pointerDown(viewport, {
       button: 0,
       buttons: 1,
@@ -1914,6 +1921,13 @@ describe("DrawingCanvas point dragging", () => {
     expect(useCadStore.getState().activeLinePickTarget).toMatchObject({ draftLineIds: [] });
     expect(container.querySelector(".overlay-draft-line-pick")).toBeNull();
     expect(container.querySelector(".overlay-draft-line-pick-marker")).toBeNull();
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    await act(async () => { await Promise.resolve(); });
     fireEvent.pointerDown(viewport, {
       button: 0,
       buttons: 1,
@@ -1925,6 +1939,13 @@ describe("DrawingCanvas point dragging", () => {
       type: "offsetLine",
       baseLineIds: []
     });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 350,
+      clientY: 250,
+      pointerId: 1
+    });
+    await act(async () => { await Promise.resolve(); });
     act(() => { dispatchCommand("finishLinePick"); });
     expect(useCadStore.getState().elements.at(-1)).toMatchObject({
       type: "offsetLine",
@@ -2700,6 +2721,7 @@ describe("DrawingCanvas pending pointer intents", () => {
     try {
       fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 350, clientY: 200, pointerId: 1 });
       fireEvent.pointerUp(viewport, { buttons: 0, clientX: 350, clientY: 200, pointerId: 1 });
+      await act(async () => { await Promise.resolve(); });
 
       fireEvent.pointerDown(viewport, { button: 0, buttons: 1, clientX: 250, clientY: 200, pointerId: 1 });
       // The same pointer id replaced the waiting intent; the capture acquired by
