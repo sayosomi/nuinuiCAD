@@ -6,8 +6,8 @@ import {
   scalarExpressionCompletionContextAt,
   scalarOperandWordEndingAt
 } from "./scalarExpressionPositionClassifier";
-import * as builtinFunctions from "./builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
+import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
 const tokenizeOk = (source: string): readonly ScalarExpressionToken[] => {
