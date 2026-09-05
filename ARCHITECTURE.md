@@ -223,6 +223,13 @@ semantic / materialization path をそのまま利用し、materialized Module c
 もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics
 だけを返して last-good `doc` を current semantics として公開しない。
 
+Current type ownership is split across the document and evaluation boundaries:
+`src/model/cadDocumentTypes.ts` owns authored/compiled CAD model contracts,
+`src/geometry/evaluationTypes.ts` owns computed geometry and
+`EvaluationResult`/runtime evaluation contracts, and `src/types/geometry.ts`
+currently remains a compatibility/presentation facade over those owners during
+the staged Language Core migration.
+
 ### Headless MCP
 
 Primary:
