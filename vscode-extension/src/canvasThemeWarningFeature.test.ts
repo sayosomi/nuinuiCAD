@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { compileDslDocument } from "../../src/dsl/dslDocument";
-import { parseDslSnapshot } from "../../src/dsl/dslParser";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import { createNuiLanguageSession } from "@nuinuicad/nui-language";
 import {
   createCanvasThemeWarningFeature,
   fixedColorContrastWarningsFor
@@ -9,24 +7,10 @@ import {
 import { contrastRatio, parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 
-const sourceSnapshotFor = (source: string, sourceRevision = 1) => ({
-  normalizedSource: source.replace(/\r\n/g, "\n"),
-  sourceRevision
-});
-
 const warningsFor = (source: string, background: string, displayLanguage = "en") => {
-  const normalizedSource = source.replace(/\r\n/g, "\n");
-  const snapshot = sourceSnapshotFor(normalizedSource);
-  const parsed = parseDslSnapshot(snapshot);
+  const session = createNuiLanguageSession(source);
   return fixedColorContrastWarningsFor({
-    source: snapshot,
-    semantic: {
-      sourceRevision: snapshot.sourceRevision,
-      compiled: compileDslDocument(normalizedSource, {
-        preparsed: parsed,
-        assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `warning-test:${index}`]))
-      })
-    },
+    fixedColors: session.fixedColors(),
     background,
     displayLanguage
   });
@@ -104,19 +88,16 @@ describe("fixed-color Canvas contrast warnings", () => {
     expect(warnings.every((warning) => warning.source === "nuinuiCAD")).toBe(true);
   });
 
-  it("fails closed for stale semantic snapshots and unparseable backgrounds", () => {
+  it("uses already-resolved fixed colors and fails closed for unparseable backgrounds", () => {
     const source = modifierSource(["#999999"]);
-    const session = createLanguageAnalysisSession(source);
-    const current = sourceSnapshotFor(source, session.getSourceRevision());
-    const semantic = session.fixedColorSemanticSnapshot(current);
+    const session = createNuiLanguageSession(source);
+    const fixedColors = session.fixedColors();
     expect(fixedColorContrastWarningsFor({
-      source: { ...current, sourceRevision: current.sourceRevision + 1 },
-      semantic,
+      fixedColors,
       background: "#ffffff"
-    })).toEqual([]);
+    })).toHaveLength(1);
     expect(fixedColorContrastWarningsFor({
-      source: current,
-      semantic,
+      fixedColors,
       background: "var(--vscode-editor-background)"
     })).toEqual([]);
   });
@@ -135,9 +116,8 @@ describe("Canvas theme warning observation lifecycle", () => {
     const sessionToken = {};
     const otherSessionToken = {};
     const source = modifierSource(["#999999"]);
-    const session = createLanguageAnalysisSession(source);
-    const snapshot = sourceSnapshotFor(source, session.getSourceRevision());
-    const semantic = session.fixedColorSemanticSnapshot(snapshot);
+    const session = createNuiLanguageSession(source);
+    const fixedColors = session.fixedColors();
     const publication = {
       sessionToken,
       sessionDocumentUri: "file:///tmp/pattern.nui",
@@ -155,8 +135,7 @@ describe("Canvas theme warning observation lifecycle", () => {
       sessionToken,
       documentUri: publication.sessionDocumentUri,
       documentVersion: 4,
-      source: snapshot,
-      semantic
+      fixedColors
     })).toHaveLength(1);
     expect(feature.acceptCanvasThemePublication({
       ...publication,

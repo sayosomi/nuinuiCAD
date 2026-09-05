@@ -17,7 +17,10 @@ import type {
   VscodeInlineModuleCanvasTargetsPublication,
   VscodeInlineModuleGeneratedGroupProof
 } from "../../src/vscode/protocol";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  currentCompiledSemanticBridgeFor,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
 import {
   inlineModuleRejectionMessageFor,
   inlineModuleSummaryFor,
@@ -144,7 +147,7 @@ const exactSourceStateFor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: session.getSourceRevision()
   };
-  const semantic = session.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(session, source);
   const compiled = semantic?.compiled;
   if (!compiled || !compiled.statementMap || compiled.spans.sourceMap.source !== source.normalizedSource) {
     return null;

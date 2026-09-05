@@ -167,4 +167,33 @@ describe("NuiLanguageSession", () => {
     expect(session.runtimeEvaluationSnapshot()).toBeNull();
     expect(session.currentCompiledSemanticBridge()?.sourceText).toBe("nui 1\npoint A = coordinate(");
   });
+
+  it("keeps an exact-current runtime snapshot for recoverable current errors", () => {
+    const source = "nui 1\nconst width: number = @missing\npoint A = coordinate(x: 0, y: 0)\n";
+    const session = createNuiLanguageSession(source);
+    const diagnostics = session.diagnostics();
+    const bridge = session.currentCompiledSemanticBridge();
+    const snapshot = session.runtimeEvaluationSnapshot();
+
+    expect(diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(bridge).toMatchObject({
+      sourceText: source,
+      sourceRevision: session.getSourceRevision()
+    });
+    expect(snapshot).toMatchObject({
+      sourceText: source,
+      sourceRevision: session.getSourceRevision(),
+      documentRevision: 0,
+      compiledDocumentRevision: 0,
+      compiled: expect.any(Object)
+    });
+    expect(snapshot?.compiled.spans.sourceMap).toMatchObject({
+      source,
+      sourceRevision: session.getSourceRevision()
+    });
+
+    session.replaceSource("nui 1\npoint A = coordinate(");
+    expect(session.runtimeEvaluationSnapshot()).toBeNull();
+    expect(session.runtimeEvaluationSnapshot()?.sourceText).not.toBe(source);
+  });
 });

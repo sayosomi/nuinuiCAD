@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticBridgeFor
+} from "./languageAnalysisSession";
 
 vi.mock("vscode", () => ({}));
 vi.mock("./referencePickSourceBridge", () => ({
@@ -85,7 +88,7 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
       normalizedSource: source,
       sourceRevision: languageSession.getSourceRevision()
     };
-    const semantic = languageSession.definitionSemanticSnapshot(sourceSnapshot);
+    const semantic = currentCompiledSemanticBridgeFor(languageSession, sourceSnapshot);
     expect(semantic).toBeDefined();
     const offsetPointLine = source.indexOf("point OffsetPoint");
     const offset = atEndOf("@A", offsetPointLine);

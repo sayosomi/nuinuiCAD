@@ -148,10 +148,6 @@ const exactSourceFor = (sourceText: string, sourceRevision: number): SourceSnaps
   sourceRevision
 });
 
-const hasCurrentErrors = (state: AutomationDocumentState): boolean =>
-  [...state.currentCompiled.diagnostics, ...(state.currentCompiled.bindingIssueDiagnostics ?? [])]
-    .some((diagnostic) => diagnostic.severity === "error");
-
 const samePosition = (
   left: { line: number; character: number },
   right: { line: number; character: number }
@@ -351,7 +347,6 @@ export class NuiLanguageSession {
 
   prepareRename(offset: number): DslRenameTarget | null {
     const state = this.document.getState();
-    if (hasCurrentErrors(state)) return null;
     const source = exactSourceFor(this.getSource(), this.getSourceRevision());
     const semantic = completionSemanticFor(state, source) as DslRenameSemanticSnapshot | null;
     return queryDslRenameTarget({ source, ...(semantic ? { semantic } : {}) }, offset);
@@ -359,7 +354,6 @@ export class NuiLanguageSession {
 
   rename(offset: number, newName: string): DslRenameEditPlanResult {
     const state = this.document.getState();
-    if (hasCurrentErrors(state)) return { status: "rejected", rejection: { reason: "unavailable" } };
     const source = exactSourceFor(this.getSource(), this.getSourceRevision());
     const semantic = completionSemanticFor(state, source) as DslRenameSemanticSnapshot | null;
     return planDslRenameEditsResult(
@@ -518,7 +512,6 @@ export class NuiLanguageSession {
     const sourceRevision = this.getSourceRevision();
     if (
       state.status === "fatal" ||
-      hasCurrentErrors(state) ||
       state.docText !== sourceText ||
       state.currentCompiled.spans.sourceMap.source !== normalizedSource ||
       state.currentCompiled.spans.sourceMap.sourceRevision !== sourceRevision ||
@@ -545,11 +538,6 @@ export class NuiLanguageSession {
       state.currentCompiled.spans.sourceMap.sourceRevision !== sourceRevision
     ) return null;
     return { sourceRevision, sourceText: normalizedSource, compiled: state.currentCompiled };
-  }
-
-  /** @internal Transition-only completion recovery for old query-level tests. */
-  currentCompletionRecovery(): DslCompletionRecoveryInput | undefined {
-    return completionRecoveryFor(this.document.getState());
   }
 }
 

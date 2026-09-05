@@ -14,7 +14,10 @@ import type {
   VscodeReferencePickNumericPropertyDraft,
   VscodeReferencePickTargetProof
 } from "../../src/vscode/referencePickProtocol";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  currentCompiledSemanticBridgeFor,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
 import { referencePickTranslatorFor } from "./referencePickLocalization";
 import {
   createVscodeReferencePickSourceBridge,
@@ -108,7 +111,7 @@ const outputPreviewRevealSourceTargetFromSnapshot = ({
   normalizedSourceOffset
 }: {
   source: { normalizedSource: string; sourceRevision: number };
-  semantic: ReturnType<NuiLanguageAnalysisSession["definitionSemanticSnapshot"]>;
+  semantic: ReturnType<typeof currentCompiledSemanticBridgeFor>;
   normalizedSourceOffset: number;
 }): VscodeOutputPreviewRevealSourceTargetResult => {
   if (!semantic?.compiled) return { status: "failed", reason: "analysis-unavailable" };
@@ -141,7 +144,7 @@ export const outputPreviewRevealSourceTargetForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,
     editor.document.offsetAt(editor.selection.active)
@@ -160,7 +163,7 @@ export const sourceTargetAvailabilityForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
   if (!semantic?.compiled) return unavailableSourceTargets();
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,
@@ -206,7 +209,7 @@ export const referencePickSourceOffsetForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = languageAnalysisSession.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
   if (!semantic?.compiled) return null;
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,

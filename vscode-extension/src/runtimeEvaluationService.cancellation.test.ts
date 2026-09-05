@@ -3,7 +3,10 @@ import { isLastGoodDslDocument } from "../../src/document/canonicalDocument";
 import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 import { evaluationResultToPayload, type EvaluationPayload } from "../../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticBridgeFor
+} from "./languageAnalysisSession";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
 const source = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
@@ -19,16 +22,16 @@ const deferred = <T>() => {
 
 const payloadForCurrentSource = (): EvaluationPayload => {
   const session = createLanguageAnalysisSession(source);
-  const semantic = session.choiceQuickFixSemanticSnapshot(sourceSnapshot);
-  if (!semantic || !isLastGoodDslDocument(semantic.currentCompiled)) {
+  const semantic = currentCompiledSemanticBridgeFor(session, sourceSnapshot);
+  if (!semantic || !isLastGoodDslDocument(semantic.compiled)) {
     throw new Error("expected current compiled document");
   }
   const options = buildEvaluationOptions({
-    compiledDocument: semantic.currentCompiled,
+    compiledDocument: semantic.compiled,
     evaluationLimitIndex: undefined
   });
   return evaluationResultToPayload(
-    evaluateElementsReference(semantic.currentCompiled.document.elements, options)
+    evaluateElementsReference(semantic.compiled.document.elements, options)
   );
 };
 
