@@ -719,6 +719,71 @@ describe("VS Code multi-document host lifecycle", () => {
     host.dispose();
   });
 
+  it("recovers the importer Canvas runtime after opening a clean source-navigation dependency", async () => {
+    const rootPath = "/workspace/root.nui";
+    const libraryPath = "/workspace/library.nui";
+    const rootSource = [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "instance use = lib::Panel()",
+      "point Root = coordinate(x: 20, y: 10)"
+    ].join("\n");
+    const librarySource = [
+      "nui 1",
+      "export module Panel() {",
+      "  point P = coordinate(x: 3, y: 4)",
+      "}"
+    ].join("\n");
+    mocks.files.set(libraryPath, encoder.encode(librarySource));
+    const root = documentFor(rootPath, rootSource);
+    mocks.textDocuments = [root];
+
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    const rootUri = root.uri.toString();
+    await vi.waitFor(() => {
+      const runtime = latestCurrentPublicationFor(rootUri)?.canvasRuntime;
+      expect(runtime?.preparedRustEvaluation.input.elements.some((element) => element.name === "P")).toBe(true);
+      expect(runtime?.preparedRustEvaluation.input.elements.some((element) => element.name === "Root")).toBe(true);
+    });
+
+    const initialPublication = latestCurrentPublicationFor(rootUri);
+    const importedId = initialPublication?.canvasRuntime?.preparedRustEvaluation.input.elements
+      .find((element) => element.name === "P")?.id;
+    expect(importedId).toBeDefined();
+    if (!importedId) return;
+
+    const target = await host.canvasSourceDefinitionFor(root, importedId);
+    expect(target).toMatchObject({
+      handled: true,
+      value: {
+        targetUri: { scheme: "file", fsPath: libraryPath },
+        normalizedSource: librarySource,
+        sourceIdentity: {
+          kind: "dependency-saved",
+          documentId: `file://${libraryPath}`
+        }
+      }
+    });
+
+    const dependency = documentFor(libraryPath, librarySource);
+    mocks.textDocuments = [root, dependency];
+    const rootPublicationCountBeforeOpen = currentPublicationsFor(rootUri).length;
+    mocks.openListeners[0]?.(dependency);
+
+    await vi.waitFor(() => {
+      expect(currentPublicationsFor(rootUri).length).toBeGreaterThan(rootPublicationCountBeforeOpen);
+      const recovered = latestCurrentPublicationFor(rootUri);
+      expect(recovered?.graph.rootDocumentId).toBe(rootUri);
+      expect(recovered?.canvasRuntime?.rootDocumentId).toBe(rootUri);
+      expect(recovered?.canvasRuntime?.preparedRustEvaluation.input.elements.some((element) => element.name === "P")).toBe(true);
+      expect(recovered?.canvasRuntime?.preparedRustEvaluation.input.elements.some((element) => element.name === "Root")).toBe(true);
+      expect(recovered?.canvasRuntime?.graphRevision).toBe(recovered?.graph.revision);
+    });
+
+    host.dispose();
+  });
+
   it("preserves exact same-file compiler diagnostics on imported roots", async () => {
     const rootPath = "/workspace/root.nui";
     const libraryPath = "/workspace/library.nui";

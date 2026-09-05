@@ -10,10 +10,11 @@ import { startCommandLineCreationForRecipe } from "../commands/commandLineSessio
 import type { SourceCreationCursor } from "../commands/sourceCreationInsertion";
 import { evaluateElements } from "../geometry/evaluate";
 import type { EvaluationEngineState } from "../geometry/useEvaluationEngine";
-import type { EvaluationResult } from "../types/geometry";
+import type { CadElement, EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
+import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
 
 const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
@@ -71,17 +72,40 @@ const evaluationState = (
 const renderCurrent = (
   evaluation: EvaluationResult,
   state: EvaluationEngineState,
-  canvasCreationRequest?: { requestId: number; sourceCursor: SourceCreationCursor }
+  canvasCreationRequest?: { requestId: number; sourceCursor: SourceCreationCursor },
+  multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null
 ) => (
   <VSCodeDrawingCanvas
     evaluation={evaluation}
     evaluationState={state}
     canvasFocusRef={createRef()}
     canvasCreationRequest={canvasCreationRequest}
+    multiDocumentRuntimePresentation={multiDocumentRuntimePresentation}
     postCanonicalSourceText={vi.fn()}
     currentReferencePickAuthorityFor={() => null}
   />
 );
+
+const multiDocumentRuntimePresentationFor = (
+  graphRevision: number,
+  elements: CadElement[],
+  importedElementId: string
+): VscodeMultiDocumentCanvasRuntimePresentation => ({
+  graphRevision,
+  rootDocumentId: "file:///workspace/root.nui",
+  rootSourceRevision: graphRevision,
+  elements,
+  evaluationLimitIndex: elements.length,
+  visibilityProfiles: [],
+  activeVisibilityProfileId: "",
+  moduleMaterialization: {
+    instanceBaseGeometrySnapshots: [],
+    originByRuntimeElementId: new Map([[importedElementId, {
+      kind: "moduleBody",
+      instancePath: ["use"]
+    }]])
+  }
+});
 
 const mockCanvasContext = () => ({
   arc: vi.fn(),
@@ -378,6 +402,78 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
       pointerEvents.forEach((eventName) => container.removeEventListener(eventName, blockReactPointerBoundary));
       container.remove();
     }
+  });
+
+  it("recovers ordinary point selection on the same Canvas after an imported runtime refresh", async () => {
+    useCadDocumentStore.getState().replaceTextDocument(baseline, {
+      currentFilePath: null,
+      dirtySinceSave: false
+    });
+    const state = useCadDocumentStore.getState();
+    const rootPoint = state.elements.find((element) => element.name === "A");
+    if (!rootPoint) throw new Error("Expected the importer-authored point");
+    const importedPoint: CadElement = {
+      id: "runtime-library-point",
+      name: "P",
+      type: "freePoint",
+      activity: "visible",
+      x: 120,
+      y: 20
+    };
+    const runtimeElements = [...state.elements, importedPoint];
+    const initialRevision = state.compiledDocumentRevision;
+    const initialEvaluation = evaluateElements(runtimeElements);
+    const view = render(renderCurrent(
+      initialEvaluation,
+      evaluationState(initialEvaluation, initialRevision, initialRevision),
+      undefined,
+      multiDocumentRuntimePresentationFor(initialRevision, runtimeElements, importedPoint.id)
+    ));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const pointsBeforeNavigation = view.container.querySelectorAll<SVGCircleElement>(".overlay-draggable-point");
+    const importedRenderedPoint = pointsBeforeNavigation.item(pointsBeforeNavigation.length - 1);
+    if (!importedRenderedPoint) throw new Error("Expected the imported runtime point");
+    clickRenderedGeometry(importedRenderedPoint, {
+      clientX: Number(importedRenderedPoint.getAttribute("cx")),
+      clientY: Number(importedRenderedPoint.getAttribute("cy"))
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(importedPoint.id);
+
+    const transitionRevision = 42;
+    const transitionEvaluation = evaluateElements(state.elements);
+    await act(async () => {
+      view.rerender(renderCurrent(
+        transitionEvaluation,
+        evaluationState(transitionEvaluation, transitionRevision, transitionRevision),
+        undefined,
+        null
+      ));
+      await Promise.resolve();
+    });
+
+    const recoveredEvaluation = evaluateElements(runtimeElements);
+    await act(async () => {
+      view.rerender(renderCurrent(
+        recoveredEvaluation,
+        evaluationState(recoveredEvaluation, transitionRevision, transitionRevision),
+        undefined,
+        multiDocumentRuntimePresentationFor(transitionRevision, runtimeElements, importedPoint.id)
+      ));
+      await Promise.resolve();
+    });
+
+    const pointsAfterNavigation = view.container.querySelectorAll<SVGCircleElement>(".overlay-draggable-point");
+    const recoveredRootPoint = pointsAfterNavigation.item(0);
+    if (!recoveredRootPoint) throw new Error("Expected the importer-authored point after recovery");
+    clickRenderedGeometry(recoveredRootPoint, {
+      clientX: Number(recoveredRootPoint.getAttribute("cx")),
+      clientY: Number(recoveredRootPoint.getAttribute("cy"))
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBe(rootPoint.id);
   });
 
   it("selects a line when the pointer events target the rendered SVG line", () => {
