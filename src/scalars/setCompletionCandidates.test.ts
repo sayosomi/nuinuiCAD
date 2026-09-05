@@ -3,8 +3,8 @@ import type { Binding, BindingCatalog } from "./bindingCatalog";
 import type { BindingAnalysis } from "./bindingAnalysis";
 import { setRhsScalarCandidates, setTargetCandidates, type SetCompletionSiteDeps } from "./setCompletionCandidates";
 import { typedDeclarationAnalysisFor } from "./testSupport/typedDeclarationAnalysisFixture";
-import * as builtinFunctions from "./builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
+import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
 
 const namedDefinition: BuiltinFunctionDefinition = {
   name: "someNamedFunction" as BuiltinFunctionName,

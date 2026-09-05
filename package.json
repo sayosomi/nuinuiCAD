@@ -2,10 +2,14 @@
   "name": "nuinuicad",
   "private": true,
   "version": "0.0.0",
+  "workspaces": [
+    "packages/nui-language"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && npm run build:mcp",
+    "build": "tsc -b && npm run typecheck:nui-language && npm run build:mcp",
+    "typecheck:nui-language": "tsc -p packages/nui-language/tsconfig.json",
     "build:mcp": "tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js",
     "lint": "eslint .",
     "test": "vitest run",
