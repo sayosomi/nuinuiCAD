@@ -413,7 +413,7 @@ describe("Output Preview application", () => {
     const iconResolver = vi.spyOn(vscodeCanvasRibbonIcons, "resolveVscodeLucideIcon");
     renderFixture("nui 1");
 
-    const reset = screen.getByRole("button", { name: "Reset Output Preview View" });
+    const reset = screen.getByRole("button", { name: "Reset Output Preview Pan and Zoom" });
     const fit = screen.getByRole("button", { name: "Fit Output Preview" });
     expect(iconResolver).toHaveBeenCalledWith("rotate-ccw");
     expect(iconResolver).toHaveBeenCalledWith("maximize");
@@ -438,7 +438,7 @@ describe("Output Preview application", () => {
     fireEvent.wheel(viewport, { deltaY: -100, clientX: 250, clientY: 150 });
     expect(screen.getByRole("combobox")).toHaveValue(svgKey);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset Output Preview View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset Output Preview Pan and Zoom" }));
     act(() => {
       window.dispatchEvent(new MessageEvent("message", { data: { type: "outputPreviewResetView" } }));
     });

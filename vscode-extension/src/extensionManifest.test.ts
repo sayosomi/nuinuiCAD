@@ -259,7 +259,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Select Instance",
       "nuinuiCAD: Reset Canvas View",
       "nuinuiCAD: Fit Drawing",
-      "nuinuiCAD: Reset Output Preview View",
+      "nuinuiCAD: Reset Output Preview Pan and Zoom",
       "nuinuiCAD: Fit Output Preview",
       "nuinuiCAD: Clear Output Preview Focus",
       "nuinuiCAD: Export Current Output",
@@ -307,12 +307,12 @@ describe("VS Code extension manifest command contributions", () => {
     ]);
   });
 
-  it("keeps Reset Output Preview View surface-only with no shortcut or target enablement", async () => {
+  it("keeps Reset Output Preview Pan and Zoom surface-only with no shortcut or target enablement", async () => {
     const manifest = await readManifest();
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.resetOutputPreviewView");
     expect(command).toEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
-      title: "nuinuiCAD: Reset Output Preview View"
+      title: "nuinuiCAD: Reset Output Preview Pan and Zoom"
     });
     expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
@@ -365,7 +365,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.menus?.["editor/context"]).toContainEqual({
       submenu: "nuinuiCAD.convertPoint",
       when: coordinatePointConversionSourceContextWhen,
-      group: "1_modification@2"
+      group: "2_nuinuiCAD_3_reference_convert@2"
     });
     expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
       submenu: "nuinuiCAD.convertPoint",
@@ -463,23 +463,23 @@ describe("VS Code extension manifest command contributions", () => {
       .not.toContain("modulePreviewSourceTarget");
   });
 
-  it("keeps independent Reveal/Open fallback slots in deterministic Source navigation order", async () => {
+  it("keeps independent Reveal/Open fallback slots in the consolidated Source hierarchy", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
-      { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "navigation@1" },
-      { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "navigation@1" },
-      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "navigation@2" },
-      { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "navigation@2" },
-      { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "navigation@3" },
-      { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "1_modification@7" },
-      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "1_modification@8" },
-      { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "1_modification@1" },
-      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "1_modification@2" },
-      { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "1_modification@2" },
-      { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "1_modification@3" },
-      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "1_modification@4" },
-      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "1_modification@5" },
-      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "1_modification@6" }
+      { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD_1_navigation@1" },
+      { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD_1_navigation@1" },
+      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD_1_navigation@2" },
+      { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD_1_navigation@2" },
+      { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD_1_navigation@3" },
+      { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD_2_module_refactor@1" },
+      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD_2_module_refactor@2" },
+      { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD_3_reference_convert@1" },
+      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "2_nuinuiCAD_3_reference_convert@2" },
+      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "2_nuinuiCAD_3_reference_convert@3" },
+      { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD_4_value@1" },
+      { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD_4_value@2" },
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD_5_bake@1" },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD_5_bake@2" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
@@ -521,11 +521,11 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD.extractModule",
       "nuinuiCAD.pickReferenceFromCanvas",
       "nuinuiCAD.convertPoint",
+      "nuinuiCAD.replaceGeometryReferences",
       "nuinuiCAD.stepSourceValueForward",
       "nuinuiCAD.stepSourceValueBackward",
       "nuinuiCAD.bakeCurrentShape",
-      "nuinuiCAD.bakeBaseShape",
-      "nuinuiCAD.replaceGeometryReferences"
+      "nuinuiCAD.bakeBaseShape"
     ]);
     expect(editorContextCommands).not.toContain("nuinuiCAD.fitOutputPreview");
     expect(editorContextCommands).not.toContain("nuinuiCAD.resetOutputPreviewView");
