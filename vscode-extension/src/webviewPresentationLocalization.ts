@@ -176,7 +176,7 @@ export const webviewPresentationTranslationCatalog = {
   "output.ribbon.exportTitle": { en: "Output Export", ja: "出力エクスポート" },
   "output.ribbon.exportPdf": { en: "Export PDF", ja: "PDFをエクスポート" },
   "output.ribbon.exportSvg": { en: "Export SVG", ja: "SVGをエクスポート" },
-  "output.ribbon.reset": { en: "Reset Output Preview view", ja: "出力プレビューの表示をリセット" },
+  "output.ribbon.reset": { en: "Reset Output Preview Pan and Zoom", ja: "出力プレビューの移動とズームをリセット" },
   "output.ribbon.fit": { en: "Fit Output Preview", ja: "出力プレビューに合わせる" },
   "output.viewportStatus.label": { en: "Output Preview status", ja: "出力プレビューの状態" },
   "output.viewportStatus.description": { en: "Current Output Preview zoom and pointer position.", ja: "現在の出力プレビューのズームとポインター位置です。" },
