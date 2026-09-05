@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import {
   type DslDocumentSymbol,
   type DslDocumentSymbolKind
-} from "../../src/dsl/dslDocumentSymbolQuery";
+} from "@nuinuicad/nui-language";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import {
   vscodeRangeForNormalized

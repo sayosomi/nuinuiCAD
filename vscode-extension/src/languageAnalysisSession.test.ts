@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { AutomationDocument } from "../../src/document/automationDocument";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor
+  currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 
 const sourceSnapshotFor = (source: string, sourceRevision: number) => ({
@@ -23,7 +23,7 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(diagnostics).toHaveBeenCalledOnce();
     expect(session.completion(validSource.length)).toBeDefined();
     expect(session.documentSymbols().length).toBeGreaterThan(0);
-    expect(session.currentCompiledSemanticBridge()).toMatchObject({
+    expect(currentCompiledSemanticSnapshotFor(session, sourceSnapshotFor(validSource, session.getSourceRevision()))).toMatchObject({
       sourceText: validSource,
       sourceRevision: session.getSourceRevision()
     });
@@ -89,7 +89,7 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(session.runtimeDiagnosticsSnapshotFor(5)).toBeNull();
   });
 
-  it("uses direct package diagnostics and source lifecycle while keeping the bridge source-proofed", () => {
+  it("uses direct package diagnostics and source lifecycle while keeping the semantic snapshot source-proofed", () => {
     const session = createLanguageAnalysisSession(fatalSource);
     expect(session.getDiagnostics().length).toBeGreaterThan(0);
 
@@ -98,12 +98,12 @@ describe("VS Code document-scoped language analysis session", () => {
     expect(session.getDiagnostics()).toEqual([]);
 
     const current = sourceSnapshotFor(validSource, session.getSourceRevision());
-    expect(currentCompiledSemanticBridgeFor(session, current)).toMatchObject({
+    expect(currentCompiledSemanticSnapshotFor(session, current)).toMatchObject({
       sourceText: validSource,
       sourceRevision: current.sourceRevision,
       compiled: expect.any(Object)
     });
-    expect(currentCompiledSemanticBridgeFor(session, sourceSnapshotFor(validSource, current.sourceRevision + 1))).toBeUndefined();
-    expect(currentCompiledSemanticBridgeFor(session, sourceSnapshotFor("nui 1\npoint Other = coordinate(x: 0, y: 1)\n", current.sourceRevision))).toBeUndefined();
+    expect(currentCompiledSemanticSnapshotFor(session, sourceSnapshotFor(validSource, current.sourceRevision + 1))).toBeUndefined();
+    expect(currentCompiledSemanticSnapshotFor(session, sourceSnapshotFor("nui 1\npoint Other = coordinate(x: 0, y: 1)\n", current.sourceRevision))).toBeUndefined();
   });
 });

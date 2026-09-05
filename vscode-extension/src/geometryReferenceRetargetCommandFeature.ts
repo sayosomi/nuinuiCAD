@@ -6,9 +6,9 @@ import {
   type DslGeometryReferenceRetargetEdit,
   type DslGeometryReferenceRetargetTarget,
   type DslGeometryReferenceRetargetSemanticSnapshot
-} from "../../src/dsl/dslGeometryReferenceRetargetQuery";
+} from "@nuinuicad/nui-language";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import { geometryReferenceRetargetTranslatorFor } from "./geometryReferenceRetargetLocalization";
@@ -64,7 +64,7 @@ const sourceStateForEditor = (
     rawSource,
     editor.document.offsetAt(editor.selection.active)
   );
-  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
   return {
     rawSource,
     normalizedSourceOffset,

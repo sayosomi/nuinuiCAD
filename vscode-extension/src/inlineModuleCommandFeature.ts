@@ -2,23 +2,23 @@ import * as vscode from "vscode";
 import {
   applyLineSplices,
   type LineSplice
-} from "../../src/document/textPatch";
+} from "@nuinuicad/nui-language/document";
 import {
   planInlineModule,
   type InlineModulePlan,
   type InlineModulePolicy,
   type InlineModuleTargetIdentity
-} from "../../src/document/inlineModulePlanner";
-import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
-import { sourceOwnerForRuntimeElementId } from "../../src/dsl/sourceOwnership";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+} from "@nuinuicad/nui-language/document";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type {
   VscodeInlineModuleCanvasTargetProof,
   VscodeInlineModuleCanvasTargetsPublication,
   VscodeInlineModuleGeneratedGroupProof
 } from "../../src/vscode/protocol";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
@@ -147,7 +147,7 @@ const exactSourceStateFor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: session.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(session, source);
+  const semantic = currentCompiledSemanticSnapshotFor(session, source);
   const compiled = semantic?.compiled;
   if (!compiled || !compiled.statementMap || compiled.spans.sourceMap.source !== source.normalizedSource) {
     return null;

@@ -21,8 +21,8 @@ vi.mock("vscode", () => ({
   }
 }));
 
-import { parseDslSnapshot } from "../../src/dsl/dslParser";
-import { queryDslDocumentSymbols } from "../../src/dsl/dslDocumentSymbolQuery";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslDocumentSymbols } from "@nuinuicad/nui-language";
 import {
   createNuiElementsTreeProvider,
   NUI_ELEMENTS_VIEW_ID

@@ -3,8 +3,8 @@ import * as vscode from "vscode";
 import {
   defaultOutputExportPath,
   ensureOutputExportExtension
-} from "../../src/document/printExportFileName";
-import type { NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
+} from "@nuinuicad/nui-language/document";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import type {
   ExtensionToVscodeMessage,
   VscodeDocumentChangeReason,

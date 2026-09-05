@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticSnapshotFor
+} from "./languageAnalysisSession";
 
 const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
 const warningSource = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
@@ -32,7 +35,10 @@ describe("VS Code runtime evaluation semantic snapshot", () => {
 
     session.replaceSource(fatalSource);
     expect(session.runtimeEvaluationSnapshot()).toBeNull();
-    expect(session.currentCompiledSemanticBridge()?.sourceText).toBe(fatalSource);
+    expect(currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: fatalSource,
+      sourceRevision: session.getSourceRevision()
+    })).toBeUndefined();
   });
 
   it("advances document and compiled proof after repairing fatal source", () => {

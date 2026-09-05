@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
+import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
 import { queryDslSignatureHelp } from "./dslSignatureHelpQuery";
 
 const source = [
@@ -27,7 +28,7 @@ const query = () => {
     session,
     snapshot,
     position,
-    semantic: session.currentCompiledSemanticBridge() ?? undefined
+    semantic: currentCompiledSemanticSnapshotFor(session)
   };
 };
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compileDslDocument,
+  createNuiLanguageSession,
   parseDsl,
   type DslDocumentData
 } from "@nuinuicad/nui-language";
@@ -10,6 +11,7 @@ import {
 } from "@nuinuicad/nui-language/document";
 import {
   buildMultiDocumentPublicApiCatalog,
+  currentCompiledSemanticSnapshotFor,
   documentIdFromHost
 } from "@nuinuicad/nui-language/workspace";
 
@@ -34,5 +36,24 @@ describe("nui-language workspace package surfaces", () => {
     expect(automation.getSource()).toBe(source);
     expect(catalog.valid).toBe(true);
     expect(catalog.documentId).toBe(documentId);
+  });
+
+  it("keeps exact-current compiled semantics behind the workspace entry", () => {
+    const source = "nui 1\nconst width: number = @missing\npoint A = coordinate(x: 0, y: 0)\n";
+    const session = createNuiLanguageSession(source);
+    const snapshot = currentCompiledSemanticSnapshotFor(session);
+
+    expect(snapshot).toMatchObject({
+      sourceText: source,
+      sourceRevision: session.getSourceRevision(),
+      compiled: expect.any(Object)
+    });
+    expect(snapshot?.compiled.spans.sourceMap).toMatchObject({
+      source,
+      sourceRevision: session.getSourceRevision()
+    });
+
+    session.replaceSource("nui 1\npoint A = coordinate(");
+    expect(currentCompiledSemanticSnapshotFor(session)).toBeUndefined();
   });
 });

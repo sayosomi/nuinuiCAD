@@ -50,19 +50,22 @@ vi.mock("./multiDocumentHost", () => ({
 }));
 
 import * as vscode from "vscode";
-import { compileDslDocument } from "../../src/dsl/dslDocument";
-import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
-import { createModuleRuntimeContext } from "../../src/dsl/moduleRuntimeContext";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
-} from "../../src/document/multiDocumentModuleSemantics";
-import { buildMultiDocumentImportGraph } from "../../src/document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
+import { buildMultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost
-} from "../../src/document/multiDocumentPrimitives";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+} from "@nuinuicad/nui-language/workspace";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticSnapshotFor
+} from "./languageAnalysisSession";
 import {
   createNuiCompletionProvider,
   normalizedOffsetAt,
@@ -768,18 +771,22 @@ describe("VS Code native nui completion provider", () => {
   });
 
   it("keeps the provider limited to the query result", () => {
-    const source = "nui 1\nconst value: number = ab";
+    const source = "nui 1\nconst value: number = @mi";
     const session = createLanguageAnalysisSession(source);
     const provider = createNuiCompletionProvider(() => session);
     const normalized = source.replace(/\r\n/g, "\n");
+    const semantic = currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: normalized,
+      sourceRevision: session.getSourceRevision()
+    });
     const query = queryDslCompletion({
       source: { normalizedSource: normalized, sourceRevision: session.getSourceRevision() },
       position: normalized.length,
-      semantic: session.currentCompiledSemanticBridge()
+      semantic
     });
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,
-      new vscode.Position(1, "const value: number = ab".length),
+      new vscode.Position(1, "const value: number = @mi".length),
       undefined as never,
       undefined as never
     ) as vscode.CompletionItem[];

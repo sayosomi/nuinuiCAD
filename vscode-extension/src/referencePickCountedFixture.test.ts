@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor
+  currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 
 vi.mock("vscode", () => ({}));
@@ -88,7 +88,7 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
       normalizedSource: source,
       sourceRevision: languageSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(languageSession, sourceSnapshot);
+    const semantic = currentCompiledSemanticSnapshotFor(languageSession, sourceSnapshot);
     expect(semantic).toBeDefined();
     const offsetPointLine = source.indexOf("point OffsetPoint");
     const offset = atEndOf("@A", offsetPointLine);

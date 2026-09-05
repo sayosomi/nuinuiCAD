@@ -1,4 +1,4 @@
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/runtimeDiagnosticsProtocol";
 
 export type RuntimeDiagnosticsSidecarSnapshot = {

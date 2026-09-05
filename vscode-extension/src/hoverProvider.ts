@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
 import {
   geometryHoverMarkdown,
   geometryHoverPresentation,
@@ -187,7 +188,7 @@ export const createNuiHoverProvider = (
     let presentation: GeometryHoverPresentation;
     if (!snapshot) {
       const semanticElement = latest.target.elementId;
-      const currentCompiled = session.currentCompiledSemanticBridge()?.compiled;
+      const currentCompiled = currentCompiledSemanticSnapshotFor(session)?.compiled;
       const element = currentCompiled?.document?.elements.find((candidate) => candidate.id === semanticElement);
       if (!element) return undefined;
       presentation = geometryHoverUnavailablePresentation(element);

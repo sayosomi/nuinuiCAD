@@ -4,8 +4,8 @@ import {
   type DslRenameEditPlanResult,
   type DslRenameRejection,
   type DslRenameTarget
-} from "../../src/dsl/dslRenameQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+} from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {

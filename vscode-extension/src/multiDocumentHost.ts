@@ -3,12 +3,13 @@ import { realpathSync } from "node:fs";
 import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import * as vscode from "vscode";
-import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
-import type { DslDiagnostic, DslDiagnosticPresentation } from "../../src/dsl/dslTypes";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { DslDiagnostic, DslDiagnosticPresentation } from "@nuinuicad/nui-language";
+import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
 import {
   dslSemanticIdentityKey,
   type DslSemanticIdentity
-} from "../../src/dsl/dslSemanticOccurrenceIndex";
+} from "@nuinuicad/nui-language";
 import {
   MultiDocumentGraphCoordinator,
   SavedDocumentArtifactCache,
@@ -18,7 +19,7 @@ import {
   type MultiDocumentDeclarationContributor,
   type MultiDocumentImportGraph,
   type MultiDocumentSavedSourceLoader
-} from "../../src/document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   buildMultiDocumentSemanticOccurrenceIndex,
   planMultiDocumentRename,
@@ -30,7 +31,7 @@ import {
   type MultiDocumentSemanticDocumentView,
   type MultiDocumentSemanticOccurrence,
   type MultiDocumentSemanticOccurrenceIndex
-} from "../../src/document/multiDocumentLanguageQueries";
+} from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   qualifySemanticIdentity,
@@ -42,31 +43,28 @@ import {
   type DocumentSourceIdentity,
   type MultiDocumentSourceSnapshot,
   type RootCurrentSourceSnapshot
-} from "../../src/document/multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import {
   queryDslCanvasSourceDefinitionQualified,
   type NormalizedSourceRange
-} from "../../src/dsl/dslNavigationQuery";
+} from "@nuinuicad/nui-language";
 import { vscodeMultiDocumentGraphSnapshot } from "../../src/vscode/multiDocumentGraphTransport";
 import type { VscodeMultiDocumentCanvasRuntimeSnapshot } from "../../src/vscode/multiDocumentRuntimeTransport";
 import { publishVscodeMultiDocumentGraphPublication } from "../../src/vscode/vscodeWebviewSession";
-import { reconcileStatements } from "../../src/document/statementReconciler";
+import { reconcileStatements } from "@nuinuicad/nui-language/document";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 
-// Slice 3 transition bridge: deferred workspace code needs only the exact
-// current compiled root from the package-owned session. Slice 4 removes this
-// host dependency when the workspace surface moves to the package.
 const currentCompiledFor = (
   session: NuiLanguageAnalysisSession,
   normalizedSource: string,
   sourceRevision: number
 ): CompiledDslDocument | undefined => {
-  const bridge = session.currentCompiledSemanticBridge();
-  return bridge &&
-    bridge.sourceText === normalizedSource &&
-    bridge.sourceRevision === sourceRevision
-    ? bridge.compiled
+  const snapshot = currentCompiledSemanticSnapshotFor(session);
+  return snapshot &&
+    snapshot.sourceText === normalizedSource &&
+    snapshot.sourceRevision === sourceRevision
+    ? snapshot.compiled
     : undefined;
 };
 

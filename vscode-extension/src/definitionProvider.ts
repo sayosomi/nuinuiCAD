@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { DslDefinitionRange } from "../../src/dsl/dslDefinitionQuery";
+import type { DslDefinitionRange } from "@nuinuicad/nui-language";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {

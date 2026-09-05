@@ -6,14 +6,15 @@ import {
   prepareRustEvaluation,
   type RustEvaluationTransport
 } from "../../src/geometry/rustEvaluationRunner";
-import { isLastGoodDslDocument } from "../../src/document/canonicalDocument";
+import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   resolveRustEvaluationBinaryPath,
   RustEvaluationProcess,
   RustEvaluationProcessOwner,
   type RustEvaluationProcessDependencies
 } from "../../src/node/rustEvaluationProcess";
-import type { ComputedGeometry, DependencyError, ElementId, EvaluationWarning } from "../../src/types/geometry";
+import type { ElementId } from "@nuinuicad/nui-language";
+import type { ComputedGeometry, DependencyError, EvaluationWarning } from "../../src/types/geometry";
 import {
   loadFreshNuiDocumentSnapshot,
   type FreshNuiDocumentSnapshot

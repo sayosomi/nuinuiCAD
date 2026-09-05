@@ -4,10 +4,10 @@ import {
   type DslCompletionCandidate,
   type DslCompletionCandidateKind,
   type DslCompletionQueryResult
-} from "../../src/dsl/dslCompletionQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+} from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
-import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
+import { selectModuleDocumentationMarkdown } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 

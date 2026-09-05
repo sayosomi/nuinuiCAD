@@ -12,9 +12,9 @@ import {
   type CoordinatePointConversionSession,
   type CoordinatePointConversionSessionOrigin
 } from "../../src/commands/coordinatePointConversionSession";
-import type { LineSplice } from "../../src/document/textPatch";
-import type { CanonicalDocumentValue } from "../../src/document/canonicalDocument";
-import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import type { CanonicalDocumentValue } from "@nuinuicad/nui-language/document";
+import { queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
 import type { NuiElementsTreeNode } from "./elementsTreeProvider";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {

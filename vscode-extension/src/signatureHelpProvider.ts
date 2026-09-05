@@ -6,9 +6,9 @@ import {
   type DslSignatureHelpQueryResult,
   type DslSignatureHelpSemanticSnapshot,
   type DslSignatureHelpSignature
-} from "../../src/dsl/dslSignatureHelpQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
+} from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import { selectModuleDocumentationMarkdown } from "@nuinuicad/nui-language";
 import {
   createTranslator,
   resolveLocale,

@@ -7,7 +7,7 @@ import {
   type VscodeObservationDiscoveryOptions,
   type VscodeObservationLiveInstance
 } from "../../src/node/vscodeObservationBridge";
-import { materializedRuntimeElementId } from "../../src/dsl/moduleMaterialization";
+import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
 import { stableSnapshotElementId, stableSnapshotStatementId } from "./documentSnapshot";
 
 export type VscodeObserveInput = {

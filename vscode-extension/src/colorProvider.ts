@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { CanvasTheme } from "../../src/components/canvasTheme";
 import { parseCssColor } from "../../src/vscode/vscodeCanvasTheme";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,

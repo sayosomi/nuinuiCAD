@@ -1,10 +1,13 @@
 import {
   createNuiLanguageSession,
-  type NuiCurrentCompiledSemanticBridge,
   type NuiDiagnostic,
   type NuiLanguageSession
 } from "@nuinuicad/nui-language";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import {
+  currentCompiledSemanticSnapshotFor as currentCompiledWorkspaceSemanticSnapshotFor,
+  type NuiWorkspaceCurrentCompiledSemanticSnapshot
+} from "@nuinuicad/nui-language/workspace";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/runtimeDiagnosticsProtocol";
 import { createRuntimeDiagnosticsSidecar, type RuntimeDiagnosticsSidecarSnapshot } from "./runtimeDiagnosticsSidecar";
 
@@ -21,15 +24,15 @@ export type NuiLanguageAnalysisSession = NuiLanguageSession & {
   ) => RuntimeDiagnosticsSidecarSnapshot | null;
 };
 
-export const currentCompiledSemanticBridgeFor = (
+export const currentCompiledSemanticSnapshotFor = (
   session: NuiLanguageSession,
   source: SourceSnapshot
-): NuiCurrentCompiledSemanticBridge | undefined => {
-  const bridge = session.currentCompiledSemanticBridge();
-  return bridge &&
-    bridge.sourceText === source.normalizedSource &&
-    bridge.sourceRevision === source.sourceRevision
-    ? bridge
+): NuiWorkspaceCurrentCompiledSemanticSnapshot | undefined => {
+  const snapshot = currentCompiledWorkspaceSemanticSnapshotFor(session);
+  return snapshot &&
+    snapshot.sourceText === source.normalizedSource &&
+    snapshot.sourceRevision === source.sourceRevision
+    ? snapshot
     : undefined;
 };
 

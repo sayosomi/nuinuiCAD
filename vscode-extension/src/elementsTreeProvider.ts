@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { DslDocumentSymbol } from "../../src/dsl/dslDocumentSymbolQuery";
+import type { DslDocumentSymbol } from "@nuinuicad/nui-language";
 import {
   currentNuiDocumentSymbolSnapshot,
   type NuiDocumentSymbolSessionFor

@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
-import { queryDslCanvasSourceTarget } from "../../src/dsl/dslNavigationQuery";
-import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
+import { queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
+import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import {
   isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
   queryDslOutputPreviewRevealSourceTarget,
   type DslOutputPreviewRevealSourceQueryResult,
   type DslOutputPreviewRevealSourceTarget
-} from "../../src/dsl/dslOutputPreviewRevealQuery";
-import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
+} from "@nuinuicad/nui-language";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import type {
   VscodeReferencePickResult,
@@ -15,7 +15,7 @@ import type {
   VscodeReferencePickTargetProof
 } from "../../src/vscode/referencePickProtocol";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import { referencePickTranslatorFor } from "./referencePickLocalization";
@@ -111,7 +111,7 @@ const outputPreviewRevealSourceTargetFromSnapshot = ({
   normalizedSourceOffset
 }: {
   source: { normalizedSource: string; sourceRevision: number };
-  semantic: ReturnType<typeof currentCompiledSemanticBridgeFor>;
+  semantic: ReturnType<typeof currentCompiledSemanticSnapshotFor>;
   normalizedSourceOffset: number;
 }): VscodeOutputPreviewRevealSourceTargetResult => {
   if (!semantic?.compiled) return { status: "failed", reason: "analysis-unavailable" };
@@ -144,7 +144,7 @@ export const outputPreviewRevealSourceTargetForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,
     editor.document.offsetAt(editor.selection.active)
@@ -163,7 +163,7 @@ export const sourceTargetAvailabilityForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
   if (!semantic?.compiled) return unavailableSourceTargets();
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,
@@ -209,7 +209,7 @@ export const referencePickSourceOffsetForEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: languageAnalysisSession.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+  const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
   if (!semantic?.compiled) return null;
   const normalizedSourceOffset = normalizedOffsetFromRaw(
     rawSource,
