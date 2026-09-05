@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import * as dslDocument from "../dsl/dslDocument";
-import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
+import * as dslDocument from "../../packages/nui-language/src/dsl/dslDocument";
+import { compileDslDocument, type CompiledDslDocument } from "../../packages/nui-language/src/dsl/dslDocument";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
@@ -11,7 +11,7 @@ import {
   planInlineModule,
   type InlineModulePolicy,
   type InlineModuleTargetIdentity
-} from "./inlineModulePlanner";
+} from "../../packages/nui-language/src/document/inlineModulePlanner";
 
 const REVISION = 167;
 const DEFAULT_POLICY: InlineModulePolicy = {

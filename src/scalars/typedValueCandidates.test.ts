@@ -14,8 +14,8 @@ import {
 } from "./typedValueCandidates";
 import { tokenizeScalarExpression } from "./expressionTokenizer";
 import { scalarExpressionCompletionContextAt } from "./scalarExpressionPositionClassifier";
-import * as builtinFunctions from "./builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
+import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
 
 const compileFor = (source: string): { catalog: BindingCatalog; entriesById: BindingAnalysis["entriesById"] } => {
   const { bindingAnalysis } = typedDeclarationAnalysisFor(source);

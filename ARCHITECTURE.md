@@ -15,6 +15,8 @@
         ↓
 VS Code TextDocument (production) / AutomationDocument (Headless MCP + harness)
         ↓
+@nuinuicad/nui-language document/compiler surfaces
+        ↓
 compileCanonicalText
         ↓
 parseDslSnapshot
@@ -194,7 +196,7 @@ Editor previewでは対応するcompiled metadataも差し替えられる。
 Primary:
 
 - `src/state/cadDocumentStore.ts`
-- `src/document/automationDocument.ts`
+- `packages/nui-language/src/document/automationDocument.ts`
 
 Important current contract:
 
@@ -206,7 +208,7 @@ Important current contract:
 - Current-source diagnostics と last-good compiled document は分離される。
 - Preview state は ephemeral。
 
-`src/document/canonicalDocument.ts` の production primitives は、
+`packages/nui-language/src/document/canonicalDocument.ts` の production primitives は、
 `compileFreshCanonicalText` と `compileCanonicalText` を通じて次の二つの
 consumer が共有する。
 
@@ -224,11 +226,35 @@ semantic / materialization path をそのまま利用し、materialized Module c
 だけを返して last-good `doc` を current semantics として公開しない。
 
 Current type ownership is split across the document and evaluation boundaries:
-`src/model/cadDocumentTypes.ts` owns authored/compiled CAD model contracts,
+`packages/nui-language/src/model/cadDocumentTypes.ts` owns authored/compiled CAD
+model contracts,
 `src/geometry/evaluationTypes.ts` owns computed geometry and
 `EvaluationResult`/runtime evaluation contracts, and `src/types/geometry.ts`
-currently remains a compatibility/presentation facade over those owners during
-the staged Language Core migration.
+currently remains a compatibility/presentation facade over those owners.
+
+### Language Core package boundary
+
+Primary:
+
+- `packages/nui-language/src/`
+- `packages/nui-language/src/index.ts` (`@nuinuicad/nui-language`)
+- `packages/nui-language/src/document-entry.ts` (`@nuinuicad/nui-language/document`)
+- `packages/nui-language/src/workspace-entry.ts` (`@nuinuicad/nui-language/workspace`)
+
+`packages/nui-language` is the implementation owner for the host-neutral parser,
+compiler, source maps, semantic indexes, canonical document lifecycle,
+authored/source model contracts, compile-time scalar/binding/expression
+semantics, and multi-document workspace semantics. The three package entry
+points are the supported internal surfaces; the package is private and has no
+additional public export paths.
+
+Legacy `src/dsl`, `src/document`, `src/scalars`, `src/model`, `src/parameters`,
+and compile-time `src/geometry` paths remain only as transitional forwarding
+shims where still present. They do not retain a second semantic implementation.
+Runtime computed geometry, `EvaluationResult`, Rust payload construction, and
+runtime evaluator orchestration remain outside Language Core. VS Code and MCP
+host migration to these package surfaces is not complete while legacy host
+imports remain.
 
 ### Headless MCP
 
@@ -310,9 +336,9 @@ introduced.
 
 Primary:
 
-- `src/document/canonicalDocument.ts`
-- `src/document/statementReconciler.ts`
-- `src/document/textPatch.ts`
+- `packages/nui-language/src/document/canonicalDocument.ts`
+- `packages/nui-language/src/document/statementReconciler.ts`
+- `packages/nui-language/src/document/textPatch.ts`
 
 `compileCanonicalText` の current path:
 
@@ -343,9 +369,12 @@ boundary を使う。
 
 Primary:
 
-- `src/dsl/`
-- `src/dsl/dslDocument.ts`
+- `packages/nui-language/src/dsl/`
+- `packages/nui-language/src/dsl/dslDocument.ts`
 - `docs/dsl.md`
+
+The former `src/dsl/` implementation paths are transitional forwarding shims;
+they are not a second parser or compiler owner.
 
 `docs/dsl.md` は current implemented language documentation。Current
 saved-document language は nui1 only。
@@ -367,13 +396,13 @@ models and does not own an active output selection or an export/preview runtime.
 
 Primary:
 
-- `src/document/multiDocumentPrimitives.ts`
-- `src/document/multiDocumentImportGraph.ts`
-- `src/document/multiDocumentPublicApi.ts`
-- `src/document/multiDocumentModuleSemantics.ts`
-- `src/document/multiDocumentLanguageQueries.ts`
-- `src/dsl/dslMultiDocumentSyntax.ts`
-- `src/dsl/sourceLexicalNamespaceIndex.ts`
+- `packages/nui-language/src/document/multiDocumentPrimitives.ts`
+- `packages/nui-language/src/document/multiDocumentImportGraph.ts`
+- `packages/nui-language/src/document/multiDocumentPublicApi.ts`
+- `packages/nui-language/src/document/multiDocumentModuleSemantics.ts`
+- `packages/nui-language/src/document/multiDocumentLanguageQueries.ts`
+- `packages/nui-language/src/dsl/dslMultiDocumentSyntax.ts`
+- `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
 - `vscode-extension/src/multiDocumentHost.ts`
 - `vscode-extension/src/moduleMultiDocumentHost.ts`
 - `src/vscode/multiDocumentGraphTransport.ts`
@@ -486,17 +515,17 @@ own semantic owners rather than by the generic VS Code host adapter.
 
 Representative owners:
 
-- `src/scalars/lexicalScopeIndex.ts`
-- `src/dsl/lexicalScopeIndexAdapter.ts`
-- `src/dsl/sourceLexicalNamespaceIndex.ts`
-- `src/dsl/dslReferenceTokens.ts`
-- `src/dsl/dslSemanticOccurrenceIndex.ts`
-- `src/dsl/dslModifierAuthoring.ts`
-- `src/dsl/dslModifierAuthoringIndex.ts`
-- `src/dsl/dslSourceValueStepQuery.ts`
-- `src/dsl/dslDefinitionQuery.ts`
-- `src/dsl/dslRenameQuery.ts`
-- `src/dsl/dslReferencesQuery.ts`
+- `packages/nui-language/src/scalars/lexicalScopeIndex.ts`
+- `packages/nui-language/src/dsl/lexicalScopeIndexAdapter.ts`
+- `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
+- `packages/nui-language/src/dsl/dslReferenceTokens.ts`
+- `packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts`
+- `packages/nui-language/src/dsl/dslModifierAuthoring.ts`
+- `packages/nui-language/src/dsl/dslModifierAuthoringIndex.ts`
+- `packages/nui-language/src/dsl/dslSourceValueStepQuery.ts`
+- `packages/nui-language/src/dsl/dslDefinitionQuery.ts`
+- `packages/nui-language/src/dsl/dslRenameQuery.ts`
+- `packages/nui-language/src/dsl/dslReferencesQuery.ts`
 
 既存 lexical / source namespace resolution が owner。同じ semantic concept の
 second resolver を作らない。Definition、Rename、References の source
@@ -522,7 +551,7 @@ query が last-good document や再parseへフォールバックせず判定で�
 
 Primary:
 
-- `src/scalars/`
+- `packages/nui-language/src/scalars/`
 
 既存 typed expression AST、typecheck、`BindingId`、binding versions、
 dependency/runtime infrastructure を owner とする。同じ scalar semantics の
@@ -538,10 +567,10 @@ expression を source text に戻して legacy parser で再解釈しない。
 
 Representative owners:
 
-- `src/dsl/moduleSemantic*`
-- `src/dsl/moduleMaterialization*`
-- `src/dsl/moduleRuntimeContext.ts`
-- `src/scalars/moduleScalarRuntime.ts`
+- `packages/nui-language/src/dsl/moduleSemantic*`
+- `packages/nui-language/src/dsl/moduleMaterialization*`
+- `packages/nui-language/src/dsl/moduleRuntimeContext.ts`
+- `packages/nui-language/src/scalars/moduleScalarRuntime.ts`
 
 既存 Module semantic resolution / materialization / runtime infrastructure を
 再利用する。`moduleSemanticAnalysis.ts` が same-file と imported Module の

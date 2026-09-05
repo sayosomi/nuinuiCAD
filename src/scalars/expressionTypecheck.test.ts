@@ -8,7 +8,7 @@ import { resolveBindingReferenceForTests, type BindingResolution } from "./bindi
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionAst } from "./expressionAst";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import { typecheckScalarExpression } from "./expressionTypecheck";
+import { typecheckScalarExpression } from "../../packages/nui-language/src/scalars/expressionTypecheck";
 import { buildLexicalScopeIndex } from "./lexicalScopeIndex";
 import type {
   ScalarExpressionResolvedGeometryProperty,
@@ -16,8 +16,8 @@ import type {
   ScalarExpressionTypecheckResult
 } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
-import * as builtinFunctions from "./builtinFunctions";
-import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "./builtinFunctions";
+import * as builtinFunctions from "../../packages/nui-language/src/scalars/builtinFunctions";
+import type { BuiltinFunctionDefinition, BuiltinFunctionName } from "../../packages/nui-language/src/scalars/builtinFunctions";
 
 // --- shared fixtures -------------------------------------------------------
 
