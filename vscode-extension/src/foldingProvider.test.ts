@@ -12,11 +12,12 @@ vi.mock("vscode", () => {
 });
 
 import { parseDslSnapshot } from "../../src/dsl/dslParser";
+import { queryDslFolding } from "../../src/dsl/dslFoldingQuery";
 import {
   createNuiFoldingProvider,
   nuiFoldingSelector
 } from "./foldingProvider";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 
 type TestDocument = {
   fileName: string;
@@ -42,21 +43,24 @@ const sessionFor = (initialSource: string, options: { stale?: boolean } = {}) =>
     getSource: vi.fn(() => currentSource),
     getSourceRevision: vi.fn(() => 1),
     replaceSource: vi.fn((source: string) => { currentSource = source; }),
-    foldingSyntaxSnapshot: vi.fn((source: { normalizedSource: string; sourceRevision: number }) => {
-      if (options.stale || source.normalizedSource !== normalizedSourceFor(currentSource)) return undefined;
+    foldingRanges: vi.fn(() => {
+      const source = {
+        normalizedSource: normalizedSourceFor(currentSource),
+        sourceRevision: 1
+      };
+      if (options.stale) return [];
       const parsed = parseDslSnapshot({
         normalizedSource: source.normalizedSource,
         sourceRevision: source.sourceRevision
       });
-      return {
-        sourceRevision: source.sourceRevision,
-        sourceText: source.normalizedSource,
+      return queryDslFolding({
+        source,
         statements: parsed.statements,
         sourceMap: parsed.sourceMap
-      };
+      });
     })
   };
-  return session as unknown as NuiLanguageAnalysisSession;
+  return session as unknown as NuiLanguageSession;
 };
 
 type TestFoldingProvider = {
@@ -101,10 +105,7 @@ describe("VS Code structural folding provider", () => {
     expect(ranges).toEqual([
       expect.objectContaining({ start: 0, end: 1, kind: "comment" })
     ]);
-    expect(session.foldingSyntaxSnapshot).toHaveBeenCalledWith({
-      normalizedSource: normalizedSourceFor(source),
-      sourceRevision: 1
-    });
+    expect(session.foldingRanges).toHaveBeenCalledOnce();
   });
 
   it("fails closed for unsupported documents and stale snapshots", () => {

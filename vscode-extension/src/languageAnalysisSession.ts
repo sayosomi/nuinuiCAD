@@ -1,122 +1,28 @@
-import { AutomationDocument, type AutomationDocumentState } from "../../src/document/automationDocument";
-import type { DslCompletionRecoveryInput, DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
-import type { DslFixedColorSemanticSnapshot } from "../../src/dsl/dslFixedColorQuery";
-import type { DslThemeRoleColorSemanticSnapshot } from "../../src/dsl/dslThemeRoleColorQuery";
-import type { DslDefinitionSemanticSnapshot } from "../../src/dsl/dslDefinitionQuery";
-import type { DslFoldingQueryInput } from "../../src/dsl/dslFoldingQuery";
-import type { DslHoverSemanticSnapshot } from "../../src/dsl/dslHoverQuery";
-import type { DslReferencesSemanticSnapshot } from "../../src/dsl/dslReferencesQuery";
-import type { DslRenameSemanticSnapshot } from "../../src/dsl/dslRenameQuery";
-import type { DslSignatureHelpSemanticSnapshot } from "../../src/dsl/dslSignatureHelpQuery";
-import type { DslSourceValueStepSemanticSnapshot } from "../../src/dsl/dslSourceValueStepQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { reconcileStatements } from "../../src/document/statementReconciler";
 import {
-  compilerDiagnosticsForState,
-  type CompilerDiagnostic
-} from "./compilerDiagnostics";
-import { projectConfiguredCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
-import { createRuntimeDiagnosticsSidecar, type RuntimeDiagnosticsSidecarSnapshot } from "./runtimeDiagnosticsSidecar";
+  createNuiLanguageSession,
+  type DslCompletionRecoveryInput,
+  type DslCompletionSemanticSnapshot,
+  type DslDefinitionSemanticSnapshot,
+  type DslFixedColorSemanticSnapshot,
+  type DslFoldingQueryInput,
+  type DslHoverSemanticSnapshot,
+  type DslThemeRoleColorSemanticSnapshot,
+  type DslReferencesSemanticSnapshot,
+  type DslRenameSemanticSnapshot,
+  type DslSignatureHelpSemanticSnapshot,
+  type DslSourceValueStepSemanticSnapshot,
+  type NuiCurrentCompiledSemanticBridge,
+  type NuiDiagnostic,
+  type NuiEvaluableDocumentSnapshot,
+  type NuiLanguageSession
+} from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { VscodeRuntimeDiagnosticsPublication } from "../../src/vscode/runtimeDiagnosticsProtocol";
+import { createRuntimeDiagnosticsSidecar, type RuntimeDiagnosticsSidecarSnapshot } from "./runtimeDiagnosticsSidecar";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
-const completionRecoveryFor = (
-  state: AutomationDocumentState
-): DslCompletionRecoveryInput | undefined => {
-  if (state.currentCompiled.statementMap || !state.doc.statementMap?.statementIndexByStatementId) return undefined;
-
-  try {
-    const reconciled = reconcileStatements({
-      oldStatements: state.doc.statements,
-      oldLines: state.doc.sourceLines,
-      oldElementIds: state.doc.statementMap.elementIdByStatementIndex,
-      oldStatementIds: state.doc.statementMap.statementIdByStatementIndex,
-      newStatements: state.currentCompiled.statements,
-      newLines: state.currentCompiled.sourceLines
-    });
-    const mappedStatementIds = new Map<number, string>();
-    for (const [liveStatementIndex, statementId] of reconciled.assignedIds) {
-      if (state.doc.statementMap.statementIndexByStatementId.has(statementId)) {
-        mappedStatementIds.set(liveStatementIndex, statementId);
-      }
-    }
-    if (mappedStatementIds.size === 0) return undefined;
-    return {
-      liveCompiled: state.currentCompiled,
-      lastGoodCompiled: state.doc,
-      mappedStatementIds
-    };
-  } catch {
-    // Completion must fail closed if a dirty snapshot cannot be reconciled.
-    return undefined;
-  }
-};
-
-export type NuiLanguageAnalysisSession = {
-  getSource: () => string;
-  getSourceRevision: () => number;
-  replaceSource: (sourceText: string) => void;
-  getDiagnostics: () => CompilerDiagnostic[];
-  acceptRuntimeDiagnostics: (
-    currentDocumentVersion: number,
-    publication: VscodeRuntimeDiagnosticsPublication
-  ) => boolean;
-  clearRuntimeDiagnostics: () => void;
-  runtimeDiagnosticsSnapshotFor: (
-    currentDocumentVersion: number
-  ) => RuntimeDiagnosticsSidecarSnapshot | null;
-  runtimeEvaluationSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => NuiRuntimeEvaluationSemanticSnapshot | undefined;
-  completionSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslCompletionSemanticSnapshot | undefined;
-  completionRecoverySnapshot: (
-    source: SourceSnapshot
-  ) => DslCompletionRecoveryInput | undefined;
-  fixedColorSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslFixedColorSemanticSnapshot | undefined;
-  themeRoleColorSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslThemeRoleColorSemanticSnapshot | undefined;
-  valueStepSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslSourceValueStepSemanticSnapshot | undefined;
-  signatureHelpSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslSignatureHelpSemanticSnapshot | undefined;
-  definitionSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslDefinitionSemanticSnapshot | undefined;
-  hoverSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslHoverSemanticSnapshot | undefined;
-  referencesSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslReferencesSemanticSnapshot | undefined;
-  renameSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => DslRenameSemanticSnapshot | undefined;
-  foldingSyntaxSnapshot: (
-    source: SourceSnapshot
-  ) => NuiFoldingSyntaxSnapshot | undefined;
-  documentSymbolSyntaxSnapshot: (
-    source: SourceSnapshot
-  ) => NuiDocumentSymbolSyntaxSnapshot | undefined;
-  choiceQuickFixSemanticSnapshot: (
-    source: SourceSnapshot
-  ) => NuiChoiceQuickFixSemanticSnapshot | undefined;
-};
-
-export type NuiRuntimeEvaluationSemanticSnapshot = {
-  sourceRevision: number;
-  sourceText: string;
-  documentRevision: number;
-  compiledDocumentRevision: number;
-  compiled: AutomationDocumentState["doc"];
-};
+export type NuiRuntimeEvaluationSemanticSnapshot = NuiEvaluableDocumentSnapshot;
 
 export type NuiFoldingSyntaxSnapshot = {
   sourceRevision: number;
@@ -130,188 +36,142 @@ export type NuiDocumentSymbolSyntaxSnapshot = NuiFoldingSyntaxSnapshot;
 export type NuiChoiceQuickFixSemanticSnapshot = {
   sourceRevision: number;
   sourceText: string;
-  currentCompiled: AutomationDocumentState["currentCompiled"];
+  currentCompiled: NonNullable<NuiCurrentCompiledSemanticBridge>["compiled"];
+};
+
+type LegacyLanguageOperations = {
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  getDiagnostics: () => readonly NuiDiagnostic[];
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  runtimeEvaluationSemanticSnapshot: (source: SourceSnapshot) => NuiRuntimeEvaluationSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  completionSemanticSnapshot: (source: SourceSnapshot) => DslCompletionSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  completionRecoverySnapshot: (source: SourceSnapshot) => DslCompletionRecoveryInput | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  fixedColorSemanticSnapshot: (source: SourceSnapshot) => DslFixedColorSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  themeRoleColorSemanticSnapshot: (source: SourceSnapshot) => DslThemeRoleColorSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  valueStepSemanticSnapshot: (source: SourceSnapshot) => DslSourceValueStepSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  signatureHelpSemanticSnapshot: (source: SourceSnapshot) => DslSignatureHelpSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  definitionSemanticSnapshot: (source: SourceSnapshot) => DslDefinitionSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  hoverSemanticSnapshot: (source: SourceSnapshot) => DslHoverSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  referencesSemanticSnapshot: (source: SourceSnapshot) => DslReferencesSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  renameSemanticSnapshot: (source: SourceSnapshot) => DslRenameSemanticSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  foldingSyntaxSnapshot: (source: SourceSnapshot) => NuiFoldingSyntaxSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  documentSymbolSyntaxSnapshot: (source: SourceSnapshot) => NuiDocumentSymbolSyntaxSnapshot | undefined;
+  /** @deprecated Slice 3 transition shim for deferred/non-provider consumers. */
+  choiceQuickFixSemanticSnapshot: (source: SourceSnapshot) => NuiChoiceQuickFixSemanticSnapshot | undefined;
+};
+
+export type NuiLanguageAnalysisSession = NuiLanguageSession & LegacyLanguageOperations & {
+  acceptRuntimeDiagnostics: (
+    currentDocumentVersion: number,
+    publication: VscodeRuntimeDiagnosticsPublication
+  ) => boolean;
+  clearRuntimeDiagnostics: () => void;
+  runtimeDiagnosticsSnapshotFor: (
+    currentDocumentVersion: number
+  ) => RuntimeDiagnosticsSidecarSnapshot | null;
+};
+
+const currentSourceMatches = (
+  session: NuiLanguageSession,
+  source: SourceSnapshot
+): boolean => normalizedSourceFor(session.getSource()) === source.normalizedSource &&
+  session.getSourceRevision() === source.sourceRevision;
+
+const bridgeFor = (
+  session: NuiLanguageSession,
+  source: SourceSnapshot
+): NuiCurrentCompiledSemanticBridge | undefined => {
+  if (!currentSourceMatches(session, source)) return undefined;
+  return session.currentCompiledSemanticBridge() ?? undefined;
 };
 
 export const createLanguageAnalysisSession = (sourceText: string): NuiLanguageAnalysisSession => {
-  const document = AutomationDocument.fromSource(sourceText);
-  let diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
-  let completionRecovery = completionRecoveryFor(document.getState());
+  const language = createNuiLanguageSession(sourceText);
   const runtimeDiagnostics = createRuntimeDiagnosticsSidecar();
-
-  const currentSourceRevision = (): number =>
-    document.getState().currentCompiled.spans.sourceMap.sourceRevision;
 
   const semanticSnapshotFor = (
     source: SourceSnapshot
-  ): DslCompletionSemanticSnapshot & DslDefinitionSemanticSnapshot & DslHoverSemanticSnapshot & DslReferencesSemanticSnapshot & DslRenameSemanticSnapshot | undefined => {
-    const state = document.getState();
-    const currentRawSource = document.getSource();
-    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-
-    if (
-      source.normalizedSource !== normalizedCurrentSource ||
-      source.sourceRevision !== currentSourceRevision() ||
-      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
-    ) return undefined;
-
+  ): DslCompletionSemanticSnapshot | undefined => {
+    const bridge = bridgeFor(language, source);
+    if (!bridge) return undefined;
     return {
-      sourceRevision: source.sourceRevision,
-      sourceText: normalizedCurrentSource,
-      compiled: state.currentCompiled,
-      ...(state.currentCompiled.bindingAnalysis
-        ? { bindingAnalysis: state.currentCompiled.bindingAnalysis }
+      sourceRevision: bridge.sourceRevision,
+      sourceText: bridge.sourceText,
+      compiled: bridge.compiled,
+      ...(bridge.compiled.bindingAnalysis
+        ? { bindingAnalysis: bridge.compiled.bindingAnalysis }
         : {})
     };
   };
 
-  const runtimeEvaluationSemanticSnapshot = (
-    source: SourceSnapshot
-  ): NuiRuntimeEvaluationSemanticSnapshot | undefined => {
-    const state = document.getState();
-    const currentRawSource = document.getSource();
-    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
+  const hostSession = language as NuiLanguageAnalysisSession;
+  hostSession.getDiagnostics = () => [...language.diagnostics()];
+  hostSession.acceptRuntimeDiagnostics = runtimeDiagnostics.accept;
+  hostSession.clearRuntimeDiagnostics = runtimeDiagnostics.clear;
+  hostSession.runtimeDiagnosticsSnapshotFor = runtimeDiagnostics.snapshotFor;
 
-    if (
-      source.normalizedSource !== normalizedCurrentSource ||
-      source.sourceRevision !== currentSourceRevision() ||
-      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource ||
-      state.status === "fatal" ||
-      state.docText !== currentRawSource ||
-      state.doc.spans.sourceMap.source !== normalizedCurrentSource ||
-      state.doc.spans.sourceMap.sourceRevision !== source.sourceRevision
-    ) return undefined;
-
-    return {
-      sourceRevision: source.sourceRevision,
-      sourceText: normalizedCurrentSource,
-      documentRevision: state.revision,
-      compiledDocumentRevision: state.compiledRevision,
-      compiled: state.doc
-    };
+  const replaceSource = language.replaceSource.bind(language);
+  hostSession.replaceSource = (nextSourceText: string): void => {
+    if (nextSourceText !== language.getSource()) runtimeDiagnostics.clear();
+    replaceSource(nextSourceText);
   };
 
-  const choiceQuickFixSemanticSnapshot = (
-    source: SourceSnapshot
-  ): NuiChoiceQuickFixSemanticSnapshot | undefined => {
-    const state = document.getState();
-    const currentRawSource = document.getSource();
-    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-
-    if (
-      source.normalizedSource !== normalizedCurrentSource ||
-      source.sourceRevision !== currentSourceRevision() ||
-      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
-    ) return undefined;
-
-    return {
-      sourceRevision: source.sourceRevision,
-      sourceText: normalizedCurrentSource,
-      currentCompiled: state.currentCompiled
-    };
+  hostSession.completionSemanticSnapshot = semanticSnapshotFor;
+  hostSession.completionRecoverySnapshot = (source) =>
+    currentSourceMatches(language, source) ? language.currentCompletionRecovery() : undefined;
+  hostSession.fixedColorSemanticSnapshot = semanticSnapshotFor;
+  hostSession.themeRoleColorSemanticSnapshot = semanticSnapshotFor;
+  hostSession.valueStepSemanticSnapshot = semanticSnapshotFor;
+  hostSession.signatureHelpSemanticSnapshot = (source) => {
+    const semantic = semanticSnapshotFor(source);
+    return semantic?.compiled
+      ? { sourceRevision: semantic.sourceRevision, sourceText: semantic.sourceText!, compiled: semantic.compiled }
+      : undefined;
+  };
+  hostSession.definitionSemanticSnapshot = semanticSnapshotFor;
+  hostSession.hoverSemanticSnapshot = semanticSnapshotFor;
+  hostSession.referencesSemanticSnapshot = semanticSnapshotFor;
+  hostSession.renameSemanticSnapshot = semanticSnapshotFor;
+  hostSession.foldingSyntaxSnapshot = (source) => {
+    const bridge = bridgeFor(language, source);
+    return bridge
+      ? {
+          sourceRevision: bridge.sourceRevision,
+          sourceText: bridge.sourceText,
+          statements: bridge.compiled.statements,
+          sourceMap: bridge.compiled.spans.sourceMap
+        }
+      : undefined;
+  };
+  hostSession.documentSymbolSyntaxSnapshot = hostSession.foldingSyntaxSnapshot;
+  hostSession.choiceQuickFixSemanticSnapshot = (source) => {
+    const bridge = bridgeFor(language, source);
+    return bridge
+      ? {
+          sourceRevision: bridge.sourceRevision,
+          sourceText: bridge.sourceText,
+          currentCompiled: bridge.compiled
+        }
+      : undefined;
+  };
+  hostSession.runtimeEvaluationSemanticSnapshot = (source) => {
+    const snapshot = language.runtimeEvaluationSnapshot();
+    return snapshot && currentSourceMatches(language, source)
+      ? snapshot
+      : undefined;
   };
 
-  const signatureHelpSemanticSnapshot = (
-    source: SourceSnapshot
-  ): DslSignatureHelpSemanticSnapshot | undefined => {
-    const state = document.getState();
-    const currentRawSource = document.getSource();
-    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-
-    if (
-      source.normalizedSource !== normalizedCurrentSource ||
-      source.sourceRevision !== currentSourceRevision() ||
-      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
-    ) return undefined;
-
-    return {
-      sourceRevision: source.sourceRevision,
-      sourceText: normalizedCurrentSource,
-      compiled: state.currentCompiled
-    };
-  };
-
-  const fixedColorSemanticSnapshot = (
-    source: SourceSnapshot
-  ): DslFixedColorSemanticSnapshot | undefined => semanticSnapshotFor(source);
-
-  const themeRoleColorSemanticSnapshot = (
-    source: SourceSnapshot
-  ): DslThemeRoleColorSemanticSnapshot | undefined => semanticSnapshotFor(source);
-
-  const sourceStructureSnapshot = (
-    source: SourceSnapshot
-  ): NuiFoldingSyntaxSnapshot | undefined => {
-    const state = document.getState();
-    const currentRawSource = document.getSource();
-    const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-
-    if (
-      source.normalizedSource !== normalizedCurrentSource ||
-      source.sourceRevision !== currentSourceRevision() ||
-      state.currentCompiled.spans.sourceMap.source !== normalizedCurrentSource
-    ) return undefined;
-
-    return {
-      sourceRevision: source.sourceRevision,
-      sourceText: normalizedCurrentSource,
-      statements: state.currentCompiled.statements,
-      sourceMap: state.currentCompiled.spans.sourceMap
-    };
-  };
-
-  const foldingSyntaxSnapshot = (source: SourceSnapshot): NuiFoldingSyntaxSnapshot | undefined =>
-    sourceStructureSnapshot(source);
-
-  const documentSymbolSyntaxSnapshot = (
-    source: SourceSnapshot
-  ): NuiDocumentSymbolSyntaxSnapshot | undefined => sourceStructureSnapshot(source);
-
-  return {
-    getSource: () => document.getSource(),
-    getSourceRevision: currentSourceRevision,
-    replaceSource: (nextSourceText) => {
-      if (nextSourceText !== document.getSource()) runtimeDiagnostics.clear();
-      document.replaceSource(nextSourceText);
-      diagnostics = compilerDiagnosticsForState(document.getSource(), document.getState());
-      completionRecovery = completionRecoveryFor(document.getState());
-    },
-    getDiagnostics: () => {
-      const currentRawSource = document.getSource();
-      const source: SourceSnapshot = {
-        normalizedSource: normalizedSourceFor(currentRawSource),
-        sourceRevision: currentSourceRevision()
-      };
-      const semantic = semanticSnapshotFor(source);
-      return semantic
-        ? projectConfiguredCompilerDiagnosticsWithTypoSuggestions(diagnostics, source, semantic)
-        : diagnostics;
-    },
-    acceptRuntimeDiagnostics: runtimeDiagnostics.accept,
-    clearRuntimeDiagnostics: runtimeDiagnostics.clear,
-    runtimeDiagnosticsSnapshotFor: runtimeDiagnostics.snapshotFor,
-    runtimeEvaluationSemanticSnapshot,
-    completionSemanticSnapshot: semanticSnapshotFor,
-    completionRecoverySnapshot: (source) => {
-      const state = document.getState();
-      const currentRawSource = document.getSource();
-      const normalizedCurrentSource = normalizedSourceFor(currentRawSource);
-      return source.normalizedSource === normalizedCurrentSource &&
-        source.sourceRevision === currentSourceRevision() &&
-        state.currentCompiled.spans.sourceMap.source === normalizedCurrentSource
-        ? completionRecovery
-        : undefined;
-    },
-    fixedColorSemanticSnapshot,
-    themeRoleColorSemanticSnapshot,
-    valueStepSemanticSnapshot: semanticSnapshotFor,
-    signatureHelpSemanticSnapshot,
-    definitionSemanticSnapshot: semanticSnapshotFor,
-    hoverSemanticSnapshot: semanticSnapshotFor,
-    referencesSemanticSnapshot: semanticSnapshotFor,
-    renameSemanticSnapshot: semanticSnapshotFor,
-    foldingSyntaxSnapshot,
-    documentSymbolSyntaxSnapshot,
-    choiceQuickFixSemanticSnapshot
-  };
+  return hostSession;
 };

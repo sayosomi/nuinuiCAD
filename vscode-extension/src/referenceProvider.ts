@@ -1,11 +1,8 @@
 import * as vscode from "vscode";
-import { queryDslReferences } from "../../src/dsl/dslReferencesQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
-  normalizedSourceFor,
   vscodeRangeForNormalized
 } from "./sourceOffsetAdapter";
 
@@ -14,7 +11,7 @@ export const nuiReferenceSelector: vscode.DocumentSelector = {
   scheme: "file"
 };
 
-export type NuiReferenceSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiReferenceSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 export const createNuiReferenceProvider = (
   sessionFor: NuiReferenceSessionFor
@@ -27,19 +24,7 @@ export const createNuiReferenceProvider = (
       const session = sessionFor(document);
       if (session.getSource() !== rawSource) session.replaceSource(rawSource);
 
-      const normalizedSource = normalizedSourceFor(rawSource);
-      const source: SourceSnapshot = {
-        normalizedSource,
-        sourceRevision: session.getSourceRevision()
-      };
-      const semantic = session.referencesSemanticSnapshot(source);
-      if (!semantic) return [];
-
-      const result = queryDslReferences({
-        source,
-        position: normalizedOffsetFromRaw(rawSource, document.offsetAt(position)),
-        semantic
-      });
+      const result = session.references(normalizedOffsetFromRaw(rawSource, document.offsetAt(position)));
       if (!result) return [];
 
       const ranges = context.includeDeclaration

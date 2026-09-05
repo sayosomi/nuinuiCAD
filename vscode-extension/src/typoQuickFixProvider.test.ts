@@ -296,15 +296,7 @@ describe("VS Code typo Quick Fix provider", () => {
     const diagnosticDocument = documentFor(source, "/tmp/diagnostic.nui");
     mocks.textDocuments.push(diagnosticDocument);
     const diagnosticCase = actionsFor(diagnosticDocument, "unknown-dsl-keyword");
-    const semantic = diagnosticCase.session.completionSemanticSnapshot({
-      normalizedSource: source,
-      sourceRevision: diagnosticCase.session.getSourceRevision()
-    });
-    if (!semantic) throw new Error("expected semantic snapshot");
-    vi.spyOn(diagnosticCase.session, "completionSemanticSnapshot").mockReturnValue({
-      ...semantic,
-      compiled: { ...semantic.compiled, diagnostics: [] }
-    });
+    vi.spyOn(diagnosticCase.session, "quickFixes").mockReturnValue([]);
     await diagnosticCase.apply(payloadFor(diagnosticCase.actions[0]!));
 
     const tamperedDocument = documentFor(source, "/tmp/tampered.nui");

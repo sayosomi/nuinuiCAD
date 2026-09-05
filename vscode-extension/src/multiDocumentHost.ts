@@ -54,6 +54,22 @@ import { reconcileStatements } from "../../src/document/statementReconciler";
 import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 
+// Slice 3 transition bridge: deferred workspace code needs only the exact
+// current compiled root from the package-owned session. Slice 4 removes this
+// host dependency when the workspace surface moves to the package.
+const currentCompiledFor = (
+  session: NuiLanguageAnalysisSession,
+  normalizedSource: string,
+  sourceRevision: number
+): CompiledDslDocument | undefined => {
+  const bridge = session.currentCompiledSemanticBridge();
+  return bridge &&
+    bridge.sourceText === normalizedSource &&
+    bridge.sourceRevision === sourceRevision
+    ? bridge.compiled
+    : undefined;
+};
+
 export type VscodeMultiDocumentIdentityProjector = (
   documentId: DocumentId,
   identity: DslSemanticIdentity,
@@ -956,11 +972,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       normalizedSource,
       sourceRevision: session.getSourceRevision()
     };
-    const semantic = session.definitionSemanticSnapshot({
-      normalizedSource,
-      sourceRevision: root.sourceRevision
-    });
-    const semanticCompiled = semantic?.compiled;
+    const semanticCompiled = currentCompiledFor(session, normalizedSource, root.sourceRevision);
     const rootStatementIds = semanticCompiled
       ? this.options.semanticRootCompiler
         ? this.statementIdsForCurrentSource(state.documentId, normalizedSource, semanticCompiled)
@@ -987,7 +999,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
 
     const compiled = this.options.semanticRootCompiler
       ? this.options.semanticRootCompiler(result.graph)
-      : semantic?.compiled ?? null;
+      : semanticCompiled ?? null;
     const rootView = compiled
       ? this.semanticViewFor(
           root,
@@ -1072,11 +1084,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSource: normalizedSourceFor(document.getText()),
         sourceRevision: session.getSourceRevision()
       };
-      const semantic = session.definitionSemanticSnapshot({
-        normalizedSource: source.normalizedSource,
-        sourceRevision: source.sourceRevision
-      });
-      const semanticCompiled = semantic?.compiled;
+      const semanticCompiled = currentCompiledFor(session, source.normalizedSource, source.sourceRevision);
       views.push(semanticCompiled
         ? this.semanticViewFor(
             source,
@@ -1216,11 +1224,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
         normalizedSource,
         sourceRevision: session.getSourceRevision()
       };
-      const semantic = session.definitionSemanticSnapshot({
-        normalizedSource,
-        sourceRevision: root.sourceRevision
-      });
-      const semanticCompiled = semantic?.compiled;
+      const semanticCompiled = currentCompiledFor(session, normalizedSource, root.sourceRevision);
       const rootStatementIds = semanticCompiled
         ? this.options.semanticRootCompiler
           ? this.statementIdsForCurrentSource(documentId, normalizedSource, semanticCompiled)
@@ -1238,7 +1242,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       });
       const compiled = this.options.semanticRootCompiler
         ? this.options.semanticRootCompiler(graph)
-        : semantic?.compiled ?? null;
+        : semanticCompiled ?? null;
       const rootView = compiled
         ? this.semanticViewFor(
             root,

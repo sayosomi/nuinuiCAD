@@ -1,13 +1,10 @@
 import * as vscode from "vscode";
 import {
-  queryDslDocumentSymbols,
   type DslDocumentSymbol,
   type DslDocumentSymbolKind
 } from "../../src/dsl/dslDocumentSymbolQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import {
-  normalizedSourceFor,
   vscodeRangeForNormalized
 } from "./sourceOffsetAdapter";
 
@@ -16,7 +13,7 @@ export const nuiDocumentSymbolSelector: vscode.DocumentSelector = {
   scheme: "file"
 };
 
-export type NuiDocumentSymbolSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiDocumentSymbolSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 export type NuiDocumentSymbolSnapshot = {
   rawSource: string;
@@ -63,21 +60,9 @@ export const currentNuiDocumentSymbolSnapshot = (
   const session = sessionFor(document);
   if (session.getSource() !== rawSource) session.replaceSource(rawSource);
 
-  const normalizedSource = normalizedSourceFor(rawSource);
-  const source: SourceSnapshot = {
-    normalizedSource,
-    sourceRevision: session.getSourceRevision()
-  };
-  const snapshot = session.documentSymbolSyntaxSnapshot(source);
-  if (!snapshot || snapshot.sourceText !== normalizedSource || snapshot.sourceRevision !== source.sourceRevision) return null;
-
   return {
     rawSource,
-    symbols: queryDslDocumentSymbols({
-      source,
-      statements: snapshot.statements,
-      sourceMap: snapshot.sourceMap
-    })
+    symbols: [...session.documentSymbols()]
   };
 };
 

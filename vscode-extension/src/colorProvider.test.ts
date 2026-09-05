@@ -243,11 +243,11 @@ describe("VS Code fixed-color provider", () => {
       range: staleRange
     } as vscode.ColorPresentationContext)).toEqual([]);
 
-    const originalSnapshot = session.themeRoleColorSemanticSnapshot;
-    session.themeRoleColorSemanticSnapshot = (snapshot) => {
+    const originalSnapshot = session.themeRoleColors.bind(session);
+    vi.spyOn(session, "themeRoleColors").mockImplementation(() => {
       document.setSourceText(source.replace("accent", "warning"));
-      return originalSnapshot(snapshot);
-    };
+      return originalSnapshot();
+    });
     expect(provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), {
       document,
       range
@@ -286,11 +286,11 @@ describe("VS Code fixed-color provider", () => {
       range: staleRange
     } as vscode.ColorPresentationContext)).toEqual([]);
 
-    const originalSnapshot = session.fixedColorSemanticSnapshot;
-    session.fixedColorSemanticSnapshot = (snapshot) => {
+    const originalSnapshot = session.fixedColors.bind(session);
+    vi.spyOn(session, "fixedColors").mockImplementation(() => {
       document.setSourceText(source.replace("#0a10ff", "#00ff00"));
-      return originalSnapshot(snapshot);
-    };
+      return originalSnapshot();
+    });
     expect(provider.provideColorPresentations(new vscode.Color(1, 0, 0, 1), {
       document,
       range

@@ -6,8 +6,8 @@ import {
   type DslCompletionQueryResult
 } from "../../src/dsl/dslCompletionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { selectModuleDocumentationMarkdown } from "../../src/dsl/moduleDocumentationLocale";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import { normalizedOffsetAt } from "./sourceOffsetAdapter";
 
@@ -32,6 +32,8 @@ const completionItemKindFor: Record<DslCompletionCandidateKind, vscode.Completio
   builtin: vscode.CompletionItemKind.Function,
   literal: vscode.CompletionItemKind.Value,
   operator: vscode.CompletionItemKind.Operator,
+  record: vscode.CompletionItemKind.Struct,
+  recordConstructor: vscode.CompletionItemKind.Constructor,
   modifier: vscode.CompletionItemKind.Reference
 };
 
@@ -113,7 +115,7 @@ export const projectDslCompletionItems = (
   return result.candidates.map((candidate) => completionItemFor(candidate, result, normalizedSource, range, displayLanguage));
 };
 
-export type NuiCompletionSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiCompletionSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 export const createNuiCompletionProvider = (
   sessionFor: NuiCompletionSessionFor,
@@ -132,13 +134,16 @@ export const createNuiCompletionProvider = (
       sourceRevision: session.getSourceRevision()
     };
     const provideFor = (querySource: SourceSnapshot, semanticSource?: Parameters<typeof queryDslCompletion>[0]["semantic"]) => {
-      const semantic = semanticSource ?? session.completionSemanticSnapshot(querySource);
-      const recovery = semanticSource ? undefined : session.completionRecoverySnapshot(querySource);
+      if (!semanticSource) {
+        const result = session.completion(normalizedOffsetAt(normalizedSource, position));
+        return result
+          ? projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor())
+          : [];
+      }
       const result = queryDslCompletion({
         source: querySource,
         position: normalizedOffsetAt(querySource.normalizedSource, position),
-        ...(semantic ? { semantic } : {}),
-        ...(recovery ? { recovery } : {})
+        semantic: semanticSource
       });
       return result
         ? projectDslCompletionItems(querySource.normalizedSource, result, displayLanguageFor())
@@ -146,7 +151,10 @@ export const createNuiCompletionProvider = (
     };
 
     const multiDocument = activeVscodeMultiDocumentHost();
-    if (!multiDocument) return provideFor(source);
+    if (!multiDocument) {
+      const result = session.completion(normalizedOffsetAt(normalizedSource, position));
+      return result ? projectDslCompletionItems(normalizedSource, result, displayLanguageFor()) : [];
+    }
     return multiDocument.completionSemanticSnapshotFor(document).then((snapshot) =>
       snapshot
         ? provideFor({ normalizedSource: snapshot.sourceText, sourceRevision: snapshot.sourceRevision }, snapshot)

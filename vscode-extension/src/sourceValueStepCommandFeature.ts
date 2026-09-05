@@ -1,10 +1,6 @@
 import * as vscode from "vscode";
-import {
-  queryDslSourceValueStep,
-  type DslSourceValueStepPlan
-} from "../../src/dsl/dslSourceValueStepQuery";
+import type { DslSourceValueStepPlan, NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { DslValueStepDirection } from "../../src/dsl/dslValueStep";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,
@@ -29,31 +25,23 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const stepPlanForEditor = (
   editor: vscode.TextEditor,
-  languageAnalysisSession: NuiLanguageAnalysisSession,
+  languageAnalysisSession: NuiLanguageSession,
   direction: DslValueStepDirection
 ): DslSourceValueStepPlan | null => {
   if (!isSupportedSourceEditor(editor)) return null;
   const rawSource = editor.document.getText();
   if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
-  const source = {
-    normalizedSource: normalizedSourceFor(rawSource),
-    sourceRevision: languageAnalysisSession.getSourceRevision()
-  };
-  const semantic = languageAnalysisSession.valueStepSemanticSnapshot(source);
-  return queryDslSourceValueStep({
-    source,
-    semantic,
-    selections: editor.selections.map((selection) => ({
+  const selections = editor.selections.map((selection) => ({
       start: normalizedOffsetFromRaw(rawSource, editor.document.offsetAt(selection.start)),
       end: normalizedOffsetFromRaw(rawSource, editor.document.offsetAt(selection.end))
-    })),
-    direction
-  });
+    }));
+  if (selections.length !== 1) return null;
+  return languageAnalysisSession.sourceValueStepForSelection(selections[0]!, direction);
 };
 
 export const sourceValueStepIsAvailableForEditor = (
   editor: vscode.TextEditor,
-  languageAnalysisSession: NuiLanguageAnalysisSession
+  languageAnalysisSession: NuiLanguageSession
 ): boolean => Boolean(
   stepPlanForEditor(editor, languageAnalysisSession, 1) ??
   stepPlanForEditor(editor, languageAnalysisSession, -1)
@@ -62,7 +50,7 @@ export const sourceValueStepIsAvailableForEditor = (
 export const registerVscodeSourceValueStepFeature = ({
   languageAnalysisSessionFor
 }: {
-  languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+  languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageSession;
 }): vscode.Disposable => {
   let contextUpdate: Promise<void> = Promise.resolve();
 

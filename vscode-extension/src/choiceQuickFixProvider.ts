@@ -1,22 +1,20 @@
 import * as vscode from "vscode";
 import { CONSTRUCTION_CATEGORY_MISMATCH_CODE } from "../../src/dsl/dslCallParser";
-import {
-  queryDslConstructionCategoryQuickFixes,
-  type DslConstructionCategoryQuickFixPlan
-} from "../../src/dsl/dslConstructionCategoryQuickFixQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import { MISSING_DECLARED_TYPE_CODE } from "../../src/dsl/dslDeclarationParser";
 import type {
   TypedVariableQuickFixDescriptor,
   TypedVariableQuickFixSplice
 } from "../../src/scalars/typedVariableQuickFixes";
-import { typedVariableQuickFixes } from "../../src/scalars/typedVariableQuickFixes";
 import {
-  toCompilerDiagnostic,
   type CompilerDiagnostic,
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type {
+  NuiLanguageSession,
+  NuiQuickFixPlan,
+  NuiQuickFixInput
+} from "@nuinuicad/nui-language";
 import { choiceQuickFixTranslatorFor } from "./choiceQuickFixLocalization";
 import { configureNuiTypoDiagnosticPresentation } from "./typoDiagnosticPresentation";
 import {
@@ -76,7 +74,7 @@ type ConstructionCategoryQuickFixPayload = {
   targetCategory: string;
 };
 
-export type NuiChoiceQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiChoiceQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 const vscodeDisplayLanguage = (): string => {
   try {
@@ -215,40 +213,25 @@ const createNuiChoiceOnlyQuickFixProvider = (
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: session.getSourceRevision()
     };
-    const semantic = session.choiceQuickFixSemanticSnapshot(source);
-    if (!semantic) return [];
     if (
       document.uri.toString() !== documentUri ||
       document.version !== documentVersion ||
       document.getText() !== rawSource
     ) return [];
 
-    const descriptorsByDiagnostic = typedVariableQuickFixes(
-      semantic.sourceText,
-      semantic.currentCompiled.statements,
-      semantic.currentCompiled.diagnostics
-    );
     const translate = choiceQuickFixTranslatorFor(displayLanguageFor());
     const actions: vscode.CodeAction[] = [];
 
-    semantic.currentCompiled.diagnostics.forEach((diagnostic, index) => {
-      const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
-      const fingerprint = projected && nativeFingerprintFor(projected);
+    session.diagnostics().forEach((diagnostic) => {
+      const fingerprint = nativeFingerprintFor(diagnostic);
       if (!fingerprint) return;
       const target = contextDiagnosticFor(fingerprint, context.diagnostics);
       if (!target) return;
+      const plans = session.quickFixes(fingerprint as NuiQuickFixInput);
 
       if (fingerprint.code === CONSTRUCTION_CATEGORY_MISMATCH_CODE) {
-        const plans = queryDslConstructionCategoryQuickFixes({
-          source,
-          diagnostic,
-          semantic: {
-            sourceRevision: semantic.sourceRevision,
-            sourceText: semantic.sourceText,
-            compiled: semantic.currentCompiled
-          }
-        });
         for (const plan of plans) {
+          if (plan.kind !== "construction-category") continue;
           const title = translate("choiceQuickFix.changeCategory", { category: plan.targetCategory });
           const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
           action.diagnostics = [target];
@@ -262,7 +245,10 @@ const createNuiChoiceOnlyQuickFixProvider = (
         return;
       }
 
-      const descriptors = nativeDescriptorsFor(fingerprint.code, descriptorsByDiagnostic[index] ?? []);
+      const typedPlans = plans.filter((plan): plan is Extract<NuiQuickFixPlan, { kind: "typed-variable" }> =>
+        plan.kind === "typed-variable"
+      );
+      const descriptors = nativeDescriptorsFor(fingerprint.code, typedPlans.map((plan) => plan.descriptor));
       for (const descriptor of descriptors) {
         const title = fingerprint.code === INVALID_CHOICE_LITERAL_CODE
           ? translate("choiceQuickFix.replace", { candidate: descriptor.action.insert })
@@ -394,65 +380,27 @@ const descriptorMatches = (
 const descriptorForPayload = (
   payload: ChoiceQuickFixPayload,
   sourceText: string,
-  session: NuiLanguageAnalysisSession
+  session: NuiLanguageSession
 ): TypedVariableQuickFixDescriptor | undefined => {
-  const source: SourceSnapshot = {
-    normalizedSource: normalizedSourceFor(sourceText),
-    sourceRevision: payload.sourceRevision
-  };
-  const semantic = session.choiceQuickFixSemanticSnapshot(source);
-  if (!semantic) return undefined;
-
-  const descriptorsByDiagnostic = typedVariableQuickFixes(
-    semantic.sourceText,
-    semantic.currentCompiled.statements,
-    semantic.currentCompiled.diagnostics
-  );
-  for (const [index, diagnostic] of semantic.currentCompiled.diagnostics.entries()) {
-    const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
-    if (!projected || !sameDiagnostic(payload.targetDiagnostic, {
-      source: projected.source,
-      code: projected.code,
-      range: projected.range
-    })) continue;
-    const descriptor = nativeDescriptorsFor(payload.targetDiagnostic.code, descriptorsByDiagnostic[index] ?? [])
-      .find((candidate) => descriptorMatches(payload.descriptor, candidate));
-    if (descriptor) return descriptor;
-  }
-  return undefined;
+  if (session.getSource() !== sourceText || session.getSourceRevision() !== payload.sourceRevision) return undefined;
+  const plans = session.quickFixes(payload.targetDiagnostic as NuiQuickFixInput);
+  return plans
+    .filter((plan): plan is Extract<NuiQuickFixPlan, { kind: "typed-variable" }> => plan.kind === "typed-variable")
+    .map((plan) => plan.descriptor)
+    .find((candidate) => descriptorMatches(payload.descriptor, candidate));
 };
 
 const categoryPlanForPayload = (
   payload: ConstructionCategoryQuickFixPayload,
   sourceText: string,
-  session: NuiLanguageAnalysisSession
-): DslConstructionCategoryQuickFixPlan | undefined => {
-  const source: SourceSnapshot = {
-    normalizedSource: normalizedSourceFor(sourceText),
-    sourceRevision: payload.sourceRevision
-  };
-  const semantic = session.choiceQuickFixSemanticSnapshot(source);
-  if (!semantic) return undefined;
-
-  for (const diagnostic of semantic.currentCompiled.diagnostics) {
-    const projected = toCompilerDiagnostic(semantic.sourceText, diagnostic);
-    if (!projected || !sameDiagnostic(payload.targetDiagnostic, {
-      source: projected.source,
-      code: projected.code,
-      range: projected.range
-    })) continue;
-    const plans = queryDslConstructionCategoryQuickFixes({
-      source,
-      diagnostic,
-      semantic: {
-        sourceRevision: semantic.sourceRevision,
-        sourceText: semantic.sourceText,
-        compiled: semantic.currentCompiled
-      }
-    });
-    return plans.find((plan) => plan.targetCategory === payload.targetCategory);
-  }
-  return undefined;
+  session: NuiLanguageSession
+): Extract<NuiQuickFixPlan, { kind: "construction-category" }> | undefined => {
+  if (session.getSource() !== sourceText || session.getSourceRevision() !== payload.sourceRevision) return undefined;
+  return session.quickFixes(payload.targetDiagnostic as NuiQuickFixInput)
+    .filter((plan): plan is Extract<NuiQuickFixPlan, { kind: "construction-category" }> =>
+      plan.kind === "construction-category"
+    )
+    .find((plan) => plan.targetCategory === payload.targetCategory);
 };
 
 const createNuiConstructionCategoryQuickFixApplyHandler = (

@@ -1,22 +1,18 @@
 import * as vscode from "vscode";
 import {
   isDslTypoSuggestionDiagnosticCode,
-  queryDslTypoSuggestions,
   type DslTypoSuggestionCandidate,
   type DslTypoSuggestionDiagnosticCode
 } from "../../src/dsl/dslTypoSuggestionQuery";
-import type { DslCompletionSemanticSnapshot, DslCompletionRange } from "../../src/dsl/dslCompletionQuery";
+import type { DslCompletionRange } from "../../src/dsl/dslCompletionQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
 import {
-  toCompilerDiagnostic,
   type CompilerDiagnostic,
   type CompilerDiagnosticRange
 } from "./compilerDiagnostics";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession, NuiQuickFixInput, NuiQuickFixPlan } from "@nuinuicad/nui-language";
 import { createTranslator, resolveLocale } from "./localization";
 import { normalizedSourceFor, vscodeRangeForNormalized } from "./sourceOffsetAdapter";
-import { projectCompilerDiagnosticsWithTypoSuggestions } from "./typoDiagnosticPresentation";
 import { typoSuggestionTranslationCatalog } from "./typoSuggestionLocalization";
 
 export const nuiTypoQuickFixSelector: vscode.DocumentSelector = {
@@ -45,7 +41,7 @@ type TypoQuickFixPayload = {
   candidate: TypoCandidateFingerprint;
 };
 
-export type NuiTypoQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiTypoQuickFixSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 const isSupportedDocument = (document: vscode.TextDocument): boolean =>
   document.uri.scheme === "file" && document.fileName.endsWith(".nui");
@@ -89,14 +85,6 @@ const contextDiagnosticFor = (
   diagnostics: readonly vscode.Diagnostic[]
 ): vscode.Diagnostic | undefined => diagnostics.find((diagnostic) => sameDiagnostic(fingerprint, diagnostic));
 
-const dslDiagnosticsFor = (semantic: DslCompletionSemanticSnapshot): readonly DslDiagnostic[] =>
-  semantic.compiled
-    ? [
-        ...semantic.compiled.diagnostics,
-        ...(semantic.compiled.bindingIssueDiagnostics ?? [])
-      ]
-    : [];
-
 const candidateFingerprint = (candidate: DslTypoSuggestionCandidate): TypoCandidateFingerprint => ({
   kind: candidate.kind,
   label: candidate.label,
@@ -111,12 +99,9 @@ const sameCandidate = (
   expected.label === actual.label &&
   expected.identity === actual.identity;
 
-const sameReplacementRange = (left: DslCompletionRange, right: DslCompletionRange): boolean =>
-  left.from === right.from && left.to === right.to;
-
 const sourceSnapshotFor = (
   rawSource: string,
-  session: NuiLanguageAnalysisSession
+  session: NuiLanguageSession
 ): SourceSnapshot => ({
   normalizedSource: normalizedSourceFor(rawSource),
   sourceRevision: session.getSourceRevision()
@@ -134,15 +119,12 @@ const vscodeDisplayLanguage = (): string => {
 /** @internal Focused-test adapter; production diagnostic presentation is owned by typoDiagnosticPresentation.ts. */
 export const compilerDiagnosticsWithTypoSuggestions = (
   rawSource: string,
-  session: NuiLanguageAnalysisSession,
+  session: NuiLanguageSession,
   displayLanguage: string = vscodeDisplayLanguage()
 ): CompilerDiagnostic[] => {
-  const baseDiagnostics = session.getDiagnostics();
-  const source = sourceSnapshotFor(rawSource, session);
-  const semantic = session.completionSemanticSnapshot(source);
-  return semantic?.compiled
-    ? projectCompilerDiagnosticsWithTypoSuggestions(baseDiagnostics, source, semantic, displayLanguage)
-    : baseDiagnostics;
+  void rawSource;
+  void displayLanguage;
+  return [...session.diagnostics()];
 };
 
 const payloadFor = (
@@ -176,8 +158,6 @@ export const createNuiTypoQuickFixProvider = (
     const session = sessionFor(document);
     if (session.getSource() !== rawSource) session.replaceSource(rawSource);
     const source = sourceSnapshotFor(rawSource, session);
-    const semantic = session.completionSemanticSnapshot(source);
-    if (!semantic?.compiled) return [];
     if (
       document.uri.toString() !== documentUri ||
       document.version !== documentVersion ||
@@ -190,22 +170,23 @@ export const createNuiTypoQuickFixProvider = (
     );
     const actions: vscode.CodeAction[] = [];
 
-    for (const diagnostic of dslDiagnosticsFor(semantic)) {
-      if (!isDslTypoSuggestionDiagnosticCode(diagnostic.code)) continue;
-      const projected = toCompilerDiagnostic(semantic.sourceText ?? source.normalizedSource, diagnostic);
-      const fingerprint = projected && fingerprintFor(projected);
+    for (const diagnostic of session.diagnostics()) {
+      const fingerprint = fingerprintFor(diagnostic);
       if (!fingerprint) continue;
       const target = contextDiagnosticFor(fingerprint, context.diagnostics);
       if (!target) continue;
 
-      const result = queryDslTypoSuggestions({ source, diagnostic, semantic });
-      if (!result || result.candidates.length === 0) continue;
+      const plans = session.quickFixes(fingerprint as NuiQuickFixInput)
+        .filter((plan): plan is Extract<NuiQuickFixPlan, { kind: "typo-suggestion" }> =>
+          plan.kind === "typo-suggestion"
+        );
+      if (plans.length === 0) continue;
 
-      for (const candidate of result.candidates) {
-        const title = translate("typoSuggestion.quickFixTitle", { candidate: candidate.label });
+      for (const plan of plans) {
+        const title = translate("typoSuggestion.quickFixTitle", { candidate: plan.candidate.label });
         const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
         action.diagnostics = [target];
-        if (result.candidates.length === 1) action.isPreferred = true;
+        if (plans.length === 1) action.isPreferred = true;
         action.command = {
           command: NUI_TYPO_QUICK_FIX_APPLY_COMMAND,
           title,
@@ -213,9 +194,9 @@ export const createNuiTypoQuickFixProvider = (
             document,
             source,
             fingerprint,
-            result.replacementRange,
-            result.typedText,
-            candidate
+            { from: plan.edit.from, to: plan.edit.to },
+            plan.edit.expectedText,
+            plan.candidate
           )]
         };
         actions.push(action);
@@ -282,20 +263,20 @@ const currentOpenDocumentFor = (uri: string): vscode.TextDocument | undefined =>
 const currentTypoResultFor = (
   payload: TypoQuickFixPayload,
   source: SourceSnapshot,
-  semantic: DslCompletionSemanticSnapshot
-) => {
-  for (const diagnostic of dslDiagnosticsFor(semantic)) {
-    if (diagnostic.code !== payload.targetDiagnostic.code) continue;
-    const projected = toCompilerDiagnostic(semantic.sourceText ?? source.normalizedSource, diagnostic);
-    if (!projected || !sameDiagnostic(payload.targetDiagnostic, {
-      source: projected.source,
-      code: projected.code,
-      range: projected.range
-    })) continue;
-    const result = queryDslTypoSuggestions({ source, diagnostic, semantic });
-    if (result) return result;
-  }
-  return undefined;
+  session: NuiLanguageSession
+): Extract<NuiQuickFixPlan, { kind: "typo-suggestion" }> | undefined => {
+  if (session.getSourceRevision() !== payload.sourceRevision) return undefined;
+  return session.quickFixes(payload.targetDiagnostic as NuiQuickFixInput)
+    .filter((plan): plan is Extract<NuiQuickFixPlan, { kind: "typo-suggestion" }> =>
+      plan.kind === "typo-suggestion"
+    )
+    .find((plan) =>
+      plan.edit.from === payload.replacementRange.from &&
+      plan.edit.to === payload.replacementRange.to &&
+      plan.edit.expectedText === payload.expectedTypedText &&
+      sameCandidate(payload.candidate, plan.candidate) &&
+      source.normalizedSource.slice(plan.edit.from, plan.edit.to) === plan.edit.expectedText
+    );
 };
 
 export const createNuiTypoQuickFixApplyHandler = (
@@ -317,17 +298,8 @@ export const createNuiTypoQuickFixApplyHandler = (
   if (session.getSourceRevision() !== payload.sourceRevision) return;
 
   const source = sourceSnapshotFor(currentRawSource, session);
-  const semantic = session.completionSemanticSnapshot(source);
-  if (!semantic?.compiled) return;
-  const result = currentTypoResultFor(payload, source, semantic);
-  if (!result) return;
-  if (!sameReplacementRange(payload.replacementRange, result.replacementRange)) return;
-  if (result.typedText !== payload.expectedTypedText) return;
-  if (
-    source.normalizedSource.slice(result.replacementRange.from, result.replacementRange.to) !==
-    payload.expectedTypedText
-  ) return;
-  if (!result.candidates.some((candidate) => sameCandidate(payload.candidate, candidate))) return;
+  const plan = currentTypoResultFor(payload, source, session);
+  if (!plan) return;
 
   if (
     currentOpenDocumentFor(payload.uri) !== document ||
@@ -338,8 +310,8 @@ export const createNuiTypoQuickFixApplyHandler = (
   const workspaceEdit = new vscode.WorkspaceEdit();
   workspaceEdit.replace(
     document.uri,
-    vscodeRangeForNormalized(document, payload.rawSource, result.replacementRange),
-    payload.candidate.label
+    vscodeRangeForNormalized(document, payload.rawSource, plan.edit),
+    plan.candidate.label
   );
   await vscode.workspace.applyEdit(workspaceEdit);
 };
