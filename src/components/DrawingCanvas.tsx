@@ -884,11 +884,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, []);
 
   const markReactPointerEvent = (event: ReactPointerEvent): void => {
-    const nativeEvent = event.nativeEvent;
-    reactHandledPointerEvents.add(nativeEvent ?? event as unknown as Event);
-    if (nativeEvent && event.type === "pointerdown" && event.button === 0) {
-      recentPrimaryPointerIdsRef.current.add(event.pointerId);
-    }
+    reactHandledPointerEvents.add(event.nativeEvent ?? event as unknown as Event);
+  };
+
+  const claimPrimaryPointerDown = (event: ReactPointerEvent): boolean => {
+    if (event.type !== "pointerdown" || event.button !== 0) return true;
+    if (recentPrimaryPointerIdsRef.current.has(event.pointerId)) return false;
+    recentPrimaryPointerIdsRef.current.add(event.pointerId);
+    return true;
   };
 
   const setOverlapSession = useCallback((session: CanvasOverlapSessionState | null) => {
@@ -1603,12 +1606,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const nativeEvent = (event as { nativeEvent?: Event }).nativeEvent;
-    const isNativeFallbackEvent = !nativeEvent;
-    if (isNativeFallbackEvent && event.button === 0) {
-      if (recentPrimaryPointerIdsRef.current.has(event.pointerId)) return;
-      recentPrimaryPointerIdsRef.current.add(event.pointerId);
-    }
+    if (!claimPrimaryPointerDown(event)) return;
     markReactPointerEvent(event);
     const flushResult = hostAdapter.flushSourceEditorOnCanvasPointerDown();
     if (flushResult === "blocked-composition") {
