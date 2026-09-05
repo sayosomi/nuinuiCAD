@@ -9,7 +9,7 @@ export type ParameterPickCommandId =
 export const parameterPickCommandId = (
   kind: ParameterValueKind,
 ): ParameterPickCommandId | null => {
-  if (kind === "reference" || kind === "lineEndpointReference") {
+  if (kind === "reference" || kind === "lineEndpointReference" || kind === "pointReferenceList") {
     return "startPointPick";
   }
   if (kind === "lineReference" || kind === "lineReferenceList") {

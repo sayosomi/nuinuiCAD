@@ -418,7 +418,7 @@ const sourceGeometryCandidatesForDeclaration = (
   if (expectedGeometryKind === "lineReference" || expectedGeometryKind === "lineReferenceList") {
     return isLineLikeElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
   }
-  if (expectedGeometryKind === "point") {
+  if (expectedGeometryKind === "point" || expectedGeometryKind === "pointReferenceList") {
     return isPointElement(element) ? [{ kind: "geometry", label: name, identity: statementId }] : [];
   }
   if (expectedGeometryKind === "line") {

@@ -291,7 +291,8 @@ export const parameterKeyForArg = (type: CadElementType, argName: string): strin
 export const argNameForParameter = (type: CadElementType, parameterKey: string): string | null => {
   const specs = constructionSpecs.filter((spec) => spec.elementType === type);
   const match = [...specs.flatMap((spec) => spec.args), ...commonArgSpecs].find(
-    (spec) => !spec.special && (spec.parameterKey ?? spec.arg) === parameterKey,
+    (spec) => (spec.parameterKey ?? spec.arg) === parameterKey &&
+      (!spec.special || spec.special === "points"),
   );
   return match?.arg ?? null;
 };

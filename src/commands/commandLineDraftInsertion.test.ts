@@ -75,6 +75,23 @@ describe("command-line creation: draft (incomplete) statement insertion", () => 
     expect(sourceText).not.toContain("sources: []");
   });
 
+  it("renders a blank Polyline point-list as `points: `, never the factory seed, end to end", () => {
+    useCadDocumentStore.getState().commitText("nui 1", "test");
+    expect(startAnchored("polyline")).toBe(true);
+    expect(submitCommandLineInput("")).toBe(true); // name
+    expect(submitCommandLineInput("")).toBe(true); // points
+    expect(confirmCommandLineSession()).toBe(true);
+
+    const sourceText = useCadDocumentStore.getState().sourceText;
+    expect(sourceText).toContain("points: ,");
+    expect(sourceText).not.toContain("points: [");
+    expect(useCadDocumentStore.getState().elements.at(-1)).toMatchObject({
+      type: "polyline",
+      points: [],
+      closed: false
+    });
+  });
+
   it("keeps a declared numeric default genuinely blank inside an otherwise-blank draft", () => {
     useCadDocumentStore.getState().commitText("nui 1", "test");
     expect(startAnchored("divisionPoint")).toBe(true);

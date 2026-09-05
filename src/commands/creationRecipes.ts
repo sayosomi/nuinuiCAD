@@ -25,6 +25,7 @@ export type CreationStep =
   | { kind: "endpoint"; key: ParameterKey; prompt: string }
   | { kind: "line"; key: ParameterKey; prompt: string }
   | { kind: "lineList"; key: ParameterKey; prompt: string }
+  | { kind: "pointList"; key: ParameterKey; prompt: string }
   | { kind: "number"; key: ParameterKey; prompt: string; default?: string; stepLevels?: readonly number[] }
   | { kind: "name"; autoSuggest: true };
 
@@ -32,6 +33,7 @@ export type CreationArgumentValue =
   | PointAnchor
   | LineEndpointReference
   | ElementId
+  | PointAnchor[]
   | ElementId[]
   | NumericValue;
 
@@ -82,6 +84,7 @@ const creationStepForDefinition = (
   if (definition.kind === "lineEndpointReference") return { kind: "endpoint", ...base };
   if (definition.kind === "lineReference") return { kind: "line", ...base };
   if (definition.kind === "lineReferenceList") return { kind: "lineList", ...base };
+  if (definition.kind === "pointReferenceList") return { kind: "pointList", ...base };
   if (definition.kind !== "number") return null;
   return {
     kind: "number",
@@ -108,6 +111,10 @@ export const creationRecipes: readonly CreationRecipe[] = [
   {
     type: "line",
     steps: [nameStep, stepFor("line", "startPoint"), stepFor("line", "endPoint")]
+  },
+  {
+    type: "polyline",
+    steps: [nameStep, stepFor("polyline", "points")]
   },
   {
     type: "arcLine",

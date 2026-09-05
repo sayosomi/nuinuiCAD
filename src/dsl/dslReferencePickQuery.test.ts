@@ -35,6 +35,7 @@ describe("queryDslReferencePickTarget", () => {
       "line Base = segment(start: @A, end: @B)",
       "point Offset = offset(from: @A, dx: 4, dy: 0)",
       "point On = onLine(from: @Base.start, distance: 5)",
+      "line Poly = polyline(points: [@A, @B], closed: false)",
       "line Seam = offset(sources: [@Base], distance: 10, side: left, closed: false, suppressTrimWarnings: false)"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -68,6 +69,13 @@ describe("queryDslReferencePickTarget", () => {
       multiplicity: "multiple"
     });
     expect(sliceRange(source, list)).toBe("[@Base]");
+
+    const pointsFrom = source.indexOf("[@A, @B]");
+    expect(queryAt(source, compiled, pointsFrom + 3)).toMatchObject({
+      expectedGeometryInterface: "point",
+      role: "geometry",
+      multiplicity: "multiple"
+    });
   });
 
   it("returns a zero-width insertion range for a known empty geometry value", () => {

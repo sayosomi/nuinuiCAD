@@ -264,6 +264,7 @@ describe("commandLineSession", () => {
     const returnPickState = {
       numericReferencePickProperty: null,
       lineListDraftLineIds: null,
+      pointListDraftPointAnchors: null,
       activePickCursor: { elementId: "point-a", optionIndex: 0 }
     };
 

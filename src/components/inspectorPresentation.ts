@@ -134,6 +134,16 @@ const displayReferenceInspectorValue = (
       return Array.isArray(value)
         ? value.map((item) => typeof item === "string" ? resolvedElementName(item, elementNameById) : unresolvedReferenceLabel).join(", ")
         : displayInspectorValue(value);
+    case "pointReferenceList":
+      return Array.isArray(value)
+        ? value.map((item) => {
+            if (!item || typeof item !== "object" || !("mode" in item)) return unresolvedReferenceLabel;
+            const anchor = item as PointAnchor;
+            if (anchor.mode === "reference") return resolvedElementName(anchor.pointId, elementNameById);
+            if (anchor.mode === "derived") return displayDerivedAnchor(anchor, elementNameById);
+            return `(${displayInspectorNumericValue(anchor.x, elementNameById)}, ${displayInspectorNumericValue(anchor.y, elementNameById)})`;
+          }).join(", ")
+        : displayInspectorValue(value);
     default:
       return displayInspectorValue(value);
   }

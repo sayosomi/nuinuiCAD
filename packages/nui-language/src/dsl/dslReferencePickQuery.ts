@@ -244,6 +244,8 @@ const expectationForParameter = (
       return { expectedGeometryInterface: "path", role: "geometry", multiplicity: "single" };
     case "lineReferenceList":
       return { expectedGeometryInterface: "path", role: "geometry", multiplicity: "multiple" };
+    case "pointReferenceList":
+      return { expectedGeometryInterface: "point", role: "geometry", multiplicity: "multiple" };
     case "number":
       return "number";
     default:

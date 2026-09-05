@@ -2,7 +2,7 @@ import type { CreationStep } from "../commands/creationRecipes";
 import type { CanvasPresentation } from "./canvasPresentation";
 
 export const isCommandLineReferenceStep = (kind: CreationStep["kind"] | undefined) =>
-  kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList";
+  kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList" || kind === "pointList";
 
 export const commandLineStepHelp = (step: CreationStep | null, presentation?: CanvasPresentation) => {
   const text = (key: string, fallback: string) => presentation?.text(key, fallback) ?? fallback;
@@ -15,7 +15,7 @@ export const commandLineStepHelp = (step: CreationStep | null, presentation?: Ca
   if (step.kind === "point" || step.kind === "endpoint" || step.kind === "line") {
     return text("canvas.creationAssist.help.reference", "クリックまたは名前入力で選択します。");
   }
-  if (step.kind === "lineList") {
+  if (step.kind === "lineList" || step.kind === "pointList") {
     return text(
       "canvas.creationAssist.help.lineList",
       "クリックまたは名前入力で選び、選択完了ボタンで確定します。"

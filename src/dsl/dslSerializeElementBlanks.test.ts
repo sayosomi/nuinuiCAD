@@ -70,6 +70,18 @@ describe("serializeElementStatementBlockWithBlanks", () => {
     ]);
   });
 
+  it("renders a blank polyline point-list as `points: `, never the seeded factory points", () => {
+    const recipe = creationRecipeForType("polyline")!;
+    const draft = materializeCreationRecipeDraft(recipe, {}, emptyContext);
+    const refs = documentDslRefs([draft.element]);
+    const statement = serializeElementStatementBlockWithBlanks(draft.element, refs, draft.blankParameterKeys);
+
+    expect(draft.blankParameterKeys).toEqual(new Set(["points"]));
+    expect(draft.element.type).toBe("polyline");
+    expect(statement.args.find((arg) => arg.key === "points")).toEqual({ key: "points", text: "points: " });
+    expect(statement.args.find((arg) => arg.key === "points")?.text).not.toContain("0");
+  });
+
   it("renders a bare mutation-statement header (no name/category) with blank targets", () => {
     const recipe = creationRecipeForType("move")!;
     const draft = materializeCreationRecipeDraft(recipe, {}, emptyContext);

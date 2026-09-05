@@ -338,7 +338,7 @@ describe("registerVscodeCanvasQuickCreateFeature", () => {
     endpoint = null;
     await mocks.commands.get(vscodeCanvasCreationCommandIdFor("addLine"))?.();
     expect(postCreationCommand).not.toHaveBeenCalled();
-    expect(vscodeCanvasCreationCommands).toHaveLength(25);
+    expect(vscodeCanvasCreationCommands).toHaveLength(26);
     feature.dispose();
   });
 });
