@@ -545,21 +545,27 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
     expect(document.activeElement).toBe(viewport);
 
-    const clickLine = async (pointerId: number) => {
+    const clickLine = async (pointerId: number, nativeFallbackFirst = false) => {
       const line = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
       if (!line) throw new Error("Expected the rendered AB line");
       await act(async () => {
+        if (nativeFallbackFirst) blockReactPointerBoundary = true;
         fireEvent.pointerDown(line, {
           button: 0,
           buttons: 1,
           ...renderedLineMidpoint(line),
           pointerId
         });
+        if (nativeFallbackFirst) {
+          // Let the deferred native fallback claim the gesture before the
+          // React boundary receives the duplicate delivery.
+          await Promise.resolve();
+          blockReactPointerBoundary = false;
+        }
         // Model the webview boundary delivering the same physical press to the
-        // native fallback as a second native event before this task drains. The
-        // React boundary handles the first delivery; the fallback is the only
-        // path for this duplicate delivery.
-        blockReactPointerBoundary = true;
+        // other path as a second native event before this task drains. Only the
+        // first delivery may apply the gesture regardless of delivery order.
+        if (!nativeFallbackFirst) blockReactPointerBoundary = true;
         const duplicateLine = view.container.querySelector<SVGLineElement>(".drawing-overlay line");
         if (!duplicateLine) throw new Error("Expected the rendered AB line after the first delivery");
         fireEvent.pointerDown(duplicateLine, {
@@ -582,8 +588,12 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
-    await clickLine(2);
+    await clickLine(1);
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
+    expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
+
+    await clickLine(1, true);
+    expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
     view.unmount();
     container.removeEventListener("pointerdown", stopReactPointerBoundary);
