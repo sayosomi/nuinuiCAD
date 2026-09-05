@@ -13,7 +13,7 @@
 ```text
 .nui sourceText
         ↓
-VS Code TextDocument (production) / AutomationDocument (Headless MCP + harness)
+VS Code TextDocument (production) / NuiLanguageSession / AutomationDocument
         ↓
 @nuinuicad/nui-language document/compiler surfaces
         ↓
@@ -84,7 +84,7 @@ closed and no Webview protocol is involved:
 
 ```text
 VS Code TextDocument
-→ exact-current NuiLanguageAnalysisSession snapshot
+→ exact-current NuiLanguageSession.hover()
 → queryDslGeometryHoverTarget
 → NuiRuntimeEvaluationService
 → shared productionEvaluationContext / rustEvaluationRunner
@@ -231,6 +231,15 @@ model contracts,
 `src/geometry/evaluationTypes.ts` owns computed geometry and
 `EvaluationResult`/runtime evaluation contracts, and `src/types/geometry.ts`
 currently remains a compatibility/presentation facade over those owners.
+
+`NuiLanguageSession` is the package-owned per-document facade. It owns
+current source/revision proof and direct host-neutral language query invocation
+over one lower-level `AutomationDocument`. It exposes no VS Code, Node, React,
+DOM, Canvas, runtime geometry, or evaluator services. Single-document VS Code
+providers use this facade as thin projection/localization adapters. Runtime
+diagnostics and Rust runtime evaluation remain host/runtime-owned. The
+multi-document/MCP migration and final transition cleanup remain incomplete
+until Slice 4.
 
 ### Language Core package boundary
 
@@ -1149,9 +1158,14 @@ commit on pointerup. The `nuinuiCAD.editCanvasRibbon` command routes both
 Command Palette and Ribbon host-action invocations to the normal VS Code
 Settings surface.
 
-The extension keeps one `NuiLanguageAnalysisSession` and one production
-`AutomationDocument` per supported document URI for local diagnostics and
-fallback language features. `VscodeMultiDocumentHost` owns the exact
+The extension keeps one package-owned `NuiLanguageSession` per supported
+document URI for local diagnostics and single-document language features.
+`NuiLanguageSession` owns the current source/revision proof and directly invokes
+the host-neutral language queries over its one lower-level `AutomationDocument`;
+it does not expose VS Code, Node, React, DOM, Canvas, runtime geometry, or
+evaluator services. `languageAnalysisSession.ts` is the thin VS Code composition
+layer that adds the runtime-diagnostics sidecar and a clearly transitional
+current-compiled bridge for deferred workspace consumers. `VscodeMultiDocumentHost` owns the exact
 graph/watcher lifecycle, current root generation, and diagnostics refresh
 notifications; saved dependencies remain disk-authoritative until the existing
 watcher/coordinator rebuilds affected roots. The Module adapter supplies the
@@ -1179,45 +1193,46 @@ VS Code TextDocument
 └→ planMultiDocumentRename + Module document proof → RenameProvider / WorkspaceEdit
 
 VS Code TextDocument
-→ URI-scoped language analysis session / AutomationDocument (local/fallback)
-├→ local compiler diagnostics when the multi-document host does not own the root
-├→ queryDslCompletion → CompletionItemProvider
-├→ queryDslSignatureHelp → SignatureHelpProvider
-├→ queryDslDefinition → DefinitionProvider
-├→ queryDslReferences → ReferenceProvider
-├→ queryDslDocumentSymbols → DocumentSymbolProvider
-├→ queryDslRenameTarget / planDslRenameEdits → RenameProvider / WorkspaceEdit
-├→ queryDslReferencePickTarget → Reference Pick command/context adapter
-├→ queryDslSourceValueStep → Source Value Step command/context adapter → one TextEditor edit
-├→ queryDslGeometryHoverTarget → NuiRuntimeEvaluationService → EvaluationResult
+→ NuiLanguageSession (single-document local/fallback)
+├→ diagnostics() → localized VS Code diagnostics
+├→ completion(offset) → CompletionItemProvider
+├→ signatureHelp(offset) → SignatureHelpProvider
+├→ definition(offset) → DefinitionProvider
+├→ references(offset) → ReferenceProvider
+├→ documentSymbols() → DocumentSymbolProvider
+├→ prepareRename()/rename() → RenameProvider / WorkspaceEdit
+├→ hover(offset)/themeRoleColors() → HoverProvider
+├→ sourceValueStepForSelection() → Source Value Step command/context adapter → one TextEditor edit
+├→ runtimeEvaluationSnapshot() → NuiRuntimeEvaluationService → EvaluationResult
 │  → geometryHoverPresentation → HoverProvider
-└→ current invalid-choice diagnostic → typedVariableQuickFixes choice-replacement subset
-   → CodeActionProvider → guarded internal apply command → WorkspaceEdit
+└→ quickFixes(input) → CodeActionProvider → guarded internal apply command → WorkspaceEdit
 
 Runtime diagnostics and Canvas-theme warnings are composed by `extension.ts`
 with whichever compiler/semantic layer the exact host generation selects; they
 are not alternate diagnostic owners.
 ```
 
-`languageAnalysisSession.ts` owns current raw source, source replacement,
-current compiler diagnostics, source revision, and fail-closed semantic / exact
-current source-structure snapshot access. `compilerDiagnostics.ts` remains the diagnostic DTO and range
-conversion adapter. `completionProvider.ts` first asks the active
+`NuiLanguageSession` owns current raw source, source replacement, current
+compiler diagnostics, source revision, and fail-closed direct language queries.
+`AutomationDocument` remains its lower-level parser/compiler/document owner.
+`compilerDiagnostics.ts` is now a compatibility alias for the package-owned
+diagnostic DTO/projection; display-language localization and VS Code diagnostic
+collection ownership remain in the host. `completionProvider.ts` first asks the active
 multi-document host for its exact or completion-only current-root semantic
 snapshot, then projects
 `queryDslCompletion` candidates to `CompletionItem`s; it retains the session
-and completion recovery path when that snapshot is unavailable. Completion
+direct completion and recovery path when that snapshot is unavailable. Completion
 semantics, filtering, ranking, and truncation remain owned by the production
 query. `signatureHelpProvider.ts` uses the same exact host snapshot when
-available and otherwise projects the session's dedicated current-source Module
-semantic snapshot; it does not recover stale Module metadata. `definitionProvider.ts` keeps
+available and otherwise calls the session's direct current-source operation; it
+does not recover stale Module metadata. `definitionProvider.ts` keeps
 the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
 UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
-`queryDslDefinition`, and projects its exact ranges to a same-document
+`NuiLanguageSession.definition`, and projects its exact ranges to a same-document
 `DefinitionLink`. `referenceProvider.ts` uses the same session/current-source
-flow and delegates to `queryDslReferences`, returning deterministic
+flow and delegates to `NuiLanguageSession.references`, returning deterministic
 same-document `Location`s. `documentSymbolProvider.ts` delegates to the
-host-neutral `queryDslDocumentSymbols` projection and recursively converts its
+session's host-neutral document-symbol projection and recursively converts its
 normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
 remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
 registrations are adapter boundaries, not second resolvers.
@@ -1229,7 +1244,8 @@ responsibilities.
 
 Native Hover is the runtime-valued exception among these language features.
 `hoverProvider.ts` synchronizes the TextDocument and resolves only a current
-compiler-owned geometry target before invoking `NuiRuntimeEvaluationService`.
+compiler-owned target through `NuiLanguageSession.hover` before invoking
+`NuiRuntimeEvaluationService`.
 The service owns document-keyed current-result/in-flight reuse and delegates to
 the shared production evaluation context, Rust eligibility/runner and the same
 Extension Host Rust process owner. `geometryHoverPresentation.ts` consumes only
@@ -1246,6 +1262,13 @@ compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
 choice-replacement descriptors; it does not use the CodeMirror adapter. The
 internal apply command is authoritative only for the current open file
 document/version/source and fails closed before creating a `WorkspaceEdit`.
+
+The single-document language migration is complete for the listed providers,
+but the multi-document/workspace and MCP consumers still use the existing
+transition bridge and are intentionally deferred to Slice 4. Runtime
+diagnostics and Rust runtime evaluation remain host/runtime-owned; the package
+session is evaluator-free. Final legacy shim deletion and import-zone
+enforcement are likewise not part of this slice.
 
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

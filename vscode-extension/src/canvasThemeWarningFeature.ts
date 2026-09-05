@@ -1,5 +1,4 @@
-import { queryDslFixedColors, type DslFixedColorSemanticSnapshot } from "../../src/dsl/dslFixedColorQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { DslFixedColorResult } from "@nuinuicad/nui-language";
 import type { CanvasTheme } from "../../src/components/canvasTheme";
 import {
   contrastRatio,
@@ -21,23 +20,21 @@ export type CanvasThemeWarning = {
 export type CanvasSessionToken = object;
 
 export type FixedColorContrastWarningsInput = {
-  source: SourceSnapshot;
-  semantic?: DslFixedColorSemanticSnapshot;
+  fixedColors: readonly DslFixedColorResult[];
   background: string;
   displayLanguage?: string;
 };
 
 /** Produces Source warnings from exact-current fixed modifier colors only. */
 export const fixedColorContrastWarningsFor = ({
-  source,
-  semantic,
+  fixedColors,
   background,
   displayLanguage
 }: FixedColorContrastWarningsInput): readonly CanvasThemeWarning[] => {
   const backgroundColor = parseCssColor(background);
   if (!backgroundColor) return [];
 
-  return queryDslFixedColors({ source, semantic }).flatMap((fixedColor) => {
+  return fixedColors.flatMap((fixedColor) => {
     const fixedColorValue = parseCssColor(fixedColor.hex);
     if (!fixedColorValue || contrastRatio(fixedColorValue, backgroundColor) >= LOW_CONTRAST_FIXED_COLOR_RATIO) {
       return [];
@@ -85,8 +82,7 @@ export type CanvasThemeWarningFeature = {
     sessionToken: CanvasSessionToken;
     documentUri: string;
     documentVersion: number;
-    source: SourceSnapshot;
-    semantic?: DslFixedColorSemanticSnapshot;
+    fixedColors: readonly DslFixedColorResult[];
   }) => readonly CanvasThemeWarning[];
   dispose: () => void;
 };
@@ -209,8 +205,7 @@ export const createCanvasThemeWarningFeature = (options: {
         observation.generation !== options.currentThemeGeneration()
       ) return [];
       return fixedColorContrastWarningsFor({
-        source: input.source,
-        semantic: input.semantic,
+        fixedColors: input.fixedColors,
         background: observation.theme.background,
         displayLanguage: options.displayLanguageFor?.()
       });

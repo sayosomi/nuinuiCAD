@@ -19,7 +19,6 @@ vi.mock("vscode", () => {
 }, { virtual: true });
 
 import * as vscode from "vscode";
-import * as renameQuery from "../../src/dsl/dslRenameQuery";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
   createNuiRenameProvider,
@@ -436,7 +435,7 @@ describe("VS Code native nui rename provider", () => {
 
     const exactnessDocument = documentFor(source);
     const exactness = providerFor(source, exactnessDocument);
-    const planSpy = vi.spyOn(renameQuery, "planDslRenameEditsResult").mockReturnValue({
+    const planSpy = vi.spyOn(exactness.session, "rename").mockReturnValue({
       status: "ok",
       plan: {
         sourceRevision: 1,
@@ -487,8 +486,9 @@ describe("VS Code native nui rename provider", () => {
 
   it("does not expose unexpected core errors from prepareRename", () => {
     const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)";
-    const { document, provider } = providerFor(source);
-    const querySpy = vi.spyOn(renameQuery, "queryDslRenameTarget").mockImplementation(() => {
+    const { document, session } = providerFor(source);
+    const provider = createNuiRenameProvider(() => session);
+    const querySpy = vi.spyOn(session, "prepareRename").mockImplementation(() => {
       throw new Error("bindingResolution: internal invariant");
     });
     try {
@@ -505,8 +505,9 @@ describe("VS Code native nui rename provider", () => {
 
   it("does not expose unexpected core errors from provideRenameEdits", () => {
     const source = "nui 1\npoint Base = coordinate(x: 0, y: 0)";
-    const { document, provider } = providerFor(source);
-    const planSpy = vi.spyOn(renameQuery, "planDslRenameEditsResult").mockImplementation(() => {
+    const { document, session } = providerFor(source);
+    const provider = createNuiRenameProvider(() => session);
+    const planSpy = vi.spyOn(session, "rename").mockImplementation(() => {
       throw new Error("bindingResolution: internal invariant");
     });
     try {

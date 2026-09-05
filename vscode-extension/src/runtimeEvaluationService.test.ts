@@ -4,7 +4,11 @@ import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 import { evaluationResultToPayload, type EvaluationPayload } from "../../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticBridgeFor,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
 const sourceSnapshotFor = (source: string, sourceRevision: number): SourceSnapshot => ({
@@ -16,21 +20,22 @@ const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
 const nextSource = "nui 1\npoint B = coordinate(x: 2, y: 3)\n";
 const fatalSource = "nui 1\npoint A = coordinate(";
 const scalarSource = "nui 1\nconst x: number = 1\npoint A = coordinate(x: @x, y: 0)\n";
+const recoverableErrorSource = "nui 1\nconst width: number = @missing\npoint A = coordinate(x: 0, y: 1)\n";
 
 const payloadFor = (
   session: NuiLanguageAnalysisSession,
   source: SourceSnapshot
 ): EvaluationPayload => {
-  const semantic = session.choiceQuickFixSemanticSnapshot(source);
-  if (!semantic || !isLastGoodDslDocument(semantic.currentCompiled)) {
+  const semantic = currentCompiledSemanticBridgeFor(session, source);
+  if (!semantic || !isLastGoodDslDocument(semantic.compiled)) {
     throw new Error("expected a complete exact-current compiled document");
   }
   const options = buildEvaluationOptions({
-    compiledDocument: semantic.currentCompiled,
+    compiledDocument: semantic.compiled,
     evaluationLimitIndex: undefined
   });
   return evaluationResultToPayload(
-    evaluateElementsReference(semantic.currentCompiled.document.elements, options)
+    evaluateElementsReference(semantic.compiled.document.elements, options)
   );
 };
 
@@ -64,6 +69,36 @@ const deferred = <T>() => {
 };
 
 describe("VS Code current runtime evaluation service", () => {
+  it("keeps an exact-current runtime request available for recoverable language errors", async () => {
+    const session = createLanguageAnalysisSession(recoverableErrorSource);
+    const source = sourceSnapshotFor(recoverableErrorSource, session.getSourceRevision());
+    expect(session.diagnostics().some((diagnostic) => diagnostic.severity === "error")).toBe(true);
+    expect(session.runtimeEvaluationSnapshot()).toMatchObject({
+      sourceText: recoverableErrorSource,
+      sourceRevision: source.sourceRevision
+    });
+    const requestRust = vi.fn().mockResolvedValue(payloadFor(session, source));
+    const service = createNuiRuntimeEvaluationService({
+      rustProcessOwner: { get: () => ({ request: requestRust }) } as never,
+      isDocumentCurrent: () => true
+    });
+
+    const snapshot = await service.evaluateCurrent(requestFor({
+      session,
+      source: recoverableErrorSource,
+      sourceRevision: source.sourceRevision
+    }));
+
+    expect(snapshot).toMatchObject({
+      proof: {
+        normalizedSource: recoverableErrorSource,
+        sourceRevision: source.sourceRevision
+      },
+      compiled: expect.any(Object),
+      evaluation: expect.any(Object)
+    });
+  });
+
   it("evaluates an exact-current document through the shared Rust process owner", async () => {
     const session = createLanguageAnalysisSession(validSource);
     const source = sourceSnapshotFor(validSource, 1);

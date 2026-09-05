@@ -31,7 +31,10 @@ import type {
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  currentCompiledSemanticBridgeFor,
+  type NuiLanguageAnalysisSession
+} from "./languageAnalysisSession";
 import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 import {
@@ -365,7 +368,7 @@ const exactTargetAtEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: analysis.getSourceRevision()
   };
-  const semantic = analysis.definitionSemanticSnapshot(source);
+  const semantic = currentCompiledSemanticBridgeFor(analysis, source);
   if (!semantic?.compiled) return null;
   const caretOffset = normalizedOffsetFromRaw(
     rawSource,
@@ -487,7 +490,7 @@ export const registerModulePreviewFeature = ({
     };
     return {
       source,
-      semantic: analysis.definitionSemanticSnapshot(source)
+      semantic: currentCompiledSemanticBridgeFor(analysis, source)
     };
   };
 
@@ -1148,7 +1151,7 @@ export const registerModulePreviewFeature = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: analysis.getSourceRevision()
     };
-    const semantic = analysis.definitionSemanticSnapshot(source);
+    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
     const refreshed = currentModulePreviewTargetByIdentity({
       source,
       semantic,

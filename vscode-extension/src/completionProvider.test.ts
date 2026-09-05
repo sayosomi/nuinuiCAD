@@ -775,7 +775,7 @@ describe("VS Code native nui completion provider", () => {
     const query = queryDslCompletion({
       source: { normalizedSource: normalized, sourceRevision: session.getSourceRevision() },
       position: normalized.length,
-      semantic: session.completionSemanticSnapshot({ normalizedSource: normalized, sourceRevision: session.getSourceRevision() })
+      semantic: session.currentCompiledSemanticBridge()
     });
     const items = provider.provideCompletionItems(
       documentFor(source) as vscode.TextDocument,

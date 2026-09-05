@@ -1,9 +1,5 @@
 import * as vscode from "vscode";
-import {
-  queryDslGeometryHoverDeclarationRange,
-  queryDslGeometryHoverTarget
-} from "../../src/dsl/dslHoverQuery";
-import { queryDslThemeRoleColors } from "../../src/dsl/dslThemeRoleColorQuery";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import {
   geometryHoverMarkdown,
@@ -12,7 +8,6 @@ import {
   type GeometryHoverPresentation,
   type GeometryHoverReference
 } from "../../src/geometry/geometryHoverPresentation";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import type { NuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 import {
   normalizedOffsetFromRaw,
@@ -35,12 +30,12 @@ export type NuiHoverRevealSourceReferenceArgs = {
   expectedText: string;
 };
 
-export type NuiHoverSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiHoverSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 export type NuiHoverRuntimeEvaluationService = Pick<NuiRuntimeEvaluationService, "evaluateCurrent">;
 
 const currentTargetFor = (
   rawSource: string,
-  session: NuiLanguageAnalysisSession,
+  session: NuiLanguageSession,
   normalizedOffset: number
 ) => {
   if (session.getSource() !== rawSource) session.replaceSource(rawSource);
@@ -48,9 +43,7 @@ const currentTargetFor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: session.getSourceRevision()
   };
-  const semantic = session.hoverSemanticSnapshot(source);
-  if (!semantic) return null;
-  const target = queryDslGeometryHoverTarget({ source, position: normalizedOffset, semantic });
+  const target = session.hover(normalizedOffset);
   return target ? { source, target } : null;
 };
 
@@ -73,16 +66,10 @@ const referenceHrefFor = ({
 }: {
   document: vscode.TextDocument;
   source: SourceSnapshot;
-  session: NuiLanguageAnalysisSession;
+  session: NuiLanguageSession;
   reference: GeometryHoverReference;
 }): string | null => {
-  const semantic = session.hoverSemanticSnapshot(source);
-  if (!semantic) return null;
-  const range = queryDslGeometryHoverDeclarationRange({
-    source,
-    elementId: reference.elementId,
-    semantic
-  });
+  const range = session.hoverDeclarationRange(reference.elementId);
   if (!range) return null;
   const expectedText = source.normalizedSource.slice(range.from, range.to);
   if (!expectedText) return null;
@@ -166,14 +153,7 @@ export const createNuiHoverProvider = (
     const session = sessionFor(document);
     if (session.getSource() !== rawSource) session.replaceSource(rawSource);
     const normalizedOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(position));
-    const source: SourceSnapshot = {
-      normalizedSource: normalizedSourceFor(rawSource),
-      sourceRevision: session.getSourceRevision()
-    };
-    const themeRole = queryDslThemeRoleColors({
-      source,
-      semantic: session.themeRoleColorSemanticSnapshot(source)
-    }).find(({ range }) => normalizedOffset >= range.from && normalizedOffset < range.to);
+    const themeRole = session.themeRoleColors().find(({ range }) => normalizedOffset >= range.from && normalizedOffset < range.to);
     if (themeRole) {
       return new vscode.Hover(
         new vscode.MarkdownString(
@@ -207,7 +187,7 @@ export const createNuiHoverProvider = (
     let presentation: GeometryHoverPresentation;
     if (!snapshot) {
       const semanticElement = latest.target.elementId;
-      const currentCompiled = session.hoverSemanticSnapshot(latest.source)?.compiled;
+      const currentCompiled = session.currentCompiledSemanticBridge()?.compiled;
       const element = currentCompiled?.document?.elements.find((candidate) => candidate.id === semanticElement);
       if (!element) return undefined;
       presentation = geometryHoverUnavailablePresentation(element);

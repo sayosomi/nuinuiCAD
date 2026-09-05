@@ -788,16 +788,13 @@ const elementIdFor = (document: TestDocument, name: string): string => {
     languageAnalysisSessionFor?: (document: TestDocument) => {
       getSource: () => string;
       getSourceRevision: () => number;
-      runtimeEvaluationSemanticSnapshot: (source: { normalizedSource: string; sourceRevision: number }) =>
+      runtimeEvaluationSnapshot: () =>
         { compiled: { document: { elements: Array<{ name?: string; id: string }> } } } | undefined;
     };
   } | undefined;
   const session = registrationHost?.languageAnalysisSessionFor?.(document);
   if (!session) throw new Error("missing language analysis session");
-  const semantic = session.runtimeEvaluationSemanticSnapshot({
-    normalizedSource: session.getSource().replace(/\r\n/g, "\n"),
-    sourceRevision: session.getSourceRevision()
-  });
+  const semantic = session.runtimeEvaluationSnapshot();
   const element = semantic?.compiled.document.elements.find((candidate) => candidate.name === name);
   if (!element) throw new Error(`missing compiled element ${name}`);
   return element.id;

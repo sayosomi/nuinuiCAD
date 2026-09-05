@@ -298,7 +298,10 @@ describe("VS Code native nui Signature Help provider", () => {
     const snapshot = { normalizedSource: source, sourceRevision: session.getSourceRevision() };
     session.replaceSource("nui 1\nmodule Other(value: number) {\n}\ninstance Use = Other(value: 1)");
 
-    expect(session.signatureHelpSemanticSnapshot(snapshot)).toBeUndefined();
-    expect(queryDslSignatureHelp({ source: snapshot, position: source.length, semantic: undefined })).toBeNull();
+    expect(queryDslSignatureHelp({
+      source: snapshot,
+      position: source.length,
+      semantic: session.currentCompiledSemanticBridge() ?? undefined
+    })).toBeNull();
   });
 });

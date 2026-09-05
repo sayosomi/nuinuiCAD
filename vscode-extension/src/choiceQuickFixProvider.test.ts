@@ -406,21 +406,13 @@ describe("VS Code choice Quick Fix provider", () => {
     const semanticDocument = documentFor(source, "/tmp/category-semantic.nui");
     mocks.textDocuments.push(semanticDocument);
     const semanticCase = actionsFor(semanticDocument, [diagnosticFor(semanticDocument, "construction-category-mismatch")]);
-    vi.spyOn(semanticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue(undefined);
+    vi.spyOn(semanticCase.session, "quickFixes").mockReturnValue([]);
     await semanticCase.apply(payloadFor(semanticCase.actions[0]!));
 
     const missingDiagnosticDocument = documentFor(source, "/tmp/category-missing-diagnostic.nui");
     mocks.textDocuments.push(missingDiagnosticDocument);
     const missingDiagnosticCase = actionsFor(missingDiagnosticDocument, [diagnosticFor(missingDiagnosticDocument, "construction-category-mismatch")]);
-    const missingCurrent = missingDiagnosticCase.session.choiceQuickFixSemanticSnapshot({
-      normalizedSource: source,
-      sourceRevision: missingDiagnosticCase.session.getSourceRevision()
-    });
-    if (!missingCurrent) throw new Error("expected current semantic snapshot");
-    vi.spyOn(missingDiagnosticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue({
-      ...missingCurrent,
-      currentCompiled: { ...missingCurrent.currentCompiled, diagnostics: [] }
-    });
+    vi.spyOn(missingDiagnosticCase.session, "quickFixes").mockReturnValue([]);
     await missingDiagnosticCase.apply(payloadFor(missingDiagnosticCase.actions[0]!));
 
     const forgedDocument = documentFor(source, "/tmp/category-forged.nui");
@@ -602,21 +594,13 @@ describe("VS Code choice Quick Fix provider", () => {
     const semanticDocument = documentFor(source, "/tmp/semantic.nui");
     mocks.textDocuments.push(semanticDocument);
     const semanticCase = actionsFor(semanticDocument);
-    vi.spyOn(semanticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue(undefined);
+    vi.spyOn(semanticCase.session, "quickFixes").mockReturnValue([]);
     await semanticCase.apply(payloadFor(semanticCase.actions[0]!));
 
     const descriptorDocument = documentFor(source, "/tmp/descriptor.nui");
     mocks.textDocuments.push(descriptorDocument);
     const descriptorCase = actionsFor(descriptorDocument);
-    const current = descriptorCase.session.choiceQuickFixSemanticSnapshot({
-      normalizedSource: source,
-      sourceRevision: 1
-    });
-    if (!current) throw new Error("expected current semantic snapshot");
-    vi.spyOn(descriptorCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue({
-      ...current,
-      currentCompiled: { ...current.currentCompiled, diagnostics: [] }
-    });
+    vi.spyOn(descriptorCase.session, "quickFixes").mockReturnValue([]);
     await descriptorCase.apply(payloadFor(descriptorCase.actions[0]!));
 
     expect(mocks.applyEdit).not.toHaveBeenCalled();
@@ -640,21 +624,13 @@ describe("VS Code choice Quick Fix provider", () => {
     const semanticDocument = documentFor(source, "/tmp/missing-semantic.nui");
     mocks.textDocuments.push(semanticDocument);
     const semanticCase = actionsFor(semanticDocument, [diagnosticFor(semanticDocument, "missing-declared-type")]);
-    vi.spyOn(semanticCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue(undefined);
+    vi.spyOn(semanticCase.session, "quickFixes").mockReturnValue([]);
     await semanticCase.apply(payloadFor(semanticCase.actions[0]!));
 
     const descriptorDocument = documentFor(source, "/tmp/missing-descriptor.nui");
     mocks.textDocuments.push(descriptorDocument);
     const descriptorCase = actionsFor(descriptorDocument, [diagnosticFor(descriptorDocument, "missing-declared-type")]);
-    const current = descriptorCase.session.choiceQuickFixSemanticSnapshot({
-      normalizedSource: source,
-      sourceRevision: descriptorCase.session.getSourceRevision()
-    });
-    if (!current) throw new Error("expected current semantic snapshot");
-    vi.spyOn(descriptorCase.session, "choiceQuickFixSemanticSnapshot").mockReturnValue({
-      ...current,
-      currentCompiled: { ...current.currentCompiled, diagnostics: [] }
-    });
+    vi.spyOn(descriptorCase.session, "quickFixes").mockReturnValue([]);
     await descriptorCase.apply(payloadFor(descriptorCase.actions[0]!));
 
     expect(mocks.applyEdit).not.toHaveBeenCalled();

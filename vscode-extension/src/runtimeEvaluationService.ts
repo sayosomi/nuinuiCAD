@@ -14,7 +14,7 @@ import {
 } from "../../src/geometry/rustEvaluationRunner";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
 import type { EvaluationResult } from "../../src/types/geometry";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 
 export type NuiRuntimeEvaluationSource = "reference" | "rust" | "fallback";
@@ -40,7 +40,7 @@ export type NuiRuntimeEvaluationRequest = {
   documentKey: string;
   documentVersion: number;
   source: SourceSnapshot;
-  session: NuiLanguageAnalysisSession;
+  session: NuiLanguageSession;
   isCancelled?: () => boolean;
 };
 
@@ -52,7 +52,7 @@ export type NuiRuntimeEvaluationServiceDependencies = {
 type CapturedDocument = {
   proof: NuiRuntimeEvaluationProof;
   compiled: LastGoodDslDocument;
-  session: NuiLanguageAnalysisSession;
+  session: NuiLanguageSession;
 };
 
 type CachedDocument = {
@@ -162,8 +162,11 @@ export class NuiRuntimeEvaluationService {
       return undefined;
     }
 
-    const semantic = request.session.runtimeEvaluationSemanticSnapshot(request.source);
-    if (!semantic) return undefined;
+    const semantic = request.session.runtimeEvaluationSnapshot();
+    if (!semantic ||
+      semantic.sourceRevision !== request.source.sourceRevision ||
+      semantic.sourceText !== request.source.normalizedSource
+    ) return undefined;
 
     return {
       proof: {

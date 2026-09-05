@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createLanguageAnalysisSession, type NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 const mocks = vi.hoisted(() => ({
   commands: new Map<string, (...args: unknown[]) => unknown>(),
@@ -261,17 +261,15 @@ describe("VS Code Source Value Step feature", () => {
     const { editor, document } = createEditor(source, source.lastIndexOf("1"));
     const base = createLanguageAnalysisSession(source);
     let invalidated = false;
-    const session: NuiLanguageAnalysisSession = {
-      ...base,
-      valueStepSemanticSnapshot: (snapshot) => {
-        const semantic = base.valueStepSemanticSnapshot(snapshot);
-        if (!invalidated) {
-          invalidated = true;
-          document.version += 1;
-        }
-        return semantic;
+    const session = base;
+    const originalStep = base.sourceValueStepForSelection.bind(base);
+    vi.spyOn(session, "sourceValueStepForSelection").mockImplementation((selection, direction) => {
+      if (!invalidated) {
+        invalidated = true;
+        document.version += 1;
       }
-    };
+      return originalStep(selection, direction);
+    });
     const feature = registerVscodeSourceValueStepFeature({ languageAnalysisSessionFor: () => session });
     mocks.activeTextEditor = editor;
     const command = mocks.commands.get(VSCODE_SOURCE_VALUE_STEP_FORWARD_COMMAND_ID)!;

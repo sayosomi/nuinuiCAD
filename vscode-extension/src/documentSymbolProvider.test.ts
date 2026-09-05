@@ -39,11 +39,12 @@ vi.mock("vscode", () => {
 });
 
 import { parseDslSnapshot } from "../../src/dsl/dslParser";
+import { queryDslDocumentSymbols } from "../../src/dsl/dslDocumentSymbolQuery";
 import {
   createNuiDocumentSymbolProvider,
   nuiDocumentSymbolSelector
 } from "./documentSymbolProvider";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 
 type TestDocument = {
   fileName: string;
@@ -70,18 +71,20 @@ const sessionFor = (initialSource: string) => {
     getSource: vi.fn(() => currentSource),
     getSourceRevision: vi.fn(() => 1),
     replaceSource: vi.fn((source: string) => { currentSource = source; }),
-    documentSymbolSyntaxSnapshot: vi.fn((source: { normalizedSource: string; sourceRevision: number }) => {
-      if (source.normalizedSource !== currentSource.replace(/\r\n/g, "\n") || source.sourceRevision !== 1) return undefined;
+    documentSymbols: vi.fn(() => {
+      const source = {
+        normalizedSource: currentSource.replace(/\r\n/g, "\n"),
+        sourceRevision: 1
+      };
       const parsed = parseDslSnapshot(source);
-      return {
-        sourceRevision: source.sourceRevision,
-        sourceText: source.normalizedSource,
+      return queryDslDocumentSymbols({
+        source,
         statements: parsed.statements,
         sourceMap: parsed.sourceMap
-      };
+      });
     })
   };
-  return session as unknown as NuiLanguageAnalysisSession;
+  return session as unknown as NuiLanguageSession;
 };
 
 type TestDocumentSymbolProvider = {
@@ -128,10 +131,7 @@ describe("VS Code document symbol provider", () => {
     const symbols = (provider as unknown as TestDocumentSymbolProvider).provideDocumentSymbols(documentFor(source));
 
     expect(session.replaceSource).toHaveBeenCalledWith(source);
-    expect(session.documentSymbolSyntaxSnapshot).toHaveBeenCalledWith({
-      normalizedSource: source.replace(/\r\n/g, "\n"),
-      sourceRevision: 1
-    });
+    expect(session.documentSymbols).toHaveBeenCalledOnce();
     expect(symbols[0]?.selectionRange.start).toEqual({ line: 0, character: 6 });
     expect(symbols[0]?.selectionRange.end).toEqual({ line: 0, character: 7 });
   });
@@ -150,7 +150,7 @@ describe("VS Code document symbol provider", () => {
 
   it("fails closed when the exact source structure snapshot is stale", () => {
     const session = sessionFor("nui 1\n");
-    session.documentSymbolSyntaxSnapshot = vi.fn(() => undefined);
+    session.documentSymbols = vi.fn(() => []);
     const provider = createNuiDocumentSymbolProvider(() => session);
 
     expect((provider as unknown as TestDocumentSymbolProvider).provideDocumentSymbols(

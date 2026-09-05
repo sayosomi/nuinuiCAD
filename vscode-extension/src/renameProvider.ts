@@ -1,14 +1,12 @@
 import * as vscode from "vscode";
 import {
-  planDslRenameEditsResult,
-  queryDslRenameTarget,
   type DslRenameEditPlan,
   type DslRenameEditPlanResult,
   type DslRenameRejection,
   type DslRenameTarget
 } from "../../src/dsl/dslRenameQuery";
 import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
+import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import { activeVscodeMultiDocumentHost } from "./multiDocumentHost";
 import {
   normalizedOffsetFromRaw,
@@ -41,13 +39,13 @@ const vscodeRangeFor = (
   range: { from: number; to: number }
 ): vscode.Range => vscodeRangeForNormalized(document, rawSource, range);
 
-export type NuiRenameSessionFor = (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
+export type NuiRenameSessionFor = (document: vscode.TextDocument) => NuiLanguageSession;
 
 type RenameCallSnapshot = {
   documentVersion: number;
   rawSource: string;
   source: SourceSnapshot;
-  semantic: ReturnType<NuiLanguageAnalysisSession["renameSemanticSnapshot"]>;
+  session: NuiLanguageSession;
   hasCurrentErrors: boolean;
 };
 
@@ -68,8 +66,8 @@ const captureRenameCall = (
     documentVersion,
     rawSource,
     source,
-    semantic: session.renameSemanticSnapshot(source),
-    hasCurrentErrors: session.getDiagnostics().some((diagnostic) => diagnostic.severity === "error")
+    session,
+    hasCurrentErrors: session.diagnostics().some((diagnostic) => diagnostic.severity === "error")
   };
 };
 
@@ -107,11 +105,10 @@ export const createNuiRenameProvider = (
       const snapshot = captureRenameCall(document, sessionFor);
       const translator = renameTranslatorFor(displayLanguageFor());
       if (snapshot.hasCurrentErrors) throw new Error(translator("rename.currentSourceInvalid"));
-      if (!snapshot.semantic) throw new Error(translator("rename.prepareUnavailable"));
 
       let target: DslRenameTarget | null;
       try {
-        target = queryDslRenameTarget({ source: snapshot.source, semantic: snapshot.semantic }, normalizedOffsetFromRaw(
+        target = snapshot.session.prepareRename(normalizedOffsetFromRaw(
           snapshot.rawSource,
           document.offsetAt(position)
         ));
@@ -145,12 +142,10 @@ export const createNuiRenameProvider = (
       const snapshot = captureRenameCall(document, sessionFor);
       const translator = renameTranslatorFor(displayLanguageFor());
       if (snapshot.hasCurrentErrors) throw new Error(translator("rename.currentSourceInvalid"));
-      if (!snapshot.semantic) throw new Error(translator("rename.applyUnavailable"));
 
       let result: DslRenameEditPlanResult;
       try {
-        result = planDslRenameEditsResult(
-          { source: snapshot.source, semantic: snapshot.semantic },
+        result = snapshot.session.rename(
           normalizedOffsetFromRaw(snapshot.rawSource, document.offsetAt(position)),
           newName
         );
