@@ -588,11 +588,11 @@ describe("VSCodeDrawingCanvas transient invalid-source selection presentation", 
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
-    await clickLine(2);
+    await clickLine(1);
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
 
-    await clickLine(3, true);
+    await clickLine(1, true);
     expect(useCadUiStore.getState().activeLinePickTarget?.draftLineIds).toEqual([lineId]);
     expect(useCadDocumentStore.getState().sourceText).toBe(baseline);
     view.unmount();
