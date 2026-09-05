@@ -1458,7 +1458,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       return;
     }
     if (
-      evaluationState?.evaluationRevision === documentState.compiledDocumentRevision &&
+      evaluationState?.evaluationRevision === compiledDocumentRevision &&
       evaluationState.status === "failed"
     ) {
       terminalPendingPointer(hostAdapter.presentation?.text(
@@ -1467,7 +1467,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       ) ?? "評価に失敗したためキャンバス操作を続行できませんでした。");
       return;
     }
-    if (!evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision)) return;
+    if (!evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision)) return;
     if (intent.staleTargetHint && !documentState.elements.some((element) => element.id === intent.staleTargetHint)) {
       terminalPendingPointer(hostAdapter.presentation?.text(
         "canvas.pending.targetDeleted",
@@ -1482,6 +1482,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     applyPendingPointerTransition,
     canvasFocusRef,
     evaluationState,
+    compiledDocumentRevision,
     hostAdapter,
     pendingPointerState,
     resolvePrimaryPointerIntent,
@@ -1641,7 +1642,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const deferToFreshEvaluation =
         flushResult === "flushed" ||
         pendingPointerStateRef.current.kind === "waiting" ||
-        !evaluationStateIsCurrentFor(evaluationState, documentState.compiledDocumentRevision);
+        !evaluationStateIsCurrentFor(evaluationState, compiledDocumentRevision);
       const intent = {
         pointerId: event.pointerId,
         button: event.button,
