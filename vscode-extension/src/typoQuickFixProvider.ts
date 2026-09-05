@@ -3,9 +3,9 @@ import {
   isDslTypoSuggestionDiagnosticCode,
   type DslTypoSuggestionCandidate,
   type DslTypoSuggestionDiagnosticCode
-} from "../../src/dsl/dslTypoSuggestionQuery";
-import type { DslCompletionRange } from "../../src/dsl/dslCompletionQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+} from "@nuinuicad/nui-language";
+import type { DslCompletionRange } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import {
   type CompilerDiagnostic,
   type CompilerDiagnosticRange

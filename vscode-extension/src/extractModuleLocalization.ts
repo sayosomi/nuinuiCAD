@@ -1,7 +1,7 @@
 import type {
   ExtractModuleRejectCode,
   ExtractModuleRejection
-} from "../../src/document/extractModulePlanner";
+} from "@nuinuicad/nui-language/document";
 import {
   createTranslator,
   resolveLocale,

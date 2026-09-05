@@ -11,8 +11,8 @@ vi.mock("vscode", () => {
   return { FoldingRange, FoldingRangeKind: { Comment: "comment" } };
 });
 
-import { parseDslSnapshot } from "../../src/dsl/dslParser";
-import { queryDslFolding } from "../../src/dsl/dslFoldingQuery";
+import { parseDslSnapshot } from "@nuinuicad/nui-language";
+import { queryDslFolding } from "@nuinuicad/nui-language";
 import {
   createNuiFoldingProvider,
   nuiFoldingSelector

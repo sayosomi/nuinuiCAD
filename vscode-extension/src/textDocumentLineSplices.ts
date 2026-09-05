@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
+import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
 
 const sourceNewline = (sourceText: string): string => {
   const separators = [...sourceText.matchAll(/\r?\n/g)].map((match) => match[0]);

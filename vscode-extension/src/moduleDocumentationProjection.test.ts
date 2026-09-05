@@ -59,8 +59,8 @@ vi.mock("vscode", () => {
 }, { virtual: true });
 
 import * as vscode from "vscode";
-import type { DslCompletionQueryResult } from "../../src/dsl/dslCompletionQuery";
-import type { DslSignatureHelpQueryResult } from "../../src/dsl/dslSignatureHelpQuery";
+import type { DslCompletionQueryResult } from "@nuinuicad/nui-language";
+import type { DslSignatureHelpQueryResult } from "@nuinuicad/nui-language";
 import { projectDslCompletionItems } from "./completionProvider";
 import { projectDslSignatureHelp } from "./signatureHelpProvider";
 

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
+import type { NormalizedSourceRange } from "@nuinuicad/nui-language";
 import {
   outputPreviewPlaceCoordinatePatchesAreSafe
 } from "../../src/vscode/outputPreviewPlaceDrag";

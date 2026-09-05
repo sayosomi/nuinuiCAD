@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { AutomationDocument } from "../../src/document/automationDocument";
-import { compileDslDocument, type CompiledDslDocument } from "../../src/dsl/dslDocument";
-import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "../../src/dsl/dslTypes";
-import type { DslPhysicalSpan, SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { CadElement, ElementId } from "../../src/types/geometry";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import { compileDslDocument, type CompiledDslDocument } from "@nuinuicad/nui-language";
+import type { DslDiagnostic, DslDiagnosticRelatedInformation, DslStatement } from "@nuinuicad/nui-language";
+import type { DslPhysicalSpan, SourceSnapshot } from "@nuinuicad/nui-language";
+import type { CadElement, ElementId } from "@nuinuicad/nui-language";
 
 export type SourcePositionDto = {
   offset: number;

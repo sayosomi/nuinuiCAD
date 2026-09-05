@@ -1,4 +1,4 @@
-import type { DslDiagnosticPresentation } from "../../src/dsl/dslTypes";
+import type { DslDiagnosticPresentation } from "@nuinuicad/nui-language";
 import type { CompilerDiagnostic, CompilerDiagnosticRelatedInformation } from "./compilerDiagnostics";
 import { createTranslator, resolveLocale, type TranslationCatalog } from "./localization";
 

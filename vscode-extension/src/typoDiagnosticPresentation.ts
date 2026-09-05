@@ -1,10 +1,10 @@
-import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
+import type { DslCompletionSemanticSnapshot } from "@nuinuicad/nui-language";
 import {
   isDslTypoSuggestionDiagnosticCode,
   queryDslTypoSuggestions
-} from "../../src/dsl/dslTypoSuggestionQuery";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
+} from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import {
   toCompilerDiagnostic,
   type CompilerDiagnostic

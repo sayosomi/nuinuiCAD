@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createNuiLanguageSession } from "@nuinuicad/nui-language";
+import { currentCompiledSemanticSnapshotFor } from "@nuinuicad/nui-language/workspace";
 import {
   queryDslSignatureHelp,
   type DslSignatureHelpQueryResult
@@ -137,7 +138,7 @@ describe("DSL Signature Help query", () => {
     const result = queryDslSignatureHelp({
       source: sourceSnapshot,
       position,
-      semantic: session.currentCompiledSemanticBridge() ?? undefined
+      semantic: currentCompiledSemanticSnapshotFor(session)
     });
 
     expect(result?.signatures[0]?.parameters).toEqual([
@@ -157,7 +158,7 @@ describe("DSL Signature Help query", () => {
     expect(queryDslSignatureHelp({
       source: oldSnapshot,
       position: source.length,
-      semantic: session.currentCompiledSemanticBridge() ?? undefined
+      semantic: currentCompiledSemanticSnapshotFor(session)
     })).toBeNull();
   });
 });

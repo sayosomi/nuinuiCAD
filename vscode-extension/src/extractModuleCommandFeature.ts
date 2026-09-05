@@ -3,19 +3,19 @@ import {
   planExtractModule,
   type ExtractModulePlan,
   type ExtractModulePlanResult
-} from "../../src/document/extractModulePlanner";
-import type { LineSplice } from "../../src/document/textPatch";
-import type { CompiledDslDocument } from "../../src/dsl/dslDocument";
-import { materializedRuntimeElementId } from "../../src/dsl/moduleMaterialization";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { sourceOwnerForRuntimeElementId } from "../../src/dsl/sourceOwnership";
-import type { StatementIdentity } from "../../src/document/statementIdentity";
+} from "@nuinuicad/nui-language/document";
+import type { LineSplice } from "@nuinuicad/nui-language/document";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import type {
   VscodeCanvasObservationElementSource,
   VscodeCanvasObservationSnapshot
 } from "../../src/vscode/protocol";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
@@ -142,7 +142,7 @@ const exactSourceStateFor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: session.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(session, source);
+  const semantic = currentCompiledSemanticSnapshotFor(session, source);
   const compiled = semantic?.compiled;
   if (!compiled || !compiled.statementMap || compiled.spans.sourceMap.source !== source.normalizedSource) return null;
   return { rawSource, source, compiled, session };

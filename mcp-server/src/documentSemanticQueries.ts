@@ -1,5 +1,5 @@
-import { queryDslDefinition } from "../../src/dsl/dslDefinitionQuery";
-import { queryDslReferences } from "../../src/dsl/dslReferencesQuery";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { queryDslReferences } from "@nuinuicad/nui-language";
 import {
   loadFreshNuiDocumentSnapshot,
   SOURCE_POSITION_INDEXING,

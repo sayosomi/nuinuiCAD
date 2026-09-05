@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
-import { CONSTRUCTION_CATEGORY_MISMATCH_CODE } from "../../src/dsl/dslCallParser";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
-import { MISSING_DECLARED_TYPE_CODE } from "../../src/dsl/dslDeclarationParser";
+import { CONSTRUCTION_CATEGORY_MISMATCH_CODE } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
+import { MISSING_DECLARED_TYPE_CODE } from "@nuinuicad/nui-language";
 import type {
   TypedVariableQuickFixDescriptor,
   TypedVariableQuickFixSplice
-} from "../../src/scalars/typedVariableQuickFixes";
+} from "@nuinuicad/nui-language";
 import {
   type CompilerDiagnostic,
   type CompilerDiagnosticRange

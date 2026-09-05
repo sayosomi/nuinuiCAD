@@ -1,4 +1,4 @@
-import type { DslRenameRejection } from "../../src/dsl/dslRenameQuery";
+import type { DslRenameRejection } from "@nuinuicad/nui-language";
 import {
   createTranslator,
   resolveLocale,

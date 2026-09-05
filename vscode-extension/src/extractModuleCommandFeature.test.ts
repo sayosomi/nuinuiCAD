@@ -55,10 +55,10 @@ import {
 import { extractModuleRejectionMessageFor } from "./extractModuleLocalization";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor
+  currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
-import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
+import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
 
 const source = [
   "nui 1",
@@ -154,7 +154,7 @@ const compiledFor = (text: string) => {
     normalizedSource: text,
     sourceRevision: session.getSourceRevision()
   };
-  const compiled = currentCompiledSemanticBridgeFor(session, sourceSnapshot)?.compiled;
+  const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)?.compiled;
   if (!compiled) throw new Error("expected a compiled fixture");
   return { session, sourceSnapshot, compiled };
 };
@@ -525,7 +525,7 @@ describe("VS Code Extract Module command feature", () => {
       currentSource = appliedSource;
       editor.document.version = 2;
       session.replaceSource(currentSource);
-      const next = currentCompiledSemanticBridgeFor(session, {
+      const next = currentCompiledSemanticSnapshotFor(session, {
         normalizedSource: currentSource,
         sourceRevision: session.getSourceRevision()
       })?.compiled;

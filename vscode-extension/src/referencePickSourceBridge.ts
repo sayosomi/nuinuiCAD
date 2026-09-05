@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { queryDslReferencePickTarget } from "../../src/dsl/dslReferencePickQuery";
+import { queryDslReferencePickTarget } from "@nuinuicad/nui-language";
 import {
   isCanonicalReferencePickReference,
   isValidNumericReferencePickCandidate,
@@ -16,7 +16,7 @@ import {
 import { planVscodeReferencePickSourceEdit } from "../../src/vscode/referencePickSourceEdit";
 import type { CanonicalGeometrySourceReference } from "../../src/model/moduleSemanticCandidateBoundary";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
@@ -143,7 +143,7 @@ export const createVscodeReferencePickSourceBridge = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: languageAnalysisSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+    const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
     if (!semantic?.compiled) return null;
     const target = queryDslReferencePickTarget({ source, position: normalizedSourceOffset, semantic });
     if (!target) return null;
@@ -234,7 +234,7 @@ export const createVscodeReferencePickSourceBridge = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: languageAnalysisSession.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(languageAnalysisSession, source);
+    const semantic = currentCompiledSemanticSnapshotFor(languageAnalysisSession, source);
     if (!semantic?.compiled) {
       cancel();
       return "stale";

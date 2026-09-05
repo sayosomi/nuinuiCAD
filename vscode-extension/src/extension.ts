@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
-import { applyLineSplices } from "../../src/document/textPatch";
-import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "../../src/dsl/dslNavigationQuery";
-import { queryDslCanvasRevealSourceTarget } from "../../src/dsl/dslCanvasRevealQuery";
+import { applyLineSplices } from "@nuinuicad/nui-language/document";
+import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "@nuinuicad/nui-language";
+import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
@@ -14,7 +14,7 @@ import {
 } from "./compilerDiagnostics";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import {
@@ -122,7 +122,7 @@ import type {
   DocumentQualifiedSourceLocation,
   DocumentSourceIdentity,
   MultiDocumentSourceSnapshot
-} from "../../src/document/multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import {
   defaultVscodeCanvasRibbons,
   normalizeVscodeCanvasRibbons,
@@ -971,7 +971,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       normalizedSource,
       sourceRevision: analysis.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
+    const semantic = currentCompiledSemanticSnapshotFor(analysis, source);
     const info = semantic?.compiled.statementMap?.byElementId.get(elementId);
     if (!info || info.line < 1) return null;
     const line = Math.max(info.range.endLine, info.endLine) - 1;
@@ -2259,7 +2259,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       sourceRevision: analysis.getSourceRevision()
     };
     const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
-    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
+    const semantic = currentCompiledSemanticSnapshotFor(analysis, source);
     const target = semantic?.compiled
       ? queryDslCanvasSourceTarget({
           source,
@@ -2313,7 +2313,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: sessionForDocument.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(sessionForDocument, source);
+    const semantic = currentCompiledSemanticSnapshotFor(sessionForDocument, source);
     if (!semantic?.compiled?.statementMap) {
       presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
       return;

@@ -36,19 +36,22 @@ vi.mock("./multiDocumentHost", () => ({
 }));
 
 import * as vscode from "vscode";
-import { compileDslDocument } from "../../src/dsl/dslDocument";
-import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
-import { createModuleRuntimeContext } from "../../src/dsl/moduleRuntimeContext";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
-} from "../../src/document/multiDocumentModuleSemantics";
-import { buildMultiDocumentImportGraph } from "../../src/document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
+import { buildMultiDocumentImportGraph } from "@nuinuicad/nui-language/workspace";
 import {
   documentIdFromHost,
   savedSourceFingerprintFromHost
-} from "../../src/document/multiDocumentPrimitives";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+} from "@nuinuicad/nui-language/workspace";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticSnapshotFor
+} from "./languageAnalysisSession";
 import {
   createNuiSignatureHelpProvider,
   nuiSignatureHelpSelector,
@@ -301,7 +304,7 @@ describe("VS Code native nui Signature Help provider", () => {
     expect(queryDslSignatureHelp({
       source: snapshot,
       position: source.length,
-      semantic: session.currentCompiledSemanticBridge() ?? undefined
+      semantic: currentCompiledSemanticSnapshotFor(session, snapshot)
     })).toBeNull();
   });
 });

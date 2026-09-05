@@ -1,4 +1,4 @@
-import type { LastGoodDslDocument } from "../../src/document/canonicalDocument";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   evaluateElementsReference
 } from "../../src/geometry/evaluationEngine";
@@ -12,7 +12,7 @@ import {
   prepareRustEvaluation,
   type RustEvaluationTransport
 } from "../../src/geometry/rustEvaluationRunner";
-import type { SourceSnapshot } from "../../src/dsl/logicalStatementSourceMap";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type { EvaluationResult } from "../../src/types/geometry";
 import type { NuiLanguageSession } from "@nuinuicad/nui-language";
 import type { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";

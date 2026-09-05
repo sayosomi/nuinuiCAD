@@ -132,8 +132,8 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 }));
 
 import * as vscode from "vscode";
-import { queryDslCompletion } from "../../src/dsl/dslCompletionQuery";
-import { queryDslSignatureHelp } from "../../src/dsl/dslSignatureHelpQuery";
+import { queryDslCompletion } from "@nuinuicad/nui-language";
+import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
 import { diagnosticTextFor } from "./diagnosticLocalization";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { VscodeMultiDocumentHost } from "./multiDocumentHost";

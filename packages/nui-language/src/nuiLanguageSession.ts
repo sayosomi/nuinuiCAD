@@ -76,6 +76,7 @@ import {
   type NuiDiagnostic,
   type NuiDiagnosticRange
 } from "./nuiDiagnostics";
+import { registerNuiLanguageSessionDocument } from "./internal/nuiLanguageSessionDocument";
 
 const normalizedSourceFor = (sourceText: string): string => sourceText.replace(/\r\n/g, "\n");
 
@@ -85,13 +86,6 @@ export type NuiEvaluableDocumentSnapshot = {
   documentRevision: number;
   compiledDocumentRevision: number;
   compiled: LastGoodDslDocument;
-};
-
-/** The one narrow current-compile bridge retained for deferred host consumers. */
-export type NuiCurrentCompiledSemanticBridge = {
-  sourceRevision: number;
-  sourceText: string;
-  compiled: CompiledDslDocument;
 };
 
 export type NuiSourceValueStepResult = {
@@ -253,6 +247,7 @@ export class NuiLanguageSession {
 
   constructor(sourceText: string) {
     this.document = AutomationDocument.fromSource(sourceText);
+    registerNuiLanguageSessionDocument(this, this.document);
   }
 
   getSource(): string {
@@ -525,19 +520,6 @@ export class NuiLanguageSession {
       compiledDocumentRevision: state.compiledRevision,
       compiled: state.doc
     };
-  }
-
-  /** @internal Transition-only bridge for deferred workspace/runtime consumers. */
-  currentCompiledSemanticBridge(): NuiCurrentCompiledSemanticBridge | null {
-    const state = this.document.getState();
-    const sourceText = this.getSource();
-    const normalizedSource = normalizedSourceFor(sourceText);
-    const sourceRevision = this.getSourceRevision();
-    if (
-      state.currentCompiled.spans.sourceMap.source !== normalizedSource ||
-      state.currentCompiled.spans.sourceMap.sourceRevision !== sourceRevision
-    ) return null;
-    return { sourceRevision, sourceText: normalizedSource, compiled: state.currentCompiled };
   }
 }
 

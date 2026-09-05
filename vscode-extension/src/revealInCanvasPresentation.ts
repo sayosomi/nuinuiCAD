@@ -3,7 +3,7 @@ import type {
   DslCanvasRevealFailureReason,
   DslCanvasRevealOwnerFallbackCause,
   DslCanvasRevealRuntimeOmissionCause
-} from "../../src/dsl/dslCanvasRevealQuery";
+} from "@nuinuicad/nui-language";
 import {
   createTranslator,
   resolveLocale,

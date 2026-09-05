@@ -238,8 +238,8 @@ over one lower-level `AutomationDocument`. It exposes no VS Code, Node, React,
 DOM, Canvas, runtime geometry, or evaluator services. Single-document VS Code
 providers use this facade as thin projection/localization adapters. Runtime
 diagnostics and Rust runtime evaluation remain host/runtime-owned. The
-multi-document/MCP migration and final transition cleanup remain incomplete
-until Slice 4.
+exact-current compiled semantic proof needed by workspace consumers is exposed
+only through the package workspace entry, not as an ordinary session method.
 
 ### Language Core package boundary
 
@@ -261,9 +261,13 @@ Legacy `src/dsl`, `src/document`, `src/scalars`, `src/model`, `src/parameters`,
 and compile-time `src/geometry` paths remain only as transitional forwarding
 shims where still present. They do not retain a second semantic implementation.
 Runtime computed geometry, `EvaluationResult`, Rust payload construction, and
-runtime evaluator orchestration remain outside Language Core. VS Code and MCP
-host migration to these package surfaces is not complete while legacy host
-imports remain.
+runtime evaluator orchestration remain outside Language Core. VS Code Extension
+Host language and multi-document consumers use the supported root, document,
+and workspace entries, and Headless MCP document/language consumers use the
+same supported entries. Language Core remains host-neutral; filesystem, URI,
+version, watcher, Node, VS Code, and runtime/evaluation responsibilities remain
+outside the package. Transitional root forwarding shims still exist for
+remaining non-host repository consumers pending repository-wide cleanup.
 
 ### Headless MCP
 
@@ -486,6 +490,14 @@ for language queries, never replace the dependency snapshot used to construct
 the graph. One saved artifact cache is shared by active-root and reverse-root
 builds, and exact existing graph statement identities are reused when a saved
 document is compiled as another graph root.
+
+The host obtains an exact-current compiled semantic view through the
+workspace-entry `currentCompiledSemanticSnapshotFor` proof. That workspace-only
+access exposes exact-current `currentCompiled` semantics, including partial fatal
+current compile attempts, while requiring exact source/sourceRevision proof.
+`runtimeEvaluationSnapshot()` remains the separate evaluable/last-good proof.
+Host caller source/revision mismatches fail closed; the workspace entry does not
+expose a second session lifecycle or evaluator.
 
 The host watches `**/*.nui` saves/creates/deletes and invalidates coordinator-owned
 reverse dependencies before rebuilding affected open roots. Public References and
@@ -1164,8 +1176,8 @@ document URI for local diagnostics and single-document language features.
 the host-neutral language queries over its one lower-level `AutomationDocument`;
 it does not expose VS Code, Node, React, DOM, Canvas, runtime geometry, or
 evaluator services. `languageAnalysisSession.ts` is the thin VS Code composition
-layer that adds the runtime-diagnostics sidecar and a clearly transitional
-current-compiled bridge for deferred workspace consumers. `VscodeMultiDocumentHost` owns the exact
+layer that adds the runtime-diagnostics sidecar and adapts the workspace-only
+exact-current compiled semantic proof. `VscodeMultiDocumentHost` owns the exact
 graph/watcher lifecycle, current root generation, and diagnostics refresh
 notifications; saved dependencies remain disk-authoritative until the existing
 watcher/coordinator rebuilds affected roots. The Module adapter supplies the
@@ -1263,12 +1275,14 @@ choice-replacement descriptors; it does not use the CodeMirror adapter. The
 internal apply command is authoritative only for the current open file
 document/version/source and fails closed before creating a `WorkspaceEdit`.
 
-The single-document language migration is complete for the listed providers,
-but the multi-document/workspace and MCP consumers still use the existing
-transition bridge and are intentionally deferred to Slice 4. Runtime
-diagnostics and Rust runtime evaluation remain host/runtime-owned; the package
-session is evaluator-free. Final legacy shim deletion and import-zone
-enforcement are likewise not part of this slice.
+The single-document, multi-document/workspace, and MCP language migrations use
+the supported Language Core package entries. Runtime diagnostics and Rust
+runtime evaluation remain host/runtime-owned; the package session is
+evaluator-free. Final repository-wide legacy shim deletion remains deferred
+because non-host consumers, including active creation/parameter owners, still
+depend on the transitional forwarding shims. Host import-boundary enforcement
+rejects direct package-internal imports and forwarding-shim fallbacks while
+allowing genuine root runtime/host implementations.
 
 `rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
 test であり、cross-host UI comparison foundation とは別責務。

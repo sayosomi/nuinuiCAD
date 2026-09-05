@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { DslSourceValueStepPlan, NuiLanguageSession } from "@nuinuicad/nui-language";
-import type { DslValueStepDirection } from "../../src/dsl/dslValueStep";
+import type { DslValueStepDirection } from "@nuinuicad/nui-language";
 import {
   normalizedOffsetFromRaw,
   normalizedSourceFor,

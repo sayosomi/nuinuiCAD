@@ -2,8 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { queryDslDefinition } from "../../src/dsl/dslDefinitionQuery";
-import { queryDslReferences } from "../../src/dsl/dslReferencesQuery";
+import { queryDslDefinition } from "@nuinuicad/nui-language";
+import { queryDslReferences } from "@nuinuicad/nui-language";
 import {
   loadFreshNuiDocumentSnapshot,
   type SourceRangeDto

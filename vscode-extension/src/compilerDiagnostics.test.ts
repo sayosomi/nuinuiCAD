@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AutomationDocument } from "../../src/document/automationDocument";
-import type { DslDiagnostic } from "../../src/dsl/dslTypes";
+import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import type { DslDiagnostic } from "@nuinuicad/nui-language";
 import {
   compilerDiagnosticsForState,
   toCompilerDiagnostic

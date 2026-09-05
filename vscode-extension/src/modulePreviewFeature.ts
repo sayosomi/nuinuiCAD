@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
-import type { StatementIdentity } from "../../src/document/statementIdentity";
+import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
+import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import { resolveModulePreviewValueStep } from "../../src/dsl/modulePreviewValueStep";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
-import { moduleGeometryInterfaceTypeOf } from "../../src/dsl/moduleGeometryInterfaces";
+import { moduleGeometryInterfaceTypeOf } from "@nuinuicad/nui-language";
 import { currentModulePreviewTargetByIdentity } from "../../src/vscode/modulePreviewLifecycle";
 import {
   isCanonicalReferencePickReference,
@@ -32,7 +32,7 @@ import type {
 } from "../../src/vscode/protocol";
 import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import {
-  currentCompiledSemanticBridgeFor,
+  currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
 import { modulePreviewTranslatorFor } from "./modulePreviewLocalization";
@@ -368,7 +368,7 @@ const exactTargetAtEditor = (
     normalizedSource: normalizedSourceFor(rawSource),
     sourceRevision: analysis.getSourceRevision()
   };
-  const semantic = currentCompiledSemanticBridgeFor(analysis, source);
+  const semantic = currentCompiledSemanticSnapshotFor(analysis, source);
   if (!semantic?.compiled) return null;
   const caretOffset = normalizedOffsetFromRaw(
     rawSource,
@@ -490,7 +490,7 @@ export const registerModulePreviewFeature = ({
     };
     return {
       source,
-      semantic: currentCompiledSemanticBridgeFor(analysis, source)
+      semantic: currentCompiledSemanticSnapshotFor(analysis, source)
     };
   };
 
@@ -1151,7 +1151,7 @@ export const registerModulePreviewFeature = ({
       normalizedSource: normalizedSourceFor(rawSource),
       sourceRevision: analysis.getSourceRevision()
     };
-    const semantic = currentCompiledSemanticBridgeFor(analysis, source);
+    const semantic = currentCompiledSemanticSnapshotFor(analysis, source);
     const refreshed = currentModulePreviewTargetByIdentity({
       source,
       semantic,

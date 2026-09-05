@@ -3,7 +3,7 @@ import type {
   InlineModuleRejectCode,
   InlineModuleRejection,
   InlineModuleKnownSkipCode
-} from "../../src/document/inlineModulePlanner";
+} from "@nuinuicad/nui-language/document";
 import {
   createTranslator,
   resolveLocale,

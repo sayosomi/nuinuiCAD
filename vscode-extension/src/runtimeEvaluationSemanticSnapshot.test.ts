@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createLanguageAnalysisSession } from "./languageAnalysisSession";
+import {
+  createLanguageAnalysisSession,
+  currentCompiledSemanticSnapshotFor
+} from "./languageAnalysisSession";
 
 const validSource = "nui 1\npoint A = coordinate(x: 0, y: 1)\n";
 const warningSource = "nui 1\npoint A = offset(from: @missing, dx: 1, dy: 2)\n";
@@ -25,14 +28,21 @@ describe("VS Code runtime evaluation semantic snapshot", () => {
     });
   });
 
-  it("fails closed for stale source/revision and fatal current source without last-good fallback", () => {
+  it("keeps fatal current compiled semantics separate from runtime evaluation", () => {
     const session = createLanguageAnalysisSession(validSource);
 
     expect(session.runtimeEvaluationSnapshot()?.sourceText).toBe(validSource);
 
     session.replaceSource(fatalSource);
     expect(session.runtimeEvaluationSnapshot()).toBeNull();
-    expect(session.currentCompiledSemanticBridge()?.sourceText).toBe(fatalSource);
+    expect(currentCompiledSemanticSnapshotFor(session, {
+      normalizedSource: fatalSource,
+      sourceRevision: session.getSourceRevision()
+    })).toMatchObject({
+      sourceText: fatalSource,
+      sourceRevision: session.getSourceRevision(),
+      compiled: expect.any(Object)
+    });
   });
 
   it("advances document and compiled proof after repairing fatal source", () => {

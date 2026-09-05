@@ -56,11 +56,11 @@ import {
 } from "./inlineModuleCommandFeature";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor
+  currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
-import * as inlineModulePlanner from "../../src/document/inlineModulePlanner";
-import { applyLineSplices, type LineSplice } from "../../src/document/textPatch";
+import * as inlineModulePlanner from "@nuinuicad/nui-language/document";
+import { applyLineSplices, type LineSplice } from "@nuinuicad/nui-language/document";
 
 const source = [
   "nui 1",
@@ -123,7 +123,7 @@ const canvasFixtureFor = (canvasSource: string) => {
     normalizedSource: canvasSource,
     sourceRevision: session.getSourceRevision()
   };
-  const compiled = currentCompiledSemanticBridgeFor(session, sourceSnapshot)!.compiled;
+  const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)!.compiled;
   const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance")!;
   const elements = [{
     id: runtimeEntry.runtimeElementId,
@@ -182,7 +182,7 @@ describe("VS Code Inline Module command feature", () => {
 
     const selectedEditor = editorFor(source, { start: 0, end: source.length, active: source.length });
     const selected = collectInlineModuleSourceTargets(selectedEditor as never, sessionFor);
-    const compiled = currentCompiledSemanticBridgeFor(sessionFor(), {
+    const compiled = currentCompiledSemanticSnapshotFor(sessionFor(), {
       normalizedSource: source,
       sourceRevision: sessionFor().getSourceRevision()
     })!.compiled!;
@@ -218,7 +218,7 @@ describe("VS Code Inline Module command feature", () => {
       normalizedSource: source,
       sourceRevision: session.getSourceRevision()
     };
-    const compiled = currentCompiledSemanticBridgeFor(session, sourceSnapshot)!.compiled;
+    const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)!.compiled;
     const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance");
     expect(runtimeEntry).toBeDefined();
     if (!runtimeEntry) return;
@@ -341,7 +341,7 @@ describe("VS Code Inline Module command feature", () => {
       normalizedSource: fixture.getCurrentSource(),
       sourceRevision: fixture.session.getSourceRevision()
     };
-    const currentCompiled = currentCompiledSemanticBridgeFor(fixture.session, currentSourceSnapshot)!.compiled;
+    const currentCompiled = currentCompiledSemanticSnapshotFor(fixture.session, currentSourceSnapshot)!.compiled;
     const generatedGroupIndex = currentCompiled.statements.findIndex((statement) =>
       statement.kind === "group" && statement.name === "Top"
     );

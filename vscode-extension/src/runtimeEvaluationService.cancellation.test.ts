@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { isLastGoodDslDocument } from "../../src/document/canonicalDocument";
+import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReference } from "../../src/geometry/evaluationEngine";
 import { evaluationResultToPayload, type EvaluationPayload } from "../../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../../src/geometry/productionEvaluationContext";
 import {
   createLanguageAnalysisSession,
-  currentCompiledSemanticBridgeFor
+  currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
 import { createNuiRuntimeEvaluationService } from "./runtimeEvaluationService";
 
@@ -22,7 +22,7 @@ const deferred = <T>() => {
 
 const payloadForCurrentSource = (): EvaluationPayload => {
   const session = createLanguageAnalysisSession(source);
-  const semantic = currentCompiledSemanticBridgeFor(session, sourceSnapshot);
+  const semantic = currentCompiledSemanticSnapshotFor(session, sourceSnapshot);
   if (!semantic || !isLastGoodDslDocument(semantic.compiled)) {
     throw new Error("expected current compiled document");
   }

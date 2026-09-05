@@ -1,19 +1,19 @@
-import { compileDslDocument } from "../../src/dsl/dslDocument";
-import type { DslCompletionSemanticSnapshot } from "../../src/dsl/dslCompletionQuery";
-import { createModuleRuntimeContext } from "../../src/dsl/moduleRuntimeContext";
+import { compileDslDocument } from "@nuinuicad/nui-language";
+import type { DslCompletionSemanticSnapshot } from "@nuinuicad/nui-language";
+import { createModuleRuntimeContext } from "@nuinuicad/nui-language";
 import {
   createMultiDocumentModuleIdentityResolver,
   createMultiDocumentModuleRenameDocumentProof
-} from "../../src/document/multiDocumentModuleLanguage";
+} from "@nuinuicad/nui-language/workspace";
 import {
   analyzeMultiDocumentModuleSemantics,
   moduleDeclarationContributor
-} from "../../src/document/multiDocumentModuleSemantics";
-import type { MultiDocumentRenameDocumentProof } from "../../src/document/multiDocumentLanguageQueries";
+} from "@nuinuicad/nui-language/workspace";
+import type { MultiDocumentRenameDocumentProof } from "@nuinuicad/nui-language/workspace";
 import type {
   MultiDocumentGraphNode,
   MultiDocumentImportGraph
-} from "../../src/document/multiDocumentImportGraph";
+} from "@nuinuicad/nui-language/workspace";
 import {
   qualifySourceLocation,
   sourceIdentityOf,
@@ -21,7 +21,7 @@ import {
   type DocumentQualifiedSourceLocation,
   type DocumentSourceIdentity,
   type DocumentTextRange
-} from "../../src/document/multiDocumentPrimitives";
+} from "@nuinuicad/nui-language/workspace";
 import {
   VscodeMultiDocumentHost,
   type VscodeMultiDocumentCompletionSemanticRootCompiler,
@@ -242,7 +242,7 @@ const projectCompilerDiagnostic = (
 const projectDslDiagnostic = (
   source: string,
   sourceIdentity: DocumentSourceIdentity,
-  diagnostic: import("../../src/dsl/dslTypes").DslDiagnostic
+  diagnostic: import("@nuinuicad/nui-language").DslDiagnostic
 ): VscodeMultiDocumentDiagnostic | null => {
   const projected = compilerDiagnosticsFor(source, [diagnostic], [])[0];
   return projected ? projectCompilerDiagnostic(source, sourceIdentity, projected) : null;

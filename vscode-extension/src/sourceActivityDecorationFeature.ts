@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { createElementPresentationStatusIndex, type ElementPresentationStatus } from "../../src/model/elementPresentationStatus";
-import type { LastGoodDslDocument } from "../../src/document/canonicalDocument";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { EvaluationResult } from "../../src/types/geometry";
 import type { NuiLanguageAnalysisSession } from "./languageAnalysisSession";
 import {
