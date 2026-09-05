@@ -42,6 +42,7 @@ export const signatureHelpTranslationCatalog = {
   "signatureHelp.parameter.lineEndpointReference": { en: "Line endpoint used by this construction.", ja: "この構築で使用する線の端点です。" },
   "signatureHelp.parameter.lineReference": { en: "Single line used by this construction.", ja: "この構築で使用する1本の線です。" },
   "signatureHelp.parameter.lineReferenceList": { en: "List of source lines used by this construction.", ja: "この構築で使用する線の一覧です。" },
+  "signatureHelp.parameter.pointReferenceList": { en: "Ordered list of points used by this construction.", ja: "この構築で使用する順序付きの点の一覧です。" },
   "signatureHelp.parameter.boolean": { en: "Boolean option.", ja: "真偽値のオプションです。" },
   "signatureHelp.parameter.choice": { en: "Select one of the allowed values.", ja: "許可された値から1つを選びます。" },
   "signatureHelp.parameter.text": { en: "Text value.", ja: "テキスト値です。" },

@@ -13,7 +13,7 @@ import { effectiveCommandLineArgs, type CommandLineSession } from "./commandLine
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
 const isReferenceStep = (kind: CommandLineSession["recipe"]["steps"][number]["kind"]) =>
-  kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList";
+  kind === "point" || kind === "endpoint" || kind === "line" || kind === "lineList" || kind === "pointList";
 
 /**
  * Why the ghost could not (or could) be produced. "not-evaluated" is the

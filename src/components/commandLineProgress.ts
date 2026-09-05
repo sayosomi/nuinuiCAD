@@ -19,7 +19,7 @@ const elementName = (elementId: ElementId, elements: CadElement[]) => {
   return element ? elementQualifiedName(element, elements) : elementId;
 };
 
-const pointAnchorName = (anchor: PointAnchor, elements: CadElement[]) => {
+export const pointAnchorName = (anchor: PointAnchor, elements: CadElement[]) => {
   if (anchor.mode === "reference") return elementName(anchor.pointId, elements);
   if (anchor.mode === "derived") return derivedPointLabel(anchor.elementId, anchor.pointKey, elements);
   return `(${numericValueExpression(anchor.x)}, ${numericValueExpression(anchor.y)})`;
@@ -34,6 +34,7 @@ const valueForStep = (step: CreationStep, value: CreationArgumentValue | string,
   if (step.kind === "point") return pointAnchorName(value as PointAnchor, elements);
   if (step.kind === "endpoint") return endpointName(value as LineEndpointReference, elements);
   if (step.kind === "line") return elementName(value as ElementId, elements);
+  if (step.kind === "pointList") return (value as PointAnchor[]).map((anchor) => pointAnchorName(anchor, elements)).join(", ");
   return (value as ElementId[]).map((elementId) => elementName(elementId, elements)).join(", ");
 };
 

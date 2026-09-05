@@ -15,6 +15,14 @@ describe("VS Code Canvas creation catalog", () => {
     );
   });
 
+  it("projects Polyline with its canonical label and localized search vocabulary", () => {
+    expect(vscodeCanvasCreationCommands.find(({ commandId }) => commandId === "addPolyline")).toMatchObject({
+      title: "nuinuiCAD: Create Polyline",
+      quickPickLabel: "Polyline",
+      keywords: expect.arrayContaining(["polyline", "折れ線", "ポリライン"])
+    });
+  });
+
   it("keeps English and Japanese search keywords aligned with the shared palette", () => {
     for (const entry of vscodeCanvasCreationCommands) {
       const definition = creationCommandDefinitions[entry.commandId as keyof typeof creationCommandDefinitions];
@@ -43,6 +51,12 @@ describe("VS Code Canvas creation catalog", () => {
       "addBezierExtremePoint",
       "addBezierCurve"
     ]);
+    expect(filterVscodeCanvasCreationCommands("polyline").map(({ commandId }) => commandId)).toEqual([
+      "addPolyline"
+    ]);
+    expect(filterVscodeCanvasCreationCommands("ポリライン").map(({ commandId }) => commandId)).toEqual([
+      "addPolyline"
+    ]);
     expect(filterVscodeCanvasCreationCommands("   ")).toEqual(vscodeCanvasCreationCommands);
   });
 });
@@ -56,6 +70,7 @@ describe("VS Code Canvas Quick Create normalization", () => {
   it("preserves order, keeps the first duplicate, and drops unknown values", () => {
     const input = [
       "addLine",
+      "addPolyline",
       "unknown",
       "addFreePoint",
       "addLine",
@@ -68,6 +83,7 @@ describe("VS Code Canvas Quick Create normalization", () => {
     ];
     expect(normalizeVscodeCanvasQuickCreateCommands(input)).toEqual([
       "addLine",
+      "addPolyline",
       "addFreePoint",
       "addArcLine",
       "addText",

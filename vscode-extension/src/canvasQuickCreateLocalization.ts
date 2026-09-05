@@ -25,6 +25,7 @@ export const canvasQuickCreateTranslationCatalog = {
   "canvasQuickCreate.command.addBezierBulgePoint": { en: "Bezier Bulge Point", ja: "ベジェ膨らみ点" },
   "canvasQuickCreate.command.addBezierExtremePoint": { en: "Bezier Extreme Point", ja: "ベジェ極値点" },
   "canvasQuickCreate.command.addLine": { en: "Line", ja: "線" },
+  "canvasQuickCreate.command.addPolyline": { en: "Polyline", ja: "折れ線" },
   "canvasQuickCreate.command.addAngleLengthLine": { en: "Angle Length Line", ja: "角度・長さ線" },
   "canvasQuickCreate.command.addCommonTangentLine": { en: "Common Tangent Line", ja: "共通接線" },
   "canvasQuickCreate.command.addArcLine": { en: "Arc Line", ja: "円弧線" },

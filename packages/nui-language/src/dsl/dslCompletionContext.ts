@@ -66,7 +66,8 @@ export type DslGeometryReferenceKind =
   | "line"
   | "lineEndpointReference"
   | "lineReference"
-  | "lineReferenceList";
+  | "lineReferenceList"
+  | "pointReferenceList";
 
 /** Reuses the existing element parameter schema for source geometry references. */
 export const dslGeometryReferenceKindForParameter = (
@@ -77,6 +78,8 @@ export const dslGeometryReferenceKindForParameter = (
       return "lineEndpointReference";
     case "lineReference":
     case "lineReferenceList":
+      return parameter.definition.kind;
+    case "pointReferenceList":
       return parameter.definition.kind;
     case "reference":
       return "point";
@@ -333,7 +336,7 @@ const referenceCompletionSpan = (
   // only the trimmed (possibly collapsed-past-`pos`) span's edge here, not a
   // real prefix boundary. Insert at the cursor instead.
   if (span.start === span.end) return { from: pos, to: pos };
-  if (kind !== "lineReferenceList" || code[span.start] !== "[" || code[span.end - 1] !== "]") {
+  if ((kind !== "lineReferenceList" && kind !== "pointReferenceList") || code[span.start] !== "[" || code[span.end - 1] !== "]") {
     return { from: span.start, to: pos };
   }
   const item = splitDslTopLevelSpans(

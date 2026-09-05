@@ -47,6 +47,7 @@ const valueFor = (element: CadElement, parameterKey: string) => {
     case "lineEndpointReference": return "@AB.end";
     case "lineReference": return "@AB";
     case "lineReferenceList": return "[@AB, @CD]";
+    case "pointReferenceList": return "[@A, @B]";
     case "text": return '"a value"';
     case "choice": return definition.choiceOptions![0];
   }

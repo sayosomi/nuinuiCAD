@@ -37,6 +37,7 @@
   "configuration.canvasQuickCreate.enum.addOffsetLine": "オフセット線を作成",
   "configuration.canvasQuickCreate.enum.addOffsetPoint": "オフセット点を作成",
   "configuration.canvasQuickCreate.enum.addPolarOffsetPoint": "極座標オフセット点を作成",
+  "configuration.canvasQuickCreate.enum.addPolyline": "折れ線を作成",
   "configuration.canvasQuickCreate.enum.addSplitLine": "分割線を作成",
   "configuration.canvasQuickCreate.enum.addSymmetricCopyLine": "対称コピー線を作成",
   "configuration.canvasQuickCreate.enum.addSymmetricMove": "線を対称移動",

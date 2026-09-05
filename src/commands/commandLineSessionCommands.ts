@@ -78,7 +78,8 @@ const isPickCapableCreationStep = (step: ReturnType<typeof currentStep>) =>
   step?.kind === "point" ||
   step?.kind === "endpoint" ||
   step?.kind === "line" ||
-  step?.kind === "lineList";
+  step?.kind === "lineList" ||
+  step?.kind === "pointList";
 
 const commandLineCompositionIsActive = () =>
   sourceEditSession.isComposing() || isCommandLineInputComposing();

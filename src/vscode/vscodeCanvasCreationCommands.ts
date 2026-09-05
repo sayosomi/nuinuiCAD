@@ -120,6 +120,11 @@ const presentationByCommandId = {
     quickPickLabel: "Line",
     keywords: ["line", "直線", "線", "追加"]
   },
+  addPolyline: {
+    title: "nuinuiCAD: Create Polyline",
+    quickPickLabel: "Polyline",
+    keywords: ["polyline", "line", "path", "折れ線", "ポリライン", "線", "追加"]
+  },
   addAngleLengthLine: {
     title: "nuinuiCAD: Create Angle Length Line",
     quickPickLabel: "Angle Length Line",

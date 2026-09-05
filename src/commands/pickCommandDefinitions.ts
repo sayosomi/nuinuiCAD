@@ -8,6 +8,7 @@ import {
   applySelectedPickCandidate,
   cancelLinePick,
   finishLinePick,
+  finishPointPick,
   cancelNumericReferencePick,
   cancelPointPick,
   selectPickCandidateByOffset,
@@ -171,6 +172,11 @@ export const pickCommandDefinitions = {
     id: "finishLinePick",
     label: "複数線の選択を完了",
     run: (context) => finishLinePick(context)
+  },
+  finishPointPick: {
+    id: "finishPointPick",
+    label: "複数点の選択を完了",
+    run: (context) => finishPointPick(context)
   },
   cancelLinePick: {
     id: "cancelLinePick",

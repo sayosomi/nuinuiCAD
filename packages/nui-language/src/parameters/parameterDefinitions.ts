@@ -9,6 +9,7 @@ export type ParameterValueKind =
   | "lineEndpointReference"
   | "lineReference"
   | "lineReferenceList"
+  | "pointReferenceList"
   | "choice";
 
 export type ParameterKey = string;
@@ -289,6 +290,7 @@ const parameterDefinitionsForElement = (
     case "polyline":
       return [
         ...commonParameters,
+        { key: "points", label: "点", kind: "pointReferenceList" },
         { key: "closed", label: "閉じる", kind: "boolean" },
       ];
     case "angleLengthLine":

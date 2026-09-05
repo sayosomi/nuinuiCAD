@@ -61,6 +61,7 @@ const argsFor = (recipe: CreationRecipe, includeName = true): CreationArgs => {
     if (step.kind === "endpoint") args[step.key] = { lineId: "line-ab", endpointKey: "start" };
     if (step.kind === "line") args[step.key] = "line-ab";
     if (step.kind === "lineList") args[step.key] = ["line-ab"];
+    if (step.kind === "pointList") args[step.key] = [referenceAnchor("point-a")];
     if (step.kind === "number") args[step.key] = 12;
   }
   return args;
@@ -76,6 +77,7 @@ const stepKindForParameterKind = {
   lineEndpointReference: "endpoint",
   lineReference: "line",
   lineReferenceList: "lineList",
+  pointReferenceList: "pointList",
   number: "number"
 } as const;
 
@@ -98,6 +100,7 @@ describe("creationRecipes", () => {
     expect(creationRecipes.map((recipe) => recipe.type)).toEqual([
       "freePoint",
       "line",
+      "polyline",
       "arcLine",
       "bezierCurve",
       "offsetLine",
@@ -141,7 +144,7 @@ describe("creationRecipes", () => {
 
   it("covers every step kind through the legacy creation recipes", () => {
     const kinds = new Set(legacyCreationRecipes().flatMap((recipe) => recipe.steps.map((step) => step.kind)));
-    expect(kinds).toEqual(new Set(["point", "endpoint", "line", "lineList", "number", "name"]));
+    expect(kinds).toEqual(new Set(["point", "endpoint", "line", "lineList", "pointList", "number", "name"]));
   });
 
   it("serializes every legacy creation recipe to the golden DSL statement", () => {
@@ -162,6 +165,7 @@ describe("creationRecipes", () => {
       bezierBulgePoint: "point 作成bezierBulgePoint = bezierBulgePoint(source: @AB, segmentIndex: 12)",
       bezierExtremePoint: "point 作成bezierExtremePoint = bezierExtremePoint(source: @AB, segmentIndex: 12, direction: 12)",
       line: "line 作成line = segment(start: @A, end: @A)",
+      polyline: "line 作成polyline = polyline(points: [@A], closed: false)",
       angleLengthLine: "line 作成angleLengthLine = polar(start: @A, angle: 12, length: 12)",
       commonTangentLine: "line 作成commonTangentLine = commonTangent(first: @AB, second: @AB, kind: external, side: left)",
       arcLine: "arc 作成arcLine = arc(center: @A, radius: 12, start: 12, end: 12, direction: counterclockwise)",
