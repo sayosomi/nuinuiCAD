@@ -4,7 +4,6 @@ import { basename, resolve } from "node:path";
 import * as vscode from "vscode";
 import { applyLineSplices } from "@nuinuicad/nui-language/document";
 import { queryDslCanvasSourceTarget, type NormalizedSourceRange } from "@nuinuicad/nui-language";
-import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
 import { RustEvaluationProcess } from "./rustEvaluationProcess";
 import { RustEvaluationProcessOwner } from "./rustEvaluationProcessOwner";
 import {
@@ -76,7 +75,9 @@ import {
 } from "./extractModuleCommandFeature";
 import { registerNuiHoverFeature } from "./hoverFeature";
 import {
+  localRevealSourceTargetForEditor,
   outputPreviewRevealSourceTargetForEditor,
+  revealInCanvasSourceTargetForEditor,
   registerVscodeReferencePickFeature,
   type VscodeReferencePickCanvasEndpoint
 } from "./referencePickCommandFeature";
@@ -101,6 +102,7 @@ import type {
   VscodeBakeSettings,
   VscodeBenchmarkConfig,
   VscodeDocumentChangeReason,
+  VscodeCanvasNavigationRequest,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
 import {
@@ -169,11 +171,7 @@ type DocumentSession = VscodeWebviewSessionBase & {
   } | null;
   webviewReady: boolean;
   authoritativeDocumentVersion: number | null;
-  pendingCanvasNavigation: {
-    requestId: number;
-    documentVersion: number;
-    normalizedSourceOffset: number;
-  } | null;
+  pendingCanvasNavigation: VscodeCanvasNavigationRequest | null;
   pendingBake: {
     requestId: number;
     documentVersion: number;
@@ -1208,12 +1206,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
       documentVersion: pending.documentVersion,
       focusSent: false
     };
-    void session.panel.webview.postMessage({
-      type: "canvasNavigationRequest",
-      requestId: pending.requestId,
-      documentVersion: pending.documentVersion,
-      normalizedSourceOffset: pending.normalizedSourceOffset
-    } satisfies ExtensionToVscodeMessage);
+    void session.panel.webview.postMessage(pending satisfies ExtensionToVscodeMessage);
   };
 
   const deliverPendingBake = (session: DocumentSession): void => {
@@ -2311,48 +2304,65 @@ export const activate = (context: vscode.ExtensionContext): void => {
   const revealInCanvas = (): void => {
     const editor = activeNuiEditor();
     if (!editor) return;
-    const document = editor.document;
-    const rawSource = document.getText();
-    const sessionForDocument = languageAnalysisSessionFor(document);
-    if (sessionForDocument.getSource() !== rawSource) sessionForDocument.replaceSource(rawSource);
-    const source = {
-      normalizedSource: normalizedSourceFor(rawSource),
-      sourceRevision: sessionForDocument.getSourceRevision()
-    };
-    const semantic = currentCompiledSemanticSnapshotFor(sessionForDocument, source);
-    if (!semantic?.compiled?.statementMap) {
-      presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
-      return;
-    }
-    const normalizedSourceOffset = normalizedOffsetFromRaw(rawSource, document.offsetAt(editor.selection.active));
-    const sourceTarget = queryDslCanvasRevealSourceTarget({
-      source,
-      compiled: semantic.compiled,
-      position: normalizedSourceOffset
-    });
-    if (sourceTarget.status === "failed") {
-      presentRevealInCanvasOutcome({ status: "failed", reason: sourceTarget.reason });
-      return;
-    }
+    const sessionForDocument = languageAnalysisSessionFor(editor.document);
+    const startNavigation = (resolved: Awaited<ReturnType<typeof revealInCanvasSourceTargetForEditor>>): void => {
+      if (vscode.window.activeTextEditor !== editor) return;
+      if (resolved.status === "failed") {
+        presentRevealInCanvasOutcome({ status: "failed", reason: resolved.reason });
+        return;
+      }
 
-    const key = documentKey(document);
-    let session = sessions.get(key, "canvas");
-    if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) {
-      presentRevealInCanvasOutcome({ status: "failed", reason: "canvas-history-busy" });
+      const target = resolved.value;
+      if (
+        editor.document.version !== target.documentVersion ||
+        normalizedOffsetFromRaw(
+          editor.document.getText(),
+          editor.document.offsetAt(editor.selection.active)
+        ) !== target.normalizedSourceOffset
+      ) {
+        presentRevealInCanvasOutcome({ status: "failed", reason: "source-mismatch" });
+        return;
+      }
+      const key = documentKey(editor.document);
+      let session = sessions.get(key, "canvas");
+      if (canvasHistoryHandoffSession !== null || (session !== undefined && session.inFlightCanvasHistory !== null)) {
+        presentRevealInCanvasOutcome({ status: "failed", reason: "canvas-history-busy" });
+        return;
+      }
+      if (!session) session = createCanvasPanel(editor.document, true);
+      if (!session) return;
+
+      const requestId = nextNavigationRequestId++;
+      session.pendingCanvasNavigation = {
+        type: "canvasNavigationRequest",
+        requestId,
+        documentVersion: target.documentVersion,
+        normalizedSourceOffset: target.normalizedSourceOffset,
+        ...(target.graphRevision === null
+          ? {}
+          : {
+              sourceTarget: target.target,
+              sourceRevision: target.sourceRevision,
+              graphRevision: target.graphRevision
+            })
+      };
+      session.pendingCanvasFocus = null;
+      session.panel.reveal(vscode.ViewColumn.Beside, true);
+      deliverPendingCanvasNavigation(session);
+    };
+
+    const host = activeVscodeMultiDocumentHost();
+    if (!host || typeof host.languageSemanticSnapshotFor !== "function") {
+      startNavigation(localRevealSourceTargetForEditor(editor, sessionForDocument));
       return;
     }
-    if (!session) session = createCanvasPanel(editor.document, true);
-    if (!session) return;
-
-    const requestId = nextNavigationRequestId++;
-    session.pendingCanvasNavigation = {
-      requestId,
-      documentVersion: document.version,
-      normalizedSourceOffset
-    };
-    session.pendingCanvasFocus = null;
-    session.panel.reveal(vscode.ViewColumn.Beside, true);
-    deliverPendingCanvasNavigation(session);
+    void revealInCanvasSourceTargetForEditor(editor, sessionForDocument)
+      .then(startNavigation)
+      .catch(() => {
+        if (vscode.window.activeTextEditor === editor) {
+          presentRevealInCanvasOutcome({ status: "failed", reason: "analysis-unavailable" });
+        }
+      });
   };
 
   const startBenchmark = (editor: vscode.TextEditor): void => {

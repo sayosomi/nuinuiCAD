@@ -15,7 +15,10 @@ import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocume
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeApp as VSCodeAppForTest } from "./VSCodeApp";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
-import type { VscodeMultiDocumentCanvasRuntimePresentation } from "./multiDocumentRuntimeTransport";
+import type {
+  VscodeMultiDocumentCanvasRuntimePresentation,
+  VscodeMultiDocumentRevealMaterialization
+} from "./multiDocumentRuntimeTransport";
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
@@ -69,6 +72,20 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
 
 vi.mock("./VSCodeBenchmarkCaptureRunner", () => ({
   VSCodeBenchmarkCaptureRunner: () => null
+}));
+
+vi.mock("./useVscodeMultiDocumentRuntimeEvaluation", () => ({
+  useVscodeMultiDocumentRuntimeEvaluation: (snapshot: { graphRevision: number } | null) => ({
+    evaluation: drawingCanvasProps.evaluation,
+    evaluationRevision: snapshot?.graphRevision ?? 0,
+    evaluationRequestRevision: snapshot?.graphRevision ?? 0,
+    mode: "rust",
+    source: "rust",
+    status: "ready",
+    rustEligible: true,
+    isStale: false,
+    error: null
+  })
 }));
 
 const sourceForSelectionChronology = (x: number) => dslTextForElements([
@@ -137,6 +154,29 @@ const publishAllCurrentElementsAsPresented = () => {
     new Set(elements.map((element) => element.id))
   );
 };
+
+const revealMaterializationFor = (
+  instanceId: string,
+  sourceStatementIndex: number
+): VscodeMultiDocumentRevealMaterialization => ({
+  executionStatements: [{
+    statement: {} as never,
+    sourceStatementId: "imported-instance",
+    sourceStatementIndex,
+    runtimeElementId: instanceId,
+    type: "moduleInstance",
+    sourceBlockChild: false,
+    executionUnitStatementIndex: sourceStatementIndex,
+    instancePath: ["imported-instance"]
+  }],
+  sourceExecutionUnits: [],
+  elementIdBySourceStatementIndex: [],
+  sourceExecutionPositionByRuntimeElementId: [],
+  originByRuntimeElementId: [],
+  runtimeIdentityByElementId: [],
+  instanceBaseGeometrySnapshots: [],
+  evaluationLimitIndex: 2
+});
 
 describe("VSCodeApp Canvas history coordinator", () => {
   beforeEach(() => {
@@ -1445,6 +1485,138 @@ describe("VSCodeApp Canvas history coordinator", () => {
       status: "focused"
     });
     expect(api.postMessage.mock.calls.filter(([message]) => message?.type === "canvasNavigationResult" && message.status === "focused")).toHaveLength(1);
+  });
+
+  it("selects a graph-resolved imported Module instance from the published runtime universe", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+    const rootState = useCadDocumentStore.getState();
+    const importedInstanceId = "module-runtime:imported-instance";
+    const importedChildId = "module-runtime:imported-child";
+    const runtimeElements: CadElement[] = [
+      { id: importedInstanceId, name: "Direct", type: "moduleInstance", activity: "visible" },
+      {
+        ...rootState.elements.find((element) => element.type === "freePoint")!,
+        id: importedChildId,
+        name: "ImportedP",
+        parentGroupId: importedInstanceId,
+        x: 40,
+        y: 0
+      }
+    ];
+    drawingCanvasProps.evaluation = {
+      computedGeometry: new Map([[
+        importedChildId,
+        { kind: "point", elementId: importedChildId, name: "ImportedP", x: 40, y: 0 }
+      ]]),
+      preMutationGeometry: new Map(),
+      instanceBaseGeometry: new Map(),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: new Set([importedInstanceId, importedChildId]),
+      effectiveEnabledElementIds: new Set([importedInstanceId, importedChildId]),
+      effectiveVisibleElementIds: new Set([importedInstanceId, importedChildId])
+    };
+    const publication = multiDocumentRuntimePublicationFor(
+      source,
+      7,
+      rootState.currentSourceRevision,
+      rootState.currentSourceRevision,
+      runtimeElements
+    );
+    if (publication.status !== "current" || !publication.canvasRuntime) return;
+    publication.canvasRuntime.modulePresentation = {
+      instanceBaseGeometrySnapshots: [{
+        instanceId: importedInstanceId,
+        endRuntimeIndex: runtimeElements.length,
+        descendantIds: [importedChildId]
+      }],
+      origins: [],
+      revealMaterialization: {
+        ...revealMaterializationFor(importedInstanceId, 1),
+        instanceBaseGeometrySnapshots: [{
+          instanceId: importedInstanceId,
+          endRuntimeIndex: runtimeElements.length,
+          descendantIds: [importedChildId]
+        }]
+      }
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { data: publication }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 501,
+          documentVersion: 7,
+          normalizedSourceOffset: source.indexOf("Root"),
+          sourceTarget: { kind: "statement-owner", sourceStatementIndex: 1 },
+          sourceRevision: rootState.currentSourceRevision,
+          graphRevision: 12
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: importedInstanceId,
+      selectedElementIds: [importedInstanceId]
+    });
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 501,
+      status: "resolved",
+      degradations: []
+    });
+  });
+
+  it("fails closed when a graph-aware navigation request is superseded", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: multiDocumentRuntimePublicationFor(
+          source,
+          7,
+          useCadDocumentStore.getState().currentSourceRevision,
+          useCadDocumentStore.getState().currentSourceRevision,
+          useCadDocumentStore.getState().elements
+        )
+      }));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 502,
+          documentVersion: 7,
+          normalizedSourceOffset: source.indexOf("Root"),
+          sourceTarget: { kind: "statement-owner", sourceStatementIndex: 1 },
+          sourceRevision: useCadDocumentStore.getState().currentSourceRevision,
+          graphRevision: 11
+        }
+      }));
+    });
+
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 502,
+      status: "failed",
+      reason: "source-mismatch"
+    });
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
   });
 
   it("does not acknowledge Canvas focus while the Webview document is unfocused", async () => {
