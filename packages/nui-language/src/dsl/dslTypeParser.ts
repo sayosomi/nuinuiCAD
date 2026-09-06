@@ -1,12 +1,12 @@
 import type { ScalarType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
-import type { DslDiagnosticPresentation, DslRecordTypeReference, DslSpan } from "./dslTypes";
+import type { DslDiagnosticPresentation, DslSpan } from "./dslTypes";
+import type { DslValueType } from "./dslValueTypes";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import { parseDslNumericTypeOptions, type DslNumericTypeOptions } from "./dslNumericTypeOptions";
 import {
   dslGeometryArrayTypeNames,
-  parseGeometryArrayTypeName,
-  type GeometryArrayType
+  dslValueTypeOfGeometryArrayTypeName
 } from "./geometryArrayTypes";
 
 export type DslTypeDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
@@ -17,11 +17,10 @@ export type DslScalarTypeParseResult = {
   numericTypeOptions?: DslNumericTypeOptions;
 };
 
-export type DslDeclaredValueTypeParseResult = DslScalarTypeParseResult & {
-  /** Source-only unresolved nominal record type; never enters ScalarType/runtime. */
-  recordTypeReference: DslRecordTypeReference | null;
-  /** Source-only immutable geometry-array type; never enters ScalarType/runtime. */
-  geometryArrayType: GeometryArrayType | null;
+export type DslDeclaredValueTypeParseResult = {
+  valueType: DslValueType | null;
+  choiceOptionSpans: DslSpan[];
+  numericTypeOptions?: DslNumericTypeOptions;
 };
 
 export const dslChoiceTypeName = "choice";
@@ -235,9 +234,9 @@ const isBareTypeName = (text: string) =>
 
 /**
  * Parses a declaration-facing value type. Built-in scalar spellings retain
- * their existing parser/diagnostics; geometry arrays stay in their own
- * source-only field; any other bare identifier remains an unresolved nominal
- * record type. Scalar/runtime consumers therefore remain on ScalarType.
+ * their existing parser/diagnostics; geometry arrays are projected into the
+ * canonical one-dimensional value type; any other bare identifier becomes an
+ * unresolved nominal record type.
  */
 export const parseDslDeclaredValueType = (
   source: string,
@@ -245,15 +244,8 @@ export const parseDslDeclaredValueType = (
   diagnostics: DslTypeDiagnostic[]
 ): DslDeclaredValueTypeParseResult => {
   const text = source.slice(typeSpan.start, typeSpan.end);
-  const geometryArrayType = parseGeometryArrayTypeName(text);
-  if (geometryArrayType) {
-    return {
-      declaredType: null,
-      recordTypeReference: null,
-      geometryArrayType,
-      choiceOptionSpans: []
-    };
-  }
+  const geometryValueType = dslValueTypeOfGeometryArrayTypeName(text);
+  if (geometryValueType) return { valueType: geometryValueType, choiceOptionSpans: [] };
 
   const builtInScalarSyntax =
     text === NUMBER_TYPE_NAME ||
@@ -262,18 +254,13 @@ export const parseDslDeclaredValueType = (
     NUMBER_HEAD.test(text) ||
     CHOICE_HEAD.test(text);
   if (builtInScalarSyntax || !isBareTypeName(text)) {
-    return {
-      ...parseDslScalarType(source, typeSpan, diagnostics, {
-        acceptedTypeDescription: "number/string/boolean/choice(...)/point[]/line[]/path[]"
-      }),
-      recordTypeReference: null,
-      geometryArrayType: null
-    };
+    const parsed = parseDslScalarType(source, typeSpan, diagnostics, {
+      acceptedTypeDescription: "number/string/boolean/choice(...)/point[]/line[]/path[]"
+    });
+    return { valueType: parsed.declaredType, choiceOptionSpans: parsed.choiceOptionSpans, ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {}) };
   }
   return {
-    declaredType: null,
-    recordTypeReference: { kind: "record", name: text },
-    geometryArrayType: null,
+    valueType: { kind: "record", name: text },
     choiceOptionSpans: []
   };
 };

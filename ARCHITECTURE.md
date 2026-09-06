@@ -231,6 +231,8 @@ model contracts,
 `src/geometry/evaluationTypes.ts` owns computed geometry and
 `EvaluationResult`/runtime evaluation contracts, and `src/types/geometry.ts`
 currently remains a compatibility/presentation facade over those owners.
+Within Language Core, `packages/nui-language/src/dsl/dslValueTypes.ts` owns the
+host-neutral source-level immutable declaration value-type taxonomy.
 
 `NuiLanguageSession` is the package-owned per-document facade. It owns
 current source/revision proof and direct host-neutral language query invocation

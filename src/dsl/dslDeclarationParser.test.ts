@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
+import { parseDslSnapshot } from "./dslParser";
+import { geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
 
 const parse = (source: string) => parseDslTypedDeclarationStatement(source);
 const messages = (source: string) => parse(source).diagnostics.map((diagnostic) => diagnostic.message);
@@ -18,7 +20,7 @@ describe("DSL typed declaration parser", () => {
       kind: "typedDeclaration",
       bindingKind: "const",
       name: "ラベル",
-      declaredType: { kind: "string" },
+      valueType: { kind: "string" },
       initializer: '"前身頃"'
     });
     const statement = result.statement!;
@@ -37,9 +39,7 @@ describe("DSL typed declaration parser", () => {
       expect(result.diagnostics).toEqual([]);
       expect(result.statement).toMatchObject({
         bindingKind: "const",
-        declaredType: null,
-        recordTypeReference: null,
-        geometryArrayType: { kind: "geometryArray", elementType },
+        valueType: { kind: "array", elementType: { kind: elementType } },
         initializer: "[]"
       });
     }
@@ -47,7 +47,7 @@ describe("DSL typed declaration parser", () => {
 
   it("rejects mutable and unsupported geometry-array type spellings", () => {
     const mutable = parse("let items: path[] = []");
-    expect(mutable.statement?.geometryArrayType).toEqual({ kind: "geometryArray", elementType: "path" });
+    expect(mutable.statement?.valueType).toEqual({ kind: "array", elementType: { kind: "path" } });
     expect(mutable.diagnostics).toContainEqual(
       expect.objectContaining({ code: "geometry-array-const-only", span: { start: 0, end: 3 } })
     );
@@ -58,7 +58,7 @@ describe("DSL typed declaration parser", () => {
       "const items: path [ ] = []"
     ]) {
       const result = parse(source);
-      expect(result.statement?.geometryArrayType).toBeNull();
+      expect(result.statement?.valueType).toBeNull();
       expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "unknown-type" }));
     }
   });
@@ -67,7 +67,7 @@ describe("DSL typed declaration parser", () => {
     const source = "const 方向: choice(right, left, center) = left";
     const result = parse(source);
     expect(result.diagnostics).toEqual([]);
-    expect(result.statement).toMatchObject({ declaredType: { kind: "choice", options: ["right", "left", "center"] } });
+    expect(result.statement).toMatchObject({ valueType: { kind: "choice", options: ["right", "left", "center"] } });
     const spans = result.statement!.choiceOptionSpans;
     expect(spans.map((span) => source.slice(span.start, span.end))).toEqual(["right", "left", "center"]);
   });
@@ -75,7 +75,7 @@ describe("DSL typed declaration parser", () => {
   it("tolerates arbitrary whitespace around the colon and equals sign", () => {
     const result = parse("const   x   :   number   =   12  ");
     expect(result.diagnostics).toEqual([]);
-    expect(result.statement).toMatchObject({ name: "x", declaredType: { kind: "number" }, initializer: "12" });
+    expect(result.statement).toMatchObject({ name: "x", valueType: { kind: "number" }, initializer: "12" });
   });
 
   it("parses number step and bounds metadata", () => {
@@ -83,7 +83,7 @@ describe("DSL typed declaration parser", () => {
     const result = parse(source);
     expect(result.diagnostics).toEqual([]);
     expect(result.statement).toMatchObject({
-      declaredType: { kind: "number" },
+      valueType: { kind: "number" },
       numericTypeOptions: { step: 5, min: 0, max: 200 }
     });
   });
@@ -97,14 +97,14 @@ describe("DSL typed declaration parser", () => {
       "const x: number(other: 1) = 1"
     ]) {
       const result = parse(source);
-      expect(result.statement?.declaredType).toBeNull();
+      expect(result.statement?.valueType).toBeNull();
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-number-type-options")).toBe(true);
     }
   });
 
   it("reports a missing name with no colon or equals present", () => {
     const result = parse("const");
-    expect(result.statement).toMatchObject({ name: "", nameSpan: null, declaredType: null, initializer: "" });
+    expect(result.statement).toMatchObject({ name: "", nameSpan: null, valueType: null, initializer: "" });
     expect(messages("const").some((message) => message.includes("名前"))).toBe(true);
     expect(messages("const").some((message) => message.includes("型注釈"))).toBe(true);
     expect(messages("const").some((message) => message.includes("初期化式"))).toBe(true);
@@ -112,13 +112,13 @@ describe("DSL typed declaration parser", () => {
 
   it("still recovers the name when only the type annotation is missing", () => {
     const result = parse("const x = 5");
-    expect(result.statement).toMatchObject({ name: "x", declaredType: null, initializer: "5" });
+    expect(result.statement).toMatchObject({ name: "x", valueType: null, initializer: "5" });
     expect(messages("const x = 5")).toEqual([expect.stringContaining("型注釈")]);
   });
 
   it("still recovers name and type when only the initializer is missing", () => {
     const result = parse("const x: number");
-    expect(result.statement).toMatchObject({ name: "x", declaredType: { kind: "number" }, initializer: "" });
+    expect(result.statement).toMatchObject({ name: "x", valueType: { kind: "number" }, initializer: "" });
     expect(messages("const x: number").some((message) => message.includes("初期化式"))).toBe(true);
   });
 
@@ -128,6 +128,23 @@ describe("DSL typed declaration parser", () => {
     const result = parse('const x: number = "not a number at all" + garbage(');
     expect(result.diagnostics).toEqual([]);
     expect(result.statement!.initializer).toBe('"not a number at all" + garbage(');
+  });
+
+  it("keeps a bare point name nominal instead of activating single-geometry const syntax", () => {
+    const result = parse("const p: point = @p");
+    expect(result.diagnostics).toEqual([]);
+    expect(result.statement?.valueType).toEqual({ kind: "record", name: "point" });
+  });
+
+  it("carries the canonical type through the final snapshot and projects geometry arrays compatibly", () => {
+    const parsed = parseDslSnapshot({ normalizedSource: "nui 1\nconst paths: path[] = []", sourceRevision: 3 });
+    const statement = parsed.statements[1];
+    expect(statement).toMatchObject({
+      kind: "typedDeclaration",
+      valueType: { kind: "array", elementType: { kind: "path" } }
+    });
+    if (statement?.kind !== "typedDeclaration") throw new Error("typed declaration not parsed");
+    expect(geometryArrayTypeOfTypedDeclaration(statement)).toEqual({ kind: "geometryArray", elementType: "path" });
   });
 
   it("routes every choice option through scanScalarLiteral, not a separate identifier check", () => {

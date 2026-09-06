@@ -27,6 +27,7 @@ import {
 } from "./multiDocumentPrimitives";
 import type { MultiDocumentPublicApiEntry } from "./multiDocumentPublicApi";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import {
   buildModuleDocumentationMetadata,
@@ -147,7 +148,7 @@ const logicalTextByStatementIndex = (node: MultiDocumentGraphNode) => {
 
 const documentScalarBindingsFor = (node: MultiDocumentGraphNode) => new Map(
   node.artifact.parsed.statements.flatMap((statement, statementIndex) => {
-    if (statement.kind !== "typedDeclaration" || statement.enclosing || !statement.declaredType) return [];
+    if (statement.kind !== "typedDeclaration" || statement.enclosing || !scalarTypeOfDslValueType(statement.valueType)) return [];
     const statementId = node.artifact.statementIdByStatementIndex.get(statementIndex);
     return statementId
       ? [[statementIndex, { bindingId: bindingIdForStableStatementId(statementId), statementId }] as const]

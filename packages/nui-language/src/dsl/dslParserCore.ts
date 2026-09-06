@@ -323,7 +323,7 @@ const declarationStatementToDslStatement = (
   ...baseFrom(decl, line, endLine),
   kind: "typedDeclaration",
   bindingKind: decl.bindingKind,
-  declaredType: decl.declaredType,
+  valueType: decl.valueType,
   choiceOptionSpans: decl.choiceOptionSpans,
   ...(decl.numericTypeOptions ? { numericTypeOptions: decl.numericTypeOptions } : {}),
   initializer: decl.initializer,

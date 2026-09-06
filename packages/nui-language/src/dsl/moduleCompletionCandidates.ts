@@ -35,6 +35,7 @@ import {
 import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { numericGeometryPropertiesForStaticTarget } from "../geometry/numericGeometryProperties";
 import type { DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -488,7 +489,7 @@ const scalarCompletions = (compiled: CompiledDslDocument, statementIndex: number
       continue;
     }
     if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") continue;
-    const type = lookup.declaration.statement.declaredType;
+    const type = scalarTypeOfDslValueType(lookup.declaration.statement.valueType);
     if (!type) continue;
     if (!expectedType) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
     else if (isScalarTypeAssignable(type, expectedType)) result.push({ kind: "binding", label: name, identity: lookup.declaration.statementId });
@@ -804,7 +805,7 @@ const shorthandCompatible = (
   }
   if (lookup.kind !== "resolved") return false;
   if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
-    const actualScalar = lookup.declaration.statement.declaredType;
+    const actualScalar = scalarTypeOfDslValueType(lookup.declaration.statement.valueType);
     return Boolean(expectedScalar && actualScalar && isScalarTypeAssignable(actualScalar, expectedScalar));
   }
   if (lookup.declaration.kind === "geometry" && lookup.declaration.statement.kind === "element") {

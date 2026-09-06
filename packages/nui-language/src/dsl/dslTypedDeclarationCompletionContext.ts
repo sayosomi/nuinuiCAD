@@ -8,6 +8,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
+import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import {
   typedGeometryPropertyCompletionContextAt,
   type TypedGeometryPropertyCompletionContext
@@ -63,13 +64,14 @@ export const typedDeclarationInitializerCompletionContext = (
   pos: number
 ): TypedDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
-  if (!statement || statement.declaredType === null) return null;
+  const declaredType = scalarTypeOfDslValueType(statement?.valueType);
+  if (!statement || declaredType === null) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
   if (!span || pos < span.start || pos > span.end) return null;
-  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, span, statement.declaredType);
+  const geometryProperty = typedGeometryPropertyCompletionContextAt(logicalText, pos, span, declaredType);
   if (geometryProperty) {
     return {
-      declaredType: statement.declaredType,
+      declaredType,
       geometryProperty,
       positionContext: {
         kind: "operand",
@@ -77,13 +79,13 @@ export const typedDeclarationInitializerCompletionContext = (
         to: geometryProperty.to,
         referenceOnly: false,
         literalOnly: false,
-        expectedType: statement.declaredType
+        expectedType: declaredType
       }
     };
   }
-  const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, span, statement.declaredType);
+  const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, span, declaredType);
   if (!positionContext) return null;
-  return { declaredType: statement.declaredType, positionContext };
+  return { declaredType, positionContext };
 };
 
 const topLevelColon = (source: string, from: number, to: number) => {
@@ -134,7 +136,7 @@ export const recordDeclarationInitializerCompletionContextAt = (
   pos: number
 ): RecordDeclarationInitializerCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(logicalText);
-  const recordTypeName = statement?.recordTypeReference?.name;
+  const recordTypeName = nominalRecordTypeOfDslValueType(statement?.valueType)?.name;
   if (!statement || !recordTypeName) return null;
   const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
   if (!span || pos < span.start || pos > span.end) return null;
