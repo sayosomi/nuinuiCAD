@@ -396,7 +396,19 @@ export const sourceTargetAvailabilityForEditorAsync = async (
   languageAnalysisSession: NuiLanguageAnalysisSession
 ): Promise<VscodeSourceTargetAvailability> => {
   const local = sourceTargetAvailabilityForEditor(editor, languageAnalysisSession);
+  const localRevealTarget = localRevealSourceTargetForEditor(editor, languageAnalysisSession);
+  const localRequiresGraph = localRevealRequiresMultiDocumentRuntime(
+    editor,
+    languageAnalysisSession,
+    localRevealTarget
+  );
   const resolved = await revealInCanvasSourceTargetForEditor(editor, languageAnalysisSession);
+  if (localRequiresGraph) {
+    return {
+      ...local,
+      revealInCanvas: resolved.status === "resolved" && resolved.value.graphRevision !== null
+    };
+  }
   if (resolved.status !== "resolved" || resolved.value.graphRevision === null) return local;
   return { ...local, revealInCanvas: true };
 };
