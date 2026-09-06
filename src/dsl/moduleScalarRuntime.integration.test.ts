@@ -521,6 +521,32 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("localEndDistance")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
   });
 
+  it("evaluates derived-point aliases through property and builtin consumers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line AB = segment(start: (2, 3), end: (10, 7))",
+      "point Other = coordinate(x: 2, y: 3)",
+      "const P: point = @AB.start",
+      "const P2: point = @P",
+      "line L = segment(start: @P2, end: (20, 7))",
+      "const x: number = @P2.x",
+      "const d: number = distance(@P2, @Other)"
+    ].join("\n"), "geometry-derived-point-runtime");
+    expectValid(compiled);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["AB", "Other", "L"]);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("x")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("d")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+    expect(compiled.document?.elements.find((element) => element.name === "L")).toMatchObject({
+      startPoint: { mode: "derived", elementId: compiled.document?.elements.find((element) => element.name === "AB")?.id, pointKey: "start" }
+    });
+  });
+
   it("lowers derived point builtin operands mixed with module scalar references in geometry", () => {
     const compiled = compileWithIds([
       "nui 1",

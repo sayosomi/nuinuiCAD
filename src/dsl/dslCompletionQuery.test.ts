@@ -41,7 +41,7 @@ describe("queryDslCompletion", () => {
   it("returns keyword, declaration type, module parameter type, construction, and argument candidates", () => {
     expect(labels(queryIncomplete("poi", 3))).toContain("point");
     expect(labels(queryIncomplete("const value: cho"))).toEqual([
-      "number", "string", "boolean", "choice", "point[]", "line[]", "path[]"
+      "number", "string", "boolean", "choice", "point", "line", "path", "point[]", "line[]", "path[]"
     ]);
     expect(labels(queryIncomplete("nui 1\nmodule M(input: pa"))).toContain("path");
     expect(labels(queryIncomplete("point P = co"))).toContain("coordinate");

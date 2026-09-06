@@ -13,6 +13,7 @@ import type { DslSpan } from "./dslTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScopeId } from "../scalars/lexicalScopeIndex";
+import { isDslGeometryValueType } from "./dslValueTypes";
 
 /** Source identity used by editor operations. It deliberately contains no
  * runtime element id && no name-derived registry key. */
@@ -105,6 +106,7 @@ const sourceTarget = (target: ModuleSourceTarget | ModuleRecordSourceTarget | nu
   }};
   if (target.kind === "recordField") return sourceTarget(target.record);
   if (target.kind === "deferredModuleRecordExport") return { kind: "moduleSource", statementId: target.exportedStatementId };
+  if (target.kind === "geometryValue") return { kind: "moduleSource", statementId: target.statementId };
   if (target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty" || target.kind === "moduleLocal") {
     return { kind: "moduleSource", statementId: target.statementId };
   }
@@ -345,6 +347,18 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
         for (const reference of expression.geometryProperties) addGeometryPropertyReference(compiled, recordValue.value.statementIndex, reference, add, addSourceTarget);
       }
     }
+  }
+  for (const declaration of compiled.sourceLexicalNamespace?.allDeclarations ?? []) {
+    const statement = compiled.statements[declaration.statementIndex];
+    if (
+      declaration.kind !== "typedDeclaration" ||
+      statement?.kind !== "typedDeclaration" ||
+      !isDslGeometryValueType(statement.valueType) ||
+      isModuleBodyStatementId(analysis, declaration.statementId)
+    ) continue;
+    addPhysical(nameSpanFor(compiled, declaration.statementIndex), {
+      kind: "moduleSource", statementId: declaration.statementId
+    }, true);
   }
   for (const declaration of compiled.sourceLexicalNamespace?.allDeclarations ?? []) {
     if (declaration.kind !== "geometry" && declaration.kind !== "typedDeclaration") continue;

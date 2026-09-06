@@ -34,6 +34,11 @@ nui1 property aliases. See the canonical numeric geometry-property contract in
 [nui1/spec.md](nui1/spec.md#canonical-numeric-geometry-properties) for fixed
 construction and Module interface rules.
 
+Immutable single-geometry values use `const name: point|line|path = @reference`.
+They are source-level, non-drawable aliases; the initializer must be an existing
+geometry reference, and `line` is assignable to `path` while `path` is not
+assignable to `line`.
+
 The reference covers the current implemented language:
 
 - syntax and statement spellings

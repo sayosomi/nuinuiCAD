@@ -1011,21 +1011,41 @@ An exported member is referenced from outside through the instance/container:
 An explicit reference to a private member is a dedicated visibility diagnostic.
 `export` is not a statement that aliases an existing member under another name.
 
-### Geometry aliases
+### Immutable single-geometry reference values
 
-The initial nui1 language does not introduce a singular geometry alias
-declaration such as:
+Typed declarations may create one immutable geometry reference value with
+`const` and a reference-form initializer:
 
 ```text
-export point P = @Q
+const origin: point = @A
+const edge: line = @AB
+const outline: path = @edge
+const sameOrigin: point = @origin
 ```
 
-`export` belongs on the declaration that creates the member. Immutable geometry
-arrays do have their explicitly typed array alias form, for example
-`const copy: path[] = @paths`; this does not introduce a general singular
-geometry expression or alias system. Module origin mapping, materialization,
-and read-only singular geometry parameters remain aligned with the existing
-Module v1 architecture.
+The declared type is retained at every alias boundary. Assignability is
+directional: `point` accepts only `point`, `line` accepts only `line`, and
+`path` accepts `line` or `path`. A `path` value cannot be assigned to `line`,
+and a geometry value cannot be assigned to a scalar or record type. Aliases
+follow the ordinary lexical namespace, source-order, dependency, module
+parameter, and export rules; alias chains are allowed when each step is
+assignable.
+
+The initializer must be an existing `@` geometry reference accepted by the
+existing geometry resolver. Coordinate literals, construction calls, and other
+pure construction expressions are not allowed in this declaration form. A
+single-geometry value is `const`-only; `let` receives a focused diagnostic.
+These values are source-level aliases, not drawable elements and not scalar
+runtime values. They do not create a new element, computed geometry entry, or
+synthetic `ElementId`; geometry consumers resolve them through the same
+namespace and runtime target boundaries as the referenced geometry.
+
+The same form is available for root declarations, module locals, and exported
+members. Module parameters are declared in the Module signature rather than
+with this local `const` alias syntax; a parameter whose interface is `point`,
+`line`, or `path` can still be used as a geometry reference on the right-hand
+side. An exported alias is referenced through its instance with the ordinary
+qualified form, for example `@front::outline`.
 
 ## Mutations
 
@@ -1172,8 +1192,9 @@ corresponding `choice(...)` type. They are not references. The builtin numeric
 constant `pi` is the explicit scanner-level exception and is not a choice
 literal. A reference to a named value always includes `@`.
 
-nui1 implements exactly three first-class immutable geometry-array types:
-`point[]`, `line[]`, and `path[]`. Named arrays are `const` only; `let`, `set`,
+nui1 implements three first-class immutable single-geometry types (`point`,
+`line`, and `path`) and exactly three first-class immutable geometry-array
+types: `point[]`, `line[]`, and `path[]`. Named arrays are `const` only; `let`, `set`,
 mutable collection operations, scalar arrays, nested arrays, indexing, spread,
 and a general-purpose collection API are not part of this contract.
 

@@ -130,10 +130,20 @@ describe("DSL typed declaration parser", () => {
     expect(result.statement!.initializer).toBe('"not a number at all" + garbage(');
   });
 
-  it("keeps a bare point name nominal instead of activating single-geometry const syntax", () => {
+  it("parses single geometry declarations as canonical immutable value types", () => {
     const result = parse("const p: point = @p");
     expect(result.diagnostics).toEqual([]);
-    expect(result.statement?.valueType).toEqual({ kind: "record", name: "point" });
+    expect(result.statement?.valueType).toEqual({ kind: "point" });
+    expect(parse("const l: line = @l").statement?.valueType).toEqual({ kind: "line" });
+    expect(parse("const p: path = @p").statement?.valueType).toEqual({ kind: "path" });
+  });
+
+  it("requires const for single geometry declarations", () => {
+    const result = parse("let p: point = @p");
+    expect(result.statement?.valueType).toEqual({ kind: "point" });
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-value-const-only", span: { start: 0, end: 3 } })
+    );
   });
 
   it("carries the canonical type through the final snapshot and projects geometry arrays compatibly", () => {

@@ -1,5 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
-import { derivedAnchor, isDerivedPointKeyForGeometryCategory, referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, isDerivedPointKeyForGeometryCategory, isLineEndpointPointKey, referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { resolveAnchor as resolveAnchorFromDsl, resolveEndpoint as resolveEndpointFromDsl, resolveId as resolveIdFromDsl } from "./dslReferences";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
@@ -16,7 +16,8 @@ import type {
 } from "./moduleSemanticTypes";
 import {
   isModuleGeometryInterfaceAssignable,
-  moduleGeometryInterfaceTypeOfElement
+  moduleGeometryInterfaceTypeOfElement,
+  type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
 import { encodeIdentityTuple } from "../document/identityTuple";
 
@@ -45,8 +46,12 @@ export type ModuleGeometryPropertyRuntimeTarget =
 
 export const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
-export const geometryKindOfCategory = (category: Extract<ResolvedModuleExport, { kind: "geometry" }>["category"]): "point" | "line" | null =>
-  category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
+export const geometryKindOfCategory = (
+  category: Extract<ResolvedModuleExport, { kind: "geometry" }>["category"],
+  interfaceType: ModuleGeometryInterfaceType
+): "point" | "line" | null =>
+  interfaceType === "point" ? "point" : interfaceType === "line" || interfaceType === "path" ? "line" :
+    category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
 
 const sourceForStatement = (statement: DslStatement): string => {
   const values = statement.kind === "moduleInstance"
@@ -91,10 +96,12 @@ export const diagnosticForExport = (
 ): DslDiagnostic | null => {
   const namespaceDiagnostic = diagnosticForExportNamespace(statement, target, definition, statements, exportEntry);
   if (namespaceDiagnostic || !definition || !exportEntry) return namespaceDiagnostic;
-  const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
+  const actualInterfaceType = exportEntry.exported.interfaceType ?? moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
   const validDerivedPoint = target.pointKey !== undefined &&
     target.expectedGeometryKind === "point" &&
-    isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey);
+    (exportEntry.exported.category
+      ? isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey)
+      : actualInterfaceType !== "point" && isLineEndpointPointKey(target.pointKey));
   const typeCompatible = target.pointKey === undefined
     ? isModuleGeometryInterfaceAssignable(actualInterfaceType, target.expectedInterfaceType ?? target.expectedGeometryKind)
     : validDerivedPoint;
@@ -121,7 +128,7 @@ export const diagnosticForExportNamespace = (
   if (!definition) return null;
   if (!exportEntry) {
     const privateMember = definition.bodyStatements.some((body) =>
-      body.statementKind === "element" && statements[body.statementIndex]?.name === target.exportName
+      statements[body.statementIndex]?.name === target.exportName
     );
     return {
       severity: "error",
@@ -181,6 +188,17 @@ export const propertyForAlias = (
     : undefined;
 };
 
+export const geometryAliasForSourceElement = (
+  elementId: ElementId,
+  geometryKind: "point" | "line",
+  pointKey?: string
+): GeometryAlias | undefined => lowerAliasWithPointKey(
+  geometryKind === "point"
+    ? { kind: "point", anchor: referenceAnchor(elementId) }
+    : { kind: "line", elementId },
+  pointKey
+);
+
 export const sourceAliasForTarget = (
   target: ModuleGeometrySourceTarget,
   currentPath: readonly string[],
@@ -200,10 +218,16 @@ export const sourceAliasForTarget = (
       const context = contextsByPath.get(pathKey(currentPath.slice(0, index)));
       if (context?.definitionStatementId === target.definitionStatementId &&
           (!target.definitionIdentity || context.definitionDocumentId === target.definitionIdentity.documentId)) {
-        return context.aliases.get(target.parameterIndex);
+        const alias = context.aliases.get(target.parameterIndex);
+        return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
     }
     return undefined;
+  }
+  if (target.kind === "geometryValue") {
+    const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath);
+    if (!alias) return undefined;
+    return lowerAliasWithPointKey(alias, target.pointKey);
   }
   if (target.kind === "sourceGeometry") {
     let ownerPath: readonly string[] = [];
@@ -228,12 +252,14 @@ export const sourceAliasForTarget = (
         ? { runtimeElementId: materialization.elementIdBySourceStatementIndex.get(target.statementIndex)! } as MaterializedExecutionStatement
         : undefined;
     if (!entry) return undefined;
-    return target.geometryKind === "point"
-      ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) }
-      : { kind: "line", elementId: entry.runtimeElementId };
+    const alias = target.geometryKind === "point"
+      ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) } as const
+      : { kind: "line", elementId: entry.runtimeElementId } as const;
+    return lowerAliasWithPointKey(alias, target.pointKey);
   }
   const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
-  return child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
+  const alias = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
+  return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
 };
 
 export const lowerReference = (
@@ -247,7 +273,7 @@ export const lowerReference = (
   if (reference.coordinate) return { kind: "point", anchor: coordinateAnchor(reference.coordinate, statement), coordinate: reference.coordinate };
   if (!reference.target) return undefined;
   const base = sourceAliasForTarget(reference.target, currentPath, contextsByPath, materialization, exportsByPath);
-  return base ? lowerAliasWithPointKey(base, reference.target.pointKey) : undefined;
+  return base;
 };
 
 export const resolverForBody = ({

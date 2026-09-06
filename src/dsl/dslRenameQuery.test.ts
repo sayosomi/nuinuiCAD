@@ -44,6 +44,21 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.every((edit) => edit.newText === "横幅")).toBe(true);
   });
 
+  it("renames a root immutable geometry alias without touching its backing geometry", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const P: point = @A",
+      "point Use = offset(from: @P, dx: 1, dy: 0)"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@P") + 1, "Renamed");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["P", "P"]);
+    expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
+    expect(plan?.edits.some((edit) => source.slice(edit.from, edit.to) === "A")).toBe(false);
+  });
+
   it("returns a structured typed same-scope collision while preserving the null wrapper", () => {
     const source = [
       "nui 1",

@@ -126,6 +126,9 @@ const shorthandValueIdentity = (
   if (target.kind === "deferredModuleRecordExport") {
     return semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.exportedStatementId });
   }
+  if (target.kind === "geometryValue") {
+    return semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId });
+  }
   return null;
 };
 

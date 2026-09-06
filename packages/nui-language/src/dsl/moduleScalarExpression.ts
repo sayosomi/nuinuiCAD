@@ -21,6 +21,7 @@ import type {
   ModuleScalarReference,
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 
 export const moduleParameterPresenceKey = (definitionStatementId: string, parameterIndex: number) =>
   `${definitionStatementId}:${parameterIndex}`;
@@ -421,13 +422,15 @@ const typecheckGeometryTarget = (
   expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
 ): ScalarExpressionResolvedGeometryTarget | null => {
   if (!reference.target || (reference.resolution !== "resolved" && reference.resolution !== "deferred")) return null;
-  const target = reference.target;
+  const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
+  const target = unwrapped.target;
+  const pointKey = unwrapped.pointKey;
   if (target.kind === "parameter") {
     return {
       statementId: target.definitionStatementId,
       statementIndex: -1,
       geometryType: expectedGeometryType,
-      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      ...(pointKey ? { pointKey } : {})
     };
   }
   if (target.kind === "sourceGeometry") {
@@ -435,14 +438,14 @@ const typecheckGeometryTarget = (
       statementId: target.statementId,
       statementIndex: target.statementIndex,
       geometryType: expectedGeometryType,
-      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      ...(pointKey ? { pointKey } : {})
     };
   }
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,
     geometryType: expectedGeometryType,
-    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    ...(pointKey ? { pointKey } : {})
   };
 };
 

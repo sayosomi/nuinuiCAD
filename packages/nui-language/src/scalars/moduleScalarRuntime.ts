@@ -15,6 +15,7 @@ import type {
   ModuleScalarSourceTarget,
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
@@ -565,14 +566,16 @@ const materializeHasValueAst = (
 const typecheckGeometryTargetFor = (
   occurrence: ModuleGeometryBuiltinArgumentSemantic
 ): ScalarExpressionResolvedGeometryTarget | null => {
-  const target = occurrence.reference.target;
-  if (!target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return null;
+  if (!occurrence.reference.target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return null;
+  const unwrapped = unwrapModuleGeometrySourceTarget(occurrence.reference.target);
+  const target = unwrapped.target;
+  const pointKey = unwrapped.pointKey;
   if (target.kind === "parameter") {
     return {
       statementId: target.definitionStatementId,
       statementIndex: -1,
       geometryType: occurrence.expectedGeometryType,
-      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      ...(pointKey ? { pointKey } : {})
     };
   }
   if (target.kind === "sourceGeometry") {
@@ -580,14 +583,14 @@ const typecheckGeometryTargetFor = (
       statementId: target.statementId,
       statementIndex: target.statementIndex,
       geometryType: occurrence.expectedGeometryType,
-      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+      ...(pointKey ? { pointKey } : {})
     };
   }
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,
     geometryType: occurrence.expectedGeometryType,
-    ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    ...(pointKey ? { pointKey } : {})
   };
 };
 
