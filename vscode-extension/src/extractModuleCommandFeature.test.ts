@@ -192,6 +192,13 @@ const flushCommand = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+const latestContextValueFor = (key: string): boolean | undefined => {
+  const calls = mocks.executeCommand.mock.calls.filter(([command, candidate]) =>
+    command === "setContext" && candidate === key
+  );
+  return calls.at(-1)?.[2] as boolean | undefined;
+};
+
 beforeEach(() => {
   mocks.registerCommand.mockReset();
   mocks.executeCommand.mockClear();
@@ -488,6 +495,99 @@ describe("VS Code Extract Module command feature", () => {
 
     expect(apply).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining("state changed"));
+    feature.dispose();
+  });
+
+  it("refreshes a retained Canvas observation when Canvas becomes active", async () => {
+    const initial = compiledFor(moduleSource);
+    const sourceEditor = editorFor(
+      () => moduleSource,
+      {
+        start: moduleSource.indexOf("instance First"),
+        end: moduleSource.indexOf("instance First"),
+        active: moduleSource.indexOf("instance First")
+      },
+      "file:///source-extract-lifecycle.nui"
+    );
+    const canvasEditor = editorFor(
+      () => moduleSource,
+      { start: 0, end: 0, active: 0 },
+      "file:///canvas-extract-lifecycle.nui"
+    );
+    const first = initial.compiled.document?.elements.find((element) => element.name === "First");
+    const body = initial.compiled.document?.elements.find((element) => element.name === "Body");
+    expect(first && body).toBeTruthy();
+    if (!first || !body) return;
+    let currentObservation = observationFor({
+      selectedElementIds: [first.id],
+      selectedElementSources: selectedElementSourcesForCanvasObservation(
+        [first.id],
+        initial.compiled,
+        initial.compiled.document?.elements ?? []
+      )
+    });
+    let sourceActive = true;
+    let canvasActive = false;
+    let authoritativeReady = true;
+    const endpoint: ExtractModuleCanvasEndpoint = {
+      document: canvasEditor.document as never,
+      panel: { webview: {} } as never,
+      isAuthoritativeReady: () => authoritativeReady,
+      observation: () => currentObservation as never
+    };
+    mocks.executeCommand.mockClear();
+    mocks.registerCommand.mockImplementation(() => ({ dispose: vi.fn() }));
+    const feature = registerVscodeExtractModuleCommandFeature({
+      languageAnalysisSessionFor: () => initial.session,
+      activeSourceEditor: () => sourceActive ? sourceEditor as never : undefined,
+      sourceEditorForDocument: () => canvasEditor as never,
+      activeCanvasEndpoint: () => canvasActive ? endpoint : null,
+      navigateCanvasToSourceOffset: vi.fn(() => true),
+      applySourceLineSplices: async () => true
+    });
+
+    feature.handleCanvasObservationPublication(canvasEditor.document as never);
+    await flushCommand();
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
+
+    sourceActive = false;
+    canvasActive = true;
+    feature.handleCanvasViewStateChange();
+    await flushCommand();
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(true);
+
+    currentObservation = observationFor({
+      selectedElementIds: [body.id],
+      selectedElementSources: selectedElementSourcesForCanvasObservation(
+        [body.id],
+        initial.compiled,
+        initial.compiled.document?.elements ?? []
+      )
+    });
+    feature.handleCanvasViewStateChange();
+    await flushCommand();
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
+
+    currentObservation = observationFor({
+      selectedElementIds: [first.id],
+      selectedElementSources: selectedElementSourcesForCanvasObservation(
+        [first.id],
+        initial.compiled,
+        initial.compiled.document?.elements ?? []
+      ),
+      isCurrent: false
+    });
+    feature.handleCanvasViewStateChange();
+    await flushCommand();
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
+
+    sourceActive = true;
+    canvasActive = false;
+    authoritativeReady = true;
+    feature.handleCanvasViewStateChange();
+    await flushCommand();
+    expect(latestContextValueFor("nuinuiCAD.extractModuleSourceTarget")).toBe(true);
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
     feature.dispose();
   });
 

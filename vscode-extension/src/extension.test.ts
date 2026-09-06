@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
+import type { CompiledDslDocument } from "@nuinuicad/nui-language";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
+import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
+import { selectedElementSourcesForCanvasObservation } from "../../src/vscode/canvasObservation";
 import { vscodeObservationState } from "./vscodeObservationState";
 import {
   canvasVisualPickSourceStatementIndexesFor,
@@ -783,6 +786,13 @@ const publishCanvasTheme = (
     : themeOrBackground
 });
 
+const latestContextValueFor = (key: string): boolean | undefined => {
+  const calls = mocks.executeCommand.mock.calls.filter(([command, candidate]) =>
+    command === "setContext" && candidate === key
+  );
+  return calls.at(-1)?.[2] as boolean | undefined;
+};
+
 const elementIdFor = (document: TestDocument, name: string): string => {
   const registrationHost = mocks.registerElementsTreeFeature.mock.calls[0]?.[0] as {
     languageAnalysisSessionFor?: (document: TestDocument) => {
@@ -1135,6 +1145,91 @@ describe("VS Code production document lifecycle", () => {
     panel.dispose();
     await publishCanvasObservation(panel, canvasObservationSnapshotFor(document.version));
     expect(vscodeObservationState.snapshot().documents[0]?.canvas).toBeNull();
+  });
+
+  it("refreshes Module-refactoring contexts on the Reveal-established Canvas activation", async () => {
+    const source = [
+      "nui 1",
+      "module Stamp() {",
+      "  point Anchor = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Top = Stamp()"
+    ].join("\n");
+    const document = documentFor("/tmp/module-context-activation.nui", "file:///tmp/module-context-activation.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    const handler = messageHandlerFor(panel);
+    await handler({ type: "webviewReady" });
+    await handler({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    const registrationHost = mocks.registerElementsTreeFeature.mock.calls[0]?.[0] as {
+      languageAnalysisSessionFor: (candidate: TestDocument) => {
+        getSourceRevision: () => number;
+        runtimeEvaluationSnapshot: () => { compiled: CompiledDslDocument } | undefined;
+      };
+    };
+    const session = registrationHost.languageAnalysisSessionFor(document);
+    const runtime = session.runtimeEvaluationSnapshot();
+    expect(runtime).toBeDefined();
+    const compiled = runtime?.compiled;
+    const target = compiled?.document?.elements.find((element: { name?: string; type?: string }) => element.name === "Top");
+    expect(compiled && target).toBeTruthy();
+    if (!compiled || !target) return;
+    const sourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: session.getSourceRevision()
+    };
+    const publicationTargets = inlineModuleCanvasTargetProofsFor({
+      source: sourceSnapshot,
+      compiled,
+      elements: compiled.document?.elements ?? [],
+      selectedElementIds: [target.id],
+      moduleMaterialization: compiled.moduleMaterialization
+    });
+    expect(publicationTargets).toHaveLength(1);
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(
+      [target.id],
+      compiled,
+      compiled.document?.elements ?? []
+    );
+
+    panel.active = false;
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    mocks.executeCommand.mockClear();
+    await handler({
+      type: "inlineModuleCanvasTargetsPublication",
+      documentVersion: document.version,
+      normalizedSource: source,
+      targets: publicationTargets
+    });
+    await handler({
+      type: "canvasObservationPublication",
+      snapshot: {
+        ...canvasObservationSnapshotFor(document.version),
+        selectedElementIds: [target.id],
+        selectedElementSources
+      }
+    });
+    await vi.waitFor(() => expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(false));
+    expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
+
+    panel.active = true;
+    mocks.activeTabInput = new mocks.TabInputWebview("mainThreadWebview-nuinuiCAD.canvas");
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => {
+      expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(true);
+      expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(true);
+    });
+
+    panel.active = false;
+    mocks.activeTabInput = new mocks.TabInputText(document.uri);
+    (panel as TestPanel & { viewStateHandler: () => void }).viewStateHandler();
+    await vi.waitFor(() => {
+      expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(false);
+      expect(latestContextValueFor("nuinuiCAD.extractModuleCanvasTarget")).toBe(false);
+    });
   });
 
   it("resets observation state and detaches the host projection on Extension Host disposal", async () => {
