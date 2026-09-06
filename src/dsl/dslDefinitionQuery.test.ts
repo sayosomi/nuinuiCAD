@@ -145,7 +145,7 @@ describe("queryDslDefinition", () => {
       "}",
       "if (true, parent: @Outer) {",
       "}",
-      "for i in range(from: 0, count: 1, parent: @Outer) {",
+      "for i in range(min: 0, max: 0, step: 1, parent: @Outer) {",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);

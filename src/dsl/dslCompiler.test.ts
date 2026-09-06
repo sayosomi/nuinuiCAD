@@ -647,7 +647,7 @@ describe("DSL compiler blocks", () => {
   it("compiles for blocks to forGroup with children", () => {
     const result = compileDslToElements(
       [
-        "for i in range(from: 0,count: 3,step: 1) {",
+        "for i in range(min: 0, max: 2, step: 1) {",
         "  point P = coordinate(x: i * 10,y: 0)",
         "}"
       ].join("\n"),
@@ -656,7 +656,7 @@ describe("DSL compiler blocks", () => {
 
     expect(result.diagnostics).toEqual([]);
     const [forGroup, point] = result.elements;
-    expect(forGroup).toMatchObject({ type: "forGroup", variableName: "i", start: 0, count: 3, step: 1 });
+    expect(forGroup).toMatchObject({ type: "forGroup", variableName: "i", min: 0, max: 2, step: 1 });
     expect(point.parentGroupId).toBe(forGroup.id);
   });
 

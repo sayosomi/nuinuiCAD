@@ -101,8 +101,8 @@ const parameterDefinitionsForElement = (
       return [
         ...commonParameters,
         { key: "variableName", label: "変数名", kind: "text" },
-        { key: "start", label: "開始", kind: "number" },
-        { key: "count", label: "回数", kind: "number" },
+        { key: "min", label: "最小", kind: "number" },
+        { key: "max", label: "最大", kind: "number" },
         {
           key: "step",
           label: "ステップ",

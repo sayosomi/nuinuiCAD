@@ -448,7 +448,7 @@ describe("command-line pick routing", () => {
     const elements: CadElement[] = [
       {
         id: "loop", name: "繰り返し", type: "forGroup", activity: "visible",
-        variableName: "i", start: 0, count: 2, step: 1, showGenerated: true
+        variableName: "i", min: 0, max: 1, step: 1, showGenerated: true
       },
       {
         id: "point-template", name: "", type: "freePoint", activity: "visible",

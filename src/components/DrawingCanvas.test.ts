@@ -101,7 +101,7 @@ const bezierCurve = (
 const forGroupPickElements = (): CadElement[] => [
   {
     id: "loop", name: "Loop", type: "forGroup", activity: "visible",
-    variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
+    variableName: "i", min: 0, max: 2, step: 1, showGenerated: true
   },
   {
     id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",

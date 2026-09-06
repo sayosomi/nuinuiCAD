@@ -30,7 +30,7 @@ fn input(elements: Vec<Value>) -> EvaluationInput {
 fn for_group(id: &str, parent: Option<&str>, variable_name: &str, count: f64) -> Value {
     let mut value = json!({
         "id": id, "name": id, "type": "forGroup", "activity": "visible",
-        "variableName": variable_name, "start": 0, "count": count, "step": 1, "showGenerated": false
+        "variableName": variable_name, "min": 0, "max": count - 1.0, "step": 1.0, "showGenerated": false
     });
     if let Some(parent) = parent {
         value["parentGroupId"] = json!(parent);
@@ -94,7 +94,7 @@ fn evaluates_a_nested_generic_for_group_as_outer_times_inner_iterations_exactly_
     }
 
     // Exactly 6 P instances were generated - not fewer (the pre-fix Rust
-    // behavior: the inner loop's own start/count/step were never read
+    // behavior: the inner loop's own range values were never read
     // because evaluate_element_by_type no-ops on a generated forGroup) and
     // not more (double-generation, the pre-fix TS behavior). Combine several
     // independent signals so no single one can mask a duplicate-evaluation
@@ -161,7 +161,7 @@ fn disabled_outer_for_group_generates_nothing_for_the_nested_inner_loop() {
 }
 
 #[test]
-fn nested_inner_for_group_with_count_zero_generates_nothing_but_outer_still_runs() {
+fn nested_inner_for_group_with_descending_range_fails_closed() {
     let elements = vec![
         for_group("outer", None, "i", 2.0),
         for_group("inner", Some("outer"), "j", 0.0),
@@ -169,7 +169,11 @@ fn nested_inner_for_group_with_count_zero_generates_nothing_but_outer_still_runs
     ];
     let result = evaluate_document_input(input(elements));
 
-    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.errors.len(), 2, "errors: {:?}", result.errors);
+    assert!(result
+        .errors
+        .iter()
+        .all(|error| error.message.contains("min は max 以下")));
     assert_eq!(result.for_group_generated_rows.len(), 0);
     let generated_point_count = result
         .computed_geometry

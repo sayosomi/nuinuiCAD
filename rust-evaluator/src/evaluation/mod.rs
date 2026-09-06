@@ -132,7 +132,9 @@ use control_boolean_runtime::{
 };
 use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
-use for_group::{for_group_template_descendant_ids, iteration_local_variables};
+use for_group::{
+    for_group_loop_values, for_group_template_descendant_ids, iteration_local_variables,
+};
 use for_group_generic_runtime::GenericForGroupRuntime;
 use for_group_mutation_runtime::ForGroupMutationRuntime;
 use groups::{effective_element_ids, group_state_by_element_id};
@@ -171,8 +173,8 @@ use scalars::{
 use split_line_evaluator::evaluate_split_line;
 use text_evaluator::{evaluate_text, TextTemplateContext};
 use types::{
-    element_id, element_name, element_type, EffectiveDrawingModifierStroke, ElementId,
-    EvaluationState, GeometryMutationExecution,
+    element_id, element_type, EffectiveDrawingModifierStroke, ElementId, EvaluationState,
+    GeometryMutationExecution,
 };
 pub use types::{EvaluationCommandError, EvaluationInput, EvaluationPayload};
 
@@ -955,47 +957,13 @@ fn evaluate_document_input_with_scalar_program(
         }
 
         if element_type(&element) == Some("forGroup") {
-            let start = evaluate_numeric_or_push(
-                element.get("start").unwrap_or(&Value::Null),
-                &mut state,
-                &element,
-                &local_variables.0,
-                &local_variables.1,
-            );
-            let count = evaluate_numeric_or_push(
-                element.get("count").unwrap_or(&Value::Null),
-                &mut state,
-                &element,
-                &local_variables.0,
-                &local_variables.1,
-            );
-            let step = evaluate_numeric_or_push(
-                element.get("step").unwrap_or(&Value::Null),
-                &mut state,
-                &element,
-                &local_variables.0,
-                &local_variables.1,
-            );
-            let Some((start, count, step)) =
-                start.zip(count).zip(step).map(|((a, b), c)| (a, b, c))
+            let Some(iteration_values) =
+                for_group_loop_values(&element, &local_variables, &mut state)
             else {
                 continue;
             };
-            if !count.is_finite() || count < 0.0 || count.fract() != 0.0 || count > 1000.0 {
-                state.errors.push(types::DependencyError {
-                    element_id: id.clone(),
-                    element_name: element_name(&element),
-                    missing_dependency_id: id.clone(),
-                    missing_dependency_name: Some(element_name(&element)),
-                    message: format!(
-                        "{} の回数は0以上の整数にしてください。",
-                        element_name(&element)
-                    ),
-                });
-                continue;
-            }
 
-            // Evaluated once per forGroup entry, alongside start/count/step -
+            // Evaluated once per forGroup entry, alongside min/max/step -
             // never re-evaluated per iteration. Presentation-only: never
             // gates or alters the iteration loop below.
             let literal_show_generated = element
@@ -1061,9 +1029,7 @@ fn evaluate_document_input_with_scalar_program(
                         &mut environment,
                         &element,
                         &element,
-                        start,
-                        count as usize,
-                        step,
+                        &iteration_values,
                         effective_show_generated,
                         &[],
                         &HashMap::new(),
@@ -1097,9 +1063,7 @@ fn evaluate_document_input_with_scalar_program(
             generic_runtime.run(
                 &element,
                 &element,
-                start,
-                count as usize,
-                step,
+                &iteration_values,
                 effective_show_generated,
                 &[],
                 &HashMap::new(),

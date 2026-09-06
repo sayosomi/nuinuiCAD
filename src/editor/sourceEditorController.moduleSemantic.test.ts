@@ -256,7 +256,7 @@ describe("SourceEditorController module semantic target priority", () => {
   it.each([
     ["group", "group G {\n}", "group G"],
     ["if", "if (true) {\n}", "if Branch"],
-    ["for", "for i in range(from: 0, count: 1, step: 1) {\n}", "for Loop"]
+    ["for", "for i in range(min: 0, max: 0, step: 1) {\n}", "for Loop"]
   ])("keeps Module ownership for a new statement inside nested %s scope", async (_kind, nested, marker) => {
     const source = [
       "nui 1",

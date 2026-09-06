@@ -66,7 +66,7 @@ describe("DSL highlighting", () => {
     expect(tokenKinds("}")).toEqual(["operator"]);
     expect(tokenKinds("} else {")).toEqual(["operator", "plain", "keyword", "plain", "operator"]);
     expect(tokenKinds("if (1) {")).toEqual(expect.arrayContaining(["keyword", "number", "operator"]));
-    expect(tokenKinds("for i in range(from: 0, count: 3) {")).toEqual(
+    expect(tokenKinds("for i in range(min: 0, max: 2, step: 1) {")).toEqual(
       expect.arrayContaining(["keyword", "reference", "attributeKey", "number", "operator"])
     );
   });

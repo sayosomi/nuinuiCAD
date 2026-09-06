@@ -127,7 +127,7 @@ describe("DSL document symbol query", () => {
       "    width: 1px,",
       "  }",
       "}",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = coordinate(x: @i, y: 0)",
       "}"
     ].join("\n");
@@ -149,7 +149,7 @@ describe("DSL document symbol query", () => {
       "    } else {",
       "      line ElseLine = segment(start: @ThenPoint, end: @ThenPoint)",
       "    }",
-      "    for i in range(from: 0, count: 2, step: 1) {",
+      "    for i in range(min: 0, max: 1, step: 1) {",
       "      text LoopLabel = label(text: \"loop\", anchor: none, size: 3)",
       "    }",
       "  }",

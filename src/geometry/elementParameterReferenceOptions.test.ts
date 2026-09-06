@@ -61,9 +61,7 @@ const forGroupElement = (id: string, name: string): CadElement => ({
   type: "forGroup",
   activity: "visible",
   variableName: "i",
-  start: 0,
-  count: 5,
-  step: 1,
+  min: 0, max: 4, step: 1,
   showGenerated: true
 });
 
@@ -89,7 +87,7 @@ describe("referenceablePathsForElement", () => {
   });
 
   it("excludes a disabled element's saved params, even though the raw value would trivially evaluate", () => {
-    // forGroup exposes params.start/count/step as plain number-kind
+    // forGroup exposes params.min/max/step as plain number-kind
     // parameters with no geometry entry at all - numericReferenceValueForPath
     // would happily evaluate the literal 0/5/1 values on their own merit.
     // The eligibility gate must still suppress them because the element

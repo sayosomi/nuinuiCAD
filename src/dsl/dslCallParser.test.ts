@@ -50,7 +50,7 @@ describe("DSL nui 1 call parser", () => {
     expect(parse("group 前身頃 {").statement).toMatchObject({ category: "group", name: "前身頃", opensBlock: true });
     expect(parse("group 前身頃 (roles: [seam]) {").statement).toMatchObject({ category: "group", opensBlock: true });
     expect(parse("if (@見返し > 0)", true).statement).toMatchObject({ category: "if", opensBlock: true, payloadSpans: { condition: { start: 4, end: 12 } } });
-    expect(parse("for i in range(from: 0, count: 3, step: 1) {").statement).toMatchObject({ category: "for", opensBlock: true });
+    expect(parse("for i in range(min: 0, max: 2, step: 1) {").statement).toMatchObject({ category: "for", opensBlock: true });
     expect(messages("if (@x > 0)").join("\n")).toContain("ブロック");
   });
 
@@ -93,6 +93,10 @@ describe("DSL nui 1 call parser", () => {
     expect(messages("point A = coordinate(x: )").join("\n")).toContain("値がありません");
     expect(messages("point A = coordinate(x: 0) extra").join("\n")).toContain("余分なトークン");
     expect(messages("use N = notch(at: A)").join("\n")).toEqual("use は予約済みですが、まだ実装されていません。");
+  });
+
+  it("requires min, max, and step for statement-for ranges", () => {
+    expect(messages("for i in range(min: 0, max: 2) {").join("\n")).toContain("必須引数「step」");
   });
 
   it("rejects the removed copy construction and recommends only the new spelling", () => {

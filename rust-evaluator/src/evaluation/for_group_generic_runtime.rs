@@ -75,9 +75,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         &mut self,
         template_for_group: &Value,
         instance_for_group: &Value,
-        start: f64,
-        count: usize,
-        step: f64,
+        iteration_values: &[f64],
         effective_show_generated: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
@@ -92,8 +90,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         let instance_is_visible = element_id(instance_for_group)
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
 
-        for iteration_index in 0..count {
-            let variable_value = start + iteration_index as f64 * step;
+        for (iteration_index, variable_value) in iteration_values.iter().copied().enumerate() {
             let (generated, rows, iteration_variable) = expand_for_group_iteration_from_template(
                 self.original_elements,
                 instance_for_group,
@@ -199,7 +196,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 .iter()
                 .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
                 .expect("generated forGroup must retain its source template");
-            let Some((nested_start, nested_count, nested_step)) =
+            let Some(nested_iteration_values) =
                 for_group_loop_values(&generated_element, &local_variables, state)
             else {
                 return;
@@ -209,9 +206,7 @@ impl<'a> GenericForGroupRuntime<'a> {
             self.run(
                 nested_template,
                 &generated_element,
-                nested_start,
-                nested_count,
-                nested_step,
+                &nested_iteration_values,
                 nested_effective_show_generated,
                 ancestor_iteration_variables,
                 ancestor_element_id_map,

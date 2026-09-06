@@ -115,7 +115,7 @@ describe("geometry source flow", () => {
       "nui 1",
       "point A = coordinate(x: 0, y: 0)",
       "point B = coordinate(x: 10, y: 0)",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  line AB = segment(start: @A, end: @B)",
       "  reverse(target: @AB)",
       "}"

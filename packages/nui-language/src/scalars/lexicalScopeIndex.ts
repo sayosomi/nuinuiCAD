@@ -48,7 +48,7 @@ export type ScopeDeclaration = {
 export type ForGroupIterationSlot = {
   scopeId: ScopeId;
   statementIndex: number;
-  /** "" for unnamed loops (`for (i from: 0 ,count: 3) { ... }`). */
+  /** "" for an unnamed statement-for loop. */
   name: string;
   nameSpan: DslSpan | null;
 };

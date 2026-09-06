@@ -189,7 +189,7 @@ describe("queryDslGeometryHoverTarget", () => {
   it("fails closed for geometry authored inside a for-generated source body", () => {
     const source = [
       "nui 1",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = coordinate(x: i * 10, y: 0)",
       "}"
     ].join("\n");

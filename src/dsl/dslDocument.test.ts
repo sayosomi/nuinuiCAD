@@ -263,7 +263,7 @@ describe("dslDocument nesting", () => {
   });
 
   it("round-trips for blocks", () => {
-    const source = ["for i in range(from: 0,count: 3,step: 1) {", "  point P = coordinate(x: @i * 10,y: 0)", "}"].join("\n");
+    const source = ["for i in range(min: 0, max: 2, step: 1) {", "  point P = coordinate(x: @i * 10,y: 0)", "}"].join("\n");
     const { document, parsed } = roundTrip(source);
     expectSemanticallyEqualDocuments(document, { ...document, elements: parsed.elements });
   });
@@ -272,7 +272,7 @@ describe("dslDocument nesting", () => {
     const source = [
       "group 外 {",
       "  if (true) {",
-      "    for i in range(from: 0,count: 2,step: 1) {",
+      "    for i in range(min: 0, max: 1, step: 1) {",
       "      point P = coordinate(x: @i,y: 0)",
       "    }",
       "  } else {",

@@ -1,0 +1,17 @@
+nui 1
+
+for i in range(min: 0, max: 10, step: 3) {
+  point EveryThree = coordinate(x: @i, y: 0)
+}
+
+for j in range(min: 0, max: 10, step: 5) {
+  point EveryFive = coordinate(x: @j, y: 10)
+}
+
+for k in range(min: 5, max: 5, step: 1) {
+  point EqualBounds = coordinate(x: @k, y: 20)
+}
+
+for m in range(min: 5, max: 6, step: 10) {
+  point WideStep = coordinate(x: @m, y: 30)
+}

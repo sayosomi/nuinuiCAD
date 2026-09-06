@@ -143,7 +143,7 @@ describe("DSL parser blocks", () => {
 
   it("desugars for blocks to forGroup statements", () => {
     const parsed = parseDsl([
-      "for i in range(from: 0, count: 5, step: 1) {",
+      "for i in range(min: 0, max: 4, step: 1) {",
       "  point P = coordinate(x: i, y: 0)",
       "}"
     ].join("\n"));
@@ -157,7 +157,7 @@ describe("DSL parser blocks", () => {
   });
 
   it("parses unnamed for blocks", () => {
-    const parsed = parseDsl(["for i in range(from: 0, count: 3) {", "}"].join("\n"));
+    const parsed = parseDsl(["for i in range(min: 0, max: 2, step: 1) {", "}"].join("\n"));
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.statements[0]).toMatchObject({ kind: "element", type: "forGroup", name: "" });
     expect(parsed.statements[0].attrs.find((attr) => attr.key === "variable")?.value).toBe("i");
@@ -585,10 +585,17 @@ describe("DSL parser compatibility", () => {
     const end = strict.diagnostics.find((item) => item.message.includes("end"));
     expect(end?.physicalSpan?.segments).toEqual([{ from: 34, to: 37 }]);
 
-    const commaDelimited = parseDsl("nui 1\nfor i in range(from: 0, count: 3) {\n}");
+    const commaDelimited = parseDsl("nui 1\nfor i in range(min: 0, max: 2, step: 1) {\n}");
     expect(commaDelimited.diagnostics).toEqual([]);
     const legacy = parseDsl("nui 1\nfor Loop (i, from: 0, count: 3) {\n}");
     expect(legacy.diagnostics.some((item) => item.severity === "error")).toBe(true);
+  });
+
+  it("rejects removed from/count arguments in statement-for ranges", () => {
+    const parsed = parseDsl("nui 1\nfor i in range(from: 0, count: 3, step: 1) {\n}");
+    const diagnostics = parsed.diagnostics.filter((item) => item.severity === "error").map((item) => item.message).join("\n");
+    expect(diagnostics).toContain("引数「from」");
+    expect(diagnostics).toContain("引数「count」");
   });
 
   it("still parses the vertical call drafting syntax", () => {

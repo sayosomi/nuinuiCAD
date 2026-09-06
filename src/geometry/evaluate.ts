@@ -28,6 +28,7 @@ import { numericError } from "./evaluationContext";
 import { evaluateElement } from "./elementEvaluators";
 import {
   expandForGroupIteration,
+  forGroupRangeValues,
   forGroupOwnedTemplateElements,
   forGroupTemplateDescendantIds,
   type ForGroupIterationBinding
@@ -344,32 +345,27 @@ export const evaluateElements = (
     }
   };
 
-  const forGroupIterationCount = (
+  const forGroupRangeError = (
     element: CadElement,
-    countValue: number | undefined
+    error: Exclude<ReturnType<typeof forGroupRangeValues>, { values: number[] }>["error"]
   ) => {
-    if (countValue === undefined) return undefined;
-    if (!Number.isFinite(countValue) || countValue < 0 || !Number.isInteger(countValue)) {
-      errors.push({
-        elementId: element.id,
-        elementName: element.name,
-        missingDependencyId: element.id,
-        missingDependencyName: element.name,
-        message: `${element.name} の回数は0以上の整数にしてください。`
-      });
-      return undefined;
-    }
-    if (countValue > 1000) {
-      errors.push({
-        elementId: element.id,
-        elementName: element.name,
-        missingDependencyId: element.id,
-        missingDependencyName: element.name,
-        message: `${element.name} の回数は1000以下にしてください。`
-      });
-      return undefined;
-    }
-    return countValue;
+    const message = (() => {
+      switch (error) {
+        case "non-finite-min": return `${element.name} の min は有限の値にしてください。`;
+        case "non-finite-max": return `${element.name} の max は有限の値にしてください。`;
+        case "non-finite-step": return `${element.name} の step は有限の値にしてください。`;
+        case "min-greater-than-max": return `${element.name} の min は max 以下にしてください。`;
+        case "non-positive-step": return `${element.name} の step は0より大きい値にしてください。`;
+        case "iteration-limit": return `${element.name} の範囲は1000回以下にしてください。`;
+      }
+    })();
+    errors.push({
+      elementId: element.id,
+      elementName: element.name,
+      missingDependencyId: element.id,
+      missingDependencyName: element.name,
+      message
+    });
   };
 
   const inactiveConditionalGroupId = (element: CadElement) => {
@@ -510,9 +506,9 @@ export const evaluateElements = (
     }
 
     if (isForGroupElement(element)) {
-      const start = numericError(
+      const min = numericError(
         element,
-        element.start,
+        element.min,
         computedGeometry,
         runtimeElementsById,
         errors,
@@ -521,19 +517,16 @@ export const evaluateElements = (
         disabledByGroupId,
         runtimeElements
       );
-      const count = forGroupIterationCount(
+      const max = numericError(
         element,
-        numericError(
-          element,
-          element.count,
-          computedGeometry,
-          runtimeElementsById,
-          errors,
-          localVariables.localVariableValues,
-          localVariables.localVariableNames,
-          disabledByGroupId,
-          runtimeElements
-        )
+        element.max,
+        computedGeometry,
+        runtimeElementsById,
+        errors,
+        localVariables.localVariableValues,
+        localVariables.localVariableNames,
+        disabledByGroupId,
+        runtimeElements
       );
       const step = numericError(
         element,
@@ -546,9 +539,15 @@ export const evaluateElements = (
         disabledByGroupId,
         runtimeElements
       );
-      if (start === undefined || count === undefined || step === undefined) return;
+      if (min === undefined || max === undefined || step === undefined) return;
+      const range = forGroupRangeValues(min, max, step);
+      if ("error" in range) {
+        forGroupRangeError(element, range.error);
+        return;
+      }
+      const iterationValues = range.values;
 
-      // Evaluated once per forGroup entry, alongside start/count/step -
+      // Evaluated once per forGroup entry, alongside min/max/step -
       // never re-evaluated per iteration. Presentation-only: never gates ||
       // alters the iteration loop below.
       const showGeneratedEntry = controlBooleanEntriesByElementId?.get((sourceElement ?? element).id)?.[0];
@@ -586,7 +585,7 @@ export const evaluateElements = (
           loopScopeId: mutationOwner.scopeId,
           // This is the compiler's established iteration binding identity.
           iterationBindingId: mutationOwner.iterationBindingId ?? `binding:iteration:${mutationOwner.ownerStatementId}`,
-          iterationValues: Array.from({ length: count }, (_, iterationIndex) => start + iterationIndex * step),
+          iterationValues,
           statements
         }, (statement, context) => {
           if (options.bindingVersions!.evaluationLimitSourceOrder !== undefined &&
@@ -636,8 +635,7 @@ export const evaluateElements = (
         forGroupOwnedTemplateElements(elements, (sourceElement ?? element).id).map((templateElement) => templateElement.id)
       );
 
-      for (let iterationIndex = 0; iterationIndex < count; iterationIndex += 1) {
-        const variableValue = start + iterationIndex * step;
+      for (const [iterationIndex, variableValue] of iterationValues.entries()) {
         const { generatedElements, rows, templateElementIdByGeneratedId, iterationVariable } = expandForGroupIteration({
           elements,
           forGroup: element,

@@ -1329,7 +1329,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M() {",
-      "  for i in range(from: 1, count: 2, step: 1) {",
+      "  for i in range(min: 1, max: 2, step: 1) {",
       "    const local: number = @i",
       "    point P = coordinate(x: @local, y: 0)",
       "  }",
@@ -1349,7 +1349,7 @@ describe("module scalar runtime integration", () => {
       "module M(x: number) {",
       "  point P = coordinate(x: @x, y: 0)",
       "}",
-      "for i in range(from: 1, count: 2, step: 1) {",
+      "for i in range(min: 1, max: 2, step: 1) {",
       "  instance A = M(x: @i)",
       "}"
     ].join("\n"));
@@ -1382,7 +1382,7 @@ describe("module scalar runtime integration", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(base: number) {",
-      "  for i in range(from: 1, count: 2, step: 1) {",
+      "  for i in range(min: 1, max: 2, step: 1) {",
       "    const local: number = @base",
       "    point P = coordinate(x: @local + @i, y: 0)",
       "  }",
@@ -1402,7 +1402,7 @@ describe("module scalar runtime integration", () => {
       "  point P = coordinate(x: @width, y: 0)",
       "}",
       "module Outer() {",
-      "  for i in range(from: 1, count: 2, step: 1) {",
+      "  for i in range(min: 1, max: 2, step: 1) {",
       "    instance Nested = Inner(width: @i)",
       "  }",
       "}",

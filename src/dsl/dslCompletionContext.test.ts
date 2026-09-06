@@ -111,7 +111,7 @@ describe("dslCompletionContextAt", () => {
   });
 
   it("keeps for-opening boolean attributes eligible through the shared synthetic-close reparse", () => {
-    const line = "for i in range(from: 0, count: 3, showGenerated: true) {";
+    const line = "for i in range(min: 0, max: 2, step: 1, showGenerated: true) {";
     expect(dslCompletionContextAt(line, line.indexOf("true") + 2)).toMatchObject({
       kind: "propertyScalarValue",
       propertyContext: { kind: "expression" }

@@ -139,7 +139,7 @@ describe("source lexical namespace index", () => {
       "}",
       "if (true) {",
       "}",
-      "for i in range(from: 0, count: 1) {",
+      "for i in range(min: 0, max: 0, step: 1) {",
       "}",
       "instance A = A()"
     ].join("\n");

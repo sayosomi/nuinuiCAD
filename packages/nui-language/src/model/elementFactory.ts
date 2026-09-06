@@ -92,8 +92,8 @@ export const createCadElement = (
         type,
         activity: "visible",
         variableName: "i",
-        start: 0,
-        count: 3,
+        min: 0,
+        max: 2,
         step: 1,
         showGenerated: false
       };

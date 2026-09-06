@@ -19,7 +19,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
       "nui 1",
       "if (@condition) {",
       "}",
-      "for i in range(from: 0, count: 5, step: 1) {",
+      "for i in range(min: 0, max: 4, step: 1) {",
       "}",
       "stop"
     ].join("\n"));
@@ -73,7 +73,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
     const compiled = compile([
       "nui 1",
       "const start: number = 1",
-      "for i in range(from: @start, count: 2, step: 1) {",
+      "for i in range(min: @start, max: @start + (2 - 1) * 1, step: 1) {",
       "  point P = coordinate(x: @i, y: 0)",
       "}"
     ].join("\n"));
@@ -94,7 +94,7 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
       "if (@condition) {",
       "  point A = coordinate(x: 0, y: 0)",
       "}",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point B = coordinate(x: @i, y: 0)",
       "}"
     ].join("\n");
@@ -121,13 +121,13 @@ describe("nui1 Task 6 syntax lowering and lexical behavior", () => {
       "const condition: boolean = true",
       "if (@condition) {",
       "}",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "}",
       "stop"
     ].join("\n"));
     const serialized = serializeDocumentToDsl(compiled.document, 1);
     expect(serialized).toContain("if (@condition) {");
-    expect(serialized).toContain("for i in range(from: 0, count: 2, step: 1) {");
+    expect(serialized).toContain("for i in range(min: 0, max: 1, step: 1) {");
     expect(serialized).toContain("stop");
     expect(serialized).not.toContain("if ifブロック");
     expect(serialized).not.toContain("for forブロック");

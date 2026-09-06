@@ -103,7 +103,7 @@ describe("typedBindingRuntimeInspectorPresentation: consumer rows", () => {
     const compiled = compileCanonical([
       "nui 1",
       "let 表示: boolean = true",
-      "for i in range(from: 0, count: 2, step: 1, showGenerated: @表示) {",
+      "for i in range(min: 0, max: 1, step: 1, showGenerated: @表示) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n"));

@@ -26,7 +26,7 @@ fn generated_copy_reports_its_incomplete_numeric_expression_as_the_dependency_id
             }),
             json!({
                 "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
-                "variableName": "i", "start": 0, "count": 2, "step": 1, "showGenerated": true
+                "variableName": "i", "min": 0, "max": 1, "step": 1, "showGenerated": true
             }),
             json!({
                 "id": "copy", "name": "Copy", "type": "copyLine", "activity": "visible",

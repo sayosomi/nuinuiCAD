@@ -157,7 +157,7 @@ const containerStatement = (element: CadElement, spec: DslConstructionSpec, refs
     return { header: `if (${condition})`, args: [], close: null };
   }
   if (spec.category === "for" && element.type === "forGroup") {
-    const rangeArgs = ["from", "count", "step", ...(element.showGenerated ? ["showGenerated"] : [])]
+    const rangeArgs = ["min", "max", "step", ...(element.showGenerated ? ["showGenerated"] : [])]
       .map((key) => spec.args.find((arg) => arg.arg === key))
       .filter((arg): arg is DslArgSpec => Boolean(arg))
       .map((arg) => serializeArg(element, arg, refs))

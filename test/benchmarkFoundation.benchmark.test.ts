@@ -122,14 +122,14 @@ const deepChainFixtures = new Set(["dependency-chain-250-v1", "dependency-chain-
 const interactiveFixtureExpectations = new Map([
   ["interactive-medium-v2", {
     file: "interactive-medium-v2.nui",
-    hash: "sha256:376434ef4c88293a04e70a96c0fa186678c7fbbedec5ef9de5e1a0a35d403ba5",
+    hash: "sha256:9a14f2380a55b47e78b21cc6c2b189e0dc6c0951a58524a7ca7ecbf2f87c755a",
     forGroupIterations: 50,
     generatedGeometryPerIteration: 4,
     generatedRows: 200
   }],
   ["interactive-large-v2", {
     file: "interactive-large-v2.nui",
-    hash: "sha256:fc480108ecf149f47ff4815dc5f9c69610cd7e167012c24a79196097199f7aea",
+    hash: "sha256:765f1f060c7a56a6a3545a8755d9a45e89a32d0a02eb6cf684a33c52d2b082d6",
     forGroupIterations: 250,
     generatedGeometryPerIteration: 4,
     generatedRows: 1000
@@ -137,8 +137,8 @@ const interactiveFixtureExpectations = new Map([
 ]);
 
 const historicalInteractiveFixtureHashes = new Map([
-  ["interactive-medium-v1.nui", "sha256:211bcda72d6791791c306a4b147b712982ceaa2a91786f58067711351d4ae37e"],
-  ["interactive-large-v1.nui", "sha256:f23a755ba77d813704a8b5dceb4a0e442a0a806f9b51c53e0c0e5550cdca2b39"]
+  ["interactive-medium-v1.nui", "sha256:564ff5cf6c23b8f31f5c503ffcd242e83d654b9ece7851deb3993770e69004ef"],
+  ["interactive-large-v1.nui", "sha256:1a209ecb62666946e05959408df16c3609822190178a55e8cb806f7821a0e247"]
 ]);
 
 const chainPointName = (index: number) => `P${String(index).padStart(4, "0")}`;
@@ -177,7 +177,7 @@ const assertDeepChainFixture = ({
   expect(source.match(/^\s+point P\d{4} = offset\(from:/gm)).toHaveLength(
     fixture.workload.generatedGeometryPerIteration
   );
-  expect(source).toContain("for i in range(from: 0, count: 1, step: 1) {");
+  expect(source).toContain("for i in range(min: 0, max: 0, step: 1) {");
 
   if (!forGroup || !dragPoint || !dragCurve) throw new Error("deep benchmark fixture anchors are missing");
   const root = chain[0];
@@ -320,7 +320,7 @@ const assertInteractiveFixture = ({
   expect(compiled.status).toBe("valid");
   if (compiled.status !== "valid") throw new Error("interactive benchmark fixture did not compile");
 
-  expect(source).toContain(`for i in range(from: 0, count: ${expected.forGroupIterations}, step: 1) {`);
+  expect(source).toContain(`for i in range(min: 0, max: ${expected.forGroupIterations - 1}, step: 1) {`);
   expect(source).toContain("dx: @i * 3");
   expect(source).toContain("dy: -(@i * 2)");
   expect(source).not.toContain("dx: i * 3");
@@ -569,8 +569,8 @@ describe("benchmark fixtures", () => {
       for (const type of ["freePoint", "line", "bezierCurve", "offsetLine", "group", "forGroup"]) {
         expect(elementTypes).toContain(type);
       }
-      const count = source.match(/for i in range\(from: 0, count: (\d+), step: 1\)/)?.[1];
-      expect(Number(count)).toBe(fixture.workload.forGroupIterations);
+      const max = source.match(/for i in range\(min: 0, max: (\d+), step: 1\)/)?.[1];
+      expect(Number(max) + 1).toBe(fixture.workload.forGroupIterations);
 
       if (deepChainFixtures.has(fixture.id)) {
         assertDeepChainFixture({

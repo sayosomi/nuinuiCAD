@@ -119,8 +119,8 @@ export const remapElementReferences = (source: CadElement, idMap: Map<ElementId,
     case "forGroup":
       return {
         ...element,
-        start: remapNumericValue(element.start, idMap),
-        count: remapNumericValue(element.count, idMap),
+        min: remapNumericValue(element.min, idMap),
+        max: remapNumericValue(element.max, idMap),
         step: remapNumericValue(element.step, idMap)
       };
     case "freePoint":

@@ -396,7 +396,7 @@ describe("VS Code native nui rename provider", () => {
 
     const iterationSource = [
       "nui 1",
-      "for i in range(from: 0, count: 1) {",
+      "for i in range(min: 0, max: 0, step: 1) {",
       "  point P = coordinate(x: 0, y: 0)",
       "}"
     ].join("\n");

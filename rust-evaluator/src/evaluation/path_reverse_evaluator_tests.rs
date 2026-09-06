@@ -181,7 +181,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
 fn for_group(id: &str, name: &str, count: i64, parent_group_id: Option<&str>) -> serde_json::Value {
     let mut value = json!({
         "id": id, "name": name, "type": "forGroup", "activity": "visible",
-        "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": false
+        "variableName": "i", "max": (count - 1) as f64, "min": 0, "step": 1, "showGenerated": false
     });
     if let Some(parent) = parent_group_id {
         value["parentGroupId"] = json!(parent);
