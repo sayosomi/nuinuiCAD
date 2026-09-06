@@ -17,7 +17,7 @@ const forModuleSource = [
   "nui 1",
   "module M() {",
   "  // keep this for source comment",
-  "  for i in range(from: 0, count: 2) {",
+  "  for i in range(min: 0, max: 1, step: 1) {",
   "    point P = coordinate(x: i, y: 0)",
   "  }",
   "}",
@@ -68,7 +68,7 @@ describe("module source-owned container argument insertion", () => {
     expect(next.elements.filter((element) => element.name === "G").map((element) => element.activity)).toEqual(["visible", "visible"]);
   });
 
-  it("adds an omitted for step after the positional variable without changing the body", () => {
+  it("updates the required for step without changing the body", () => {
     seed(forModuleSource);
     const first = elementNamed("First")!;
     const loop = useCadDocumentStore.getState().elements.find((element) => element.type === "forGroup" && element.parentGroupId === first.id)!;
@@ -77,7 +77,7 @@ describe("module source-owned container argument insertion", () => {
 
     const state = useCadDocumentStore.getState();
     expect(state.sourceText).toContain("// keep this for source comment");
-    expect(state.sourceText).toContain("for i in range(from: 0, count: 2, step: 2) {");
+    expect(state.sourceText).toContain("for i in range(min: 0, max: 1, step: 2) {");
     expect(state.sourceText).toContain("point P = coordinate(x: i, y: 0)");
     expect(state.sourceText).toContain("instance First = M()");
     expect(state.sourceText).toContain("instance Second = M()");

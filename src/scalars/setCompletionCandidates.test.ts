@@ -79,7 +79,7 @@ describe("setTargetCandidates", () => {
     const source = [
       "nui 1",
       "let a: number = 1",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "}"
     ].join("\n");
     const { catalog, entriesById } = catalogFor(source);
@@ -132,7 +132,7 @@ describe("setTargetCandidates", () => {
       "nui 1",
       "let outer: number = 1",
       "if (true) {",
-      "  for i in range(from: 0, count: 2) {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
       "  }",
       "}"
     ].join("\n");

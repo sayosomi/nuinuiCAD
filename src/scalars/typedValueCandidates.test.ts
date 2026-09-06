@@ -123,7 +123,7 @@ describe("resolvePrecedingOperandType", () => {
 describe("resolvePrecedingOperandType: implicit-number binding and invalid exclusion", () => {
   it("forGroup iteration binding reference resolves to implicit number", () => {
     const { catalog, entriesById } = compileFor(
-      ["nui 1", "for i in range(from: 0, count: 2) {", "  const n: number = @i", "}"].join("\n")
+      ["nui 1", "for i in range(min: 0, max: 1, step: 1) {", "  const n: number = @i", "}"].join("\n")
     );
     const n = bindingIdByName(catalog, "n");
     const site = { scopeId: n.effectiveScopeId, statementIndex: n.statementIndex };

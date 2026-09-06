@@ -862,18 +862,24 @@ so an `if` does not require a user-provided name.
 The formal iteration form is:
 
 ```text
-for i in range(
-  from: 0,
-  count: 5,
-  step: 1,
-) {
+for i in range(min: 0, max: 4, step: 1) {
   ...
 }
 ```
 
 `i` is an immutable `number` binding that exists only in the body scope and is
-referenced as `@i`. The range arguments are typed expressions; invalid ranges
-are evaluation diagnostics. A loop does not create an implicit outer binding.
+referenced as `@i`. `min`, `max`, and `step` are required numeric expressions.
+Statement-for ranges are ascending only: `min <= max` and `step > 0` are
+required. The generated values are exactly `min + n * step`, beginning at
+`min`, and only values `<= max` are included. The final value is never clamped;
+`max` is included only when the sequence reaches it exactly. Thus `min == max`
+produces one iteration, and a step larger than `max - min` still produces one
+iteration at `min`. The canonical source spelling uses the exact spacing
+`range(min: ..., max: ..., step: ...)`; `showGenerated` may remain in the
+statement-for header as a control option and does not change range values.
+Non-finite operands, descending bounds, non-positive steps, and ranges that
+would generate more than 1000 values are evaluation diagnostics. A loop does
+not create an implicit outer binding.
 
 ## Modules
 
@@ -1325,11 +1331,7 @@ module Panel(
     )
   }
 
-  for i in range(
-    from: 0,
-    count: 2,
-    step: 1,
-  ) {
+  for i in range(min: 0, max: 1, step: 1) {
     point notch = coordinate(
       x: @base.x + @i * 10,
       y: @base.y,
@@ -1365,11 +1367,7 @@ group 前身頃 {
     )
   }
 
-  for i in range(
-    from: 0,
-    count: 3,
-    step: 1,
-  ) {
+  for i in range(min: 0, max: 2, step: 1) {
     point notch = coordinate(
       x: @i * 10,
       y: 0,

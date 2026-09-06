@@ -126,7 +126,7 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("uses evaluator-owned forGroup rows to aggregate runtime instances to one saved token", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", min: 0, max: 2, step: 1, showGenerated: true },
       { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
       { id: "target", name: "Target", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "reference", pointId: "p" }, parentGroupId: "loop" }
     ]);
@@ -149,7 +149,7 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("removes every runtime instance when another line-list token already selects its template", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 3, step: 1, showGenerated: true },
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", min: 0, max: 2, step: 1, showGenerated: true },
       { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
       { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
       { id: "m", name: "M", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },
@@ -183,7 +183,7 @@ describe("dslReferenceCompletionOptions", () => {
 
   it("keeps the currently edited line-list token replaceable while excluding other selections", () => {
     const source = dslTextForElements([
-      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+      { id: "loop", name: "Loop", type: "forGroup", activity: "visible", variableName: "i", min: 0, max: 1, step: 1, showGenerated: true },
       { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i * 10" }, y: 0, parentGroupId: "loop" },
       { id: "l", name: "L", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 10 }, parentGroupId: "loop" },
       { id: "m", name: "M", type: "line", activity: "visible", startPoint: { mode: "reference", pointId: "p" }, endPoint: { mode: "coordinate", x: { kind: "expression", expression: "@i * 10" }, y: 20 }, parentGroupId: "loop" },

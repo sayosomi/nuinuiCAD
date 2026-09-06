@@ -130,7 +130,7 @@ fn control_boolean_binding_entry(element_id: &str, parameter_key: &str, binding_
 fn for_group(id: &str, count: f64, show_generated_literal: bool) -> Value {
     json!({
         "id": id, "name": id, "type": "forGroup", "activity": "visible",
-        "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": show_generated_literal
+        "variableName": "i", "min": 0, "max": count - 1.0, "step": 1.0, "showGenerated": show_generated_literal
     })
 }
 

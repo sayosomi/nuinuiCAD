@@ -266,7 +266,7 @@ describe("multi-document module runtime", () => {
       "  if (@enabled) {",
       "    set value = @value + 1",
       "  }",
-      "  for i in range(from: 1, count: 2, step: 1) {",
+      "  for i in range(min: 1, max: 2, step: 1) {",
       "    point P = coordinate(x: @value + @i, y: 0)",
       "  }",
       "}"

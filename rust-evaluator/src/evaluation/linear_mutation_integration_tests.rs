@@ -70,7 +70,7 @@ fn point(id: &str) -> Value {
 fn for_group(id: &str) -> Value {
     json!({
         "id": id, "name": id, "type": "forGroup", "activity": "visible",
-        "variableName": "i", "start": 1, "count": 2, "step": 1, "showGenerated": false
+        "variableName": "i", "min": 1, "max": 2, "step": 1, "showGenerated": false
     })
 }
 

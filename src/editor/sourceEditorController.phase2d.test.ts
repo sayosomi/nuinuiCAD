@@ -11,7 +11,7 @@ import type { EvaluationResult } from "../types/geometry";
 import { evaluateElements } from "../geometry/evaluate";
 
 const forGroupSource = () => dslTextForElements([
-  { id: "loop", name: "繰返し", type: "forGroup", activity: "visible", variableName: "i", start: 0, count: 2, step: 1, showGenerated: true },
+  { id: "loop", name: "繰返し", type: "forGroup", activity: "visible", variableName: "i", min: 0, max: 1, step: 1, showGenerated: true },
   { id: "p", name: "P", type: "freePoint", activity: "visible", x: { kind: "expression", expression: "@i" }, y: 0, parentGroupId: "loop" }
 ]);
 

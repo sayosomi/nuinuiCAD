@@ -116,7 +116,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
       "const count: number = 2",
       "const width: number = 10",
       "if (@enabled) {",
-      "  for i in range(from: @start, count: @count, step: 1) {",
+      "  for i in range(min: @start, max: @start + (@count - 1), step: 1) {",
       "    const inside: number = @width + @i",
       "  }",
       "} else {",
@@ -138,7 +138,7 @@ describe("planExtractModule checkpoint 5 root if", () => {
     expect(applyLineSplices(source, result.splices)).toContain([
       "module Extracted(enabled: boolean, start: number, count: number, width: number) {",
       "  if (@enabled) {",
-      "    for i in range(from: @start, count: @count, step: 1) {",
+      "    for i in range(min: @start, max: @start + (@count - 1), step: 1) {",
       "      const inside: number = @width + @i",
       "    }",
       "  } else {",

@@ -147,10 +147,10 @@ describe("analyzeBindings", () => {
     const catalog = catalogFor([
       "const x: number = 1",
       "const x: number = 2",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const bodyA: number = 0",
       "}",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const bodyB: number = 0",
       "}"
     ].join("\n"));

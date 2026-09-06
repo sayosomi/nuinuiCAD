@@ -121,7 +121,7 @@ describe("coordinate point conversion", () => {
   it("rejects a for-generated runtime coordinate point", () => {
     const document = compile([
       "nui 1",
-      "for i in range(from: 0, count: 1, step: 1) {",
+      "for i in range(min: 0, max: 0, step: 1) {",
       "  point Generated = coordinate(x: @i * 10, y: 5)",
       "}"
     ].join("\n"));

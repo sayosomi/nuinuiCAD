@@ -203,9 +203,7 @@ describe("preMutationGeometry", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 0,
-        count: 2,
-        step: 1,
+        min: 0, max: 1, step: 1,
         showGenerated: true
       },
       {

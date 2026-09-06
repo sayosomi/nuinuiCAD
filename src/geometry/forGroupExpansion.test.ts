@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { elementDisplayName } from "../model/elementNames";
 import type { CadElement, ForGroupElement, FreePointElement } from "../types/geometry";
-import { expandForGroupIteration, forGroupGeneratedElementId } from "./forGroupExpansion";
+import { expandForGroupIteration, forGroupGeneratedElementId, forGroupRangeValues } from "./forGroupExpansion";
 import { makeNumericExpression } from "./numericExpressions";
 
 // 04/05: DivisionPlacement characterization。expandForGroupIterationは専用のforGroup clone
@@ -14,8 +14,8 @@ const forGroup: ForGroupElement = {
   type: "forGroup",
   activity: "visible",
   variableName: "i",
-  start: 0,
-  count: 2,
+  min: 0,
+  max: 1,
   step: 1,
   showGenerated: true
 };
@@ -24,6 +24,29 @@ const basePoints: CadElement[] = [
   { id: "point-a", name: "点A", type: "freePoint", activity: "visible", x: 0, y: 0 },
   { id: "point-b", name: "点B", type: "freePoint", activity: "visible", x: 10, y: 0 }
 ];
+
+describe("forGroupRangeValues", () => {
+  it("generates min plus exact step values without clamping", () => {
+    expect(forGroupRangeValues(0, 10, 3)).toEqual({ values: [0, 3, 6, 9] });
+    expect(forGroupRangeValues(0, 10, 5)).toEqual({ values: [0, 5, 10] });
+  });
+
+  it("includes min when it equals max or the step exceeds the interval", () => {
+    expect(forGroupRangeValues(5, 5, 1)).toEqual({ values: [5] });
+    expect(forGroupRangeValues(5, 6, 10)).toEqual({ values: [5] });
+  });
+
+  it("rejects non-ascending and non-positive ranges", () => {
+    expect(forGroupRangeValues(6, 5, 1)).toEqual({ error: "min-greater-than-max" });
+    expect(forGroupRangeValues(0, 1, 0)).toEqual({ error: "non-positive-step" });
+    expect(forGroupRangeValues(0, 1, -1)).toEqual({ error: "non-positive-step" });
+  });
+
+  it("enforces the 1000-generated-value safety limit", () => {
+    expect(forGroupRangeValues(0, 999, 1)).toEqual({ values: Array.from({ length: 1000 }, (_, index) => index) });
+    expect(forGroupRangeValues(0, 1000, 1)).toEqual({ error: "iteration-limit" });
+  });
+});
 
 describe("expandForGroupIteration (DivisionPlacement characterization)", () => {
   it("clones divisionPoint placement verbatim across iterations", () => {
@@ -184,8 +207,8 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
     type: "forGroup",
     activity: "visible",
     variableName: "i",
-    start: 0,
-    count: 2,
+    min: 0,
+    max: 1,
     step: 1,
     showGenerated: false
   };
@@ -195,8 +218,8 @@ describe("expandForGroupIteration (nested forGroup ownership and iteration conte
     type: "forGroup",
     activity: "visible",
     variableName: "j",
-    start: 0,
-    count: 3,
+    min: 0,
+    max: 2,
     step: 1,
     showGenerated: false,
     parentGroupId: "outer"

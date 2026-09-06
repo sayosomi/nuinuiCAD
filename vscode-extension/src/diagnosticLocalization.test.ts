@@ -94,7 +94,7 @@ describe("diagnostic presentation localization", () => {
   it("keeps a property binding reference name through the production compiler path", () => {
     const source = [
       "nui 1",
-      "for i in range(from: 0, count: 1, showGenerated: @Missing) {",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Missing) {",
       "}"
     ].join("\n");
     const document = AutomationDocument.fromSource(source);

@@ -18,9 +18,7 @@ fn for_group(id: &str, parent: Option<&str>, variable_name: &str, count: f64) ->
         "type": "forGroup",
         "activity": "visible",
         "variableName": variable_name,
-        "start": 0,
-        "count": count,
-        "step": 1,
+        "min": 0, "max": count - 1.0, "step": 1.0,
         "showGenerated": false
     });
     if let Some(parent) = parent {

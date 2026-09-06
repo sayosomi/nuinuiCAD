@@ -74,7 +74,7 @@ describe("renameTypedBindingWithPropagation", () => {
   });
 
   it("patches a typed property-binding reference", () => {
-    const source = ["nui 1", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n");
+    const source = ["nui 1", "let flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n");
     seed(source);
     const id = typedBindingId("flag");
 

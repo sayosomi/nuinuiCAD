@@ -235,7 +235,7 @@ describe("pickCandidates", () => {
     const generatedElements: CadElement[] = [
       {
         id: "loop", name: "Loop", type: "forGroup", activity: "visible",
-        variableName: "i", start: 0, count: 3, step: 1, showGenerated: true
+        variableName: "i", min: 0, max: 2, step: 1, showGenerated: true
       },
       {
         id: "loop-point", name: "Loop point", type: "freePoint", activity: "visible",
@@ -248,7 +248,7 @@ describe("pickCandidates", () => {
       },
       {
         id: "other-loop", name: "Other", type: "forGroup", activity: "visible",
-        variableName: "j", start: 0, count: 3, step: 1, showGenerated: true
+        variableName: "j", min: 0, max: 2, step: 1, showGenerated: true
       },
       {
         id: "other-point", name: "Other point", type: "freePoint", activity: "visible",

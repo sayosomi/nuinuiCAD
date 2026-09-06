@@ -665,7 +665,7 @@ describe("module semantic analysis", () => {
       "nui 1",
       "module M() {",
       "  group G (roles: [seam]) {",
-      "    for i in range(from: 0, count: 3) {",
+      "    for i in range(min: 0, max: 2, step: 1) {",
       "      point P = coordinate(x: i * 10, y: 0)",
       "    }",
       "  }",
@@ -911,7 +911,7 @@ describe("module semantic analysis", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module Outer(i: number) {",
-      "  for i in range(from: 0, count: 3) {",
+      "  for i in range(min: 0, max: 2, step: 1) {",
       "    module Inner(value: number = @i) {",
       "    }",
       "  }",
@@ -1036,7 +1036,7 @@ describe("module semantic analysis", () => {
       "}",
       "if (true, parent: @Outer) {",
       "}",
-      "for i in range(from: 0, count: 1, parent: @Outer) {",
+      "for i in range(min: 0, max: 0, step: 1, parent: @Outer) {",
       "}"
     ].join("\n");
     const compiled = compileWithIds(source);
@@ -1439,7 +1439,7 @@ describe("module semantic analysis", () => {
       "  point P = coordinate(x: 0, y: 0)",
       "}",
       "module M() {",
-      "  for G in range(from: 0, count: 1) {",
+      "  for G in range(min: 0, max: 0, step: 1) {",
       "    point Use = offset(from: @G::P, dx: 0, dy: 0)",
       "  }",
       "}"

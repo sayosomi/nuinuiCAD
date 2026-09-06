@@ -15,6 +15,32 @@ export type ForGroupIterationBinding = {
   value: number;
 };
 
+export type ForGroupRangeValuesResult =
+  | { values: number[] }
+  | { error: "non-finite-min" | "non-finite-max" | "non-finite-step" | "min-greater-than-max" | "non-positive-step" | "iteration-limit" };
+
+/** Evaluate the canonical ascending min/max/step range without clamping. */
+export const forGroupRangeValues = (
+  min: number,
+  max: number,
+  step: number
+): ForGroupRangeValuesResult => {
+  if (!Number.isFinite(min)) return { error: "non-finite-min" };
+  if (!Number.isFinite(max)) return { error: "non-finite-max" };
+  if (!Number.isFinite(step)) return { error: "non-finite-step" };
+  if (min > max) return { error: "min-greater-than-max" };
+  if (step <= 0) return { error: "non-positive-step" };
+
+  const values: number[] = [];
+  for (let iterationIndex = 0; ; iterationIndex += 1) {
+    const value = min + iterationIndex * step;
+    if (!(value <= max)) break;
+    values.push(value);
+    if (values.length > 1000) return { error: "iteration-limit" };
+  }
+  return { values };
+};
+
 export const forGroupGeneratedElementId = ({
   forGroupId,
   templateElementId,

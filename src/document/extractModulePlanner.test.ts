@@ -306,7 +306,7 @@ describe("planExtractModule checkpoint 1", () => {
     const source = [
       "nui 1",
       "const outer: number = 10",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const inside: number = @outer + @i",
       "}"
     ].join("\n");

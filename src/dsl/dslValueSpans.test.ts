@@ -89,8 +89,8 @@ describe("dslLineValueSpans", () => {
   });
 
   it("still selects attribute values on a block-opening statement (for/if/group)", () => {
-    const forSource = "for i in range(from: 0,count: 5) {";
-    expect(dslLineValueSpans(forSource).map((span) => textOf(forSource, span))).toEqual(["i", "0", "5"]);
+    const forSource = "for i in range(min: 0, max: 4, step: 1) {";
+    expect(dslLineValueSpans(forSource).map((span) => textOf(forSource, span))).toEqual(["i", "0", "4", "1"]);
 
     const ifSource = "if (x > 5) {";
     const ifSpans = dslLineValueSpans(ifSource);

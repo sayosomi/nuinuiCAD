@@ -187,7 +187,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "let 印刷: boolean = true",
-      "for i in range(from: 0, count: 1, showGenerated: @印刷) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -198,7 +198,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
     const compiled = compileFor([
       "let 印刷: boolean = true",
       "let 下書き: boolean = false",
-      "for i in range(from: 0, count: 1, showGenerated: @印刷  and  not @下書き) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷  and  not @下書き) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -268,7 +268,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
   it("forGroup.showGenerated", () => {
     const compiled = compileFor([
       "let 表示: boolean = true",
-      "for i in range(from: 0, count: 3, showGenerated: @表示) {", "}"
+      "for i in range(min: 0, max: 2, step: 1, showGenerated: @表示) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);
@@ -278,7 +278,7 @@ describe("compilePropertyBindings: opted-in properties resolve to a binding sour
 
 describe("compilePropertyBindings: exact span", () => {
   it("keeps the @name token's own offsets, not the whole arg || statement", () => {
-    const source = ["let 印刷: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @印刷) {", "}"].join("\n");
+    const source = ["let 印刷: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"].join("\n");
     const compiled = compileFor(source);
     const { sourcesByOccurrenceKey } = compilePropertyBindings(compiled);
     const entry = sourcesByOccurrenceKey.get(propertyBindingOccurrenceKey(1, "showGenerated"));
@@ -374,7 +374,7 @@ describe("compilePropertyBindings: schema-driven properties", () => {
   it("does not disturb an ordinary literal forGroup statement", () => {
     const compiled = compileFor([
       "const unused: number = 1",
-      "for i in range(from: 0, count: 1, showGenerated: false) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: false) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -387,7 +387,7 @@ describe("compilePropertyBindings: unresolved", () => {
   it("undefined name", () => {
     const compiled = compileFor([
       "let 印刷: boolean = true",
-      "for i in range(from: 0, count: 1, showGenerated: @Missing) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Missing) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -402,7 +402,7 @@ describe("compilePropertyBindings: unresolved", () => {
 
   it("forward-declared name (same code, different message)", () => {
     const compiled = compileFor([
-      "for i in range(from: 0, count: 1, showGenerated: @Later) {", "}",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @Later) {", "}",
       "let Later: boolean = true"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
@@ -421,7 +421,7 @@ describe("compilePropertyBindings: invalid", () => {
   it("propagates an already-invalid binding's own declaration issue", () => {
     const compiled = compileFor([
       "let 壊れた: boolean = @何か",
-      "for i in range(from: 0, count: 1, showGenerated: @壊れた) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @壊れた) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -436,7 +436,7 @@ describe("compilePropertyBindings: invalid", () => {
   it("rejects a property expression with the wrong result type", () => {
     const compiled = compileFor([
       "let 印刷: boolean = true",
-      "for i in range(from: 0, count: 1, showGenerated: @印刷 + 1) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷 + 1) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(sourcesByOccurrenceKey.size).toBe(0);
@@ -453,7 +453,7 @@ describe("compilePropertyBindings: literal properties are unaffected", () => {
       "point B = coordinate(x: 10, y: 0)",
       "line AB = segment(start: @A, end: @B)",
       "line Off = offset(sources: [@AB], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
-      "for i in range(from: 0, count: 1, showGenerated: @印刷) {", "}"
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @印刷) {", "}"
     ].join("\n"));
     const { sourcesByOccurrenceKey, diagnostics } = compilePropertyBindings(compiled);
     expect(diagnostics).toEqual([]);

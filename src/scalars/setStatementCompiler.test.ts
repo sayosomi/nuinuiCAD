@@ -177,7 +177,7 @@ describe("compileSetStatements: target resolution", () => {
   it("rejects a forGroup iteration binding target with invalid-set-target (mutability check, not the no-catalog branch)", () => {
     const { statements, stableStatementIdByIndex, bindingAnalysis, spans } = compileFor([
       "let unrelated: number = 1",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  set i = 2",
       "}"
     ].join("\n"));

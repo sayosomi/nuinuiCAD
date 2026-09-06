@@ -68,13 +68,13 @@ describe("buildLexicalScopeIndex", () => {
   });
 
   it("records the forGroup iteration binding slot, including unnamed loops", () => {
-    const named = parse(["for i in range(from: 0,count: 5,step: 1) {", "  const y: number = 1", "}"].join("\n"));
+    const named = parse(["for i in range(min: 0, max: 4, step: 1) {", "  const y: number = 1", "}"].join("\n"));
     const namedIndex = buildLexicalScopeIndex(named, byName);
     const namedScopeId = "for:element@1";
     expect(namedIndex.forGroupIterationSlots.get(namedScopeId)).toMatchObject({ name: "i", scopeId: namedScopeId });
     expect(namedIndex.declarationsByScope.get(namedScopeId)?.[0]).toMatchObject({ name: "y" });
 
-    const unnamed = parse(["for i in range(from: 0, count: 3, step: 1) {", "}"].join("\n"));
+    const unnamed = parse(["for i in range(min: 0, max: 2, step: 1) {", "}"].join("\n"));
     const unnamedByLine: ResolveStatementId = (_index, statement) => `for@${statement.line}`;
     const unnamedIndex = buildLexicalScopeIndex(unnamed, unnamedByLine);
     const unnamedScopeId = "for:for@1";

@@ -238,7 +238,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     category: "for",
     construction: "",
     elementType: "forGroup",
-    args: [{ ...positional("variable", "variableName"), required: true }, required("from", "start"), required("count"), arg("step"), arg("showGenerated")],
+    args: [{ ...positional("variable", "variableName"), required: true }, required("min"), required("max"), required("step"), arg("showGenerated")],
   },
 ];
 

@@ -38,7 +38,7 @@ group Benchmark {
 }
 
 group Load {
-  for i in range(from: 0, count: 250, step: 1) {
+  for i in range(min: 0, max: 249, step: 1) {
     point LoadStart = offset(
       from: @Benchmark::DragPoint,
       dx: @i * 3,

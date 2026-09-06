@@ -4,10 +4,10 @@ point B = coordinate(x: 10, y: 0)
 point C = coordinate(x: 20, y: 0)
 point D = coordinate(x: 30, y: 0)
 line CD = segment(start: @C, end: @D)
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   line AB = segment(start: @A, end: @B)
   reverse(target: @AB)
 }
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   reverse(target: @CD)
 }

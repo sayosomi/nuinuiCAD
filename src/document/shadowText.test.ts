@@ -263,7 +263,7 @@ describe("advanceShadow 構造ケース(group入れ子・if/else・for・無名�
   it("forブロック本体の編集は同一IDのまま反映される", () => {
     const source = [
       "nui 1",
-      "for i in range(from: 0, count: 3, step: 1) {",
+      "for i in range(min: 0, max: 2, step: 1) {",
       "  point P = coordinate(x: @i * 10, y: 0)",
       "}"
     ].join("\n");

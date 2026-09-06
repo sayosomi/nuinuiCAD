@@ -2146,7 +2146,7 @@ describe("set target/rhs completion (Task 40)", () => {
         "nui 1",
         "let outer: number = 1",
         "if (true) {",
-        "  for i in range(from: 0, count: 2) {",
+        "  for i in range(min: 0, max: 1, step: 1) {",
         "  }",
         "}",
         "let after: number = 2"

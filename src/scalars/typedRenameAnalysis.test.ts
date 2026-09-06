@@ -77,7 +77,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("allows a safe rename of a property binding reference", () => {
-    const compiled = compile(["nui 1", "let flag: boolean = true", "for i in range(from: 0, count: 1, showGenerated: @flag) {", "}"].join("\n"));
+    const compiled = compile(["nui 1", "let flag: boolean = true", "for i in range(min: 0, max: 0, step: 1, showGenerated: @flag) {", "}"].join("\n"));
     const analysis = rename(compiled, "flag", "enabled");
     expect(analysis.verdict).toBe("ok");
     if (analysis.verdict !== "ok") return;
@@ -119,7 +119,7 @@ describe("typed binding rename safety analysis", () => {
   });
 
   it("rejects a same-scope collision against a forGroup iteration binding (D05 shared namespace)", () => {
-    const compiled = compile(["nui 1", "for loopVar in range(from: 0, count: 2) {", "  const a: number = 1", "}"].join("\n"));
+    const compiled = compile(["nui 1", "for loopVar in range(min: 0, max: 1, step: 1) {", "  const a: number = 1", "}"].join("\n"));
     const analysis = rename(compiled, "a", "loopVar");
     expect(analysis).toMatchObject({ verdict: "rejected", reason: "same-scope-collision" });
     if (analysis.verdict !== "rejected" || analysis.reason !== "same-scope-collision") return;

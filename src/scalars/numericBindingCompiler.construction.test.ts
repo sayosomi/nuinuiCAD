@@ -21,7 +21,7 @@ describe("construction numeric typed-expression bridge", () => {
       "point P = coordinate(x: @AB.length + 2, y: 0)"
     ].join("\n"),
     [
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = coordinate(x: @i + 2, y: 0)",
       "}"
     ].join("\n"),
@@ -58,7 +58,7 @@ describe("construction numeric typed-expression bridge", () => {
     const result = compile([
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "for pi in range(from: 0, count: 1, step: 1) {",
+      "for pi in range(min: 0, max: 0, step: 1) {",
       "  point P = offset(from: @Anchor, dx: pi, dy: @pi)",
       "}"
     ].join("\n"));
@@ -76,7 +76,7 @@ describe("construction numeric typed-expression bridge", () => {
     const source = [
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = offset(from: @Anchor, dx: i * 10, dy: 0)",
       "}"
     ].join("\n");
@@ -100,9 +100,9 @@ describe("construction numeric typed-expression bridge", () => {
     const result = compile([
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "for outer in range(from: 0, count: 2, step: 1) {",
+      "for outer in range(min: 0, max: 1, step: 1) {",
       "  point Outer = offset(from: @Anchor, dx: outer * 10, dy: 0)",
-      "  for inner in range(from: 0, count: 2, step: 1) {",
+      "  for inner in range(min: 0, max: 1, step: 1) {",
       "    point Nested = offset(from: @Anchor, dx: outer + inner, dy: 0)",
       "  }",
       "}"
@@ -122,9 +122,9 @@ describe("construction numeric typed-expression bridge", () => {
     const source = [
       "nui 1",
       "point Anchor = coordinate(x: 0, y: 0)",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point Outer = offset(from: @Anchor, dx: i, dy: 0)",
-      "  for i in range(from: 0, count: 2, step: 1) {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
       "    point Inner = offset(from: @Anchor, dx: i, dy: 0)",
       "  }",
       "}"
@@ -147,7 +147,7 @@ describe("construction numeric typed-expression bridge", () => {
       "point B = coordinate(x: 3, y: 4)",
       "line AB = segment(start: @A, end: @B)",
       "point Measurement = coordinate(x: distance(A, B), y: 0)",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = offset(from: @A, dx: @i + @AB.length + sqrt(9), dy: 0)",
       "}"
     ].join("\n"));

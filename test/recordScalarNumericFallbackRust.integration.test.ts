@@ -18,7 +18,7 @@ describe("SAY-128 record scalar mixed numeric fallback parity", () => {
       "record Config(amount: number)",
       "const config: Config = Config(amount: 12)",
       "const offset: number = 2",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  point P = coordinate(x: @config.amount + @offset + @i, y: 0)",
       "}"
     ].join("\n"));

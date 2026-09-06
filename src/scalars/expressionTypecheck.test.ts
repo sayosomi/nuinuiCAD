@@ -732,7 +732,7 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
   });
 
   it("infers an implicit number type for a resolved iteration binding (null declaredType)", () => {
-    const catalog = catalogFor(["for i in range(from: 0, count: 2) {", "  const use: number = @i", "}"].join("\n"));
+    const catalog = catalogFor(["for i in range(min: 0, max: 1, step: 1) {", "  const use: number = @i", "}"].join("\n"));
     const resolution = resolveBindingReferenceForTests(catalog, "i", { scopeId: "for:stable-0", statementIndex: 1 });
     expect(resolution.kind).toBe("resolved");
     if (resolution.kind === "resolved") expect(resolution.binding.kind).toBe("iteration");
@@ -743,9 +743,9 @@ describe("typecheckScalarExpression / reference binding ID attachment", () => {
 
   it("resolves interleaved references across a tree in correct left-to-right order", () => {
     const catalog = catalogFor([
-      "for a in range(from: 0, count: 1) {",
-      "  for b in range(from: 0, count: 1) {",
-      "    for c in range(from: 0, count: 1) {",
+      "for a in range(min: 0, max: 0, step: 1) {",
+      "  for b in range(min: 0, max: 0, step: 1) {",
+      "    for c in range(min: 0, max: 0, step: 1) {",
       "      const use: number = @a",
       "    }",
       "  }",

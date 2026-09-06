@@ -396,8 +396,8 @@ export type ConditionalGroupElement = CadElementBase & {
 export type ForGroupElement = CadElementBase & {
   type: "forGroup";
   variableName: string;
-  start: NumericValue;
-  count: NumericValue;
+  min: NumericValue;
+  max: NumericValue;
   step: NumericValue;
   showGenerated: boolean;
 };

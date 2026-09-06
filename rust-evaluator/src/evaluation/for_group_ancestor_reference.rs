@@ -247,8 +247,8 @@ fn remap_element_references(
             remap_numeric_field(object, "condition", id_map);
         }
         Some("forGroup") => {
-            remap_numeric_field(object, "start", id_map);
-            remap_numeric_field(object, "count", id_map);
+            remap_numeric_field(object, "min", id_map);
+            remap_numeric_field(object, "max", id_map);
             remap_numeric_field(object, "step", id_map);
         }
         Some("freePoint") => {

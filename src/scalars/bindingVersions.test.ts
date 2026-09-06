@@ -88,7 +88,7 @@ describe("binding version graph", () => {
     const source = [
       "nui 1",
       "if (true) {",
-      "  for i in range(from: 0, count: 2) {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",
@@ -128,7 +128,7 @@ describe("binding version graph", () => {
     const source = [
       "nui 1",
       "if (true) {",
-      "  for i in range(from: 0, count: 2) {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
       "    let x: number = 1",
       "    set x = 2",
       "  }",

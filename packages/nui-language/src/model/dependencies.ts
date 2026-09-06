@@ -86,8 +86,8 @@ export const getDirectParentIds = (
         ].map((reference) => reference.elementId);
       case "forGroup":
         return [
-          ...extractNumericExpressionReferences(element.start),
-          ...extractNumericExpressionReferences(element.count),
+          ...extractNumericExpressionReferences(element.min),
+          ...extractNumericExpressionReferences(element.max),
           ...extractNumericExpressionReferences(element.step)
         ].map((reference) => reference.elementId);
       case "freePoint":

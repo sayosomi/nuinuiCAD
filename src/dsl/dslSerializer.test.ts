@@ -36,7 +36,7 @@ const buildElements = () => {
       "mirrorMove(targets: [@AB], axis1: @A, axis2: @B, id: e5)",
       "if (1) {",
       "}",
-      "for i in range(from: 0,count: 5,step: 1,showGenerated: false, id: e7) {",
+      "for i in range(min: 0, max: 4, step: 1,showGenerated: false, id: e7) {",
       "}",
       'image img = image(source: "assets/ref.png",origin: @A,scale: 1,angleDeg: 0,mirrorX: false, id: e8)',
       "point hidden = coordinate(x: 5,y: 5, id: p8,state: disabled)"
@@ -214,7 +214,7 @@ describe("serializeElementsToDsl flat output", () => {
         id: e5,
       )
       if (1)
-      for i in range(from: 0, count: 5, step: 1)
+      for i in range(min: 0, max: 4, step: 1)
       image img = image(
         source: "assets/ref.png",
         origin: @p1,

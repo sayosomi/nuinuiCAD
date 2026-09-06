@@ -41,7 +41,7 @@ describe("nui 1 binding resolution", () => {
   it("keeps the forGroup iteration slot in its lexical scope", () => {
     const catalog = catalogFor([
       "nui 1",
-      "for i in range(from: 0, count: 2) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const step: number = @i",
       "}"
     ].join("\n"));

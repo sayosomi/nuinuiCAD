@@ -70,9 +70,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         environment: &mut ForGroupMutationEnvironment<scalars::ScalarEvaluation>,
         template_for_group: &Value,
         instance_for_group: &Value,
-        start: f64,
-        count: usize,
-        step: f64,
+        iteration_values: &[f64],
         show_generated: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
@@ -110,9 +108,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
         resolver.run_for_group(
             &template_for_group_id,
             environment,
-            (0..count)
-                .map(|iteration_index| start + iteration_index as f64 * step)
-                .collect(),
+            iteration_values.to_vec(),
             statements,
             state,
             |resolver, environment, context, state| {
@@ -253,7 +249,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 .iter()
                 .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
                 .expect("generated forGroup must retain its source template");
-            let Some((start, count, step)) =
+            let Some(nested_iteration_values) =
                 for_group_loop_values(&generated_element, &local_variables, state)
             else {
                 return Ok(ForGroupMutationRunOutcome::Completed);
@@ -272,9 +268,7 @@ impl<'a> ForGroupMutationRuntime<'a> {
                 environment,
                 template_for_group,
                 &generated_element,
-                start,
-                count,
-                step,
+                &nested_iteration_values,
                 nested_show_generated,
                 &child_ancestor_iteration_variables,
                 ancestor_element_id_map,

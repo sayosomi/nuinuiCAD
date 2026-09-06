@@ -19,7 +19,7 @@ if (condition) {
   ...
 }
 
-for i in range(from: 0, count: 3, step: 1) {
+for i in range(min: 0, max: 2, step: 1) {
   ...
 }
 ```
@@ -30,11 +30,17 @@ The branches are separate scopes, and a declaration in one branch is not
 available in the other.
 
 The `for` iteration variable is an immutable, body-only `number` binding and is
-referenced as `@i` in typed expressions. `from`, `count`, and `step` are
-numeric expressions; `step` defaults to `1`. Invalid range values are
-evaluation diagnostics. The variable is not added to the surrounding scope.
-`showGenerated` controls whether generated rows are shown; it does not change
-the values produced by the loop.
+referenced as `@i` in typed expressions. `min`, `max`, and `step` are required
+numeric expressions. The range is ascending only: `min` must be less than or
+equal to `max`, and `step` must be greater than zero. Values are generated as
+`min + n * step` while they are less than or equal to `max`; the final value is
+never clamped to `max`, so `max` is included only when the sequence reaches it
+exactly. Equal bounds produce one value, and a step larger than the interval
+still produces `min` once. Invalid, non-finite, or over-limit ranges are
+evaluation diagnostics. The canonical spacing is `range(min: ..., max: ...,
+step: ...)`. The variable is not added to the surrounding scope.
+`showGenerated` remains a for-control option; it controls whether generated
+rows are shown and does not change the range values.
 
 Containers inherit their ancestors' activity and drawing modifiers. A visible
 container evaluates and draws eligible children, a hidden container evaluates
@@ -51,7 +57,7 @@ group Front {
 if (@show) {
   point B = coordinate(x: 10, y: 0)
 }
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point Notch = coordinate(x: @i * 10, y: 5)
 }
 ```

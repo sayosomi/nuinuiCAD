@@ -171,7 +171,7 @@ describe("planExtractModule checkpoint 9 bare mutations", () => {
       "group Pocket {",
       "  line A = segment(start: (0, 0), end: (10, 0))",
       "  if (true) {",
-      "    for i in range(from: 0, count: 1, step: 1) {",
+      "    for i in range(min: 0, max: 0, step: 1) {",
       "      extend(end: @A.end, to: @To)",
       "    }",
       "  }",
