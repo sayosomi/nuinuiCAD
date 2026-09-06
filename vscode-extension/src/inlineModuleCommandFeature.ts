@@ -208,6 +208,9 @@ const proofRangeEqual = (
   statement.documentRange.from === proof.sourceRange.from &&
   statement.documentRange.to === proof.sourceRange.to;
 
+const isProofObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 /** Re-proves Canvas-local runtime tokens against the fresh Extension Host materialization. */
 export const reproveInlineModuleCanvasTargets = ({
   publication,
@@ -229,16 +232,31 @@ export const reproveInlineModuleCanvasTargets = ({
 
   const resolved: Array<{ target: InlineModuleTargetIdentity; statementIndex: number }> = [];
   const seenStatementIndexes = new Set<number>();
-  for (const proof of publication.targets) {
+  for (const proofValue of publication.targets as readonly unknown[]) {
+    if (!isProofObject(proofValue)) return [];
+    const sourceRange = proofValue.sourceRange;
+    const sourceRangeFrom = isProofObject(sourceRange) ? sourceRange.from : undefined;
+    const sourceRangeTo = isProofObject(sourceRange) ? sourceRange.to : undefined;
     if (
-      !Number.isInteger(proof.sourceStatementIndex) ||
-      proof.sourceStatementIndex < 0 ||
-      !Array.isArray(proof.sourceStatementPath) ||
-      proof.sourceStatementPath.length === 0 ||
-      proof.sourceStatementPath.some((index) => !Number.isInteger(index) || index < 0) ||
-      typeof proof.sourceStatementId !== "string" ||
-      proof.sourceStatementId.length === 0
-    ) continue;
+      typeof proofValue.runtimeElementId !== "string" ||
+      proofValue.runtimeElementId.length === 0 ||
+      !Number.isInteger(proofValue.sourceStatementIndex) ||
+      proofValue.sourceStatementIndex < 0 ||
+      !Array.isArray(proofValue.sourceStatementPath) ||
+      proofValue.sourceStatementPath.length === 0 ||
+      proofValue.sourceStatementPath.some((index) => !Number.isInteger(index) || index < 0) ||
+      typeof proofValue.sourceStatementId !== "string" ||
+      proofValue.sourceStatementId.length === 0 ||
+      !isProofObject(sourceRange) ||
+      typeof sourceRangeFrom !== "number" ||
+      !Number.isInteger(sourceRangeFrom) ||
+      sourceRangeFrom < 0 ||
+      typeof sourceRangeTo !== "number" ||
+      !Number.isInteger(sourceRangeTo) ||
+      sourceRangeTo <= sourceRangeFrom
+    ) return [];
+
+    const proof = proofValue as unknown as VscodeInlineModuleCanvasTargetProof;
 
     const candidate = moduleInstanceHostProjectionFor({
       sourceStatementPath: proof.sourceStatementPath,
@@ -253,8 +271,7 @@ export const reproveInlineModuleCanvasTargets = ({
       !proofRangeEqual(statement, proof) ||
       seenStatementIndexes.has(candidate.statementIndex)
     ) {
-      if (candidate && seenStatementIndexes.has(candidate.statementIndex)) return [];
-      continue;
+      return [];
     }
     seenStatementIndexes.add(candidate.statementIndex);
     resolved.push({

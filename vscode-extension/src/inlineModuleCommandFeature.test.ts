@@ -351,6 +351,119 @@ describe("VS Code Inline Module command feature", () => {
     })).toEqual([]);
   });
 
+  it("rejects the whole multi-target publication when one structural proof fails", () => {
+    const producerSession = createLanguageAnalysisSession(source);
+    const producerSourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: producerSession.getSourceRevision()
+    };
+    const producerCompiled = currentCompiledSemanticSnapshotFor(producerSession, producerSourceSnapshot)!.compiled;
+    const consumerSession = createLanguageAnalysisSession(source);
+    const consumerSourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: consumerSession.getSourceRevision()
+    };
+    const consumerCompiled = currentCompiledSemanticSnapshotFor(consumerSession, consumerSourceSnapshot)!.compiled;
+    const producerRuntimeEntries = producerCompiled.moduleMaterialization!.executionStatements.filter(
+      (entry) => entry.type === "moduleInstance"
+    );
+    expect(producerRuntimeEntries.length).toBeGreaterThanOrEqual(2);
+    if (producerRuntimeEntries.length < 2) return;
+
+    const proofs = inlineModuleCanvasTargetProofsFor({
+      source: producerSourceSnapshot,
+      compiled: producerCompiled,
+      elements: producerRuntimeEntries.map((entry) => ({
+        id: entry.runtimeElementId,
+        name: entry.statement.name,
+        type: "moduleInstance",
+        activity: "visible"
+      })) as never,
+      selectedElementIds: producerRuntimeEntries.map((entry) => entry.runtimeElementId),
+      moduleMaterialization: producerCompiled.moduleMaterialization
+    });
+    expect(proofs).toHaveLength(2);
+    if (proofs.length !== 2) return;
+
+    const hostTargets = proofs.map((proof) => ({
+      documentKey: null,
+      statementId: consumerCompiled.statementMap!.statementIdByStatementIndex!.get(proof.sourceStatementIndex)
+    }));
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { type: "inlineModuleCanvasTargetsPublication", documentVersion: 1, normalizedSource: source, targets: [proofs[0]!] },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([hostTargets[0]]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { type: "inlineModuleCanvasTargetsPublication", documentVersion: 1, normalizedSource: source, targets: [proofs[1]!] },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([hostTargets[1]]);
+
+    const corruptedProofs = [
+      proofs[0]!,
+      { ...proofs[1]!, sourceStatementPath: [...proofs[1]!.sourceStatementPath, 999] }
+    ];
+    expect(reproveInlineModuleCanvasTargets({
+      publication: {
+        type: "inlineModuleCanvasTargetsPublication",
+        documentVersion: 1,
+        normalizedSource: source,
+        targets: corruptedProofs
+      },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([]);
+  });
+
+  it("rejects malformed runtime proofs without throwing", () => {
+    const session = createLanguageAnalysisSession(source);
+    const sourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: session.getSourceRevision()
+    };
+    const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)!.compiled;
+    const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance");
+    expect(runtimeEntry).toBeDefined();
+    if (!runtimeEntry) return;
+    const proofs = inlineModuleCanvasTargetProofsFor({
+      source: sourceSnapshot,
+      compiled,
+      elements: [{
+        id: runtimeEntry.runtimeElementId,
+        name: runtimeEntry.statement.name,
+        type: "moduleInstance",
+        activity: "visible"
+      } as never],
+      selectedElementIds: [runtimeEntry.runtimeElementId],
+      moduleMaterialization: compiled.moduleMaterialization
+    });
+    expect(proofs).toHaveLength(1);
+    if (proofs.length !== 1) return;
+    const publication = {
+      type: "inlineModuleCanvasTargetsPublication" as const,
+      documentVersion: 1,
+      normalizedSource: source,
+      targets: proofs
+    };
+
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { ...publication, targets: [null as never] },
+      source: sourceSnapshot,
+      compiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { ...publication, targets: ["not-a-proof" as never] },
+      source: sourceSnapshot,
+      compiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { ...publication, targets: [{ ...proofs[0]!, sourceRange: null as never }] },
+      source: sourceSnapshot,
+      compiled
+    })).toEqual([]);
+  });
+
   it("forwards the execution-time policy unchanged to the planner", async () => {
     const policySource = [
       "nui 1",
