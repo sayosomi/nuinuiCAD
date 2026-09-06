@@ -28,6 +28,7 @@ import {
   presentCoordinatePointConversionResult,
   type CoordinatePointConversionOutputTarget
 } from "./coordinatePointConversionPresentation";
+import { nativeShowQuickPick } from "./nativeQuickInput";
 import type {
   VscodeCanvasObservationElementSource,
   VscodeCanvasObservationSnapshot
@@ -882,7 +883,7 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     activeNativeRequest = native;
     const displayLanguage = displayLanguageFor();
     const translator = coordinatePointConversionTranslatorFor(displayLanguage);
-    const selected = await vscode.window.showQuickPick(nativeQuickPickItemsFor(started.session, displayLanguage), {
+    const selected = await nativeShowQuickPick(nativeQuickPickItemsFor(started.session, displayLanguage), {
       placeHolder: mode === "xy"
         ? translator("coordinatePointConversion.picker.xyPlaceholder")
         : translator("coordinatePointConversion.picker.anglePlaceholder"),

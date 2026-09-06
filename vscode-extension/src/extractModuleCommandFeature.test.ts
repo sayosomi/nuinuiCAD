@@ -343,7 +343,7 @@ describe("VS Code Extract Module command feature", () => {
     expect(mocks.showQuickPick).toHaveBeenCalledWith([
       { label: "Use module name: PartModule" },
       { label: "Rename module..." }
-    ], { title: "Module name" });
+    ], { title: "Module name", ignoreFocusOut: true });
     expect(apply).toHaveBeenCalledTimes(1);
     const applyCall = apply.mock.calls[0] as unknown as [unknown, number, string, readonly LineSplice[]] | undefined;
     expect(applyCall?.[3].length ?? 0).toBeGreaterThan(0);
@@ -413,7 +413,7 @@ describe("VS Code Extract Module command feature", () => {
     expect(mocks.showQuickPick).toHaveBeenCalledWith([
       { label: "Module 名に PartModule を使用" },
       { label: "Module 名を変更..." }
-    ], { title: "Module 名" });
+    ], { title: "Module 名", ignoreFocusOut: true });
     expect(apply).toHaveBeenCalledTimes(1);
     feature.dispose();
   });

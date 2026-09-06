@@ -190,6 +190,10 @@ Global shortcuts must not interfere with normal text and number entry. When an
 `input`, `textarea`, `select`, or `contenteditable` element is focused,
 ordinary typing and editing shortcuts should continue to work normally.
 
+All nuinuiCAD-owned native VS Code Quick Inputs use focus-out persistence
+through the shared native Quick Input owner. Incidental focus movement is never
+a cancellation signal; cancellation remains explicit.
+
 Do not choose geometry references from large static dropdowns. Pattern documents
 can grow to hundreds or thousands of elements, so references should use scalable
 selection UI such as canvas picking, searchable construction lists,

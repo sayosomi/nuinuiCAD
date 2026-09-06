@@ -17,6 +17,7 @@ import {
   normalizedSourceFor,
   vscodeRangeForNormalized
 } from "./sourceOffsetAdapter";
+import { nativeShowQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_GEOMETRY_REFERENCE_RETARGET_COMMAND_ID = "nuinuiCAD.replaceGeometryReferences";
 export const VSCODE_GEOMETRY_REFERENCE_RETARGET_CONTEXT_KEY = "nuinuiCAD.geometryReferenceRetargetSourceTarget";
@@ -192,7 +193,7 @@ export const registerVscodeGeometryReferenceRetargetFeature = ({
     const document = editor.document;
     const documentVersion = document.version;
     const items = quickPickItemsFor(captured.target.candidates, displayLanguage);
-    const selected = await vscode.window.showQuickPick(items, {
+    const selected = await nativeShowQuickPick(items, {
       placeHolder: geometryReferenceRetargetTranslatorFor(displayLanguage)("geometryReferenceRetarget.pickerPlaceholder"),
       matchOnDescription: true,
       matchOnDetail: true
