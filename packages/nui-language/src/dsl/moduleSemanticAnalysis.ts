@@ -46,7 +46,7 @@ import {
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
-import { scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -56,6 +56,7 @@ import type {
   ModuleGeometryReferenceSemantic,
   ModuleGeometryReferenceSite,
   ModuleGeometrySourceTarget,
+  ModuleGeometryValueSemantic,
   ModuleParentReferenceSemantic,
   ModuleParentReferenceSite,
   ModuleParentSourceTarget,
@@ -271,6 +272,54 @@ const declarationGeometryPropertyTarget = (
   };
 };
 
+const geometryPropertyTargetForSourceTarget = (
+  target: ModuleGeometrySourceTarget,
+  property: string,
+  pointKey?: string
+): ModuleGeometryPropertySourceTarget | null => {
+  if (target.kind === "geometryValue") {
+    return target.backingTarget
+      ? geometryPropertyTargetForSourceTarget(target.backingTarget, property, pointKey ?? target.pointKey)
+      : null;
+  }
+  if (target.kind === "parameter") {
+    return {
+      ...target,
+      kind: "parameterProperty",
+      property,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
+  if (target.kind === "sourceGeometry") {
+    return {
+      kind: "sourceGeometryProperty",
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      category: target.category,
+      property,
+      ...(pointKey ? { pointKey } : {}),
+      ...(target.identity ? { identity: target.identity } : {})
+    };
+  }
+  if (target.kind === "deferredModuleExport") {
+    return {
+      kind: "deferredModuleExportProperty",
+      instanceStatementId: target.instanceStatementId,
+      instanceStatementIndex: target.instanceStatementIndex,
+      instanceName: target.instanceName,
+      exportName: target.exportName,
+      property,
+      ...(pointKey ? { pointKey } : {}),
+      referenceSpan: target.referenceSpan,
+      instanceSpan: target.instanceSpan,
+      memberSpan: target.memberSpan,
+      ...(target.instanceIdentity ? { instanceIdentity: target.instanceIdentity } : {}),
+      ...(target.exportedIdentity ? { exportedIdentity: target.exportedIdentity } : {})
+    };
+  }
+  return null;
+};
+
 const numericGeometryTargetForStatement = (
   statement: DslStatement | undefined,
   options: { intermediatePointCount?: number } = {}
@@ -375,6 +424,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   );
   const definitionStates: DefinitionState[] = [];
   const stateByIndex = new Map<number, DefinitionState>();
+  const geometryValuesByStatementIndex = new Map<number, ModuleGeometryValueSemantic>();
   const definitions = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "moduleDefinition" }>; statementIndex: number } => entry.statement.kind === "moduleDefinition");
@@ -1133,7 +1183,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const qualifiedScalarExportFor = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
   ): { kind: "scalar"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; declaredType: ScalarType }
-    | { kind: "geometry"; exportedStatementIndex: number; category: DslGeometryDeclarationCategory }
+    | { kind: "geometry"; exportedStatementIndex: number; category: DslGeometryDeclarationCategory | null; interfaceType: ModuleGeometryInterfaceType }
     | { kind: "private"; exportedStatementIndex: number }
     | null => {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
@@ -1149,7 +1199,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         };
       }
       return exported?.kind === "geometry"
-        ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex, category: exported.category }
+        ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex, category: exported.category, interfaceType: exported.interfaceType }
         : null;
     }
     const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
@@ -1176,12 +1226,24 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           declaredType
         };
       }
+      const geometryType = isDslGeometryValueType(exported.statement.valueType)
+        ? exported.statement.valueType.kind
+        : null;
+      if (geometryType) {
+        return {
+          kind: "geometry",
+          exportedStatementIndex: exported.statementIndex,
+          category: null,
+          interfaceType: geometryType
+        };
+      }
     }
     if (exported.statement.kind !== "element" || !isGeometryDeclarationCategory(exported.statement.category)) return null;
     return {
       kind: "geometry",
       exportedStatementIndex: exported.statementIndex,
-      category: exported.statement.category
+      category: exported.statement.category,
+      interfaceType: moduleGeometryInterfaceTypeOfElement(exported.statement) ?? (exported.statement.category === "point" ? "point" : "path")
     };
   };
 
@@ -1638,6 +1700,41 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }));
       return semantic(null, "invalid", null, derivedRole);
     }
+    if (
+      lookup.declaration.kind === "typedDeclaration" &&
+      lookup.declaration.statement.kind === "typedDeclaration" &&
+      isDslGeometryValueType(lookup.declaration.statement.valueType)
+    ) {
+      const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+      const declarationRelated = relatedForDeclaration(lookup.declaration);
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
+        return semantic(null, "outerCapture", null, derivedRole);
+      }
+      const value = geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
+      const actualInterfaceType = value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind;
+      const target = value?.backingTarget
+        ? {
+            kind: "geometryValue" as const,
+            statementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex),
+            statementIndex: lookup.declaration.statementIndex,
+            declaredInterfaceType: actualInterfaceType,
+            backingTarget: value.backingTarget,
+            ...(pointKey ? { pointKey } : {})
+          }
+        : null;
+      const compatible = pointKey
+        ? Boolean(target && actualInterfaceType !== "point" && isLineEndpointPointKey(pointKey))
+        : isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"));
+      if (!target || !compatible) {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+          relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+        }));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      return semantic(target, "resolved", null, derivedRole);
+    }
     const target = declarationGeometryTarget(lookup.declaration, stableStatementIdByIndex);
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(lookup.declaration);
@@ -1794,7 +1891,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (qualified?.kind === "deferred") {
       const exported = qualifiedScalarExportFor(qualified);
       const numericTarget = exported?.kind === "geometry"
-        ? numericGeometryTargetForExport(exported.category, statements[exported.exportedStatementIndex])
+        ? exported.category
+          ? numericGeometryTargetForExport(exported.category, statements[exported.exportedStatementIndex])
+          : numericGeometryStaticTargetForModuleInterface(exported.interfaceType)
         : exported === null
           ? numericGeometryStaticTargetForModuleInterface("path")
           : null;
@@ -1854,6 +1953,24 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "invalidOverlayTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.name}」はparameter/iteration namespaceではありません。`, { presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.name } } }) };
     if (lookup.kind === "invalidTraversal") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${lookup.declaration.name}」はnamespace/containerではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: lookup.declaration.name } } }) };
     const declarationRelated = relatedForDeclaration(lookup.declaration);
+    if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration" && isDslGeometryValueType(lookup.declaration.statement.valueType)) {
+      const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } } }) };
+      }
+      const value = geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
+      const propertyTarget = value?.backingTarget
+        ? geometryPropertyTargetForSourceTarget(value.backingTarget, reference.property)
+        : null;
+      const type = numericGeometryPropertySupportedByStaticTarget(
+        numericGeometryStaticTargetForModuleInterface(value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind),
+        reference.property
+      )
+        ? { kind: "number" as const }
+        : null;
+      if (!propertyTarget || !type) return unknownProperty();
+      return { target: propertyTarget, type, resolution: "resolved" };
+    }
     const geometryTarget = declarationGeometryPropertyTarget(lookup.declaration, stableStatementIdByIndex, reference.property);
     if (!geometryTarget) return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
     const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
@@ -2035,6 +2152,50 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
   const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "typedDeclaration" || moduleOwnerIndexOf(statements, statementIndex) !== null) continue;
+    if (!isDslGeometryValueType(statement.valueType)) continue;
+    const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
+    const initializerSpan = statement.payloadSpans.initializer;
+    let initializer: ModuleGeometryReferenceSemantic | null = null;
+    if (initializerSpan) {
+      const parsedReference = parseDslSourceReference(statement.initializer.trim());
+      if (parsedReference.kind !== "valid") {
+        addLocal(statementIndex, issue(
+          "geometry-value-reference-required",
+          initializerSpan,
+          "geometry value の初期化には既存の @geometry reference を指定してください。",
+          { presentation: { key: "diagnostic.geometry-value-reference-required" } }
+        ));
+      } else {
+        initializer = resolveGeometry(
+          statementIndex,
+          null,
+          statement.initializer,
+          initializerSpan,
+          statement.valueType.kind === "point" ? "point" : "line",
+          {
+            expectedInterfaceType: statement.valueType.kind,
+            allowCoordinate: false,
+            role: statement.valueType.kind === "point" ? "pointReference" : "lineReference"
+          }
+        );
+      }
+    }
+    const value: ModuleGeometryValueSemantic = {
+      statementId,
+      statementIndex,
+      ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, statementId) } : {}),
+      name: statement.name,
+      declaredInterfaceType: statement.valueType.kind,
+      ownerModuleDefinitionStatementId: null,
+      ownerModuleDefinitionStatementIndex: null,
+      exported: Boolean(statement.exported),
+      initializer,
+      backingTarget: initializer?.target ?? null
+    };
+    geometryValuesByStatementIndex.set(statementIndex, value);
+  }
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
   const resolveRootParent = (
     statementIndex: number,
@@ -2368,7 +2529,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       moduleOwnerIndexOf(statements, statementIndex) !== null ||
       !scalarTypeOfDslValueType(statement.valueType) ||
       !statement.payloadSpans.initializer ||
-      (!statement.initializer.includes("::") && !(statement.initializer.includes("@") && statement.initializer.includes(".")))
+      !statement.initializer.includes("@")
     ) continue;
     const initializerSpan = statement.payloadSpans.initializer;
     const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
@@ -2409,6 +2570,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
 
   const localScalarsByDefinition = new Map<number, ModuleDefinitionSemantic["localScalars"]>();
+  const localGeometryValuesByDefinition = new Map<number, ModuleGeometryValueSemantic[]>();
   const bodyStatementsByDefinition = new Map<number, ModuleDefinitionSemantic["bodyStatements"]>();
   const recordValuesByDefinition = new Map<number, ModuleDefinitionSemantic["recordValues"]>();
   const exportsByDefinition = new Map<number, ResolvedModuleExport[]>();
@@ -2437,9 +2599,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           presenceFacts: reference.presenceFacts
         }
       ),
-      resolveBodyHasValue: (statementIndex, reference) => resolveHasValue(statementIndex, definition.statementIndex, reference)
+      resolveBodyHasValue: (statementIndex, reference) => resolveHasValue(statementIndex, definition.statementIndex, reference),
+      registerGeometryValue: (value) => geometryValuesByStatementIndex.set(value.statementIndex, value)
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
+    localGeometryValuesByDefinition.set(definition.statementIndex, body.localGeometryValues);
     bodyStatementsByDefinition.set(definition.statementIndex, body.bodyStatements);
     for (const statement of body.bodyStatements) presenceFactsByStatementIndex.set(statement.statementIndex, new Set(statement.presenceParameterKeys));
     const bodyByStatementIndex = new Map(body.bodyStatements.map((statement) => [statement.statementIndex, statement] as const));
@@ -2576,6 +2740,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     scopeId: definition.declarationScopeId,
     parameters: definition.parameters,
     localScalars: localScalarsByDefinition.get(definition.statementIndex) ?? [],
+    localGeometryValues: localGeometryValuesByDefinition.get(definition.statementIndex) ?? [],
     recordValues: recordValuesByDefinition.get(definition.statementIndex) ?? [],
     bodyStatements: bodyStatementsByDefinition.get(definition.statementIndex) ?? [],
     exports: exportsByDefinition.get(definition.statementIndex) ?? [],
@@ -2639,6 +2804,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   const definitionsByStatementId = new Map(semanticDefinitions.map((definition) => [definition.statementId, definition] as const));
   const instancesByStatementId = new Map(instances.map((instance) => [instance.statementId, instance] as const));
+  const geometryValues = [...geometryValuesByStatementIndex.values()].sort((left, right) => left.statementIndex - right.statementIndex);
+  const geometryValuesByStatementId = new Map(geometryValues.map((value) => [value.statementId, value] as const));
   const result: ModuleSemanticAnalysis = {
     ...(input.documentId ? { documentId: input.documentId } : {}),
     ...(input.source ? { source: input.source } : {}),
@@ -2649,6 +2816,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     callEdges,
     rootScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
+    geometryValues,
+    geometryValuesByStatementId,
+    geometryValuesByStatementIndex,
     rootParentReferencesByStatementId,
     diagnostics
   };

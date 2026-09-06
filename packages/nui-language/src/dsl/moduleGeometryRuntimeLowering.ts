@@ -1,5 +1,5 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
-import { derivedAnchor, isDerivedPointKeyForGeometryCategory, referenceAnchor } from "../model/pointAnchors";
+import { derivedAnchor, isDerivedPointKeyForGeometryCategory, isLineEndpointPointKey, referenceAnchor } from "../model/pointAnchors";
 import type { CadElement, ElementId, PointAnchor } from "../types/geometry";
 import { resolveAnchor as resolveAnchorFromDsl, resolveEndpoint as resolveEndpointFromDsl, resolveId as resolveIdFromDsl } from "./dslReferences";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
@@ -16,7 +16,8 @@ import type {
 } from "./moduleSemanticTypes";
 import {
   isModuleGeometryInterfaceAssignable,
-  moduleGeometryInterfaceTypeOfElement
+  moduleGeometryInterfaceTypeOfElement,
+  type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
 import { encodeIdentityTuple } from "../document/identityTuple";
 
@@ -45,8 +46,12 @@ export type ModuleGeometryPropertyRuntimeTarget =
 
 export const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 
-export const geometryKindOfCategory = (category: Extract<ResolvedModuleExport, { kind: "geometry" }>["category"]): "point" | "line" | null =>
-  category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
+export const geometryKindOfCategory = (
+  category: Extract<ResolvedModuleExport, { kind: "geometry" }>["category"],
+  interfaceType: ModuleGeometryInterfaceType
+): "point" | "line" | null =>
+  interfaceType === "point" ? "point" : interfaceType === "line" || interfaceType === "path" ? "line" :
+    category === "point" ? "point" : category === "line" || category === "curve" || category === "arc" ? "line" : null;
 
 const sourceForStatement = (statement: DslStatement): string => {
   const values = statement.kind === "moduleInstance"
@@ -91,10 +96,12 @@ export const diagnosticForExport = (
 ): DslDiagnostic | null => {
   const namespaceDiagnostic = diagnosticForExportNamespace(statement, target, definition, statements, exportEntry);
   if (namespaceDiagnostic || !definition || !exportEntry) return namespaceDiagnostic;
-  const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
+  const actualInterfaceType = exportEntry.exported.interfaceType ?? moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
   const validDerivedPoint = target.pointKey !== undefined &&
     target.expectedGeometryKind === "point" &&
-    isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey);
+    (exportEntry.exported.category
+      ? isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey)
+      : actualInterfaceType !== "point" && isLineEndpointPointKey(target.pointKey));
   const typeCompatible = target.pointKey === undefined
     ? isModuleGeometryInterfaceAssignable(actualInterfaceType, target.expectedInterfaceType ?? target.expectedGeometryKind)
     : validDerivedPoint;
@@ -121,7 +128,7 @@ export const diagnosticForExportNamespace = (
   if (!definition) return null;
   if (!exportEntry) {
     const privateMember = definition.bodyStatements.some((body) =>
-      body.statementKind === "element" && statements[body.statementIndex]?.name === target.exportName
+      statements[body.statementIndex]?.name === target.exportName
     );
     return {
       severity: "error",
@@ -204,6 +211,11 @@ export const sourceAliasForTarget = (
       }
     }
     return undefined;
+  }
+  if (target.kind === "geometryValue") {
+    const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath);
+    if (!alias) return undefined;
+    return lowerAliasWithPointKey(alias, target.pointKey ?? target.backingTarget.pointKey);
   }
   if (target.kind === "sourceGeometry") {
     let ownerPath: readonly string[] = [];

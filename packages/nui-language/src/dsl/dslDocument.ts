@@ -48,7 +48,7 @@ import {
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
-import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
@@ -1105,6 +1105,10 @@ export const compileDslDocument = (
   const hasModuleStatements = parsed.statements.some(
     (statement) => statement.kind === "moduleDefinition" || statement.kind === "moduleInstance"
   );
+  const hasGeometryValueStatements = parsed.statements.some(
+    (statement) => statement.kind === "typedDeclaration" && statement.valueType?.kind !== "array" &&
+      (statement.valueType?.kind === "point" || statement.valueType?.kind === "line" || statement.valueType?.kind === "path")
+  );
   const hasCompilableGeometryStatements = parsed.statements.some(
     (statement, statementIndex) => isElementDslStatement(statement) && includeStatement(statement, statementIndex)
   );
@@ -1318,9 +1322,9 @@ export const compileDslDocument = (
     : undefined;
   const sourceSemanticCompilation = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId) ?? locallyAnalyzedSourceSemanticCompilation;
   // The source semantic projection is also useful for Definition Query in a
-  // document without Modules. Keep Module runtime/lowering paths gated by the
-  // existing hasModuleStatements condition below.
-  const moduleSemanticCompilation = hasModuleStatements ? sourceSemanticCompilation : undefined;
+  // document without Modules. Geometry values also need this path so their
+  // source-only aliases can be lowered at existing geometry consumers.
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements ? sourceSemanticCompilation : undefined;
   if (moduleSemanticCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     const exportBindingSeeds = moduleScalarExportBindingSeeds(
       moduleSemanticCompilation,
@@ -1337,7 +1341,7 @@ export const compileDslDocument = (
       : exportBindingSeeds;
     const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
-        property.target?.kind === "deferredModuleExportProperty"
+        property.target?.kind === "sourceGeometryProperty" || property.target?.kind === "deferredModuleExportProperty"
       ));
     if (usableExportBindingSeeds.length > 0 || hasRootGeometryRuntimeOccurrences) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
@@ -1493,7 +1497,18 @@ export const compileDslDocument = (
             : undefined;
           const property = site?.expression.geometryProperties.find((candidate) => candidate.span.start === node.span.start);
           const target = property?.target;
-          if (!property?.type || target?.kind !== "deferredModuleExportProperty") return null;
+          if (!property?.type || !target) return null;
+          if (target.kind === "sourceGeometryProperty") {
+            const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+            if (!elementId) return null;
+            return {
+              elementId,
+              property: target.property,
+              targetSourceOrder: target.statementIndex,
+              type: property.type
+            };
+          }
+          if (target.kind !== "deferredModuleExportProperty") return null;
           return {
             elementId: target.instanceStatementId,
             property: target.property,
@@ -1511,27 +1526,29 @@ export const compileDslDocument = (
           );
           const target = occurrence?.reference.target;
           if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return undefined;
-          if (target.kind === "parameter") {
+          const unwrapped = unwrapModuleGeometrySourceTarget(target);
+          const pointKey = unwrapped.pointKey;
+          if (unwrapped.target.kind === "parameter") {
             return {
-              statementId: target.definitionStatementId,
+              statementId: unwrapped.target.definitionStatementId,
               statementIndex: -1,
               geometryType: expectedGeometryType,
-              ...(target.pointKey ? { pointKey: target.pointKey } : {})
+              ...(pointKey ? { pointKey } : {})
             };
           }
-          if (target.kind === "sourceGeometry") {
+          if (unwrapped.target.kind === "sourceGeometry") {
             return {
-              statementId: target.statementId,
-              statementIndex: target.statementIndex,
+              statementId: unwrapped.target.statementId,
+              statementIndex: unwrapped.target.statementIndex,
               geometryType: expectedGeometryType,
-              ...(target.pointKey ? { pointKey: target.pointKey } : {})
+              ...(pointKey ? { pointKey } : {})
             };
           }
           return {
-            statementId: target.instanceStatementId,
-            statementIndex: target.instanceStatementIndex,
+            statementId: unwrapped.target.instanceStatementId,
+            statementIndex: unwrapped.target.instanceStatementIndex,
             geometryType: expectedGeometryType,
-            ...(target.pointKey ? { pointKey: target.pointKey } : {})
+            ...(pointKey ? { pointKey } : {})
           };
         }
       });

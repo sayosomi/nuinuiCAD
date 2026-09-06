@@ -40,6 +40,9 @@ export const dslTypedDeclarationTypeNames: readonly string[] = [
   NUMBER_TYPE_NAME,
   ...Object.keys(KNOWN_SIMPLE_TYPES),
   dslChoiceTypeName,
+  "point",
+  "line",
+  "path",
   ...dslGeometryArrayTypeNames
 ];
 
@@ -234,9 +237,9 @@ const isBareTypeName = (text: string) =>
 
 /**
  * Parses a declaration-facing value type. Built-in scalar spellings retain
- * their existing parser/diagnostics; geometry arrays are projected into the
- * canonical one-dimensional value type; any other bare identifier becomes an
- * unresolved nominal record type.
+ * their existing parser/diagnostics; single geometry and geometry arrays are
+ * projected into the canonical value type; any other bare identifier becomes
+ * an unresolved nominal record type.
  */
 export const parseDslDeclaredValueType = (
   source: string,
@@ -244,6 +247,9 @@ export const parseDslDeclaredValueType = (
   diagnostics: DslTypeDiagnostic[]
 ): DslDeclaredValueTypeParseResult => {
   const text = source.slice(typeSpan.start, typeSpan.end);
+  if (text === "point" || text === "line" || text === "path") {
+    return { valueType: { kind: text }, choiceOptionSpans: [] };
+  }
   const geometryValueType = dslValueTypeOfGeometryArrayTypeName(text);
   if (geometryValueType) return { valueType: geometryValueType, choiceOptionSpans: [] };
 
@@ -255,7 +261,7 @@ export const parseDslDeclaredValueType = (
     CHOICE_HEAD.test(text);
   if (builtInScalarSyntax || !isBareTypeName(text)) {
     const parsed = parseDslScalarType(source, typeSpan, diagnostics, {
-      acceptedTypeDescription: "number/string/boolean/choice(...)/point[]/line[]/path[]"
+      acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path/point[]/line[]/path[]"
     });
     return { valueType: parsed.declaredType, choiceOptionSpans: parsed.choiceOptionSpans, ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {}) };
   }

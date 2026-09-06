@@ -5,6 +5,9 @@
 Typed scalar declarations use an explicit type annotation and initializer:
 
 - `const name: type = expression` creates a read-only scalar or geometry array.
+- `const name: point|line|path = @reference` creates a read-only, non-drawable
+  geometry alias. In this form the initializer must be an existing geometry
+  reference; construction calls are not value initializers.
 - `let name: type = expression` creates a mutable scalar binding.
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.
@@ -14,6 +17,10 @@ described in [Constructions](constructions.md). Records are also `const`-only;
 see [Records](records.md). A declaration is visible only after its source
 position and only within its lexical scope. Names cannot be used to reorder
 evaluation.
+
+`let` is not allowed for single-geometry values. `line` aliases can be used
+where `path` is expected, but a `path` alias cannot be used where `line` is
+required.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

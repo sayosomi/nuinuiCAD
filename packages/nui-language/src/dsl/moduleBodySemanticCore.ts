@@ -20,6 +20,7 @@ import type {
   ModuleDefinitionSemantic,
   ModuleGeometryReferenceRole,
   ModuleGeometryReferenceSemantic,
+  ModuleGeometryValueSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
   ModuleSourceTarget,
@@ -36,7 +37,9 @@ import type {
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
 import { presenceFactsForSemanticFalse, presenceFactsForSemanticTruth } from "./moduleScalarExpression";
-import { scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { parseDslSourceReference } from "./dslReferenceTokens";
+import { moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
 
 export type ModuleBodyDefinition = {
   statement: Extract<DslStatement, { kind: "moduleDefinition" }>;
@@ -67,6 +70,7 @@ type ResolveGeometry = (
   options?: {
     allowCoordinate?: boolean;
     allowNone?: boolean;
+    expectedInterfaceType?: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType;
     role?: ModuleGeometryReferenceRole;
     scalarResolver?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
     bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
@@ -81,6 +85,7 @@ type ResolvePlainScalarTarget = (
 ) => ModuleScalarReferenceResolution;
 export type ModuleBodySemanticResult = {
   localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][];
+  localGeometryValues: ModuleGeometryValueSemantic[];
   bodyStatements: ModuleBodyStatementSemantic[];
   exports: ResolvedModuleExport[];
 };
@@ -132,7 +137,8 @@ export const analyzeModuleBody = ({
   resolveBodyBareScalar,
   resolveBodyGeometryProperty,
   resolveBodyGeometryBuiltin,
-  resolveBodyHasValue
+  resolveBodyHasValue,
+  registerGeometryValue
 }: {
   definition: ModuleBodyDefinition;
   statements: readonly DslStatement[];
@@ -147,8 +153,10 @@ export const analyzeModuleBody = ({
   resolveBodyGeometryProperty: (statementIndex: number, reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   resolveBodyGeometryBuiltin: (statementIndex: number, reference: ModuleGeometryBuiltinReferenceInput) => ModuleGeometryReferenceSemantic;
   resolveBodyHasValue: (statementIndex: number, reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
+  registerGeometryValue: (value: ModuleGeometryValueSemantic) => void;
 }): ModuleBodySemanticResult => {
   const localScalars: NonNullable<ModuleDefinitionSemantic["localScalars"]>[number][] = [];
+  const localGeometryValues: ModuleGeometryValueSemantic[] = [];
   const bodyStatements: ModuleBodyStatementSemantic[] = [];
   const exports: ResolvedModuleExport[] = [];
   const exportByName = new Map<string, ResolvedModuleExport>();
@@ -386,6 +394,76 @@ export const analyzeModuleBody = ({
 
     if (statement.kind === "typedDeclaration") {
       if (!statementId || !bodySemantic) continue;
+      if (isDslGeometryValueType(statement.valueType)) {
+        const initializerSpan = statement.payloadSpans.initializer;
+        let initializer: ModuleGeometryReferenceSemantic | null = null;
+        if (initializerSpan) {
+          const parsedReference = parseDslSourceReference(statement.initializer.trim());
+          if (parsedReference.kind !== "valid") {
+            addLocal(statementIndex, {
+              code: "geometry-value-reference-required",
+              span: initializerSpan,
+              message: "geometry value の初期化には既存の @geometry reference を指定してください。",
+              presentation: { key: "diagnostic.geometry-value-reference-required" }
+            });
+          } else {
+            initializer = resolveGeometry(
+              statementIndex,
+              definition.statementIndex,
+              statement.initializer,
+              initializerSpan,
+              statement.valueType.kind === "point" ? "point" : "line",
+              {
+                expectedInterfaceType: statement.valueType.kind,
+                allowCoordinate: false,
+                role: statement.valueType.kind === "point" ? "pointReference" : "lineReference"
+              }
+            );
+          }
+        }
+        const value: ModuleGeometryValueSemantic = {
+          statementId,
+          statementIndex,
+          name: statement.name,
+          declaredInterfaceType: statement.valueType.kind,
+          ownerModuleDefinitionStatementId: definition.statementId,
+          ownerModuleDefinitionStatementIndex: definition.statementIndex,
+          exported: Boolean(statement.exported),
+          initializer,
+          backingTarget: initializer?.target ?? null
+        };
+        localGeometryValues.push(value);
+        registerGeometryValue(value);
+        if (statement.exported) {
+          if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name) {
+            addLocal(statementIndex, {
+              code: "module-invalid-export",
+              span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
+              message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
+              presentation: { key: "diagnostic.module-invalid-export" }
+            });
+          } else if (initializer?.target) {
+            registerExport({
+              kind: "geometry",
+              ownerModuleDefinitionStatementId: definition.statementId,
+              exportedStatementId: statementId,
+              exportedStatementIndex: statementIndex,
+              sourceOrder: statementIndex,
+              name: statement.name,
+              category: null,
+              interfaceType: statement.valueType.kind,
+              backingTarget: {
+                kind: "geometryValue",
+                statementId,
+                statementIndex,
+                declaredInterfaceType: statement.valueType.kind,
+                backingTarget: initializer.target
+              }
+            }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
+          }
+        }
+        continue;
+      }
       const declaredType = scalarTypeOfDslValueType(statement.valueType);
       const initializerSpan = statement.payloadSpans.initializer;
       const initializer = initializerSpan
@@ -467,7 +545,9 @@ export const analyzeModuleBody = ({
             exportedStatementIndex: statementIndex,
             sourceOrder: statementIndex,
             name: statement.name,
-            category
+            category,
+            interfaceType: moduleGeometryInterfaceTypeOfElement(statement)
+              ?? (category === "point" ? "point" : "path")
           }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
         }
       }
@@ -553,5 +633,5 @@ export const analyzeModuleBody = ({
     }
     if (bodySemantic) bodyStatements.push(bodySemantic);
   }
-  return { localScalars, bodyStatements, exports };
+  return { localScalars, localGeometryValues, bodyStatements, exports };
 };

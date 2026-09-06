@@ -78,8 +78,11 @@ export const buildModuleGeometryRuntime = ({
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
+    if (exported.backingTarget) {
+      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath);
+    }
     const entry = runtimeEntryForBody(moduleMaterialization, path, exported.exportedStatementId);
-    const kind = geometryKindOfCategory(exported.category);
+    const kind = geometryKindOfCategory(exported.category, exported.interfaceType);
     if (!entry || !kind) return undefined;
     return kind === "point"
       ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) }
@@ -111,12 +114,16 @@ export const buildModuleGeometryRuntime = ({
     };
     contextsByPath.set(key, context);
     const exportEntries = new Map<string, ExportEntry>();
-    for (const exported of definition.exports) {
-      if (exported.kind !== "geometry") continue;
-      const alias = exportAliasFor(path, exported);
-      if (alias) exportEntries.set(exported.name, { exported, alias });
-    }
     exportsByPath.set(key, exportEntries);
+    const populateExports = () => {
+      exportEntries.clear();
+      for (const exported of definition.exports) {
+        if (exported.kind !== "geometry") continue;
+        const alias = exportAliasFor(path, exported);
+        if (alias) exportEntries.set(exported.name, { exported, alias });
+      }
+    };
+    populateExports();
     for (const parameter of definition.parameters) {
       if (!moduleRuntimeGeometryKindOf(parameter.type)) continue;
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
@@ -131,6 +138,7 @@ export const buildModuleGeometryRuntime = ({
       const nested = definitionAnalysis.instancesByStatementId.get(body.statementId);
       if (nested) register(nested, path);
     }
+    populateExports();
     return context;
   };
 

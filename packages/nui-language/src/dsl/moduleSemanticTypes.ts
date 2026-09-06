@@ -103,6 +103,15 @@ export type ModuleGeometrySourceTarget =
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
+      kind: "geometryValue";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      declaredInterfaceType: ModuleGeometryInterfaceType;
+      backingTarget: ModuleGeometrySourceTarget;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
+  | {
       kind: "deferredModuleExport";
       instanceStatementId: StatementIdentity;
       instanceStatementIndex: number;
@@ -117,6 +126,19 @@ export type ModuleGeometrySourceTarget =
       instanceIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       exportedIdentity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     };
+
+export const unwrapModuleGeometrySourceTarget = (target: ModuleGeometrySourceTarget): {
+  target: Exclude<ModuleGeometrySourceTarget, { kind: "geometryValue" }>;
+  pointKey?: string;
+} => {
+  let current = target;
+  let pointKey = target.pointKey;
+  while (current.kind === "geometryValue") {
+    pointKey ??= current.pointKey;
+    current = current.backingTarget;
+  }
+  return { target: current, ...(pointKey ? { pointKey } : {}) };
+};
 
 export type ModuleParentSourceTarget = {
   kind: "sourceContainer";
@@ -137,13 +159,14 @@ export type ModuleParentReferenceSemantic = {
 
 export type ModuleGeometryPropertySourceTarget =
   | ModuleRecordFieldSourceTarget
-  | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string })
+  | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string; pointKey?: string })
   | {
       kind: "sourceGeometryProperty";
       statementId: StatementIdentity;
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
       property: string;
+      pointKey?: string;
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
   | {
@@ -153,6 +176,7 @@ export type ModuleGeometryPropertySourceTarget =
       instanceName: string;
       exportName: string;
       property: string;
+      pointKey?: string;
       referenceSpan: DslSpan;
       instanceSpan: DslSpan;
       memberSpan: DslSpan;
@@ -250,6 +274,19 @@ export type ModuleGeometryReferenceSemantic = {
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
+export type ModuleGeometryValueSemantic = {
+  statementId: StatementIdentity;
+  statementIndex: number;
+  identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+  name: string;
+  declaredInterfaceType: ModuleGeometryInterfaceType;
+  ownerModuleDefinitionStatementId: StatementIdentity | null;
+  ownerModuleDefinitionStatementIndex: number | null;
+  exported: boolean;
+  initializer: ModuleGeometryReferenceSemantic | null;
+  backingTarget: ModuleGeometrySourceTarget | null;
+};
+
 export type ResolvedModuleParameter = {
   definitionStatementId: StatementIdentity;
   parameterIndex: number;
@@ -295,7 +332,9 @@ type ResolvedModuleExportBase = {
 
 export type ResolvedModuleGeometryExport = ResolvedModuleExportBase & {
   kind: "geometry";
-  category: DslGeometryDeclarationCategory;
+  category: DslGeometryDeclarationCategory | null;
+  interfaceType: ModuleGeometryInterfaceType;
+  backingTarget?: ModuleGeometrySourceTarget;
 };
 
 export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
@@ -410,6 +449,7 @@ export type ModuleDefinitionSemantic = {
     bindingKind: "const" | "let";
     initializer: ModuleScalarExpressionSemantic | null;
   }[];
+  localGeometryValues: readonly ModuleGeometryValueSemantic[];
   recordValues: readonly ModuleRecordValueSemantic[];
   bodyStatements: readonly ModuleBodyStatementSemantic[];
   exports: readonly ResolvedModuleExport[];
@@ -451,6 +491,10 @@ export type ModuleSemanticAnalysis = {
   rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
+  /** Source-only immutable single-geometry values, including Module locals. */
+  geometryValues: readonly ModuleGeometryValueSemantic[];
+  geometryValuesByStatementId: ReadonlyMap<StatementIdentity, ModuleGeometryValueSemantic>;
+  geometryValuesByStatementIndex: ReadonlyMap<number, ModuleGeometryValueSemantic>;
   /** Source-only parent container references in the root document. */
   rootParentReferencesByStatementId: ReadonlyMap<StatementIdentity, ModuleParentReferenceSite>;
   diagnostics: readonly DslDiagnostic[];

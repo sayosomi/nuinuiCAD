@@ -312,14 +312,14 @@ describe("module completion through the existing CodeMirror pipeline", () => {
     expect(broad?.options.map((option) => option.label)).toEqual(["L", "C", "A"]);
   });
 
-  it("offers path in Module signature type completion without adding geometry to scalar declarations", async () => {
+  it("offers path in both Module signatures and immutable geometry declarations", async () => {
     const moduleSource = "nui 1\nmodule M(input: pa";
     const moduleResult = await completionFor(moduleSource, moduleSource.length);
     expect(moduleResult?.options.map((option) => option.label)).toContain("path");
 
     const scalarSource = "nui 1\nconst value: pa";
     const scalarResult = await completionFor(scalarSource, scalarSource.length);
-    expect(scalarResult?.options.map((option) => option.label)).not.toContain("path");
+    expect(scalarResult?.options.map((option) => option.label)).toContain("path");
   });
 
   it("offers module-body parameters and exports only for a qualified instance", async () => {
