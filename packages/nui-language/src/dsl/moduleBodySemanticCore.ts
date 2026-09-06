@@ -36,6 +36,7 @@ import type {
   ModuleScalarReferenceResolution
 } from "./moduleScalarExpression";
 import { presenceFactsForSemanticFalse, presenceFactsForSemanticTruth } from "./moduleScalarExpression";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type ModuleBodyDefinition = {
   statement: Extract<DslStatement, { kind: "moduleDefinition" }>;
@@ -385,23 +386,24 @@ export const analyzeModuleBody = ({
 
     if (statement.kind === "typedDeclaration") {
       if (!statementId || !bodySemantic) continue;
+      const declaredType = scalarTypeOfDslValueType(statement.valueType);
       const initializerSpan = statement.payloadSpans.initializer;
       const initializer = initializerSpan
         ? analyzeExpression(
             statementIndex,
             statement.initializer,
             initializerSpan,
-            statement.declaredType,
+            declaredType,
             (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
             undefined,
             (reference) => resolveBodyGeometryProperty(statementIndex, reference),
             (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
           )
         : null;
-      localScalars.push({ statementId, statementIndex, name: statement.name, type: statement.declaredType, bindingKind: statement.bindingKind, initializer });
+      localScalars.push({ statementId, statementIndex, name: statement.name, type: declaredType, bindingKind: statement.bindingKind, initializer });
       if (initializer && initializerSpan) bodySemantic.scalarExpressions = [{ parameterKey: null, span: initializerSpan, expression: initializer }];
       if (statement.exported) {
-        if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !statement.declaredType) {
+        if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !declaredType) {
           addLocal(statementIndex, {
             code: "module-invalid-export",
             span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
@@ -416,7 +418,7 @@ export const analyzeModuleBody = ({
             exportedStatementIndex: statementIndex,
             sourceOrder: statementIndex,
             name: statement.name,
-            declaredType: statement.declaredType,
+            declaredType,
             bindingKind: statement.bindingKind
           }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
         }

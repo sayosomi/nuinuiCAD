@@ -29,6 +29,7 @@ import {
 } from "../dsl/dslReferenceTokens";
 import { resolveModuleLexicalPath } from "../dsl/moduleLexicalResolution";
 import type { DslModuleParameter, DslStatement } from "../dsl/dslTypes";
+import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { SourceSnapshot } from "../dsl/logicalStatementSourceMap";
 import type {
   ModuleDefinitionSemantic,
@@ -1296,7 +1297,7 @@ const bodyRequiresUnsupportedTypedLowering = (
   entries: readonly StatementEntry[]
 ): boolean => entries.some(({ statement }) =>
   statement.kind === "typedDeclaration" &&
-  (statement.recordTypeReference !== null || geometryArrayTypeOfTypedDeclaration(statement) !== null)
+  (nominalRecordTypeOfDslValueType(statement.valueType) !== null || geometryArrayTypeOfTypedDeclaration(statement) !== null)
 );
 
 const bodyRangeForDefinition = (
@@ -3395,16 +3396,18 @@ const generatedParameterMappingsFor = (
       child.statement.bindingKind !== "const" ||
       child.statement.name !== parameter.parameterName
     ) return null;
-    const scalarTypeMatches = local.kind === "scalar" && child.statement.declaredType?.kind === local.parameter.parameter.type?.kind;
+    const childScalarType = scalarTypeOfDslValueType(child.statement.valueType);
+    const childRecordType = nominalRecordTypeOfDslValueType(child.statement.valueType);
+    const scalarTypeMatches = local.kind === "scalar" && childScalarType?.kind === local.parameter.parameter.type?.kind;
     const arrayType = local.kind === "geometryArray" ? geometryArrayTypeOfTypedDeclaration(child.statement) : null;
     const arrayTypeMatches = local.kind === "geometryArray" && arrayType?.elementType === local.parameter.arrayType.elementType;
     const recordValue = local.kind === "record"
       ? nextCompiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementIndex.get(child.statementIndex)
       : null;
     const recordTypeMatches = local.kind === "record" &&
-      child.statement.declaredType === null &&
+      childScalarType === null &&
       geometryArrayTypeOfTypedDeclaration(child.statement) === null &&
-      child.statement.recordTypeReference?.name === local.parameter.parameter.recordTypeReference?.name &&
+      childRecordType?.name === local.parameter.parameter.recordTypeReference?.name &&
       recordValue?.typeIdentity === local.parameter.recordTypeIdentity;
     if ((!scalarTypeMatches && !arrayTypeMatches && !recordTypeMatches) || (local.kind === "scalar" && arrayType !== null)) return null;
     const bindingCandidates = local.kind === "scalar"

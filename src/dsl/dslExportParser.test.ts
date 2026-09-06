@@ -46,7 +46,7 @@ describe("DSL exported geometry parser", () => {
     expect(result.declaration?.statement).toMatchObject({
       kind: "typedDeclaration",
       name: "length",
-      declaredType: { kind: "number" },
+      valueType: { kind: "number" },
       exported: true,
       exportSpan: { start: 0, end: 6 }
     });

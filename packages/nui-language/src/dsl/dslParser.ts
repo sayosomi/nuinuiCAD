@@ -11,8 +11,8 @@ import {
   type DslRecordDefinitionStatement,
   type DslRecordParseResult
 } from "./dslRecordParser";
-import { parseDslDeclaredValueType, type DslTypeDiagnostic } from "./dslTypeParser";
 import { annotateGeometryArraySourceTypes } from "./geometryArraySourceAnnotations";
+import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import * as core from "./dslParserCore";
 
 export {
@@ -79,26 +79,6 @@ type RecordEntry = {
   statement: Extract<DslStatement, { kind: "recordDefinition" }>;
   diagnostics: readonly DslDiagnostic[];
   enclosingBeforeInsert: ReturnType<typeof core.dslScopeBeforeParsedLine>;
-};
-
-/**
- * dslParserCore intentionally keeps its existing scalar-facing declaration
- * projection. Recover only the separate source-only record type reference
- * from the already-owned type span so scalar/runtime consumers never see a
- * widened declaredType union. This also covers `export const` because the
- * payload type span survives the export parser projection.
- */
-const attachRecordTypeReferences = (base: ParseDslResult) => {
-  for (const statement of base.statements) {
-    if (statement.kind !== "typedDeclaration") continue;
-    const typeSpan = statement.payloadSpans.type;
-    if (!typeSpan) continue;
-    const logical = base.logicalStatementByRangeFrom.get(statement.documentRange.from);
-    if (!logical) continue;
-    const diagnostics: DslTypeDiagnostic[] = [];
-    const parsed = parseDslDeclaredValueType(logical.logicalText, typeSpan, diagnostics);
-    statement.recordTypeReference = parsed.recordTypeReference;
-  }
 };
 
 const parseRecordEntries = (base: ParseDslResult): RecordEntry[] => {
@@ -195,9 +175,12 @@ const unknownRecordTypeDiagnostics = (
   };
 
   for (const statement of base.statements) {
-    if (statement.kind === "typedDeclaration" && statement.recordTypeReference) {
+    const recordType = statement.kind === "typedDeclaration"
+      ? nominalRecordTypeOfDslValueType(statement.valueType)
+      : null;
+    if (recordType) {
       const span = statement.payloadSpans.type;
-      if (span) add(statement, span, statement.recordTypeReference.name, false);
+      if (span) add(statement, span, recordType.name, false);
       continue;
     }
     if (statement.kind !== "moduleDefinition") continue;
@@ -213,7 +196,6 @@ const unknownRecordTypeDiagnostics = (
 
 export const parseDslSnapshot = (snapshot: SourceSnapshot): ParseDslResult => {
   const base = core.parseDslSnapshot(snapshot);
-  attachRecordTypeReferences(base);
   annotateGeometryArraySourceTypes(base);
   const records = parseRecordEntries(base);
   const recordLines = new Set(records.map((entry) => entry.logical.range.startLine));

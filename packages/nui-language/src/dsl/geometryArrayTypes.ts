@@ -2,6 +2,7 @@ import {
   isModuleGeometryInterfaceAssignable,
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
+import { geometryArrayValueTypeOfDslValueType, type DslArrayValueType, type DslValueType } from "./dslValueTypes";
 
 /** Source-level immutable geometry-array type. Never enters ScalarType/runtime. */
 export type GeometryArrayType = {
@@ -13,11 +14,38 @@ export const dslGeometryArrayTypeNames = ["point[]", "line[]", "path[]"] as cons
 
 export type GeometryArrayTypeName = (typeof dslGeometryArrayTypeNames)[number];
 
-export const parseGeometryArrayTypeName = (text: string): GeometryArrayType | null => {
-  if (text === "point[]") return { kind: "geometryArray", elementType: "point" };
-  if (text === "line[]") return { kind: "geometryArray", elementType: "line" };
-  if (text === "path[]") return { kind: "geometryArray", elementType: "path" };
+const geometryKindOfTypeName = (text: string): ModuleGeometryInterfaceType | null => {
+  if (text === "point[]") return "point";
+  if (text === "line[]") return "line";
+  if (text === "path[]") return "path";
   return null;
+};
+
+/** Convert the existing compatibility shape into the canonical value model. */
+export const dslValueTypeOfGeometryArrayType = (type: GeometryArrayType): DslArrayValueType => ({
+  kind: "array",
+  elementType: { kind: type.elementType }
+});
+
+/** Convert the canonical geometry array subset into the existing compatibility shape. */
+export const geometryArrayTypeOfDslValueType = (valueType: DslValueType | null | undefined): GeometryArrayType | null => {
+  const arrayValueType = geometryArrayValueTypeOfDslValueType(valueType);
+  if (!arrayValueType) return null;
+  const elementType = arrayValueType.elementType.kind;
+  return elementType === "point" || elementType === "line" || elementType === "path"
+    ? { kind: "geometryArray", elementType }
+    : null;
+};
+
+/** Parse the current declaration-facing geometry-array vocabulary into valueType. */
+export const dslValueTypeOfGeometryArrayTypeName = (text: string): DslArrayValueType | null => {
+  const elementType = geometryKindOfTypeName(text);
+  return elementType ? { kind: "array", elementType: { kind: elementType } } : null;
+};
+
+export const parseGeometryArrayTypeName = (text: string): GeometryArrayType | null => {
+  const elementType = geometryKindOfTypeName(text);
+  return elementType ? { kind: "geometryArray", elementType } : null;
 };
 
 export const geometryArrayTypeName = (type: GeometryArrayType): GeometryArrayTypeName => `${type.elementType}[]`;

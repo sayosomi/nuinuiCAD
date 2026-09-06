@@ -5,6 +5,7 @@ import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarType } from "../scalars/types";
+import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 
 export type RecordTypeIdentity = string;
 export type RecordValueIdentity = string;
@@ -421,7 +422,10 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
   }
 
   for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "typedDeclaration" || !statement.recordTypeReference) continue;
+    const recordTypeReference = statement.kind === "typedDeclaration"
+      ? nominalRecordTypeOfDslValueType(statement.valueType)
+      : null;
+    if (statement.kind !== "typedDeclaration" || !recordTypeReference) continue;
     const statementId = definitionIdAt(stableStatementIdByIndex, statementIndex, "record value");
     const typeSpan = statement.payloadSpans.type ?? statement.nameSpan ?? statement.keywordSpan;
     const typeReference = resolveRecordType(
@@ -429,7 +433,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       definitionsByStatementIndex,
       statement,
       statementIndex,
-      statement.recordTypeReference,
+      recordTypeReference,
       typeSpan,
       diagnostics
     );
@@ -481,7 +485,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           diagnostics.push(diagnostic(statement, span, "record-reference-not-record", `参照「@${name}」は利用可能な record 値または record Module parameter ではありません。`, { name }));
         }
         if (targetTypeIdentity && typeReference.typeIdentity && targetTypeIdentity !== typeReference.typeIdentity) {
-          diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`, { name, expected: statement.recordTypeReference.name }));
+          diagnostics.push(diagnostic(statement, span, "record-nominal-type-mismatch", `参照「@${name}」の nominal record 型は宣言された型「${recordTypeReference.name}」と一致しません。`, { name, expected: recordTypeReference.name }));
         }
         reference = { name, span, targetTypeIdentity };
       }
@@ -507,7 +511,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         }
 
         if (targetDefinition && typeReference.typeIdentity && targetDefinition.statementId !== typeReference.typeIdentity) {
-          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-nominal-type-mismatch", `constructor「${candidate.name}」の nominal record 型は宣言された型「${statement.recordTypeReference.name}」と一致しません。`, { name: candidate.name, expected: statement.recordTypeReference.name }));
+          diagnostics.push(diagnostic(statement, candidate.nameSpan, "record-nominal-type-mismatch", `constructor「${candidate.name}」の nominal record 型は宣言された型「${recordTypeReference.name}」と一致しません。`, { name: candidate.name, expected: recordTypeReference.name }));
         }
 
         const localArgsSpan = {

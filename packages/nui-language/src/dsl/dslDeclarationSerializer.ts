@@ -1,5 +1,5 @@
-import type { ScalarType } from "../scalars/types";
 import type { DslStatement } from "./dslTypes";
+import type { DslValueType } from "./dslValueTypes";
 import { formatDslName } from "./dslTokens";
 import { serializeDslNumericType } from "./dslNumericTypeOptions";
 
@@ -13,17 +13,18 @@ import { serializeDslNumericType } from "./dslNumericTypeOptions";
 // This statement only exists in nui 1 - there is no v2 form - so no
 // majorVersion branching is needed here.
 
-const typeText = (type: ScalarType, numericTypeOptions?: Extract<DslStatement, { kind: "typedDeclaration" }>["numericTypeOptions"]): string => {
+const typeText = (type: DslValueType, numericTypeOptions?: Extract<DslStatement, { kind: "typedDeclaration" }>["numericTypeOptions"]): string => {
   if (type.kind === "number") return serializeDslNumericType(numericTypeOptions);
   if (type.kind === "choice") return `choice(${type.options.join(", ")})`;
+  if (type.kind === "array") return `${type.elementType.kind}[]`;
+  if (type.kind === "record") return type.name;
   return type.kind;
 };
 
 export const serializeTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
 ): string => {
-  const declaredType = statement.declaredType;
-  const type = declaredType ? typeText(declaredType, statement.numericTypeOptions) : "";
+  const type = statement.valueType ? typeText(statement.valueType, statement.numericTypeOptions) : "";
   const exportPrefix = statement.exported ? "export " : "";
   return `${exportPrefix}${statement.bindingKind} ${formatDslName(statement.name)}: ${type} = ${statement.initializer}`;
 };

@@ -28,6 +28,7 @@ import { mutationWriteParameterKeysFor } from "../dsl/moduleMutationOwnership";
 import type { ModuleRecordSourceTarget, ResolvedModuleRecordExport } from "../dsl/moduleSemanticTypes";
 import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import type { ScalarType } from "../scalars/types";
+import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { reconcileStatements } from "./statementReconciler";
 import type { StatementIdentity } from "./statementIdentity";
 import { applyLineSplices, type LineSplice } from "./textPatch";
@@ -388,7 +389,7 @@ const moduleGeometryParameterType = (type: ModuleGeometryInterfaceType): DslModu
 const numericOptionsForStatement = (
   statement: DslStatement | undefined
 ): DslNumericTypeOptions | undefined =>
-  statement?.kind === "typedDeclaration" && statement.declaredType?.kind === "number"
+  statement?.kind === "typedDeclaration" && scalarTypeOfDslValueType(statement.valueType)?.kind === "number"
     ? statement.numericTypeOptions
     : undefined;
 
@@ -453,7 +454,9 @@ const moduleSourceDependencyDescriptor = (
 
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-    if (!statement.recordTypeReference && declarations.length !== 1) return null;
+    const recordType = nominalRecordTypeOfDslValueType(statement.valueType);
+    const scalarType = scalarTypeOfDslValueType(statement.valueType);
+    if (!recordType && declarations.length !== 1) return null;
     if (arrayType) {
       return {
         name: statement.name,
@@ -462,7 +465,7 @@ const moduleSourceDependencyDescriptor = (
         declarationFrom: declarations[0]!.from
       };
     }
-    if (statement.recordTypeReference) {
+    if (recordType) {
       const recordValue = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(statementId);
       const exported = recordExportForStatement(compiled, statementId);
       const typeIdentity = recordValue?.typeIdentity;
@@ -477,11 +480,11 @@ const moduleSourceDependencyDescriptor = (
         declarationFrom
       };
     }
-    if (!statement.declaredType) return null;
+    if (!scalarType) return null;
     return {
       name: statement.name,
-      type: statement.declaredType,
-      typeText: moduleParameterTypeText(statement.declaredType, numericOptionsForStatement(statement)),
+      type: scalarType,
+      typeText: moduleParameterTypeText(scalarType, numericOptionsForStatement(statement)),
       numericTypeOptions: numericOptionsForStatement(statement),
       declarationFrom: declarations[0]!.from
     };
@@ -512,7 +515,7 @@ const recordValueDependencyDescriptor = (
     !value ||
     statementIndex === undefined ||
     statement?.kind !== "typedDeclaration" ||
-    !statement.recordTypeReference ||
+    !nominalRecordTypeOfDslValueType(statement.valueType) ||
     !value.typeIdentity ||
     value.statementId !== identity.statementId ||
     declarations.length !== 1
@@ -577,8 +580,8 @@ const scalarDependencyDescriptor = (
     // Their source owner is record-valued and remains a later checkpoint boundary.
     if (
       statement?.kind !== "typedDeclaration" ||
-      !statement.declaredType ||
-      statement.recordTypeReference
+      !scalarTypeOfDslValueType(statement.valueType) ||
+      nominalRecordTypeOfDslValueType(statement.valueType)
     ) {
       return null;
     }
@@ -1014,7 +1017,9 @@ const valueStatementRejection = (
     : "structural descendant";
   if (statement.kind === "typedDeclaration") {
     const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-    if (!arrayType && !statement.declaredType && !statement.recordTypeReference) {
+    const scalarType = scalarTypeOfDslValueType(statement.valueType);
+    const recordType = nominalRecordTypeOfDslValueType(statement.valueType);
+    if (!arrayType && !scalarType && !recordType) {
       return reject(
         "unsupported-statement",
         `${where} declaration「${statement.name}」は Checkpoint 7 の scalar / geometry-array / record scope 外です。`,
@@ -1740,14 +1745,16 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     const { statement, statementIndex, statementId } = direct;
     if (statement.kind === "typedDeclaration") {
       const arrayType = geometryArrayTypeOfTypedDeclaration(statement);
-      if (!statement.name || (!arrayType && !statement.declaredType && !statement.recordTypeReference)) {
+      const scalarType = scalarTypeOfDslValueType(statement.valueType);
+      const recordType = nominalRecordTypeOfDslValueType(statement.valueType);
+      if (!statement.name || (!arrayType && !scalarType && !recordType)) {
         return reject(
           "unrepresentable-export",
           `statement「${statement.name || statement.kind}」は Checkpoint 7 の direct scalar / geometry-array / record export で表現できません。`,
           { statementId, statementIndex }
         );
       }
-      if (statement.recordTypeReference) {
+      if (recordType) {
         const recordValue = namespace.recordSemanticAnalysis?.valuesByStatementId.get(statementId);
         const typeText = exactAuthoredTypeText(compiled, statement, statement.payloadSpans.type);
         if (!recordValue?.typeIdentity || !typeText) {
@@ -1892,7 +1899,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   }
 
   for (const entry of movedEntries) {
-    if (entry.statement.kind !== "typedDeclaration" || !entry.statement.recordTypeReference) continue;
+    if (entry.statement.kind !== "typedDeclaration" || !nominalRecordTypeOfDslValueType(entry.statement.valueType)) continue;
     const beforeValue = compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get(entry.statementId);
     const nextIndex = nextCompiled.statementMap.statementIndexByStatementId?.get(entry.statementId);
     const nextStatement = nextIndex === undefined ? undefined : nextCompiled.statements[nextIndex];
@@ -1900,7 +1907,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     if (
       !beforeValue?.typeIdentity ||
       nextStatement?.kind !== "typedDeclaration" ||
-      !nextStatement.recordTypeReference ||
+      !nominalRecordTypeOfDslValueType(nextStatement.valueType) ||
       nextValue?.typeIdentity !== beforeValue.typeIdentity ||
       exactAuthoredTypeText(compiled, entry.statement, entry.statement.payloadSpans.type) !==
         exactAuthoredTypeText(nextCompiled, nextStatement, nextStatement.payloadSpans.type)
@@ -2095,7 +2102,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   }
   for (const exported of exports) {
     const originalStatement = compiled.statements[exported.statementIndex];
-    if (originalStatement?.kind !== "typedDeclaration" || !originalStatement.recordTypeReference) continue;
+    if (originalStatement?.kind !== "typedDeclaration" || !nominalRecordTypeOfDslValueType(originalStatement.valueType)) continue;
     const originalValue = namespace.recordSemanticAnalysis?.valuesByStatementId.get(exported.statementId);
     const generatedExport = generatedModuleSemantic.exports.find((candidate) =>
       candidate.kind === "record" &&
@@ -2336,7 +2343,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
   const recordExportIdentityTransitions = new Set(
     exports.flatMap((entry) => {
       const statement = compiled.statements[entry.statementIndex];
-      return statement?.kind === "typedDeclaration" && statement.recordTypeReference
+      return statement?.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(statement.valueType)
         ? [`${entry.identityKey}\u0000${dslSemanticIdentityKey({
             kind: "module",
             target: { kind: "moduleSource", statementId: entry.statementId }

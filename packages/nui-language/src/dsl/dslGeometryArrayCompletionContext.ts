@@ -1,5 +1,6 @@
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { GeometryArrayType } from "./geometryArrayTypes";
+import { geometryArrayTypeOfDslValueType } from "./geometryArrayTypes";
 import type { DslSpan } from "./dslTypes";
 
 export type GeometryArrayCompletionContext = {
@@ -99,8 +100,9 @@ export const geometryArrayDeclarationCompletionContextAt = (
   pos: number
 ): GeometryArrayCompletionContext | null => {
   const { statement } = parseDslTypedDeclarationStatement(source);
-  if (!statement?.geometryArrayType || statement.bindingKind !== "const") return null;
+  const geometryArrayType = geometryArrayTypeOfDslValueType(statement?.valueType);
+  if (!statement || !geometryArrayType || statement.bindingKind !== "const") return null;
   const initializerSpan = initializerSpanIncludingEmpty(source, statement.payloadSpans.initializer);
   if (!initializerSpan) return null;
-  return geometryArrayValueCompletionContextAt(source, pos, initializerSpan, statement.geometryArrayType);
+  return geometryArrayValueCompletionContextAt(source, pos, initializerSpan, geometryArrayType);
 };

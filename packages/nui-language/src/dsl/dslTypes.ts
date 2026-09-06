@@ -22,6 +22,9 @@ import type { ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { DslNumericTypeOptions } from "./dslNumericTypeOptions";
+import type { DslRecordTypeReference, DslValueType } from "./dslValueTypes";
+
+export type { DslRecordTypeReference } from "./dslValueTypes";
 
 /** Where a diagnostic's own consumer/declaration span lives, shared verbatim
  * by the Source Editor gutter, the Problems popover, && Inspector jump
@@ -111,12 +114,6 @@ export type DslAttribute = {
 export type DslEnclosing = {
   statementIndex: number;
   branch: "then" | "else";
-};
-
-/** Source-only unresolved nominal type reference. Never enters ScalarType/runtime. */
-export type DslRecordTypeReference = {
-  kind: "record";
-  name: string;
 };
 
 export type DslRecordField = {
@@ -312,10 +309,8 @@ export type DslStatement =
   | (DslStatementBase & {
       kind: "typedDeclaration";
       bindingKind: "const" | "let";
-      /** `null` when the scalar type annotation failed or this is a record-valued declaration. */
-      declaredType: ScalarType | null;
-      /** Source-only unresolved nominal record type. Never enters the scalar catalog/runtime. */
-      recordTypeReference?: DslRecordTypeReference | null;
+      /** `null` when the type annotation failed. */
+      valueType: DslValueType | null;
       /** Per-option spans, index-aligned with scalar `choice` options. */
       choiceOptionSpans: readonly DslSpan[];
       /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
