@@ -1273,6 +1273,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           getCanvasViewportRect: () => canvasFocusRef.current?.getBoundingClientRect() ?? null,
           measureCanvasTextWidth,
           recordSelectionHistory: true,
+          selectInstance: selectActiveCanvasInstance,
           finalizeCanvasInteraction: () => drawingCanvasRef.current?.finalizeCanvasInteraction(),
           canvasHistory: requestCanvasHistory
         });

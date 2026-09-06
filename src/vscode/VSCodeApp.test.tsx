@@ -8,6 +8,7 @@ import type { SourceCreationCommitMetadata } from "../commands/commandTypes";
 import { planInlineModule } from "../document/inlineModulePlanner";
 import { applyLineSplices } from "../document/textPatch";
 import { dslTextForElements } from "../dsl/dslDocumentTestUtils";
+import { materializedRuntimeElementId } from "../dsl/moduleMaterialization";
 import { sourceOwnerByRuntimeElementId } from "../dsl/sourceOwnership";
 import type { CadElement, EvaluationResult } from "../types/geometry";
 import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
@@ -683,6 +684,93 @@ describe("VSCodeApp Canvas history coordinator", () => {
     expect(dispatchCommand).toHaveBeenCalledWith("selectInstance", expect.objectContaining({
       recordSelectionHistory: true
     }));
+  });
+
+  it("selects the owning imported Module instance through the normal Canvas relay", async () => {
+    const source = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 7 }
+      }));
+    });
+
+    const rootState = useCadDocumentStore.getState();
+    const rootElement = rootState.elements.find((element) => element.type === "freePoint");
+    expect(rootElement).toBeDefined();
+    if (!rootElement) return;
+
+    const importedInstancePath = ["module-document:file:///workspace/library.nui:live:Panel"];
+    const importedInstanceId = materializedRuntimeElementId("moduleInstance", importedInstancePath);
+    const importedChildId = materializedRuntimeElementId("moduleBody", [
+      ...importedInstancePath,
+      "module-document:file:///workspace/library.nui:live:P"
+    ]);
+    const runtimeElements: CadElement[] = [
+      {
+        id: importedInstanceId,
+        name: "ImportedPanel",
+        type: "moduleInstance",
+        activity: "visible"
+      },
+      {
+        ...rootElement,
+        id: importedChildId,
+        name: "ImportedP",
+        parentGroupId: importedInstanceId,
+        x: 40,
+        y: 0
+      }
+    ];
+    const publication = multiDocumentRuntimePublicationFor(
+      source,
+      7,
+      rootState.currentSourceRevision,
+      rootState.currentSourceRevision,
+      runtimeElements
+    );
+    if (publication.status !== "current" || !publication.canvasRuntime) return;
+    publication.canvasRuntime.modulePresentation = {
+      instanceBaseGeometrySnapshots: [{
+        instanceId: importedInstanceId,
+        endRuntimeIndex: runtimeElements.length,
+        descendantIds: [importedChildId]
+      }],
+      origins: [{
+        runtimeElementId: importedChildId,
+        kind: "moduleBody",
+        instancePath: importedInstancePath,
+        runtimeInstancePath: importedInstancePath
+      }]
+    };
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { data: publication }));
+    });
+
+    expect(drawingCanvasProps.multiDocumentRuntimePresentation?.elements).toEqual(runtimeElements);
+    expect(rootState.elements.some((element) => element.id === importedChildId)).toBe(false);
+    useCadUiStore.setState({
+      selectedElementId: importedChildId,
+      selectedElementIds: [importedChildId],
+      selectionAnchorElementId: importedChildId,
+      selectionSubject: { kind: "elements" },
+      canvasSelectionEligibleElementIds: new Set(runtimeElements.map((element) => element.id))
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "canvasCommand", commandId: "selectInstance" }
+      }));
+    });
+
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: importedInstanceId,
+      selectedElementIds: [importedInstanceId],
+      selectionAnchorElementId: importedInstanceId
+    });
   });
 
   it("starts the existing command-line creation session for a valid Canvas creation message", async () => {
