@@ -3797,6 +3797,86 @@ describe("VS Code production document lifecycle", () => {
     });
   });
 
+  it("keeps Canvas visual-pick terminal handling across Source-to-Canvas focus transfer", async () => {
+    const source = [
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point TargetA = coordinate(x: 10, y: 5)",
+      "point TargetB = coordinate(x: 20, y: 5)"
+    ].join("\n");
+    const document = documentFor("/tmp/conversion-canvas-focus-transfer.nui", "file:///tmp/conversion-canvas-focus-transfer.nui", source);
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+    await publishCanvasObservation(panel, {
+      ...canvasObservationSnapshotFor(document.version),
+      coordinatePointConversionTargetIds: ["canvas-target-a", "canvas-target-b"],
+      selectedElementSources: [
+        { runtimeElementId: "canvas-target-a", sourceStatementIndex: 2, elementType: "point" },
+        { runtimeElementId: "canvas-target-b", sourceStatementIndex: 3, elementType: "point" }
+      ]
+    });
+    mocks.showQuickPick.mockImplementation(async (items: readonly { kind?: string }[]) =>
+      items.find((item) => item.kind === "canvas")
+    );
+
+    commandHandlerFor("nuinuiCAD.convertPointToXYOffset")?.();
+
+    await vi.waitFor(() => expect(mocks.showQuickPick).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "coordinatePointConversionStart",
+      origin: "canvas",
+      canvasBasePick: true,
+      targetIds: ["canvas-target-a", "canvas-target-b"]
+    })));
+    const startRequest = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "coordinatePointConversionStart") as {
+        requestId: number;
+        documentUri: string;
+      };
+    const conversionMessageHandler = panel.webview.onDidReceiveMessage.mock.calls.at(-1)?.[0] as
+      (message: unknown) => Promise<void>;
+    panel.webview.postMessage.mockClear();
+    mocks.showWarningMessage.mockClear();
+
+    mocks.activeTextEditor = null;
+    mocks.visibleTextEditors = [];
+    mocks.activeTabInput = new mocks.TabInputWebview("nuinuiCAD.canvas");
+    emitActiveEditorChange(undefined);
+
+    const terminalResult = {
+      type: "coordinatePointConversionResult" as const,
+      requestId: startRequest.requestId,
+      operationId: 77,
+      documentUri: startRequest.documentUri,
+      documentVersion: document.version,
+      origin: "canvas" as const,
+      mode: "xy" as const,
+      status: "applied" as const,
+      classification: "partial-success" as const,
+      successfulTargetIds: ["canvas-target-b"],
+      successfulTargetCount: 1,
+      skippedTargets: [{
+        targetId: "canvas-target-a",
+        reason: { code: "target-not-eligible", message: "skipped" }
+      }],
+      skippedTargetCount: 1
+    };
+    await conversionMessageHandler(terminalResult);
+    await conversionMessageHandler(terminalResult);
+
+    expect(panel.webview.postMessage).toHaveBeenCalledWith({
+      type: "coordinatePointConversionSelection",
+      requestId: startRequest.requestId,
+      documentVersion: document.version,
+      successfulTargetSourceStatementIndexes: [3]
+    });
+    expect(mocks.showWarningMessage).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["missing", ["canvas-missing"]],
     ["duplicate", ["canvas-target", "canvas-target"]]
