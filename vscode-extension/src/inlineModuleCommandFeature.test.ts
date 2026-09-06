@@ -173,6 +173,17 @@ const canvasFixtureFor = (canvasSource: string) => {
   };
 };
 
+const flushContext = async (): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
+const latestContextValueFor = (key: string): boolean | undefined => {
+  const calls = mocks.executeCommand.mock.calls.filter(([command, candidate]) =>
+    command === "setContext" && candidate === key
+  );
+  return calls.at(-1)?.[2] as boolean | undefined;
+};
+
 describe("VS Code Inline Module command feature", () => {
   it("collects authored Module instances for selections and caret positions, including nested body instances", () => {
     const childOffset = source.indexOf("instance Child");
@@ -442,6 +453,60 @@ describe("VS Code Inline Module command feature", () => {
       "nuinuiCAD: Source or Canvas state changed. No changes were made; run Inline Module again."
     );
     staleStateFeature.dispose();
+  });
+
+  it("refreshes a retained Canvas publication when Canvas becomes active", async () => {
+    const canvasSource = [
+      "nui 1",
+      "module Stamp() {",
+      "  point Anchor = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Top = Stamp()"
+    ].join("\n");
+    const fixture = canvasFixtureFor(canvasSource);
+    const sourceEditor = editorFor(canvasSource, {
+      start: canvasSource.indexOf("instance Top"),
+      end: canvasSource.indexOf("instance Top"),
+      active: canvasSource.indexOf("instance Top")
+    });
+    let sourceActive = true;
+    let canvasActive = false;
+    let authoritativeReady = true;
+    fixture.endpoint.isAuthoritativeReady = () => authoritativeReady;
+    mocks.executeCommand.mockClear();
+
+    const feature = registerVscodeInlineModuleCommandFeature({
+      languageAnalysisSessionFor: () => fixture.session,
+      activeSourceEditor: () => sourceActive ? sourceEditor as never : undefined,
+      sourceEditorForDocument: () => fixture.editor,
+      activeCanvasEndpoint: () => canvasActive ? fixture.endpoint : null,
+      applySourceLineSplices: fixture.apply
+    });
+
+    feature.handleCanvasTargetsPublication(fixture.document as never, fixture.initialPublication);
+    await flushContext();
+    expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(false);
+
+    sourceActive = false;
+    canvasActive = true;
+    feature.handleCanvasViewStateChange();
+    await flushContext();
+    expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(true);
+
+    sourceActive = true;
+    canvasActive = false;
+    feature.handleCanvasViewStateChange();
+    await flushContext();
+    expect(latestContextValueFor("nuinuiCAD.inlineModuleSourceTarget")).toBe(true);
+    expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(false);
+
+    sourceActive = false;
+    canvasActive = true;
+    authoritativeReady = false;
+    feature.handleCanvasViewStateChange();
+    await flushContext();
+    expect(latestContextValueFor("nuinuiCAD.inlineModuleCanvasTarget")).toBe(false);
+    feature.dispose();
   });
 
   it("keeps targetless Source unavailable and rejects a stale Source before mutation", async () => {
