@@ -21,6 +21,7 @@
 import type { BindingAnalysis } from "./bindingAnalysis";
 import type { Binding, BindingCatalog, BindingId } from "./bindingCatalog";
 import type { ScopeId } from "./lexicalScopeIndex";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { visibleTypedBindingsAtLivePosition } from "./liveTypedBindingVisibility";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import { scalarExpressionCompletionContextAt } from "./scalarExpressionPositionClassifier";
@@ -93,12 +94,15 @@ const setVisibleTypedBindings = (
  * by status.
  */
 export const setTargetCandidates = (deps: SetCompletionSiteDeps): readonly SetTargetCandidate[] =>
-  setVisibleTypedBindings(deps, (binding) => binding.mutability === "let" && binding.declaredType !== null)
-    .map((binding) => ({ name: binding.name, bindingId: binding.id, type: binding.declaredType as ScalarType }));
+  setVisibleTypedBindings(deps, (binding) => binding.mutability === "let" && scalarTypeOfDslValueType(binding.declaredType) !== null)
+    .flatMap((binding) => {
+      const type = scalarTypeOfDslValueType(binding.declaredType);
+      return type ? [{ name: binding.name, bindingId: binding.id, type }] : [];
+    });
 
 const nonInvalidAssignable = (deps: SetCompletionSiteDeps, expectedType: ScalarType) => (binding: Binding): boolean =>
-  binding.declaredType !== null &&
-  isScalarTypeAssignable(binding.declaredType, expectedType) &&
+  scalarTypeOfDslValueType(binding.declaredType) !== null &&
+  isScalarTypeAssignable(scalarTypeOfDslValueType(binding.declaredType)!, expectedType) &&
   deps.entriesById.get(binding.id)?.status.kind !== "invalid";
 
 const referenceCandidates = (deps: SetCompletionSiteDeps, expectedType: ScalarType): ScalarCompletionCandidate[] =>
@@ -112,9 +116,9 @@ const precedingOperandType = (precedingToken: ScalarExpressionToken, deps: SetCo
   if (precedingToken.kind === "reference") {
     const binding = setVisibleTypedBindings(
       deps,
-      (candidate) => candidate.declaredType !== null && deps.entriesById.get(candidate.id)?.status.kind !== "invalid"
+      (candidate) => scalarTypeOfDslValueType(candidate.declaredType) !== null && deps.entriesById.get(candidate.id)?.status.kind !== "invalid"
     ).find((candidate) => candidate.name === precedingToken.name);
-    return binding?.declaredType ?? null;
+    return binding ? scalarTypeOfDslValueType(binding.declaredType) : null;
   }
   if (precedingToken.kind === "rightParen") return rootType;
   return null; // operator / leftParen can never be a "preceding operand" token.

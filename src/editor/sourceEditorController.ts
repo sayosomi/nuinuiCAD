@@ -994,10 +994,11 @@ export class SourceEditorController implements SourceEditorHandle {
         const binding = doc.bindingAnalysis?.catalog.bindingsById.get(bindingId);
         const statement = binding ? doc.statements[binding.statementIndex] : null;
         const numericTypeOptions = statement?.kind === "typedDeclaration" ? statement.numericTypeOptions : undefined;
+        const target = typedValueStepTargetForBinding(doc, bindingId);
         return this.stepTypedDeclarationInitializer(
           bindingId,
           span,
-          binding?.declaredType ?? null,
+          target?.declaredType ?? null,
           selection,
           direction,
           typedNumericStepOptions(numericTypeOptions)

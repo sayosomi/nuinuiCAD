@@ -5,6 +5,7 @@ import type { DslStatement } from "../dsl/dslTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import { formatBindingIssue } from "../scalars/bindingDiagnostics";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { scalarTypeOfDslValueType } from "../../packages/nui-language/src/dsl/dslValueTypes";
 import { describeScalarType } from "../scalars/expressionTypecheck";
 
 export type TypedDeclarationInspectorRow = {
@@ -40,7 +41,9 @@ export const typedDeclarationInspectorPresentation = (
   const statement = statements[binding.statementIndex];
   if (!statement || statement.kind !== "typedDeclaration") return null;
 
-  const typeLabel = binding.declaredType ? describeScalarType(binding.declaredType) : "不明";
+  const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+  if (!declaredType) return null;
+  const typeLabel = describeScalarType(declaredType);
   const rows: TypedDeclarationInspectorRow[] = [
     { key: "kind", label: "種別", value: binding.mutability },
     { key: "type", label: "型", value: typeLabel },

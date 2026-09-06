@@ -37,6 +37,7 @@ import { createElementNameContext } from "../model/elementNames";
 import { resolveBuiltinGeometryArguments } from "./builtinGeometryArgumentResolution";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export const CONST_ASSIGNMENT_CODE = "const-assignment";
 export const INVALID_SET_TARGET_CODE = "invalid-set-target";
@@ -115,7 +116,7 @@ export const classifySetTargetResolution = (resolution: BindingResolution | unde
   const binding = resolution.binding;
   if (binding.mutability === "const") return { kind: "invalid", reason: "const-assignment" };
   if (binding.mutability !== "let") return { kind: "invalid", reason: "not-let" };
-  if (binding.declaredType === null) return { kind: "invalid", reason: "declared-type-unknown" };
+  if (scalarTypeOfDslValueType(binding.declaredType) === null) return { kind: "invalid", reason: "declared-type-unknown" };
   return { kind: "valid", binding };
 };
 
@@ -352,7 +353,7 @@ export const compileSetStatements = ({
       }
       const referencedEntry = bindingAnalysis.entriesById.get(resolution.binding.id);
       if (
-        resolution.binding.declaredType === null ||
+        scalarTypeOfDslValueType(resolution.binding.declaredType) === null ||
         referencedEntry?.status.kind === "invalid"
       ) {
         diagnostics.push(diagnosticAt(
@@ -407,7 +408,7 @@ export const compileSetStatements = ({
     }
 
     const checked = typecheckScalarExpression(prepared.ast, {
-      expectedType: binding.declaredType,
+      expectedType: scalarTypeOfDslValueType(binding.declaredType),
       references: prepared.references,
       geometryBuiltinArguments: builtinGeometryResolution?.geometryPropertyTargets,
       geometryPropertyReferences: geometryResolution.geometryPropertyReferences

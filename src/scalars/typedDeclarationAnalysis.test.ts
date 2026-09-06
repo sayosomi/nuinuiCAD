@@ -15,6 +15,42 @@ const referencesInOccurrenceOrder = referencesIn;
 const geometryPropertiesInOccurrenceOrder = geometryPropertiesIn;
 
 describe("analyzeTypedDeclarations resolution buckets", () => {
+  it("keeps non-scalar declarations in the common catalog without entering scalar analysis", () => {
+    const fixture = typedDeclarationAnalysisFor([
+      "nui 1",
+      "record Config(amount: number)",
+      "const scalar: number = 1",
+      "const config: Config = Config(amount: 2)",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: @A, end: (10, 0))",
+      "const points: point[] = [@A]",
+      "const lines: line[] = [@AB]",
+      "const paths: path[] = @lines"
+    ].join("\n"));
+    const bindingFor = (name: string) => {
+      const binding = fixture.bindingAnalysis.catalog.bindings.find((candidate) => candidate.name === name);
+      if (!binding) throw new Error(`Missing binding ${name}`);
+      return binding;
+    };
+
+    expect(fixture.bindingAnalysis.catalog.bindings.some((binding) => binding.name === "config")).toBe(false);
+    expect(bindingFor("points").id).toBe("binding:stable-6");
+    expect(bindingFor("lines").id).toBe("binding:stable-7");
+    expect(bindingFor("paths").id).toBe("binding:stable-8");
+    expect(bindingFor("points").declaredType).toEqual({ kind: "array", elementType: { kind: "point" } });
+    expect(bindingFor("lines").declaredType).toEqual({ kind: "array", elementType: { kind: "line" } });
+    expect(bindingFor("paths").declaredType).toEqual({ kind: "array", elementType: { kind: "path" } });
+
+    const nonScalarBindings = [bindingFor("points"), bindingFor("lines"), bindingFor("paths")];
+    expect(nonScalarBindings.every((binding) => !fixture.analysis.typedInitializerByBindingId.has(binding.id))).toBe(true);
+
+    const scalarProgramNames = lowerScalarProgram(fixture.analysis).statements.map((statement) =>
+      fixture.bindingAnalysis.catalog.bindingsById.get(statement.bindingId)?.name
+    );
+    expect(scalarProgramNames).toContain("scalar");
+    expect(scalarProgramNames).not.toEqual(expect.arrayContaining(["config", "points", "lines", "paths"]));
+  });
+
   it("resolves geometry builtin calls without scalar dependency edges", () => {
     const fixture = typedDeclarationAnalysisFor([
       "nui 1",

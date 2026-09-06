@@ -159,6 +159,37 @@ describe("buildLexicalScopeIndex", () => {
     expect(index.scopeMetadataById.get("module:M")?.effectiveGroupScopeId).toBe("group:Outer");
   });
 
+  it("keeps scalar, record, and geometry-array declarations in canonical order with their value types", () => {
+    const statements = parse([
+      "nui 1",
+      "record Config(amount: number)",
+      "const scalar: number = 1",
+      "const config: Config = Config(amount: 2)",
+      "point A = coordinate(x: 0, y: 0)",
+      "line AB = segment(start: @A, end: (10, 0))",
+      "const points: point[] = [@A]",
+      "const lines: line[] = [@AB]",
+      "const paths: path[] = @lines"
+    ].join("\n"));
+    const index = buildLexicalScopeIndex(statements, byName);
+
+    expect(index.allDeclarations.map(({ name, declaredType }) => ({ name, declaredType }))).toEqual([
+      { name: "scalar", declaredType: { kind: "number" } },
+      { name: "points", declaredType: { kind: "array", elementType: { kind: "point" } } },
+      { name: "lines", declaredType: { kind: "array", elementType: { kind: "line" } } },
+      { name: "paths", declaredType: { kind: "array", elementType: { kind: "path" } } }
+    ]);
+    expect(index.allDeclarations.map((declaration) => declaration.name)).not.toContain("config");
+    expect(index.allDeclarations.every((declaration) => declaration.scopeId === index.rootScopeId)).toBe(true);
+    expect(index.allDeclarations.every((declaration) => declaration.nameSpan !== null)).toBe(true);
+    expect(index.allDeclarations.map((declaration) => declaration.bindingKind)).toEqual([
+      "const",
+      "const",
+      "const",
+      "const"
+    ]);
+  });
+
   it("nests module scopes by stable opener identity, independent of statement position", () => {
     const before = parse(["module Outer() {", "  module Inner() {", "    const x: number = 1", "  }", "}"].join("\n"));
     const after = parse(

@@ -2,6 +2,7 @@
 // products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
 import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
 import type { SetStatementAnalysis } from "./setStatementCompiler";
@@ -239,7 +240,8 @@ export const buildBindingVersionGraph = ({
 
   const declarations: DeclarationBindingVersion[] = [];
   for (const binding of bindingAnalysis.catalog.bindings) {
-    if (binding.kind !== "typed" || binding.declaredType === null) continue;
+    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    if (binding.kind !== "typed" || declaredType === null) continue;
     const entry = bindingAnalysis.entriesById.get(binding.id);
     if (!entry) throw new Error(`bindingVersions: missing analysis entry for ${binding.id}`);
     const seed = declarationSeedFor(binding.id, entry, programByBindingId);
@@ -249,7 +251,7 @@ export const buildBindingVersionGraph = ({
       kind: "declare",
       bindingId: binding.id,
       bindingKind: binding.mutability === "let" ? "let" : "const",
-      declaredType: binding.declaredType,
+      declaredType,
       sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.statementIndex,
       scopeId: binding.effectiveScopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,
@@ -296,7 +298,8 @@ export const buildBindingVersionGraph = ({
       continue;
     }
     const target = bindingAnalysis.catalog.bindingsById.get(set.targetBindingId);
-    if (!target || target.kind !== "typed" || target.mutability !== "let" || target.declaredType === null) {
+    const declaredType = target ? scalarTypeOfDslValueType(target.declaredType) : null;
+    if (!target || target.kind !== "typed" || target.mutability !== "let" || declaredType === null) {
       throw new Error(`bindingVersions: resolved set ${set.statementId} has no typed let target`);
     }
     append({
@@ -304,7 +307,7 @@ export const buildBindingVersionGraph = ({
       kind: "set",
       bindingId: set.targetBindingId,
       bindingKind: "let",
-      declaredType: target.declaredType,
+      declaredType,
       sourceOrder: set.sourceOrder,
       scopeId: set.scopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, set.scopeId).scopeExitSourceOrder,
