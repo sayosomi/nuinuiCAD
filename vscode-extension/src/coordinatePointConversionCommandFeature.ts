@@ -973,10 +973,8 @@ export const registerVscodeCoordinatePointConversionFeature = ({
     })
   ];
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-    if (activeRequest && (!editor || !sameDocument(editor.document, activeRequest.editor.document))) {
-      activeRequest.disposable.dispose();
-      activeRequest = null;
-    }
+    // Source-to-Canvas visual picking can temporarily leave the active editor
+    // unset; document and panel lifecycle handlers own request invalidation.
     if (activeNativeRequest && (!editor || !sameDocument(editor.document, activeNativeRequest.editor.document))) {
       activeNativeRequest = null;
     }
