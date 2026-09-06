@@ -510,6 +510,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       pending.successfulTargetSourceStatementIndexes
     );
     if (!currentRuntimeElementIds) return;
+    drawingCanvasRef.current?.clearPendingCanvasPointerIntent();
     if (replaceCanvasSelection(
       currentRuntimeElementIds,
       currentRuntimeElementIds.at(-1),

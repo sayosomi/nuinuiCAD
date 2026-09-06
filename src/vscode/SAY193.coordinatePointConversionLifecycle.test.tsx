@@ -222,16 +222,22 @@ describe("SAY-193 coordinate conversion Canvas lifecycle", () => {
     const canvasCommit = pendingCanvasCommit.value;
     if (!canvasCommit) throw new Error("Expected the conversion Canvas commit");
     post({
-      type: "commitText",
-      sourceText: canvasCommit.sourceText,
-      documentVersion: 2,
-      reason: "edit"
-    });
-    post({
       type: "canvasCommitResult",
       operationId: canvasCommit.operationId ?? 0,
       status: "accepted",
       documentVersion: 2
+    });
+    await flush();
+
+    // The host can deliver the successful-target selection before the
+    // post-edit document is authoritative in the Webview. It must remain
+    // pending until the normal host document message applies the edit.
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([]);
+    post({
+      type: "commitText",
+      sourceText: canvasCommit.sourceText,
+      documentVersion: 2,
+      reason: "edit"
     });
     await flush();
 
