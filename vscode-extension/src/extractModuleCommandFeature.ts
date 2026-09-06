@@ -25,6 +25,7 @@ import {
   type ExtractModuleCanvasExecutionRejection
 } from "./extractModuleLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_EXTRACT_MODULE_COMMAND_ID = "nuinuiCAD.extractModule";
 export const VSCODE_EXTRACT_MODULE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.extractModuleSourceTarget";
@@ -568,7 +569,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
     const capturedVersion = capturedDocument.version;
     const capturedRawSource = capturedDocument.getText();
     const capturedSelection = origin === "source" ? selectionFor(editor) : null;
-    const acceptedInstanceName = await vscode.window.showInputBox({
+    const acceptedInstanceName = await nativeShowInputBox({
       title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
       prompt: extractModuleTranslatorFor(displayLanguage)("extractModule.input.instanceName"),
       validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "instance", displayLanguage)
@@ -588,7 +589,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
       moduleName: moduleCandidate
     });
     const renameModuleLabel = extractModuleTranslatorFor(displayLanguage)("extractModule.choice.renameModule");
-    const moduleChoice = await vscode.window.showQuickPick([
+    const moduleChoice = await nativeShowQuickPick([
       { label: candidateLabel },
       { label: renameModuleLabel }
     ], { title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName") });
@@ -598,7 +599,7 @@ export const registerVscodeExtractModuleCommandFeature = ({
       return;
     }
     const moduleName = moduleChoice.label === renameModuleLabel
-      ? (await vscode.window.showInputBox({
+      ? (await nativeShowInputBox({
           title: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName"),
           prompt: extractModuleTranslatorFor(displayLanguage)("extractModule.input.moduleName"),
           validateInput: (value) => nameValidationFor(exact, targets, value.trim(), "module", displayLanguage)
