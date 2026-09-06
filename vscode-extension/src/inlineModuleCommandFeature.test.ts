@@ -118,13 +118,14 @@ const canvasFixtureFor = (canvasSource: string) => {
     getText: () => currentSource
   };
   const editor = { document };
-  const session = createLanguageAnalysisSession(canvasSource);
-  const sourceSnapshot = {
+  const producerSession = createLanguageAnalysisSession(canvasSource);
+  const producerSourceSnapshot = {
     normalizedSource: canvasSource,
-    sourceRevision: session.getSourceRevision()
+    sourceRevision: producerSession.getSourceRevision()
   };
-  const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)!.compiled;
-  const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance")!;
+  const producerCompiled = currentCompiledSemanticSnapshotFor(producerSession, producerSourceSnapshot)!.compiled;
+  const consumerSession = createLanguageAnalysisSession(canvasSource);
+  const runtimeEntry = producerCompiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance")!;
   const elements = [{
     id: runtimeEntry.runtimeElementId,
     name: runtimeEntry.statement.name,
@@ -132,11 +133,11 @@ const canvasFixtureFor = (canvasSource: string) => {
     activity: "visible"
   }];
   const targets = inlineModuleCanvasTargetProofsFor({
-    source: sourceSnapshot,
-    compiled,
+    source: producerSourceSnapshot,
+    compiled: producerCompiled,
     elements: elements as never,
     selectedElementIds: [runtimeEntry.runtimeElementId],
-    moduleMaterialization: compiled.moduleMaterialization
+    moduleMaterialization: producerCompiled.moduleMaterialization
   });
   const postMessage = vi.fn(() => Promise.resolve(true));
   const endpoint = {
@@ -153,14 +154,14 @@ const canvasFixtureFor = (canvasSource: string) => {
     if (document.version !== expectedVersion || currentSource !== expectedSource) return false;
     currentSource = applyLineSplices(expectedSource, splices);
     document.version = expectedVersion + 1;
-    session.replaceSource(currentSource);
+    consumerSession.replaceSource(currentSource);
     return true;
   });
   return {
     document,
     editor,
     endpoint,
-    session,
+    session: consumerSession,
     initialPublication: {
       type: "inlineModuleCanvasTargetsPublication" as const,
       documentVersion: 1,
@@ -223,51 +224,130 @@ describe("VS Code Inline Module command feature", () => {
     });
   });
 
-  it("re-proves Canvas authored owners against the current materialization and rejects stale proof", () => {
-    const session = createLanguageAnalysisSession(source);
-    const sourceSnapshot = {
+  it("re-proves an independent Canvas proof against the current Host materialization", () => {
+    const producerSession = createLanguageAnalysisSession(source);
+    const producerSourceSnapshot = {
       normalizedSource: source,
-      sourceRevision: session.getSourceRevision()
+      sourceRevision: producerSession.getSourceRevision()
     };
-    const compiled = currentCompiledSemanticSnapshotFor(session, sourceSnapshot)!.compiled;
-    const runtimeEntry = compiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance");
-    expect(runtimeEntry).toBeDefined();
-    if (!runtimeEntry) return;
+    const producerCompiled = currentCompiledSemanticSnapshotFor(producerSession, producerSourceSnapshot)!.compiled;
+    const consumerSession = createLanguageAnalysisSession(source);
+    const consumerSourceSnapshot = {
+      normalizedSource: source,
+      sourceRevision: consumerSession.getSourceRevision()
+    };
+    const consumerCompiled = currentCompiledSemanticSnapshotFor(consumerSession, consumerSourceSnapshot)!.compiled;
+    const producerRuntimeEntry = producerCompiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance");
+    const consumerRuntimeEntry = consumerCompiled.moduleMaterialization!.executionStatements.find((entry) => entry.type === "moduleInstance");
+    expect(producerRuntimeEntry && consumerRuntimeEntry).toBeDefined();
+    if (!producerRuntimeEntry || !consumerRuntimeEntry) return;
 
     const proofs = inlineModuleCanvasTargetProofsFor({
-      source: sourceSnapshot,
-      compiled,
+      source: producerSourceSnapshot,
+      compiled: producerCompiled,
       elements: [{
-        id: runtimeEntry.runtimeElementId,
-        name: runtimeEntry.statement.name,
+        id: producerRuntimeEntry.runtimeElementId,
+        name: producerRuntimeEntry.statement.name,
         type: "moduleInstance",
         activity: "visible"
       } as never],
-      selectedElementIds: [runtimeEntry.runtimeElementId],
-      moduleMaterialization: compiled.moduleMaterialization
+      selectedElementIds: [producerRuntimeEntry.runtimeElementId],
+      moduleMaterialization: producerCompiled.moduleMaterialization
     });
     expect(proofs).toHaveLength(1);
+
+    const producerStatementId = proofs[0]!.sourceStatementId;
+    const consumerStatementId = consumerCompiled.statementMap!.statementIdByStatementIndex!.get(
+      proofs[0]!.sourceStatementIndex
+    );
+    expect(producerStatementId).not.toBe(consumerStatementId);
+    expect(producerRuntimeEntry.runtimeElementId).not.toBe(consumerRuntimeEntry.runtimeElementId);
+
     const publication = {
       type: "inlineModuleCanvasTargetsPublication" as const,
       documentVersion: 1,
       normalizedSource: source,
       targets: proofs
     };
-    expect(reproveInlineModuleCanvasTargets({ publication, source: sourceSnapshot, compiled })).toEqual([
-      { documentKey: null, statementId: proofs[0]!.sourceStatementId }
+    expect(reproveInlineModuleCanvasTargets({
+      publication,
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([
+      { documentKey: null, statementId: consumerStatementId }
     ]);
+
     expect(reproveInlineModuleCanvasTargets({
       publication: {
         ...publication,
         targets: [{ ...proofs[0]!, sourceStatementId: "stale-canvas-id" }]
       },
-      source: sourceSnapshot,
-      compiled
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([{ documentKey: null, statementId: consumerStatementId }]);
+
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { ...publication, normalizedSource: `${source}\n` },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
     })).toEqual([]);
     expect(reproveInlineModuleCanvasTargets({
       publication,
-      source: { ...sourceSnapshot, sourceRevision: sourceSnapshot.sourceRevision + 1 },
-      compiled
+      source: { ...consumerSourceSnapshot, sourceRevision: consumerSourceSnapshot.sourceRevision + 1 },
+      compiled: consumerCompiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: {
+        ...publication,
+        targets: [{ ...proofs[0]!, sourceStatementPath: [proofs[0]!.sourceStatementPath[0]! + 1] }]
+      },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: {
+        ...publication,
+        targets: [{ ...proofs[0]!, sourceStatementIndex: proofs[0]!.sourceStatementIndex + 1 }]
+      },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: {
+        ...publication,
+        targets: [{
+          ...proofs[0]!,
+          sourceRange: { from: proofs[0]!.sourceRange.from, to: proofs[0]!.sourceRange.to + 1 }
+        }]
+      },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([]);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: { ...publication, targets: [proofs[0]!, proofs[0]!] },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([]);
+
+    const consumerMaterialization = consumerCompiled.moduleMaterialization!;
+    const consumerOrigin = consumerMaterialization.originByRuntimeElementId.get(
+      consumerRuntimeEntry.runtimeElementId
+    );
+    expect(consumerOrigin).toBeDefined();
+    if (!consumerOrigin) return;
+    const ambiguousOrigins = new Map(consumerMaterialization.originByRuntimeElementId);
+    ambiguousOrigins.set("ambiguous-runtime", consumerOrigin);
+    const ambiguousCompiled = {
+      ...consumerCompiled,
+      moduleMaterialization: {
+        ...consumerMaterialization,
+        originByRuntimeElementId: ambiguousOrigins
+      }
+    };
+    expect(reproveInlineModuleCanvasTargets({
+      publication,
+      source: consumerSourceSnapshot,
+      compiled: ambiguousCompiled
     })).toEqual([]);
   });
 
@@ -317,6 +397,63 @@ describe("VS Code Inline Module command feature", () => {
     expect(apply).toHaveBeenCalledTimes(1);
     plannerSpy.mockRestore();
     feature.dispose();
+  });
+
+  it("re-proves the concrete authored One Module instance shape from an independent Canvas compile", () => {
+    const productionSource = [
+      "nui 1",
+      "module Stamp(x: number) {",
+      "  point Anchor = coordinate(x: @x, y: 0)",
+      "}",
+      "instance One = Stamp(x: 0)"
+    ].join("\n");
+    const producerSession = createLanguageAnalysisSession(productionSource);
+    const producerSourceSnapshot = {
+      normalizedSource: productionSource,
+      sourceRevision: producerSession.getSourceRevision()
+    };
+    const producerCompiled = currentCompiledSemanticSnapshotFor(producerSession, producerSourceSnapshot)!.compiled;
+    const consumerSession = createLanguageAnalysisSession(productionSource);
+    const consumerSourceSnapshot = {
+      normalizedSource: productionSource,
+      sourceRevision: consumerSession.getSourceRevision()
+    };
+    const consumerCompiled = currentCompiledSemanticSnapshotFor(consumerSession, consumerSourceSnapshot)!.compiled;
+    const producerOne = producerCompiled.moduleMaterialization!.executionStatements.find(
+      (entry) => entry.type === "moduleInstance" && entry.statement.name === "One"
+    );
+    const consumerOne = consumerCompiled.moduleMaterialization!.executionStatements.find(
+      (entry) => entry.type === "moduleInstance" && entry.statement.name === "One"
+    );
+    expect(producerOne && consumerOne).toBeDefined();
+    if (!producerOne || !consumerOne) return;
+
+    const producerElements = producerCompiled.document?.elements ?? [];
+    const proofs = inlineModuleCanvasTargetProofsFor({
+      source: producerSourceSnapshot,
+      compiled: producerCompiled,
+      elements: producerElements,
+      selectedElementIds: [producerOne.runtimeElementId],
+      moduleMaterialization: producerCompiled.moduleMaterialization
+    });
+    expect(proofs).toHaveLength(1);
+    expect(proofs[0]?.sourceStatementId).not.toBe(
+      consumerCompiled.statementMap!.statementIdByStatementIndex!.get(proofs[0]!.sourceStatementIndex)
+    );
+    expect(producerOne.runtimeElementId).not.toBe(consumerOne.runtimeElementId);
+    expect(reproveInlineModuleCanvasTargets({
+      publication: {
+        type: "inlineModuleCanvasTargetsPublication",
+        documentVersion: 1,
+        normalizedSource: productionSource,
+        targets: proofs
+      },
+      source: consumerSourceSnapshot,
+      compiled: consumerCompiled
+    })).toEqual([{
+      documentKey: null,
+      statementId: consumerCompiled.statementMap!.statementIdByStatementIndex!.get(proofs[0]!.sourceStatementIndex)
+    }]);
   });
 
   it("executes from a current Canvas target and requests post-edit selection by generated group", async () => {

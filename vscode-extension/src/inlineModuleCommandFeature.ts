@@ -10,7 +10,6 @@ import {
   type InlineModuleTargetIdentity
 } from "@nuinuicad/nui-language/document";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
-import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import type {
   VscodeInlineModuleCanvasTargetProof,
@@ -27,6 +26,7 @@ import {
   inlineModuleTranslatorFor
 } from "./inlineModuleLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
+import { moduleInstanceHostProjectionFor } from "./moduleInstanceHostProjection";
 
 export const VSCODE_INLINE_MODULE_INSTANCE_COMMAND_ID = "nuinuiCAD.inlineModuleInstance";
 export const VSCODE_INLINE_MODULE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.inlineModuleSourceTarget";
@@ -200,31 +200,12 @@ export const collectInlineModuleSourceTargets = (
   return { ...exact, editor, selection, targets };
 };
 
-const statementPathFor = (
-  runtimeElementId: string,
-  compiled: CompiledDslDocument
-): readonly number[] | null => {
-  const materialization = compiled.moduleMaterialization;
-  const owner = compiled.statementMap && materialization
-    ? sourceOwnerForRuntimeElementId({
-        statementMap: compiled.statementMap,
-        moduleMaterialization: materialization
-      }, runtimeElementId)
-    : null;
-  if (!owner || owner.kind !== "moduleInstance") return null;
-  const path = owner.origin?.instancePath ?? materialization?.runtimeIdentityByElementId.get(runtimeElementId)?.path;
-  const ids = compiled.statementMap?.statementIndexByStatementId;
-  if (!path || path.length === 0 || !ids) return null;
-  const indexes = path.map((statementId) => ids.get(statementId));
-  return indexes.every((index): index is number => index !== undefined && Number.isInteger(index) && index >= 0)
-    ? indexes
-    : null;
-};
-
 const proofRangeEqual = (
   statement: CompiledDslDocument["statements"][number],
   proof: VscodeInlineModuleCanvasTargetProof
-): boolean => statement.documentRange.from === proof.sourceRange.from &&
+): boolean => Number.isInteger(proof.sourceRange?.from) &&
+  Number.isInteger(proof.sourceRange?.to) &&
+  statement.documentRange.from === proof.sourceRange.from &&
   statement.documentRange.to === proof.sourceRange.to;
 
 /** Re-proves Canvas-local runtime tokens against the fresh Extension Host materialization. */
@@ -239,70 +220,47 @@ export const reproveInlineModuleCanvasTargets = ({
 }): readonly InlineModuleTargetIdentity[] => {
   if (
     publication.normalizedSource !== source.normalizedSource ||
+    !Array.isArray(publication.targets) ||
     !compiled.statementMap ||
     compiled.spans.sourceMap.source !== source.normalizedSource ||
     compiled.spans.sourceMap.sourceRevision !== source.sourceRevision ||
     compiled.statementMap.sourceRevision !== source.sourceRevision
   ) return [];
 
-  const materialization = compiled.moduleMaterialization;
-  if (!materialization) return [];
-  const currentByPath = new Map<string, {
-    target: InlineModuleTargetIdentity;
-    statementIndex: number;
-    path: readonly number[];
-  }>();
-  for (const runtimeElementId of materialization.originByRuntimeElementId.keys()) {
-    const owner = sourceOwnerForRuntimeElementId({
-      statementMap: compiled.statementMap,
-      moduleMaterialization: materialization
-    }, runtimeElementId);
-    const path = statementPathFor(runtimeElementId, compiled);
-    const statementId = owner?.sourceStatementId;
-    const mappedStatementId = compiled.statementMap.statementIdByStatementIndex?.get(owner?.sourceStatementIndex ?? -1);
-    const statement = owner && compiled.statements[owner.sourceStatementIndex];
-    if (
-      !owner ||
-      owner.kind !== "moduleInstance" ||
-      !path ||
-      !statementId ||
-      mappedStatementId !== statementId ||
-      !statement ||
-      statement.kind !== "moduleInstance" ||
-      statement.sourceRevision !== source.sourceRevision ||
-      owner.source?.kind === "dependency-saved"
-    ) continue;
-    const key = JSON.stringify(path);
-    if (!currentByPath.has(key)) {
-      currentByPath.set(key, {
-        target: { documentKey: null, statementId },
-        statementIndex: owner.sourceStatementIndex,
-        path
-      });
-    }
-  }
-
   const resolved: Array<{ target: InlineModuleTargetIdentity; statementIndex: number }> = [];
   const seenStatementIndexes = new Set<number>();
   for (const proof of publication.targets) {
     if (
       !Number.isInteger(proof.sourceStatementIndex) ||
+      proof.sourceStatementIndex < 0 ||
       !Array.isArray(proof.sourceStatementPath) ||
+      proof.sourceStatementPath.length === 0 ||
       proof.sourceStatementPath.some((index) => !Number.isInteger(index) || index < 0) ||
-      typeof proof.sourceStatementId !== "string"
+      typeof proof.sourceStatementId !== "string" ||
+      proof.sourceStatementId.length === 0
     ) continue;
-    const candidate = currentByPath.get(JSON.stringify(proof.sourceStatementPath));
+
+    const candidate = moduleInstanceHostProjectionFor({
+      sourceStatementPath: proof.sourceStatementPath,
+      source,
+      compiled
+    });
     const statement = candidate && compiled.statements[candidate.statementIndex];
     if (
       !candidate ||
       !statement ||
       candidate.statementIndex !== proof.sourceStatementIndex ||
-      candidate.target.statementId !== proof.sourceStatementId ||
       !proofRangeEqual(statement, proof) ||
       seenStatementIndexes.has(candidate.statementIndex)
-    ) continue;
+    ) {
+      if (candidate && seenStatementIndexes.has(candidate.statementIndex)) return [];
+      continue;
+    }
     seenStatementIndexes.add(candidate.statementIndex);
-    resolved.push(candidate);
+    resolved.push({
+      target: { documentKey: null, statementId: candidate.statementId },
+      statementIndex: candidate.statementIndex
+    });
   }
   return resolved
     .sort((left, right) => left.statementIndex - right.statementIndex)
