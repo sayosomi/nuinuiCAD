@@ -61,6 +61,23 @@ describe("queryDslReferences", () => {
     )).toBe(true);
   });
 
+  it("keeps root immutable geometry aliases on one declaration identity", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const P: point = @A",
+      "const P2: point = @P",
+      "point Use = offset(from: @P, dx: 1, dy: 0)"
+    ].join("\n");
+    const declaration = queryAt(source, "P");
+    const reference = queryAt(source, "@P");
+
+    expect(declaration).not.toBeNull();
+    expect(reference).toEqual(declaration);
+    expect(slices(source, declaration!.declarationRange)).toEqual(["P"]);
+    expect(slices(source, declaration!.referenceRanges)).toEqual(["P", "P"]);
+  });
+
   it("resolves ordinary containers, parent references, and geometry properties", () => {
     const parentSource = [
       "nui 1",

@@ -34,6 +34,20 @@ position where they are used. Geometry properties are separately typed; only
 properties documented as numeric or as a specific choice can be read in a
 scalar expression. See [Expressions](expressions.md).
 
+Typed declarations may hold one immutable geometry reference:
+
+```text
+const origin: point = @A
+const edge: line = @AB
+const outline: path = @edge
+```
+
+The initializer must be an existing `@` geometry reference. These values are
+source-level aliases, not drawable elements or scalar runtime values. The
+declared type remains the public type through alias chains: `point` accepts
+only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
+Single-geometry values are `const`-only.
+
 ## Geometry arrays
 
 The immutable named geometry array types are exactly `point[]`, `line[]`, and

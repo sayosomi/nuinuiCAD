@@ -51,6 +51,25 @@ describe("module semantic editor range view", () => {
     if (rename.verdict === "ok") expect(rename.entries.map((entry) => entry.oldName)).toEqual(["lineA", "lineA"]);
   });
 
+  it("keeps Module geometry aliases on their authored source statement identity", () => {
+    const aliasSource = [
+      "nui 1",
+      "module M(anchor: point) {",
+      "  const P: point = @anchor",
+      "  const P2: point = @P",
+      "  point Use = offset(from: @P2, dx: 1, dy: 0)",
+      "}"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: aliasSource, sourceRevision: 0 });
+    const document = compileDslDocument(aliasSource, { preparsed: parsed, assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:alias:${index}`])) });
+    const index = createModuleSemanticRangeIndex(document);
+    const reference = index.tokens.find((token) => token.from === aliasSource.indexOf("P2", aliasSource.indexOf("@P2")));
+
+    expect(reference?.target).toEqual({ kind: "moduleSource", statementId: "statement:alias:3" });
+    const declaration = moduleSemanticDeclarationRange(index, reference!.target);
+    expect(declaration && aliasSource.slice(declaration.from, declaration.to)).toBe("P2");
+  });
+
   it("connects deferred export property instance and member tokens to stable source targets", () => {
     const deferredSource = [
       "nui 1",

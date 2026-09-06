@@ -15,6 +15,7 @@ import {
   type DslSourceReference
 } from "./dslReferenceTokens";
 import { resolveSourceLexicalPath, type SourceLexicalNamespaceIndex } from "./sourceLexicalNamespaceIndex";
+import { isDslGeometryValueType } from "./dslValueTypes";
 
 export type NameIndex = {
   elements: CadElement[];
@@ -163,6 +164,16 @@ export const resolveId = (
       if (sourceResolution.declaration.kind === "geometry" || sourceResolution.declaration.kind === "group" || sourceResolution.declaration.kind === "conditionalGroup" || sourceResolution.declaration.kind === "forGroup") {
         const resolvedId = index.sourceLexicalResolution!.elementIdByStatementIndex.get(sourceResolution.declaration.statementIndex);
         if (resolvedId) return resolvedId;
+      }
+      if (
+        sourceResolution.declaration.kind === "typedDeclaration" &&
+        sourceResolution.declaration.statement.kind === "typedDeclaration" &&
+        isDslGeometryValueType(sourceResolution.declaration.statement.valueType)
+      ) {
+        // Single geometry values are source-only and are resolved by the
+        // Module geometry runtime boundary. Keep the first compiler pass
+        // fail-closed without inventing a drawable identity.
+        return unresolvedToken;
       }
       diagnostics.push(invalidReferenceDiagnostic(
         line,

@@ -25,7 +25,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
-import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { isDslScalarValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
   resolveSourceLexicalPath,
@@ -151,7 +151,12 @@ const sourceNamespaceBindingResolverFor = (
   const lookup = resolveSourceLexicalPath(sourceNamespace, statementIndex, path);
   if (lookup.kind === "undefined") return null;
   if (lookup.kind === "resolved") {
-    if (lookup.declaration.kind === "typedDeclaration" && typedStatementIndexes.has(lookup.declaration.statementIndex)) {
+    if (
+      lookup.declaration.kind === "typedDeclaration" &&
+      typedStatementIndexes.has(lookup.declaration.statementIndex) &&
+      lookup.declaration.statement.kind === "typedDeclaration" &&
+      isDslScalarValueType(lookup.declaration.statement.valueType)
+    ) {
       const bindingId = bindingIdForStableStatementId(lookup.declaration.statementId);
       return { kind: "resolved", bindingId };
     }
@@ -173,7 +178,12 @@ const sourceNamespaceBindingResolverFor = (
   const declarations = lookup.declarations;
   if (
     path.segments.length === 1 &&
-    declarations.every((declaration) => declaration.kind === "typedDeclaration" && typedStatementIndexes.has(declaration.statementIndex))
+    declarations.every((declaration) =>
+      declaration.kind === "typedDeclaration" &&
+      typedStatementIndexes.has(declaration.statementIndex) &&
+      declaration.statement.kind === "typedDeclaration" &&
+      isDslScalarValueType(declaration.statement.valueType)
+    )
   ) return null;
   return { kind: "blocked", reason: lookup.kind };
 };
@@ -409,7 +419,11 @@ export const analyzeTypedDeclarations = ({
 
   const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeBindingMetadataStatement);
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
-  const typedStatementIndexes = new Set(typedStatements.map(({ statementIndex }) => statementIndex));
+  const scalarTypedStatementIndexes = new Set(
+    typedStatements
+      .filter(({ statement }) => isDslScalarValueType(statement.valueType))
+      .map(({ statementIndex }) => statementIndex)
+  );
   const catalog = buildBindingCatalog({
     scopeIndex,
     stableStatementIdByIndex,
@@ -417,7 +431,7 @@ export const analyzeTypedDeclarations = ({
     containerIndex: adapter.containerIndex,
     ...(effectiveAdditionalBindings.length ? { additionalBindings: effectiveAdditionalBindings } : {}),
     ...(sourceNamespace
-      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, typedStatementIndexes, combinedAdditionalBindingResolver) }
+      ? { sourceNamespaceBindingResolver: sourceNamespaceBindingResolverFor(sourceNamespace, scalarTypedStatementIndexes, combinedAdditionalBindingResolver) }
       : {})
   });
   const additionalInitializerByBindingId = new Map(

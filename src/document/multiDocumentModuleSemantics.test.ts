@@ -345,6 +345,7 @@ describe("multi-document Module semantics", () => {
       scopeId: "root",
       parameters: [],
       localScalars: [],
+      localGeometryValues: [],
       recordValues: [],
       bodyStatements: [],
       exports: [],

@@ -1,5 +1,6 @@
 import type { DslStatement } from "./dslTypes";
 import { geometryArrayTypeOfTypedDeclaration } from "./geometryArraySourceAnnotations";
+import { isDslGeometryValueType } from "./dslValueTypes";
 
 export type DslStatementInclusion = (statement: DslStatement, statementIndex: number) => boolean;
 
@@ -27,13 +28,17 @@ export const isInUnloweredModuleSubtree = (
 
 /**
  * Runtime compilation excludes source-only value kinds at the shared guard.
- * Geometry arrays retain definition-backed source semantics and are lowered
- * only when an existing list consumer asks for concrete runtime geometry IDs.
+ * Geometry arrays and single geometry values retain definition-backed source
+ * semantics and are lowered only when an existing geometry consumer asks for
+ * concrete runtime geometry.
  */
 export const isCompilableDslStatement = (statements: readonly DslStatement[], statementIndex: number): boolean => {
   if (isInUnloweredModuleSubtree(statements, statementIndex)) return false;
   const statement = statements[statementIndex];
-  if (statement?.kind === "typedDeclaration" && geometryArrayTypeOfTypedDeclaration(statement)) return false;
+  if (
+    statement?.kind === "typedDeclaration" &&
+    (geometryArrayTypeOfTypedDeclaration(statement) || isDslGeometryValueType(statement.valueType))
+  ) return false;
   return true;
 };
 

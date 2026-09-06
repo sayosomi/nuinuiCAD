@@ -47,6 +47,21 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("point A") + "point ".length);
   });
 
+  it("resolves root immutable geometry aliases to their source declaration", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const P: point = @A",
+      "point Use = offset(from: @P, dx: 1, dy: 0)"
+    ].join("\n");
+    const result = exactQuery(source, "@P");
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("P");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("P");
+    expect(result!.declarationRange.from).toBe(source.indexOf("const P") + "const ".length);
+  });
+
   it("resolves ordinary geometry from source semantics without runtime materialization", () => {
     const source = [
       "nui 1",
