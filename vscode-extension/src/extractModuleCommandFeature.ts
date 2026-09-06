@@ -65,6 +65,7 @@ const vscodeDisplayLanguage = (): string => {
 };
 
 export type VscodeExtractModuleCommandFeature = vscode.Disposable & {
+  handleCanvasViewStateChange: () => void;
   handleCanvasAuthoritativeDocumentReady: (document: vscode.TextDocument, documentVersion: number) => void;
   handleCanvasObservationPublication: (document: vscode.TextDocument) => void;
   handleDocumentChange: (document: vscode.TextDocument) => void;
@@ -773,6 +774,9 @@ export const registerVscodeExtractModuleCommandFeature = ({
     } }
   ) as VscodeExtractModuleCommandFeature;
   disposable.handleCanvasAuthoritativeDocumentReady = handleCanvasAuthoritativeDocumentReady;
+  disposable.handleCanvasViewStateChange = (): void => {
+    refreshContext();
+  };
   disposable.handleCanvasObservationPublication = handleCanvasObservationPublication;
   disposable.handleDocumentChange = handleDocumentChange;
   disposable.handleDocumentClose = handleDocumentClose;

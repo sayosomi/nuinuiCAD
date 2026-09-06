@@ -521,10 +521,12 @@ export const activate = (context: vscode.ExtensionContext): void => {
   let handleCoordinatePointConversionDocumentChange = (_document: vscode.TextDocument): void => { void _document; };
   let handleCoordinatePointConversionDocumentClose = (_document: vscode.TextDocument): void => { void _document; };
   let handleInlineModuleCanvasTargetsPublication: VscodeInlineModuleCommandFeature["handleCanvasTargetsPublication"] = () => undefined;
+  let handleInlineModuleCanvasViewStateChange: VscodeInlineModuleCommandFeature["handleCanvasViewStateChange"] = () => undefined;
   let handleInlineModuleCanvasAuthoritativeDocumentReady: VscodeInlineModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
   let handleInlineModuleDocumentChange: VscodeInlineModuleCommandFeature["handleDocumentChange"] = () => undefined;
   let handleInlineModuleDocumentClose: VscodeInlineModuleCommandFeature["handleDocumentClose"] = () => undefined;
   let handleExtractModuleCanvasAuthoritativeDocumentReady: VscodeExtractModuleCommandFeature["handleCanvasAuthoritativeDocumentReady"] = () => undefined;
+  let handleExtractModuleCanvasViewStateChange: VscodeExtractModuleCommandFeature["handleCanvasViewStateChange"] = () => undefined;
   let handleExtractModuleCanvasObservationPublication: VscodeExtractModuleCommandFeature["handleCanvasObservationPublication"] = () => undefined;
   let handleExtractModuleDocumentChange: VscodeExtractModuleCommandFeature["handleDocumentChange"] = () => undefined;
   let handleExtractModuleDocumentClose: VscodeExtractModuleCommandFeature["handleDocumentClose"] = () => undefined;
@@ -1768,6 +1770,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
       }
       if (panel.active && session.inFlightCanvasHistory === null) clearCanvasHistoryHandoff(session);
       flushPendingCanvasFocus(session);
+      handleInlineModuleCanvasViewStateChange();
+      handleExtractModuleCanvasViewStateChange();
     }));
 
     session.disposables.push(panel.webview.onDidReceiveMessage(async (message: VscodeToExtensionMessage) => {
@@ -1969,6 +1973,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     applySourceLineSplices
   });
   handleInlineModuleCanvasTargetsPublication = inlineModuleFeature.handleCanvasTargetsPublication;
+  handleInlineModuleCanvasViewStateChange = inlineModuleFeature.handleCanvasViewStateChange;
   handleInlineModuleCanvasAuthoritativeDocumentReady = inlineModuleFeature.handleCanvasAuthoritativeDocumentReady;
   handleInlineModuleDocumentChange = inlineModuleFeature.handleDocumentChange;
   handleInlineModuleDocumentClose = inlineModuleFeature.handleDocumentClose;
@@ -2028,6 +2033,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
     applySourceLineSplices
   });
   handleExtractModuleCanvasAuthoritativeDocumentReady = extractModuleFeature.handleCanvasAuthoritativeDocumentReady;
+  handleExtractModuleCanvasViewStateChange = extractModuleFeature.handleCanvasViewStateChange;
   handleExtractModuleCanvasObservationPublication = extractModuleFeature.handleCanvasObservationPublication;
   handleExtractModuleDocumentChange = extractModuleFeature.handleDocumentChange;
   handleExtractModuleDocumentClose = extractModuleFeature.handleDocumentClose;

@@ -61,6 +61,7 @@ const vscodeDisplayLanguage = (): string => {
 };
 
 export type VscodeInlineModuleCommandFeature = vscode.Disposable & {
+  handleCanvasViewStateChange: () => void;
   handleCanvasTargetsPublication: (
     document: vscode.TextDocument,
     publication: VscodeInlineModuleCanvasTargetsPublication
@@ -687,6 +688,9 @@ export const registerVscodeInlineModuleCommandFeature = ({
     } }
   ) as VscodeInlineModuleCommandFeature;
   disposable.handleCanvasTargetsPublication = handleCanvasTargetsPublication;
+  disposable.handleCanvasViewStateChange = (): void => {
+    refreshContext();
+  };
   disposable.handleCanvasAuthoritativeDocumentReady = handleCanvasAuthoritativeDocumentReady;
   disposable.handleDocumentChange = handleDocumentChange;
   disposable.handleDocumentClose = handleDocumentClose;
