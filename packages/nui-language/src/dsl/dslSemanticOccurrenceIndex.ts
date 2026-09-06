@@ -27,6 +27,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
@@ -222,7 +223,7 @@ const addTypedOccurrences = (
   const analysis = bindingAnalysis;
   if (!analysis) return;
   for (const binding of analysis.catalog.bindings) {
-    if (binding.kind !== "typed" || !binding.nameSpan) continue;
+    if (binding.kind !== "typed" || !binding.nameSpan || scalarTypeOfDslValueType(binding.declaredType) === null) continue;
     addPhysicalOccurrence(add, compiled, binding.statementIndex, binding.nameSpan, { kind: "typed", bindingId: binding.id }, "declaration");
   }
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {

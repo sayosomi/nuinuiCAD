@@ -57,6 +57,7 @@ import { effectiveElementActivityById } from "../model/elementActivity";
 import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import { planRecordScalarLowering, recordScalarBindingIdFor, recordScalarDeclarationVersionIdFor } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -930,14 +931,15 @@ export const compileModuleScalarRuntime = ({
   }
   for (const foreign of foreignSourceScalars.values()) {
     for (const binding of foreign.analysis.bindingAnalysis.catalog.bindings) {
-      if (binding.kind !== "typed" || !binding.declaredType || foreign.bindingIdByLocalId.get(binding.id) === undefined) continue;
+      const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+      if (binding.kind !== "typed" || declaredType === null || foreign.bindingIdByLocalId.get(binding.id) === undefined) continue;
       const id = foreign.bindingIdByLocalId.get(binding.id)!;
       const scopeId = baseScopeIndex.rootScopeId;
       allBindingInfos.push({
         id,
         declarationVersionId: `module-document-declaration:${encodeIdentityTuple([String(foreign.documentId), binding.id])}`,
         name: binding.name,
-        type: binding.declaredType,
+        type: declaredType,
         bindingKind: binding.mutability === "let" ? "let" : "const",
         scopeId,
         sourceScopeId: binding.effectiveScopeId,

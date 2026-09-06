@@ -2,9 +2,9 @@
 // identities && source positions; this module only uses dense ranks derived
 // from the parsed statement stream.
 import type { DslSpan } from "../dsl/dslTypes";
+import type { DslValueType } from "../dsl/dslValueTypes";
 import type { LexicalScopeIndex, ScopeId } from "./lexicalScopeIndex";
 import type { CadContainerIndex } from "./containerIndex";
-import type { ScalarType } from "./types";
 
 export type BindingId = string;
 export type BindingKind = "typed" | "iteration";
@@ -48,7 +48,7 @@ export type BindingSeed = {
   effectiveScopeId: ScopeId;
   visibility: BindingVisibility;
   mutability?: BindingMutability;
-  declaredType?: ScalarType | null;
+  declaredType?: DslValueType | null;
   /** Explicit declaration-version identity for non-document bindings. */
   declarationVersionId?: string;
   /** Synthetic bindings can remain in the combined graph without entering source lookup. */
@@ -66,7 +66,7 @@ export type Binding = {
   effectiveScopeId: ScopeId;
   visibility: BindingVisibility;
   mutability: BindingMutability;
-  declaredType: ScalarType | null;
+  declaredType: DslValueType | null;
   /** Position in the canonical catalog; all downstream ordering uses this. */
   rank: number;
   /** Optional stable declaration-version identity for synthetic bindings. */
@@ -185,8 +185,8 @@ export const buildBindingCatalog = ({
       const slotCount = slots.size;
       for (let sourceOrder = 0; sourceOrder < slotCount; sourceOrder += 1) {
         const slot = slots.get(sourceOrder);
-        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous && unique per statement/kind");
-        bindings.push({ ...slot[0], rank: bindings.length });
+        if (!slot) throw new Error("bindingCatalog: sourceOrder must be contiguous per statement/kind");
+        for (const binding of slot) bindings.push({ ...binding, rank: bindings.length });
       }
     }
   }

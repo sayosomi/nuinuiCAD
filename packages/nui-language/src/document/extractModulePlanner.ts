@@ -573,7 +573,8 @@ const scalarDependencyDescriptor = (
         declarationFrom: physical.segments[0]!.from
       };
     }
-    if (!binding.declaredType) return null;
+    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    if (!declaredType) return null;
     const declarations = declarationRangesFor(index, identity);
     if (declarations.length !== 1) return null;
     // Keep synthetic record-field scalar slots out of Extract dependency inference.
@@ -587,8 +588,8 @@ const scalarDependencyDescriptor = (
     }
     return {
       name: binding.name,
-      type: binding.declaredType,
-      typeText: moduleParameterTypeText(binding.declaredType, numericOptionsForStatement(statement)),
+      type: declaredType,
+      typeText: moduleParameterTypeText(declaredType, numericOptionsForStatement(statement)),
       numericTypeOptions: numericOptionsForStatement(statement),
       declarationFrom: declarations[0]!.from
     };

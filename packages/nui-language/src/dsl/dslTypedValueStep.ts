@@ -1,4 +1,5 @@
 import { findNumericExpressionLiteralSpanAt } from "../geometry/numericExpressionLiteralSpan";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 import type { ScalarType } from "../scalars/types";
 import { choiceAfterStep, stepDslNumericLiteral, type DslValueStepDirection } from "./dslValueStep";
 import type { DslSpan } from "./dslTypes";
@@ -38,11 +39,13 @@ export const typedValueStepTargetForBinding = (
 ): TypedValueStepTarget | null => {
   const binding = compiled.bindingAnalysis?.catalog.bindingsById.get(bindingId);
   if (!binding?.declaredType) return null;
+  const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+  if (!declaredType) return null;
   const declaration = compiled.statements[binding.statementIndex];
   if (!declaration || declaration.kind !== "typedDeclaration") return null;
   return {
-    declaredType: binding.declaredType,
-    options: binding.declaredType.kind === "number"
+    declaredType,
+    options: declaredType.kind === "number"
       ? typedNumericStepOptions(declaration.numericTypeOptions)
       : {}
   };

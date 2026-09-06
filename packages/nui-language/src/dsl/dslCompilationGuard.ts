@@ -36,3 +36,13 @@ export const isCompilableDslStatement = (statements: readonly DslStatement[], st
   if (statement?.kind === "typedDeclaration" && geometryArrayTypeOfTypedDeclaration(statement)) return false;
   return true;
 };
+
+/**
+ * Canonical declaration metadata includes source-authored geometry-array
+ * declarations even though the scalar/geometry runtime guard excludes them.
+ * Module-body declarations remain owned by the source-only module path.
+ */
+export const isCanonicalValueBindingDeclaration = (
+  statements: readonly DslStatement[],
+  statementIndex: number
+): boolean => statements[statementIndex]?.kind === "typedDeclaration" && !isInUnloweredModuleSubtree(statements, statementIndex);

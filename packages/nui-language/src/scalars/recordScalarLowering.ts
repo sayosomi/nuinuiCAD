@@ -23,6 +23,7 @@ import type { BindingResolution } from "./bindingResolution";
 import type { ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarType } from "./types";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type RecordScalarFieldInitializer = {
   bindingId: BindingId;
@@ -571,7 +572,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       referencesBySpanStart.set(node.span.start, {
         kind: "resolvedType",
         bindingId: binding.id,
-        type: binding.declaredType
+        type: scalarTypeOfDslValueType(binding.declaredType)
       });
       dependencies.push({ bindingId: binding.id, name: `${node.elementName}.${node.property}`, span: node.span });
       return;

@@ -20,6 +20,7 @@ import { BUILTIN_FUNCTION_DEFINITIONS, type BuiltinFunctionName } from "./builti
 import type { ScalarExpressionToken } from "./expressionTokenizer";
 import type { ScalarSpan } from "./literalScanner";
 import { isScalarTypeAssignable } from "./scalarAssignability";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "./scalarExpressionPositionClassifier";
 import { isChoiceScalarType, type ScalarType } from "./types";
 
@@ -62,7 +63,9 @@ export const scalarPrefixOperatorCandidates = (expectedType: ScalarType | null):
  * This mirrors that exact convention rather than re-deriving it.
  */
 const declaredOrImplicitType = (binding: Binding): ScalarType | null =>
-  binding.kind === "typed" ? binding.declaredType : (binding.declaredType ?? { kind: "number" });
+  binding.kind === "typed"
+    ? scalarTypeOfDslValueType(binding.declaredType)
+    : (scalarTypeOfDslValueType(binding.declaredType) ?? { kind: "number" });
 
 // literalScanner.ts's ScalarLiteralToken (this token's `.literal` field type)
 // is exactly these 4 success variants - a scan error is the separate

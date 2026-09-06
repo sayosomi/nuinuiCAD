@@ -21,6 +21,7 @@ import { describeScalarType, typecheckScalarExpression } from "./expressionTypec
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { isScalarTypeAssignable } from "./scalarAssignability";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { ScalarType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
@@ -246,7 +247,7 @@ export const compilePropertyBindings = ({
         return undefined;
       }
       const entry = bindingAnalysis.entriesById.get(resolution.binding.id);
-      if (resolution.binding.declaredType === null || entry?.status.kind === "invalid") {
+      if (scalarTypeOfDslValueType(resolution.binding.declaredType) === null || entry?.status.kind === "invalid") {
         diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -321,8 +322,8 @@ export const compilePropertyBindings = ({
 
     if (candidate.ast.kind === "reference" && candidate.references.length === 1) {
       const resolution = referenceResolutions[0];
-      if (!resolution || resolution.kind !== "resolved" || !resolution.binding.declaredType || !isScalarTypeAssignable(resolution.binding.declaredType, candidate.expectedType)) {
-        const actual = resolution?.kind === "resolved" ? resolution.binding.declaredType : null;
+      const actual = resolution?.kind === "resolved" ? scalarTypeOfDslValueType(resolution.binding.declaredType) : null;
+      if (!resolution || resolution.kind !== "resolved" || actual === null || !isScalarTypeAssignable(actual, candidate.expectedType)) {
         diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -343,7 +344,7 @@ export const compilePropertyBindings = ({
       sourcesByOccurrenceKey.set(candidate.key, {
         kind: "binding",
         bindingId: resolution.binding.id,
-        type: resolution.binding.declaredType,
+        type: actual,
         span: candidate.ast.span,
         nameSpan: candidate.ast.nameSpan,
         name: candidate.ast.name

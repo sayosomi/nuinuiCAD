@@ -2,14 +2,14 @@
 // lowering consumes this result directly && never repeats this work.
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
+import { isCanonicalValueBindingDeclaration, isCompilableDslStatement } from "../dsl/dslCompilationGuard";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "../dsl/dslDiagnosticSpan";
 import type { DslDiagnostic, DslDiagnosticPresentation, DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { RecordValueSemantic } from "../dsl/recordSemanticAnalysis";
 import { isElementDslStatement } from "../dsl/dslParser";
 import { parameterKeyForArg } from "../dsl/dslConstructions";
 import { analyzeBindings, type BindingAnalysis, type InitializerReference } from "./bindingAnalysis";
-import { bindingIdForStableStatementId, buildBindingCatalog, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
+import { bindingIdForStableStatementId, buildBindingCatalog, type Binding, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { resolveInitializerReferences, type BindingResolution, type InitializerResolutionRequest } from "./bindingResolution";
 import { resolveBuiltinGeometryArguments, type ResolveBuiltinGeometryArgumentsResult } from "./builtinGeometryArgumentResolution";
 import { getBuiltinFunctionDefinition } from "./builtinFunctions";
@@ -25,6 +25,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
   resolveSourceLexicalPath,
@@ -305,6 +306,8 @@ export const analyzeTypedDeclarations = ({
   const includeStatement = includeStatementOption ?? ((_statement, statementIndex) =>
     isCompilableDslStatement(statements, statementIndex)
   );
+  const includeBindingMetadataStatement = (statement: DslStatement, statementIndex: number): boolean =>
+    includeStatement(statement, statementIndex) || isCanonicalValueBindingDeclaration(statements, statementIndex);
   const recordAnalysis = sourceNamespace?.recordSemanticAnalysis ?? null;
   const recordPlan = recordAnalysis && sourceNamespace
     ? planRecordScalarLowering({
@@ -365,7 +368,7 @@ export const analyzeTypedDeclarations = ({
   const typedStatements = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
     .filter((entry): entry is { statement: Extract<DslStatement, { kind: "typedDeclaration" }>; statementIndex: number } =>
-      entry.statement.kind === "typedDeclaration" && includeStatement(entry.statement, entry.statementIndex)
+      entry.statement.kind === "typedDeclaration" && includeBindingMetadataStatement(entry.statement, entry.statementIndex)
     );
   const hasSourceOutputStatements = statements.some((statement, statementIndex) =>
     (statement.kind === "layout" || statement.kind === "print" || statement.kind === "svg") && includeStatement(statement, statementIndex)
@@ -404,7 +407,7 @@ export const analyzeTypedDeclarations = ({
   );
   if (missingIdentity.length > 0) return { diagnostics: missingIdentity };
 
-  const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeStatement);
+  const scopeIndex = buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, includeBindingMetadataStatement);
   const adapter = buildDslBindingAdapterSeeds({ statements, scopeIndex, stableStatementIdByIndex, reconciledContainers });
   const typedStatementIndexes = new Set(typedStatements.map(({ statementIndex }) => statementIndex));
   const catalog = buildBindingCatalog({
@@ -422,11 +425,13 @@ export const analyzeTypedDeclarations = ({
   );
   const analyzesInitializer = (bindingId: BindingId, resolutionMode: string | undefined) =>
     resolutionMode !== "preResolvedOnly" || additionalInitializerByBindingId.has(bindingId);
+  const isScalarTypedBinding = (binding: Binding): boolean =>
+    binding.kind === "typed" && scalarTypeOfDslValueType(binding.declaredType) !== null;
 
   const parsedByBindingId = new Map<BindingId, ParsedInitializer>();
   const diagnostics: DslDiagnostic[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const statement = statements[binding.statementIndex];
     if (!statement) throw new Error(`typedDeclarationAnalysis: typed binding ${binding.id} has no owner statement`);
     const additional = additionalInitializerByBindingId.get(binding.id);
@@ -442,7 +447,7 @@ export const analyzeTypedDeclarations = ({
 
   const requests: InitializerResolutionRequest[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
     const scopeId = scopeIndex.scopeOfStatement.get(binding.statementIndex) ?? scopeIndex.rootScopeId;
@@ -466,7 +471,7 @@ export const analyzeTypedDeclarations = ({
   const geometryResolutionByBindingId = new Map<BindingId, ResolveBuiltinGeometryArgumentsResult>();
   const preparedByBindingId = new Map<BindingId, ReturnType<NonNullable<PrepareScalarExpression>>>();
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
     const geometryResolution = resolveBuiltinGeometryArguments({
@@ -548,7 +553,7 @@ export const analyzeTypedDeclarations = ({
   }
   const initializerReferences: InitializerReference[] = [];
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) continue;
     const normal = (resolvedReferencesByBindingId.get(binding.id) ?? []).map((reference) => ({
@@ -602,7 +607,7 @@ export const analyzeTypedDeclarations = ({
   for (const [statementIndex, elementId] of reconciledContainers.elementIdByStatementIndex) sourceOrderByElementId.set(elementId, statementIndex);
   const nameContext = createElementNameContext([...reconciledContainers.elements]);
   for (const binding of catalog.bindings) {
-    if (binding.kind !== "typed" || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    if (!isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const prepared = preparedByBindingId.get(binding.id);
@@ -623,7 +628,7 @@ export const analyzeTypedDeclarations = ({
       }
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: binding.declaredType,
+      expectedType: scalarTypeOfDslValueType(binding.declaredType),
       references: prepared?.references ?? geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
       geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets,
       geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
