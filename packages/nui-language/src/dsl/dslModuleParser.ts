@@ -11,6 +11,7 @@ import type {
 import { invalidElementActivityMessage, parseElementActivityLiteral } from "./dslActivity";
 import { unquoteDslString } from "./dslTokens";
 import { parseDslSourceReference } from "./dslReferenceTokens";
+import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 export type DslModuleDiagnostic = { message: string; span: DslSpan; code?: string; presentation?: DslDiagnosticPresentation };
 
@@ -143,9 +144,10 @@ const moduleParameterType = (
   const parsedDiagnostics: DslModuleDiagnostic[] = [];
   const parsed = parseDslDeclaredValueType(source, typeSpan, parsedDiagnostics);
   diagnostics.push(...parsedDiagnostics);
+  const geometryType = isDslGeometryValueType(parsed.valueType) ? parsed.valueType : null;
   return {
-    type: parsed.declaredType,
-    recordTypeReference: parsed.recordTypeReference,
+    type: geometryType ?? scalarTypeOfDslValueType(parsed.valueType),
+    recordTypeReference: nominalRecordTypeOfDslValueType(parsed.valueType),
     choiceOptionSpans: parsed.choiceOptionSpans,
     ...(parsed.numericTypeOptions ? { numericTypeOptions: parsed.numericTypeOptions } : {})
   };

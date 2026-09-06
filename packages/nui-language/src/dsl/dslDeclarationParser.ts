@@ -1,6 +1,6 @@
-import type { ScalarType } from "../scalars/types";
-import type { DslRecordTypeReference, DslSpan } from "./dslTypes";
-import type { GeometryArrayType } from "./geometryArrayTypes";
+import type { DslSpan } from "./dslTypes";
+import type { DslValueType } from "./dslValueTypes";
+import { geometryArrayTypeOfDslValueType } from "./geometryArrayTypes";
 import { unquoteDslString } from "./dslTokens";
 import {
   parseDslDeclaredValueType,
@@ -32,12 +32,8 @@ export type DslTypedDeclarationStatement = {
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
-  /** `null` when the scalar type annotation failed or this is source-only typed. */
-  declaredType: ScalarType | null;
-  /** Source-only unresolved nominal record type. Never enters ScalarType/runtime. */
-  recordTypeReference: DslRecordTypeReference | null;
-  /** Source-only immutable geometry-array type. Never enters ScalarType/runtime. */
-  geometryArrayType: GeometryArrayType | null;
+  /** `null` when the type annotation failed. */
+  valueType: DslValueType | null;
   /** Per-option spans, index-aligned with scalar choice options. */
   choiceOptionSpans: readonly DslSpan[];
   /** Optional source-owned step/bounds metadata for a `number(...)` type annotation. */
@@ -141,10 +137,10 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
 
   const parsedType: DslDeclaredValueTypeParseResult =
     typeSpan.start === typeSpan.end
-      ? { declaredType: null, recordTypeReference: null, geometryArrayType: null, choiceOptionSpans: [] }
+      ? { valueType: null, choiceOptionSpans: [] }
       : parseDslDeclaredValueType(logicalText, typeSpan, diagnostics);
 
-  if (keyword === "let" && parsedType.geometryArrayType) {
+  if (keyword === "let" && geometryArrayTypeOfDslValueType(parsedType.valueType)) {
     diagnostics.push({
       message: "geometry array は const で宣言してください。",
       span: keywordSpan,
@@ -163,9 +159,7 @@ export const parseDslTypedDeclarationStatement = (logicalText: string): DslDecla
       bindingKind: keyword,
       ...name,
       keywordSpan,
-      declaredType: parsedType.declaredType,
-      recordTypeReference: parsedType.recordTypeReference,
-      geometryArrayType: parsedType.geometryArrayType,
+      valueType: parsedType.valueType,
       choiceOptionSpans: parsedType.choiceOptionSpans,
       ...(parsedType.numericTypeOptions ? { numericTypeOptions: parsedType.numericTypeOptions } : {}),
       initializer: logicalText.slice(initializerSpan.start, initializerSpan.end),

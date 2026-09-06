@@ -262,7 +262,7 @@ describe("DSL typed declarations", () => {
       kind: "typedDeclaration",
       bindingKind: "const",
       name: "ゆとり",
-      declaredType: { kind: "number" },
+      valueType: { kind: "number" },
       initializer: "12"
     });
     if (statement.kind !== "typedDeclaration") return;
@@ -277,7 +277,7 @@ describe("DSL typed declarations", () => {
       kind: "typedDeclaration",
       bindingKind: "let",
       name: "ラベル",
-      declaredType: { kind: "string" },
+      valueType: { kind: "string" },
       initializer: '"前身頃"'
     });
   });
@@ -287,7 +287,7 @@ describe("DSL typed declarations", () => {
     expect(statement).toMatchObject({
       kind: "typedDeclaration",
       bindingKind: "let",
-      declaredType: { kind: "boolean" },
+      valueType: { kind: "boolean" },
       initializer: "true"
     });
   });
@@ -297,7 +297,7 @@ describe("DSL typed declarations", () => {
     const statement = single(source);
     expect(statement).toMatchObject({
       kind: "typedDeclaration",
-      declaredType: { kind: "choice", options: ["right", "left"] },
+      valueType: { kind: "choice", options: ["right", "left"] },
       initializer: "right"
     });
     if (statement.kind !== "typedDeclaration") return;
@@ -337,7 +337,7 @@ describe("DSL typed declarations", () => {
     expect(result).toHaveLength(1);
     expect(result[0].message).toContain("不明な型注釈");
     const statement = parseDsl("const x: Vector3 = 5").statements[0];
-    expect(statement).toMatchObject({ kind: "typedDeclaration", declaredType: null });
+    expect(statement).toMatchObject({ kind: "typedDeclaration", valueType: { kind: "record", name: "Vector3" } });
   });
 
   it("rejects an empty choice option list", () => {

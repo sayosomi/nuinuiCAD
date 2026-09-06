@@ -1,5 +1,6 @@
 export * from "./types/geometry";
 export * from "./dsl/dslTypes";
+export * from "./dsl/dslValueTypes";
 export * from "./dsl/dslParser";
 export * from "./dsl/dslCompiler";
 export * from "./dsl/dslDocument";

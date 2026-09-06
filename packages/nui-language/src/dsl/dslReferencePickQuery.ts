@@ -24,6 +24,7 @@ import {
   type ModuleGeometryInterfaceType
 } from "./moduleGeometryInterfaces";
 import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 import { setCompletionContextAt } from "./dslSetCompletionContext";
 import type { DslSpan, DslModuleParameterType } from "./dslTypes";
 import { resolveSourceLexicalDeclaration } from "./sourceLexicalNamespaceIndex";
@@ -544,7 +545,7 @@ const typedDeclarationTarget = (
   anchor: DslReferencePickSourceAnchor
 ): DslReferencePickTarget | null => {
   const parsed = parseDslTypedDeclarationStatement(exact.statement.logicalText).statement;
-  if (!parsed || parsed.declaredType?.kind !== "number") return null;
+  if (!parsed || scalarTypeOfDslValueType(parsed.valueType)?.kind !== "number") return null;
   const existing = parsed.payloadSpans.initializer;
   const expressionSpan = existing
     ? { start: existing.start, end: exact.statement.logicalText.length }

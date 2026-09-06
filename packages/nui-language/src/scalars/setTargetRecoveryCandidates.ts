@@ -2,6 +2,7 @@ import { dslScopeBeforeParsedLine, parseDslSnapshot } from "../dsl/dslParser";
 import type { DslStatement } from "../dsl/dslTypes";
 import type { DslPhysicalSegment } from "../dsl/logicalStatementSourceMap";
 import type { ScalarType } from "./types";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 /** Completion-only identity. It must never be used as a BindingId || runtime scope id. */
 export type CompletionScopeKey = string;
@@ -193,18 +194,19 @@ export const recoverLiveSetTargetCandidates = (input: {
     const name = onlyPhysicalSegment(statement.namePhysicalSpan?.segments);
     if (!name || !statement.nameSpan) return;
     const scopeKey = scopeKeyForStatement(statementIndex);
+    const declaredType = scalarTypeOfDslValueType(statement.valueType);
     declarations.push({
       name: statement.name,
       bindingKind: statement.bindingKind,
-      declaredType: statement.declaredType,
+      declaredType,
       declarationPosition: name.from,
       scopeKey
     });
-    if (statement.bindingKind !== "let" || statement.declaredType === null || name.from > input.cursorPosition) return;
+    if (statement.bindingKind !== "let" || declaredType === null || name.from > input.cursorPosition) return;
     if (scopeDistance(scopeKey) === null) return;
     candidates.push({
       name: statement.name,
-      type: statement.declaredType,
+      type: declaredType,
       declarationPosition: name.from,
       scopeKey,
       source: "live"

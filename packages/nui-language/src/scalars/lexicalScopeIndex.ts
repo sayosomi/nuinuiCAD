@@ -15,6 +15,7 @@
 
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
 import type { ScalarType } from "./types";
+import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
 export type ScopeId = string;
@@ -195,14 +196,14 @@ export const buildLexicalScopeIndex = (
     else memberIndices.set(scopeId, [index]);
 
     // Whole record values belong to the source nominal model, not ScalarType.
-    if (statement.kind === "typedDeclaration" && !statement.recordTypeReference) {
+    if (statement.kind === "typedDeclaration" && !nominalRecordTypeOfDslValueType(statement.valueType)) {
       const declaration: ScopeDeclaration = {
         scopeId,
         statementIndex: index,
         bindingKind: statement.bindingKind,
         name: statement.name,
         nameSpan: statement.nameSpan,
-        declaredType: statement.declaredType
+        declaredType: scalarTypeOfDslValueType(statement.valueType)
       };
       const existing = declarationsByScope.get(scopeId);
       if (existing) existing.push(declaration);

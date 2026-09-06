@@ -5,6 +5,7 @@ import {
   geometryArrayTypeOfTypedDeclaration
 } from "./geometryArraySourceAnnotations";
 import { resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
+import { nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { moduleParameterPresenceKey, type ModuleScalarLocalDiagnostic } from "./moduleScalarExpression";
 import * as core from "./moduleBodySemanticCore";
 
@@ -24,7 +25,7 @@ const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex:
 
 const isSourceOnlyTypedDeclaration = (
   statement: Extract<DslStatement, { kind: "typedDeclaration" }>
-) => Boolean(statement.recordTypeReference || geometryArrayTypeOfTypedDeclaration(statement));
+) => Boolean(nominalRecordTypeOfDslValueType(statement.valueType) || geometryArrayTypeOfTypedDeclaration(statement));
 
 type GeometryArrayWholeReference =
   | {

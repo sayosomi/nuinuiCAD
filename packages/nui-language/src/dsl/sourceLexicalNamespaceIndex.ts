@@ -6,6 +6,7 @@ import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
+import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
 /** Named declarations that participate in the source-level lexical namespace. */
 export type SourceLexicalDeclarationKind =
@@ -111,7 +112,7 @@ const declarationKindOf = (statement: DslStatement): SourceLexicalDeclarationKin
   if (statement.kind === "recordDefinition") return "recordDefinition";
   if (statement.kind === "group") return "group";
   if (statement.kind === "typedDeclaration") {
-    return statement.recordTypeReference ? "recordValue" : "typedDeclaration";
+    return nominalRecordTypeOfDslValueType(statement.valueType) ? "recordValue" : "typedDeclaration";
   }
   if (statement.kind === "layout") return "layout";
   if (statement.kind === "print") return "print";
@@ -141,7 +142,7 @@ const isDirectModuleExport = (
   const isExported = statement.kind === "moduleDefinition"
     ? statement.exported && statement.enclosing === undefined
     : statement.kind === "typedDeclaration"
-      ? statement.exported && statement.declaredType !== null
+      ? statement.exported && scalarTypeOfDslValueType(statement.valueType) !== null
       : statement.kind === "element"
         ? statement.exported && isGeometryDeclarationCategory(statement.category)
         : false;

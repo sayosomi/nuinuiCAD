@@ -46,6 +46,7 @@ import {
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
 } from "./moduleLexicalResolution";
 import type { ScalarType } from "../scalars/types";
+import { scalarTypeOfDslValueType } from "./dslValueTypes";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
   ModuleArgumentSemantic,
@@ -873,7 +874,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
     const declarationRelated = relatedForDeclaration(declaration);
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
-      const type = declaration.statement.declaredType;
+      const type = scalarTypeOfDslValueType(declaration.statement.valueType);
       if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
         return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", declaration.nameSpan ?? declaration.statement.keywordSpan, `module body から outer scalar「${name}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name } } }) };
       }
@@ -936,7 +937,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const declaration = lookup.declaration;
     if (declaration.kind === "typedDeclaration" && declaration.statement.kind === "typedDeclaration") {
       const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
-      const type = declaration.statement.declaredType;
+      const type = scalarTypeOfDslValueType(declaration.statement.valueType);
       const statementId = statementIdAt(stableStatementIdByIndex, declaration.statementIndex);
       if (declarationOwner !== null && stateByIndex.has(declarationOwner)) {
         return { target: { kind: "moduleLocal", statementId, statementIndex: declaration.statementIndex }, type, resolution: "resolved" };
@@ -1165,13 +1166,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         .find(({ statement }) => isDirectModuleChild(statement, definition.statementIndex) && statement.name === qualified.exportName);
       return privateMember ? { kind: "private", exportedStatementIndex: privateMember.statementIndex } : null;
     }
-    if (exported.statement.kind === "typedDeclaration" && exported.statement.declaredType) {
-      return {
-        kind: "scalar",
-        exportedStatementId: statementIdAt(stableStatementIdByIndex, exported.statementIndex),
-        exportedStatementIndex: exported.statementIndex,
-        declaredType: exported.statement.declaredType
-      };
+    if (exported.statement.kind === "typedDeclaration") {
+      const declaredType = scalarTypeOfDslValueType(exported.statement.valueType);
+      if (declaredType) {
+        return {
+          kind: "scalar",
+          exportedStatementId: statementIdAt(stableStatementIdByIndex, exported.statementIndex),
+          exportedStatementIndex: exported.statementIndex,
+          declaredType
+        };
+      }
     }
     if (exported.statement.kind !== "element" || !isGeometryDeclarationCategory(exported.statement.category)) return null;
     return {
@@ -2362,7 +2366,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (
       statement.kind !== "typedDeclaration" ||
       moduleOwnerIndexOf(statements, statementIndex) !== null ||
-      !statement.declaredType ||
+      !scalarTypeOfDslValueType(statement.valueType) ||
       !statement.payloadSpans.initializer ||
       (!statement.initializer.includes("::") && !(statement.initializer.includes("@") && statement.initializer.includes(".")))
     ) continue;
@@ -2372,7 +2376,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       statementIndex,
       statement.initializer,
       initializerSpan,
-      statement.declaredType,
+      scalarTypeOfDslValueType(statement.valueType),
       (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
       undefined,
       (reference) => resolveGeometryProperty(statementIndex, null, reference),

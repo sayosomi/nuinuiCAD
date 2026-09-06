@@ -393,7 +393,7 @@ describe("DSL module syntax diagnostics", () => {
     expect(statement).toMatchObject({
       kind: "typedDeclaration",
       name: "length",
-      declaredType: { kind: "number" },
+      valueType: { kind: "number" },
       initializer: "1",
       exported: true,
       exportSpan: { start: 0, end: 6 }

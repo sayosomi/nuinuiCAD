@@ -87,8 +87,7 @@ describe("record definition parser", () => {
     expect(parsed.diagnostics).toEqual([]);
     expect(declaration).toMatchObject({
       kind: "typedDeclaration",
-      declaredType: null,
-      recordTypeReference: { kind: "record", name: "Measurements" }
+      valueType: { kind: "record", name: "Measurements" }
     });
     expect(module?.kind).toBe("moduleDefinition");
     if (!module || module.kind !== "moduleDefinition") throw new Error("module statement not parsed");

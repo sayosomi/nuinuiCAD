@@ -30,6 +30,7 @@ import {
   type LogicalStatementSourceMap
 } from "../dsl/logicalStatementSourceMap";
 import { IDENTIFIER_PATTERN } from "./literalScanner";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type TypedVariableQuickFixSplice = {
   readonly kind: "splice";
@@ -181,7 +182,10 @@ const choiceLiteralReplaceFixes = (
   diagnostic: DslDiagnostic
 ): TypedVariableQuickFixDescriptor[] => {
   const { statement } = entry;
-  if (statement.kind !== "typedDeclaration" || statement.declaredType?.kind !== "choice") return [];
+  const declaredType = statement.kind === "typedDeclaration"
+    ? scalarTypeOfDslValueType(statement.valueType)
+    : null;
+  if (statement.kind !== "typedDeclaration" || declaredType?.kind !== "choice") return [];
   const logical = logicalStatementFor(logicalIndex, statement);
   if (!logical) return [];
   // `column` is `span.start + 1` for these diagnostics (typedDeclarationAnalysis.ts's
@@ -194,7 +198,7 @@ const choiceLiteralReplaceFixes = (
   if (!match) return [];
   const logicalEnd = logicalStart + match[0].length;
   const descriptors: TypedVariableQuickFixDescriptor[] = [];
-  for (const option of statement.declaredType.options) {
+  for (const option of declaredType.options) {
     const splice = projectSplice(
       sourceText,
       sourceMap,
@@ -234,7 +238,10 @@ const setSkeletonRecoveryFix = (
   entry: StatementEntry
 ): TypedVariableQuickFixDescriptor | null => {
   const { statement } = entry;
-  if (statement.kind !== "typedDeclaration" || statement.bindingKind !== "let" || statement.declaredType === null) {
+  const declaredType = statement.kind === "typedDeclaration"
+    ? scalarTypeOfDslValueType(statement.valueType)
+    : null;
+  if (statement.kind !== "typedDeclaration" || statement.bindingKind !== "let" || declaredType === null) {
     return null;
   }
   const declarationLineStart = lineStarts[statement.line - 1];
