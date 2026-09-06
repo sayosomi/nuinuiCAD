@@ -52,6 +52,7 @@ import { unwrapModuleGeometrySourceTarget, type ModuleSemanticAnalysis } from ".
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
+import { geometryAliasForSourceElement, propertyForAlias } from "./moduleGeometryRuntimeLowering";
 import { compileModuleScalarRuntime, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
@@ -1501,9 +1502,17 @@ export const compileDslDocument = (
           if (target.kind === "sourceGeometryProperty") {
             const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
             if (!elementId) return null;
-            return {
+            const elementsById = new Map(compiled.elements.map((element) => [element.id, element] as const));
+            const alias = geometryAliasForSourceElement(
               elementId,
-              property: target.property,
+              target.category === "point" ? "point" : "line",
+              target.pointKey
+            );
+            const lowered = alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
+            if (!lowered || lowered.kind !== "runtime") return null;
+            return {
+              elementId: lowered.elementId,
+              property: lowered.property,
               targetSourceOrder: target.statementIndex,
               type: property.type
             };

@@ -137,6 +137,7 @@ export const unwrapModuleGeometrySourceTarget = (target: ModuleGeometrySourceTar
     pointKey ??= current.pointKey;
     current = current.backingTarget;
   }
+  pointKey ??= current.pointKey;
   return { target: current, ...(pointKey ? { pointKey } : {}) };
 };
 

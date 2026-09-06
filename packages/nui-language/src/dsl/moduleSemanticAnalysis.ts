@@ -277,9 +277,10 @@ const geometryPropertyTargetForSourceTarget = (
   property: string,
   pointKey?: string
 ): ModuleGeometryPropertySourceTarget | null => {
+  const effectivePointKey = pointKey ?? target.pointKey;
   if (target.kind === "geometryValue") {
     return target.backingTarget
-      ? geometryPropertyTargetForSourceTarget(target.backingTarget, property, pointKey ?? target.pointKey)
+      ? geometryPropertyTargetForSourceTarget(target.backingTarget, property, effectivePointKey)
       : null;
   }
   if (target.kind === "parameter") {
@@ -287,7 +288,7 @@ const geometryPropertyTargetForSourceTarget = (
       ...target,
       kind: "parameterProperty",
       property,
-      ...(pointKey ? { pointKey } : {})
+      ...(effectivePointKey ? { pointKey: effectivePointKey } : {})
     };
   }
   if (target.kind === "sourceGeometry") {
@@ -297,7 +298,7 @@ const geometryPropertyTargetForSourceTarget = (
       statementIndex: target.statementIndex,
       category: target.category,
       property,
-      ...(pointKey ? { pointKey } : {}),
+      ...(effectivePointKey ? { pointKey: effectivePointKey } : {}),
       ...(target.identity ? { identity: target.identity } : {})
     };
   }
@@ -309,7 +310,7 @@ const geometryPropertyTargetForSourceTarget = (
       instanceName: target.instanceName,
       exportName: target.exportName,
       property,
-      ...(pointKey ? { pointKey } : {}),
+      ...(effectivePointKey ? { pointKey: effectivePointKey } : {}),
       referenceSpan: target.referenceSpan,
       instanceSpan: target.instanceSpan,
       memberSpan: target.memberSpan,
@@ -2195,6 +2196,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       backingTarget: initializer?.target ?? null
     };
     geometryValuesByStatementIndex.set(statementIndex, value);
+    if (initializer && initializerSpan) {
+      rootGeometryReferencesByStatementId.set(statementId, [{
+        parameterKey: null,
+        span: initializerSpan,
+        reference: initializer
+      }]);
+    }
   }
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
   const resolveRootParent = (

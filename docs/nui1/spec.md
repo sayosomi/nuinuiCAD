@@ -1040,9 +1040,11 @@ runtime values. They do not create a new element, computed geometry entry, or
 synthetic `ElementId`; geometry consumers resolve them through the same
 namespace and runtime target boundaries as the referenced geometry.
 
-The same form is available for module locals and exported members, and for
-module parameters where the declared interface is `point`, `line`, or `path`.
-An exported alias is referenced through its instance with the ordinary
+The same form is available for root declarations, module locals, and exported
+members. Module parameters are declared in the Module signature rather than
+with this local `const` alias syntax; a parameter whose interface is `point`,
+`line`, or `path` can still be used as a geometry reference on the right-hand
+side. An exported alias is referenced through its instance with the ordinary
 qualified form, for example `@front::outline`.
 
 ## Mutations

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileDslDocument } from "./dslDocument";
 import { parseDsl } from "./dslParser";
+import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 
 const compile = (source: string, prefix = "geometry-value") => {
   const parsed = parseDsl(source);
@@ -71,6 +72,34 @@ describe("immutable single-geometry reference values", () => {
     expect(compiled.diagnostics).toEqual([]);
     expect(compiled.scalarProgram?.statements).toHaveLength(2);
     expect(compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "origin")?.declaredInterfaceType).toBe("point");
+  });
+
+  it("retains derived point identity through alias chains and ordinary consumers", () => {
+    const compiled = compile([
+      "nui 1",
+      "line AB = segment(start: (2, 3), end: (10, 7))",
+      "point Other = coordinate(x: 2, y: 3)",
+      "const P: point = @AB.start",
+      "const P2: point = @P",
+      "line L = segment(start: @P2, end: (20, 7))",
+      "const x: number = @P2.x",
+      "const d: number = distance(@P2, @Other)"
+    ].join("\n"), "geometry-derived-point");
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.document?.elements.map((element) => element.name)).toEqual(["AB", "Other", "L"]);
+    const p2 = compiled.moduleSemanticAnalysis?.geometryValues.find((value) => value.name === "P2");
+    expect(p2?.backingTarget).not.toBeNull();
+    expect(unwrapModuleGeometrySourceTarget(p2!.backingTarget!).target).toMatchObject({ kind: "sourceGeometry", pointKey: "start" });
+    const p2Property = [...(compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.values() ?? [])]
+      .flatMap((site) => site.expression.geometryProperties)
+      .find((property) => property.geometryName === "P2");
+    expect(p2Property?.target).toMatchObject({ kind: "sourceGeometryProperty", pointKey: "start", property: "x" });
+    const p2Builtin = [...(compiled.moduleSemanticAnalysis?.rootScalarExpressionsByStatementId.values() ?? [])]
+      .flatMap((site) => site.expression.geometryBuiltinArguments)
+      .find((argument) => argument.reference.source.trim() === "@P2");
+    expect(p2Builtin?.reference.target).toMatchObject({ kind: "geometryValue" });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.size).toBeGreaterThan(0);
   });
 
   it("enforces directional geometry assignability and keeps geometry out of scalar bindings", () => {
@@ -160,5 +189,39 @@ describe("immutable single-geometry reference values", () => {
     const base = compiled.document?.elements.find((element) => element.name === "Base");
     const use = compiled.document?.elements.find((element) => element.name === "Use");
     expect(use).toMatchObject({ baseLineIds: [base?.id] });
+  });
+
+  it("validates root aliases from Module geometry exports through deferred export sites", () => {
+    const valid = compile([
+      "nui 1",
+      "module M() {",
+      "  export line Edge = segment(start: (0, 0), end: (10, 0))",
+      "  line Private = segment(start: (0, 0), end: (5, 0))",
+      "}",
+      "instance I = M()",
+      "const Valid: path = @I::Edge",
+      "line Copy = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@Valid])"
+    ].join("\n"), "geometry-export-alias-valid");
+    expect(valid.diagnostics).toEqual([]);
+    expect(valid.document?.elements.map((element) => element.name)).toEqual(["I", "Edge", "Private", "Copy"]);
+
+    const invalid = compile([
+      "nui 1",
+      "module M() {",
+      "  export line Edge = segment(start: (0, 0), end: (10, 0))",
+      "  line Private = segment(start: (0, 0), end: (5, 0))",
+      "}",
+      "instance I = M()",
+      "const Invalid: point = @I::Edge",
+      "const Private: line = @I::Private",
+      "const Missing: line = @I::Missing"
+    ].join("\n"), "geometry-export-alias-invalid");
+
+    expect(errorCodes(invalid)).toEqual(expect.arrayContaining([
+      "module-geometry-type-mismatch",
+      "module-private-member",
+      "module-undefined-export"
+    ]));
+    expect(invalid.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.size).toBeGreaterThan(0);
   });
 });

@@ -195,6 +195,35 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("applies optional geometry presence proofs to immutable local aliases", () => {
+    const guarded = compileWithIds([
+      "nui 1",
+      "module M(anchor?: point) {",
+      "  if (hasValue(@anchor)) {",
+      "    const P: point = @anchor",
+      "    line Use = segment(start: @P, end: (10, 0))",
+      "  }",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(guarded.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const definition = guarded.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const aliasBody = definition.bodyStatements.find((body) => guarded.statements[body.statementIndex]?.name === "P");
+    expect(aliasBody?.geometryReferences).toHaveLength(1);
+    expect(aliasBody?.geometryReferences[0]?.parameterKey).toBeNull();
+
+    const unguarded = compileWithIds([
+      "nui 1",
+      "module M(anchor?: point) {",
+      "  const P: point = @anchor",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(unguarded.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-optional-value-required" })
+    ]));
+  });
+
   it("allows hasValue in boolean defaults while rejecting direct optional default reads", () => {
     const compiled = compileWithIds([
       "nui 1",

@@ -235,7 +235,7 @@ export const analyzeModuleBody = ({
 
   const addGeometry = (
     bodySemantic: ModuleBodyStatementSemantic | null,
-    parameterKey: string,
+    parameterKey: string | null,
     span: DslSpan,
     reference: ModuleGeometryReferenceSemantic
   ) => {
@@ -244,7 +244,7 @@ export const analyzeModuleBody = ({
     // Coordinate anchors are still ordinary numeric fields at runtime. Keep
     // their typed scalar sites on the existing `<anchorKey>:x/y` path so the
     // normal numeric binding runtime can materialize them.
-    if (reference.coordinate && !parameterKey.startsWith("intermediates:")) {
+    if (reference.coordinate && (parameterKey === null || !parameterKey.startsWith("intermediates:"))) {
       if (reference.coordinate.x) addScalar(bodySemantic, `${parameterKey}:x`, reference.coordinate.x.ast.span, reference.coordinate.x);
       if (reference.coordinate.y) addScalar(bodySemantic, `${parameterKey}:y`, reference.coordinate.y.ast.span, reference.coordinate.y);
     }
@@ -416,11 +416,13 @@ export const analyzeModuleBody = ({
               {
                 expectedInterfaceType: statement.valueType.kind,
                 allowCoordinate: false,
-                role: statement.valueType.kind === "point" ? "pointReference" : "lineReference"
+                role: statement.valueType.kind === "point" ? "pointReference" : "lineReference",
+                presenceFacts: presenceFactsForStatement(statementIndex)
               }
             );
           }
         }
+        if (initializer && initializerSpan) addGeometry(bodySemantic, null, initializerSpan, initializer);
         const value: ModuleGeometryValueSemantic = {
           statementId,
           statementIndex,
@@ -462,43 +464,43 @@ export const analyzeModuleBody = ({
             }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
           }
         }
-        continue;
-      }
-      const declaredType = scalarTypeOfDslValueType(statement.valueType);
-      const initializerSpan = statement.payloadSpans.initializer;
-      const initializer = initializerSpan
-        ? analyzeExpression(
-            statementIndex,
-            statement.initializer,
-            initializerSpan,
-            declaredType,
-            (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
-            undefined,
-            (reference) => resolveBodyGeometryProperty(statementIndex, reference),
-            (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
-          )
-        : null;
-      localScalars.push({ statementId, statementIndex, name: statement.name, type: declaredType, bindingKind: statement.bindingKind, initializer });
-      if (initializer && initializerSpan) bodySemantic.scalarExpressions = [{ parameterKey: null, span: initializerSpan, expression: initializer }];
-      if (statement.exported) {
-        if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !declaredType) {
-          addLocal(statementIndex, {
-            code: "module-invalid-export",
-            span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
-            message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
-            presentation: { key: "diagnostic.module-invalid-export" }
-          });
-        } else if (statementId) {
-          registerExport({
-            kind: "scalar",
-            ownerModuleDefinitionStatementId: definition.statementId,
-            exportedStatementId: statementId,
-            exportedStatementIndex: statementIndex,
-            sourceOrder: statementIndex,
-            name: statement.name,
-            declaredType,
-            bindingKind: statement.bindingKind
-          }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
+      } else {
+        const declaredType = scalarTypeOfDslValueType(statement.valueType);
+        const initializerSpan = statement.payloadSpans.initializer;
+        const initializer = initializerSpan
+          ? analyzeExpression(
+              statementIndex,
+              statement.initializer,
+              initializerSpan,
+              declaredType,
+              (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
+              undefined,
+              (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+              (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
+            )
+          : null;
+        localScalars.push({ statementId, statementIndex, name: statement.name, type: declaredType, bindingKind: statement.bindingKind, initializer });
+        if (initializer && initializerSpan) bodySemantic.scalarExpressions = [{ parameterKey: null, span: initializerSpan, expression: initializer }];
+        if (statement.exported) {
+          if (!isDirectModuleChild(statement, definition.statementIndex) || !statement.name || !declaredType) {
+            addLocal(statementIndex, {
+              code: "module-invalid-export",
+              span: statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan,
+              message: "export は module 直下の名前付き geometry または scalar declaration にのみ指定できます。",
+              presentation: { key: "diagnostic.module-invalid-export" }
+            });
+          } else if (statementId) {
+            registerExport({
+              kind: "scalar",
+              ownerModuleDefinitionStatementId: definition.statementId,
+              exportedStatementId: statementId,
+              exportedStatementIndex: statementIndex,
+              sourceOrder: statementIndex,
+              name: statement.name,
+              declaredType,
+              bindingKind: statement.bindingKind
+            }, statement.exportSpan ?? statement.nameSpan ?? statement.keywordSpan);
+          }
         }
       }
     } else if (statement.kind === "set") {

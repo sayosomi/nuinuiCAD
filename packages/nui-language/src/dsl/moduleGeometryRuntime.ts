@@ -329,10 +329,10 @@ export const buildModuleGeometryRuntime = ({
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
       return { elementId: alias.anchor.pointId, geometryType: "point" };
     }
-    if (expectedGeometryType === "point" && alias.kind === "line" && target.pointKey) {
-      return { elementId: alias.elementId, geometryType: "point", pointKey: target.pointKey };
+    if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "derived") {
+      return { elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
     }
-    // Coordinate and derived point aliases intentionally fail closed here:
+    // Coordinate aliases intentionally fail closed here:
     // geometry builtins require a concrete runtime geometry element identity.
     return undefined;
   };

@@ -27,7 +27,7 @@ import type {
 } from "./moduleSemanticTypes";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
 import type { BindingId } from "../scalars/bindingCatalog";
-import { scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { geometryPropertiesIn, referencesIn } from "../scalars/typedDependencyGraph";
 import { parsePropertyBindingOccurrenceKey } from "../scalars/propertyBindingCompiler";
 import type { CompiledNumericBinding } from "../scalars/numericBindingCompiler";
@@ -727,7 +727,11 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
       if (identity) addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, identity, "reference");
       return;
     }
-    const finalTarget = target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty"
+    const finalTarget = target.kind === "geometryValue"
+      ? target.statementId
+        ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
+        : null
+      : target.kind === "sourceGeometry" || target.kind === "sourceGeometryProperty"
       ? target.statementId
         ? semanticIdentityForModuleTarget(compiled, { kind: "moduleSource", statementId: target.statementId })
         : null
@@ -824,6 +828,10 @@ const addModuleOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
 const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const namespace = compiled.sourceLexicalNamespace;
   if (!namespace) return;
+  const isRootGeometryValue = (declaration: SourceLexicalDeclaration) => {
+    const statement = compiled.statements[declaration.statementIndex];
+    return declaration.kind === "typedDeclaration" && statement?.kind === "typedDeclaration" && isDslGeometryValueType(statement.valueType);
+  };
   for (const declaration of namespace.allDeclarations) {
     if (
       declaration.kind !== "profile" &&
@@ -833,7 +841,8 @@ const addRootDeclarations = (compiled: CompiledDslDocument, add: AddOccurrence) 
       declaration.kind !== "forGroup" &&
       declaration.kind !== "layout" &&
       declaration.kind !== "print" &&
-      declaration.kind !== "svg"
+      declaration.kind !== "svg" &&
+      !isRootGeometryValue(declaration)
     ) continue;
     const identity = declarationIdentity(compiled, declaration);
     if (!identity || !declaration.nameSpan) continue;

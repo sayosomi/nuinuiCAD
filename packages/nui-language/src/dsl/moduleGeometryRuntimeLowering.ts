@@ -188,6 +188,17 @@ export const propertyForAlias = (
     : undefined;
 };
 
+export const geometryAliasForSourceElement = (
+  elementId: ElementId,
+  geometryKind: "point" | "line",
+  pointKey?: string
+): GeometryAlias | undefined => lowerAliasWithPointKey(
+  geometryKind === "point"
+    ? { kind: "point", anchor: referenceAnchor(elementId) }
+    : { kind: "line", elementId },
+  pointKey
+);
+
 export const sourceAliasForTarget = (
   target: ModuleGeometrySourceTarget,
   currentPath: readonly string[],
@@ -207,7 +218,8 @@ export const sourceAliasForTarget = (
       const context = contextsByPath.get(pathKey(currentPath.slice(0, index)));
       if (context?.definitionStatementId === target.definitionStatementId &&
           (!target.definitionIdentity || context.definitionDocumentId === target.definitionIdentity.documentId)) {
-        return context.aliases.get(target.parameterIndex);
+        const alias = context.aliases.get(target.parameterIndex);
+        return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
     }
     return undefined;
@@ -215,7 +227,7 @@ export const sourceAliasForTarget = (
   if (target.kind === "geometryValue") {
     const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath);
     if (!alias) return undefined;
-    return lowerAliasWithPointKey(alias, target.pointKey ?? target.backingTarget.pointKey);
+    return lowerAliasWithPointKey(alias, target.pointKey);
   }
   if (target.kind === "sourceGeometry") {
     let ownerPath: readonly string[] = [];
@@ -240,12 +252,14 @@ export const sourceAliasForTarget = (
         ? { runtimeElementId: materialization.elementIdBySourceStatementIndex.get(target.statementIndex)! } as MaterializedExecutionStatement
         : undefined;
     if (!entry) return undefined;
-    return target.geometryKind === "point"
-      ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) }
-      : { kind: "line", elementId: entry.runtimeElementId };
+    const alias = target.geometryKind === "point"
+      ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) } as const
+      : { kind: "line", elementId: entry.runtimeElementId } as const;
+    return lowerAliasWithPointKey(alias, target.pointKey);
   }
   const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
-  return child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
+  const alias = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
+  return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
 };
 
 export const lowerReference = (
@@ -259,7 +273,7 @@ export const lowerReference = (
   if (reference.coordinate) return { kind: "point", anchor: coordinateAnchor(reference.coordinate, statement), coordinate: reference.coordinate };
   if (!reference.target) return undefined;
   const base = sourceAliasForTarget(reference.target, currentPath, contextsByPath, materialization, exportsByPath);
-  return base ? lowerAliasWithPointKey(base, reference.target.pointKey) : undefined;
+  return base;
 };
 
 export const resolverForBody = ({
