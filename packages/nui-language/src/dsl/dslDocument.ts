@@ -39,7 +39,7 @@ import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTempl
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import type { TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
-import { isCompilableDslStatement, type DslStatementInclusion } from "./dslCompilationGuard";
+import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
@@ -1083,7 +1083,7 @@ export const compileDslDocument = (
     majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
   });
   const hasTypedDeclarations = parsed.statements.some(
-    (statement, statementIndex) => statement.kind === "typedDeclaration" && includeStatement(statement, statementIndex)
+    (statement, statementIndex) => statement.kind === "typedDeclaration" && isCanonicalValueBindingDeclaration(parsed.statements, statementIndex)
   );
   // set statements need the same reconciler-issued identity map as typed
   // declarations (Task 29) - the gate must include them too, otherwise a
@@ -1110,22 +1110,20 @@ export const compileDslDocument = (
   );
   const hasSourceNamespaceStatements = parsed.statements.some(
     (statement, statementIndex) =>
-      includeStatement(statement, statementIndex) &&
-      (
-        statement.kind === "recordDefinition" ||
-        statement.kind === "group" ||
-        statement.kind === "moduleDefinition" ||
-        statement.kind === "moduleInstance" ||
-        statement.kind === "profileDeclaration" ||
-        statement.kind === "layout" ||
-        statement.kind === "print" ||
-        statement.kind === "svg" ||
-        statement.kind === "typedDeclaration" ||
-        (statement.kind === "element" &&
-          (isGeometryDeclarationCategory(statement.category) ||
-            statement.type === "conditionalGroup" ||
-            statement.type === "forGroup"))
-      )
+      (statement.kind === "typedDeclaration" && isCanonicalValueBindingDeclaration(parsed.statements, statementIndex)) ||
+      (includeStatement(statement, statementIndex) &&
+        (statement.kind === "recordDefinition" ||
+          statement.kind === "group" ||
+          statement.kind === "moduleDefinition" ||
+          statement.kind === "moduleInstance" ||
+          statement.kind === "profileDeclaration" ||
+          statement.kind === "layout" ||
+          statement.kind === "print" ||
+          statement.kind === "svg" ||
+          (statement.kind === "element" &&
+            (isGeometryDeclarationCategory(statement.category) ||
+              statement.type === "conditionalGroup" ||
+              statement.type === "forGroup"))))
   );
   const hasDrawingProfileStatements = parsed.statements.some(
     (statement, statementIndex) => statement.kind === "profileDeclaration" && includeStatement(statement, statementIndex)

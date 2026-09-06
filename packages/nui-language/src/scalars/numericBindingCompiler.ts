@@ -39,6 +39,7 @@ import { createElementNameContext } from "../model/elementNames";
 import type { ScalarCallArgumentNode, ScalarExpressionAst } from "./expressionAst";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type CompiledNumericBindingReference = {
   bindingId: BindingId;
@@ -423,16 +424,17 @@ export const compileNumericBindings = ({
       }
       const entry = bindingAnalysis.entriesById.get(binding.id);
       if (entry?.status.kind === "invalid") { rejected = true; return; } // binding diagnostics already own this cause.
-      if (binding.declaredType?.kind !== "number") {
+      const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+      if (declaredType?.kind !== "number") {
         diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
           reference.span,
           NUMERIC_BINDING_TYPE_MISMATCH_CODE,
-          `型が一致しません(期待: number, 実際: ${binding.declaredType?.kind ?? "unknown"})。`,
+          `型が一致しません(期待: number, 実際: ${declaredType?.kind ?? "unknown"})。`,
           {
             key: "diagnostic.numeric-binding-type-mismatch",
-            parameters: { expected: "number", actual: binding.declaredType?.kind ?? "unknown" }
+            parameters: { expected: "number", actual: declaredType?.kind ?? "unknown" }
           }
         ));
         rejected = true;

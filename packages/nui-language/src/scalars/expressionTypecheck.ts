@@ -34,6 +34,7 @@ import type {
   TypedScalarExpression
 } from "./typedExpressionAst";
 import { isChoiceOptionMember, isScalarTypeAssignable } from "./scalarAssignability";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { isChoiceScalarType, type ChoiceScalarType, type ScalarType } from "./types";
 import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
 
@@ -253,7 +254,8 @@ const checkNode = (
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
       }
       const binding = resolution.binding;
-      const type = binding.kind === "typed" ? binding.declaredType : (binding.declaredType ?? NUMBER_TYPE);
+      const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+      const type = binding.kind === "typed" ? declaredType : (declaredType ?? NUMBER_TYPE);
       return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: binding.id, type };
     }
 

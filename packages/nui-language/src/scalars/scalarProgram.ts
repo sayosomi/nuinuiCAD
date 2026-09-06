@@ -1,6 +1,7 @@
 // Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
+import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { BindingId } from "./bindingCatalog";
 import type { TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import type { TypedScalarExpression } from "./typedExpressionAst";
@@ -47,12 +48,11 @@ export const lowerScalarProgram = ({
   for (const bindingId of selectCompiledProgramBindings(bindingAnalysis).bindingIds) {
     const binding = bindingAnalysis.catalog.bindingsById.get(bindingId);
     // Program eligibility has one shared owner (Task 13R). This type filter
-    // only separates iteration bindings from typed declarations.
+    // keeps only scalar typed declarations in the scalar program.
     if (!binding || binding.kind !== "typed") continue;
+    const declaredType = scalarTypeOfDslValueType(binding.declaredType);
+    if (declaredType === null) continue;
     if (binding.resolutionMode === "preResolvedOnly" && !typedInitializerByBindingId.has(bindingId)) continue;
-    if (binding.declaredType === null) {
-      throw new Error(`scalarProgram: eligible typed binding ${bindingId} has no declared type`);
-    }
     const initializer = typedInitializerByBindingId.get(bindingId);
     if (!initializer) throw new Error(`scalarProgram: eligible binding ${bindingId} lacks a typed initializer`);
     statements.push({
@@ -62,7 +62,7 @@ export const lowerScalarProgram = ({
       sourceOrder: sourceOrderByBindingId?.get(bindingId) ?? binding.statementIndex,
       declaration: {
         bindingKind: binding.mutability as "const" | "let",
-        declaredType: binding.declaredType,
+        declaredType,
         initializer
       }
     });

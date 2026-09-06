@@ -14,8 +14,7 @@
 // identity the caller's resolver returns for a scope-opening statement.
 
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
-import type { ScalarType } from "./types";
-import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { nominalRecordTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
 
 export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
 export type ScopeId = string;
@@ -42,7 +41,7 @@ export type ScopeDeclaration = {
   bindingKind: "const" | "let";
   name: string;
   nameSpan: DslSpan | null;
-  declaredType: ScalarType | null;
+  declaredType: DslValueType | null;
 };
 
 export type ForGroupIterationSlot = {
@@ -195,7 +194,6 @@ export const buildLexicalScopeIndex = (
     if (members) members.push(index);
     else memberIndices.set(scopeId, [index]);
 
-    // Whole record values belong to the source nominal model, not ScalarType.
     if (statement.kind === "typedDeclaration" && !nominalRecordTypeOfDslValueType(statement.valueType)) {
       const declaration: ScopeDeclaration = {
         scopeId,
@@ -203,7 +201,7 @@ export const buildLexicalScopeIndex = (
         bindingKind: statement.bindingKind,
         name: statement.name,
         nameSpan: statement.nameSpan,
-        declaredType: scalarTypeOfDslValueType(statement.valueType)
+        declaredType: statement.valueType
       };
       const existing = declarationsByScope.get(scopeId);
       if (existing) existing.push(declaration);
