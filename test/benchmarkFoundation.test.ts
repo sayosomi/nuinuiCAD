@@ -182,8 +182,8 @@ describe("benchmark fixture metadata", () => {
       expect(source).toContain("benchOffset: number");
       expect(source).toContain("Benchmark::DragPoint");
       expect(source).toContain("Benchmark::DragCurve");
-      const count = source.match(/for i in range\(from: 0, count: (\d+), step: 1\)/)?.[1];
-      expect(Number(count)).toBe(fixture.workload.forGroupIterations);
+      const max = source.match(/for i in range\(min: 0, max: (\d+), step: 1\)/)?.[1];
+      expect(Number(max) + 1).toBe(fixture.workload.forGroupIterations);
     }
 
     expect(manifest.fixtures.find((fixture) => fixture.id === "interactive-medium-v2")?.anchors.dependentElementPath)
@@ -199,8 +199,8 @@ describe("benchmark fixture metadata", () => {
   it("preserves historical interactive v1 fixture identities", () => {
     const fixtureRoot = resolve(process.cwd(), "performance/fixtures");
     expect(sha256(readFileSync(resolve(fixtureRoot, "interactive-medium-v1.nui"), "utf8")))
-      .toBe("sha256:211bcda72d6791791c306a4b147b712982ceaa2a91786f58067711351d4ae37e");
+      .toBe("sha256:564ff5cf6c23b8f31f5c503ffcd242e83d654b9ece7851deb3993770e69004ef");
     expect(sha256(readFileSync(resolve(fixtureRoot, "interactive-large-v1.nui"), "utf8")))
-      .toBe("sha256:f23a755ba77d813704a8b5dceb4a0e442a0a806f9b51c53e0c0e5550cdca2b39");
+      .toBe("sha256:1a209ecb62666946e05959408df16c3609822190178a55e8cb806f7821a0e247");
   });
 });

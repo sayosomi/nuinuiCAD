@@ -89,7 +89,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const step: number = 1",
       "const width: number = 10",
       "const enabled: boolean = true",
-      "for i in range(from: @start, count: @count, step: @step) {",
+      "for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
       "  const scaled: number = @width + @i",
       "  // preserve loop layout",
       "  if (@enabled) {",
@@ -121,7 +121,7 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const width: number = 10",
       "const enabled: boolean = true",
       "module Extracted(start: number, count: number, step: number, width: number, enabled: boolean) {",
-      "  for i in range(from: @start, count: @count, step: @step) {",
+      "  for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
       "    const scaled: number = @width + @i",
       "    // preserve loop layout",
       "    if (@enabled) {",
@@ -153,9 +153,9 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "const step: number = 1",
       "const width: number = 10",
       "const nestedStart: number = 3",
-      "for i in range(from: @start, count: @count, step: @step) {",
+      "for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {",
       "  const outerValue: number = @i",
-      "  for j in range(from: @nestedStart, count: @count, step: @step) {",
+      "  for j in range(min: @nestedStart, max: @nestedStart + (@count - 1) * @step, step: @step) {",
       "    const value: number = @width + @i + @j",
       "  }",
       "}"
@@ -176,8 +176,8 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     expect(result.exports).toEqual([]);
 
     const transformed = applyLineSplices(source, result.splices);
-    expect(transformed).toContain("  for i in range(from: @start, count: @count, step: @step) {");
-    expect(transformed).toContain("    for j in range(from: @nestedStart, count: @count, step: @step) {");
+    expect(transformed).toContain("  for i in range(min: @start, max: @start + (@count - 1) * @step, step: @step) {");
+    expect(transformed).toContain("    for j in range(min: @nestedStart, max: @nestedStart + (@count - 1) * @step, step: @step) {");
     expect(transformed).toContain("      const value: number = @width + @i + @j");
 
     const nextCompiled = compileCurrent(transformed, "extract-for-recursive-next");
@@ -191,9 +191,9 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
     const source = [
       "nui 1",
       "const count: number = 2",
-      "for i in range(from: 100, count: @count, step: 100) {",
+      "for i in range(min: 100, max: 100 + (@count - 1) * 100, step: 100) {",
       "  const outerValue: number = @i",
-      "  for i in range(from: 0, count: @count, step: 1) {",
+      "  for i in range(min: 0, max: (@count - 1), step: 1) {",
       "    const value: number = @i",
       "  }",
       "}"
@@ -220,11 +220,11 @@ describe("planExtractModule checkpoint 7 recursive structural descendants", () =
       "record Config(amount: number)",
       "const config: Config = Config(amount: 1)",
       "group Outer {",
-      "  for j in range(from: 0, count: 2, step: 1) {",
+      "  for j in range(min: 0, max: 1, step: 1) {",
       "    const nested: number = @j",
       "  }",
       "}",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const unsupported: Config = @config",
       "}"
     ].join("\n");

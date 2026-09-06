@@ -320,7 +320,7 @@ describe("planExtractModule record-valued interfaces", () => {
     const source = [
       "nui 1",
       "record Config(amount: number)",
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  const config: Config = Config(amount: 1)",
       "  const inside: number = @config.amount + @i",
       "}"
@@ -334,7 +334,7 @@ describe("planExtractModule record-valued interfaces", () => {
     const transformed = expectCleanTransformedSource(source, result);
     expect(transformed).toContain([
       "module Extracted() {",
-      "  for i in range(from: 0, count: 2, step: 1) {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
       "    const config: Config = Config(amount: 1)",
       "    const inside: number = @config.amount + @i",
       "  }",

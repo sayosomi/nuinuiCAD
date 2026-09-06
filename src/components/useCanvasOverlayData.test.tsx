@@ -274,7 +274,7 @@ describe("useCanvasOverlayData", () => {
     const elements: CadElement[] = [
       {
         id: "loop", name: "Loop", type: "forGroup", activity: "visible",
-        variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+        variableName: "i", min: 0, max: 1, step: 1, showGenerated: false
       },
       {
         id: "generated-point", name: "Generated point", type: "freePoint", activity: "visible",

@@ -44,7 +44,7 @@ describe("reverse statement forGroup ancestor validation", () => {
     const result = compileAndEvaluate(`nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   line AB = segment(start: @A, end: @B)
   reverse(target: @AB)
 }`);
@@ -56,7 +56,7 @@ for i in range(from: 0, count: 2, step: 1) {
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
 line AB = segment(start: @A, end: @B)
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   reverse(target: @AB)
 }`);
     expect(result.errors.length).toBeGreaterThan(0);
@@ -70,9 +70,9 @@ for i in range(from: 0, count: 2, step: 1) {
     const result = compileAndEvaluate(`nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-for i in range(from: 0, count: 1, step: 1) {
+for i in range(min: 0, max: 0, step: 1) {
   line AB = segment(start: @A, end: @B)
-  for j in range(from: 0, count: 1, step: 1) {
+  for j in range(min: 0, max: 0, step: 1) {
     reverse(target: @AB)
   }
 }`);
@@ -84,8 +84,8 @@ for i in range(from: 0, count: 1, step: 1) {
     const result = compileAndEvaluate(`nui 1
 point A = coordinate(x: 0, y: 0)
 point B = coordinate(x: 10, y: 0)
-for i in range(from: 0, count: 1, step: 1) {
-  for j in range(from: 0, count: 1, step: 1) {
+for i in range(min: 0, max: 0, step: 1) {
+  for j in range(min: 0, max: 0, step: 1) {
     line AB = segment(start: @A, end: @B)
     reverse(target: @AB)
   }

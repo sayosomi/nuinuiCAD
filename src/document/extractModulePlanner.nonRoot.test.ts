@@ -118,7 +118,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
   it("parameterizes the existing enclosing for iteration binding", () => {
     const source = [
       "nui 1",
-      "for i in range(from: 0, count: 3, step: 1) {",
+      "for i in range(min: 0, max: 2, step: 1) {",
       "  const doubled: number = @i * 2",
       "}"
     ].join("\n");
@@ -346,7 +346,7 @@ describe("planExtractModule checkpoint 10 non-root source scopes", () => {
         "}"
       ],
       [
-        "for i in range(from: 0, count: 2, step: 1) {",
+        "for i in range(min: 0, max: 1, step: 1) {",
         "  const inside: number = @i + 1",
         "}"
       ]

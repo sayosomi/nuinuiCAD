@@ -14,9 +14,7 @@ const elements: CadElement[] = [
     type: "forGroup",
     activity: "visible",
     variableName: "i",
-    start: 0,
-    count: 3,
-    step: 1,
+    min: 0, max: 2, step: 1,
     showGenerated: true
   },
   {

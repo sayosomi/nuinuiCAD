@@ -1,6 +1,6 @@
 nui 1
 let total: number = 0
-for i in range(from: 0, count: 2, step: 1, state: disabled) {
+for i in range(min: 0, max: 1, step: 1, state: disabled) {
   set total = @total + 1
   point P = coordinate(x: @total, y: 0)
 }

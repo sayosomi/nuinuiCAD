@@ -429,7 +429,7 @@ fn a_text_element_with_no_compiled_entry_keeps_braces_literal() {
 fn for_group_el(id: &str, count: f64) -> Value {
     json!({
         "id": id, "name": id, "type": "forGroup", "activity": "visible",
-        "variableName": "i", "start": 0, "count": count, "step": 1, "showGenerated": false
+        "variableName": "i", "min": 0, "max": count - 1.0, "step": 1.0, "showGenerated": false
     })
 }
 

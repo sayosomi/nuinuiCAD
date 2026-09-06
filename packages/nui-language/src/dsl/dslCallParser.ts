@@ -391,7 +391,7 @@ export const parseDslCallStatement = (
     // nui1's for header is deliberately normalized into the existing `for`
     // construction representation: the iterator remains the construction's
     // positional `variable` argument, while range(...) contributes the same
-    // named from/count/step arguments used by the existing forGroup runtime.
+    // named min/max/step arguments used by the existing forGroup runtime.
     // This is a syntax lowering only; it does not introduce another loop AST
     // || runtime.
     if (category === "for") {

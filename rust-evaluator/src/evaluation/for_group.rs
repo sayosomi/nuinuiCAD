@@ -37,7 +37,7 @@ pub(crate) fn iteration_local_variables(
     (values, names)
 }
 
-/// Reads and validates a forGroup element's start/count/step. Shared by the
+/// Reads and validates a forGroup element's min/max/step. Shared by the
 /// mutation-scheduler and generic forGroup runtimes - this has no
 /// resolver/environment dependency, so the same validation applies
 /// uniformly regardless of which runtime is driving the loop.
@@ -45,16 +45,16 @@ pub(crate) fn for_group_loop_values(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
     state: &mut EvaluationState,
-) -> Option<(f64, usize, f64)> {
-    let start = evaluate_numeric_or_push(
-        element.get("start").unwrap_or(&Value::Null),
+) -> Option<Vec<f64>> {
+    let min = evaluate_numeric_or_push(
+        element.get("min").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
     );
-    let count = evaluate_numeric_or_push(
-        element.get("count").unwrap_or(&Value::Null),
+    let max = evaluate_numeric_or_push(
+        element.get("max").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
@@ -67,21 +67,161 @@ pub(crate) fn for_group_loop_values(
         &local_variables.0,
         &local_variables.1,
     );
-    let (start, count, step) = start.zip(count).zip(step).map(|((a, b), c)| (a, b, c))?;
-    if !count.is_finite() || count < 0.0 || count.fract() != 0.0 || count > 1000.0 {
+    let (min, max, step) = min.zip(max).zip(step).map(|((a, b), c)| (a, b, c))?;
+    let error = |message: String, state: &mut EvaluationState| {
         state.errors.push(DependencyError {
             element_id: element_id(element).unwrap_or_default(),
             element_name: element_name(element),
             missing_dependency_id: element_id(element).unwrap_or_default(),
             missing_dependency_name: Some(element_name(element)),
-            message: format!(
-                "{} の回数は0以上の整数にしてください。",
+            message,
+        });
+    };
+    if !min.is_finite() {
+        error(
+            format!(
+                "{} の min は有限の値にしてください。",
                 element_name(element)
             ),
-        });
+            state,
+        );
         return None;
     }
-    Some((start, count as usize, step))
+    if !max.is_finite() {
+        error(
+            format!(
+                "{} の max は有限の値にしてください。",
+                element_name(element)
+            ),
+            state,
+        );
+        return None;
+    }
+    if !step.is_finite() {
+        error(
+            format!(
+                "{} の step は有限の値にしてください。",
+                element_name(element)
+            ),
+            state,
+        );
+        return None;
+    }
+    if min > max {
+        error(
+            format!(
+                "{} の min は max 以下にしてください。",
+                element_name(element)
+            ),
+            state,
+        );
+        return None;
+    }
+    if step <= 0.0 {
+        error(
+            format!(
+                "{} の step は0より大きい値にしてください。",
+                element_name(element)
+            ),
+            state,
+        );
+        return None;
+    }
+    let mut values = Vec::new();
+    for iteration_index in 0..=1000 {
+        let value = min + iteration_index as f64 * step;
+        if !(value <= max) {
+            return Some(values);
+        }
+        values.push(value);
+        if values.len() > 1000 {
+            error(
+                format!(
+                    "{} の範囲は1000回以下にしてください。",
+                    element_name(element)
+                ),
+                state,
+            );
+            return None;
+        }
+    }
+    Some(values)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::for_group_loop_values;
+    use crate::evaluation::types::EvaluationState;
+    use serde_json::{json, Value};
+    use std::collections::HashMap;
+
+    fn state_for(element: Value) -> EvaluationState {
+        let id = element["id"].as_str().unwrap().to_owned();
+        EvaluationState {
+            elements: vec![element],
+            elements_by_id: HashMap::from([(id, 0)]),
+            drawing_modifiers: json!([]),
+            selected_drawing_profile_id: None,
+            group_states: HashMap::new(),
+            computed_geometry: HashMap::new(),
+            computed_geometry_order: Vec::new(),
+            pre_mutation_geometry: HashMap::new(),
+            geometry_mutation_executions: Vec::new(),
+            condition_evaluation_traces: Vec::new(),
+            instance_base_geometry: HashMap::new(),
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    fn range_element(min: f64, max: f64, step: f64) -> Value {
+        json!({
+            "id": "loop",
+            "name": "loop",
+            "type": "forGroup",
+            "activity": "visible",
+            "variableName": "i",
+            "min": min,
+            "max": max,
+            "step": step,
+            "showGenerated": false
+        })
+    }
+
+    #[test]
+    fn generates_exact_min_max_step_values_without_clamping() {
+        let element = range_element(0.0, 10.0, 3.0);
+        let mut state = state_for(element.clone());
+        let values = for_group_loop_values(&element, &(HashMap::new(), HashMap::new()), &mut state)
+            .expect("valid range");
+        assert_eq!(values, vec![0.0, 3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    fn rejects_invalid_ranges_and_enforces_the_iteration_limit() {
+        for (min, max, step, expected_message) in [
+            (6.0, 5.0, 1.0, "min は max 以下"),
+            (0.0, 1.0, 0.0, "step は0より大きい"),
+        ] {
+            let element = range_element(min, max, step);
+            let mut state = state_for(element.clone());
+            assert!(
+                for_group_loop_values(&element, &(HashMap::new(), HashMap::new()), &mut state)
+                    .is_none()
+            );
+            assert_eq!(state.errors.len(), 1);
+            assert!(state.errors[0].message.contains(expected_message));
+        }
+
+        let element = range_element(0.0, 1000.0, 1.0);
+        let mut state = state_for(element.clone());
+        assert!(
+            for_group_loop_values(&element, &(HashMap::new(), HashMap::new()), &mut state)
+                .is_none()
+        );
+        assert_eq!(state.errors.len(), 1);
+        assert!(state.errors[0].message.contains("1000回以下"));
+    }
 }
 
 fn generated_for_element_id(

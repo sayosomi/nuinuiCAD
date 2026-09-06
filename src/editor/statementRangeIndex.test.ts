@@ -334,7 +334,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     "nui 1",
     "let outer: number = 1",
     "if (true) {",
-    "  for i in range(from: 0, count: 2) {",
+    "  for i in range(min: 0, max: 1, step: 1) {",
     "  }",
     "  let insideThen: number = 2",
     "}"
@@ -352,7 +352,7 @@ describe("scopeBodyRangeIndex (Task 40)", () => {
     const scopeIndex = result.bindingAnalysis!.catalog.scopeIndex;
     const index = createScopeBodyRangeIndex(doc, result.statementMap!, scopeIndex);
 
-    const forGroupOpenLine = doc.line(4); // "  for i in range(from: 0 ,count: 2) {"
+    const forGroupOpenLine = doc.line(4); // "  for i in range(min: 0, max: 1, step: 1) {"
     const insideForGroup = deepestContainingScopeId(index, forGroupOpenLine.to, scopeIndex.rootScopeId);
     expect(insideForGroup).toBe(scopeIdOf(result, "forGroup"));
 

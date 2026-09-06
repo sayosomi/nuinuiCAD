@@ -38,5 +38,5 @@ export const nui1CanonicalElementStatements: readonly Nui1CanonicalElementStatem
   { key: "image", elementType: "image", construction: "image", minimal: "image image-default-min = image(source: \"\", origin: (0, 0), naturalWidthPx: 1, naturalHeightPx: 1, sourceDpi: 300, targetPixelsPerMm: 11.811023622047244, scale: 1, angleDeg: 0, mirrorX: false, steps: [scale: 0.01])", populated: "image populated = image(source: \"populated\", origin: @A, naturalWidthPx: 12, naturalHeightPx: 12, sourceDpi: 12, targetPixelsPerMm: 12, scale: 12, angleDeg: 12, mirrorX: true, steps: [x: 0.5])" },
   { key: "group", elementType: "group", construction: "", minimal: "group group-default-min", populated: "group populated (roles: [seam], steps: [x: 0.5])" },
   { key: "conditionalGroup", elementType: "conditionalGroup", construction: "", minimal: "if (true)", populated: "if (12 > 0)" },
-  { key: "forGroup", elementType: "forGroup", construction: "", minimal: "for i in range(from: 0, count: 3, step: 1)", populated: "for i in range(from: 12, count: 12, step: 12, showGenerated: true)" },
+  { key: "forGroup", elementType: "forGroup", construction: "", minimal: "for i in range(min: 0, max: 2, step: 1)", populated: "for i in range(min: 12, max: 12, step: 12, showGenerated: true)" },
 ] as const;

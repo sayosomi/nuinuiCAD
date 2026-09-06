@@ -653,9 +653,7 @@ describe("evaluateElements", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 0,
-        count: 3,
-        step: 2,
+        min: 0, max: 4, step: 2,
         showGenerated: true
       },
       {
@@ -695,9 +693,7 @@ describe("evaluateElements", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 0,
-        count: 2,
-        step: 1,
+        min: 0, max: 1, step: 1,
         showGenerated: true,
         modifierNames: ["Guide"]
       },
@@ -733,9 +729,7 @@ describe("evaluateElements", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 1,
-        count: 2,
-        step: 1,
+        min: 1, max: 2, step: 1,
         showGenerated: false
       },
       {
@@ -801,9 +795,7 @@ describe("evaluateElements", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 1,
-        count: 2,
-        step: 1,
+        min: 1, max: 2, step: 1,
         showGenerated: true
       },
       {
@@ -875,7 +867,7 @@ describe("evaluateElements", () => {
     expect(secondGuide.end.y).toBeCloseTo(30);
   });
 
-  it("reports invalid for group counts", () => {
+  it("reports a non-positive for group step", () => {
     const result = evaluateElements([
       {
         id: "loop",
@@ -883,16 +875,14 @@ describe("evaluateElements", () => {
         type: "forGroup",
         activity: "visible",
         variableName: "i",
-        start: 0,
-        count: 1.5,
-        step: 1,
+        min: 0, max: 10, step: 0,
         showGenerated: false
       }
     ]);
 
     expect(result.errors[0]).toMatchObject({
       elementId: "loop",
-      message: "不正な繰り返し の回数は0以上の整数にしてください。"
+      message: "不正な繰り返し の step は0より大きい値にしてください。"
     });
   });
 
@@ -903,9 +893,7 @@ describe("evaluateElements", () => {
       type: "forGroup",
       activity: "visible",
       variableName: "i",
-      start: 0,
-      count: 2,
-      step: 1,
+      min: 0, max: 1, step: 1,
       showGenerated: false
     };
     const inner: CadElement = {
@@ -915,9 +903,7 @@ describe("evaluateElements", () => {
       activity: "visible",
       parentGroupId: "outer",
       variableName: "j",
-      start: 0,
-      count: 3,
-      step: 1,
+      min: 0, max: 2, step: 1,
       showGenerated: false
     };
     const p: CadElement = {
@@ -970,8 +956,8 @@ describe("evaluateElements", () => {
 
   it("shadows an outer iteration binding when a nested for group reuses its variable name", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
-for i in range(from: 100, count: 2, step: 100) {
-  for i in range(from: 1, count: 2, step: 1) {
+for i in range(min: 100, max: 300, step: 100) {
+  for i in range(min: 1, max: 2, step: 1) {
     point P = coordinate(x: @i, y: 0)
   }
 }`);
@@ -1008,9 +994,7 @@ for i in range(from: 100, count: 2, step: 100) {
       type: "forGroup",
       activity: "visible",
       variableName: "i",
-      start: 0,
-      count: 1,
-      step: 1,
+      min: 0, max: 0, step: 1,
       showGenerated: true
     };
     const inner: CadElement = {
@@ -1020,9 +1004,7 @@ for i in range(from: 100, count: 2, step: 100) {
       activity: "visible",
       parentGroupId: "outer",
       variableName: "j",
-      start: 0,
-      count: 1,
-      step: 1,
+      min: 0, max: 0, step: 1,
       showGenerated: true
     };
     const p: CadElement = {
@@ -1051,7 +1033,7 @@ for i in range(from: 100, count: 2, step: 100) {
     const b: CadElement = { id: "b", name: "B", type: "freePoint", activity: "visible", x: 10, y: 0 };
     const outer: CadElement = {
       id: "outer", name: "Outer", type: "forGroup", activity: "visible",
-      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "i", min: 0, max: 1, step: 1, showGenerated: false
     };
     const a: CadElement = {
       id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer",
@@ -1059,7 +1041,7 @@ for i in range(from: 100, count: 2, step: 100) {
     };
     const inner: CadElement = {
       id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "outer",
-      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "j", min: 0, max: 1, step: 1, showGenerated: false
     };
     const l: CadElement = {
       id: "l", name: "L", type: "line", activity: "visible", parentGroupId: "inner",
@@ -1089,21 +1071,21 @@ for i in range(from: 100, count: 2, step: 100) {
   it("accumulates ancestor element references across three nesting levels", () => {
     const outer: CadElement = {
       id: "outer", name: "Outer", type: "forGroup", activity: "visible",
-      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "i", min: 0, max: 1, step: 1, showGenerated: false
     };
     const a: CadElement = {
       id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer", x: 0, y: 0
     };
     const middle: CadElement = {
       id: "middle", name: "Middle", type: "forGroup", activity: "visible", parentGroupId: "outer",
-      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "j", min: 0, max: 1, step: 1, showGenerated: false
     };
     const m: CadElement = {
       id: "m", name: "M", type: "freePoint", activity: "visible", parentGroupId: "middle", x: 1, y: 1
     };
     const inner: CadElement = {
       id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "middle",
-      variableName: "k", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "k", min: 0, max: 1, step: 1, showGenerated: false
     };
     const l: CadElement = {
       id: "l", name: "L", type: "line", activity: "visible", parentGroupId: "inner",
@@ -1137,14 +1119,14 @@ for i in range(from: 100, count: 2, step: 100) {
   it("resolves an ancestor reference and a current-invocation reference correctly in the same element", () => {
     const outer: CadElement = {
       id: "outer", name: "Outer", type: "forGroup", activity: "visible",
-      variableName: "i", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "i", min: 0, max: 1, step: 1, showGenerated: false
     };
     const a: CadElement = {
       id: "a", name: "A", type: "freePoint", activity: "visible", parentGroupId: "outer", x: 0, y: 0
     };
     const inner: CadElement = {
       id: "inner", name: "Inner", type: "forGroup", activity: "visible", parentGroupId: "outer",
-      variableName: "j", start: 0, count: 2, step: 1, showGenerated: false
+      variableName: "j", min: 0, max: 1, step: 1, showGenerated: false
     };
     const c: CadElement = {
       id: "c", name: "C", type: "freePoint", activity: "visible", parentGroupId: "inner", x: 1, y: 1
@@ -1175,9 +1157,9 @@ for i in range(from: 100, count: 2, step: 100) {
 
   it("lets a nested inner for group body's numeric expression reference an outer-owned point's property", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
-  for j in range(from: 0, count: 2, step: 1) {
+  for j in range(min: 0, max: 1, step: 1) {
     point P = coordinate(x: @A.x + 10, y: @j)
   }
 }`);
@@ -1212,11 +1194,11 @@ for i in range(from: 0, count: 2, step: 1) {
     // point arguments regardless of ancestor scope (see completion report).
     const { result, elementId } = compileAndEvaluate(`nui 1
 point P = coordinate(x: 0, y: 5)
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
   line AB = segment(start: @A, end: @B)
-  for j in range(from: 0, count: 2, step: 1) {
+  for j in range(min: 0, max: 1, step: 1) {
     point Q = coordinate(x: lineDistance(P, AB), y: @j)
   }
 }`);
@@ -1241,7 +1223,7 @@ for i in range(from: 0, count: 2, step: 1) {
 
   it("lets a for group body's numeric expression reference a same-scope generated sibling", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @A.x + 10, y: 0)
 }`);
@@ -1262,7 +1244,7 @@ for i in range(from: 0, count: 2, step: 1) {
     // points, so distance()/angle() must resolve them by their full
     // generated id, not by splitting on the first colon.
     const { result, elementId } = compileAndEvaluate(`nui 1
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
   point B = coordinate(x: @i + 10, y: 0)
   point Q = coordinate(x: distance(A, B), y: angle(A, B))
@@ -1280,9 +1262,9 @@ for i in range(from: 0, count: 2, step: 1) {
 
   it("resolves distance() mixing an ancestor-owned and a current-invocation generated point argument", () => {
     const { result, elementId } = compileAndEvaluate(`nui 1
-for i in range(from: 0, count: 2, step: 1) {
+for i in range(min: 0, max: 1, step: 1) {
   point A = coordinate(x: @i, y: 0)
-  for j in range(from: 0, count: 2, step: 1) {
+  for j in range(min: 0, max: 1, step: 1) {
     point B = coordinate(x: @i + 10, y: 0)
     point Q = coordinate(x: distance(A, B), y: 0)
   }
@@ -1333,9 +1315,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       type: "forGroup",
       activity: "disabled",
       variableName: "i",
-      start: 0,
-      count: 2,
-      step: 1,
+      min: 0, max: 1, step: 1,
       showGenerated: false
     };
     const inner: CadElement = {
@@ -1345,9 +1325,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       activity: "visible",
       parentGroupId: "outer",
       variableName: "j",
-      start: 0,
-      count: 3,
-      step: 1,
+      min: 0, max: 2, step: 1,
       showGenerated: false
     };
     const p: CadElement = {
@@ -1366,16 +1344,14 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.computedGeometry.size).toBe(0);
   });
 
-  it("generates nothing for a nested inner for group with count 0, while the outer loop still runs", () => {
+  it("rejects a descending nested inner for group range", () => {
     const outer: CadElement = {
       id: "outer",
       name: "外側繰り返し",
       type: "forGroup",
       activity: "visible",
       variableName: "i",
-      start: 0,
-      count: 2,
-      step: 1,
+      min: 0, max: 1, step: 1,
       showGenerated: false
     };
     const inner: CadElement = {
@@ -1385,9 +1361,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
       activity: "visible",
       parentGroupId: "outer",
       variableName: "j",
-      start: 0,
-      count: 0,
-      step: 1,
+      min: 0, max: -1, step: 1,
       showGenerated: false
     };
     const p: CadElement = {
@@ -1401,7 +1375,17 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     };
     const result = evaluateElements([outer, inner, p]);
 
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toHaveLength(2);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        elementId: "inner@outer:0",
+        message: expect.stringContaining("内側繰り返し の min は max 以下にしてください。")
+      }),
+      expect.objectContaining({
+        elementId: "inner@outer:1",
+        message: expect.stringContaining("内側繰り返し の min は max 以下にしてください。")
+      })
+    ]));
     expect(result.forGroupGeneratedRows).toHaveLength(0);
     expect(result.computedGeometry.size).toBe(0);
   });

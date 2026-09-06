@@ -256,7 +256,7 @@ describe("Task 23 standard property runtime, end-to-end through the real compile
         "point A = coordinate(x: 0, y: 0)",
         "point B = coordinate(x: 10, y: 0)",
         "line AB = segment(start: @A, end: @B)",
-        "for i in range(from: 0, count: 3, step: 1) {",
+        "for i in range(min: 0, max: 2, step: 1) {",
         `  line C = transformCopy(startPoint: @A, endPoint: @B, scale: 1, angleDeg: 0, mirrorX: ${mirrorXArg}, baseLines: [@AB])`,
         "}"
       ].join("\n");

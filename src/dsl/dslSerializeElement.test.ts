@@ -184,7 +184,7 @@ describe("DSL nui 1 element serializer", () => {
     expect(serializeElementStatementLogical(conditional, documentDslRefs([...referenceElements, conditional])))
       .toBe("if (true)");
     expect(serializeElementStatementLogical(loop, documentDslRefs([...referenceElements, loop])))
-      .toBe("for i in range(from: 0, count: 3, step: 1)");
+      .toBe("for i in range(min: 0, max: 2, step: 1)");
   });
 });
 

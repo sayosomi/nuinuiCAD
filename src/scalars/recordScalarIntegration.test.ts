@@ -87,7 +87,7 @@ describe("SAY-128 record scalar integration", () => {
       'const config: Config = Config(amount: 12, label: "ok", enabled: true)',
       "const alias: Config = @config",
       "point P = coordinate(x: @alias.amount, y: 0)",
-      "for i in range(from: 0, count: 1, showGenerated: @alias.enabled) {",
+      "for i in range(min: 0, max: 0, step: 1, showGenerated: @alias.enabled) {",
       "}",
       "if (@alias.enabled) {",
       '  text T = label(text: "label ${@alias.label}", anchor: none, size: 3)',

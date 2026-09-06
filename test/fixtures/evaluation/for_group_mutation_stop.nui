@@ -1,6 +1,6 @@
 nui 1
 let total: number = 0
-for i in range(from: 0, count: 3, step: 1) {
+for i in range(min: 0, max: 2, step: 1) {
   set total = @total + 1
   stop
   point P = coordinate(x: @total, y: 0)

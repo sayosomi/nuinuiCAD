@@ -646,7 +646,7 @@ fn materializes_a_bound_boolean_property_uniformly_across_every_forgroup_generat
             line("ab", "a", "b"),
             json!({
                 "id": "for", "name": "for", "type": "forGroup", "activity": "visible",
-                "variableName": "i", "start": 0, "count": 3, "step": 1
+                "variableName": "i", "min": 0, "max": 2, "step": 1
             }),
             json!({
                 "id": "copy", "name": "copy", "type": "copyLine", "activity": "visible",

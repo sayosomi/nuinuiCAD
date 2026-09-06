@@ -75,7 +75,7 @@ export const generateDocumentSource = (params: GeneratedDocParams): GeneratedDoc
     elementLines.push("}");
   }
   if (params.withFor) {
-    elementLines.push("for i in range(from: 0, count: 3, step: 1) {");
+    elementLines.push("for i in range(min: 0, max: 2, step: 1) {");
     elementLines.push("  point FP0 = coordinate(x: @i * 10, y: 0)");
     elementLines.push("}");
   }

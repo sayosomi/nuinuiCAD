@@ -72,7 +72,7 @@ fn accepts_a_valid_show_generated_binding() {
 #[test]
 fn accepts_a_schema_driven_control_parameter_without_a_property_allowlist() {
     let mut entry = valid_entry();
-    entry["parameterKey"] = json!("count"); // forGroup.count is not a control boolean target
+    entry["parameterKey"] = json!("max"); // forGroup.max is not a control boolean target
     let payload = json!([entry]);
     assert!(validate_control_boolean_bindings_payload(
         &payload,

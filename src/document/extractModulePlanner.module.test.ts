@@ -154,7 +154,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "nui 1",
       "module Outer(count: number) {",
       "  module Inner() {",
-      "    for i in range(from: 0, count: 2, step: 1) {",
+      "    for i in range(min: 0, max: 1, step: 1) {",
       "      const local: number = @i",
       "    }",
       "  }",
@@ -199,7 +199,7 @@ describe("planExtractModule checkpoint 8 Module structures", () => {
       "}"
     ]],
     ["for", [
-      "for i in range(from: 0, count: 2, step: 1) {",
+      "for i in range(min: 0, max: 1, step: 1) {",
       "  instance Inside = M()",
       "}"
     ]]

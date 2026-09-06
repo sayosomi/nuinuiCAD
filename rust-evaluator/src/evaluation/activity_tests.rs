@@ -316,8 +316,7 @@ fn generated_rows_receive_the_template_stroke_without_id_parsing() {
         elements: vec![
             json!({
                 "id": "loop", "name": "Loop", "type": "forGroup", "activity": "visible",
-                "modifierNames": ["Guide"], "variableName": "i", "start": 0, "count": 2,
-                "step": 1, "showGenerated": true
+                "modifierNames": ["Guide"], "variableName": "i", "min": 0, "max": 1, "step": 1, "showGenerated": true
             }),
             json!({
                 "id": "point", "name": "Point", "type": "freePoint", "activity": "visible",

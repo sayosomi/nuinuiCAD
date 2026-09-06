@@ -19,7 +19,7 @@ const buildCase = (generatedRows: number) => {
   const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
     "nui 1",
     "let total: number = 0",
-    `for i in range(from: 0, count: ${generatedRows}, step: 1) {`,
+    `for i in range(min: 0, max: ${generatedRows - 1}, step: 1) {`,
     "  set total = @total + 1",
     "  point P = coordinate(x: 0, y: 0)",
     "}"
