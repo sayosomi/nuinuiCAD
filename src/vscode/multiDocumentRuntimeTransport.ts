@@ -9,7 +9,15 @@ import {
   NEW_DOCUMENT_DSL_MAJOR_VERSION,
   type CompiledDslDocument
 } from "../dsl/dslDocument";
-import type { CanvasModuleOrigin, ModuleMaterializationSnapshot } from "../dsl/moduleMaterialization";
+import type {
+  CanvasModuleOrigin,
+  MaterializedExecutionStatement,
+  MaterializedRuntimeIdentity,
+  ModuleMaterialization,
+  ModuleMaterializationSnapshot,
+  ModuleOrigin,
+  SourceExecutionUnit
+} from "../dsl/moduleMaterialization";
 import type { VisibilityProfile, CadElement, ElementId } from "../types/geometry";
 import type { CanvasModuleMaterialization } from "../dsl/moduleMaterialization";
 
@@ -28,7 +36,22 @@ export type VscodeMultiDocumentCanvasRuntimeSnapshot = {
       instancePath: readonly string[];
       runtimeInstancePath?: readonly string[];
     }[];
+    revealMaterialization?: VscodeMultiDocumentRevealMaterialization;
   };
+};
+
+/** JSON-safe transport form of the exact materialization fields used by the
+ * shared Reveal runtime projection. Maps are restored only in the Webview. */
+export type VscodeMultiDocumentRevealMaterialization = {
+  executionStatements: readonly MaterializedExecutionStatement[];
+  sourceExecutionUnits: readonly SourceExecutionUnit[];
+  elementIdBySourceStatementIndex: readonly (readonly [number, string])[];
+  sourceExecutionPositionByRuntimeElementId: readonly (readonly [string, number])[];
+  originByRuntimeElementId: readonly (readonly [string, ModuleOrigin])[];
+  runtimeIdentityByElementId: readonly (readonly [string, MaterializedRuntimeIdentity])[];
+  instanceBaseGeometrySnapshots: readonly ModuleMaterializationSnapshot[];
+  scalarExecutionPositionByRuntimeElementId?: readonly (readonly [string, number])[];
+  evaluationLimitIndex: number | undefined;
 };
 
 export type VscodeMultiDocumentCanvasRuntimePresentation = {
@@ -40,7 +63,24 @@ export type VscodeMultiDocumentCanvasRuntimePresentation = {
   visibilityProfiles: VisibilityProfile[];
   activeVisibilityProfileId: string;
   moduleMaterialization: CanvasModuleMaterialization;
+  revealMaterialization?: ModuleMaterialization;
 };
+
+const revealMaterializationFor = (
+  serialized: VscodeMultiDocumentRevealMaterialization
+): ModuleMaterialization => ({
+  executionStatements: serialized.executionStatements,
+  sourceExecutionUnits: serialized.sourceExecutionUnits,
+  elementIdBySourceStatementIndex: new Map(serialized.elementIdBySourceStatementIndex),
+  sourceExecutionPositionByRuntimeElementId: new Map(serialized.sourceExecutionPositionByRuntimeElementId),
+  originByRuntimeElementId: new Map(serialized.originByRuntimeElementId),
+  runtimeIdentityByElementId: new Map(serialized.runtimeIdentityByElementId),
+  instanceBaseGeometrySnapshots: serialized.instanceBaseGeometrySnapshots,
+  ...(serialized.scalarExecutionPositionByRuntimeElementId
+    ? { scalarExecutionPositionByRuntimeElementId: new Map(serialized.scalarExecutionPositionByRuntimeElementId) }
+    : {}),
+  evaluationLimitIndex: serialized.evaluationLimitIndex
+});
 
 const hasGatingError = (compiled: CompiledDslDocument): boolean =>
   compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
@@ -112,7 +152,20 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
         kind: origin.kind,
         instancePath: [...origin.instancePath],
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
-      }))
+      })),
+      revealMaterialization: {
+        executionStatements: materialization.executionStatements,
+        sourceExecutionUnits: materialization.sourceExecutionUnits,
+        elementIdBySourceStatementIndex: [...materialization.elementIdBySourceStatementIndex.entries()],
+        sourceExecutionPositionByRuntimeElementId: [...materialization.sourceExecutionPositionByRuntimeElementId.entries()],
+        originByRuntimeElementId: [...materialization.originByRuntimeElementId.entries()],
+        runtimeIdentityByElementId: [...materialization.runtimeIdentityByElementId.entries()],
+        instanceBaseGeometrySnapshots: materialization.instanceBaseGeometrySnapshots,
+        ...(materialization.scalarExecutionPositionByRuntimeElementId
+          ? { scalarExecutionPositionByRuntimeElementId: [...materialization.scalarExecutionPositionByRuntimeElementId.entries()] }
+          : {}),
+        evaluationLimitIndex: materialization.evaluationLimitIndex
+      }
     }
   };
 };
@@ -137,5 +190,8 @@ export const canvasRuntimePresentationFor = (
         ...(origin.runtimeInstancePath ? { runtimeInstancePath: [...origin.runtimeInstancePath] } : {})
       } satisfies CanvasModuleOrigin] as const)
     )
-  }
+  },
+  ...(snapshot.modulePresentation.revealMaterialization
+    ? { revealMaterialization: revealMaterializationFor(snapshot.modulePresentation.revealMaterialization) }
+    : {})
 });

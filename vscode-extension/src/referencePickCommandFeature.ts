@@ -18,6 +18,10 @@ import {
   currentCompiledSemanticSnapshotFor,
   type NuiLanguageAnalysisSession
 } from "./languageAnalysisSession";
+import {
+  activeVscodeMultiDocumentHost,
+  type VscodeMultiDocumentLanguageSemanticSnapshot
+} from "./multiDocumentHost";
 import { referencePickTranslatorFor } from "./referencePickLocalization";
 import {
   createVscodeReferencePickSourceBridge,
@@ -73,6 +77,21 @@ export type VscodeSourceTargetAvailability = {
   bake: boolean;
 };
 
+export type VscodeCanvasRevealSourceTarget = {
+  target: import("@nuinuicad/nui-language").DslCanvasRevealSourceTarget;
+  documentVersion: number;
+  normalizedSourceOffset: number;
+  sourceRevision: number;
+  graphRevision: number | null;
+};
+
+export type VscodeCanvasRevealSourceTargetResult =
+  | { status: "resolved"; value: VscodeCanvasRevealSourceTarget }
+  | {
+      status: "failed";
+      reason: import("@nuinuicad/nui-language").DslCanvasRevealFailureReason | "analysis-unavailable";
+    };
+
 const unavailableSourceTargets = (): VscodeSourceTargetAvailability => ({
   referencePickSourceOffset: null,
   revealInCanvas: false,
@@ -87,6 +106,180 @@ const isSupportedSourceEditor = (editor: vscode.TextEditor | undefined): editor 
 
 const sameDocument = (left: vscode.TextDocument, right: vscode.TextDocument): boolean =>
   left === right || left.uri.toString() === right.uri.toString();
+
+const targetSourceStatementIndex = (
+  target: import("@nuinuicad/nui-language").DslCanvasRevealSourceTarget
+): number => target.kind === "semantic"
+  ? target.semantic.sourceStatementIndex
+  : target.sourceStatementIndex;
+
+/**
+ * Imported Module callers are the only Reveal targets that require the
+ * graph-published runtime universe. Ordinary root elements and same-document
+ * local Module callers continue through the local Canvas path.
+ */
+const requiresMultiDocumentRuntime = (
+  compiled: NonNullable<ReturnType<typeof currentCompiledSemanticSnapshotFor>>["compiled"],
+  target: import("@nuinuicad/nui-language").DslCanvasRevealSourceTarget,
+  rootDocumentId: string
+): boolean => [...(compiled.moduleMaterialization?.executionStatements ?? [])].some((entry) => {
+  if (entry.sourceStatementIndex !== targetSourceStatementIndex(target)) return false;
+  const origin = entry.origin;
+  return Boolean(
+    (origin?.sourceDocumentId !== undefined && String(origin.sourceDocumentId) !== rootDocumentId) ||
+    (origin?.moduleDefinitionDocumentId !== undefined && String(origin.moduleDefinitionDocumentId) !== rootDocumentId)
+  );
+});
+
+type EditorRevealQueryState = {
+  rawSource: string;
+  source: { normalizedSource: string; sourceRevision: number };
+  normalizedSourceOffset: number;
+  semantic: ReturnType<typeof currentCompiledSemanticSnapshotFor>;
+};
+
+const editorRevealQueryStateFor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): EditorRevealQueryState | null => {
+  if (!isSupportedSourceEditor(editor)) return null;
+  const rawSource = editor.document.getText();
+  if (languageAnalysisSession.getSource() !== rawSource) languageAnalysisSession.replaceSource(rawSource);
+  const source = {
+    normalizedSource: normalizedSourceFor(rawSource),
+    sourceRevision: languageAnalysisSession.getSourceRevision()
+  };
+  return {
+    rawSource,
+    source,
+    normalizedSourceOffset: normalizedOffsetFromRaw(
+      rawSource,
+      editor.document.offsetAt(editor.selection.active)
+    ),
+    semantic: currentCompiledSemanticSnapshotFor(languageAnalysisSession, source)
+  };
+};
+
+export const localRevealSourceTargetForEditor = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): VscodeCanvasRevealSourceTargetResult => {
+  const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
+  if (!state || !state.semantic?.compiled?.statementMap) {
+    return { status: "failed", reason: "analysis-unavailable" };
+  }
+  const result = queryDslCanvasRevealSourceTarget({
+    source: state.source,
+    compiled: state.semantic.compiled,
+    position: state.normalizedSourceOffset
+  });
+  return result.status === "resolved"
+    ? {
+        status: "resolved",
+        value: {
+          target: result.target,
+          documentVersion: editor.document.version,
+          normalizedSourceOffset: state.normalizedSourceOffset,
+          sourceRevision: state.source.sourceRevision,
+          graphRevision: null
+        }
+      }
+    : result;
+};
+
+const localRevealRequiresMultiDocumentRuntime = (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession,
+  result: VscodeCanvasRevealSourceTargetResult
+): boolean => {
+  if (result.status !== "resolved") return false;
+  const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
+  return Boolean(
+    state?.semantic?.compiled &&
+    requiresMultiDocumentRuntime(
+      state.semantic.compiled,
+      result.value.target,
+      editor.document.uri.toString()
+    )
+  );
+};
+
+const graphSemanticSnapshotFor = async (
+  document: vscode.TextDocument
+): Promise<VscodeMultiDocumentLanguageSemanticSnapshot | null> => {
+  const host = activeVscodeMultiDocumentHost();
+  if (!host || typeof host.languageSemanticSnapshotFor !== "function") return null;
+  return host.languageSemanticSnapshotFor(document);
+};
+
+/** Resolve Reveal once from the exact graph snapshot when the target is an
+ * imported Module caller, while retaining the established local path for all
+ * other targets. */
+export const revealInCanvasSourceTargetForEditor = async (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): Promise<VscodeCanvasRevealSourceTargetResult> => {
+  const local = localRevealSourceTargetForEditor(editor, languageAnalysisSession);
+  const state = editorRevealQueryStateFor(editor, languageAnalysisSession);
+  if (!state) return local;
+  const capturedVersion = editor.document.version;
+  const capturedRawSource = state.rawSource;
+  const capturedOffset = state.normalizedSourceOffset;
+  const localRequiresGraph = localRevealRequiresMultiDocumentRuntime(
+    editor,
+    languageAnalysisSession,
+    local
+  );
+  const graphSemantic = await graphSemanticSnapshotFor(editor.document);
+  if (
+    editor.document.version !== capturedVersion ||
+    editor.document.getText() !== capturedRawSource ||
+    normalizedOffsetFromRaw(
+      editor.document.getText(),
+      editor.document.offsetAt(editor.selection.active)
+    ) !== capturedOffset
+  ) return { status: "failed", reason: "source-mismatch" };
+
+  if (
+    graphSemantic &&
+    graphSemantic.documentVersion === capturedVersion &&
+    graphSemantic.sourceText === state.source.normalizedSource &&
+    graphSemantic.compiled.spans.sourceMap.source === graphSemantic.sourceText &&
+    graphSemantic.compiled.spans.sourceMap.sourceRevision === graphSemantic.sourceRevision &&
+    graphSemantic.compiled.statementMap
+  ) {
+    const graphTarget = queryDslCanvasRevealSourceTarget({
+      source: {
+        normalizedSource: graphSemantic.sourceText,
+        sourceRevision: graphSemantic.sourceRevision
+      },
+      compiled: graphSemantic.compiled,
+      position: capturedOffset
+    });
+    if (
+      graphTarget.status === "resolved" &&
+      requiresMultiDocumentRuntime(
+        graphSemantic.compiled,
+        graphTarget.target,
+        graphSemantic.rootDocumentId
+      )
+    ) {
+      return {
+        status: "resolved",
+        value: {
+          target: graphTarget.target,
+          documentVersion: capturedVersion,
+          normalizedSourceOffset: capturedOffset,
+          sourceRevision: graphSemantic.sourceRevision,
+          graphRevision: graphSemantic.graphRevision
+        }
+      };
+    }
+  }
+  return localRequiresGraph
+    ? { status: "failed", reason: graphSemantic ? "source-mismatch" : "analysis-unavailable" }
+    : local;
+};
 
 export type VscodeOutputPreviewRevealSourceTargetFailureReason =
   | "analysis-unavailable"
@@ -198,6 +391,28 @@ export const sourceTargetAvailabilityForEditor = (
   return { referencePickSourceOffset, revealInCanvas, revealInOutputPreview, bake };
 };
 
+export const sourceTargetAvailabilityForEditorAsync = async (
+  editor: vscode.TextEditor,
+  languageAnalysisSession: NuiLanguageAnalysisSession
+): Promise<VscodeSourceTargetAvailability> => {
+  const local = sourceTargetAvailabilityForEditor(editor, languageAnalysisSession);
+  const localRevealTarget = localRevealSourceTargetForEditor(editor, languageAnalysisSession);
+  const localRequiresGraph = localRevealRequiresMultiDocumentRuntime(
+    editor,
+    languageAnalysisSession,
+    localRevealTarget
+  );
+  const resolved = await revealInCanvasSourceTargetForEditor(editor, languageAnalysisSession);
+  if (localRequiresGraph) {
+    return {
+      ...local,
+      revealInCanvas: resolved.status === "resolved" && resolved.value.graphRevision !== null
+    };
+  }
+  if (resolved.status !== "resolved" || resolved.value.graphRevision === null) return local;
+  return { ...local, revealInCanvas: true };
+};
+
 export const referencePickSourceOffsetForEditor = (
   editor: vscode.TextEditor,
   languageAnalysisSession: NuiLanguageAnalysisSession
@@ -237,6 +452,7 @@ export const registerVscodeReferencePickFeature = ({
   let active: ActiveReferencePick | null = null;
   let historyHandoff: ReferencePickHistoryHandoff | null = null;
   let contextUpdate: Promise<void> = Promise.resolve();
+  let contextRefreshRevision = 0;
 
   const setSourceTargetContexts = (availability: VscodeSourceTargetAvailability): void => {
     contextUpdate = contextUpdate
@@ -267,14 +483,45 @@ export const registerVscodeReferencePickFeature = ({
   };
 
   const refreshContext = (editor: vscode.TextEditor | undefined = vscode.window.activeTextEditor): void => {
+    const refreshRevision = ++contextRefreshRevision;
     if (!isSupportedSourceEditor(editor)) {
       setSourceTargetContexts(unavailableSourceTargets());
       return;
     }
-    setSourceTargetContexts(sourceTargetAvailabilityForEditor(
+    const languageAnalysisSession = languageAnalysisSessionFor(editor.document);
+    const localAvailability = sourceTargetAvailabilityForEditor(editor, languageAnalysisSession);
+    const host = activeVscodeMultiDocumentHost();
+    const initialAvailability = host && localRevealRequiresMultiDocumentRuntime(
       editor,
-      languageAnalysisSessionFor(editor.document)
-    ));
+      languageAnalysisSession,
+      localRevealSourceTargetForEditor(editor, languageAnalysisSession)
+    )
+      ? { ...localAvailability, revealInCanvas: false }
+      : localAvailability;
+    setSourceTargetContexts(initialAvailability);
+    if (!host) return;
+    const expectedDocument = editor.document;
+    const expectedVersion = expectedDocument.version;
+    const expectedSource = expectedDocument.getText();
+    const expectedOffset = normalizedOffsetFromRaw(
+      expectedSource,
+      expectedDocument.offsetAt(editor.selection.active)
+    );
+    const contextIsCurrent = (): boolean =>
+      refreshRevision === contextRefreshRevision &&
+      vscode.window.activeTextEditor === editor &&
+      editor.document.version === expectedVersion &&
+      editor.document.getText() === expectedSource &&
+      normalizedOffsetFromRaw(
+        editor.document.getText(),
+        editor.document.offsetAt(editor.selection.active)
+      ) === expectedOffset;
+    void sourceTargetAvailabilityForEditorAsync(editor, languageAnalysisSession).then((availability) => {
+      if (!contextIsCurrent()) return;
+      setSourceTargetContexts(availability);
+    }).catch(() => {
+      if (contextIsCurrent()) setSourceTargetContexts(initialAvailability);
+    });
   };
 
   const clearActive = (disposeBridge: boolean): void => {
@@ -539,6 +786,7 @@ export const registerVscodeReferencePickFeature = ({
     closeListener,
     {
       dispose: () => {
+        contextRefreshRevision += 1;
         cancelActive();
         clearHistoryHandoff();
         setSourceTargetContexts(unavailableSourceTargets());

@@ -136,6 +136,9 @@ export type VscodeMultiDocumentCanvasRuntimeProjector = (input: {
 }) => VscodeMultiDocumentCanvasRuntimeSnapshot | null;
 
 export type VscodeMultiDocumentLanguageSemanticSnapshot = {
+  documentVersion: number;
+  rootDocumentId: string;
+  graphRevision: number;
   sourceRevision: number;
   sourceText: string;
   compiled: CompiledDslDocument;
@@ -643,7 +646,7 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
   ): Promise<VscodeMultiDocumentLanguageSemanticSnapshot | null> {
     const current = await this.currentRootSemanticStateFor(document);
     if (!current) return null;
-    const { documentId, graph, compiled } = current;
+    const { documentId, state, graph, compiled } = current;
     if (
       !compiled ||
       compiled.spans.sourceMap.source !== graph.rootSource.normalizedSource ||
@@ -655,6 +658,9 @@ export class VscodeMultiDocumentHost implements vscode.Disposable {
       compiled.moduleRuntimeContext.rootDocumentId !== documentId
     )) return null;
     return {
+      documentVersion: state.documentVersion,
+      rootDocumentId: String(documentId),
+      graphRevision: state.graphRevision,
       sourceRevision: graph.rootSource.sourceRevision,
       sourceText: graph.rootSource.normalizedSource,
       compiled

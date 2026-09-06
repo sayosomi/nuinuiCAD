@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
 import { inlineModuleCanvasTargetProofsFor } from "../../src/vscode/inlineModuleCanvas";
@@ -107,6 +108,7 @@ const mocks = vi.hoisted(() => ({
   multiDocumentHost: null as {
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
     onDiagnosticsChanged: ReturnType<typeof vi.fn>;
+    languageSemanticSnapshotFor?: ReturnType<typeof vi.fn>;
   } | null,
   multiDocumentDiagnosticsListeners: [] as Array<(documentUri: string) => void>,
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
@@ -3947,6 +3949,65 @@ describe("VS Code production document lifecycle", () => {
 });
 
 describe("VS Code explicit Canvas navigation lifecycle", () => {
+  it("carries the exact graph-resolved Source target and revision for an imported caller", async () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Direct = M()"
+    ].join("\n");
+    const document = documentFor("/tmp/imported-reveal.nui", "file:///tmp/imported-reveal.nui", source);
+    const editor = editorFor(document);
+    editor.selection.active = document.positionAt(source.indexOf("Direct"));
+    const languageSession = createLanguageAnalysisSession(source);
+    const localCompiled = languageSession.runtimeEvaluationSnapshot()?.compiled;
+    if (!localCompiled?.moduleMaterialization) throw new Error("missing Module materialization");
+    const instance = localCompiled.moduleMaterialization.executionStatements.find((entry) => entry.type === "moduleInstance");
+    if (!instance?.origin) throw new Error("missing Module instance origin");
+    const origins = new Map(localCompiled.moduleMaterialization.originByRuntimeElementId);
+    const importedOrigin = {
+      ...instance.origin,
+      moduleDefinitionDocumentId: "file:///tmp/library.nui"
+    };
+    origins.set(instance.runtimeElementId, importedOrigin);
+    const semanticSnapshot = {
+      documentVersion: document.version,
+      rootDocumentId: document.uri.toString(),
+      graphRevision: 41,
+      sourceRevision: localCompiled.spans.sourceMap.sourceRevision,
+      sourceText: source,
+      compiled: {
+      ...localCompiled,
+        moduleMaterialization: {
+          ...localCompiled.moduleMaterialization,
+          executionStatements: localCompiled.moduleMaterialization.executionStatements.map((entry) =>
+            entry.runtimeElementId === instance.runtimeElementId ? { ...entry, origin: importedOrigin } : entry
+          ),
+          originByRuntimeElementId: origins
+        }
+      }
+    };
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      languageSemanticSnapshotFor: vi.fn(async () => semanticSnapshot)
+    };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+    await messageHandlerFor(panel)({ type: "webviewReady" });
+    await messageHandlerFor(panel)({ type: "webviewAuthoritativeDocumentReady", documentVersion: document.version });
+
+    commandHandlerFor("nuinuiCAD.revealInCanvas")?.();
+    await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "canvasNavigationRequest",
+      documentVersion: document.version,
+      graphRevision: 41,
+      sourceRevision: semanticSnapshot.sourceRevision,
+      sourceTarget: { kind: "statement-owner", sourceStatementIndex: instance.sourceStatementIndex }
+    })));
+  });
+
   const prepareNavigation = async () => {
     const source = [
       "nui 1",
