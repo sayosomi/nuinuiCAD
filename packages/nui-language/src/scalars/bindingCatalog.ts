@@ -185,8 +185,8 @@ export const buildBindingCatalog = ({
       const slotCount = slots.size;
       for (let sourceOrder = 0; sourceOrder < slotCount; sourceOrder += 1) {
         const slot = slots.get(sourceOrder);
-        if (!slot) throw new Error("bindingCatalog: sourceOrder must be contiguous per statement/kind");
-        for (const binding of slot) bindings.push({ ...binding, rank: bindings.length });
+        if (!slot || slot.length !== 1) throw new Error("bindingCatalog: sourceOrder must be contiguous && unique per statement/kind");
+        bindings.push({ ...slot[0], rank: bindings.length });
       }
     }
   }

@@ -87,7 +87,7 @@ describe("record nominal semantic analysis", () => {
     expect(namespace.diagnostics.filter((diagnostic) => diagnostic.code === "record-nominal-type-mismatch")).toHaveLength(1);
   });
 
-  it("rejects record let/set and keeps whole records in canonical value-binding metadata", () => {
+  it("rejects record let/set and keeps whole records out of the scalar lexical catalog", () => {
     const { namespace } = analyze([
       "nui 1",
       "record Pair(x: number)",
@@ -98,7 +98,7 @@ describe("record nominal semantic analysis", () => {
 
     expect(codes).toEqual(expect.arrayContaining(["record-let-unsupported", "record-set-unsupported"]));
     expect(namespace.allDeclarations.find((declaration) => declaration.name === "pair")?.kind).toBe("recordValue");
-    expect(namespace.scopeIndex.allDeclarations.map((declaration) => declaration.name)).toContain("pair");
+    expect(namespace.scopeIndex.allDeclarations.map((declaration) => declaration.name)).not.toContain("pair");
   });
 
   it("assigns Module record parameter identity and permits same-type whole-record parameter references", () => {

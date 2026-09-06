@@ -33,12 +33,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
       return binding;
     };
 
-    expect(bindingFor("config")).toMatchObject({
-      id: "binding:stable-3",
-      declaredType: { kind: "record", name: "Config" },
-      mutability: "const",
-      effectiveScopeId: "root"
-    });
+    expect(fixture.bindingAnalysis.catalog.bindings.some((binding) => binding.name === "config")).toBe(false);
     expect(bindingFor("points").id).toBe("binding:stable-6");
     expect(bindingFor("lines").id).toBe("binding:stable-7");
     expect(bindingFor("paths").id).toBe("binding:stable-8");
@@ -46,7 +41,7 @@ describe("analyzeTypedDeclarations resolution buckets", () => {
     expect(bindingFor("lines").declaredType).toEqual({ kind: "array", elementType: { kind: "line" } });
     expect(bindingFor("paths").declaredType).toEqual({ kind: "array", elementType: { kind: "path" } });
 
-    const nonScalarBindings = [bindingFor("config"), bindingFor("points"), bindingFor("lines"), bindingFor("paths")];
+    const nonScalarBindings = [bindingFor("points"), bindingFor("lines"), bindingFor("paths")];
     expect(nonScalarBindings.every((binding) => !fixture.analysis.typedInitializerByBindingId.has(binding.id))).toBe(true);
 
     const scalarProgramNames = lowerScalarProgram(fixture.analysis).statements.map((statement) =>

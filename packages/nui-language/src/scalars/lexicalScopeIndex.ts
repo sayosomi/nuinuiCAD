@@ -14,7 +14,7 @@
 // identity the caller's resolver returns for a scope-opening statement.
 
 import type { DslSpan, DslStatement } from "../dsl/dslTypes";
-import type { DslValueType } from "../dsl/dslValueTypes";
+import { nominalRecordTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
 
 export type ScopeKind = "root" | "group" | "then" | "else" | "forGroup" | "module" | "layout";
 export type ScopeId = string;
@@ -194,7 +194,7 @@ export const buildLexicalScopeIndex = (
     if (members) members.push(index);
     else memberIndices.set(scopeId, [index]);
 
-    if (statement.kind === "typedDeclaration") {
+    if (statement.kind === "typedDeclaration" && !nominalRecordTypeOfDslValueType(statement.valueType)) {
       const declaration: ScopeDeclaration = {
         scopeId,
         statementIndex: index,

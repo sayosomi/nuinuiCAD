@@ -175,15 +175,14 @@ describe("buildLexicalScopeIndex", () => {
 
     expect(index.allDeclarations.map(({ name, declaredType }) => ({ name, declaredType }))).toEqual([
       { name: "scalar", declaredType: { kind: "number" } },
-      { name: "config", declaredType: { kind: "record", name: "Config" } },
       { name: "points", declaredType: { kind: "array", elementType: { kind: "point" } } },
       { name: "lines", declaredType: { kind: "array", elementType: { kind: "line" } } },
       { name: "paths", declaredType: { kind: "array", elementType: { kind: "path" } } }
     ]);
+    expect(index.allDeclarations.map((declaration) => declaration.name)).not.toContain("config");
     expect(index.allDeclarations.every((declaration) => declaration.scopeId === index.rootScopeId)).toBe(true);
     expect(index.allDeclarations.every((declaration) => declaration.nameSpan !== null)).toBe(true);
     expect(index.allDeclarations.map((declaration) => declaration.bindingKind)).toEqual([
-      "const",
       "const",
       "const",
       "const",
