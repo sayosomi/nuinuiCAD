@@ -13,6 +13,7 @@ import {
   canvasQuickCreateDescriptionFor,
   canvasQuickCreateTranslatorFor
 } from "./canvasQuickCreateLocalization";
+import { nativeCreateQuickPick } from "./nativeQuickInput";
 
 export const VSCODE_CANVAS_CREATE_GEOMETRY_COMMAND_ID = "nuinuiCAD.createGeometry";
 export const VSCODE_CANVAS_CONFIGURE_QUICK_CREATE_COMMAND_ID = "nuinuiCAD.configureQuickCreate";
@@ -93,7 +94,7 @@ export const registerVscodeCanvasQuickCreateFeature = ({
 
   const pickCreationCommand = (): Promise<QuickPickCreationItem | undefined> => {
     const displayLanguage = displayLanguageFor();
-    const picker = vscode.window.createQuickPick<QuickPickCreationItem>();
+    const picker = nativeCreateQuickPick<QuickPickCreationItem>();
     let settled = false;
     let resolvePick: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
     let finish: (selection: QuickPickCreationItem | undefined) => void = () => undefined;
