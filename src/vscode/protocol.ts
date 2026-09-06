@@ -3,7 +3,11 @@ import type { BenchmarkFixtureManifestEntry } from "../performance/benchmarkFixt
 import type { BenchmarkMachine, BenchmarkRenderSurface } from "../performance/benchmarkResultSchema";
 import type { LineSplice } from "../document/textPatch";
 import type { NormalizedSourceRange } from "../dsl/dslNavigationQuery";
-import type { DslCanvasRevealDegradation, DslCanvasRevealFailureReason } from "../dsl/dslCanvasRevealQuery";
+import type {
+  DslCanvasRevealDegradation,
+  DslCanvasRevealFailureReason,
+  DslCanvasRevealSourceTarget
+} from "../dsl/dslCanvasRevealQuery";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";
@@ -210,6 +214,26 @@ export type VscodeCanvasNavigationResult =
   | { type: "canvasNavigationResult"; requestId: number; status: "failed"; reason: DslCanvasRevealFailureReason }
   | { type: "canvasNavigationResult"; requestId: number; status: "focused" };
 
+export type VscodeCanvasNavigationRequest =
+  | {
+      type: "canvasNavigationRequest";
+      requestId: number;
+      documentVersion: number;
+      normalizedSourceOffset: number;
+      sourceTarget?: never;
+      sourceRevision?: never;
+      graphRevision?: never;
+    }
+  | {
+      type: "canvasNavigationRequest";
+      requestId: number;
+      documentVersion: number;
+      normalizedSourceOffset: number;
+      sourceTarget: DslCanvasRevealSourceTarget;
+      sourceRevision: number;
+      graphRevision: number;
+    };
+
 export type VscodeToExtensionMessage =
   | { type: "webviewReady" }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
@@ -329,7 +353,7 @@ export type ExtensionToVscodeMessage =
   | VscodeMultiDocumentGraphPublication
   | VscodeExtensionToReferencePickMessage
   | { type: "canvasSourceDefinitionRequest"; requestId: number }
-  | { type: "canvasNavigationRequest"; requestId: number; documentVersion: number; normalizedSourceOffset: number }
+  | VscodeCanvasNavigationRequest
   | VscodeInlineModuleSelectionRequest
   | { type: "focusCanvas"; requestId: number }
   | {

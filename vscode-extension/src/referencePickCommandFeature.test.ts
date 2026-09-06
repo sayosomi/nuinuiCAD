@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   selectionListeners: [] as Array<(event: { textEditor: TestEditor }) => void>,
   documentChangeListeners: [] as Array<(event: { document: TestDocument; contentChanges: readonly unknown[] }) => void>,
   documentCloseListeners: [] as Array<(document: TestDocument) => void>,
+  multiDocumentHost: null as {
+    languageSemanticSnapshotFor: (document: TestDocument) => Promise<unknown>;
+  } | null,
   bridgeFactory: vi.fn()
 }));
 
@@ -89,6 +92,10 @@ vi.mock("vscode", () => ({
 
 vi.mock("./referencePickSourceBridge", () => ({
   createVscodeReferencePickSourceBridge: mocks.bridgeFactory
+}));
+
+vi.mock("./multiDocumentHost", () => ({
+  activeVscodeMultiDocumentHost: () => mocks.multiDocumentHost
 }));
 
 import {
@@ -180,6 +187,58 @@ const createBridge = () => ({
   appliedHandoff: vi.fn(() => null)
 });
 
+const graphSemanticSnapshotFor = (
+  editor: TestEditor,
+  session: ReturnType<typeof createLanguageAnalysisSession>,
+  graphRevision = 9
+) => {
+  const compiled = session.runtimeEvaluationSnapshot()?.compiled;
+  if (!compiled?.moduleMaterialization) throw new Error("missing Module materialization");
+  const instance = compiled.moduleMaterialization.executionStatements.find((entry) => entry.type === "moduleInstance");
+  if (!instance?.origin) throw new Error("missing Module instance origin");
+  const origins = new Map(compiled.moduleMaterialization.originByRuntimeElementId);
+  const importedOrigin = {
+    ...instance.origin,
+    moduleDefinitionDocumentId: "file:///tmp/library.nui"
+  };
+  origins.set(instance.runtimeElementId, importedOrigin);
+  return {
+    documentVersion: editor.document.version,
+    rootDocumentId: editor.document.uri.toString(),
+    graphRevision,
+    sourceRevision: compiled.spans.sourceMap.sourceRevision,
+    sourceText: editor.document.getText(),
+    compiled: {
+      ...compiled,
+      moduleMaterialization: {
+        ...compiled.moduleMaterialization,
+        executionStatements: compiled.moduleMaterialization.executionStatements.map((entry) =>
+          entry.runtimeElementId === instance.runtimeElementId ? { ...entry, origin: importedOrigin } : entry
+        ),
+        originByRuntimeElementId: origins
+      }
+    }
+  };
+};
+
+const graphRequiredLocalSessionFor = (
+  editor: TestEditor,
+  source: string
+) => {
+  const session = createLanguageAnalysisSession(source);
+  const graphSnapshot = graphSemanticSnapshotFor(editor, session);
+  const sessionDocument = (session as unknown as {
+    document: { getState: () => { doc: unknown; currentCompiled: unknown } };
+  }).document;
+  const state = sessionDocument.getState() as {
+    doc: typeof graphSnapshot.compiled;
+    currentCompiled: typeof graphSnapshot.compiled;
+  };
+  state.doc = graphSnapshot.compiled;
+  state.currentCompiled = graphSnapshot.compiled;
+  return session;
+};
+
 const flush = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -198,10 +257,103 @@ beforeEach(() => {
   mocks.selectionListeners = [];
   mocks.documentChangeListeners = [];
   mocks.documentCloseListeners = [];
+  mocks.multiDocumentHost = null;
   mocks.bridgeFactory.mockReset();
 });
 
 describe("registerVscodeReferencePickFeature", () => {
+  it("publishes Reveal availability from the exact graph semantic snapshot for an imported caller", async () => {
+    const moduleSource = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Direct = M()"
+    ].join("\n");
+    const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(moduleSource);
+    const semanticSnapshot = graphSemanticSnapshotFor(editor, languageSession);
+    mocks.multiDocumentHost = {
+      languageSemanticSnapshotFor: vi.fn(async () => semanticSnapshot)
+    };
+
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.revealInCanvasSourceTarget",
+      true
+    );
+    feature.dispose();
+  });
+
+  it("keeps a graph-required Reveal target unavailable when the graph semantic snapshot is unusable", async () => {
+    const moduleSource = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Direct = M()"
+    ].join("\n");
+    const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
+    mocks.activeTextEditor = editor;
+    const languageSession = graphRequiredLocalSessionFor(editor, moduleSource);
+    mocks.multiDocumentHost = {
+      languageSemanticSnapshotFor: vi.fn(async () => null)
+    };
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    await flush();
+    const revealContextValues = mocks.executeCommand.mock.calls
+      .filter(([command, key]) => command === "setContext" && key === "nuinuiCAD.revealInCanvasSourceTarget")
+      .map(([, , value]) => value);
+    expect(revealContextValues.at(-1)).toBe(false);
+    feature.dispose();
+  });
+
+  it("does not let a stale graph availability result overwrite a newer Source context", async () => {
+    const moduleSource = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 0, y: 0)",
+      "}",
+      "instance Direct = M()"
+    ].join("\n");
+    const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
+    mocks.activeTextEditor = editor;
+    const languageSession = createLanguageAnalysisSession(moduleSource);
+    const resolvers: Array<(snapshot: unknown) => void> = [];
+    mocks.multiDocumentHost = {
+      languageSemanticSnapshotFor: vi.fn(() => new Promise((resolve) => resolvers.push(resolve)))
+    };
+    const feature = registerVscodeReferencePickFeature({
+      languageAnalysisSessionFor: () => languageSession,
+      ensureCanvas: () => null
+    });
+
+    editor.selection = { active: { offset: 0 } };
+    for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
+    await flush();
+    const staleSnapshot = graphSemanticSnapshotFor(editor, languageSession);
+    resolvers[0]?.(staleSnapshot);
+    await flush();
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      "setContext",
+      "nuinuiCAD.revealInCanvasSourceTarget",
+      false
+    );
+    feature.dispose();
+  });
+
   it("projects the Reference Pick context for a final empty Module geometry argument without a trailing comma", async () => {
     const moduleSource = [
       "nui 1",
