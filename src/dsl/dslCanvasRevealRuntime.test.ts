@@ -9,7 +9,11 @@ import type {
   ModuleSemanticAnalysis
 } from "./moduleSemanticTypes";
 import type { DslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
-import { queryDslCanvasRevealRuntimeTarget } from "./dslCanvasRevealRuntime";
+import {
+  queryDslCanvasRevealRuntimeStatementOwner,
+  queryDslCanvasRevealRuntimeTarget
+} from "./dslCanvasRevealRuntime";
+import { projectDslRevealRuntimeStatementOwner } from "./dslRevealRuntimeProjection";
 
 const element = (id: ElementId): CadElement => ({ id } as unknown as CadElement);
 
@@ -203,6 +207,45 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       primaryRuntimeElementId: "M1",
       degradations: []
     });
+  });
+
+  it("filters an already projected statement-owner candidate through the shared presentation boundary", () => {
+    const elements = [element("M1"), element("M2")];
+    expect(queryDslCanvasRevealRuntimeStatementOwner({
+      candidates: ["M1", "M2"],
+      elements,
+      ...revealability(elements.map((item) => item.id), { visible: ["M1"] })
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["M1"],
+      primaryRuntimeElementId: "M1",
+      degradations: [{ kind: "partial-targets", omittedCount: 1, causes: ["hidden"] }]
+    });
+  });
+
+  it("qualifies graph statement-owner projection by authored source document", () => {
+    const projection = projectDslRevealRuntimeStatementOwner(compiled({
+      entries: [
+        {
+          sourceStatementIndex: 2,
+          runtimeElementId: "Direct",
+          origin: { sourceDocumentId: "root.nui" } as MaterializedExecutionStatement["origin"]
+        },
+        {
+          sourceStatementIndex: 2,
+          runtimeElementId: "DependencyBody",
+          origin: { sourceDocumentId: "library.nui" } as MaterializedExecutionStatement["origin"]
+        },
+        { sourceStatementIndex: 2, runtimeElementId: "Unqualified" }
+      ]
+    }), 2, "root.nui");
+
+    expect(projection).toEqual({ candidates: ["Direct"] });
+    expect(projectDslRevealRuntimeStatementOwner(
+      compiled({ direct: [[2, "unqualified-direct"]] }),
+      2,
+      "root.nui"
+    )).toEqual({ candidates: [] });
   });
 
   it("expands module parameters in materialization order and reports a partial subset", () => {

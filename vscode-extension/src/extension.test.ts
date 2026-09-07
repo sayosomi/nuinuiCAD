@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AutomationDocument } from "@nuinuicad/nui-language/document";
-import type { CompiledDslDocument } from "@nuinuicad/nui-language";
+import {
+  compileDslDocument,
+  createModuleRuntimeContext,
+  type CompiledDslDocument
+} from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost,
+  type DependencySavedSourceSnapshot,
+  type RootCurrentSourceSnapshot
+} from "@nuinuicad/nui-language/workspace";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { LEGACY_CANVAS_THEME } from "../../src/components/canvasTheme";
 import { vscodeCanvasPointerContextKeys, type VscodeCanvasObservationSnapshot } from "../../src/vscode/protocol";
@@ -3955,43 +3968,75 @@ describe("VS Code production document lifecycle", () => {
 
 describe("VS Code explicit Canvas navigation lifecycle", () => {
   it("carries the exact graph-resolved Source target and revision for an imported caller", async () => {
+    const librarySource = [
+      "nui 1",
+      "export module Panel(value: number) {",
+      "  point P = coordinate(x: @value, y: 0)",
+      "}"
+    ].join("\n");
     const source = [
       "nui 1",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}",
-      "instance Direct = M()"
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
     ].join("\n");
     const document = documentFor("/tmp/imported-reveal.nui", "file:///tmp/imported-reveal.nui", source);
     const editor = editorFor(document);
     editor.selection.active = document.positionAt(source.indexOf("Direct"));
     const languageSession = createLanguageAnalysisSession(source);
-    const localCompiled = languageSession.runtimeEvaluationSnapshot()?.compiled;
-    if (!localCompiled?.moduleMaterialization) throw new Error("missing Module materialization");
-    const instance = localCompiled.moduleMaterialization.executionStatements.find((entry) => entry.type === "moduleInstance");
-    if (!instance?.origin) throw new Error("missing Module instance origin");
-    const origins = new Map(localCompiled.moduleMaterialization.originByRuntimeElementId);
-    const importedOrigin = {
-      ...instance.origin,
-      moduleDefinitionDocumentId: "file:///tmp/library.nui"
+    const root: RootCurrentSourceSnapshot = {
+      kind: "root-current",
+      documentId: documentIdFromHost(document.uri.toString()),
+      normalizedSource: source,
+      sourceRevision: languageSession.getSourceRevision()
     };
-    origins.set(instance.runtimeElementId, importedOrigin);
+    const library: DependencySavedSourceSnapshot = {
+      kind: "dependency-saved",
+      documentId: documentIdFromHost("file:///tmp/library.nui"),
+      savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:extension-reveal-library"),
+      normalizedSource: librarySource
+    };
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader: {
+        loadSavedDependency: async (importerDocumentId, importPath) =>
+          importerDocumentId === root.documentId && importPath === "./library.nui"
+            ? { status: "loaded", snapshot: library }
+            : { status: "failed", reason: "missing" }
+      },
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const analysis = analyzeMultiDocumentModuleSemantics(graph);
+    const moduleRuntimeContext = createModuleRuntimeContext(graph, analysis);
+    const rootNode = graph.nodes.get(root.documentId);
+    if (!rootNode) throw new Error("missing imported graph root");
+    const compiled = compileDslDocument(root.normalizedSource, {
+      preparsed: rootNode.artifact.parsed,
+      sourceRevision: root.sourceRevision,
+      assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+      moduleRuntimeContext
+    });
+    if (!graph.valid || !analysis.valid || !moduleRuntimeContext.valid || !compiled.moduleMaterialization) {
+      throw new Error("missing genuine imported Module graph materialization");
+    }
+    const rootDirect = compiled.moduleMaterialization.executionStatements.find((entry) =>
+      entry.type === "moduleInstance" &&
+      entry.sourceStatementIndex === 2 &&
+      String(entry.origin?.sourceDocumentId) === document.uri.toString()
+    );
+    const dependencyCollision = compiled.moduleMaterialization.executionStatements.find((entry) =>
+      entry.sourceStatementIndex === 2 &&
+      String(entry.origin?.sourceDocumentId) === "file:///tmp/library.nui"
+    );
+    expect(rootDirect).toBeDefined();
+    expect(dependencyCollision).toBeDefined();
+    expect(rootDirect!.runtimeElementId).not.toBe(dependencyCollision!.runtimeElementId);
     const semanticSnapshot = {
       documentVersion: document.version,
       rootDocumentId: document.uri.toString(),
       graphRevision: 41,
-      sourceRevision: localCompiled.spans.sourceMap.sourceRevision,
+      sourceRevision: root.sourceRevision,
       sourceText: source,
-      compiled: {
-      ...localCompiled,
-        moduleMaterialization: {
-          ...localCompiled.moduleMaterialization,
-          executionStatements: localCompiled.moduleMaterialization.executionStatements.map((entry) =>
-            entry.runtimeElementId === instance.runtimeElementId ? { ...entry, origin: importedOrigin } : entry
-          ),
-          originByRuntimeElementId: origins
-        }
-      }
+      compiled
     };
     mocks.multiDocumentHost = {
       diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
@@ -4009,7 +4054,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: document.version,
       graphRevision: 41,
       sourceRevision: semanticSnapshot.sourceRevision,
-      sourceTarget: { kind: "statement-owner", sourceStatementIndex: instance.sourceStatementIndex }
+      sourceTarget: { kind: "statement-owner", sourceStatementIndex: rootDirect!.sourceStatementIndex },
+      runtimeProjection: { candidates: [rootDirect!.runtimeElementId] }
     })));
   });
 
@@ -4096,6 +4142,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: 1,
       normalizedSourceOffset: source.indexOf("A")
     });
+    expect(navigationRequests[0]).not.toHaveProperty("sourceTarget");
+    expect(navigationRequests[0]).not.toHaveProperty("runtimeProjection");
   });
 
   it("defers Canvas focus while the destination panel is inactive", async () => {

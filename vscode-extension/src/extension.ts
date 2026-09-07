@@ -2343,7 +2343,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
           : {
               sourceTarget: target.target,
               sourceRevision: target.sourceRevision,
-              graphRevision: target.graphRevision
+              graphRevision: target.graphRevision,
+              ...(target.runtimeProjection === undefined
+                ? {}
+                : { runtimeProjection: target.runtimeProjection })
             })
       };
       session.pendingCanvasFocus = null;

@@ -20,7 +20,10 @@ import { parseCssColor, readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
 import { createCanvasTextWidthMeasurer } from "../components/canvasTextMeasurement";
 import { queryDslCanvasSourceDefinition, queryDslCanvasSourceTarget } from "../dsl/dslNavigationQuery";
 import { queryDslCanvasRevealSourceTarget } from "../dsl/dslCanvasRevealQuery";
-import { queryDslCanvasRevealRuntimeTarget } from "../dsl/dslCanvasRevealRuntime";
+import {
+  queryDslCanvasRevealRuntimeStatementOwner,
+  queryDslCanvasRevealRuntimeTarget
+} from "../dsl/dslCanvasRevealRuntime";
 import { runtimeScalarDiagnostics } from "../scalars/runtimeScalarDiagnostics";
 import { runtimeGeometryDiagnostics } from "../geometry/runtimeGeometryDiagnostics";
 import { canvasElementDrawingBounds } from "../geometry/canvasDrawingBounds";
@@ -375,41 +378,48 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     });
   }, [api, benchmarkConfig]);
 
-  const currentAuthoritativeDocument = useCallback((expectedDocumentVersion: number) => {
+  const currentHostSourceAuthorityFor = useCallback((expectedDocumentVersion: number) => {
     const state = useCadDocumentStore.getState();
-    const compiled = effectiveCompiledDocument(state);
     const normalizedSource = normalizedSourceFor(state.sourceText);
     const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
     if (
       latestHostDocumentVersionRef.current !== expectedDocumentVersion ||
       authoritative?.documentVersion !== expectedDocumentVersion ||
-      authoritative?.normalizedSource !== normalizedSource ||
-      compiled.spans.sourceMap.source !== normalizedSource ||
-      compiled.spans.sourceMap.sourceRevision !== state.doc.statementMap.sourceRevision
+      authoritative.normalizedSource !== normalizedSource
     ) return null;
     return {
       state,
-      compiled,
-      source: {
-        normalizedSource,
-        sourceRevision: compiled.spans.sourceMap.sourceRevision
-      }
+      source: { normalizedSource }
     };
   }, []);
 
+  const currentAuthoritativeDocument = useCallback((expectedDocumentVersion: number) => {
+    const currentHostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
+    if (!currentHostSource) return null;
+    const compiled = effectiveCompiledDocument(currentHostSource.state);
+    if (
+      compiled.spans.sourceMap.source !== currentHostSource.source.normalizedSource ||
+      compiled.spans.sourceMap.sourceRevision !== currentHostSource.state.doc.statementMap.sourceRevision
+    ) return null;
+    return {
+      state: currentHostSource.state,
+      compiled,
+      source: {
+        normalizedSource: currentHostSource.source.normalizedSource,
+        sourceRevision: compiled.spans.sourceMap.sourceRevision
+      }
+    };
+  }, [currentHostSourceAuthorityFor]);
+
   const currentReferencePickAuthorityFor = useCallback((expectedDocumentVersion: number) => {
-    const state = useCadDocumentStore.getState();
-    const normalizedSource = normalizedSourceFor(state.sourceText);
-    const authoritative = lastAuthoritativeHostSourceSnapshotRef.current;
-    return latestHostDocumentVersionRef.current === expectedDocumentVersion &&
-      authoritative?.documentVersion === expectedDocumentVersion &&
-      authoritative.normalizedSource === normalizedSource
+    const currentHostSource = currentHostSourceAuthorityFor(expectedDocumentVersion);
+    return currentHostSource
       ? {
           documentVersion: expectedDocumentVersion,
-          normalizedSource
+          normalizedSource: currentHostSource.source.normalizedSource
         }
       : null;
-  }, []);
+  }, [currentHostSourceAuthorityFor]);
 
   const selectActiveCanvasInstance = useCallback((): boolean => {
     const state = useCadDocumentStore.getState();
@@ -1398,7 +1408,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         pendingCanvasFocusRequestRef.current = null;
         deferredCanvasNavigationRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = message.requestId;
-        const current = currentAuthoritativeDocument(message.documentVersion);
         if (canvasHistoryInFlightRef.current !== null) {
           api.postMessage({
             type: "canvasNavigationResult",
@@ -1411,12 +1420,22 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const graphBackedRequest = message.graphRevision !== undefined &&
           message.sourceRevision !== undefined &&
           message.sourceTarget !== undefined;
+        const graphBackedImportedStatementOwnerRequest = graphBackedRequest &&
+          message.sourceTarget.kind === "statement-owner";
+        const currentHostSource = currentHostSourceAuthorityFor(message.documentVersion);
+        const current = graphBackedImportedStatementOwnerRequest
+          ? null
+          : currentAuthoritativeDocument(message.documentVersion);
         const freshness = canvasNavigationFreshnessFor(graphBackedRequest
           ? {
-              authoritativeDocumentAvailable: current !== null,
+              authoritativeDocumentAvailable: graphBackedImportedStatementOwnerRequest
+                ? currentHostSource !== null
+                : current !== null,
               graphBackedRequest: true,
               documentVersion: message.documentVersion,
-              normalizedSource: current?.source.normalizedSource ?? "",
+              normalizedSource: (graphBackedImportedStatementOwnerRequest
+                ? currentHostSource?.source.normalizedSource
+                : current?.source.normalizedSource) ?? "",
               sourceRevision: message.sourceRevision,
               graphRevision: message.graphRevision,
               publication: multiDocumentGraphPublicationRef.current,
@@ -1439,12 +1458,21 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           deferredCanvasNavigationRequestRef.current = message;
           return;
         }
-        if (!current) return;
+        if (graphBackedImportedStatementOwnerRequest && message.runtimeProjection === undefined) {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: "source-mismatch"
+          });
+          return;
+        }
+        if (!graphBackedImportedStatementOwnerRequest && !current) return;
         const sourceTarget = graphBackedRequest
           ? { status: "resolved" as const, target: message.sourceTarget }
           : queryDslCanvasRevealSourceTarget({
-              source: current.source,
-              compiled: current.compiled,
+              source: current!.source,
+              compiled: current!.compiled,
               position: message.normalizedSourceOffset
             });
         if (sourceTarget.status === "failed") {
@@ -1459,7 +1487,11 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
 
         const currentEvaluation = evaluationRef.current;
         const runtimePresentation = multiDocumentRuntimePresentationRef.current;
-        const presentationRevision = runtimePresentation?.graphRevision ?? current.state.compiledDocumentRevision;
+        const presentationRevision = runtimePresentation?.graphRevision ?? (
+          graphBackedImportedStatementOwnerRequest
+            ? currentHostSource!.state.compiledDocumentRevision
+            : current!.state.compiledDocumentRevision
+        );
         const currentEvaluationIsCurrent = evaluationStateIsCurrentFor(
           evaluationStateRef.current,
           presentationRevision
@@ -1469,13 +1501,17 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           return;
         }
 
-        const runtimeElements = runtimePresentation?.elements ?? effectiveElements(current.state);
-        const revealCompiled = graphBackedRequest && runtimePresentation?.revealMaterialization
-          ? { ...current.compiled, moduleMaterialization: runtimePresentation.revealMaterialization }
-          : current.compiled;
+        const runtimeElements = runtimePresentation?.elements ?? effectiveElements(
+          graphBackedImportedStatementOwnerRequest ? currentHostSource!.state : current!.state
+        );
+        const revealCompiled = graphBackedImportedStatementOwnerRequest
+          ? null
+          : graphBackedRequest && runtimePresentation?.revealMaterialization
+            ? { ...current!.compiled, moduleMaterialization: runtimePresentation.revealMaterialization }
+            : current!.compiled;
         const runtimeModuleMaterialization = graphBackedRequest
           ? runtimePresentation?.revealMaterialization
-          : current.compiled.moduleMaterialization;
+          : current!.compiled.moduleMaterialization;
         if (graphBackedRequest && !runtimePresentation?.revealMaterialization) {
           api.postMessage({
             type: "canvasNavigationResult",
@@ -1485,11 +1521,14 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
           return;
         }
-        const drawingModifiers = current.state.modifiers ?? [];
+        const currentState = graphBackedImportedStatementOwnerRequest
+          ? currentHostSource!.state
+          : current!.state;
+        const drawingModifiers = currentState.modifiers ?? [];
         const effectiveVisibleElementIds = effectiveDrawElementIds(runtimeElements, drawingModifiers);
         const effectiveEnabledElementIds = effectiveEvaluationElementIds(runtimeElements, drawingModifiers);
-        const presentationVisibilityProfiles = runtimePresentation?.visibilityProfiles ?? current.state.visibilityProfiles;
-        const presentationActiveVisibilityProfileId = runtimePresentation?.activeVisibilityProfileId ?? current.state.activeVisibilityProfileId;
+        const presentationVisibilityProfiles = runtimePresentation?.visibilityProfiles ?? currentState.visibilityProfiles;
+        const presentationActiveVisibilityProfileId = runtimePresentation?.activeVisibilityProfileId ?? currentState.activeVisibilityProfileId;
         const activeVisibilityProfile = visibilityProfileById(
           presentationVisibilityProfiles,
           presentationActiveVisibilityProfileId
@@ -1506,16 +1545,25 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           activeVisibilityProfileId: presentationActiveVisibilityProfileId,
           showCanvasPoints: useCadUiStore.getState().showCanvasPoints
         });
-        const revealResult = queryDslCanvasRevealRuntimeTarget({
-          target: sourceTarget.target,
-          compiled: revealCompiled,
-          moduleGeometryRuntime: current.compiled.moduleGeometryRuntime,
-          elements: runtimeElements,
-          effectiveVisibleElementIds,
-          effectiveEnabledElementIds,
-          profileVisibleElementIds,
-          selectionEligibleElementIds: selectionEligibleIds
-        });
+        const revealResult = graphBackedImportedStatementOwnerRequest
+          ? queryDslCanvasRevealRuntimeStatementOwner({
+              candidates: message.runtimeProjection!.candidates,
+              elements: runtimeElements,
+              effectiveVisibleElementIds,
+              effectiveEnabledElementIds,
+              profileVisibleElementIds,
+              selectionEligibleElementIds: selectionEligibleIds
+            })
+          : queryDslCanvasRevealRuntimeTarget({
+              target: sourceTarget.target,
+              compiled: revealCompiled!,
+              moduleGeometryRuntime: current!.compiled.moduleGeometryRuntime,
+              elements: runtimeElements,
+              effectiveVisibleElementIds,
+              effectiveEnabledElementIds,
+              profileVisibleElementIds,
+              selectionEligibleElementIds: selectionEligibleIds
+            });
         if (revealResult.status === "failed") {
           api.postMessage({
             type: "canvasNavigationResult",
@@ -1670,7 +1718,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
     return () => {
       window.removeEventListener("message", onMessage);
     };
-  }, [api, applyPendingCoordinatePointConversionSelection, currentAuthoritativeDocument, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
+  }, [api, applyPendingCoordinatePointConversionSelection, currentAuthoritativeDocument, currentHostSourceAuthorityFor, deferCoordinatePointConversionSelection, measureCanvasTextWidth, postCanvasCommit, publishCanvasObservation, publishCanonicalRuntimeDiagnostics, publishCurrentCanvasTheme, publishInlineModuleCanvasTargets, pumpCanvasHistory, refreshCanvasTheme, requestCanvasHistory, restoreCanvasFocus, rustTransport, selectActiveCanvasInstance, setMultiDocumentGraphPublication, sourceInsertionError, staleSourceAnchorError, canvasPointerError, tryApplyPendingCanvasFreePointSelection, tryCompleteCanvasFocus]);
 
   const surfaceStyle = benchmarkConfig?.expectedRenderSurface
     ? {
