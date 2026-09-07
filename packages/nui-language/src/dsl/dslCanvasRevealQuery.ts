@@ -258,7 +258,8 @@ const ownerAt = (
   if (!compiled.statementMap) return null;
   const owners = sourceOwnerByRuntimeElementId({
     statementMap: compiled.statementMap,
-    moduleMaterialization: compiled.moduleMaterialization
+    moduleMaterialization: compiled.moduleMaterialization,
+    moduleRuntimeContext: compiled.moduleRuntimeContext
   });
   const runtimeStatementIndexes = new Set([...owners.values()].map((owner) => owner.sourceStatementIndex));
 
