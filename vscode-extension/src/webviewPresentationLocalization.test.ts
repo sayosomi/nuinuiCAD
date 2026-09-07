@@ -24,6 +24,7 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
     expect(presentation.strings["output.noOutputs"]).toBe("印刷またはSVGの出力がありません");
     expect(presentation.strings["output.ribbon.reset"]).toBe("出力プレビューの移動とズームをリセット");
+    expect(presentation.strings["modulePreview.cannotEvaluate"]).toBe("Module Previewを表示できません。");
     expect(presentation.diagnosticTemplates["diagnostic.undefined-binding"]).toBe("未定義の変数「{referencedName}」を参照しています。");
     expect(structuredClone(presentation)).toEqual(presentation);
     expect(Object.getPrototypeOf(presentation)).toBe(Object.prototype);
@@ -48,6 +49,7 @@ describe("Webview presentation localization", () => {
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");
     expect(english.strings["output.place.dragReason.axes"]).toBe("Cannot drag: {axes} in at must be direct finite numeric literals.");
     expect(english.strings["output.ribbon.reset"]).toBe("Reset Output Preview Pan and Zoom");
+    expect(english.strings["modulePreview.cannotEvaluate"]).toBe("Module Preview is unavailable.");
     expect(unsupported.strings["canvas.ariaLabel"]).toBe(english.strings["canvas.ariaLabel"]);
     expect(Object.keys(english.strings)).toEqual(Object.keys(webviewPresentationTranslationCatalog));
   });
