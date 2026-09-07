@@ -4009,7 +4009,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: document.version,
       graphRevision: 41,
       sourceRevision: semanticSnapshot.sourceRevision,
-      sourceTarget: { kind: "statement-owner", sourceStatementIndex: instance.sourceStatementIndex }
+      sourceTarget: { kind: "statement-owner", sourceStatementIndex: instance.sourceStatementIndex },
+      runtimeProjection: { candidates: [instance.runtimeElementId] }
     })));
   });
 
@@ -4096,6 +4097,8 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
       documentVersion: 1,
       normalizedSourceOffset: source.indexOf("A")
     });
+    expect(navigationRequests[0]).not.toHaveProperty("sourceTarget");
+    expect(navigationRequests[0]).not.toHaveProperty("runtimeProjection");
   });
 
   it("defers Canvas focus while the destination panel is inactive", async () => {

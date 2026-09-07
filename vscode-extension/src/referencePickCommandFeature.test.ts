@@ -325,6 +325,11 @@ describe("registerVscodeReferencePickFeature", () => {
       kind: "statement-owner",
       sourceStatementIndex: 2
     });
+    expect(resolved.value.runtimeProjection).toEqual({
+      candidates: semanticSnapshot.compiled.moduleMaterialization!.executionStatements
+        .filter((entry) => entry.sourceStatementIndex === 2)
+        .map((entry) => entry.runtimeElementId)
+    });
     expect(resolved.value.graphRevision).not.toBeNull();
     await expect(sourceTargetAvailabilityForEditorAsync(editor, languageSession)).resolves.toMatchObject({
       revealInCanvas: true

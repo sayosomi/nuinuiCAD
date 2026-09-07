@@ -24,6 +24,9 @@ export type DslRevealRuntimeProjection = {
   ownerCandidates: readonly (ElementId | null)[];
 };
 
+/** JSON-safe raw candidates for an authored statement-owner target. */
+export type DslRevealRuntimeStatementOwnerProjection = Pick<DslRevealRuntimeProjection, "candidates">;
+
 const sameInstancePath = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((identity, index) => identity === right[index]);
 
@@ -144,6 +147,18 @@ const ownerCandidates = (
 };
 
 /**
+ * Projects one authored statement-owner target through the exact current
+ * module materialization. Hosts may transport this plain-data result without
+ * requiring a local compiled document.
+ */
+export const projectDslRevealRuntimeStatementOwner = (
+  compiled: Pick<DslRevealRuntimeProjectionInput["compiled"], "statementMap" | "moduleMaterialization">,
+  sourceStatementIndex: number
+): DslRevealRuntimeStatementOwnerProjection => ({
+  candidates: ownerCandidates(compiled, sourceStatementIndex)
+});
+
+/**
  * Expands a Canvas-compatible Reveal source target into raw current runtime
  * identities. Hosts decide separately how those identities are presented.
  */
@@ -151,7 +166,10 @@ export const projectDslRevealRuntimeTarget = (
   input: DslRevealRuntimeProjectionInput
 ): DslRevealRuntimeProjection => {
   if (input.target.kind === "statement-owner") {
-    const candidates = ownerCandidates(input.compiled, input.target.sourceStatementIndex);
+    const candidates = projectDslRevealRuntimeStatementOwner(
+      input.compiled,
+      input.target.sourceStatementIndex
+    ).candidates;
     return { candidates, ownerCandidates: candidates };
   }
 

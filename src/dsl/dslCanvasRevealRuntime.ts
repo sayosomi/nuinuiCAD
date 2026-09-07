@@ -44,6 +44,11 @@ const uniqueCauses = (
   });
 };
 
+type DslCanvasRevealRuntimePresentationInput = Omit<
+  DslCanvasRevealRuntimeInput,
+  "target" | "compiled" | "moduleGeometryRuntime"
+>;
+
 const filterRevealable = ({
   candidates,
   elements,
@@ -51,7 +56,7 @@ const filterRevealable = ({
   effectiveEnabledElementIds,
   profileVisibleElementIds,
   selectionEligibleElementIds
-}: Omit<DslCanvasRevealRuntimeInput, "target" | "compiled" | "moduleGeometryRuntime"> & {
+}: DslCanvasRevealRuntimePresentationInput & {
   candidates: readonly RuntimeCandidate[];
 }): RevealableSet => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -99,6 +104,22 @@ const resolvedResult = (
         degradations
       }
     : { status: "failed", reason: "no-revealable-runtime-target" };
+};
+
+/**
+ * Applies the current Canvas presentation and selection rules to an already
+ * projected statement-owner candidate set.
+ */
+export const queryDslCanvasRevealRuntimeStatementOwner = ({
+  candidates,
+  ...presentation
+}: DslCanvasRevealRuntimePresentationInput & {
+  candidates: readonly RuntimeCandidate[];
+}): DslCanvasRevealResult => {
+  const ownerSet = filterRevealable({ candidates, ...presentation });
+  if (ownerSet.ids.length === 0) return { status: "failed", reason: "no-revealable-runtime-target" };
+  const partial = partialDegradation(ownerSet);
+  return resolvedResult(ownerSet, partial ? [partial] : []);
 };
 
 const semanticResolutionCause = (
@@ -156,7 +177,7 @@ export const queryDslCanvasRevealRuntimeTarget = (
 ): DslCanvasRevealResult => {
   const projection = projectDslRevealRuntimeTarget(input);
   if (input.target.kind === "statement-owner") {
-    const ownerSet = filterRevealable({
+    return queryDslCanvasRevealRuntimeStatementOwner({
       candidates: projection.candidates,
       elements: input.elements,
       effectiveVisibleElementIds: input.effectiveVisibleElementIds,
@@ -164,9 +185,6 @@ export const queryDslCanvasRevealRuntimeTarget = (
       profileVisibleElementIds: input.profileVisibleElementIds,
       selectionEligibleElementIds: input.selectionEligibleElementIds
     });
-    if (ownerSet.ids.length === 0) return { status: "failed", reason: "no-revealable-runtime-target" };
-    const partial = partialDegradation(ownerSet);
-    return resolvedResult(ownerSet, partial ? [partial] : []);
   }
 
   const semantic = input.target.semantic;

@@ -9,7 +9,10 @@ import type {
   ModuleSemanticAnalysis
 } from "./moduleSemanticTypes";
 import type { DslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
-import { queryDslCanvasRevealRuntimeTarget } from "./dslCanvasRevealRuntime";
+import {
+  queryDslCanvasRevealRuntimeStatementOwner,
+  queryDslCanvasRevealRuntimeTarget
+} from "./dslCanvasRevealRuntime";
 
 const element = (id: ElementId): CadElement => ({ id } as unknown as CadElement);
 
@@ -202,6 +205,20 @@ describe("queryDslCanvasRevealRuntimeTarget", () => {
       runtimeElementIds: ["M1"],
       primaryRuntimeElementId: "M1",
       degradations: []
+    });
+  });
+
+  it("filters an already projected statement-owner candidate through the shared presentation boundary", () => {
+    const elements = [element("M1"), element("M2")];
+    expect(queryDslCanvasRevealRuntimeStatementOwner({
+      candidates: ["M1", "M2"],
+      elements,
+      ...revealability(elements.map((item) => item.id), { visible: ["M1"] })
+    })).toEqual({
+      status: "resolved",
+      runtimeElementIds: ["M1"],
+      primaryRuntimeElementId: "M1",
+      degradations: [{ kind: "partial-targets", omittedCount: 1, causes: ["hidden"] }]
     });
   });
 
