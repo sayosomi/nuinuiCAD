@@ -162,7 +162,47 @@ describe("immutable single-geometry reference values", () => {
     });
     expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).toEqual(["coordinate"]);
     expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).toEqual(["segment"]);
-    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "arc"]);
+    expect(pureGeometryValueConstructionCandidates("path").map((candidate) => candidate.label)).toEqual(["segment", "arc", "through"]);
+    expect(pureGeometryValueConstructionCandidates("point").map((candidate) => candidate.label)).not.toContain("through");
+    expect(pureGeometryValueConstructionCandidates("line").map((candidate) => candidate.label)).not.toContain("through");
+  });
+
+  it("accepts through as a path-only pure construction with resolved point sites and defaults", () => {
+    const compiled = compile([
+      "nui 1",
+      "const P1: point = coordinate(x: 10, y: 0)",
+      "const P2: point = coordinate(x: 0, y: 10)",
+      "const P3: point = coordinate(x: -10, y: 0)",
+      "const Through: path = through(point1: @P1, point2: @P2, point3: @P3)"
+    ].join("\n"), "geometry-value-through");
+
+    expect(compiled.diagnostics).toEqual([]);
+    const value = compiled.moduleSemanticAnalysis?.geometryValues.find((candidate) => candidate.name === "Through");
+    expect(value?.construction).toMatchObject({
+      kind: "through",
+      point1: { target: { kind: "geometryValue" } },
+      point2: { target: { kind: "geometryValue" } },
+      point3: { target: { kind: "geometryValue" } },
+      start: { ast: { kind: "numberLiteral", value: 0 } },
+      end: { ast: { kind: "numberLiteral", value: 90 } }
+    });
+    expect(compiled.moduleSemanticAnalysis?.rootGeometryReferencesByStatementId.get(value!.statementId)?.map((site) => site.parameterKey)).toEqual([
+      "point1", "point2", "point3"
+    ]);
+    expect(compiled.geometryValueProgram?.[3]?.construction.kind).toBe("through");
+  });
+
+  it("rejects through for incompatible declared geometry interfaces", () => {
+    const compiled = compile([
+      "nui 1",
+      "const PointValue: point = through(point1: (10, 0), point2: (0, 10), point3: (-10, 0))",
+      "const LineValue: line = through(point1: (10, 0), point2: (0, 10), point3: (-10, 0))"
+    ].join("\n"), "geometry-value-through-mismatch");
+
+    expect(errorCodes(compiled)).toEqual([
+      "module-geometry-type-mismatch",
+      "module-geometry-type-mismatch"
+    ]);
   });
 
   it("keeps construction interfaces and initializer argument spans source-owned", () => {

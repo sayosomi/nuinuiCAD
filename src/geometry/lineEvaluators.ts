@@ -3,16 +3,14 @@ import { anchorReferenceElementId } from "../model/pointAnchors";
 import {
   approximateBezierSegmentLength,
   CIRCLE_EPSILON,
-  circleThroughThreePoints,
   degreesToRadians,
   handlePoint,
-  normalizeDegrees,
-  positiveSweepDegrees
+  normalizeDegrees
 } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
-import { arcGeometryKernel, segmentGeometryKernel } from "./geometryValueKernels";
+import { lineTangentAngles } from "./lineMeasurements";
+import { arcGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel } from "./geometryValueKernels";
 import { resolveLineGeometryInput } from "./lineGeometryInput";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
@@ -453,8 +451,14 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           break;
         }
 
-        const circle = circleThroughThreePoints(point1, point2, point3);
-        if (!circle) {
+        const structural = throughArcGeometryKernel(
+          { x: point1.x, y: point1.y },
+          { x: point2.x, y: point2.y },
+          { x: point3.x, y: point3.y },
+          startAngleDeg,
+          endAngleDeg
+        );
+        if (!structural) {
           errors.push(
             geometryError(
               element,
@@ -463,11 +467,6 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           );
           break;
         }
-
-        const startAngleRad = degreesToRadians(startAngleDeg);
-        const endAngleRad = degreesToRadians(endAngleDeg);
-        const sweepAngleDeg = positiveSweepDegrees(startAngleDeg, endAngleDeg);
-        const tangentAngles = arcTangentAngles({ startAngleDeg, endAngleDeg, sweepAngleDeg });
         computedGeometry.set(element.id, {
           kind: "arcLine",
           elementId: element.id,
@@ -477,29 +476,28 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             kind: "point",
             elementId: `${element.id}:center`,
             name: `${element.name}.中心点`,
-            x: circle.x,
-            y: circle.y
+            x: structural.center.x,
+            y: structural.center.y
           },
           start: {
             kind: "point",
             elementId: `${element.id}:start`,
             name: `${element.name}.始点`,
-            x: circle.x + Math.cos(startAngleRad) * circle.radius,
-            y: circle.y + Math.sin(startAngleRad) * circle.radius
+            ...structural.start
           },
           end: {
             kind: "point",
             elementId: `${element.id}:end`,
             name: `${element.name}.終点`,
-            x: circle.x + Math.cos(endAngleRad) * circle.radius,
-            y: circle.y + Math.sin(endAngleRad) * circle.radius
+            ...structural.end
           },
-          radius: circle.radius,
-          startAngleDeg,
-          endAngleDeg,
-          ...tangentAngles,
-          sweepAngleDeg,
-          length: circle.radius * degreesToRadians(sweepAngleDeg)
+          radius: structural.radius,
+          startAngleDeg: structural.startAngleDeg,
+          endAngleDeg: structural.endAngleDeg,
+          startTangentAngleDeg: structural.startTangentAngleDeg,
+          endTangentAngleDeg: structural.endTangentAngleDeg,
+          sweepAngleDeg: structural.sweepAngleDeg,
+          length: structural.length
         });
         break;
       }

@@ -72,7 +72,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, throughArcGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 
 export type EvaluateElementsOptions = {
@@ -407,7 +407,7 @@ export const evaluateElements = (
       if (start && end) {
         value = segmentGeometryKernel(start, end);
       }
-    } else {
+    } else if (entry.construction.kind === "arc") {
       if (entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
@@ -423,6 +423,23 @@ export const evaluateElements = (
           return;
         }
         value = arcGeometryKernel(center, radius, startAngleDeg, endAngleDeg, direction);
+      }
+    } else if (entry.construction.kind === "through") {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const point1 = structuralPointForProgramPoint(entry.construction.point1, sourceOrder);
+      const point2 = structuralPointForProgramPoint(entry.construction.point2, sourceOrder);
+      const point3 = structuralPointForProgramPoint(entry.construction.point3, sourceOrder);
+      const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
+      const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
+      if (point1 && point2 && point3 && startAngleDeg !== undefined && endAngleDeg !== undefined) {
+        value = throughArcGeometryKernel(point1, point2, point3, startAngleDeg, endAngleDeg);
+        if (!value) {
+          appendGeometryValueError(entry, "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。");
+          return;
+        }
       }
     }
     if (value) {

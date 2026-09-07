@@ -1050,12 +1050,16 @@ drawable construction; `direction` defaults to `counterclockwise`. A
 single-geometry value is `const`-only; `let` receives a focused diagnostic.
 These values are source-level immutable values, not drawable elements and not
 scalar runtime values. They do not create a new element, computed drawable
-geometry entry, or synthetic `ElementId`; direct arc values are stored in the
-immutable geometry-value store with identity-free center, endpoint, radius,
-angle, sweep, tangent, and length fields. Geometry consumers resolve them
-through the shared runtime target boundary. Other geometry constructions,
-including `through`, `bezier`, and `offset`, remain deferred as pure value
-forms.
+geometry entry, or synthetic `ElementId`; direct arc and pure through values
+are stored in the immutable geometry-value store with identity-free center,
+endpoint, radius, angle, sweep, tangent, and length fields. Pure `through(...)`
+is a `path` construction with `point1`, `point2`, and `point3`, plus optional
+`start` and `end` angles defaulting to 0 and 90 degrees; it is counterclockwise.
+Duplicate or collinear points fail at runtime through the occurrence-owned
+geometry-value diagnostic channel. Geometry consumers resolve these values
+through the shared runtime target boundary. Pure `bezier`, `offset`, `corner`,
+`polyline`, and other deferred constructions remain unsupported; direct
+`arc(...)` remains implemented.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

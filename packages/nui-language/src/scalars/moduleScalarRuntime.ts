@@ -2141,7 +2141,8 @@ export const compileModuleScalarRuntime = ({
             const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
             return start && end ? { kind: "segment" as const, start, end } : null;
           })()
-        : (() => {
+        : value.construction.kind === "arc"
+          ? (() => {
             const center = lowerGeometryValuePoint(value.construction.center, context, executionPosition);
             const radius = value.construction.radius ? lowerGeometryValueScalar(value.construction.radius, context) : null;
             const startAngleDeg = value.construction.start ? lowerGeometryValueScalar(value.construction.start, context) : null;
@@ -2150,7 +2151,17 @@ export const compileModuleScalarRuntime = ({
             return center && radius && startAngleDeg && endAngleDeg && direction
               ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
               : null;
-          })();
+            })()
+          : (() => {
+              const point1 = lowerGeometryValuePoint(value.construction.point1, context, executionPosition);
+              const point2 = lowerGeometryValuePoint(value.construction.point2, context, executionPosition);
+              const point3 = lowerGeometryValuePoint(value.construction.point3, context, executionPosition);
+              const startAngleDeg = value.construction.start ? lowerGeometryValueScalar(value.construction.start, context) : null;
+              const endAngleDeg = value.construction.end ? lowerGeometryValueScalar(value.construction.end, context) : null;
+              return point1 && point2 && point3 && startAngleDeg && endAngleDeg
+                ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
+                : null;
+            })();
     if (!construction) return;
     geometryValueProgramEntries.push({
       sourceStatementId: value.statementId,

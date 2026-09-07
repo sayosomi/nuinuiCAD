@@ -45,6 +45,9 @@ describe("queryDslCompletion", () => {
     ]);
     expect(labels(queryIncomplete("nui 1\nmodule M(input: pa"))).toContain("path");
     expect(labels(queryIncomplete("point P = co"))).toContain("coordinate");
+    expect(labels(queryIncomplete("nui 1\nconst value: path = th"))).toContain("through");
+    expect(labels(queryIncomplete("nui 1\nconst value: point = th"))).not.toContain("through");
+    expect(labels(queryIncomplete("nui 1\nconst value: line = th"))).not.toContain("through");
     const lineConstructions = labels(queryIncomplete("line L = tran"));
     expect(lineConstructions).toContain("transformCopy");
     expect(lineConstructions).not.toContain("copy");

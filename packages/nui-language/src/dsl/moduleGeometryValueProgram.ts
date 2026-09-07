@@ -42,6 +42,14 @@ export type GeometryValueProgramConstruction =
       startAngleDeg: TypedScalarExpression;
       endAngleDeg: TypedScalarExpression;
       direction: TypedScalarExpression;
+    }
+  | {
+      kind: "through";
+      point1: GeometryValueProgramPoint;
+      point2: GeometryValueProgramPoint;
+      point3: GeometryValueProgramPoint;
+      startAngleDeg: TypedScalarExpression;
+      endAngleDeg: TypedScalarExpression;
     };
 
 /** Host-neutral, already-resolved immutable geometry value execution entry.
@@ -149,7 +157,8 @@ export const buildRootGeometryValueProgram = ({
             const end = pointForReference(value.construction.end);
             return start && end ? { kind: "segment" as const, start, end } : null;
           })()
-        : (() => {
+        : value.construction.kind === "arc"
+          ? (() => {
             const center = pointForReference(value.construction.center);
             const radius = literalScalarExpression(value.construction.radius);
             const startAngleDeg = literalScalarExpression(value.construction.start);
@@ -158,7 +167,17 @@ export const buildRootGeometryValueProgram = ({
             return center && radius && startAngleDeg && endAngleDeg && direction
               ? { kind: "arc" as const, center, radius, startAngleDeg, endAngleDeg, direction }
               : null;
-          })();
+            })()
+          : (() => {
+              const point1 = pointForReference(value.construction.point1);
+              const point2 = pointForReference(value.construction.point2);
+              const point3 = pointForReference(value.construction.point3);
+              const startAngleDeg = literalScalarExpression(value.construction.start);
+              const endAngleDeg = literalScalarExpression(value.construction.end);
+              return point1 && point2 && point3 && startAngleDeg && endAngleDeg
+                ? { kind: "through" as const, point1, point2, point3, startAngleDeg, endAngleDeg }
+                : null;
+            })();
     return construction
       ? [{
           sourceStatementId: value.statementId,

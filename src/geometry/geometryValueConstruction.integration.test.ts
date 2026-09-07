@@ -148,6 +148,117 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("evaluates through values as identity-free paths with defaults and shared consumers", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const P1: point = coordinate(x: 10, y: 0)",
+      "const P2: point = coordinate(x: 0, y: 10)",
+      "const P3: point = coordinate(x: -10, y: 0)",
+      "const Through: path = through(point1: @P1, point2: @P2, point3: @P3)",
+      "const Length: number = @Through.length",
+      "line Chord = segment(start: @Through.start, end: @Through.end)",
+      "line Offset = offset(sources: [@Through], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    const through = [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => entry.occurrence.sourceStatementId === "geometry-value-runtime:4")?.value;
+    expect(compiled.geometryValueProgram?.[3]?.construction.kind).toBe("through");
+    expect(result.errors).toEqual([]);
+    expect(through).toEqual(expect.objectContaining({
+      kind: "arcLine",
+      center: { x: 0, y: 0 },
+      radius: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 90,
+      sweepAngleDeg: 90,
+      length: 10 * Math.PI / 2
+    }));
+    expect(through).not.toHaveProperty("elementId");
+    expect(through).not.toHaveProperty("name");
+    expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "line", length: 10 * Math.SQRT2 });
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("supports authored and derived points plus exported Module through occurrences", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "point P3 = coordinate(x: -10, y: 0)",
+      "line Base = segment(start: (10, 0), end: (0, 10))",
+      "const Through: path = through(point1: @Base.start, point2: @Base.end, point3: @P3)",
+      "module M() {",
+      "  export const Through: path = through(point1: (10, 0), point2: (0, 10), point3: (-10, 0))",
+      "}",
+      "instance One = M()",
+      "line Use = segment(start: @One::Through.start, end: @One::Through.end)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const values = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(values.filter((entry) => entry.value.kind === "arcLine")).toHaveLength(2);
+    expect(values.some((entry) => entry.occurrence.instancePath.length === 1)).toBe(true);
+    const use = result.computedGeometry.get("geometry-value-runtime:8");
+    expect(use).toMatchObject({ kind: "line", start: { x: 10, y: 0 } });
+    if (use?.kind !== "line") throw new Error("expected a line consumer");
+    expect(use.end.x).toBeCloseTo(0);
+    expect(use.end.y).toBeCloseTo(10);
+  });
+
+  it.each([
+    ["duplicate", "const Invalid: path = through(point1: (0, 0), point2: (0, 0), point3: (1, 1))"],
+    ["collinear", "const Invalid: path = through(point1: (0, 0), point2: (1, 1), point3: (2, 2))"]
+  ] as const)("reports a %s through failure through the occurrence-owned channel", (_kind, declaration) => {
+    const { compiled, result } = evaluate(["nui 1", declaration].join("\n"));
+    const occurrence = compiled.geometryValueProgram![0]!.occurrence;
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence,
+      message: "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。"
+    }]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
+  it("preserves Module occurrence identity and authored declaration diagnostics for invalid through", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M() {",
+      "  const Invalid: path = through(point1: (0, 0), point2: (1, 1), point3: (2, 2))",
+      "}",
+      "instance One = M()"
+    ].join("\n"));
+
+    const entry = compiled.geometryValueProgram!.find((candidate) => candidate.construction.kind === "through");
+    expect(entry).toBeDefined();
+    const error = result.geometryValueErrors?.find((candidate) => candidate.occurrence.instancePath.length > 0);
+    expect(error).toEqual({
+      occurrence: expect.objectContaining({
+        sourceStatementId: entry!.occurrence.sourceStatementId,
+        instancePath: expect.arrayContaining([expect.stringMatching(/^geometry-value-runtime:/)])
+      }),
+      message: "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。"
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors?.every((candidate) => !("elementId" in candidate))).toBe(true);
+
+    const diagnostics = runtimeGeometryDiagnostics({
+      geometryValueErrors: result.geometryValueErrors,
+      compiledDocument: compiled
+    });
+    const statementIndex = compiled.statementMap.statementIndexByStatementId!.get(entry!.occurrence.sourceStatementId)!;
+    const statement = compiled.statements[statementIndex]!;
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      severity: "error",
+      message: "点1・点2・点3から円を作れません。3点が重複しているか、一直線上にあります。別の3点を指定してください。",
+      origin: "runtime",
+      navigationTarget: { kind: "sourceSpan", physicalSpan: statement.namePhysicalSpan }
+    });
+    expect(diagnostics[0]).not.toHaveProperty("elementId");
+    expect(diagnostics[0]).not.toHaveProperty("bindingId");
+  });
+
   it.each([0, -5])("reports an invalid pure arc radius through geometryValueErrors without drawable identity (%s)", (radius) => {
     const { compiled, result } = evaluate([
       "nui 1",

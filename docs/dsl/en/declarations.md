@@ -26,11 +26,15 @@ where `path` is expected, but a `path` alias cannot be used where `line` is
 required.
 
 Pure geometry constructions are source values, not drawable declarations. They
-do not create an element or drawable identity. Other construction calls,
-including `through`, `bezier`, and `offset`, remain unsupported as pure value
-initializers in this slice. Direct arc values expose the common path geometry
-surface and preserve their evaluated center, endpoints, radius, directed sweep,
-and length without a drawable identity.
+do not create an element or drawable identity. `through` is an implemented pure
+`path` initializer taking `point1`, `point2`, and `point3`, with optional
+`start` and `end` angles defaulting to 0 and 90 degrees and using a
+counterclockwise sweep. Duplicate or collinear points fail at runtime through
+the occurrence-owned geometry-value diagnostic channel. Direct arc values
+continue to expose the common path geometry surface and preserve their
+evaluated center, endpoints, radius, directed sweep, and length without a
+drawable identity. Pure `bezier`, `offset`, `corner`, `polyline`, and other
+deferred constructions remain unsupported as pure value initializers.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

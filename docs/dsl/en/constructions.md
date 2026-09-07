@@ -747,9 +747,13 @@ full positive or negative turn according to direction. The readable
 points determine the circle and the optional start/end angles select its
 directed portion.
 
-**Notes:** Collinear or duplicate defining points cannot determine a circle and
-produce an invalid arc. This construction has no `direction` argument; its
-geometry determines the resulting sweep.
+**Notes:** `through` is also an implemented pure `path` value construction when
+used as `const name: path = through(...)`. It takes `point1`, `point2`, and
+`point3`, with optional `start` and `end` angles defaulting to 0 and 90; the
+pure value is immutable, non-drawable, and counterclockwise. Collinear or
+duplicate defining points cannot determine a circle and produce an
+occurrence-owned geometry-value runtime error. This construction has no
+`direction` argument; its geometry determines the resulting sweep.
 
 ### `corner`
 
