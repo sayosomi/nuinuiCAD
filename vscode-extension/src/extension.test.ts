@@ -51,6 +51,7 @@ type TestDocumentChangeEvent = {
 
 type TestEditor = {
   document: TestDocument;
+  viewColumn?: number;
   selection: MockSelection;
   selections: MockSelection[];
   edit: ReturnType<typeof vi.fn>;
@@ -109,6 +110,7 @@ const mocks = vi.hoisted(() => ({
     diagnosticsStateFor: ReturnType<typeof vi.fn>;
     onDiagnosticsChanged: ReturnType<typeof vi.fn>;
     languageSemanticSnapshotFor?: ReturnType<typeof vi.fn>;
+    canvasSourceDefinitionFor?: ReturnType<typeof vi.fn>;
   } | null,
   multiDocumentDiagnosticsListeners: [] as Array<(documentUri: string) => void>,
   contexts: [] as Array<{ subscriptions: Array<{ dispose: () => void }> }>,
@@ -132,6 +134,7 @@ const mocks = vi.hoisted(() => ({
   createOutputChannel: vi.fn(),
   bakeSettings: {} as Record<string, boolean>,
   showTextDocument: vi.fn(),
+  openTextDocument: vi.fn(),
   applyEdit: vi.fn(),
   workspaceEdits: [] as Array<{ replacements: Array<{ uri: unknown; range: unknown; replacement: string }> }>,
   executeCommand: vi.fn(),
@@ -286,6 +289,7 @@ vi.mock("vscode", () => {
       onDidOpenTextDocument: mocks.onDidOpenTextDocument,
       onDidChangeTextDocument: mocks.onDidChangeTextDocument,
       onDidCloseTextDocument: mocks.onDidCloseTextDocument,
+      openTextDocument: mocks.openTextDocument,
       applyEdit: mocks.applyEdit,
       getConfiguration: mocks.getConfiguration,
       onDidChangeConfiguration: mocks.onDidChangeConfiguration,
@@ -853,6 +857,7 @@ afterEach(() => {
   mocks.createOutputChannel.mockReset();
   mocks.bakeSettings = {};
   mocks.showTextDocument.mockReset();
+  mocks.openTextDocument.mockReset();
   mocks.applyEdit.mockReset();
   mocks.workspaceEdits.length = 0;
   mocks.executeCommand.mockReset();
@@ -4335,6 +4340,121 @@ describe("VS Code explicit Canvas navigation lifecycle", () => {
 
     expect(mocks.showTextDocument).toHaveBeenCalledWith(documentA, expect.objectContaining({ preserveFocus: false }));
     expect(mocks.showTextDocument).not.toHaveBeenCalledWith(documentB, expect.anything());
+  });
+
+  it("reuses an already-visible cross-file Source Definition editor", async () => {
+    const rootSource = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const targetSource = "nui 1\npoint Dependency = coordinate(x: 10, y: 20)";
+    const rootDocument = documentFor("/tmp/source-definition-root.nui", "file:///tmp/source-definition-root.nui", rootSource);
+    const targetDocument = documentFor("/tmp/source-definition-dependency.nui", "file:///tmp/source-definition-dependency.nui", targetSource);
+    const rootEditor = editorFor(rootDocument);
+    const targetEditor = editorFor(targetDocument);
+    rootEditor.viewColumn = 1;
+    targetEditor.viewColumn = 3;
+    const targetFrom = targetSource.indexOf("Dependency");
+
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      canvasSourceDefinitionFor: vi.fn().mockResolvedValue({
+        handled: true,
+        value: {
+          targetUri: targetDocument.uri,
+          normalizedSource: targetSource,
+          range: { from: targetFrom, to: targetFrom + "Dependency".length },
+          sourceIdentity: { kind: "dependency-saved", documentId: targetDocument.uri.toString() }
+        }
+      })
+    };
+    setup(false, rootEditor, [rootDocument, targetDocument]);
+    const panel = openPanelFor(rootEditor);
+    mocks.visibleTextEditors = [rootEditor, targetEditor];
+    mocks.textDocuments = [rootDocument, targetDocument];
+    mocks.openTextDocument.mockResolvedValue(targetDocument);
+    mocks.showTextDocument.mockResolvedValue(targetEditor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as { requestId: number };
+    const targetStart = targetDocument.positionAt(targetFrom);
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      runtimeElementId: "dependency-runtime"
+    });
+
+    expect(mocks.multiDocumentHost.canvasSourceDefinitionFor).toHaveBeenCalledWith(rootDocument, "dependency-runtime");
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(targetDocument, expect.objectContaining({
+      viewColumn: targetEditor.viewColumn,
+      preserveFocus: false,
+      preview: false,
+      selection: expect.objectContaining({ start: targetStart, end: targetStart })
+    }));
+    expect(mocks.showTextDocument.mock.calls[0]?.[1].viewColumn).not.toBe(rootEditor.viewColumn);
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
+    expect(targetEditor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: targetStart, end: targetDocument.positionAt(targetFrom + "Dependency".length) }),
+      1
+    );
+  });
+
+  it("keeps the root-column fallback for a cross-file Source Definition target that is not visible", async () => {
+    const rootSource = "nui 1\npoint Root = coordinate(x: 0, y: 0)";
+    const targetSource = "nui 1\npoint Dependency = coordinate(x: 10, y: 20)";
+    const rootDocument = documentFor("/tmp/source-definition-fallback-root.nui", "file:///tmp/source-definition-fallback-root.nui", rootSource);
+    const targetDocument = documentFor("/tmp/source-definition-fallback-dependency.nui", "file:///tmp/source-definition-fallback-dependency.nui", targetSource);
+    const rootEditor = editorFor(rootDocument);
+    const targetEditor = editorFor(targetDocument);
+    rootEditor.viewColumn = 4;
+    targetEditor.viewColumn = 6;
+    const targetFrom = targetSource.indexOf("Dependency");
+
+    mocks.multiDocumentHost = {
+      diagnosticsStateFor: vi.fn(() => ({ status: "current", owner: "local", documentVersion: 1, rootGeneration: 1 })),
+      onDiagnosticsChanged: vi.fn(),
+      canvasSourceDefinitionFor: vi.fn().mockResolvedValue({
+        handled: true,
+        value: {
+          targetUri: targetDocument.uri,
+          normalizedSource: targetSource,
+          range: { from: targetFrom, to: targetFrom + "Dependency".length },
+          sourceIdentity: { kind: "dependency-saved", documentId: targetDocument.uri.toString() }
+        }
+      })
+    };
+    setup(false, rootEditor, [rootDocument, targetDocument]);
+    const panel = openPanelFor(rootEditor);
+    mocks.visibleTextEditors = [rootEditor];
+    mocks.textDocuments = [rootDocument, targetDocument];
+    mocks.openTextDocument.mockResolvedValue(targetDocument);
+    mocks.showTextDocument.mockResolvedValue(targetEditor);
+
+    commandHandlerFor("nuinuiCAD.goToSourceDefinition")?.();
+    const request = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "canvasSourceDefinitionRequest") as { requestId: number };
+    const targetStart = targetDocument.positionAt(targetFrom);
+    await messageHandlerFor(panel)({
+      type: "canvasSourceDefinitionResult",
+      requestId: request.requestId,
+      documentVersion: 1,
+      runtimeElementId: "dependency-runtime"
+    });
+
+    expect(mocks.visibleTextEditors).not.toContain(targetEditor);
+    expect(mocks.showTextDocument).toHaveBeenCalledWith(targetDocument, expect.objectContaining({
+      viewColumn: rootEditor.viewColumn,
+      preserveFocus: false,
+      preview: false,
+      selection: expect.objectContaining({ start: targetStart, end: targetStart })
+    }));
+    expect(mocks.executeCommand).toHaveBeenCalledWith("editor.unfold");
+    expect(targetEditor.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: targetStart, end: targetDocument.positionAt(targetFrom + "Dependency".length) }),
+      1
+    );
   });
 
   it("does not transfer focus for stale or no-target navigation results", async () => {
