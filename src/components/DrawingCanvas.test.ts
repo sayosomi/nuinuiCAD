@@ -510,6 +510,40 @@ describe("DrawingCanvas rendering", () => {
     expect(previewCanvasSelection.mock.calls.at(-1)?.[1]).toBe("line-ab");
   });
 
+  it("keeps Shift overlap previews additive and based on the saved session baseline", () => {
+    const previewCanvasSelection = vi.fn();
+    const { viewport } = renderWithHostAdapter({ previewCanvasSelection });
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      buttons: 1,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1,
+      shiftKey: true
+    });
+    fireEvent.pointerUp(viewport, {
+      buttons: 0,
+      clientX: 300,
+      clientY: 250,
+      pointerId: 1,
+      shiftKey: true
+    });
+
+    const firstPreview = previewCanvasSelection.mock.calls[0];
+    expect(firstPreview?.[0]).toEqual({
+      selectedElementId: "point-a",
+      selectedElementIds: ["point-a"],
+      selectionAnchorElementId: "point-a"
+    });
+    expect(firstPreview?.[2]).toBe("add");
+
+    fireEvent.keyDown(viewport, { key: "ArrowDown" });
+    const candidatePreview = previewCanvasSelection.mock.calls.at(-1);
+    expect(candidatePreview?.[0]).toEqual(firstPreview?.[0]);
+    expect(candidatePreview?.[2]).toBe("add");
+  });
+
   it("shows one named hover behind an unnamed front hit without opening a popup", async () => {
     const elements: CadElement[] = [
       { id: "unnamed-point", name: "", type: "freePoint", activity: "visible", x: 0, y: 0 },
@@ -1177,6 +1211,11 @@ describe("DrawingCanvas point dragging", () => {
     expect(xAction).toHaveClass("is-active");
     expect(container.querySelector('[data-point-drag-axis-guide="x"]')).not.toBeNull();
     expect(container.querySelector('[data-point-drag-axis-guide="y"]')).toBeNull();
+    expect(hostAdapter.previewCanvasSelection).toHaveBeenCalledWith(
+      expect.anything(),
+      "point-a",
+      "add"
+    );
 
     fireEvent.pointerMove(viewport, {
       buttons: 1,

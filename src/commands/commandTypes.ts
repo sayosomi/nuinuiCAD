@@ -229,7 +229,7 @@ export type CommandContext = {
   bakeDisabledEvaluationIsCurrent?: boolean;
   /** Optional on-demand Bake sandbox provider when a current precomputed sandbox evaluation is unavailable. */
   prepareBakeSandbox?: (targetIds: readonly ElementId[]) => Promise<BakeSandboxEvaluation | null>;
-  selectionMode?: "replace" | "toggle" | "range";
+  selectionMode?: "replace" | "add" | "toggle" | "range";
   /** Source Editor folded-block move: use elementId alone instead of the current multi-selection. */
   moveCursorElementOnly?: boolean;
   dx?: number;
