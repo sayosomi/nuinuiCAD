@@ -170,6 +170,12 @@ const statusInputDiagnostic = (diagnostic: ModulePreviewInputDiagnostic): Module
   ...(diagnostic.presentation ? { presentation: diagnostic.presentation } : {})
 });
 
+const noRootStatusMessagesFor = (
+  diagnostics: ModulePreviewStatusMessage[]
+): ModulePreviewStatusMessage[] => diagnostics.length > 0
+  ? diagnostics
+  : [statusText("modulePreview.cannotEvaluate", "Module Preview is unavailable.")];
+
 const diagnosticMessagesFor = (document: AutomationDocument): ModulePreviewStatusMessage[] => {
   const state = document.getState();
   return [...state.currentCompiled.diagnostics, ...(state.currentCompiled.bindingIssueDiagnostics ?? [])]
@@ -386,10 +392,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       clearEphemeralPreview();
       previewRef.current = null;
       setPreview(null);
-      setStatusMessages([
-        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
-        ...snapshot.inputDiagnostics.map(statusInputDiagnostic)
-      ]);
+      setStatusMessages(noRootStatusMessagesFor(snapshot.inputDiagnostics.map(statusInputDiagnostic)));
       return;
     }
     const state = document.getState();
@@ -433,10 +436,7 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
       setPreview(null);
       const diagnostics = snapshot?.inputDiagnostics.map(statusInputDiagnostic)
         ?? diagnosticMessagesFor(document);
-      setStatusMessages([
-        statusText("modulePreview.cannotEvaluate", "Module Preview cannot evaluate the exact current target with the current inputs."),
-        ...diagnostics
-      ]);
+      setStatusMessages(noRootStatusMessagesFor(diagnostics));
       return;
     }
 

@@ -504,13 +504,15 @@ export const ModulePreviewParametersApp = ({ api }: { api: VscodeWebviewApi }) =
       </header>
       {snapshot ? (
         <>
-          <div
-            className={`module-preview-parameters-status is-${snapshot.previewStatus}`}
-            data-module-preview-preview-status={snapshot.previewStatus}
-            role="status"
-          >
-            {previewStatusMessageFor(snapshot.previewStatus, text)}
-          </div>
+          {snapshot.previewStatus !== "noValidPreview" || snapshot.inputDiagnostics.length === 0 ? (
+            <div
+              className={`module-preview-parameters-status is-${snapshot.previewStatus}`}
+              data-module-preview-preview-status={snapshot.previewStatus}
+              role="status"
+            >
+              {previewStatusMessageFor(snapshot.previewStatus, text)}
+            </div>
+          ) : null}
           <div className="module-preview-parameters-groups">
             {snapshot.ancestorContexts.map((group) => (
               <ParameterGroup

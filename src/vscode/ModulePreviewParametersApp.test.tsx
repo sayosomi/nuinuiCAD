@@ -171,6 +171,46 @@ describe("ModulePreviewParametersApp", () => {
     expect(screen.queryByText("Module Preview parameters are waiting for the refreshed source.")).not.toBeInTheDocument();
   });
 
+  it("suppresses the generic no-valid-preview banner when inline diagnostics explain the failure", () => {
+    const requiredDiagnostic = {
+      code: "required-value-missing" as const,
+      definitionStatementId: snapshot.target.definitionStatementId,
+      parameterIndex: 0,
+      message: "Parameter 'width' is required."
+    };
+    const noValidPreviewWithDiagnostic: VscodeModulePreviewParameterSnapshot = {
+      ...snapshot,
+      previewStatus: "noValidPreview",
+      inputDiagnostics: [requiredDiagnostic],
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) => parameter.name === "width"
+          ? { ...parameter, value: "", diagnostic: requiredDiagnostic }
+          : parameter)
+      }
+    };
+
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: noValidPreviewWithDiagnostic })));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Parameter 'width' is required.");
+    expect(screen.queryByText("No valid preview for the current inputs.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("retains the no-valid-preview banner when there is no concrete input diagnostic", () => {
+    const noValidPreviewWithoutDiagnostic: VscodeModulePreviewParameterSnapshot = {
+      ...snapshot,
+      inputDiagnostics: [],
+      previewStatus: "noValidPreview"
+    };
+
+    render(<ModulePreviewParametersApp api={api} />);
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: noValidPreviewWithoutDiagnostic })));
+
+    expect(screen.getByRole("status")).toHaveTextContent("No valid preview for the current inputs.");
+  });
+
   it("orders same-session messages by document version before session revision", () => {
     const newerDocumentVersion = snapshot.documentVersion + 1;
     const newerSourceStale = {
@@ -274,6 +314,7 @@ describe("ModulePreviewParametersApp", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: geometrySnapshot })));
 
+    expect(screen.getByRole("status")).toHaveTextContent("Current preview");
     const rows = [...document.querySelectorAll<HTMLTableRowElement>("[data-module-preview-parameter-row]")];
     expect(rows).toHaveLength(5);
     expect(rows.filter((row) => row.querySelector("[data-module-preview-parameter-pick='true']"))).toHaveLength(4);
