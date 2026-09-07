@@ -141,6 +141,14 @@ const commandIds = [
   "nuinuiCAD.create.addSplitLine",
   "nuinuiCAD.configureQuickCreate"
 ] as const;
+const canonicalCommandShortTitles: Partial<Record<(typeof commandIds)[number], string>> = {
+  "nuinuiCAD.openCanvas": "Open Canvas",
+  "nuinuiCAD.openOutputPreview": "Open Output Preview",
+  "nuinuiCAD.openModulePreview": "Open Module Preview",
+  "nuinuiCAD.convertPointToXYOffset": "XY Offset…",
+  "nuinuiCAD.convertPointToAngleDistanceOffset": "Angle-Distance Offset…",
+  "nuinuiCAD.createFreePointAtPointer": "Create Free Point at Pointer"
+};
 const sourcePaletteWhen = "editorLangId == nui && resourceScheme == file && resourceExtname == .nui";
 const canvasRevealContextWhen = `${sourcePaletteWhen} && nuinuiCAD.revealInCanvasSourceTarget`;
 const canvasOpenFallbackContextWhen = `${sourcePaletteWhen} && !nuinuiCAD.revealInCanvasSourceTarget`;
@@ -197,8 +205,17 @@ const nlsKeysReferencedBy = (value: unknown): string[] => {
   return [...new Set(keys)].sort();
 };
 
+const resolveNlsToken = (value: string, locale: Record<string, unknown>): string => value.replace(
+  /%([^%]+)%/g,
+  (_, key: string) => {
+    const localized = locale[key];
+    if (typeof localized !== "string") throw new Error(`Missing NLS key: ${key}`);
+    return localized;
+  }
+);
+
 describe("VS Code extension manifest command contributions", () => {
-  it("provides English and Japanese package NLS entries for every manifest token while keeping command titles literal", async () => {
+  it("provides English and Japanese package NLS entries for every manifest token and localizes command contributions", async () => {
     const rawManifest = JSON.parse(await readFile(manifestPath, "utf8")) as unknown;
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
@@ -210,8 +227,38 @@ describe("VS Code extension manifest command contributions", () => {
       expect(typeof japanese[key], key).toBe("string");
     }
 
-    const manifest = rawManifest as { contributes?: { commands?: Array<{ title?: unknown }> } };
-    expect(manifest.contributes?.commands?.every(({ title }) => typeof title === "string" && !title.includes("%"))).toBe(true);
+    const manifest = rawManifest as { contributes?: { commands?: Command[] } };
+    const commands = manifest.contributes?.commands ?? [];
+    expect(commands.every(({ command, title, shortTitle }) => {
+      const suffix = command.replace(/^nuinuiCAD\./, "");
+      return title === `%command.${suffix}.title%`
+        && (shortTitle === undefined || shortTitle === `%command.${suffix}.shortTitle%`);
+    })).toBe(true);
+    for (const command of commands) {
+      expect(typeof english[command.title.slice(1, -1)]).toBe("string");
+      expect(typeof japanese[command.title.slice(1, -1)]).toBe("string");
+      if (command.shortTitle !== undefined) {
+        expect(typeof english[command.shortTitle.slice(1, -1)]).toBe("string");
+        expect(typeof japanese[command.shortTitle.slice(1, -1)]).toBe("string");
+      }
+    }
+  });
+
+  it("localizes Japanese command titles while retaining the English canonical labels", async () => {
+    const rawManifest = JSON.parse(await readFile(manifestPath, "utf8")) as { contributes?: { commands?: Command[] } };
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const commands = rawManifest.contributes?.commands ?? [];
+
+    for (const command of commands) {
+      const titleKey = command.title.slice(1, -1);
+      expect(japanese[titleKey]).not.toBe(english[titleKey]);
+      expect(japanese[titleKey]).toMatch(/^nuinuiCAD: /);
+      if (command.shortTitle !== undefined) {
+        const shortTitleKey = command.shortTitle.slice(1, -1);
+        expect(japanese[shortTitleKey]).not.toBe(english[shortTitleKey]);
+      }
+    }
   });
 
   it("keeps the Source+Output Preview Palette scope in the durable policy", async () => {
@@ -233,10 +280,11 @@ describe("VS Code extension manifest command contributions", () => {
 
   it("registers the current command set", async () => {
     const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const commands = manifest.contributes?.commands ?? [];
 
     expect(commands.map(({ command }) => command)).toEqual(commandIds);
-    expect(commands.map(({ title }) => title)).toEqual([
+    expect(commands.map(({ title }) => resolveNlsToken(title, english))).toEqual([
       "nuinuiCAD: Open Canvas",
       "nuinuiCAD: Open Output Preview",
       "nuinuiCAD: Open Module Preview",
@@ -307,6 +355,10 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Create Split Line",
       "nuinuiCAD: Configure Quick Create…"
     ]);
+    expect(commands.map(({ command, shortTitle }) => ({
+      command,
+      shortTitle: shortTitle === undefined ? undefined : resolveNlsToken(shortTitle, english)
+    }))).toEqual(commandIds.map((command) => ({ command, shortTitle: canonicalCommandShortTitles[command] })));
   });
 
   it("keeps Reset Output Preview Pan and Zoom surface-only with no shortcut or target enablement", async () => {
@@ -314,7 +366,7 @@ describe("VS Code extension manifest command contributions", () => {
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.resetOutputPreviewView");
     expect(command).toEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
-      title: "nuinuiCAD: Reset Output Preview Pan and Zoom"
+      title: "%command.resetOutputPreviewView.title%"
     });
     expect(manifest.contributes?.menus?.commandPalette).toContainEqual({
       command: "nuinuiCAD.resetOutputPreviewView",
@@ -331,7 +383,7 @@ describe("VS Code extension manifest command contributions", () => {
     const manifest = await readManifest();
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
 
-    expect(command?.shortTitle).toBe("Create Free Point at Pointer");
+    expect(command?.shortTitle).toBe("%command.createFreePointAtPointer.shortTitle%");
   });
 
   it("keeps the public Convert titles while using native submenu short titles", async () => {
@@ -342,13 +394,13 @@ describe("VS Code extension manifest command contributions", () => {
     const conversionCommands = [
       {
         id: "nuinuiCAD.convertPointToXYOffset",
-        title: "nuinuiCAD: Convert Point to XY Offset",
-        shortTitle: "XY Offset…"
+        title: "%command.convertPointToXYOffset.title%",
+        shortTitle: "%command.convertPointToXYOffset.shortTitle%"
       },
       {
         id: "nuinuiCAD.convertPointToAngleDistanceOffset",
-        title: "nuinuiCAD: Convert Point to Angle-Distance Offset",
-        shortTitle: "Angle-Distance Offset…"
+        title: "%command.convertPointToAngleDistanceOffset.title%",
+        shortTitle: "%command.convertPointToAngleDistanceOffset.shortTitle%"
       }
     ];
 
@@ -579,7 +631,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.submenus).toContainEqual({ id: "nuinuiCAD.create", label: "%submenu.create%" });
     expect(commands.find(({ command }) => command === "nuinuiCAD.createGeometry")).toEqual({
       command: "nuinuiCAD.createGeometry",
-      title: "nuinuiCAD: Create Geometry…"
+      title: "%command.createGeometry.title%"
     });
     expect(commandPalette).toContainEqual({
       command: "nuinuiCAD.createGeometry",
@@ -592,17 +644,18 @@ describe("VS Code extension manifest command contributions", () => {
     });
 
     for (const entry of vscodeCanvasCreationCommands) {
-      expect(commands.find(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId))).toMatchObject({
-        command: vscodeCanvasCreationCommandIdFor(entry.commandId),
-        title: entry.title
+      const commandId = vscodeCanvasCreationCommandIdFor(entry.commandId);
+      expect(commands.find(({ command }) => command === commandId)).toMatchObject({
+        command: commandId,
+        title: `%command.${commandId.replace("nuinuiCAD.", "")}.title%`
       });
-      expect(commands.find(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId)))
+      expect(commands.find(({ command }) => command === commandId))
         .not.toHaveProperty("enablement");
       expect(commandPalette).toContainEqual({
-        command: vscodeCanvasCreationCommandIdFor(entry.commandId),
+        command: commandId,
         when: `${canvasPaletteWhen} && nuinuiCAD.quickCreateConfigured.${entry.commandId}`
       });
-      expect(keybindings.some(({ command }) => command === vscodeCanvasCreationCommandIdFor(entry.commandId))).toBe(false);
+      expect(keybindings.some(({ command }) => command === commandId)).toBe(false);
     }
 
     const slotEntries = submenu.filter(({ command }) => command !== "nuinuiCAD.configureQuickCreate");

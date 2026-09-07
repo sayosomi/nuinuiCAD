@@ -1300,8 +1300,8 @@
     "commands": [
       {
         "command": "nuinuiCAD.openCanvas",
-        "title": "nuinuiCAD: Open Canvas",
-        "shortTitle": "Open Canvas",
+        "title": "%command.openCanvas.title%",
+        "shortTitle": "%command.openCanvas.shortTitle%",
         "icon": {
           "light": "media/spline.svg",
           "dark": "media/spline.svg"
@@ -1309,8 +1309,8 @@
       },
       {
         "command": "nuinuiCAD.openOutputPreview",
-        "title": "nuinuiCAD: Open Output Preview",
-        "shortTitle": "Open Output Preview",
+        "title": "%command.openOutputPreview.title%",
+        "shortTitle": "%command.openOutputPreview.shortTitle%",
         "icon": {
           "light": "media/printer.svg",
           "dark": "media/printer.svg"
@@ -1318,293 +1318,293 @@
       },
       {
         "command": "nuinuiCAD.openModulePreview",
-        "title": "nuinuiCAD: Open Module Preview",
-        "shortTitle": "Open Module Preview",
+        "title": "%command.openModulePreview.title%",
+        "shortTitle": "%command.openModulePreview.shortTitle%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget"
       },
       {
         "command": "nuinuiCAD.inlineModuleInstance",
-        "title": "nuinuiCAD: Inline Module Instance",
+        "title": "%command.inlineModuleInstance.title%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.inlineModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.extractModule",
-        "title": "nuinuiCAD: Extract Module",
+        "title": "%command.extractModule.title%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.extractModuleCanvasTarget)"
       },
       {
         "command": "nuinuiCAD.goToSourceDefinition",
-        "title": "nuinuiCAD: Go to Source Definition",
+        "title": "%command.goToSourceDefinition.title%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.revealInCanvas",
-        "title": "nuinuiCAD: Reveal in Canvas",
+        "title": "%command.revealInCanvas.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget"
       },
       {
         "command": "nuinuiCAD.revealInOutputPreview",
-        "title": "nuinuiCAD: Reveal in Output Preview",
+        "title": "%command.revealInOutputPreview.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget"
       },
       {
         "command": "nuinuiCAD.pickReferenceFromCanvas",
-        "title": "nuinuiCAD: Pick Reference from Canvas",
+        "title": "%command.pickReferenceFromCanvas.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget"
       },
       {
         "command": "nuinuiCAD.convertPointToXYOffset",
-        "title": "nuinuiCAD: Convert Point to XY Offset",
-        "shortTitle": "XY Offset…",
+        "title": "%command.convertPointToXYOffset.title%",
+        "shortTitle": "%command.convertPointToXYOffset.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget')"
       },
       {
         "command": "nuinuiCAD.convertPointToAngleDistanceOffset",
-        "title": "nuinuiCAD: Convert Point to Angle-Distance Offset",
-        "shortTitle": "Angle-Distance Offset…",
+        "title": "%command.convertPointToAngleDistanceOffset.title%",
+        "shortTitle": "%command.convertPointToAngleDistanceOffset.shortTitle%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget) || (activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasCoordinatePointConversionTarget) || (view == nuinuiCAD.elements && viewItem == 'nuinuiCAD.coordinatePointConversionTarget')"
       },
       {
         "command": "nuinuiCAD.replaceGeometryReferences",
-        "title": "nuinuiCAD: Replace Geometry References",
+        "title": "%command.replaceGeometryReferences.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget"
       },
       {
         "command": "nuinuiCAD.stepSourceValueForward",
-        "title": "nuinuiCAD: Step Source Value Forward",
+        "title": "%command.stepSourceValueForward.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
       },
       {
         "command": "nuinuiCAD.stepSourceValueBackward",
-        "title": "nuinuiCAD: Step Source Value Backward",
+        "title": "%command.stepSourceValueBackward.title%",
         "enablement": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget"
       },
       {
         "command": "nuinuiCAD.canvasUndo",
-        "title": "nuinuiCAD: Undo Canvas Transition"
+        "title": "%command.canvasUndo.title%"
       },
       {
         "command": "nuinuiCAD.canvasRedo",
-        "title": "nuinuiCAD: Redo Canvas Transition"
+        "title": "%command.canvasRedo.title%"
       },
       {
         "command": "nuinuiCAD.outputPreviewUndo",
-        "title": "nuinuiCAD: Undo Output Preview Source Edit"
+        "title": "%command.outputPreviewUndo.title%"
       },
       {
         "command": "nuinuiCAD.outputPreviewRedo",
-        "title": "nuinuiCAD: Redo Output Preview Source Edit"
+        "title": "%command.outputPreviewRedo.title%"
       },
       {
         "command": "nuinuiCAD.clearCanvasSelection",
-        "title": "nuinuiCAD: Clear Canvas Selection",
+        "title": "%command.clearCanvasSelection.title%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.selectParentGroup",
-        "title": "nuinuiCAD: Select Parent Group",
+        "title": "%command.selectParentGroup.title%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasHasSelection"
       },
       {
         "command": "nuinuiCAD.selectInstance",
-        "title": "nuinuiCAD: Select Instance",
+        "title": "%command.selectInstance.title%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas' && nuinuiCAD.canvasCanSelectInstance"
       },
       {
         "command": "nuinuiCAD.resetCanvasView",
-        "title": "nuinuiCAD: Reset Canvas View"
+        "title": "%command.resetCanvasView.title%"
       },
       {
         "command": "nuinuiCAD.fitDrawing",
-        "title": "nuinuiCAD: Fit Drawing"
+        "title": "%command.fitDrawing.title%"
       },
       {
         "command": "nuinuiCAD.resetOutputPreviewView",
-        "title": "nuinuiCAD: Reset Output Preview Pan and Zoom"
+        "title": "%command.resetOutputPreviewView.title%"
       },
       {
         "command": "nuinuiCAD.fitOutputPreview",
-        "title": "nuinuiCAD: Fit Output Preview"
+        "title": "%command.fitOutputPreview.title%"
       },
       {
         "command": "nuinuiCAD.clearOutputPreviewFocus",
-        "title": "nuinuiCAD: Clear Output Preview Focus"
+        "title": "%command.clearOutputPreviewFocus.title%"
       },
       {
         "command": "nuinuiCAD.exportCurrentOutput",
-        "title": "nuinuiCAD: Export Current Output"
+        "title": "%command.exportCurrentOutput.title%"
       },
       {
         "command": "nuinuiCAD.toggleCanvasPointNames",
-        "title": "nuinuiCAD: Toggle Point Names"
+        "title": "%command.toggleCanvasPointNames.title%"
       },
       {
         "command": "nuinuiCAD.toggleCanvasGeometryNames",
-        "title": "nuinuiCAD: Toggle Geometry Names"
+        "title": "%command.toggleCanvasGeometryNames.title%"
       },
       {
         "command": "nuinuiCAD.toggleCanvasElementNames",
-        "title": "nuinuiCAD: Toggle Canvas Element Names (Legacy)"
+        "title": "%command.toggleCanvasElementNames.title%"
       },
       {
         "command": "nuinuiCAD.toggleCanvasPoints",
-        "title": "nuinuiCAD: Toggle Canvas Points"
+        "title": "%command.toggleCanvasPoints.title%"
       },
       {
         "command": "nuinuiCAD.bakeCurrentShape",
-        "title": "nuinuiCAD: Bake Current Shape",
+        "title": "%command.bakeCurrentShape.title%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
       },
       {
         "command": "nuinuiCAD.bakeBaseShape",
-        "title": "nuinuiCAD: Bake Base Shape",
+        "title": "%command.bakeBaseShape.title%",
         "enablement": "(editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget) || ((activeWebviewPanelId == 'nuinuiCAD.canvas' || activeWebviewPanelId == 'nuinuiCAD.modulePreview') && nuinuiCAD.canvasHasSelection)"
       },
       {
         "command": "nuinuiCAD.editCanvasRibbon",
-        "title": "nuinuiCAD: Edit Canvas Ribbon"
+        "title": "%command.editCanvasRibbon.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.clearSelection",
-        "title": "nuinuiCAD: Clear Module Preview Selection"
+        "title": "%command.modulePreview.clearSelection.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.resetView",
-        "title": "nuinuiCAD: Reset Module Preview View"
+        "title": "%command.modulePreview.resetView.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.fitDrawing",
-        "title": "nuinuiCAD: Fit Module Preview Drawing"
+        "title": "%command.modulePreview.fitDrawing.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.togglePointNames",
-        "title": "nuinuiCAD: Toggle Module Preview Point Names"
+        "title": "%command.modulePreview.togglePointNames.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.toggleGeometryNames",
-        "title": "nuinuiCAD: Toggle Module Preview Geometry Names"
+        "title": "%command.modulePreview.toggleGeometryNames.title%"
       },
       {
         "command": "nuinuiCAD.modulePreview.togglePoints",
-        "title": "nuinuiCAD: Toggle Module Preview Points"
+        "title": "%command.modulePreview.togglePoints.title%"
       },
       {
         "command": "nuinuiCAD.createGeometry",
-        "title": "nuinuiCAD: Create Geometry…"
+        "title": "%command.createGeometry.title%"
       },
       {
         "command": "nuinuiCAD.createFreePointAtPointer",
-        "title": "nuinuiCAD: Create Free Point at Pointer",
-        "shortTitle": "Create Free Point at Pointer",
+        "title": "%command.createFreePointAtPointer.title%",
+        "shortTitle": "%command.createFreePointAtPointer.shortTitle%",
         "enablement": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
       },
       {
         "command": "nuinuiCAD.create.addFreePoint",
-        "title": "nuinuiCAD: Create Free Point"
+        "title": "%command.create.addFreePoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addText",
-        "title": "nuinuiCAD: Create Text"
+        "title": "%command.create.addText.title%"
       },
       {
         "command": "nuinuiCAD.create.addOffsetPoint",
-        "title": "nuinuiCAD: Create Offset Point"
+        "title": "%command.create.addOffsetPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addPolarOffsetPoint",
-        "title": "nuinuiCAD: Create Polar Offset Point"
+        "title": "%command.create.addPolarOffsetPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addDivisionPoint",
-        "title": "nuinuiCAD: Create Division Point"
+        "title": "%command.create.addDivisionPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addLineDivisionPoint",
-        "title": "nuinuiCAD: Create Line Division Point"
+        "title": "%command.create.addLineDivisionPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addIntersectionPoint",
-        "title": "nuinuiCAD: Create Intersection Point"
+        "title": "%command.create.addIntersectionPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addLineTangentOffsetPoint",
-        "title": "nuinuiCAD: Create Line Tangent Offset Point"
+        "title": "%command.create.addLineTangentOffsetPoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addBezierBulgePoint",
-        "title": "nuinuiCAD: Create Bezier Bulge Point"
+        "title": "%command.create.addBezierBulgePoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addBezierExtremePoint",
-        "title": "nuinuiCAD: Create Bezier Extreme Point"
+        "title": "%command.create.addBezierExtremePoint.title%"
       },
       {
         "command": "nuinuiCAD.create.addLine",
-        "title": "nuinuiCAD: Create Line"
+        "title": "%command.create.addLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addPolyline",
-        "title": "nuinuiCAD: Create Polyline"
+        "title": "%command.create.addPolyline.title%"
       },
       {
         "command": "nuinuiCAD.create.addAngleLengthLine",
-        "title": "nuinuiCAD: Create Angle Length Line"
+        "title": "%command.create.addAngleLengthLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addCommonTangentLine",
-        "title": "nuinuiCAD: Create Common Tangent Line"
+        "title": "%command.create.addCommonTangentLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addArcLine",
-        "title": "nuinuiCAD: Create Arc Line"
+        "title": "%command.create.addArcLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addThreePointArcLine",
-        "title": "nuinuiCAD: Create Three-Point Arc Line"
+        "title": "%command.create.addThreePointArcLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addCornerRadiusArcLine",
-        "title": "nuinuiCAD: Create Corner Radius Arc Line"
+        "title": "%command.create.addCornerRadiusArcLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addEdge",
-        "title": "nuinuiCAD: Create Edge"
+        "title": "%command.create.addEdge.title%"
       },
       {
         "command": "nuinuiCAD.create.addExtendTrim",
-        "title": "nuinuiCAD: Create Extend/Trim"
+        "title": "%command.create.addExtendTrim.title%"
       },
       {
         "command": "nuinuiCAD.create.addBezierCurve",
-        "title": "nuinuiCAD: Create Bezier Curve"
+        "title": "%command.create.addBezierCurve.title%"
       },
       {
         "command": "nuinuiCAD.create.addOffsetLine",
-        "title": "nuinuiCAD: Create Offset Line"
+        "title": "%command.create.addOffsetLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addCopyLine",
-        "title": "nuinuiCAD: Create Copy Line"
+        "title": "%command.create.addCopyLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addSymmetricCopyLine",
-        "title": "nuinuiCAD: Create Symmetric Copy Line"
+        "title": "%command.create.addSymmetricCopyLine.title%"
       },
       {
         "command": "nuinuiCAD.create.addMove",
-        "title": "nuinuiCAD: Create Move"
+        "title": "%command.create.addMove.title%"
       },
       {
         "command": "nuinuiCAD.create.addSymmetricMove",
-        "title": "nuinuiCAD: Create Symmetric Move"
+        "title": "%command.create.addSymmetricMove.title%"
       },
       {
         "command": "nuinuiCAD.create.addSplitLine",
-        "title": "nuinuiCAD: Create Split Line"
+        "title": "%command.create.addSplitLine.title%"
       },
       {
         "command": "nuinuiCAD.configureQuickCreate",
-        "title": "nuinuiCAD: Configure Quick Create…"
+        "title": "%command.configureQuickCreate.title%"
       }
     ],
     "configuration": {
