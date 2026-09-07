@@ -1,8 +1,9 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
+import { commonArgSpecs, constructionFor, constructionSpecsFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
+  moduleGeometryInterfaceTypeOfConstruction,
   moduleGeometryInterfaceTypeOfElement,
   moduleRuntimeGeometryKindOf,
   type ModuleGeometryInterfaceType
@@ -42,6 +43,7 @@ import {
 } from "../geometry/numericGeometryProperties";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
+import { geometryValueConstructionControlFlowUnsupported } from "./geometryValueConstructionScope";
 import {
   resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration,
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
@@ -1795,7 +1797,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       presenceFacts?: ReadonlySet<string>;
     } = {}
   ): ModuleGeometryConstructionSemantic | null => {
-    const parsed = parseDslConstructionInvocation(rawValue, { spanOffset: initializerSpan.start });
+    const constructionName = rawValue.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? "";
+    const selectedSpec = constructionSpecsFor(constructionName).find((candidate) =>
+      isModuleGeometryInterfaceAssignable(
+        moduleGeometryInterfaceTypeOfConstruction(candidate.category, candidate),
+        expectedInterfaceType
+      )
+    );
+    const parsed = parseDslConstructionInvocation(rawValue, {
+      spanOffset: initializerSpan.start,
+      ...(selectedSpec ? { spec: selectedSpec } : {})
+    });
     for (const diagnostic of parsed.diagnostics) {
       addLocal(statementIndex, issue(
         diagnostic.code ?? "invalid-construction-call",
@@ -1807,13 +1819,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const invocation = parsed.invocation;
     if (!invocation || invocation.categories.length === 0) return null;
     const constructionSpan = invocation.constructionSpan;
-    const allowed = invocation.construction === "coordinate"
-      ? new Set<string | null>(["x", "y"])
-      : invocation.construction === "segment"
-        ? new Set<string | null>(["start", "end"])
-        : new Set<string | null>();
+    const selectedArgumentNames = new Set((selectedSpec?.args ?? []).map((argument) => argument.arg));
+    const drawableMetadataNames = new Set(commonArgSpecs.map((argument) => argument.arg));
     for (const argument of invocation.args) {
-      if (!allowed.has(argument.key)) {
+      if (argument.key !== null && drawableMetadataNames.has(argument.key) && !selectedArgumentNames.has(argument.key)) {
         addLocal(statementIndex, issue(
           "geometry-value-drawable-metadata",
           argument.keySpan ?? argument.valueSpan,
@@ -1843,9 +1852,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "coordinate" } }
         }));
       }
-      for (const [name, candidate] of [["x", xArgument], ["y", yArgument]] as const) {
-        if (!candidate) addLocal(statementIndex, issue("missing-construction-argument", constructionSpan, `construction「coordinate」には必須引数「${name}」が必要です。`));
-      }
       const scalar = (candidate: typeof xArgument) => candidate
         ? analyzeExpression(
             statementIndex,
@@ -1859,7 +1865,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             undefined,
             options.presenceFacts
           )
-        : null;
+        : analyzeExpression(
+            statementIndex,
+            "0",
+            { start: constructionSpan.end, end: constructionSpan.end + 1 },
+            { kind: "number" },
+            options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
+            options.bareScalarResolver,
+            options.geometryPropertyResolver,
+            undefined,
+            undefined,
+            options.presenceFacts
+          );
       return { kind: "coordinate", span: { start: constructionSpan.start, end: initializerSpan.end }, x: scalar(xArgument), y: scalar(yArgument) };
     }
     if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
@@ -1885,8 +1902,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
         )
       : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
-    if (!startArgument) addLocal(statementIndex, issue("missing-construction-argument", constructionSpan, "construction「segment」には必須引数「start」が必要です。"));
-    if (!endArgument) addLocal(statementIndex, issue("missing-construction-argument", constructionSpan, "construction「segment」には必須引数「end」が必要です。"));
     return { kind: "segment", span: { start: constructionSpan.start, end: initializerSpan.end }, start: endpoint(startArgument), end: endpoint(endArgument) };
   };
 
@@ -2312,13 +2327,22 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (initializerSpan) {
       const isConstruction = /^[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(statement.initializer.trim());
       if (isConstruction) {
-        construction = parseGeometryValueConstruction(
-          statementIndex,
-          null,
-          statement.initializer,
-          initializerSpan,
-          statement.valueType.kind
-        );
+        if (geometryValueConstructionControlFlowUnsupported(sourceNamespace.scopeIndex, statementIndex)) {
+          addLocal(statementIndex, issue(
+            "geometry-value-construction-control-flow-unsupported",
+            initializerSpan,
+            "control flow 内の geometry construction value はこのSliceでは未対応です。",
+            { presentation: { key: "diagnostic.geometry-value-construction-control-flow-unsupported" } }
+          ));
+        } else {
+          construction = parseGeometryValueConstruction(
+            statementIndex,
+            null,
+            statement.initializer,
+            initializerSpan,
+            statement.valueType.kind
+          );
+        }
       } else {
         const parsedReference = parseDslSourceReference(statement.initializer.trim());
         if (parsedReference.kind !== "valid") {

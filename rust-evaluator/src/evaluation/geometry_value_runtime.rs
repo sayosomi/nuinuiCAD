@@ -1,13 +1,13 @@
 use serde_json::{json, Value};
 
-use super::math::angle_from_to;
+use super::geometry_value_kernels::{segment_geometry_kernel, StructuralPoint};
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
     validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType,
     ScalarValue, TypedScalarExpression,
 };
-use super::types::{EvaluationCommandError, EvaluationState, GeometryValueOccurrence, Point};
+use super::types::{EvaluationCommandError, EvaluationState, GeometryValueOccurrence};
 
 pub(crate) struct EmptyBindingResolver;
 
@@ -256,30 +256,22 @@ fn point_json(x: f64, y: f64) -> Value {
 }
 
 fn segment_json(start: (f64, f64), end: (f64, f64)) -> Value {
-    let start_point = Point {
-        element_id: String::new(),
-        name: String::new(),
-        x: start.0,
-        y: start.1,
-    };
-    let end_point = Point {
-        element_id: String::new(),
-        name: String::new(),
-        x: end.0,
-        y: end.1,
-    };
-    let length = (end.0 - start.0).hypot(end.1 - start.1);
-    let start_angle = angle_from_to(&start_point, &end_point);
-    let end_angle = angle_from_to(&end_point, &start_point);
+    let structural = segment_geometry_kernel(
+        StructuralPoint {
+            x: start.0,
+            y: start.1,
+        },
+        StructuralPoint { x: end.0, y: end.1 },
+    );
     json!({
         "kind": "line",
-        "start": {"x": start.0, "y": start.1},
-        "end": {"x": end.0, "y": end.1},
-        "length": length,
-        "startAngleDeg": start_angle,
-        "endAngleDeg": end_angle,
-        "startTangentAngleDeg": start_angle,
-        "endTangentAngleDeg": end_angle
+        "start": {"x": structural.start.x, "y": structural.start.y},
+        "end": {"x": structural.end.x, "y": structural.end.y},
+        "length": structural.length,
+        "startAngleDeg": structural.start_angle_deg,
+        "endAngleDeg": structural.end_angle_deg,
+        "startTangentAngleDeg": structural.start_tangent_angle_deg,
+        "endTangentAngleDeg": structural.end_tangent_angle_deg
     })
 }
 
@@ -287,7 +279,7 @@ fn number_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    source_order: usize,
+    source_order: f64,
 ) -> Option<f64> {
     match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
         ScalarEvaluation::Ok {
@@ -332,7 +324,7 @@ fn evaluate_point(
     point: &GeometryValuePoint,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    source_order: usize,
+    source_order: f64,
 ) -> Option<(f64, f64)> {
     match point {
         GeometryValuePoint::Coordinate { x, y } => Some((
@@ -351,7 +343,7 @@ pub(crate) fn evaluate_geometry_value_entry(
     if entry.source_statement_id != entry.occurrence.source_statement_id {
         return;
     }
-    let source_order = entry.source_statement_index;
+    let source_order = entry.execution_position;
     let value = match &entry.construction {
         GeometryValueConstruction::Coordinate { x, y } => {
             if entry.declared_interface_type != "point" {

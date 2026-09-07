@@ -59,6 +59,21 @@ describe("host-neutral DSL rename query", () => {
     expect(plan?.edits.some((edit) => source.slice(edit.from, edit.to) === "A")).toBe(false);
   });
 
+  it("renames a constructed geometry declaration through its ordinary identity", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const Copy: line = @L"
+    ].join("\n");
+    const plan = planDslRenameEdits(snapshot(source), at(source, "@L") + 1, "Renamed");
+
+    expect(plan).not.toBeNull();
+    expect(plan?.edits.map((edit) => source.slice(edit.from, edit.to))).toEqual(["L", "L"]);
+    expect(plan?.edits.every((edit) => edit.newText === "Renamed")).toBe(true);
+  });
+
   it("returns a structured typed same-scope collision while preserving the null wrapper", () => {
     const source = [
       "nui 1",

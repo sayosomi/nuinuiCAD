@@ -14,8 +14,9 @@ import {
 } from "./bezierMath";
 import { CIRCLE_EPSILON } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getComputedPointOrError, getPointAnchorOrError, numericError } from "./evaluationContext";
-import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
+import { pointAtDistanceFromEndpoint, isLineLikeGeometry, isLineLikeGeometryInput, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
+import { resolveLineGeometryInput } from "./lineGeometryInput";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { coordinateGeometryKernel } from "./geometryValueKernels";
 
@@ -398,13 +399,13 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
           break;
         }
 
-        const line1 = computedGeometry.get(element.line1Id);
-        const line2 = computedGeometry.get(element.line2Id);
-        if (!isLineLikeGeometry(line1)) {
+        const line1 = resolveLineGeometryInput(context, "line1Id", element.line1Id);
+        const line2 = resolveLineGeometryInput(context, "line2Id", element.line2Id);
+        if (!isLineLikeGeometryInput(line1)) {
           errors.push(dependencyError(element, element.line1Id, elementsById, disabledByGroupId));
           break;
         }
-        if (!isLineLikeGeometry(line2)) {
+        if (!isLineLikeGeometryInput(line2)) {
           errors.push(dependencyError(element, element.line2Id, elementsById, disabledByGroupId));
           break;
         }

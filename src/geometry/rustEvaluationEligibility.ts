@@ -85,7 +85,7 @@ const rustSupportedDerivedPointSourceTypes = new Set<CadElement["type"]>([
 
 const referencesRustSupportedLine = (
   lineId: string,
-  elementsById: Map<string, CadElement>
+  elementsById: ReadonlyMap<string, CadElement>
 ) => {
   const referencedLine = elementsById.get(lineId);
   return referencedLine
@@ -93,9 +93,24 @@ const referencesRustSupportedLine = (
     : false;
 };
 
+const referencesRustSupportedLineTarget = (
+  fallbackId: string,
+  element: CadElement,
+  parameterKey: string,
+  options: EvaluateElementsOptions,
+  elementsById: ReadonlyMap<ElementId, CadElement>
+) => {
+  const target = options.geometryInputTargetsByElementId?.get(element.id)?.get(parameterKey);
+  const candidates = target && Array.isArray(target) ? target : target ? [target] : [];
+  if (candidates.length > 0) return candidates.every((candidate) =>
+    candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById)
+  );
+  return referencesRustSupportedLine(fallbackId, elementsById);
+};
+
 const referencesRustSupportedPointAnchor = (
   anchor: PointAnchor,
-  elementsById: Map<string, CadElement>
+  elementsById: ReadonlyMap<string, CadElement>
 ) => {
   if (anchor.mode === "coordinate" || anchor.mode === "geometryValue") return true;
   const referencedElement = elementsById.get(anchorReferenceElementId(anchor) ?? "");
@@ -248,14 +263,16 @@ const canUseRustEvaluationForElement = (
   }
   if (element.type === "intersectionPoint") {
     return (
-      referencesRustSupportedLine(element.line1Id, elementsById) &&
-      referencesRustSupportedLine(element.line2Id, elementsById)
+      referencesRustSupportedLineTarget(element.line1Id, element, "line1Id", options, elementsById) &&
+      referencesRustSupportedLineTarget(element.line2Id, element, "line2Id", options, elementsById)
     );
   }
   if (element.type === "offsetLine") {
-    return element.baseLineIds.every((baseLineId) =>
-      referencesRustSupportedLine(baseLineId, elementsById)
-    );
+    const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineIds");
+    if (target && Array.isArray(target)) {
+      return target.every((candidate) => candidate.kind === "geometryValue" || referencesRustSupportedLine(candidate.elementId, elementsById));
+    }
+    return element.baseLineIds.every((baseLineId) => referencesRustSupportedLine(baseLineId, elementsById));
   }
   if (element.type === "splitLine") {
     return referencesRustSupportedLine(element.baseLineId, elementsById);

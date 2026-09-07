@@ -171,6 +171,12 @@ export type GeometryValueOccurrence = {
   instancePath: readonly string[];
 };
 
+/** Runtime-only input for a read-only geometry consumer. This is deliberately
+ * separate from persisted ElementId fields and is never a drawable identity. */
+export type GeometryInputTarget =
+  | { kind: "drawable"; elementId: ElementId; geometryType: "line" | "path" }
+  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "line" | "path" };
+
 export type LineDivisionPointElement = CadElementBase & {
   type: "lineDivisionPoint";
   endpoint: LineEndpointReference;

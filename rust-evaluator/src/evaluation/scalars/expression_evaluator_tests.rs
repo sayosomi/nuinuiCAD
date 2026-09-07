@@ -413,7 +413,7 @@ impl ScalarEvaluationEnvironment for GeometryEnvironment {
         &self,
         _element_id: &str,
         _property: &str,
-        _target_source_order: usize,
+        _target_source_order: f64,
         _property_type: &ScalarType,
     ) -> ScalarEvaluation {
         self.geometry.clone()

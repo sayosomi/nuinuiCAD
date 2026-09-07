@@ -1,6 +1,6 @@
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { derivedAnchor, isDerivedPointKeyForGeometryCategory, isLineEndpointPointKey, referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId, PointAnchor, GeometryValueOccurrence } from "../types/geometry";
+import type { CadElement, ElementId, PointAnchor, GeometryInputTarget, GeometryValueOccurrence } from "../types/geometry";
 import { resolveAnchor as resolveAnchorFromDsl, resolveEndpoint as resolveEndpointFromDsl, resolveId as resolveIdFromDsl } from "./dslReferences";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
@@ -24,7 +24,7 @@ import { encodeIdentityTuple } from "../document/identityTuple";
 export type GeometryAlias =
   | { kind: "line"; elementId: ElementId }
   | { kind: "point"; anchor: PointAnchor; coordinate?: ModulePointCoordinateSemantic }
-  | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; pointKey?: string };
+  | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string };
 
 export type InstanceContext = {
   path: readonly string[];
@@ -245,6 +245,7 @@ export const sourceAliasForTarget = (
       kind: "value",
       occurrence: { sourceStatementId: target.statementId, instancePath: [...currentPath] },
       geometryType: target.declaredInterfaceType === "point" ? "point" : "line",
+      interfaceType: target.declaredInterfaceType,
       ...(target.pointKey ? { pointKey: target.pointKey } : {})
     };
   }
@@ -319,6 +320,26 @@ export const resolverForBody = ({
     resolveEndpoint: resolveEndpointFromDsl
   };
   return {
+    resolveLineReferenceTarget: (token) => {
+      const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
+      if (lowered?.kind === "line") {
+        return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
+      }
+      if (lowered?.kind === "value" && lowered.geometryType === "line") {
+        return {
+          kind: "geometryValue",
+          occurrence: lowered.occurrence,
+          geometryType: lowered.interfaceType === "path" ? "path" : "line"
+        } satisfies GeometryInputTarget;
+      }
+      return null;
+    },
+    resolveImmutableGeometryReference: (token) => {
+      const site = siteFor(token, "lineEndpointReference");
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);
+      return lowered?.kind === "value" ? lowered.occurrence : null;
+    },
     resolveId: (token, index, line, diagnostics, currentElement) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
       const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath);

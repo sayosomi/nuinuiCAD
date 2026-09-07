@@ -24,6 +24,8 @@ export type ComputedGeometryValueLine = {
   length: number;
   startAngleDeg: number | null;
   endAngleDeg: number | null;
+  startTangentAngleDeg: number | null;
+  endTangentAngleDeg: number | null;
 };
 
 export type ComputedGeometryValue = ComputedGeometryValuePoint | ComputedGeometryValueLine;

@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_inputs;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::offset_paths::{build_offset_line_geometry, is_line_like_geometry};
 use super::types::{element_id, element_name, insert_geometry, EvaluationState, EvaluationWarning};
@@ -31,8 +32,14 @@ pub(crate) fn evaluate_offset_line(
         .collect::<Vec<_>>();
     let mut base_geometries = Vec::new();
     let mut has_missing_base = false;
-    for base_line_id in &base_line_ids {
-        let geometry = state.computed_geometry.get(base_line_id);
+    let resolved_geometries = resolve_line_geometry_inputs(
+        state,
+        &element_id(element).unwrap_or_default(),
+        "baseLineIds",
+        &base_line_ids,
+    );
+    for (index, base_line_id) in base_line_ids.iter().enumerate() {
+        let geometry = resolved_geometries.get(index);
         if !is_line_like_geometry(geometry) {
             state
                 .errors

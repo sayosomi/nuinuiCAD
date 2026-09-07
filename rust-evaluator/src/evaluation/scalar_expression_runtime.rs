@@ -18,7 +18,7 @@ use serde_json::Value;
 struct ResolverEnvironment<'a> {
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
-    current_source_order: Option<usize>,
+    current_source_order: Option<f64>,
 }
 
 fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation {
@@ -36,7 +36,7 @@ pub(crate) fn lookup_geometry_value_property(
     point_key: Option<&str>,
     property: &str,
     target_source_order: f64,
-    current_source_order: Option<usize>,
+    current_source_order: Option<f64>,
     property_type: &ScalarType,
 ) -> ScalarEvaluation {
     // Presence in the separate value store is the runtime source-order check.
@@ -73,8 +73,8 @@ pub(crate) fn lookup_geometry_property(
     state: &EvaluationState,
     element_id: &str,
     property: &str,
-    target_source_order: usize,
-    current_source_order: Option<usize>,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
     property_type: &ScalarType,
 ) -> ScalarEvaluation {
     if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
@@ -156,7 +156,7 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(
@@ -205,7 +205,7 @@ pub(crate) fn evaluate_document_typed_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    current_source_order: Option<usize>,
+    current_source_order: Option<f64>,
 ) -> ScalarEvaluation {
     evaluate_typed_expression(
         expression,

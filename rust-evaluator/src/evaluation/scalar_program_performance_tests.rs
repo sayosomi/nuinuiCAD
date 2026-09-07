@@ -30,6 +30,7 @@ fn scalar_program(binding_count: usize) -> Value {
 
 fn evaluate(program: Value) -> EvaluationPayload {
     evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

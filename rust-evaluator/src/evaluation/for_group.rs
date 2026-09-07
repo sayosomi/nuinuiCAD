@@ -398,6 +398,7 @@ mod tests {
     fn state_for(element: Value) -> EvaluationState {
         let id = element["id"].as_str().unwrap().to_owned();
         EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(id, 0)]),
             drawing_modifiers: json!([]),

@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::geometry_error;
+use super::geometry_value_kernels::{segment_geometry_kernel, StructuralPoint};
 use super::math::{
     angle_from_to, arc_tangent_angles, circle_through_three_points, positive_sweep_degrees,
 };
@@ -40,11 +41,13 @@ pub(crate) fn evaluate_line(
     ) else {
         return;
     };
-    let dx = end.x - start.x;
-    let dy = end.y - start.y;
-    let length = dx.hypot(dy);
-    let start_angle = angle_from_to(&start, &end);
-    let end_angle = angle_from_to(&end, &start);
+    let structural = segment_geometry_kernel(
+        StructuralPoint {
+            x: start.x,
+            y: start.y,
+        },
+        StructuralPoint { x: end.x, y: end.y },
+    );
     let id = element_id(element).unwrap_or_default();
     insert_geometry(
         state,
@@ -57,11 +60,11 @@ pub(crate) fn evaluate_line(
             "endPointId": anchor_reference_element_id(end_anchor),
             "start": computed_point(start.element_id, start.name, start.x, start.y),
             "end": computed_point(end.element_id, end.name, end.x, end.y),
-            "length": length,
-            "startAngleDeg": start_angle,
-            "endAngleDeg": end_angle,
-            "startTangentAngleDeg": start_angle,
-            "endTangentAngleDeg": end_angle
+            "length": structural.length,
+            "startAngleDeg": structural.start_angle_deg,
+            "endAngleDeg": structural.end_angle_deg,
+            "startTangentAngleDeg": structural.start_tangent_angle_deg,
+            "endTangentAngleDeg": structural.end_tangent_angle_deg
         }),
     );
 }

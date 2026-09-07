@@ -41,6 +41,7 @@ import { presenceFactsForSemanticFalse, presenceFactsForSemanticTruth } from "./
 import { isDslGeometryValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import { parseDslSourceReference } from "./dslReferenceTokens";
 import { moduleGeometryInterfaceTypeOfElement } from "./moduleGeometryInterfaces";
+import { geometryValueConstructionControlFlowUnsupported } from "./geometryValueConstructionScope";
 
 export type ModuleBodyDefinition = {
   statement: Extract<DslStatement, { kind: "moduleDefinition" }>;
@@ -417,19 +418,28 @@ export const analyzeModuleBody = ({
         if (initializerSpan) {
           const isConstruction = /^[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(statement.initializer.trim());
           if (isConstruction) {
-            construction = resolveGeometryConstruction(
-              statementIndex,
-              definition.statementIndex,
-              statement.initializer,
-              initializerSpan,
-              statement.valueType.kind,
-              {
-                scalarResolver: (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
-                bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
-                geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
-                presenceFacts: presenceFactsForStatement(statementIndex)
-              }
-            );
+            if (geometryValueConstructionControlFlowUnsupported(input.sourceNamespace.scopeIndex, statementIndex)) {
+              addLocal(statementIndex, {
+                code: "geometry-value-construction-control-flow-unsupported",
+                span: initializerSpan,
+                message: "control flow 内の geometry construction value はこのSliceでは未対応です。",
+                presentation: { key: "diagnostic.geometry-value-construction-control-flow-unsupported" }
+              });
+            } else {
+              construction = resolveGeometryConstruction(
+                statementIndex,
+                definition.statementIndex,
+                statement.initializer,
+                initializerSpan,
+                statement.valueType.kind,
+                {
+                  scalarResolver: (reference, presenceFacts) => resolveBodyScalar(statementIndex, reference, presenceFacts),
+                  bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
+                  geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+                  presenceFacts: presenceFactsForStatement(statementIndex)
+                }
+              );
+            }
           } else {
             const parsedReference = parseDslSourceReference(statement.initializer.trim());
             if (parsedReference.kind !== "valid") {

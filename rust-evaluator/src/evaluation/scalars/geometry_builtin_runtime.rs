@@ -80,7 +80,7 @@ pub(crate) enum GeometryBuiltinRuntimeError {
 
 pub(crate) fn resolve_geometry_builtin_target(
     state: &EvaluationState,
-    current_source_order: usize,
+    current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
     if target.statement_id.is_empty() {
@@ -141,7 +141,7 @@ pub(crate) fn resolve_geometry_builtin_target(
             GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
         };
     }
-    if target.statement_index >= current_source_order as f64 {
+    if target.statement_index >= current_source_order {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
     if !state.elements_by_id.contains_key(&target.statement_id) {

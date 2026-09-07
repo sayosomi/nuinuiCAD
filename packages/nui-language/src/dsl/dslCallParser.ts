@@ -49,6 +49,7 @@ export type DslConstructionInvocation = {
   args: ScannedArg[];
   payloadSpans: Record<string, DslSpan>;
   categories: readonly string[];
+  category: string | null;
   elementType: CadElementType | null;
   pureValueInterface?: "point" | "line";
 };
@@ -56,6 +57,13 @@ export type DslConstructionInvocation = {
 export type DslConstructionInvocationParseResult = {
   invocation: DslConstructionInvocation | null;
   diagnostics: DslCallDiagnostic[];
+};
+
+export type ParseDslConstructionInvocationOptions = {
+  spanOffset?: number;
+  /** Semantic callers may select the applicable registry overload before
+   * validation. Generic parser callers retain the registry's first candidate. */
+  spec?: import("./dslConstructions").DslConstructionSpec;
 };
 
 export type ParseDslCallOptions = { opensBlock?: boolean };
@@ -370,7 +378,7 @@ const validateArgs = (
  */
 export const parseDslConstructionInvocation = (
   source: string,
-  { spanOffset = 0 }: { spanOffset?: number } = {}
+  { spanOffset = 0, spec: selectedSpec }: ParseDslConstructionInvocationOptions = {}
 ): DslConstructionInvocationParseResult => {
   const diagnostics: DslCallDiagnostic[] = [];
   const head = source.match(identifier);
@@ -394,7 +402,7 @@ export const parseDslConstructionInvocation = (
   const scanned = scanCallArgs(source, callSpan);
   diagnostics.push(...scanned.errors);
   const categories = categoriesForConstruction(construction);
-  const category = categories[0];
+  const category = selectedSpec?.category ?? categories[0];
   const payloadSpans: Record<string, DslSpan> = {};
   if (!category) {
     diagnostic(diagnostics, `未知の construction「${construction}」です。`, { start: 0, end: construction.length }, "unknown-construction", {
@@ -419,6 +427,7 @@ export const parseDslConstructionInvocation = (
       })),
       payloadSpans: Object.fromEntries(Object.entries(payloadSpans).map(([key, span]) => [key, projectSpan(span)])),
       categories,
+      category: category ?? null,
       elementType: category ? constructionFor(category, construction)?.elementType ?? null : null,
       ...(category && constructionFor(category, construction)?.pureValueInterface
         ? { pureValueInterface: constructionFor(category, construction)!.pureValueInterface }

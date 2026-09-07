@@ -52,7 +52,7 @@ pub(crate) trait ScalarEvaluationEnvironment {
         &self,
         _element_id: &str,
         _property: &str,
-        _target_source_order: usize,
+        _target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         ScalarEvaluation::Error {
@@ -296,7 +296,7 @@ fn eval_node<'a>(
                 environment.lookup_geometry_property(
                     element_id,
                     property,
-                    *target_source_order as usize,
+                    *target_source_order,
                     r#type,
                 )
             };

@@ -321,7 +321,7 @@ impl ScalarEvaluationEnvironment for ForGroupMutationEvaluationEnvironment<'_, '
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(
@@ -329,7 +329,7 @@ impl ScalarEvaluationEnvironment for ForGroupMutationEvaluationEnvironment<'_, '
             element_id,
             property,
             target_source_order,
-            Some(self.source_order),
+            Some(self.source_order as f64),
             property_type,
         )
     }

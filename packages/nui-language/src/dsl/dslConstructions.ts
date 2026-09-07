@@ -259,6 +259,10 @@ export const constructionFor = (category: string, construction: string): DslCons
 export const constructionCandidatesFor = (category: string): readonly DslConstructionSpec[] =>
   constructionSpecs.filter((spec) => spec.category === category);
 
+/** All registry specs for one construction spelling, in registry order. */
+export const constructionSpecsFor = (construction: string): readonly DslConstructionSpec[] =>
+  constructionSpecs.filter((spec) => spec.construction === construction);
+
 /** Categories that define a construction spelling, in registry declaration order.
  * A bare mutation construction has no `<category> <name> =` head to suggest a
  * category for, so it is deliberately excluded here - see bareConstructionFor. */

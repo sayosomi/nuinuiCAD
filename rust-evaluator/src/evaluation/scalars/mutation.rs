@@ -349,7 +349,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(
@@ -357,7 +357,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
             element_id,
             property,
             target_source_order,
-            Some(self.source_order),
+            Some(self.source_order as f64),
             property_type,
         )
     }
@@ -376,7 +376,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
             point_key,
             property,
             target_source_order,
-            Some(self.source_order),
+            Some(self.source_order as f64),
             property_type,
         )
     }
@@ -388,7 +388,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order, target)
+        resolve_geometry_builtin_target(self.state, self.source_order as f64, target)
     }
 }
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {

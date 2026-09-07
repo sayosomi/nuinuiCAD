@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::division_placement::{decode_division_placement, DivisionPlacementKind};
 use super::errors::geometry_error;
+use super::geometry_value_kernels::coordinate_geometry_kernel;
 use super::math::CIRCLE_EPSILON;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{
@@ -34,10 +35,11 @@ pub(crate) fn evaluate_free_point(
         return;
     };
     let id = element_id(element).unwrap_or_default();
+    let point = coordinate_geometry_kernel(x, y);
     insert_geometry(
         state,
         id.clone(),
-        computed_point(id, element_name(element), x, y),
+        computed_point(id, element_name(element), point.x, point.y),
     );
 }
 

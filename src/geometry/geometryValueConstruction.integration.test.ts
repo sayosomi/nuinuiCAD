@@ -85,6 +85,95 @@ describe("pure geometry construction runtime", () => {
     expect(scalars.get("binding:geometry-value-runtime:9")).toBe(0);
   });
 
+  it("passes a constructed line directly to a strict read-only line consumer", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const C: point = coordinate(x: 5, y: -5)",
+      "const D: point = coordinate(x: 5, y: 5)",
+      "const L: line = segment(start: @A, end: @B)",
+      "const R: line = segment(start: @C, end: @D)",
+      "point I = intersection(line1: @L, line2: @R, index: 0, extensions: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get("geometry-value-runtime:7")).toMatchObject({ kind: "point", x: 5, y: 0 });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
+  });
+
+  it("passes a constructed path and its alias to broad line consumers", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "const A: point = coordinate(x: 0, y: 0)",
+      "const B: point = coordinate(x: 10, y: 0)",
+      "const L: path = segment(start: @A, end: @B)",
+      "const Alias: path = @L",
+      "line Offset = offset(sources: [@Alias], distance: 1, side: right, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "offsetLine" });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
+    expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
+  });
+
+  it("passes a Module-exported constructed line to a root consumer", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M() {",
+      "  const A: point = coordinate(x: 0, y: 0)",
+      "  const B: point = coordinate(x: 10, y: 0)",
+      "  export const Out: line = segment(start: @A, end: @B)",
+      "}",
+      "const C: point = coordinate(x: 5, y: -5)",
+      "const D: point = coordinate(x: 5, y: 5)",
+      "const R: line = segment(start: @C, end: @D)",
+      "instance One = M()",
+      "point I = intersection(line1: @One::Out, line2: @R, index: 0, extensions: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get("geometry-value-runtime:10")).toMatchObject({ kind: "point", x: 5, y: 0 });
+    expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
+  });
+
+  it("rejects immutable geometry values in mutation target roles", () => {
+    for (const [mutation, expectedCount] of [
+      ["edge(end1: @L.start, end2: @L.end)", 2],
+      ["extend(end: @L.start, to: (3, 0))", 1],
+      ["move(targets: [@L], from: (0, 0), to: (1, 0))", 1],
+      ["mirrorMove(targets: [@L], axis1: (0, 0), axis2: (0, 1))", 1],
+      ["reverse(target: @L)", 1]
+    ] as const) {
+      const compiled = compile([
+        "nui 1",
+        "const A: point = coordinate(x: 0, y: 0)",
+        "const B: point = coordinate(x: 10, y: 0)",
+        "const L: line = segment(start: @A, end: @B)",
+        mutation
+      ].join("\n"));
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-mutation-target-unsupported")).toHaveLength(expectedCount);
+      expect(compiled.document).toBeNull();
+    }
+  });
+
+  it("preserves registry defaults and rejects drawable metadata exactly once", () => {
+    const omitted = evaluate(["nui 1", "const P: point = coordinate(x: 12)"].join("\n"));
+    expect(omitted.result.errors).toEqual([]);
+    expect([...omitted.result.computedGeometryValues!.values()][0]?.value).toEqual({ kind: "point", x: 12, y: 0 });
+
+    const unknown = compile(["nui 1", "const P: point = coordinate(unknown: 1)"].join("\n"));
+    expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "unknown-construction-argument")).toHaveLength(1);
+    expect(unknown.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(0);
+
+    const metadata = compile(["nui 1", "const P: point = coordinate(x: 1, id: p1, state: disabled, roles: [draft], parent: @G, branch: then)"].join("\n"));
+    expect(metadata.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-drawable-metadata")).toHaveLength(5);
+  });
+
   it("keeps later references fail-closed", () => {
     const compiled = compile([
       "nui 1",

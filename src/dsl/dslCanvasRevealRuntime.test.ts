@@ -114,6 +114,7 @@ const runtime = ({
 }): ModuleGeometryRuntimeCompilation => ({
   diagnostics: [],
   resolversByRuntimeElementId: new Map(),
+  geometryInputTargetsByRuntimeElementId: new Map(),
   resolveBuiltinTarget: (_target, instancePath, expectedGeometryType) => {
     const id = builtin.get(JSON.stringify(instancePath));
     return id ? { kind: "drawable", elementId: id, geometryType: expectedGeometryType } : undefined;

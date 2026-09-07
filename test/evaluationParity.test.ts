@@ -55,6 +55,26 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     );
   }, 30000);
 
+  it("uses the materialized runtime position for Module geometry-property reads", () => {
+    const fixture = readParityFixture(repoRoot, "nui1-geometry-value-module-runtime-order.nui");
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustFixture(repoRoot, fixture);
+    const use = fixture.elements.find((element) => element.name === "Use")!;
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({
+        kind: "line",
+        start: { x: 7, y: 42 },
+        end: { x: 0, y: 42 }
+      });
+    }
+  }, 30000);
+
   it("evaluates Label, Bare, and Boolean through the Rust-first declarations/templates fixture", () => {
     const fixture = readParityFixture(repoRoot, "nui1-declarations-templates.nui");
     const options = optionsFor(fixture);

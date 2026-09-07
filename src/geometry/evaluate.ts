@@ -103,6 +103,8 @@ export type EvaluateElementsOptions = {
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   moduleMaterialization?: ModuleMaterialization;
+  /** Compiler-resolved read-only line/path consumer targets. */
+  geometryInputTargetsByElementId?: ReadonlyMap<ElementId, ReadonlyMap<string, import("../types/geometry").GeometryInputTarget | readonly import("../types/geometry").GeometryInputTarget[]>>;
   /** Compiled immutable geometry values; never converted into elements. */
   geometryValueProgram?: GeometryValueProgram;
   /**
@@ -803,6 +805,9 @@ export const evaluateElements = (
       disabledByGroupId,
       localVariables,
       elements: runtimeElements,
+      ...(options.geometryInputTargetsByElementId?.has((sourceElement ?? element).id)
+        ? { geometryInputTargets: options.geometryInputTargetsByElementId.get((sourceElement ?? element).id) }
+        : {}),
       ...(textTemplateForElement
         ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
         : {})

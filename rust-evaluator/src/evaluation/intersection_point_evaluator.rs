@@ -2,6 +2,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input;
 use super::line_intersections::find_line_intersections;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::computed_point;
@@ -37,7 +38,8 @@ pub(crate) fn evaluate_intersection_point(
         return;
     }
 
-    let Some(line1) = state.computed_geometry.get(line1_id).cloned() else {
+    let owner_id = element_id(element).unwrap_or_default();
+    let Some(line1) = resolve_line_geometry_input(state, &owner_id, "line1Id", line1_id) else {
         state
             .errors
             .push(dependency_error(state, element, line1_id));
@@ -50,7 +52,7 @@ pub(crate) fn evaluate_intersection_point(
         return;
     }
 
-    let Some(line2) = state.computed_geometry.get(line2_id).cloned() else {
+    let Some(line2) = resolve_line_geometry_input(state, &owner_id, "line2Id", line2_id) else {
         state
             .errors
             .push(dependency_error(state, element, line2_id));

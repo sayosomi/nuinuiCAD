@@ -5,6 +5,7 @@ use serde_json::json;
 #[test]
 fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -70,6 +71,7 @@ fn evaluates_ordered_open_and_closed_polylines_with_duplicate_segments() {
 #[test]
 fn rejects_polyline_cardinality_without_computed_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -104,6 +106,7 @@ fn rejects_polyline_cardinality_without_computed_geometry() {
 #[test]
 fn suppressed_closed_closure_still_reports_the_first_point_as_end() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -146,6 +149,7 @@ fn suppressed_closed_closure_still_reports_the_first_point_as_end() {
 #[test]
 fn splits_a_polyline_through_the_existing_broad_path_consumer() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

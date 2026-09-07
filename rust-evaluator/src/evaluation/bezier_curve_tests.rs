@@ -44,6 +44,7 @@ fn simple_bezier() -> Value {
 #[test]
 fn evaluates_single_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -79,6 +80,7 @@ fn evaluates_single_segment_bezier_curve() {
 #[test]
 fn evaluates_multi_segment_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -131,6 +133,7 @@ fn evaluates_multi_segment_bezier_curve() {
 #[test]
 fn evaluates_bezier_curve_from_coordinate_anchors() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -180,6 +183,7 @@ fn evaluates_bezier_curve_from_coordinate_anchors() {
 #[test]
 fn keeps_distinct_stable_slot_ids_when_intermediate_slots_share_an_external_point() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -241,6 +245,7 @@ fn keeps_distinct_stable_slot_ids_when_intermediate_slots_share_an_external_poin
 #[test]
 fn reverse_preserves_bezier_stable_intermediate_points_and_numeric_positions() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -357,6 +362,7 @@ fn reverse_preserves_bezier_stable_intermediate_points_and_numeric_positions() {
 #[test]
 fn reports_bezier_curve_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -389,6 +395,7 @@ fn reports_bezier_curve_dependency_that_appears_too_late() {
 #[test]
 fn evaluates_bezier_curve_numeric_parameters() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -433,6 +440,7 @@ fn evaluates_bezier_curve_numeric_parameters() {
 #[test]
 fn evaluates_bezier_curve_with_hyphenated_element_ids() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -492,6 +500,7 @@ fn evaluates_bezier_curve_with_hyphenated_element_ids() {
 #[test]
 fn resolves_bezier_derived_points() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
@@ -552,6 +561,7 @@ fn resolves_bezier_derived_points() {
 #[test]
 fn allows_supported_point_elements_to_reference_bezier_curve() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
         geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,

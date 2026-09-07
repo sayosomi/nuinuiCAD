@@ -1,5 +1,5 @@
 import { referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId, GeometryValueOccurrence } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
@@ -51,6 +51,7 @@ export type ModuleGeometryBuiltinRuntimeTarget =
 export type ModuleGeometryRuntimeCompilation = {
   diagnostics: readonly DslDiagnostic[];
   resolversByRuntimeElementId: ReadonlyMap<ElementId, DslGeometryResolverOverrides>;
+  geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   resolvePropertyTarget: (
     target: ModuleGeometryPropertySourceTarget,
     instancePath: readonly string[],
@@ -84,6 +85,7 @@ export const buildModuleGeometryRuntime = ({
   const contextsByPath = new Map<string, InstanceContext>();
   const exportsByPath = new Map<string, ReadonlyMap<string, ExportEntry>>();
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
+  const geometryInputTargetsByRuntimeElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     if (exported.backingTarget) {
@@ -280,8 +282,13 @@ export const buildModuleGeometryRuntime = ({
       materialization: moduleMaterialization,
       exportsByPath
     });
+    const targetsForElement = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
+      recordGeometryInputTarget: (_elementId, parameterKey, target) => {
+        targetsForElement.set(parameterKey, target);
+        geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement);
+      },
       resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
         token,
         entry.sourceStatementIndex,
@@ -365,5 +372,5 @@ export const buildModuleGeometryRuntime = ({
     return undefined;
   };
 
-  return { diagnostics, resolversByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
+  return { diagnostics, resolversByRuntimeElementId, geometryInputTargetsByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
 };

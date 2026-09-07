@@ -345,6 +345,7 @@ mod tests {
 
     fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
         EvaluationInput {
+            geometry_input_targets: None,
             geometry_value_program: None,
             module_materialization: None,
             property_bindings: None,
@@ -390,6 +391,7 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("bezierCurve"));
         let mut state = EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),
@@ -434,6 +436,7 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("line"));
         let mut state = EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),
