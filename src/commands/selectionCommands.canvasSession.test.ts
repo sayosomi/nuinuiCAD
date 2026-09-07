@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { initialCadDocumentState, useCadDocumentStore } from "../state/cadDocumentStore";
+import { initialCadDocumentState, useCadDocumentStore, type SelectionSnapshot } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import {
   canvasSelectionForElement,
@@ -26,7 +26,7 @@ describe("ephemeral Canvas overlap selection", () => {
     publishTestCanvasSelectionEligibility(elements);
   });
 
-  it("calculates replace, toggle, and document-order range selection from a snapshot", () => {
+  it("calculates replace, additive, toggle, and document-order range selection from a snapshot", () => {
     expect(canvasSelectionForElement(elements, {
       selectedElementId: "a",
       selectedElementIds: ["a"],
@@ -35,6 +35,26 @@ describe("ephemeral Canvas overlap selection", () => {
       selectedElementId: "c",
       selectedElementIds: ["c"],
       selectionAnchorElementId: "c"
+    });
+
+    expect(canvasSelectionForElement(elements, {
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a"
+    }, "c", "add")).toEqual({
+      selectedElementId: "c",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "c"
+    });
+
+    expect(canvasSelectionForElement(elements, {
+      selectedElementId: "c",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "c"
+    }, "a", "add")).toEqual({
+      selectedElementId: "a",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "a"
     });
 
     expect(canvasSelectionForElement(elements, {
@@ -55,6 +75,28 @@ describe("ephemeral Canvas overlap selection", () => {
       selectedElementId: "c",
       selectedElementIds: ["a", "b", "c"],
       selectionAnchorElementId: "a"
+    });
+  });
+
+  it("keeps additive Canvas clicks in click order without introducing document-order members", () => {
+    let selection: SelectionSnapshot = {
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a"
+    };
+
+    selection = canvasSelectionForElement(elements, selection, "c", "add")!;
+    expect(selection).toEqual({
+      selectedElementId: "c",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "c"
+    });
+
+    selection = canvasSelectionForElement(elements, selection, "b", "add")!;
+    expect(selection).toEqual({
+      selectedElementId: "b",
+      selectedElementIds: ["a", "c", "b"],
+      selectionAnchorElementId: "b"
     });
   });
 
@@ -93,6 +135,25 @@ describe("ephemeral Canvas overlap selection", () => {
     expect(useCadUiStore.getState().selectedElementId).toBeNull();
     expect(useCadDocumentStore.getState().redoCanvasSelection()).toBe(true);
     expect(useCadUiStore.getState().selectedElementId).toBe("b");
+  });
+
+  it("previews additive overlap candidates from the saved session baseline", () => {
+    useCadUiStore.getState().setSelectedElementId("a");
+    const before = canvasSelectionSnapshot();
+
+    previewCanvasSelection(before, "c", "add");
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "c",
+      selectedElementIds: ["a", "c"],
+      selectionAnchorElementId: "c"
+    });
+
+    previewCanvasSelection(before, "b", "add");
+    expect(useCadUiStore.getState()).toMatchObject({
+      selectedElementId: "b",
+      selectedElementIds: ["a", "b"],
+      selectionAnchorElementId: "b"
+    });
   });
 
   it("does not record history when the final preview equals the baseline", () => {
@@ -140,6 +201,17 @@ describe("ephemeral Canvas overlap selection", () => {
     useCadUiStore.getState().setSelectedElementId("a");
 
     expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "b", "replace"))
+      .toBeNull();
+    expect(canvasSelectionForElement(mixedElements, {
+      selectedElementId: "a",
+      selectedElementIds: ["a", "b", "c"],
+      selectionAnchorElementId: "a"
+    }, "a", "add")).toEqual({
+      selectedElementId: "a",
+      selectedElementIds: ["a"],
+      selectionAnchorElementId: "a"
+    });
+    expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "b", "add"))
       .toBeNull();
     expect(canvasSelectionForElement(mixedElements, canvasSelectionSnapshot(), "c", "toggle"))
       .toBeNull();

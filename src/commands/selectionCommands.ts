@@ -92,7 +92,7 @@ const clearTransientSelectionUi = () => {
   useCadUiStore.getState().clearPickMode();
 };
 
-export type CanvasSelectionMode = "replace" | "toggle" | "range";
+export type CanvasSelectionMode = "replace" | "add" | "toggle" | "range";
 
 const mutateCanvasSelection = (recordHistory: boolean, mutate: () => void) => {
   const before = {
@@ -129,6 +129,17 @@ export const canvasSelectionForElement = (
     return {
       selectedElementId: elementId,
       selectedElementIds: [elementId],
+      selectionAnchorElementId: elementId
+    };
+  }
+
+  if (selectionMode === "add") {
+    const selectedElementIds = eligibleBeforeIds.includes(elementId)
+      ? eligibleBeforeIds
+      : [...eligibleBeforeIds, elementId];
+    return {
+      selectedElementId: elementId,
+      selectedElementIds,
       selectionAnchorElementId: elementId
     };
   }

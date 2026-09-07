@@ -282,7 +282,8 @@ describe("DrawingCanvas point drag activation threshold", () => {
 
   it("preserves Shift orthogonal locking after the drag threshold is crossed", () => {
     const movePointElementByDelta = vi.fn();
-    const { viewport } = renderCanvas({ movePointElementByDelta });
+    const selectElement = vi.fn();
+    const { viewport } = renderCanvas({ movePointElementByDelta, selectElement });
 
     fireEvent.pointerDown(viewport, {
       button: 0,
@@ -298,6 +299,8 @@ describe("DrawingCanvas point drag activation threshold", () => {
       clientY: pointScreen.y + 5,
       pointerId: 3
     });
+
+    expect(selectElement).toHaveBeenCalledWith("point-a", "add");
 
     expect(movePointElementByDelta.mock.calls[0]?.[0]).toMatchObject({
       dx: 9,
