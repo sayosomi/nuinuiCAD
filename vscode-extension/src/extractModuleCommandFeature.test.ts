@@ -278,6 +278,118 @@ describe("VS Code Extract Module command feature", () => {
     expect(names).toEqual(["First", "Second", "Ordinary"]);
   });
 
+  it("projects an independent producer Module-instance observation through the consumer Host compile", () => {
+    const producer = compiledFor(moduleSource);
+    const consumer = compiledFor(moduleSource);
+    const producerElements = producer.compiled.document?.elements ?? [];
+    const producerFirst = producerElements.find((element) => element.name === "First");
+    const consumerFirst = consumer.compiled.document?.elements.find((element) => element.name === "First");
+    expect(producerFirst && consumerFirst).toBeTruthy();
+    if (!producerFirst || !consumerFirst) return;
+
+    const producerStatementId = producer.compiled.statementMap?.statementIdByStatementIndex?.get(
+      producer.compiled.statements.findIndex((statement) => statement.kind === "moduleInstance" && statement.name === "First")
+    );
+    const consumerStatementId = consumer.compiled.statementMap?.statementIdByStatementIndex?.get(
+      consumer.compiled.statements.findIndex((statement) => statement.kind === "moduleInstance" && statement.name === "First")
+    );
+    expect(producerFirst.id).not.toBe(consumerFirst.id);
+    expect(producerStatementId).not.toBe(consumerStatementId);
+
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(
+      [producerFirst.id],
+      producer.compiled,
+      producerElements
+    );
+    const targets = collectExtractModuleCanvasTargets({
+      snapshot: observationFor({ selectedElementIds: [producerFirst.id], selectedElementSources }),
+      source: consumer.sourceSnapshot,
+      compiled: consumer.compiled
+    });
+    expect(targets).toEqual([consumerStatementId]);
+  });
+
+  it("rejects malformed, wrong-source, and ambiguous Module-instance structural observations", () => {
+    const producer = compiledFor(moduleSource);
+    const consumer = compiledFor(moduleSource);
+    const producerElements = producer.compiled.document?.elements ?? [];
+    const producerFirst = producerElements.find((element) => element.name === "First");
+    expect(producerFirst).toBeDefined();
+    if (!producerFirst) return;
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(
+      [producerFirst.id],
+      producer.compiled,
+      producerElements
+    );
+    expect(selectedElementSources).toHaveLength(1);
+    const selectedSource = selectedElementSources[0];
+    expect(selectedSource && "runtimeKind" in selectedSource).toBe(true);
+    if (!selectedSource || !("runtimeKind" in selectedSource)) return;
+
+    expect(collectExtractModuleCanvasTargets({
+      snapshot: observationFor({
+        selectedElementIds: [producerFirst.id],
+        selectedElementSources: [{ ...selectedSource, sourceStatementPath: [-1] }]
+      }),
+      source: consumer.sourceSnapshot,
+      compiled: consumer.compiled
+    })).toEqual([]);
+    expect(collectExtractModuleCanvasTargets({
+      snapshot: observationFor({
+        selectedElementIds: [producerFirst.id],
+        selectedElementSources
+      }),
+      source: { ...consumer.sourceSnapshot, normalizedSource: `${moduleSource}\n` },
+      compiled: consumer.compiled
+    })).toEqual([]);
+
+    const consumerMaterialization = consumer.compiled.moduleMaterialization!;
+    const consumerFirstRuntime = consumerMaterialization.executionStatements.find(
+      (entry) => entry.type === "moduleInstance" && entry.statement.name === "First"
+    );
+    expect(consumerFirstRuntime?.origin).toBeDefined();
+    if (!consumerFirstRuntime?.origin) return;
+    const ambiguousOrigins = new Map(consumerMaterialization.originByRuntimeElementId);
+    ambiguousOrigins.set("ambiguous-runtime", consumerFirstRuntime.origin);
+    const ambiguousCompiled = {
+      ...consumer.compiled,
+      moduleMaterialization: {
+        ...consumerMaterialization,
+        originByRuntimeElementId: ambiguousOrigins
+      }
+    };
+    expect(collectExtractModuleCanvasTargets({
+      snapshot: observationFor({ selectedElementIds: [producerFirst.id], selectedElementSources }),
+      source: consumer.sourceSnapshot,
+      compiled: ambiguousCompiled
+    })).toEqual([]);
+  });
+
+  it("keeps ordinary Canvas projection index-based across independent producer and consumer compiles", () => {
+    const producer = compiledFor(moduleSource);
+    const consumer = compiledFor(moduleSource);
+    const producerElements = producer.compiled.document?.elements ?? [];
+    const producerOrdinary = producerElements.find((element) => element.name === "Ordinary");
+    const consumerOrdinary = consumer.compiled.document?.elements.find((element) => element.name === "Ordinary");
+    expect(producerOrdinary && consumerOrdinary).toBeTruthy();
+    if (!producerOrdinary || !consumerOrdinary) return;
+
+    const selectedElementSources = selectedElementSourcesForCanvasObservation(
+      [producerOrdinary.id],
+      producer.compiled,
+      producerElements
+    );
+    expect(collectExtractModuleCanvasTargets({
+      snapshot: observationFor({ selectedElementIds: [producerOrdinary.id], selectedElementSources }),
+      source: consumer.sourceSnapshot,
+      compiled: consumer.compiled
+    })).toEqual([
+      consumer.compiled.statementMap!.statementIdByStatementIndex!.get(
+        consumer.compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Ordinary")
+      )
+    ]);
+  });
+
   it("rejects a mixed authored and moduleBody Canvas selection before naming or mutation", async () => {
     const { session, compiled, sourceSnapshot } = compiledFor(moduleSource);
     const elements = compiled.document?.elements ?? [];
