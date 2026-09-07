@@ -5,6 +5,7 @@ use super::bezier_math::{
     cubic_derivative, project_point_onto_curve, signed_curvature_at, Point as BezierPoint, EPSILON,
 };
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input;
 use super::line_path::tangent_at_point_on_geometry;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{computed_point, point_anchor_or_error};
@@ -119,7 +120,9 @@ pub(crate) fn evaluate_line_tangent_offset_point(
     let Some(base_line_id) = element.get("baseLineId").and_then(Value::as_str) else {
         return;
     };
-    let Some(base_line) = state.computed_geometry.get(base_line_id).cloned() else {
+    let owner_id = element_id(element).unwrap_or_default();
+    let Some(base_line) = resolve_line_geometry_input(state, &owner_id, "baseLineId", base_line_id)
+    else {
         state
             .errors
             .push(dependency_error(state, element, base_line_id));

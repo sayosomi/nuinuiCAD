@@ -71,7 +71,8 @@ export const evaluateTextElement = (
         context.localVariables.localVariableValues,
         context.localVariables.localVariableNames,
         context.disabledByGroupId,
-        context.elements
+        context.elements,
+        context.computedGeometryValues
       )
     : null;
   if (element.anchor && !anchor) return true;

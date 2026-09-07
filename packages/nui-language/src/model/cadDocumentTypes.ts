@@ -163,6 +163,20 @@ export type LineEndpointReference = {
   endpointKey: "start" | "end";
 };
 
+/** Runtime occurrence identity for an immutable geometry value. This is
+ * intentionally not an ElementId: values are source-owned and may occur once
+ * at the root or once per existing Module instance path. */
+export type GeometryValueOccurrence = {
+  sourceStatementId: string;
+  instancePath: readonly string[];
+};
+
+/** Runtime-only input for a read-only geometry consumer. This is deliberately
+ * separate from persisted ElementId fields and is never a drawable identity. */
+export type GeometryInputTarget =
+  | { kind: "drawable"; elementId: ElementId; geometryType: "line" | "path" }
+  | { kind: "geometryValue"; occurrence: GeometryValueOccurrence; geometryType: "line" | "path" };
+
 export type LineDivisionPointElement = CadElementBase & {
   type: "lineDivisionPoint";
   endpoint: LineEndpointReference;
@@ -213,6 +227,11 @@ export type PointAnchor =
       mode: "coordinate";
       x: NumericValue;
       y: NumericValue;
+    }
+  | {
+      mode: "geometryValue";
+      occurrence: GeometryValueOccurrence;
+      pointKey?: string;
     };
 
 export type LineElement = CadElementBase & {

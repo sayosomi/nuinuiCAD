@@ -34,19 +34,25 @@ position where they are used. Geometry properties are separately typed; only
 properties documented as numeric or as a specific choice can be read in a
 scalar expression. See [Expressions](expressions.md).
 
-Typed declarations may hold one immutable geometry reference:
+Typed declarations may hold one immutable geometry value:
 
 ```text
 const origin: point = @A
 const edge: line = @AB
 const outline: path = @edge
+const originPoint: point = coordinate(x: 0, y: 0)
+const measuredEdge: line = segment(start: @originPoint, end: (10, 0))
+const broadEdge: path = segment(start: @originPoint, end: (10, 0))
 ```
 
-The initializer must be an existing `@` geometry reference. These values are
-source-level aliases, not drawable elements or scalar runtime values. The
-declared type remains the public type through alias chains: `point` accepts
+The initializer may be an existing legal `@` geometry reference or one of the
+implemented pure construction forms: `coordinate` produces `point`, and
+`segment` produces strict `line`, which is also assignable to `path`. These
+values are source-level values, not drawable elements or scalar runtime values.
+The declared type remains the public type through alias chains: `point` accepts
 only `point`, `line` accepts only `line`, and `path` accepts `line` or `path`.
-Single-geometry values are `const`-only.
+Single-geometry values are `const`-only. Other constructions are not yet
+implemented as pure value initializers.
 
 ## Geometry arrays
 

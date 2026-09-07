@@ -3,7 +3,8 @@ import { categoriesForConstruction, constructionCandidatesFor, constructionFor }
 import {
   CONSTRUCTION_CATEGORY_MISMATCH_CODE,
   UNCLOSED_CALL_CODE,
-  parseDslCallStatement
+  parseDslCallStatement,
+  parseDslConstructionInvocation
 } from "./dslCallParser";
 import { parseDsl } from "./dslParser";
 
@@ -158,5 +159,39 @@ describe("DSL nui 1 construction registry parser queries", () => {
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).toContain("transformCopy");
     expect(constructionCandidatesFor("line").map((spec) => spec.construction)).not.toContain("copy");
     expect(categoriesForConstruction("offset")).toEqual(["point", "line"]);
+  });
+
+  it("uses the selected registry spec once for pure constructor argument validation", () => {
+    expect(parseDslConstructionInvocation("coordinate()").diagnostics).toEqual([]);
+    expect(parseDslConstructionInvocation("coordinate(x: 2)").diagnostics).toEqual([]);
+    expect(parseDslConstructionInvocation("segment(end: @B)").diagnostics.map((item) => item.code)).toEqual([undefined]);
+    expect(parseDslConstructionInvocation("segment(start: @A)").diagnostics.map((item) => item.code)).toEqual([undefined]);
+
+    const pointOffset = parseDslConstructionInvocation("offset(from: @A, dx: 1, dy: 2)", {
+      spec: constructionFor("point", "offset")!
+    });
+    const pathOffset = parseDslConstructionInvocation("offset(sources: [@L], distance: 1, side: right)", {
+      spec: constructionFor("line", "offset")!
+    });
+    const linePolar = parseDslConstructionInvocation("polar(start: @A, angle: 0, length: 10)", {
+      spec: constructionFor("line", "polar")!
+    });
+
+    expect(pointOffset.invocation?.category).toBe("point");
+    expect(pathOffset.invocation?.category).toBe("line");
+    expect(linePolar.invocation?.category).toBe("line");
+    expect(pointOffset.diagnostics).toEqual([]);
+    expect(pathOffset.diagnostics).toEqual([]);
+    expect(linePolar.diagnostics).toEqual([]);
+  });
+
+  it("keeps unknown arguments and required arguments owned by the shared validator", () => {
+    const unknown = parseDslConstructionInvocation("coordinate(unknown: 1)");
+    expect(unknown.diagnostics.filter((item) => item.code === "unknown-construction-argument")).toHaveLength(1);
+    expect(unknown.diagnostics.filter((item) => item.message.includes("drawable metadata"))).toHaveLength(0);
+
+    for (const source of ["segment(start: @A)", "segment(end: @B)"]) {
+      expect(parseDslConstructionInvocation(source).diagnostics.filter((item) => item.message.includes("必須引数"))).toHaveLength(1);
+    }
   });
 });

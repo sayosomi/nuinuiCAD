@@ -255,7 +255,9 @@ const moduleCompiled = (): Pick<
   const moduleGeometryRuntime: ModuleGeometryRuntimeCompilation = {
     diagnostics: [],
     resolversByRuntimeElementId: new Map(),
+    geometryInputTargetsByRuntimeElementId: new Map(),
     resolveBuiltinTarget: (_target, path, expectedGeometryType) => ({
+      kind: "drawable",
       elementId: path[0] === "call-1" ? "point-1" : "point-2",
       geometryType: expectedGeometryType
     }),

@@ -6,6 +6,7 @@ use super::bezier_math::{
     solve_real_quadratic, value_point, BezierFeatureCandidate, Point, EPSILON,
 };
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::computed_point;
 use super::scalars::{degrees_to_radians, normalize_degrees_360};
@@ -27,7 +28,9 @@ pub(crate) fn evaluate_bezier_extreme_point(
     let Some(base_line_id) = element.get("baseLineId").and_then(Value::as_str) else {
         return;
     };
-    let Some(source) = state.computed_geometry.get(base_line_id).cloned() else {
+    let owner_id = element_id(element).unwrap_or_default();
+    let Some(source) = resolve_line_geometry_input(state, &owner_id, "baseLineId", base_line_id)
+    else {
         state
             .errors
             .push(dependency_error(state, element, base_line_id));
@@ -188,7 +191,9 @@ pub(crate) fn evaluate_bezier_bulge_point(
     let Some(base_line_id) = element.get("baseLineId").and_then(Value::as_str) else {
         return;
     };
-    let Some(source) = state.computed_geometry.get(base_line_id).cloned() else {
+    let owner_id = element_id(element).unwrap_or_default();
+    let Some(source) = resolve_line_geometry_input(state, &owner_id, "baseLineId", base_line_id)
+    else {
         state
             .errors
             .push(dependency_error(state, element, base_line_id));
@@ -345,6 +350,8 @@ mod tests {
 
     fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
         EvaluationInput {
+            geometry_input_targets: None,
+            geometry_value_program: None,
             module_materialization: None,
             property_bindings: None,
             control_boolean_bindings: None,
@@ -389,12 +396,14 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("bezierCurve"));
         let mut state = EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry,
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),
@@ -432,12 +441,14 @@ mod tests {
         let mut computed_geometry = HashMap::new();
         computed_geometry.insert("curve".to_owned(), source_geometry("line"));
         let mut state = EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element.clone()],
             elements_by_id,
             drawing_modifiers: serde_json::json!([]),
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry,
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),

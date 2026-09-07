@@ -30,6 +30,7 @@ fn state_with_geometry(
         elements_by_id.insert(id.to_owned(), 0);
     }
     EvaluationState {
+        geometry_input_targets: HashMap::new(),
         elements: if include_element {
             vec![json!({"id": id})]
         } else {
@@ -40,6 +41,7 @@ fn state_with_geometry(
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -63,9 +65,10 @@ fn target(
 ) -> ScalarExpressionResolvedGeometryTarget {
     ScalarExpressionResolvedGeometryTarget {
         statement_id: id.to_owned(),
-        statement_index: index,
+        statement_index: index as f64,
         geometry_type,
         point_key: None,
+        geometry_value_occurrence: None,
     }
 }
 
@@ -76,9 +79,10 @@ fn derived_target(
 ) -> ScalarExpressionResolvedGeometryTarget {
     ScalarExpressionResolvedGeometryTarget {
         statement_id: id.to_owned(),
-        statement_index: index,
+        statement_index: index as f64,
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some(point_key.to_owned()),
+        geometry_value_occurrence: None,
     }
 }
 
@@ -114,7 +118,7 @@ fn earlier_point_target_resolves() {
     assert!(matches!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("point-id", 1, GeometryInterfaceType::Point)
         ),
         Ok(GeometryBuiltinRuntimeTarget::Point(_))
@@ -132,7 +136,7 @@ fn hidden_geometry_target_remains_usable() {
     assert!(matches!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("point-id", 1, GeometryInterfaceType::Point)
         ),
         Ok(GeometryBuiltinRuntimeTarget::Point(_))
@@ -144,7 +148,7 @@ fn disabled_geometry_target_has_a_distinct_runtime_failure() {
     let state = disabled_state_with_geometry("point-id", point_value(2.0, 3.0));
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(
-        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        resolve_geometry_builtin_target(&state, 2.0, &expected_target),
         Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
     );
 }
@@ -161,7 +165,7 @@ fn modifier_disabled_geometry_target_has_a_distinct_runtime_failure() {
 
     let expected_target = target("point-id", 1, GeometryInterfaceType::Point);
     assert_eq!(
-        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        resolve_geometry_builtin_target(&state, 2.0, &expected_target),
         Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
     );
 }
@@ -176,7 +180,7 @@ fn ancestor_group_disabled_geometry_target_has_a_distinct_runtime_failure() {
     state.elements_by_id = HashMap::from([("group".to_owned(), 0), ("child".to_owned(), 1)]);
     let expected_target = target("child", 1, GeometryInterfaceType::Point);
     assert_eq!(
-        resolve_geometry_builtin_target(&state, 2, &expected_target),
+        resolve_geometry_builtin_target(&state, 2.0, &expected_target),
         Err(GeometryBuiltinRuntimeError::Disabled(expected_target))
     );
 }
@@ -187,7 +191,7 @@ fn self_and_forward_targets_reject() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("point-id", 2, GeometryInterfaceType::Point)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -195,7 +199,7 @@ fn self_and_forward_targets_reject() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("point-id", 3, GeometryInterfaceType::Point)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -208,7 +212,7 @@ fn fabricated_computed_geometry_without_an_element_rejects() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("fabricated", 1, GeometryInterfaceType::Point)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -225,7 +229,7 @@ fn point_target_requires_point_runtime_kind() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("line-id", 1, GeometryInterfaceType::Point)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -239,8 +243,9 @@ fn derived_start_and_end_targets_resolve_to_points() {
         line_value(point_value(2.0, 3.0), point_value(5.0, 7.0)),
         true,
     );
-    let start = resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "start"));
-    let end = resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "end"));
+    let start =
+        resolve_geometry_builtin_target(&state, 2.0, &derived_target("line-id", 1, "start"));
+    let end = resolve_geometry_builtin_target(&state, 2.0, &derived_target("line-id", 1, "end"));
     assert!(
         matches!(start, Ok(GeometryBuiltinRuntimeTarget::Point(point)) if point.x == 2.0 && point.y == 3.0)
     );
@@ -257,7 +262,7 @@ fn derived_target_requires_an_available_base_geometry() {
         false,
     );
     assert_eq!(
-        resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "start")),
+        resolve_geometry_builtin_target(&state, 2.0, &derived_target("line-id", 1, "start")),
         Err(GeometryBuiltinRuntimeError::Unavailable)
     );
 }
@@ -270,7 +275,7 @@ fn invalid_derived_projection_fails_closed_as_unavailable() {
         true,
     );
     assert_eq!(
-        resolve_geometry_builtin_target(&state, 2, &derived_target("line-id", 1, "center")),
+        resolve_geometry_builtin_target(&state, 2.0, &derived_target("line-id", 1, "center")),
         Err(GeometryBuiltinRuntimeError::Unavailable)
     );
 }
@@ -283,7 +288,7 @@ fn line_target_requires_strict_line_kind_and_start_end() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &arc_state,
-            2,
+            2.0,
             &target("arc", 1, GeometryInterfaceType::Line)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -297,7 +302,7 @@ fn line_target_requires_strict_line_kind_and_start_end() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &missing_end,
-            2,
+            2.0,
             &target("line", 1, GeometryInterfaceType::Line)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -314,7 +319,7 @@ fn offset_line_is_not_a_strict_line() {
     assert_eq!(
         resolve_geometry_builtin_target(
             &state,
-            2,
+            2.0,
             &target("offset", 1, GeometryInterfaceType::Line)
         ),
         Err(GeometryBuiltinRuntimeError::Unavailable)
@@ -332,7 +337,7 @@ fn zero_length_line_rejects_at_and_below_threshold() {
         assert_eq!(
             resolve_geometry_builtin_target(
                 &state,
-                2,
+                2.0,
                 &target("line", 1, GeometryInterfaceType::Line)
             ),
             Err(GeometryBuiltinRuntimeError::ZeroLengthLine)
@@ -349,7 +354,7 @@ fn line_longer_than_threshold_validates() {
     );
     assert!(resolve_geometry_builtin_target(
         &state,
-        2,
+        2.0,
         &target("line", 1, GeometryInterfaceType::Line)
     )
     .is_ok());

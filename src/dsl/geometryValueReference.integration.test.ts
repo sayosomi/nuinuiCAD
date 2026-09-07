@@ -121,13 +121,14 @@ describe("immutable single-geometry reference values", () => {
     expect(compiled.scalarProgram?.statements).toHaveLength(1);
   });
 
-  it("accepts only existing @geometry references and requires const", () => {
+  it("accepts coordinate/segment constructions and requires const", () => {
     const construction = compile([
       "nui 1",
       "const origin: point = coordinate(x: 0, y: 0)"
     ].join("\n"));
-    expect(errorCodes(construction)).toContain("geometry-value-reference-required");
-    expect(construction.document).toBeNull();
+    expect(construction.diagnostics).toEqual([]);
+    expect(construction.document?.elements).toEqual([]);
+    expect(construction.geometryValueProgram?.map((entry) => entry.construction.kind)).toEqual(["coordinate"]);
 
     const mutable = compile([
       "nui 1",
@@ -136,6 +137,56 @@ describe("immutable single-geometry reference values", () => {
     ].join("\n"));
     expect(errorCodes(mutable)).toContain("geometry-value-const-only");
     expect(mutable.document).toBeNull();
+  });
+
+  it("keeps construction interfaces and initializer argument spans source-owned", () => {
+    const source = [
+      "nui 1",
+      "const P: point = coordinate(x: 10, y: 20)",
+      "const AsPath: path = segment(start: @P, end: (30, 20))"
+    ].join("\n");
+    const compiled = compile(source, "geometry-value-spans");
+    expect(compiled.diagnostics).toEqual([]);
+    const values = compiled.moduleSemanticAnalysis?.geometryValues ?? [];
+    const point = values.find((value) => value.name === "P")!;
+    const path = values.find((value) => value.name === "AsPath")!;
+    expect(point.declaredInterfaceType).toBe("point");
+    expect(point.construction).toMatchObject({ kind: "coordinate" });
+    const pointLineStart = source.indexOf("const P");
+    expect(point.construction?.kind === "coordinate" && point.construction.x?.ast.span).toEqual({ start: source.indexOf("10") - pointLineStart, end: source.indexOf("10") - pointLineStart + 2 });
+    expect(path.declaredInterfaceType).toBe("path");
+    expect(path.construction).toMatchObject({ kind: "segment" });
+    expect(path.construction?.kind === "segment" && path.construction.start.span).toEqual({
+      start: source.indexOf("@P", source.indexOf("segment")) - source.indexOf("const AsPath"),
+      end: source.indexOf("@P", source.indexOf("segment")) - source.indexOf("const AsPath") + 2
+    });
+  });
+
+  it("typechecks the construction subset, rejects deferred constructors, and preserves spans", () => {
+    const incompatible = compile([
+      "nui 1",
+      "const badPoint: line = coordinate(x: 0, y: 0)",
+      "const badLine: point = segment(start: (0, 0), end: (1, 0))"
+    ].join("\n"), "geometry-value-construction-mismatch");
+    expect(errorCodes(incompatible)).toEqual([
+      "module-geometry-type-mismatch",
+      "module-geometry-type-mismatch"
+    ]);
+
+    const deferred = compile([
+      "nui 1",
+      "const deferred: path = bezier(start: (0, 0), end: (1, 0))"
+    ].join("\n"), "geometry-value-deferred-construction");
+    expect(errorCodes(deferred)).toContain("geometry-value-unsupported-construction");
+    expect(deferred.diagnostics.find((diagnostic) => diagnostic.code === "geometry-value-unsupported-construction")?.physicalSpan?.segments[0]).toEqual(
+      expect.objectContaining({ from: 29, to: 35 })
+    );
+
+    const metadata = compile([
+      "nui 1",
+      "const P: point = coordinate(x: 0, y: 0, id: P)"
+    ].join("\n"), "geometry-value-metadata");
+    expect(errorCodes(metadata)).toContain("geometry-value-drawable-metadata");
   });
 
   it("retains existing undefined and forward-reference diagnostics for aliases", () => {

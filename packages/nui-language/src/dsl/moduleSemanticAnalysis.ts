@@ -1,8 +1,9 @@
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
+import { commonArgSpecs, constructionFor, constructionSpecsFor, isGeometryDeclarationCategory, type DslGeometryDeclarationCategory } from "./dslConstructions";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
+  moduleGeometryInterfaceTypeOfConstruction,
   moduleGeometryInterfaceTypeOfElement,
   moduleRuntimeGeometryKindOf,
   type ModuleGeometryInterfaceType
@@ -30,6 +31,7 @@ import { moduleCallEdges, moduleRecursionCycles } from "./moduleCallGraph";
 import { analyzeModuleBody } from "./moduleBodySemantic";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { coordinateComponent } from "./dslParameterSpanScanner";
+import { parseDslConstructionInvocation } from "./dslCallParser";
 import { splitDslList } from "./dslTokens";
 import { getParameterDefinitions, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -41,6 +43,7 @@ import {
 } from "../geometry/numericGeometryProperties";
 import { isDerivedPointKeyForGeometryCategory, isKnownDerivedPointKey, isLineEndpointPointKey } from "../model/pointAnchors";
 import { scopeChain, type ScopeId } from "../scalars/lexicalScopeIndex";
+import { geometryValueConstructionControlFlowUnsupported } from "./geometryValueConstructionScope";
 import {
   resolveModuleLexicalDeclaration as resolveSharedModuleLexicalDeclaration,
   resolveModuleLexicalPath as resolveSharedModuleLexicalPath
@@ -63,6 +66,7 @@ import type {
   ModuleRecordConstructorFieldSemantic,
   ModuleInstanceSemantic,
   ModuleGeometryReferenceRole,
+  ModuleGeometryConstructionSemantic,
   ModuleRecordFieldSourceTarget,
   ModuleRecordReferenceSemantic,
   ModuleRecordSourceTarget,
@@ -279,9 +283,18 @@ const geometryPropertyTargetForSourceTarget = (
 ): ModuleGeometryPropertySourceTarget | null => {
   const effectivePointKey = pointKey ?? target.pointKey;
   if (target.kind === "geometryValue") {
-    return target.backingTarget
-      ? geometryPropertyTargetForSourceTarget(target.backingTarget, property, effectivePointKey)
-      : null;
+    if (target.backingTarget) return geometryPropertyTargetForSourceTarget(target.backingTarget, property, effectivePointKey);
+    return {
+      kind: "geometryValueProperty",
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      declaredInterfaceType: target.declaredInterfaceType,
+      ...(target.ownerModuleDefinitionStatementId !== undefined ? { ownerModuleDefinitionStatementId: target.ownerModuleDefinitionStatementId } : {}),
+      ...(target.ownerModuleDefinitionStatementIndex !== undefined ? { ownerModuleDefinitionStatementIndex: target.ownerModuleDefinitionStatementIndex } : {}),
+      property,
+      ...(effectivePointKey ? { pointKey: effectivePointKey } : {}),
+      ...(target.identity ? { identity: target.identity } : {})
+    };
   }
   if (target.kind === "parameter") {
     return {
@@ -1714,13 +1727,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       const value = geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
       const actualInterfaceType = value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind;
-      const target = value?.backingTarget
+      const target = value
         ? {
             kind: "geometryValue" as const,
             statementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex),
             statementIndex: lookup.declaration.statementIndex,
             declaredInterfaceType: actualInterfaceType,
             backingTarget: value.backingTarget,
+            ownerModuleDefinitionStatementId: value.ownerModuleDefinitionStatementId,
+            ownerModuleDefinitionStatementIndex: value.ownerModuleDefinitionStatementIndex,
             ...(pointKey ? { pointKey } : {})
           }
         : null;
@@ -1767,6 +1782,127 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(null, "invalid", null, derivedRole);
     }
     return semantic(pointTarget, "resolved", null, derivedRole);
+  };
+
+  const parseGeometryValueConstruction = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    rawValue: string,
+    initializerSpan: DslSpan,
+    expectedInterfaceType: ModuleGeometryInterfaceType,
+    options: {
+      scalarResolver?: (reference: { name: string; span: DslSpan }, presenceFacts?: ReadonlySet<string>) => ModuleScalarReferenceResolution;
+      bareScalarResolver?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
+      geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
+      presenceFacts?: ReadonlySet<string>;
+    } = {}
+  ): ModuleGeometryConstructionSemantic | null => {
+    const constructionName = rawValue.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? "";
+    const selectedSpec = constructionSpecsFor(constructionName).find((candidate) =>
+      isModuleGeometryInterfaceAssignable(
+        moduleGeometryInterfaceTypeOfConstruction(candidate.category, candidate),
+        expectedInterfaceType
+      )
+    );
+    const parsed = parseDslConstructionInvocation(rawValue, {
+      spanOffset: initializerSpan.start,
+      ...(selectedSpec ? { spec: selectedSpec } : {})
+    });
+    for (const diagnostic of parsed.diagnostics) {
+      addLocal(statementIndex, issue(
+        diagnostic.code ?? "invalid-construction-call",
+        diagnostic.span,
+        diagnostic.message,
+        diagnostic.presentation ? { presentation: diagnostic.presentation } : {}
+      ));
+    }
+    const invocation = parsed.invocation;
+    if (!invocation || invocation.categories.length === 0) return null;
+    const constructionSpan = invocation.constructionSpan;
+    const selectedArgumentNames = new Set((selectedSpec?.args ?? []).map((argument) => argument.arg));
+    const drawableMetadataNames = new Set(commonArgSpecs.map((argument) => argument.arg));
+    for (const argument of invocation.args) {
+      if (argument.key !== null && drawableMetadataNames.has(argument.key) && !selectedArgumentNames.has(argument.key)) {
+        addLocal(statementIndex, issue(
+          "geometry-value-drawable-metadata",
+          argument.keySpan ?? argument.valueSpan,
+          `geometry value construction「${invocation.construction}」には drawable metadata または未対応の引数を指定できません。`,
+          { presentation: { key: "diagnostic.geometry-value-drawable-metadata", parameters: { construction: invocation.construction } } }
+        ));
+      }
+    }
+    if (!invocation.pureValueInterface) {
+      addLocal(statementIndex, issue(
+        "geometry-value-unsupported-construction",
+        constructionSpan,
+        `construction「${invocation.construction}」の pure geometry value runtime はこのSliceでは未対応です。`,
+        { presentation: { key: "diagnostic.geometry-value-unsupported-construction", parameters: { construction: invocation.construction } } }
+      ));
+      return null;
+    }
+    const source = input.logicalTextByStatementIndex?.get(statementIndex) ?? rawValue;
+    const argument = (name: string) => invocation.args.find((candidate) => candidate.key === name);
+    const xArgument = argument("x");
+    const yArgument = argument("y");
+    const startArgument = argument("start");
+    const endArgument = argument("end");
+    if (invocation.pureValueInterface === "point") {
+      if (expectedInterfaceType !== "point") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "coordinate construction は point value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "coordinate" } }
+        }));
+      }
+      const scalar = (candidate: typeof xArgument) => candidate
+        ? analyzeExpression(
+            statementIndex,
+            source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+            candidate.valueSpan,
+            { kind: "number" },
+            options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
+            options.bareScalarResolver,
+            options.geometryPropertyResolver,
+            undefined,
+            undefined,
+            options.presenceFacts
+          )
+        : analyzeExpression(
+            statementIndex,
+            "0",
+            { start: constructionSpan.end, end: constructionSpan.end + 1 },
+            { kind: "number" },
+            options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
+            options.bareScalarResolver,
+            options.geometryPropertyResolver,
+            undefined,
+            undefined,
+            options.presenceFacts
+          );
+      return { kind: "coordinate", span: { start: constructionSpan.start, end: initializerSpan.end }, x: scalar(xArgument), y: scalar(yArgument) };
+    }
+    if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
+      addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "segment construction は line または path value にのみ代入できます。", {
+        presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "segment" } }
+      }));
+    }
+    const endpoint = (candidate: typeof startArgument) => candidate
+      ? resolveGeometry(
+          statementIndex,
+          ownerIndex,
+          source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+          candidate.valueSpan,
+          "point",
+          {
+            expectedInterfaceType: "point",
+            allowCoordinate: true,
+            role: "lineEndpointReference",
+            scalarResolver: options.scalarResolver,
+            bareScalarResolver: options.bareScalarResolver,
+            geometryPropertyResolver: options.geometryPropertyResolver,
+            presenceFacts: options.presenceFacts
+          }
+        )
+      : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
+    return { kind: "segment", span: { start: constructionSpan.start, end: initializerSpan.end }, start: endpoint(startArgument), end: endpoint(endArgument) };
   };
 
   const resolveRootGeometry = (
@@ -1888,6 +2024,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       resolution: "invalid",
       diagnostic: issue("module-unknown-geometry-property", reference.span, `geometry property「${reference.property}」を解決できません。`, { presentation: { key: "diagnostic.module-unknown-geometry-property", parameters: { property: reference.property } } })
     });
+    const pointPath = /^(start|end)\.(x|y)$/.exec(reference.property);
+    const resolvedProperty = pointPath ? pointPath[2]! : reference.property;
+    const resolvedPointKey = pointPath ? pointPath[1] : undefined;
     const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
     if (qualified?.kind === "deferred") {
       const exported = qualifiedScalarExportFor(qualified);
@@ -1938,14 +2077,25 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type: null, resolution: "invalid", diagnostic: issue("module-optional-value-required", reference.span, `optional module parameter「${reference.elementName}」は hasValue(@${reference.elementName}) で存在を確認してから参照してください。`, { relatedSources, presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.elementName } } }) };
       }
       const interfaceType = moduleGeometryInterfaceTypeOf(lookup.parameter.parameter.type);
-      const type = numericGeometryPropertySupportedByStaticTarget(
-        interfaceType ? numericGeometryStaticTargetForModuleInterface(interfaceType) : null,
-        reference.property
-      )
+      const type = pointPath
+        ? { kind: "number" as const }
+        : numericGeometryPropertySupportedByStaticTarget(
+            interfaceType ? numericGeometryStaticTargetForModuleInterface(interfaceType) : null,
+            reference.property
+          )
         ? { kind: "number" as const }
         : null;
       if (!type) return unknownProperty();
-      return { target: { ...parameterTarget, kind: "parameterProperty", property: reference.property }, type, resolution: "resolved" };
+      return {
+        target: {
+          ...parameterTarget,
+          kind: "parameterProperty",
+          property: resolvedProperty,
+          ...(resolvedPointKey ? { pointKey: resolvedPointKey } : {})
+        },
+        type,
+        resolution: "resolved"
+      };
     }
     if (lookup.kind === "undefined") return { target: null, type: null, resolution: "undefined", diagnostic: issue("module-undefined-geometry-reference", reference.span, `未定義のgeometry「${reference.elementName}」を参照しています。`, { presentation: { key: "diagnostic.module-undefined-geometry-reference", parameters: { name: reference.elementName } } }) };
     if (lookup.kind === "iteration") return { target: null, type: null, resolution: "invalid", diagnostic: issue("module-geometry-property-type-mismatch", reference.span, `「${reference.elementName}」はgeometryではありません。`, { relatedSources: relatedForLookup(lookup), presentation: { key: "diagnostic.module-geometry-property-type-mismatch", parameters: { target: reference.elementName } } }) };
@@ -1960,13 +2110,27 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return { target: null, type: null, resolution: "outerCapture", diagnostic: issue("module-outer-capture", reference.span, `module body から outer geometry「${reference.elementName}」を暗黙 capture できません。`, { relatedSources: declarationRelated, presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } } }) };
       }
       const value = geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
-      const propertyTarget = value?.backingTarget
-        ? geometryPropertyTargetForSourceTarget(value.backingTarget, reference.property)
+      const valueTarget = value
+        ? {
+            kind: "geometryValue" as const,
+            statementId: value.statementId,
+            statementIndex: value.statementIndex,
+            declaredInterfaceType: value.declaredInterfaceType,
+            backingTarget: value.backingTarget,
+            ownerModuleDefinitionStatementId: value.ownerModuleDefinitionStatementId,
+            ownerModuleDefinitionStatementIndex: value.ownerModuleDefinitionStatementIndex,
+            ...(value.identity ? { identity: value.identity } : {})
+          }
         : null;
-      const type = numericGeometryPropertySupportedByStaticTarget(
-        numericGeometryStaticTargetForModuleInterface(value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind),
-        reference.property
-      )
+      const propertyTarget = valueTarget
+        ? geometryPropertyTargetForSourceTarget(valueTarget, resolvedProperty, resolvedPointKey)
+        : null;
+      const type = pointPath
+        ? { kind: "number" as const }
+        : numericGeometryPropertySupportedByStaticTarget(
+            numericGeometryStaticTargetForModuleInterface(value?.declaredInterfaceType ?? lookup.declaration.statement.valueType.kind),
+            reference.property
+          )
         ? { kind: "number" as const }
         : null;
       if (!propertyTarget || !type) return unknownProperty();
@@ -2159,28 +2323,49 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const statementId = statementIdAt(stableStatementIdByIndex, statementIndex);
     const initializerSpan = statement.payloadSpans.initializer;
     let initializer: ModuleGeometryReferenceSemantic | null = null;
+    let construction: ModuleGeometryConstructionSemantic | null = null;
     if (initializerSpan) {
-      const parsedReference = parseDslSourceReference(statement.initializer.trim());
-      if (parsedReference.kind !== "valid") {
+      const isConstruction = /^[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(statement.initializer.trim());
+      if (isConstruction) {
+        if (geometryValueConstructionControlFlowUnsupported(sourceNamespace.scopeIndex, statementIndex)) {
+          addLocal(statementIndex, issue(
+            "geometry-value-construction-control-flow-unsupported",
+            initializerSpan,
+            "control flow 内の geometry construction value はこのSliceでは未対応です。",
+            { presentation: { key: "diagnostic.geometry-value-construction-control-flow-unsupported" } }
+          ));
+        } else {
+          construction = parseGeometryValueConstruction(
+            statementIndex,
+            null,
+            statement.initializer,
+            initializerSpan,
+            statement.valueType.kind
+          );
+        }
+      } else {
+        const parsedReference = parseDslSourceReference(statement.initializer.trim());
+        if (parsedReference.kind !== "valid") {
         addLocal(statementIndex, issue(
           "geometry-value-reference-required",
           initializerSpan,
           "geometry value の初期化には既存の @geometry reference を指定してください。",
           { presentation: { key: "diagnostic.geometry-value-reference-required" } }
         ));
-      } else {
-        initializer = resolveGeometry(
-          statementIndex,
-          null,
-          statement.initializer,
-          initializerSpan,
-          statement.valueType.kind === "point" ? "point" : "line",
-          {
-            expectedInterfaceType: statement.valueType.kind,
-            allowCoordinate: false,
-            role: statement.valueType.kind === "point" ? "pointReference" : "lineReference"
-          }
-        );
+        } else {
+          initializer = resolveGeometry(
+            statementIndex,
+            null,
+            statement.initializer,
+            initializerSpan,
+            statement.valueType.kind === "point" ? "point" : "line",
+            {
+              expectedInterfaceType: statement.valueType.kind,
+              allowCoordinate: false,
+              role: statement.valueType.kind === "point" ? "pointReference" : "lineReference"
+            }
+          );
+        }
       }
     }
     const value: ModuleGeometryValueSemantic = {
@@ -2193,15 +2378,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ownerModuleDefinitionStatementIndex: null,
       exported: Boolean(statement.exported),
       initializer,
+      construction,
       backingTarget: initializer?.target ?? null
     };
     geometryValuesByStatementIndex.set(statementIndex, value);
     if (initializer && initializerSpan) {
-      rootGeometryReferencesByStatementId.set(statementId, [{
-        parameterKey: null,
-        span: initializerSpan,
-        reference: initializer
-      }]);
+      rootGeometryReferencesByStatementId.set(statementId, [{ parameterKey: null, span: initializerSpan, reference: initializer }]);
+    } else if (construction?.kind === "segment") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "start", span: construction.start.span, reference: construction.start },
+        { parameterKey: "end", span: construction.end.span, reference: construction.end }
+      ]);
     }
   }
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
@@ -2591,6 +2778,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       addLocal,
       analyzeExpression,
       resolveGeometry,
+      resolveGeometryConstruction: parseGeometryValueConstruction,
       resolvePlainScalarTarget,
       resolveBodyScalar: (statementIndex, reference, presenceFacts) => resolveBodyScalar(statementIndex, definition.statementIndex, reference, presenceFacts),
       resolveBodyBareScalar: (statementIndex, reference) => resolveBodyBareScalar(statementIndex, definition.statementIndex, reference),

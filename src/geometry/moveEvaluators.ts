@@ -372,7 +372,9 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
       errors,
       localVariableValues,
       localVariableNames,
-      disabledByGroupId
+      disabledByGroupId,
+      undefined,
+      context.computedGeometryValues
     );
     const endPoint = getPointAnchorOrError(
       element,
@@ -383,7 +385,9 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
       errors,
       localVariableValues,
       localVariableNames,
-      disabledByGroupId
+      disabledByGroupId,
+      undefined,
+      context.computedGeometryValues
     );
     const angleDeg = numericError(
       element,
@@ -429,7 +433,9 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   const axisPoint2 = getPointAnchorOrError(
     element,
@@ -440,7 +446,9 @@ export const evaluateMoveElement = (element: CadElement, context: ElementEvaluat
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   if (!axisPoint1 || !axisPoint2) return true;
   if (lineLength(axisPoint1, axisPoint2) <= 0) {

@@ -139,7 +139,10 @@ export const compileMaterializedExecution = ({
     );
   }
   const scopeIndexOf = (scopeKey: string, elements: CadElement[]) => createNameIndex(
-    scopeKey === "root" ? [...existing, ...elements] : elements
+    scopeKey === "root" ? [...existing, ...elements] : elements,
+    scopeKey === "root" && context.sourceLexicalResolution
+      ? context.sourceLexicalResolution
+      : undefined
   );
   const preliminaryIndexes = new Map<string, NameIndex>();
   for (const [scopeKey, scopedElements] of placeholderElementsByScope) {

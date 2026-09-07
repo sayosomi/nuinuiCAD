@@ -52,6 +52,8 @@ fn intersection(line1_id: &str, line2_id: &str, index: Value, use_extensions: bo
 #[test]
 fn evaluates_intersection_point_between_line_segments() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -93,6 +95,8 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         line_element("cd", "CD", "c", "d"),
     ];
     let without_extension = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -113,6 +117,8 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
         binding_versions: None,
     });
     let with_extension = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -145,6 +151,8 @@ fn uses_line_endpoint_tangent_extensions_when_requested() {
 #[test]
 fn evaluates_intersection_point_between_arc_and_line() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -188,6 +196,8 @@ fn evaluates_intersection_point_between_arc_and_line() {
 #[test]
 fn selects_intersection_point_by_index() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -231,6 +241,8 @@ fn selects_intersection_point_by_index() {
 #[test]
 fn reports_intersection_point_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -272,6 +284,8 @@ fn reports_intersection_point_geometry_errors() {
     ];
 
     let same_line = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -292,6 +306,8 @@ fn reports_intersection_point_geometry_errors() {
         binding_versions: None,
     });
     let invalid_index = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -312,6 +328,8 @@ fn reports_intersection_point_geometry_errors() {
         binding_versions: None,
     });
     let out_of_range = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -336,6 +354,8 @@ fn reports_intersection_point_geometry_errors() {
 #[test]
 fn reports_no_intersection_and_overlapping_lines() {
     let no_intersection = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -360,6 +380,8 @@ fn reports_no_intersection_and_overlapping_lines() {
         binding_versions: None,
     });
     let overlap = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -393,6 +415,8 @@ fn reports_no_intersection_and_overlapping_lines() {
 #[test]
 fn evaluates_intersection_index_numeric_parameter() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,

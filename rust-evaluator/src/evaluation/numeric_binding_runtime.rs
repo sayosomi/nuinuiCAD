@@ -404,7 +404,7 @@ pub(crate) fn apply_numeric_bindings(
                 expression,
                 resolver,
                 state,
-                current_source_order,
+                current_source_order.map(|order| order as f64),
             );
             let ScalarEvaluation::Ok {
                 r#type: ScalarType::Number,
@@ -547,6 +547,7 @@ mod tests {
 
     fn geometry_state(element: Value) -> EvaluationState {
         EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![
                 json!({
                     "id": "baseline",
@@ -580,6 +581,7 @@ mod tests {
                     }),
                 ),
             ]),
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: vec![String::from("baseline"), String::from("p")],
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),
@@ -592,12 +594,14 @@ mod tests {
 
     fn state(element: Value) -> EvaluationState {
         EvaluationState {
+            geometry_input_targets: HashMap::new(),
             elements: vec![element],
             elements_by_id: HashMap::from([(String::from("p"), 0)]),
             drawing_modifiers: serde_json::json!([]),
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry: HashMap::new(),
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),

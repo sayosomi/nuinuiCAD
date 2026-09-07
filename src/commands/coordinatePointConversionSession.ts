@@ -229,6 +229,7 @@ export const coordinatePointConversionReferenceSuggestions = (
     .find((value) => value !== undefined);
   const canonicalToken = sourceReferenceText(reference ?? null);
   if (!canonicalToken || candidate.anchor.mode === "coordinate") return [];
+  if (candidate.anchor.mode === "geometryValue") return [];
   const pickRef: PickRef = candidate.anchor.mode === "reference"
     ? {
         kind: "point:reference",

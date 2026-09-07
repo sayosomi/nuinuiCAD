@@ -207,9 +207,10 @@ fn geometry_argument(
         expected_geometry_type,
         target: Some(ScalarExpressionResolvedGeometryTarget {
             statement_id: statement_id.to_owned(),
-            statement_index,
+            statement_index: statement_index as f64,
             geometry_type: target_geometry_type,
             point_key: None,
+            geometry_value_occurrence: None,
         }),
     }
 }
@@ -412,7 +413,7 @@ impl ScalarEvaluationEnvironment for GeometryEnvironment {
         &self,
         _element_id: &str,
         _property: &str,
-        _target_source_order: usize,
+        _target_source_order: f64,
         _property_type: &ScalarType,
     ) -> ScalarEvaluation {
         self.geometry.clone()
@@ -486,8 +487,10 @@ fn evaluates_number_boolean_nested_reference_and_geometry_builtin_calls() {
                 property_span: span(),
                 element_name: "line".to_owned(),
                 element_id: "element:line".to_owned(),
+                geometry_value_occurrence: None,
+                geometry_value_point_key: None,
                 property: "length".to_owned(),
-                target_source_order: 0,
+                target_source_order: 0.0,
                 r#type: ScalarType::Number,
             },
             number_literal(0.0),
@@ -1146,9 +1149,10 @@ fn geometry_runtime_kind_mismatch_is_unavailable() {
 fn geometry_runtime_disabled_is_distinct_from_unavailable() {
     let disabled_target = ScalarExpressionResolvedGeometryTarget {
         statement_id: "disabled".to_owned(),
-        statement_index: 1,
+        statement_index: 1.0,
         geometry_type: GeometryInterfaceType::Point,
         point_key: None,
+        geometry_value_occurrence: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1195,15 +1199,17 @@ fn geometry_runtime_disabled_is_distinct_from_unavailable() {
 fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_point_key() {
     let first_target = ScalarExpressionResolvedGeometryTarget {
         statement_id: "first".to_owned(),
-        statement_index: 1,
+        statement_index: 1.0,
         geometry_type: GeometryInterfaceType::Point,
         point_key: None,
+        geometry_value_occurrence: None,
     };
     let second_target = ScalarExpressionResolvedGeometryTarget {
         statement_id: "second".to_owned(),
-        statement_index: 2,
+        statement_index: 2.0,
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some("start".to_owned()),
+        geometry_value_occurrence: None,
     };
     let node = geometry_call(
         BuiltinFunctionName::Distance,
@@ -1268,18 +1274,20 @@ fn geometry_runtime_disabled_reports_first_failed_target_and_preserves_derived_p
                     expected_geometry_type: GeometryInterfaceType::Point,
                     target: Some(ScalarExpressionResolvedGeometryTarget {
                         statement_id: "first".to_owned(),
-                        statement_index: 1,
+                        statement_index: 1.0,
                         geometry_type: GeometryInterfaceType::Point,
                         point_key: None,
+                        geometry_value_occurrence: None,
                     }),
                 },
                 TypedBuiltinArgument::GeometryReference {
                     expected_geometry_type: GeometryInterfaceType::Point,
                     target: Some(ScalarExpressionResolvedGeometryTarget {
                         statement_id: "second".to_owned(),
-                        statement_index: 2,
+                        statement_index: 2.0,
                         geometry_type: GeometryInterfaceType::Point,
                         point_key: Some("start".to_owned()),
+                        geometry_value_occurrence: None,
                     }),
                 },
             ],

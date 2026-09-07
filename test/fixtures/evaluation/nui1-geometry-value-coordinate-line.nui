@@ -1,0 +1,3 @@
+nui 1
+const P: point = coordinate(x: 10, y: 20)
+line L = segment(start: @P, end: (30, 20))

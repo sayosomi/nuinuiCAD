@@ -97,6 +97,7 @@ const pointAnchorValue = (
 ) => {
   if (!anchor) return undefined;
   if (anchor.mode === "coordinate") return evaluateNumericParameter(anchor[axis], context);
+  if (anchor.mode === "geometryValue") return undefined;
   const sourceId = anchor.mode === "reference" ? anchor.pointId : anchor.elementId;
   const geometry = context.evaluation.computedGeometry.get(sourceId);
   if (anchor.mode === "reference") return geometry?.kind === "point" ? geometry[axis] : undefined;

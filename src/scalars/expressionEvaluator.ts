@@ -20,10 +20,12 @@ import type { ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument } fro
 import { evaluateBuiltinFunction } from "./builtinFunctionSemantics";
 import { atan2Degrees360, radiansToDegrees } from "./angleMath";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarType, type ScalarValue } from "./types";
-import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
+import type { ComputedGeometry } from "../types/geometry";
+import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
 
 export type GeometryBuiltinTargetLookupResult =
   | ComputedGeometry
+  | ComputedGeometryValue
   | { kind: "unavailable"; reason: "disabled" };
 
 export interface ScalarEvaluationEnvironment {
@@ -76,13 +78,16 @@ type GeometryBuiltinName = "distance" | "angle" | "lineDistance" | "lineAngle";
 const isGeometryBuiltin = (name: string): name is GeometryBuiltinName =>
   name === "distance" || name === "angle" || name === "lineDistance" || name === "lineAngle";
 
-const distanceBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
+type GeometryPointLike = { x: number; y: number };
+type GeometryLineLike = { kind: "line"; start: GeometryPointLike; end: GeometryPointLike };
+
+const distanceBetweenPoints = (point1: GeometryPointLike, point2: GeometryPointLike): number =>
   Math.hypot(point2.x - point1.x, point2.y - point1.y);
 
-const angleBetweenPoints = (point1: ComputedPoint, point2: ComputedPoint): number =>
+const angleBetweenPoints = (point1: GeometryPointLike, point2: GeometryPointLike): number =>
   atan2Degrees360(point2.y - point1.y, point2.x - point1.x);
 
-const distancePointToInfiniteLine = (point: ComputedPoint, line: ComputedLine): number | null => {
+const distancePointToInfiniteLine = (point: GeometryPointLike, line: GeometryLineLike): number | null => {
   const dx = line.end.x - line.start.x;
   const dy = line.end.y - line.start.y;
   const length = Math.hypot(dx, dy);
@@ -176,7 +181,7 @@ const evaluateGeometryProperty = (
   if (node.type.kind !== "number" && node.type.kind !== "choice") {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  if (!node.elementId || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
+  if ((!node.elementId && !node.geometryValueOccurrence) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   const result = environment.lookupGeometryProperty(node);
@@ -307,7 +312,7 @@ const evaluateGeometryBuiltin = (
     : name === "lineAngle"
       ? ["line", "line"]
       : ["point", "point"];
-  const argumentsByPosition: ComputedGeometry[] = [];
+  const argumentsByPosition: (ComputedGeometry | ComputedGeometryValue)[] = [];
   for (const [index, argument] of node.args.entries()) {
     const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
     if (geometry?.kind === "unavailable") {

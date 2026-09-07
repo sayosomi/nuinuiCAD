@@ -23,6 +23,20 @@ export const constructionCompletionCandidates = (category: DslConstructionCatego
       detail: elementTypeLabels[spec.elementType]
     }));
 
+export const pureGeometryValueConstructionCandidates = (
+  interfaceType: "point" | "line" | "path"
+): readonly DslCallCompletionCandidate[] => {
+  const category = interfaceType === "point" ? "point" : "line";
+  const pureInterface = interfaceType === "point" ? "point" : "line";
+  return constructionCandidatesFor(category)
+    .filter((spec) => spec.pureValueInterface === pureInterface)
+    .map((spec) => ({
+      label: spec.construction,
+      apply: spec.construction,
+      detail: elementTypeLabels[spec.elementType]
+    }));
+};
+
 const userFacingCommonArgumentNames = new Set([
   "state",
   "color",

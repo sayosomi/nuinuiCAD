@@ -86,7 +86,12 @@ pub(crate) fn apply_property_bindings(
 
     for entry in entries {
         let evaluation = if let Some(expression) = entry.expression.as_ref() {
-            evaluate_document_typed_expression(expression, resolver, state, current_source_order)
+            evaluate_document_typed_expression(
+                expression,
+                resolver,
+                state,
+                current_source_order.map(|order| order as f64),
+            )
         } else if let Some(binding_id) = entry.binding_id.as_ref() {
             resolver.resolve_binding(binding_id, state)
         } else {

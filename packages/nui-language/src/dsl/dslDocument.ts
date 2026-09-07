@@ -43,6 +43,7 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
+import { isDslGeometryValueType } from "./dslValueTypes";
 import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
@@ -53,6 +54,7 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { geometryAliasForSourceElement, propertyForAlias } from "./moduleGeometryRuntimeLowering";
+import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
 import { compileModuleScalarRuntime, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import { MISSING_ATTRIBUTE_VALUE_CODE } from "./dslArgScanner";
 import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
@@ -272,6 +274,8 @@ export type CompiledDslDocument = {
   moduleMaterialization?: ModuleMaterialization;
   /** Compiler-owned Module geometry lowering for exact current runtime consumers. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
+  /** Compiled immutable geometry values; never part of document.elements. */
+  geometryValueProgram?: import("./moduleGeometryValueProgram").GeometryValueProgram;
   /** Source-derived scalar order for materialized runtime occurrences. */
   scalarExecutionPositionByRuntimeElementId?: ReadonlyMap<ElementId, number>;
   /** Direct materialized occurrences; runtime builders consume these without re-resolution. */
@@ -1278,6 +1282,41 @@ export const compileDslDocument = (
     };
   }
 
+  const rootGeometryValuePropertyResolver = sourceLexicalNamespace
+    ? ({ statementIndex, node }: {
+        statementIndex: number;
+        node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
+      }) => {
+        const lookup = resolveSourceLexicalDeclaration(
+          sourceLexicalNamespace,
+          statementIndex,
+          parseDslReferenceToken(node.elementName).segments[0] ?? node.elementName
+        );
+        if (lookup.kind !== "resolved" ||
+            lookup.declaration.kind !== "typedDeclaration" ||
+            lookup.declaration.statement.kind !== "typedDeclaration" ||
+            !isDslGeometryValueType(lookup.declaration.statement.valueType)) {
+          return null;
+        }
+        const declaredInterfaceType = lookup.declaration.statement.valueType.kind;
+        const pointPath = /^(start|end)\.(x|y)$/.exec(node.property);
+        const property = pointPath ? pointPath[2]! : node.property;
+        const pointKey = pointPath?.[1];
+        const valid = declaredInterfaceType === "point"
+          ? property === "x" || property === "y"
+          : property === "length" || property === "startAngleDeg" || property === "endAngleDeg" || Boolean(pointPath);
+        if (!valid) return null;
+        return {
+          kind: "geometryValue" as const,
+          occurrence: { sourceStatementId: stableStatementIdByIndex!.get(lookup.declaration.statementIndex)!, instancePath: [] },
+          property,
+          ...(pointKey ? { pointKey } : {}),
+          targetSourceOrder: lookup.declaration.statementIndex,
+          type: { kind: "number" as const }
+        };
+      }
+    : undefined;
+
   let scalarAnalysisCompilation = stableStatementIdByIndex
     ? analyzeTypedDeclarations({
         statements: parsed.statements,
@@ -1288,7 +1327,8 @@ export const compileDslDocument = (
         },
         spans,
         includeStatement,
-        sourceNamespace: sourceLexicalNamespace
+        sourceNamespace: sourceLexicalNamespace,
+        additionalGeometryPropertyResolver: rootGeometryValuePropertyResolver
       })
     : { diagnostics: [] };
   let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
@@ -1477,7 +1517,8 @@ export const compileDslDocument = (
           const site = statementId
             ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
             : undefined;
-          const property = site?.expression.geometryProperties.find((candidate) => candidate.span.start === node.span.start);
+          const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
+          const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
           const lookup = additionalBindingResolver(`${node.elementName}.${node.property}`, statementIndex, sourceLexicalNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceLexicalNamespace.scopeIndex.rootScopeId);
           return {
@@ -1496,7 +1537,8 @@ export const compileDslDocument = (
           const site = statementId
             ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
             : undefined;
-          const property = site?.expression.geometryProperties.find((candidate) => candidate.span.start === node.span.start);
+          const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
+          const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           const target = property?.target;
           if (!property?.type || !target) return null;
           if (target.kind === "sourceGeometryProperty") {
@@ -1513,6 +1555,19 @@ export const compileDslDocument = (
             return {
               elementId: lowered.elementId,
               property: lowered.property,
+              targetSourceOrder: target.statementIndex,
+              type: property.type
+            };
+          }
+          if (target.kind === "geometryValueProperty") {
+            return {
+              kind: "geometryValue",
+              occurrence: {
+                sourceStatementId: target.statementId,
+                instancePath: []
+              },
+              property: target.property,
+              ...(target.pointKey ? { pointKey: target.pointKey } : {}),
               targetSourceOrder: target.statementIndex,
               type: property.type
             };
@@ -1553,6 +1608,16 @@ export const compileDslDocument = (
               ...(pointKey ? { pointKey } : {})
             };
           }
+          if (unwrapped.target.kind === "geometryValue") {
+            return {
+              kind: "geometryValue",
+              occurrence: { sourceStatementId: unwrapped.target.statementId, instancePath: [] },
+              statementId: unwrapped.target.statementId,
+              statementIndex: unwrapped.target.statementIndex,
+              geometryType: expectedGeometryType,
+              ...(pointKey ? { pointKey } : {})
+            };
+          }
           return {
             statementId: unwrapped.target.instanceStatementId,
             statementIndex: unwrapped.target.instanceStatementIndex,
@@ -1579,12 +1644,59 @@ export const compileDslDocument = (
       stableStatementIdByIndex,
       sourceLexicalResolution: {
         sourceNamespace: sourceLexicalNamespace,
-        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+        elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+        ...(moduleSemanticCompilation
+          ? {
+              geometryValueByStatementIndex: new Map(
+                moduleSemanticCompilation.geometryValues.flatMap((value): Array<[
+                  number,
+                  {
+                    kind: "value" | "drawable";
+                    occurrence?: { sourceStatementId: string; instancePath: readonly string[] };
+                    declaredInterfaceType: "point" | "line" | "path";
+                    elementId?: string;
+                  }
+                ]> => {
+                  let backing = value.backingTarget;
+                  while (backing?.kind === "geometryValue" && backing.backingTarget) backing = backing.backingTarget;
+                  if (backing?.kind === "sourceGeometry") {
+                    const elementId = compiled.elementIdsByStatementIndex?.get(backing.statementIndex);
+                    return elementId
+                      ? [[
+                          value.statementIndex,
+                          {
+                            kind: "drawable" as const,
+                            declaredInterfaceType: value.declaredInterfaceType,
+                            elementId
+                          }
+                        ] as const]
+                      : [];
+                  }
+                  const sourceStatementId = backing?.kind === "geometryValue" ? backing.statementId : value.statementId;
+                  return [[
+                    value.statementIndex,
+                    {
+                      kind: "value" as const,
+                      occurrence: { sourceStatementId, instancePath: [] },
+                      declaredInterfaceType: value.declaredInterfaceType
+                    }
+                  ] as const];
+                })
+              )
+            }
+          : {})
       },
       moduleSemanticAnalysis: moduleSemanticCompilation,
       moduleRuntimeContext,
       majorVersion: versionValidation.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION
     });
+  }
+  if (moduleSemanticCompilation && !compiled.geometryValueProgram && stableStatementIdByIndex) {
+    const rootGeometryValueProgram = buildRootGeometryValueProgram({
+      values: moduleSemanticCompilation.geometryValues,
+      elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+    });
+    if (rootGeometryValueProgram.length > 0) compiled = { ...compiled, geometryValueProgram: rootGeometryValueProgram };
   }
   let scalarAnalysis = documentScalarAnalysis;
   let scalarProgram = documentScalarProgram;
@@ -1836,6 +1948,8 @@ export const compileDslDocument = (
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
+      ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
+      ...(moduleScalarCompilation?.geometryValueProgram ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
       ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
         ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
         : {}),
@@ -1928,7 +2042,9 @@ export const compileDslDocument = (
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(moduleRuntimeContext ? { moduleRuntimeContext } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
-    ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
+      ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
+      ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
+      ...(moduleScalarCompilation?.geometryValueProgram ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
       ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
       : {}),

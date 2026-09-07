@@ -12,6 +12,83 @@ const moduleBodyAt = (compiled: ReturnType<typeof compileWithIds>, statementInde
   compiled.moduleSemanticAnalysis!.definitions[0].bodyStatements.find((statement) => statement.statementIndex === statementIndex)!;
 
 describe("module semantic analysis", () => {
+  it("rejects construction-valued declarations in root and Module control flow", () => {
+    const rootCases = [
+      ["if (true) {", "  const P: point = coordinate(x: 1, y: 2)", "}"],
+      ["if (false) {", "} else {", "  const P: point = coordinate(x: 1, y: 2)", "}"],
+      ["for i in range(min: 0, max: 1, step: 1) {", "  const P: point = coordinate(x: 1, y: 2)", "}"],
+    ];
+    for (const body of rootCases) {
+      const compiled = compileWithIds(["nui 1", ...body].join("\n"));
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-construction-control-flow-unsupported")).toHaveLength(1);
+      expect(compiled.moduleSemanticAnalysis?.geometryValues.every((value) => value.construction === null)).toBe(true);
+    }
+
+    const moduleCases = [
+      ["if (true) {", "    const P: point = coordinate(x: 1, y: 2)", "  }"],
+      ["if (false) {", "  } else {", "    const P: point = coordinate(x: 1, y: 2)", "  }"],
+      ["for i in range(min: 0, max: 1, step: 1) {", "    const P: point = coordinate(x: 1, y: 2)", "  }"],
+    ];
+    for (const body of moduleCases) {
+      const compiled = compileWithIds([
+        "nui 1",
+        "module M(source: point) {",
+        ...body,
+        "}",
+        "instance Use = M(source: (0, 0))"
+      ].join("\n"));
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "geometry-value-construction-control-flow-unsupported")).toHaveLength(1);
+      expect(compiled.moduleSemanticAnalysis?.geometryValues.every((value) => value.construction === null)).toBe(true);
+    }
+  });
+
+  it("keeps reference-valued aliases valid in equivalent control scopes", () => {
+    const root = compileWithIds([
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "if (true) {",
+      "  const Alias: point = @Base",
+      "}"
+    ].join("\n"));
+    expect(root.diagnostics).toEqual([]);
+
+    const module = compileWithIds([
+      "nui 1",
+      "module M(source: point) {",
+      "  if (true) {",
+      "    const Alias: point = @source",
+      "  }",
+      "}",
+      "instance Use = M(source: (0, 0))"
+    ].join("\n"));
+    expect(module.diagnostics).toEqual([]);
+  });
+
+  it("selects the compatible overload before reporting deferred pure-runtime support", () => {
+    const pointOffset = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const P: point = offset(from: @A, dx: 1, dy: 2)"
+    ].join("\n"));
+    expect(pointOffset.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+
+    const pathOffset = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line L = segment(start: @A, end: @B)",
+      "const P: path = offset(sources: [@L], distance: 1, side: right)"
+    ].join("\n"));
+    expect(pathOffset.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+
+    const linePolar = compileWithIds([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "const L: line = polar(start: @A, angle: 0, length: 10)"
+    ].join("\n"));
+    expect(linePolar.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(["geometry-value-unsupported-construction"]);
+  });
+
   it("requires optional scalar presence proof and narrows a guarded branch", () => {
     const unguarded = compileWithIds([
       "nui 1",

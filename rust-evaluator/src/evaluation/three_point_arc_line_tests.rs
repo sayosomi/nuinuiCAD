@@ -47,6 +47,8 @@ fn base_three_point_arc() -> Vec<Value> {
 #[test]
 fn evaluates_three_point_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -85,6 +87,8 @@ fn evaluates_three_point_arc_line() {
 #[test]
 fn evaluates_three_point_arc_wrap_and_measurement_reference() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -136,6 +140,8 @@ fn evaluates_three_point_arc_wrap_and_measurement_reference() {
 #[test]
 fn reports_three_point_arc_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -177,6 +183,8 @@ fn reports_three_point_arc_dependency_that_appears_too_late() {
 #[test]
 fn reports_three_point_arc_geometry_error_for_collinear_points() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -222,6 +230,8 @@ fn reports_three_point_arc_geometry_error_for_collinear_points() {
 #[test]
 fn evaluates_three_point_arc_numeric_parameters() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -318,6 +328,8 @@ fn allows_supported_point_elements_to_reference_three_point_arc() {
         })),
     ]);
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,

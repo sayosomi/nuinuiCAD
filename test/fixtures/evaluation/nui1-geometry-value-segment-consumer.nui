@@ -1,0 +1,11 @@
+nui 1
+const P: point = coordinate(x: 0, y: 0)
+const Q: point = coordinate(x: 3, y: 4)
+const L: line = segment(start: @P, end: @Q)
+const Length: number = @L.length
+const Distance: number = distance(@P, @Q)
+line Later = segment(start: @L.start, end: @L.end)
+point Tangent = tangentOffset(line: @L, base: @P, angle: 0, distance: 2)
+point Division = onLine(from: @L.end, ratio: 0.5)
+line Transform = transformCopy(startPoint: @P, endPoint: @Q, scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@L])
+line Mirror = mirrorCopy(axis1: @P, axis2: @Q, baseLines: [@L])

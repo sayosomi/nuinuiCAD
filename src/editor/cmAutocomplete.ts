@@ -13,7 +13,7 @@ import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { dslCompletionContextAt, dslIntermediatesAttributeParameterKey, type DslCompletionContext } from "../dsl/dslCompletionContext";
 import { scanDslSource } from "../dsl/dslTokens";
 import { dslChoiceTypeName, dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "../dsl/dslDeclarationParser";
-import { argumentCompletionCandidates, constructionCompletionCandidates } from "../dsl/dslCallCompletionCandidates";
+import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "../dsl/dslCallCompletionCandidates";
 import { dslReferenceCompletionOptions } from "../dsl/dslCompletionCandidates";
 import {
   createLogicalStatementSourceMap,
@@ -867,6 +867,11 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
     completions = neutralQuery
       ? neutralCompletions
       : constructionCompletionCandidates(completionContext.category).map((candidate) => ({ ...candidate, type: "function" }));
+    usesNeutralQuery = neutralQuery !== null;
+  } else if (completionContext.kind === "geometryValueInitializer") {
+    completions = neutralQuery
+      ? neutralCompletions
+      : pureGeometryValueConstructionCandidates(completionContext.declaredType).map((candidate) => ({ ...candidate, type: "function" }));
     usesNeutralQuery = neutralQuery !== null;
   } else if (completionContext.kind === "argument") {
     const moduleMetadata = options.semanticMetadataFresh?.() === false ? undefined : options.moduleSemanticMetadata?.();

@@ -111,11 +111,12 @@ const semanticCandidates = ({
     return paths.map((instancePath) => {
       const direct = directGeometryTargetId(compiled, target, instancePath);
       if (direct) return direct;
-      return moduleGeometryRuntime?.resolveBuiltinTarget(
+      const lowered = moduleGeometryRuntime?.resolveBuiltinTarget(
         target,
         instancePath,
         semantic.reference.expectedGeometryKind
-      )?.elementId ?? null;
+      );
+      return lowered?.kind === "drawable" ? lowered.elementId : null;
     });
   }
 

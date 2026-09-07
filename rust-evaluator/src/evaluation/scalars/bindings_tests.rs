@@ -58,12 +58,14 @@ fn program(statements: Vec<ValidatedScalarProgramStatement>) -> ValidatedScalarP
 
 fn empty_state() -> EvaluationState {
     EvaluationState {
+        geometry_input_targets: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: serde_json::json!([]),
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),

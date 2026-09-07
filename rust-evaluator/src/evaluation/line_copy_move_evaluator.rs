@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::errors::{dependency_error, geometry_error};
 use super::line_copy_geometry::copied_offset_line_geometry;
+use super::line_geometry_input::resolve_line_geometry_input_at;
 use super::line_transform::{transform_line_like_geometry, LineTransform};
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::offset_paths::is_line_like_geometry;
@@ -38,15 +39,16 @@ fn collect_base_geometries(
     let ids = base_line_ids(element);
     let mut geometries = Vec::new();
     let mut has_missing_base = false;
-    for id in &ids {
-        let geometry = state.computed_geometry.get(id);
-        if !is_line_like_geometry(geometry) {
+    let owner_id = element_id(element).unwrap_or_default();
+    for (index, id) in ids.iter().enumerate() {
+        let geometry = resolve_line_geometry_input_at(state, &owner_id, "baseLineIds", index, id);
+        if !is_line_like_geometry(geometry.as_ref()) {
             state.errors.push(dependency_error(state, element, id));
             has_missing_base = true;
             continue;
         }
         if let Some(geometry) = geometry {
-            geometries.push(geometry.clone());
+            geometries.push(geometry);
         }
     }
     (!has_missing_base).then_some((ids, geometries))

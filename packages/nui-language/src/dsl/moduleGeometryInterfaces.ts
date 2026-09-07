@@ -1,4 +1,4 @@
-import { constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
+import { constructionFor, isGeometryDeclarationCategory, type DslConstructionSpec } from "./dslConstructions";
 import type { DslModuleParameterType, DslStatement } from "./dslTypes";
 
 /** Public geometry interfaces exposed by Module signatures. */
@@ -32,12 +32,21 @@ export const moduleGeometryInterfaceTypeOfElement = (
   statement: DslStatement | null | undefined
 ): ModuleGeometryInterfaceType | null => {
   if (statement?.kind !== "element" || !isGeometryDeclarationCategory(statement.category)) return null;
-  if (statement.category === "point") return "point";
-  if (statement.category !== "line" && statement.category !== "curve" && statement.category !== "arc") return null;
+  return moduleGeometryInterfaceTypeOfConstruction(statement.category, constructionFor(statement.category, statement.construction));
+};
 
-  const construction = constructionFor(statement.category, statement.construction);
+/** Registry-derived interface classification shared by declaration and
+ * construction-value analysis. */
+export const moduleGeometryInterfaceTypeOfConstruction = (
+  category: string,
+  construction: DslConstructionSpec | null | undefined
+): ModuleGeometryInterfaceType | null => {
   if (!construction) return null;
-  return construction.elementType === "line" || construction.elementType === "angleLengthLine" || construction.elementType === "commonTangentLine" ? "line" : "path";
+  if (category === "point") return "point";
+  if (category !== "line" && category !== "curve" && category !== "arc") return null;
+  return construction.elementType === "line" || construction.elementType === "angleLengthLine" || construction.elementType === "commonTangentLine"
+    ? "line"
+    : "path";
 };
 
 /** Module interface compatibility is directional, not an implicit conversion. */

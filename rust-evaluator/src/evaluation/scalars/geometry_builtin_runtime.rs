@@ -13,6 +13,8 @@ use serde_json::Value;
 pub(crate) enum GeometryBuiltinRuntimeTarget {
     Point(Point),
     Line { start: Point, end: Point },
+    GeometryValuePoint { x: f64, y: f64 },
+    GeometryValueLine { start: (f64, f64), end: (f64, f64) },
 }
 
 impl PartialEq for GeometryBuiltinRuntimeTarget {
@@ -43,12 +45,32 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
                     && left_end.x == right_end.x
                     && left_end.y == right_end.y
             }
+            (
+                Self::GeometryValuePoint {
+                    x: left_x,
+                    y: left_y,
+                },
+                Self::GeometryValuePoint {
+                    x: right_x,
+                    y: right_y,
+                },
+            ) => left_x == right_x && left_y == right_y,
+            (
+                Self::GeometryValueLine {
+                    start: left_start,
+                    end: left_end,
+                },
+                Self::GeometryValueLine {
+                    start: right_start,
+                    end: right_end,
+                },
+            ) => left_start == right_start && left_end == right_end,
             _ => false,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum GeometryBuiltinRuntimeError {
     Unavailable,
     InvalidArgument,
@@ -58,13 +80,71 @@ pub(crate) enum GeometryBuiltinRuntimeError {
 
 pub(crate) fn resolve_geometry_builtin_target(
     state: &EvaluationState,
-    current_source_order: usize,
+    current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
-    if target.statement_index >= current_source_order
-        || target.statement_id.is_empty()
-        || !state.elements_by_id.contains_key(&target.statement_id)
-    {
+    if target.statement_id.is_empty() {
+        return Err(GeometryBuiltinRuntimeError::Unavailable);
+    }
+    if let Some(occurrence) = &target.geometry_value_occurrence {
+        let Some(geometry) = state.computed_geometry_values.get(occurrence) else {
+            return Err(GeometryBuiltinRuntimeError::Unavailable);
+        };
+        if let Some(point_key) = target.point_key.as_deref() {
+            let point = match point_key {
+                "start" => geometry.get("start").and_then(|value| {
+                    value
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(value.get("y").and_then(Value::as_f64))
+                }),
+                "end" => geometry.get("end").and_then(|value| {
+                    value
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(value.get("y").and_then(Value::as_f64))
+                }),
+                _ => None,
+            };
+            return point
+                .map(|(x, y)| GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y })
+                .ok_or(GeometryBuiltinRuntimeError::Unavailable);
+        }
+        return match target.geometry_type {
+            GeometryInterfaceType::Point => geometry
+                .get("x")
+                .and_then(Value::as_f64)
+                .zip(geometry.get("y").and_then(Value::as_f64))
+                .map(|(x, y)| GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y })
+                .ok_or(GeometryBuiltinRuntimeError::Unavailable),
+            GeometryInterfaceType::Line => {
+                let start = geometry.get("start").and_then(|value| {
+                    value
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(value.get("y").and_then(Value::as_f64))
+                });
+                let end = geometry.get("end").and_then(|value| {
+                    value
+                        .get("x")
+                        .and_then(Value::as_f64)
+                        .zip(value.get("y").and_then(Value::as_f64))
+                });
+                let (Some(start), Some(end)) = (start, end) else {
+                    return Err(GeometryBuiltinRuntimeError::Unavailable);
+                };
+                if (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9 {
+                    return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
+                }
+                Ok(GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end })
+            }
+            GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
+        };
+    }
+    if target.statement_index >= current_source_order {
+        return Err(GeometryBuiltinRuntimeError::Unavailable);
+    }
+    if !state.elements_by_id.contains_key(&target.statement_id) {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
     }
     let activities = effective_activity_by_element_id_with_profile(
@@ -163,11 +243,23 @@ where
         }
         let runtime_target = lookup(target)?;
         match (expected_geometry_type, &runtime_target) {
-            (GeometryInterfaceType::Point, GeometryBuiltinRuntimeTarget::Point(_)) => {}
+            (
+                GeometryInterfaceType::Point,
+                GeometryBuiltinRuntimeTarget::Point(_)
+                | GeometryBuiltinRuntimeTarget::GeometryValuePoint { .. },
+            ) => {}
             (GeometryInterfaceType::Line, GeometryBuiltinRuntimeTarget::Line { start, end }) => {
                 let dx = end.x - start.x;
                 let dy = end.y - start.y;
                 if dx.hypot(dy) <= 1e-9 {
+                    return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
+                }
+            }
+            (
+                GeometryInterfaceType::Line,
+                GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end },
+            ) => {
+                if (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9 {
                     return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
                 }
             }

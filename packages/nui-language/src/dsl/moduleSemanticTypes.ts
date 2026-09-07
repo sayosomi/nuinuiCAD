@@ -107,7 +107,11 @@ export type ModuleGeometrySourceTarget =
       statementId: StatementIdentity;
       statementIndex: number;
       declaredInterfaceType: ModuleGeometryInterfaceType;
-      backingTarget: ModuleGeometrySourceTarget;
+      /** Reference aliases retain their resolved backing target. A pure
+       * construction has no drawable/source backing target and carries null. */
+      backingTarget: ModuleGeometrySourceTarget | null;
+      ownerModuleDefinitionStatementId?: StatementIdentity | null;
+      ownerModuleDefinitionStatementIndex?: number | null;
       pointKey?: string;
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
     }
@@ -128,13 +132,14 @@ export type ModuleGeometrySourceTarget =
     };
 
 export const unwrapModuleGeometrySourceTarget = (target: ModuleGeometrySourceTarget): {
-  target: Exclude<ModuleGeometrySourceTarget, { kind: "geometryValue" }>;
+  target: ModuleGeometrySourceTarget;
   pointKey?: string;
 } => {
   let current = target;
   let pointKey = target.pointKey;
   while (current.kind === "geometryValue") {
     pointKey ??= current.pointKey;
+    if (!current.backingTarget) break;
     current = current.backingTarget;
   }
   pointKey ??= current.pointKey;
@@ -161,6 +166,17 @@ export type ModuleParentReferenceSemantic = {
 export type ModuleGeometryPropertySourceTarget =
   | ModuleRecordFieldSourceTarget
   | (ModuleParameterSlot & { kind: "parameterProperty"; geometryKind: "point" | "line"; property: string; pointKey?: string })
+  | {
+      kind: "geometryValueProperty";
+      statementId: StatementIdentity;
+      statementIndex: number;
+      declaredInterfaceType: ModuleGeometryInterfaceType;
+      ownerModuleDefinitionStatementId?: StatementIdentity | null;
+      ownerModuleDefinitionStatementIndex?: number | null;
+      property: string;
+      pointKey?: string;
+      identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
+    }
   | {
       kind: "sourceGeometryProperty";
       statementId: StatementIdentity;
@@ -275,6 +291,20 @@ export type ModuleGeometryReferenceSemantic = {
   resolution: "resolved" | "undefined" | "forward" | "outerCapture" | "invalid" | "deferred";
 };
 
+export type ModuleGeometryConstructionSemantic =
+  | {
+      kind: "coordinate";
+      span: DslSpan;
+      x: ModuleScalarExpressionSemantic | null;
+      y: ModuleScalarExpressionSemantic | null;
+    }
+  | {
+      kind: "segment";
+      span: DslSpan;
+      start: ModuleGeometryReferenceSemantic;
+      end: ModuleGeometryReferenceSemantic;
+    };
+
 export type ModuleGeometryValueSemantic = {
   statementId: StatementIdentity;
   statementIndex: number;
@@ -285,6 +315,7 @@ export type ModuleGeometryValueSemantic = {
   ownerModuleDefinitionStatementIndex: number | null;
   exported: boolean;
   initializer: ModuleGeometryReferenceSemantic | null;
+  construction: ModuleGeometryConstructionSemantic | null;
   backingTarget: ModuleGeometrySourceTarget | null;
 };
 

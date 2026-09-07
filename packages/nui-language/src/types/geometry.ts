@@ -1,4 +1,5 @@
 export * from "../model/cadDocumentTypes";
+export * from "../model/geometryValueOccurrence";
 
 import type { CadElementType } from "../model/cadDocumentTypes";
 

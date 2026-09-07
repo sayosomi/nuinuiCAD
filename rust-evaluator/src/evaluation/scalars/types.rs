@@ -12,6 +12,8 @@
 
 pub(crate) type BindingId = String;
 
+use crate::evaluation::types::GeometryValueOccurrence;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GeometryInterfaceType {
     Point,
@@ -30,12 +32,13 @@ impl GeometryInterfaceType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarExpressionResolvedGeometryTarget {
     pub(crate) statement_id: String,
-    pub(crate) statement_index: usize,
+    pub(crate) statement_index: f64,
     pub(crate) geometry_type: GeometryInterfaceType,
     pub(crate) point_key: Option<String>,
+    pub(crate) geometry_value_occurrence: Option<GeometryValueOccurrence>,
 }
 
 /// A source-text offset range, `[start, end)`. Never read for evaluation
@@ -284,8 +287,10 @@ pub(crate) enum TypedScalarExpression {
         property_span: ScalarSpan,
         element_name: String,
         element_id: String,
+        geometry_value_occurrence: Option<GeometryValueOccurrence>,
+        geometry_value_point_key: Option<String>,
         property: String,
-        target_source_order: usize,
+        target_source_order: f64,
         r#type: ScalarType,
     },
     Unary {

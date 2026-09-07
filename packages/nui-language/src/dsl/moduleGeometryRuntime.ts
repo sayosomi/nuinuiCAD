@@ -1,5 +1,5 @@
 import { referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, ElementId, GeometryInputTarget, GeometryValueOccurrence } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
@@ -34,15 +34,24 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 
 export type { ModuleGeometryPropertyRuntimeTarget };
 
-export type ModuleGeometryBuiltinRuntimeTarget = {
-  elementId: ElementId;
-  geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
-  pointKey?: string;
-};
+export type ModuleGeometryBuiltinRuntimeTarget =
+  | {
+      kind: "drawable";
+      elementId: ElementId;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    }
+  | {
+      kind: "geometryValue";
+      occurrence: GeometryValueOccurrence;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    };
 
 export type ModuleGeometryRuntimeCompilation = {
   diagnostics: readonly DslDiagnostic[];
   resolversByRuntimeElementId: ReadonlyMap<ElementId, DslGeometryResolverOverrides>;
+  geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   resolvePropertyTarget: (
     target: ModuleGeometryPropertySourceTarget,
     instancePath: readonly string[],
@@ -76,6 +85,7 @@ export const buildModuleGeometryRuntime = ({
   const contextsByPath = new Map<string, InstanceContext>();
   const exportsByPath = new Map<string, ReadonlyMap<string, ExportEntry>>();
   const resolversByRuntimeElementId = new Map<ElementId, DslGeometryResolverOverrides>();
+  const geometryInputTargetsByRuntimeElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     if (exported.backingTarget) {
@@ -272,8 +282,20 @@ export const buildModuleGeometryRuntime = ({
       materialization: moduleMaterialization,
       exportsByPath
     });
+    const targetsForElement = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
+      recordGeometryInputTarget: (_elementId, parameterKey, target) => {
+        const existing = targetsForElement.get(parameterKey);
+        if (!existing) {
+          targetsForElement.set(parameterKey, target);
+        } else {
+          const existingTargets = Array.isArray(existing) ? existing : [existing];
+          const newTargets = Array.isArray(target) ? target : [target];
+          targetsForElement.set(parameterKey, [...existingTargets, ...newTargets]);
+        }
+        geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement);
+      },
       resolveLineReferenceList: (token) => geometryArrayRuntime.resolveLineReferenceList(
         token,
         entry.sourceStatementIndex,
@@ -304,6 +326,18 @@ export const buildModuleGeometryRuntime = ({
       ? { ...target, kind: "parameter" }
       : target.kind === "sourceGeometryProperty"
         ? { ...target, kind: "sourceGeometry", geometryKind: target.category === "point" ? "point" : "line" }
+        : target.kind === "geometryValueProperty"
+          ? {
+              kind: "geometryValue",
+              statementId: target.statementId,
+              statementIndex: target.statementIndex,
+              declaredInterfaceType: target.declaredInterfaceType,
+              backingTarget: null,
+              ownerModuleDefinitionStatementId: target.ownerModuleDefinitionStatementId,
+              ownerModuleDefinitionStatementIndex: target.ownerModuleDefinitionStatementIndex,
+              ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+              ...(target.identity ? { identity: target.identity } : {})
+            }
         : { ...target, kind: "deferredModuleExport", expectedGeometryKind: "line" };
     const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
     return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
@@ -324,18 +358,26 @@ export const buildModuleGeometryRuntime = ({
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
     if (!alias) return undefined;
     if (expectedGeometryType === "line" && alias.kind === "line") {
-      return { elementId: alias.elementId, geometryType: "line" };
+      return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
+    }
+    if (alias.kind === "value" && alias.geometryType === expectedGeometryType) {
+      return {
+        kind: "geometryValue",
+        occurrence: alias.occurrence,
+        geometryType: expectedGeometryType,
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
-      return { elementId: alias.anchor.pointId, geometryType: "point" };
+      return { kind: "drawable", elementId: alias.anchor.pointId, geometryType: "point" };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "derived") {
-      return { elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
+      return { kind: "drawable", elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
     }
     // Coordinate aliases intentionally fail closed here:
     // geometry builtins require a concrete runtime geometry element identity.
     return undefined;
   };
 
-  return { diagnostics, resolversByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
+  return { diagnostics, resolversByRuntimeElementId, geometryInputTargetsByRuntimeElementId, resolvePropertyTarget, resolveBuiltinTarget, coordinateForReference };
 };

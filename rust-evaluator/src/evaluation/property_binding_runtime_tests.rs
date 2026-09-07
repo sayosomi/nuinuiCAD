@@ -18,6 +18,8 @@ fn input(
     property_bindings: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         elements,
         evaluation_limit_index: None,
@@ -102,12 +104,14 @@ fn arc(id: &str, start_angle_deg: f64, end_angle_deg: f64, direction: Option<&st
 
 fn state_with_element(id: &str, element: Value) -> EvaluationState {
     EvaluationState {
+        geometry_input_targets: HashMap::new(),
         elements: vec![element],
         elements_by_id: HashMap::from([(id.to_owned(), 0)]),
         drawing_modifiers: json!([]),
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -296,7 +300,7 @@ fn choice_geometry_property_requires_current_geometry_even_without_source_order(
     };
 
     assert_eq!(
-        lookup_geometry_property(&state, "source", "direction", 0, None, &property_type,),
+        lookup_geometry_property(&state, "source", "direction", 0.0, None, &property_type,),
         ScalarEvaluation::Error {
             r#type: property_type,
             issue_code: "evaluation-geometry-property-unavailable".to_owned(),
