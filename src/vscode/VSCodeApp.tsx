@@ -68,6 +68,7 @@ import { inlineModuleCanvasTargetProofsFor } from "./inlineModuleCanvas";
 import { currentRuntimeElementIdsForSourceStatementIndexes } from "./coordinatePointConversionSelection";
 import { useVscodeMultiDocumentRuntimeEvaluation } from "./useVscodeMultiDocumentRuntimeEvaluation";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
+import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 import {
   useVscodeWebviewPresentation,
   webviewPresentationTextFor
@@ -1398,7 +1399,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         deferredCanvasNavigationRequestRef.current = null;
         latestCanvasNavigationRequestRef.current = message.requestId;
         const current = currentAuthoritativeDocument(message.documentVersion);
-        if (!current || canvasHistoryInFlightRef.current !== null) {
+        if (canvasHistoryInFlightRef.current !== null) {
           api.postMessage({
             type: "canvasNavigationResult",
             requestId: message.requestId,
@@ -1410,96 +1411,35 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         const graphBackedRequest = message.graphRevision !== undefined &&
           message.sourceRevision !== undefined &&
           message.sourceTarget !== undefined;
-        if (graphBackedRequest) {
-          const publication = multiDocumentGraphPublicationRef.current;
-          const runtimePresentation = multiDocumentRuntimePresentationRef.current;
-          if (!publication) {
-            deferredCanvasNavigationRequestRef.current = message;
-            return;
-          }
-          if (publication.status !== "current") {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
-            return;
-          }
-          if (publication.documentVersion > message.documentVersion) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
-            return;
-          }
-          if (publication.documentVersion < message.documentVersion) {
-            deferredCanvasNavigationRequestRef.current = message;
-            return;
-          }
-          if (publication.graph.revision > message.graphRevision) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
-            return;
-          }
-          if (publication.graph.revision < message.graphRevision) {
-            deferredCanvasNavigationRequestRef.current = message;
-            return;
-          }
-          if (
-            publication.graph.revision !== message.graphRevision ||
-            !publication.canvasRuntime
-          ) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
-            return;
-          }
-          if (
-            publication.graph.rootSource.normalizedSource !== current.source.normalizedSource ||
-            publication.graph.rootSource.sourceRevision !== message.sourceRevision ||
-            publication.canvasRuntime.rootSourceRevision !== message.sourceRevision
-          ) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
-            });
-            return;
-          }
-          if (runtimePresentation?.graphRevision !== message.graphRevision) {
-            if (runtimePresentation && runtimePresentation.graphRevision > message.graphRevision) {
-              api.postMessage({
-                type: "canvasNavigationResult",
-                requestId: message.requestId,
-                status: "failed",
-                reason: "source-mismatch"
-              });
-              return;
+        const freshness = canvasNavigationFreshnessFor(graphBackedRequest
+          ? {
+              authoritativeDocumentAvailable: current !== null,
+              graphBackedRequest: true,
+              documentVersion: message.documentVersion,
+              normalizedSource: current?.source.normalizedSource ?? "",
+              sourceRevision: message.sourceRevision,
+              graphRevision: message.graphRevision,
+              publication: multiDocumentGraphPublicationRef.current,
+              runtimePresentation: multiDocumentRuntimePresentationRef.current
             }
-            deferredCanvasNavigationRequestRef.current = message;
-            return;
-          }
-          if (runtimePresentation.rootSourceRevision !== message.sourceRevision) {
-            api.postMessage({
-              type: "canvasNavigationResult",
-              requestId: message.requestId,
-              status: "failed",
-              reason: "source-mismatch"
+          : {
+              authoritativeDocumentAvailable: current !== null,
+              graphBackedRequest: false
             });
-            return;
-          }
+        if (freshness.status === "failed") {
+          api.postMessage({
+            type: "canvasNavigationResult",
+            requestId: message.requestId,
+            status: "failed",
+            reason: "source-mismatch"
+          });
+          return;
         }
+        if (freshness.status === "defer") {
+          deferredCanvasNavigationRequestRef.current = message;
+          return;
+        }
+        if (!current) return;
         const sourceTarget = graphBackedRequest
           ? { status: "resolved" as const, target: message.sourceTarget }
           : queryDslCanvasRevealSourceTarget({
