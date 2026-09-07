@@ -19,6 +19,7 @@ import {
 } from "../document/multiDocumentPrimitives";
 import { createModuleRuntimeContext } from "./moduleRuntimeContext";
 import { sourceOwnerForRuntimeElementId } from "./sourceOwnership";
+import { queryDslCanvasRevealSourceTarget } from "./dslCanvasRevealQuery";
 import { queryDslCanvasSourceDefinitionQualified } from "./dslNavigationQuery";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import { projectVscodeMultiDocumentCanvasRuntime } from "../vscode/multiDocumentRuntimeTransport";
@@ -187,6 +188,67 @@ describe("multi-document module runtime", () => {
       moduleMaterialization: { ...compiled.moduleMaterialization!, originByRuntimeElementId: staleRangeOrigins }
     };
     expect(sourceOwnerForRuntimeElementId({ ...staleRangeCompiled, statementMap: compiled.statementMap }, points[0]!.id)).toBeNull();
+  });
+
+  it("resolves an imported Module caller through Canvas Reveal source ownership", async () => {
+    const library = savedSource("reveal-library", "sha256:reveal-library", [
+      "nui 1",
+      "export module Panel(value: number) {",
+      "  point P = coordinate(x: @value, y: 0)",
+      "}"
+    ].join("\n"));
+    const root = rootSource("reveal-root", [
+      "nui 1",
+      "import \"./library.nui\" as lib",
+      "const untouched: number = 0",
+      "instance Direct = lib::Panel(value: 20)"
+    ].join("\n"));
+    const { graph, semantics, context, compiled } = await compileImported(
+      root,
+      new Map([[`${root.documentId}|./library.nui`, library]])
+    );
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(context.valid).toBe(true);
+    expect(compiled.moduleRuntimeContext).toBe(context);
+    expect(compiled.moduleMaterialization?.executionStatements.some((entry) =>
+      entry.type === "moduleInstance" &&
+      entry.sourceStatementIndex === 3 &&
+      entry.origin?.sourceDocumentId === root.documentId &&
+      entry.origin.moduleDefinitionDocumentId === library.documentId
+    )).toBe(true);
+    const materializedPoint = compiled.document?.elements.find((element) => element.name === "P");
+    expect(materializedPoint).toBeDefined();
+    expect(materializedPoint && compiled.moduleMaterialization?.originByRuntimeElementId.get(materializedPoint.id)).toMatchObject({
+      sourceDocumentId: library.documentId,
+      sourceStatementIndex: 2
+    });
+
+    const source = {
+      normalizedSource: root.normalizedSource,
+      sourceRevision: root.sourceRevision
+    };
+    const unrelatedRootResult = queryDslCanvasRevealSourceTarget({
+      source,
+      compiled,
+      position: root.normalizedSource.indexOf("untouched") + 2
+    });
+    expect(unrelatedRootResult).toEqual({ status: "failed", reason: "no-target" });
+
+    const importedCallerResult = queryDslCanvasRevealSourceTarget({
+      source,
+      compiled,
+      position: root.normalizedSource.indexOf("Direct") + 2
+    });
+
+    expect(importedCallerResult).toEqual({
+      status: "resolved",
+      target: {
+        kind: "statement-owner",
+        sourceStatementIndex: 3
+      }
+    });
   });
 
   it("evaluates imported optional hasValue guards per repeated and colliding instance identity", async () => {

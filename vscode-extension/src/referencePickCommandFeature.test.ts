@@ -1,4 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { compileDslDocument, createModuleRuntimeContext } from "@nuinuicad/nui-language";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  buildMultiDocumentImportGraph,
+  documentIdFromHost,
+  moduleDeclarationContributor,
+  savedSourceFingerprintFromHost,
+  type DependencySavedSourceSnapshot,
+  type RootCurrentSourceSnapshot
+} from "@nuinuicad/nui-language/workspace";
 import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 
 const mocks = vi.hoisted(() => ({
@@ -100,6 +110,8 @@ vi.mock("./multiDocumentHost", () => ({
 
 import {
   registerVscodeReferencePickFeature,
+  revealInCanvasSourceTargetForEditor,
+  sourceTargetAvailabilityForEditorAsync,
   VSCODE_REFERENCE_PICK_COMMAND_ID,
   VSCODE_REFERENCE_PICK_CONTEXT_KEY
 } from "./referencePickCommandFeature";
@@ -187,46 +199,76 @@ const createBridge = () => ({
   appliedHandoff: vi.fn(() => null)
 });
 
-const graphSemanticSnapshotFor = (
+const importedCallerLibrarySource = [
+  "nui 1",
+  "export module Panel(value: number) {",
+  "  point P = coordinate(x: @value, y: 0)",
+  "}"
+].join("\n");
+
+const graphSemanticSnapshotFor = async (
   editor: TestEditor,
   session: ReturnType<typeof createLanguageAnalysisSession>,
   graphRevision = 9
-) => {
-  const compiled = session.runtimeEvaluationSnapshot()?.compiled;
-  if (!compiled?.moduleMaterialization) throw new Error("missing Module materialization");
-  const instance = compiled.moduleMaterialization.executionStatements.find((entry) => entry.type === "moduleInstance");
-  if (!instance?.origin) throw new Error("missing Module instance origin");
-  const origins = new Map(compiled.moduleMaterialization.originByRuntimeElementId);
-  const importedOrigin = {
-    ...instance.origin,
-    moduleDefinitionDocumentId: "file:///tmp/library.nui"
+): Promise<{
+  documentVersion: number;
+  rootDocumentId: string;
+  graphRevision: number;
+  sourceRevision: number;
+  sourceText: string;
+  compiled: ReturnType<typeof compileDslDocument>;
+}> => {
+  const root: RootCurrentSourceSnapshot = {
+    kind: "root-current",
+    documentId: documentIdFromHost(editor.document.uri.toString()),
+    normalizedSource: editor.document.getText(),
+    sourceRevision: session.getSourceRevision()
   };
-  origins.set(instance.runtimeElementId, importedOrigin);
+  const library: DependencySavedSourceSnapshot = {
+    kind: "dependency-saved",
+    documentId: documentIdFromHost("file:///tmp/library.nui"),
+    savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:reference-pick-library"),
+    normalizedSource: importedCallerLibrarySource
+  };
+  const graph = await buildMultiDocumentImportGraph({
+    root,
+    loader: {
+      loadSavedDependency: async (importerDocumentId, importPath) =>
+        importerDocumentId === root.documentId && importPath === "./library.nui"
+          ? { status: "loaded", snapshot: library }
+          : { status: "failed", reason: "missing" }
+    },
+    declarationContributors: [moduleDeclarationContributor]
+  });
+  const analysis = analyzeMultiDocumentModuleSemantics(graph);
+  const moduleRuntimeContext = createModuleRuntimeContext(graph, analysis);
+  const rootNode = graph.nodes.get(root.documentId);
+  if (!rootNode) throw new Error("missing imported graph root");
+  const compiled = compileDslDocument(root.normalizedSource, {
+    preparsed: rootNode.artifact.parsed,
+    sourceRevision: root.sourceRevision,
+    assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+    moduleRuntimeContext
+  });
+  if (!graph.valid || !analysis.valid || !moduleRuntimeContext.valid || !compiled.moduleMaterialization) {
+    throw new Error("missing genuine imported Module graph materialization");
+  }
   return {
     documentVersion: editor.document.version,
     rootDocumentId: editor.document.uri.toString(),
     graphRevision,
-    sourceRevision: compiled.spans.sourceMap.sourceRevision,
-    sourceText: editor.document.getText(),
-    compiled: {
-      ...compiled,
-      moduleMaterialization: {
-        ...compiled.moduleMaterialization,
-        executionStatements: compiled.moduleMaterialization.executionStatements.map((entry) =>
-          entry.runtimeElementId === instance.runtimeElementId ? { ...entry, origin: importedOrigin } : entry
-        ),
-        originByRuntimeElementId: origins
-      }
-    }
+    sourceRevision: root.sourceRevision,
+    sourceText: root.normalizedSource,
+    compiled
   };
 };
 
-const graphRequiredLocalSessionFor = (
+const graphRequiredLocalSessionFor = async (
   editor: TestEditor,
   source: string
-) => {
+): Promise<ReturnType<typeof createLanguageAnalysisSession>> => {
   const session = createLanguageAnalysisSession(source);
-  const graphSnapshot = graphSemanticSnapshotFor(editor, session);
+  const graphSnapshot = await graphSemanticSnapshotFor(editor, session);
   const sessionDocument = (session as unknown as {
     document: { getState: () => { doc: unknown; currentCompiled: unknown } };
   }).document;
@@ -265,44 +307,53 @@ describe("registerVscodeReferencePickFeature", () => {
   it("publishes Reveal availability from the exact graph semantic snapshot for an imported caller", async () => {
     const moduleSource = [
       "nui 1",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}",
-      "instance Direct = M()"
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
     ].join("\n");
     const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
     mocks.activeTextEditor = editor;
     const languageSession = createLanguageAnalysisSession(moduleSource);
-    const semanticSnapshot = graphSemanticSnapshotFor(editor, languageSession);
+    const semanticSnapshot = await graphSemanticSnapshotFor(editor, languageSession);
     mocks.multiDocumentHost = {
       languageSemanticSnapshotFor: vi.fn(async () => semanticSnapshot)
     };
+
+    const resolved = await revealInCanvasSourceTargetForEditor(editor, languageSession);
+    expect(resolved.status).toBe("resolved");
+    if (resolved.status !== "resolved") return;
+    expect(resolved.value.target).toEqual({
+      kind: "statement-owner",
+      sourceStatementIndex: 2
+    });
+    expect(resolved.value.graphRevision).not.toBeNull();
+    await expect(sourceTargetAvailabilityForEditorAsync(editor, languageSession)).resolves.toMatchObject({
+      revealInCanvas: true
+    });
 
     const feature = registerVscodeReferencePickFeature({
       languageAnalysisSessionFor: () => languageSession,
       ensureCanvas: () => null
     });
 
-    await flush();
-    expect(mocks.executeCommand).toHaveBeenCalledWith(
-      "setContext",
-      "nuinuiCAD.revealInCanvasSourceTarget",
-      true
-    );
+    await vi.waitFor(() => {
+      expect(mocks.executeCommand).toHaveBeenCalledWith(
+        "setContext",
+        "nuinuiCAD.revealInCanvasSourceTarget",
+        true
+      );
+    });
     feature.dispose();
   });
 
   it("keeps a graph-required Reveal target unavailable when the graph semantic snapshot is unusable", async () => {
     const moduleSource = [
       "nui 1",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}",
-      "instance Direct = M()"
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
     ].join("\n");
     const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
     mocks.activeTextEditor = editor;
-    const languageSession = graphRequiredLocalSessionFor(editor, moduleSource);
+    const languageSession = await graphRequiredLocalSessionFor(editor, moduleSource);
     mocks.multiDocumentHost = {
       languageSemanticSnapshotFor: vi.fn(async () => null)
     };
@@ -322,10 +373,8 @@ describe("registerVscodeReferencePickFeature", () => {
   it("does not let a stale graph availability result overwrite a newer Source context", async () => {
     const moduleSource = [
       "nui 1",
-      "module M() {",
-      "  point P = coordinate(x: 0, y: 0)",
-      "}",
-      "instance Direct = M()"
+      "import \"./library.nui\" as lib",
+      "instance Direct = lib::Panel(value: 20)"
     ].join("\n");
     const editor = createEditorForSource(moduleSource, moduleSource.indexOf("Direct"));
     mocks.activeTextEditor = editor;
@@ -342,7 +391,7 @@ describe("registerVscodeReferencePickFeature", () => {
     editor.selection = { active: { offset: 0 } };
     for (const listener of [...mocks.selectionListeners]) listener({ textEditor: editor });
     await flush();
-    const staleSnapshot = graphSemanticSnapshotFor(editor, languageSession);
+    const staleSnapshot = await graphSemanticSnapshotFor(editor, languageSession);
     resolvers[0]?.(staleSnapshot);
     await flush();
 
