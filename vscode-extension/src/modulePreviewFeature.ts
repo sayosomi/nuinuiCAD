@@ -640,6 +640,27 @@ export const registerModulePreviewFeature = ({
       ? session.retainedParameterMessage
       : null;
 
+  const currentParameterSnapshotIsCurrent = (
+    session: ModulePreviewSession,
+    snapshot: VscodeModulePreviewParameterSnapshot
+  ): boolean => {
+    if (
+      sessions.get(session.documentUri) !== session ||
+      !isOpenDocument(session.document) ||
+      !session.webviewReady ||
+      session.authoritativeDocumentVersion !== session.document.version ||
+      snapshot.sessionId !== session.sessionId ||
+      snapshot.documentUri !== session.documentUri ||
+      snapshot.documentVersion !== session.document.version
+    ) return false;
+    const current = currentTargetFor(session);
+    return Boolean(
+      current.target &&
+      current.target.definitionStatementIndex === snapshot.target.definitionStatementIndex &&
+      current.target.name === snapshot.target.name
+    );
+  };
+
   const focusedPreviewValueMatches = (
     session: ModulePreviewSession,
     snapshot: VscodeModulePreviewParameterSnapshot,
@@ -662,13 +683,7 @@ export const registerModulePreviewFeature = ({
       focus.selectionEnd < focus.selectionStart ||
       focus.selectionEnd > focus.value.length
     ) return null;
-    const current = currentTargetFor(session);
-    if (
-      !current.target ||
-      current.target.definitionStatementId !== snapshot.target.definitionStatementId ||
-      current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
-      current.target.name !== snapshot.target.name
-    ) return null;
+    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return null;
     const row = parameterRowFor(snapshot, focus.definitionStatementId, focus.parameterIndex);
     return row ? { row } : null;
   };
@@ -762,18 +777,13 @@ export const registerModulePreviewFeature = ({
       message.documentUri !== session.documentUri ||
       message.documentVersion !== session.document.version
     ) return false;
-    const current = currentTargetFor(session);
     if (message.type === "modulePreviewParametersUnavailable") {
+      const retainedSnapshot = currentParameterSnapshot(session);
       return message.targetDefinitionStatementId === null ||
-        message.targetDefinitionStatementId === session.targetDefinitionStatementId;
+        !retainedSnapshot ||
+        message.targetDefinitionStatementId === retainedSnapshot.target.definitionStatementId;
     }
-    return Boolean(
-      current.target &&
-      message.target.definitionStatementId === session.targetDefinitionStatementId &&
-      message.target.definitionStatementId === current.target.definitionStatementId &&
-      message.target.definitionStatementIndex === current.target.definitionStatementIndex &&
-      message.target.name === current.target.name
-    );
+    return currentParameterSnapshotIsCurrent(session, message);
   };
 
   const acceptParameterValueFocus = (
@@ -808,7 +818,15 @@ export const registerModulePreviewFeature = ({
   const acceptParameterValueBlur = (
     message: VscodeModulePreviewParameterValueBlur
   ): boolean => {
-    if (!focusedPreviewValue || !sameFocusedPreviewProof(focusedPreviewValue, message)) return false;
+    const session = boundParameterSession;
+    const snapshot = session ? currentParameterSnapshot(session) : null;
+    if (
+      !session ||
+      !snapshot ||
+      !currentParameterSnapshotIsCurrent(session, snapshot) ||
+      !focusedPreviewValue ||
+      !sameFocusedPreviewProof(focusedPreviewValue, message)
+    ) return false;
     clearFocusedPreviewValue();
     return true;
   };
@@ -852,13 +870,7 @@ export const registerModulePreviewFeature = ({
       message.targetDefinitionStatementId !== snapshot.target.definitionStatementId ||
       session.authoritativeDocumentVersion !== session.document.version
     ) return false;
-    const current = currentTargetFor(session);
-    if (
-      !current.target ||
-      current.target.definitionStatementId !== message.targetDefinitionStatementId ||
-      current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
-      current.target.name !== snapshot.target.name
-    ) return false;
+    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return false;
     if (!parameterRowFor(snapshot, message.definitionStatementId, message.parameterIndex)) return false;
     void session.panel.webview.postMessage({
       type: "modulePreviewSetValue",
@@ -893,13 +905,7 @@ export const registerModulePreviewFeature = ({
       message.targetDefinitionStatementId !== snapshot.target.definitionStatementId ||
       session.authoritativeDocumentVersion !== session.document.version
     ) return false;
-    const current = currentTargetFor(session);
-    if (
-      !current.target ||
-      current.target.definitionStatementId !== message.targetDefinitionStatementId ||
-      current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
-      current.target.name !== snapshot.target.name
-    ) return false;
+    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return false;
     const row = parameterRowFor(snapshot, message.definitionStatementId, message.parameterIndex);
     if (!row || (message.type === "modulePreviewParameterUseDefault" && row.defaultSourceText === null)) return false;
     const forwarded: VscodeModulePreviewParameterSetValue | VscodeModulePreviewParameterUseDefault = message.type === "modulePreviewParameterSetValue"
@@ -951,13 +957,7 @@ export const registerModulePreviewFeature = ({
       proof.sessionRevision !== snapshot.sessionRevision ||
       proof.targetDefinitionStatementId !== snapshot.target.definitionStatementId
     ) return null;
-    const current = currentTargetFor(session);
-    if (
-      !current.target ||
-      current.target.definitionStatementId !== snapshot.target.definitionStatementId ||
-      current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
-      current.target.name !== snapshot.target.name
-    ) return null;
+    if (!currentParameterSnapshotIsCurrent(session, snapshot)) return null;
     const row = parameterRowFor(snapshot, proof.definitionStatementId, proof.parameterIndex);
     const expectedGeometryInterface = moduleGeometryInterfaceTypeOf(row?.type);
     return row && expectedGeometryInterface
