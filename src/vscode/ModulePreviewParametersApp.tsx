@@ -64,6 +64,18 @@ const previewStatusMessageFor = (
   }
 };
 
+const parameterDiagnosticMessageFor = (
+  diagnostic: NonNullable<VscodeModulePreviewParameter["diagnostic"]>,
+  text: PresentationText
+): string => {
+  switch (diagnostic.code) {
+    case "required-value-missing":
+      return text("modulePreview.parameters.diagnostic.requiredValueMissing", "Enter a value.");
+    case "invalid-expression":
+      return text("modulePreview.parameters.diagnostic.invalidExpression", "Enter a valid expression.");
+  }
+};
+
 const ParameterRow = ({
   snapshot,
   parameter,
@@ -181,13 +193,7 @@ const ParameterRow = ({
         </div>
         {parameter.diagnostic ? (
           <div id={diagnosticId} className="module-preview-parameter-diagnostic" role="alert">
-            {parameter.diagnostic.presentation
-              ? text(
-                  parameter.diagnostic.presentation.key,
-                  parameter.diagnostic.message,
-                  parameter.diagnostic.presentation.parameters
-                )
-              : parameter.diagnostic.message}
+            {parameterDiagnosticMessageFor(parameter.diagnostic, text)}
           </div>
         ) : null}
       </td>

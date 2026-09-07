@@ -164,7 +164,7 @@ describe("ModulePreviewParametersApp", () => {
 
     act(() => window.dispatchEvent(new MessageEvent("message", { data: currentSnapshot })));
     expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Parameter 'width' is required.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a value.");
 
     act(() => window.dispatchEvent(new MessageEvent("message", { data: sourceStale })));
     expect(screen.getByLabelText("Value for width")).toBeInTheDocument();
@@ -193,9 +193,64 @@ describe("ModulePreviewParametersApp", () => {
     render(<ModulePreviewParametersApp api={api} />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: noValidPreviewWithDiagnostic })));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Parameter 'width' is required.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a value.");
     expect(screen.queryByText("No valid preview for the current inputs.")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { code: "required-value-missing" as const, locale: "en" as const, expected: "Enter a value." },
+    { code: "required-value-missing" as const, locale: "ja" as const, expected: "値を入力してください。" },
+    { code: "invalid-expression" as const, locale: "en" as const, expected: "Enter a valid expression." },
+    { code: "invalid-expression" as const, locale: "ja" as const, expected: "有効な式を入力してください。" }
+  ])("renders the $code row diagnostic in $locale without the parameter name", ({ code, locale, expected }) => {
+    render(<ModulePreviewParametersApp api={api} />);
+    if (locale === "ja") {
+      act(() => window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "webviewPresentation",
+          presentation: {
+            locale: "ja",
+            strings: {
+              "modulePreview.parameters.diagnostic.requiredValueMissing": "値を入力してください。",
+              "modulePreview.parameters.diagnostic.invalidExpression": "有効な式を入力してください。"
+            },
+            diagnosticTemplates: {}
+          }
+        }
+      })));
+    }
+    const diagnostic = {
+      ...snapshot.parameters.parameters[0]!.diagnostic!,
+      code,
+      message: `Semantic diagnostic for ${snapshot.parameters.parameters[0]!.name}.`,
+      presentation: {
+        key: "modulePreview.parameters.diagnostic.invalid-expression",
+        parameters: { name: snapshot.parameters.parameters[0]!.name }
+      }
+    };
+    const diagnosticSnapshot: VscodeModulePreviewParameterSnapshot = {
+      ...snapshot,
+      previewStatus: "current",
+      inputDiagnostics: [diagnostic],
+      parameters: {
+        ...snapshot.parameters,
+        parameters: snapshot.parameters.parameters.map((parameter) => parameter.name === "width"
+          ? { ...parameter, value: code === "required-value-missing" ? "" : parameter.value, diagnostic }
+          : parameter)
+      }
+    };
+
+    act(() => window.dispatchEvent(new MessageEvent("message", { data: diagnosticSnapshot })));
+
+    const row = document.querySelector<HTMLTableRowElement>("[data-module-preview-parameter-row='module:inner:0']");
+    expect(row).not.toBeNull();
+    const input = within(row!).getByRole("textbox", { name: "Value for width" });
+    const alert = within(row!).getByRole("alert");
+    expect(alert.textContent).toBe(expected);
+    expect(alert.textContent).not.toContain("width");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", alert.id);
   });
 
   it("retains the no-valid-preview banner when there is no concrete input diagnostic", () => {
@@ -275,6 +330,8 @@ describe("ModulePreviewParametersApp", () => {
               "modulePreview.parameters.useDefaultFor": "{name}にデフォルトを使用",
               "modulePreview.parameters.useDefault": "デフォルトを使用",
               "modulePreview.parameters.status.lastGood": "入力が不正なため、最後に有効だったプレビューを表示しています。",
+              "modulePreview.parameters.diagnostic.requiredValueMissing": "値を入力してください。",
+              "modulePreview.parameters.diagnostic.invalidExpression": "有効な式を入力してください。",
               "modulePreview.parameters.diagnostic.invalid-expression": "「{name}」の値はこのコンテキストで有効なModule引数式ではありません。"
             },
             diagnosticTemplates: {}
@@ -307,7 +364,7 @@ describe("ModulePreviewParametersApp", () => {
     expect(screen.getByRole("heading", { name: /Inner/ })).toBeInTheDocument();
     expect(screen.getByLabelText("widthの値")).toHaveValue("@scale * 4");
     expect(screen.getByRole("status")).toHaveTextContent("入力が不正");
-    expect(screen.getByRole("alert")).toHaveTextContent("このコンテキストで有効なModule引数式ではありません");
+    expect(screen.getByRole("alert")).toHaveTextContent("有効な式を入力してください。");
   });
 
   it("exposes contextual Pick actions for geometry rows only and routes the exact row proof", () => {
@@ -364,7 +421,7 @@ describe("ModulePreviewParametersApp", () => {
     expect(within(groups[1]!).getByRole("heading", { name: /Inner/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Value for width")).toHaveValue("@scale * 4");
     expect(screen.getByText('"front"')).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Value for width is invalid.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid expression.");
     expect(screen.getByRole("status")).toHaveTextContent("last valid preview");
     expect(api.postMessage).toHaveBeenCalledWith({ type: "modulePreviewParametersViewReady" });
   });
