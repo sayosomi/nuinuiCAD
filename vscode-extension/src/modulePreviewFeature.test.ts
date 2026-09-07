@@ -3,6 +3,7 @@ import {
   createLanguageAnalysisSession,
   currentCompiledSemanticSnapshotFor
 } from "./languageAnalysisSession";
+import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
 import type {
   VscodeModulePreviewModelPatchRequest,
   VscodeModulePreviewParameterSetValueRequest,
@@ -1641,6 +1642,123 @@ describe("registerModulePreviewFeature", () => {
     expect(document.version).toBe(1);
     expect(document.getText()).toBe(source);
     expect(mocks.executeCommand).not.toHaveBeenCalledWith("undo");
+
+    feature.dispose();
+  });
+
+  it("re-proves Module Preview parameter targets across independent Host and Webview language sessions", async () => {
+    const source = [
+      "nui 1",
+      "module Preview(width: number) {",
+      "}"
+    ].join("\n");
+    const document = createDocument(source);
+    const panel = createPanel();
+    mocks.createWebviewPanel.mockReturnValue(panel);
+    const producerSession = createLanguageAnalysisSession(source);
+    const consumerSession = createLanguageAnalysisSession(source);
+    const targetFor = (analysis: ReturnType<typeof createLanguageAnalysisSession>) => {
+      const sourceSnapshot = {
+        normalizedSource: source,
+        sourceRevision: analysis.getSourceRevision()
+      };
+      return queryModulePreviewTarget({
+        source: sourceSnapshot,
+        position: source.indexOf("module Preview"),
+        semantic: currentCompiledSemanticSnapshotFor(analysis, sourceSnapshot)
+      });
+    };
+    const producerTarget = targetFor(producerSession);
+    const consumerTarget = targetFor(consumerSession);
+    expect(producerTarget).toBeDefined();
+    expect(consumerTarget).toBeDefined();
+    if (!producerTarget || !consumerTarget) throw new Error("expected independent Module Preview targets");
+    expect(producerTarget.definitionStatementId).not.toBe(consumerTarget.definitionStatementId);
+    expect(producerTarget.definitionStatementIndex).toBe(consumerTarget.definitionStatementIndex);
+    expect(producerTarget.name).toBe(consumerTarget.name);
+
+    let hostAnalysis = consumerSession;
+    mocks.activeTextEditor = {
+      document,
+      selection: { active: positionAt(source, source.indexOf("module Preview")) }
+    };
+    const feature = registerModulePreviewFeature({
+      languageAnalysisSessionFor: (() => hostAnalysis) as never,
+      canvasThemeGeneration: () => 0,
+      webviewHtml: () => "<html />",
+      canvasRibbons: () => [],
+      updateCanvasRibbonPosition: () => undefined,
+      editCanvasRibbon: () => undefined,
+      evaluateWithRust: async () => ({})
+    });
+    const parameterView = createParameterWebview();
+    feature.attachParameterView(parameterView as never);
+    await parameterView.receive({ type: "modulePreviewParametersViewReady" });
+    mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
+    await panel.receive({ type: "webviewReady" });
+    await panel.receive({ type: "webviewAuthoritativeDocumentReady", documentVersion: 1 });
+
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message as { type?: string; sessionId?: string })
+      .find((message) => message.type === "modulePreviewSession")?.sessionId;
+    if (!sessionId) throw new Error("expected Module Preview session identity");
+    const snapshot = parameterSnapshotFor({
+      sessionId,
+      document,
+      target: {
+        statementId: producerTarget.definitionStatementId,
+        statementIndex: producerTarget.definitionStatementIndex,
+        name: producerTarget.name
+      },
+      sourceRevision: producerSession.getSourceRevision(),
+      value: ""
+    });
+    await panel.receive(snapshot);
+    expect(parameterView.postMessage).toHaveBeenCalledWith(snapshot);
+
+    panel.webview.postMessage.mockClear();
+    await parameterView.receive(parameterSetValueFor(snapshot, "10"));
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue",
+      sessionId: snapshot.sessionId,
+      targetDefinitionStatementId: producerTarget.definitionStatementId,
+      definitionStatementId: producerTarget.definitionStatementId,
+      expression: "10"
+    }));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      targetDefinitionStatementId: consumerTarget.definitionStatementId
+    }));
+
+    const retainedParameterView = createParameterWebview();
+    feature.attachParameterView(retainedParameterView as never);
+    expect(retainedParameterView.postMessage).toHaveBeenCalledWith(snapshot);
+
+    const rejectedSnapshots = [
+      { ...snapshot, sessionId: "wrong-session" },
+      { ...snapshot, documentVersion: 2 },
+      {
+        ...snapshot,
+        target: { ...snapshot.target, definitionStatementIndex: snapshot.target.definitionStatementIndex + 1 }
+      },
+      { ...snapshot, target: { ...snapshot.target, name: "Other" } }
+    ];
+    for (const rejected of rejectedSnapshots) {
+      retainedParameterView.postMessage.mockClear();
+      await panel.receive(rejected);
+      expect(retainedParameterView.postMessage).not.toHaveBeenCalled();
+    }
+
+    const lostHostTargetSession = createLanguageAnalysisSession("nui 1\n");
+    lostHostTargetSession.getSource = () => source;
+    hostAnalysis = lostHostTargetSession;
+    retainedParameterView.postMessage.mockClear();
+    await panel.receive({ ...snapshot, sessionRevision: snapshot.sessionRevision + 1 });
+    expect(retainedParameterView.postMessage).not.toHaveBeenCalled();
+    panel.webview.postMessage.mockClear();
+    await retainedParameterView.receive(parameterSetValueFor(snapshot, "11"));
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewSetValue"
+    }));
 
     feature.dispose();
   });

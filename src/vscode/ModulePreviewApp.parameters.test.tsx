@@ -483,7 +483,30 @@ describe("ModulePreviewApp parameter relay", () => {
     });
     expect(screen.getByText("No valid Module Preview")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent('Parameter "width" requires a value.');
+    expect(screen.getByRole("status")).not.toHaveTextContent("Module Preview is unavailable.");
     expect(document.getSource()).toBe(sourceText);
+  });
+
+  it("shows one concise fallback when a no-root preview has no concrete diagnostic", () => {
+    mocks.queryModulePreviewTarget.mockReturnValue(target);
+    mocks.session.activate.mockReturnValue(snapshot);
+    mocks.session.getState.mockReturnValue(snapshot);
+    render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewSession", sessionId: "module-preview-session:1", documentUri: "file:///pattern.nui" }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "replaceTextDocument", sourceText: source, documentVersion: 1 }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "modulePreviewTarget", documentVersion: 1, normalizedSourceOffset: source.indexOf("module Preview") }
+      }));
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Module Preview is unavailable.");
+    expect(screen.getByRole("status").textContent).toBe("Module Preview is unavailable.");
   });
 
   it("routes accepted value and unavailable-default actions through the live session", () => {

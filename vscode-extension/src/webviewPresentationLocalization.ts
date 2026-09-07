@@ -191,7 +191,7 @@ export const webviewPresentationTranslationCatalog = {
   "modulePreview.initial": { en: "Open Module Preview from a Module definition in the Source Editor.", ja: "Source EditorのModule定義からModule Previewを開いてください。" },
   "modulePreview.waitingForTarget": { en: "Module Preview is waiting for the exact current target.", ja: "Module Previewは正確な現在の対象を待機しています。" },
   "modulePreview.noValid": { en: "No valid Module Preview is available yet.", ja: "有効なModule Previewはまだありません。" },
-  "modulePreview.cannotEvaluate": { en: "Module Preview cannot evaluate the exact current target with the current inputs.", ja: "現在の入力ではModule Previewの正確な現在の対象を評価できません。" },
+  "modulePreview.cannotEvaluate": { en: "Module Preview is unavailable.", ja: "Module Previewを表示できません。" },
   "modulePreview.lastGood": { en: "Module Preview is showing the last valid preview for the current target.", ja: "Module Previewは現在の対象の最後に有効だったプレビューを表示しています。" },
   "modulePreview.contextFailed": { en: "Module Preview could not build the current evaluation context.", ja: "Module Previewの現在の評価コンテキストを構築できませんでした。" },
   "modulePreview.targetUnavailable": { en: "Module Preview target is not exact-current and was not rebound.", ja: "Module Previewの対象が正確な現在の状態ではないため、再バインドしませんでした。" },

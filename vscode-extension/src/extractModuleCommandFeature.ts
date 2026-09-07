@@ -6,9 +6,7 @@ import {
 } from "@nuinuicad/nui-language/document";
 import type { LineSplice } from "@nuinuicad/nui-language/document";
 import type { CompiledDslDocument } from "@nuinuicad/nui-language";
-import { materializedRuntimeElementId } from "@nuinuicad/nui-language";
 import type { SourceSnapshot } from "@nuinuicad/nui-language";
-import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import type {
   VscodeCanvasObservationElementSource,
@@ -26,6 +24,7 @@ import {
 } from "./extractModuleLocalization";
 import { normalizedOffsetFromRaw, normalizedSourceFor } from "./sourceOffsetAdapter";
 import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
+import { moduleInstanceHostProjectionFor } from "./moduleInstanceHostProjection";
 
 export const VSCODE_EXTRACT_MODULE_COMMAND_ID = "nuinuiCAD.extractModule";
 export const VSCODE_EXTRACT_MODULE_SOURCE_TARGET_CONTEXT_KEY = "nuinuiCAD.extractModuleSourceTarget";
@@ -232,58 +231,17 @@ const currentSourceStatementIdFor = (
     : null;
 };
 
-const sameNumberPath = (left: readonly number[], right: readonly number[]): boolean =>
-  left.length === right.length && left.every((value, index) => value === right[index]);
-
 const moduleInstanceTargetFor = (
   source: VscodeCanvasObservationElementSource,
   compiled: CompiledDslDocument,
   sourceSnapshot: SourceSnapshot
 ): { statementId: StatementIdentity; statementIndex: number } | null => {
   if (!("runtimeKind" in source) || source.runtimeKind !== "moduleInstance") return null;
-  if (
-    !Array.isArray(source.sourceStatementPath) ||
-    source.sourceStatementPath.length === 0 ||
-    source.sourceStatementPath.some((index) => !Number.isInteger(index) || index < 0) ||
-    !compiled.statementMap ||
-    !compiled.moduleMaterialization
-  ) return null;
-
-  const runtimeIdentity = compiled.moduleMaterialization.runtimeIdentityByElementId.get(source.runtimeElementId);
-  if (
-    !runtimeIdentity ||
-    runtimeIdentity.kind !== "moduleInstance" ||
-    materializedRuntimeElementId(runtimeIdentity.kind, runtimeIdentity.path) !== source.runtimeElementId
-  ) return null;
-  const currentPath = runtimeIdentity.path.map((statementId) =>
-    compiled.statementMap?.statementIndexByStatementId?.get(statementId)
-  );
-  if (!currentPath.every((index): index is number => index !== undefined && Number.isInteger(index) && index >= 0) ||
-      !sameNumberPath(currentPath as number[], source.sourceStatementPath)) return null;
-
-  const owner = sourceOwnerForRuntimeElementId({
-    statementMap: compiled.statementMap,
-    moduleMaterialization: compiled.moduleMaterialization,
-    moduleRuntimeContext: compiled.moduleRuntimeContext
-  }, source.runtimeElementId);
-  if (
-    !owner ||
-    owner.kind !== "moduleInstance" ||
-    owner.source?.kind === "dependency-saved" ||
-    owner.sourceStatementIndex !== currentPath.at(-1) ||
-    owner.sourceStatementId !== compiled.statementMap.statementIdByStatementIndex?.get(owner.sourceStatementIndex)
-  ) return null;
-  const statement = compiled.statements[owner.sourceStatementIndex];
-  const info = compiled.statementMap.statementRangeById.get(owner.sourceStatementId);
-  if (
-    !statement ||
-    statement.kind !== "moduleInstance" ||
-    statement.sourceRevision !== sourceSnapshot.sourceRevision ||
-    !info ||
-    info.sourceRevision !== sourceSnapshot.sourceRevision ||
-    info.statementIndex !== owner.sourceStatementIndex
-  ) return null;
-  return { statementId: owner.sourceStatementId, statementIndex: owner.sourceStatementIndex };
+  return moduleInstanceHostProjectionFor({
+    sourceStatementPath: source.sourceStatementPath,
+    source: sourceSnapshot,
+    compiled
+  });
 };
 
 const ordinaryTargetFor = (
