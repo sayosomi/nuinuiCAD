@@ -6,8 +6,9 @@ Typed scalar declarations use an explicit type annotation and initializer:
 
 - `const name: type = expression` creates a read-only scalar or geometry array.
 - `const name: point|line|path = @reference` creates a read-only, non-drawable
-  geometry alias. In this form the initializer must be an existing geometry
-  reference; construction calls are not value initializers.
+  geometry value. The initializer may be an existing geometry reference or, in
+  the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`
+  and `segment(start: ..., end: ...)` for `line` or `path`.
 - `let name: type = expression` creates a mutable scalar binding.
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.
@@ -21,6 +22,11 @@ evaluation.
 `let` is not allowed for single-geometry values. `line` aliases can be used
 where `path` is expected, but a `path` alias cannot be used where `line` is
 required.
+
+Pure geometry constructions are source values, not drawable declarations. They
+do not create an element or drawable identity. Other construction calls,
+including `bezier` and `offset`, remain unsupported as pure value initializers
+in this slice.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

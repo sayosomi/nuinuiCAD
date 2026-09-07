@@ -1,4 +1,7 @@
 import type { CadElement, ComputedGeometry, ElementId } from "../types/geometry";
+import type { ComputedGeometryValue } from "./evaluationTypes";
+import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { computedReferencePathValue } from "./numericExpressions";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { getParameterValue } from "../parameters/parameterAccess";
@@ -44,6 +47,7 @@ export type LinearScalarBindingResolver = {
 
 export type DocumentGeometryRuntime = {
   computedGeometry: ReadonlyMap<ElementId, ComputedGeometry>;
+  computedGeometryValues?: ReadonlyMap<GeometryValueOccurrenceKey, { value: ComputedGeometryValue }>;
   elementsById: ReadonlyMap<ElementId, CadElement>;
   activities: ReadonlyMap<ElementId, EffectiveElementActivity>;
 };
@@ -57,6 +61,29 @@ export const resolveDocumentGeometryProperty = (
     return { status: "error", type: { kind: "number" }, issueCode: "evaluation-static-type-null" };
   }
   if (reference.type.kind !== "number" && reference.type.kind !== "choice") {
+    return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+  }
+  if (reference.geometryValueOccurrence) {
+    const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(reference.geometryValueOccurrence));
+    if (!entry) return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    if (reference.type.kind === "number") {
+      const value = (() => {
+        if (entry.value.kind === "point") return reference.property === "x" ? entry.value.x : reference.property === "y" ? entry.value.y : undefined;
+        if (reference.property === "length") return entry.value.length;
+        if (reference.geometryValuePointKey === "start" && reference.property === "x") return entry.value.start.x;
+        if (reference.geometryValuePointKey === "start" && reference.property === "y") return entry.value.start.y;
+        if (reference.geometryValuePointKey === "end" && reference.property === "x") return entry.value.end.x;
+        if (reference.geometryValuePointKey === "end" && reference.property === "y") return entry.value.end.y;
+        if (reference.property === "start.x" || reference.property === "startPoint.x") return entry.value.start.x;
+        if (reference.property === "start.y" || reference.property === "startPoint.y") return entry.value.start.y;
+        if (reference.property === "end.x" || reference.property === "endPoint.x") return entry.value.end.x;
+        if (reference.property === "end.y" || reference.property === "endPoint.y") return entry.value.end.y;
+        return computedReferencePathValue(entry.value as never, reference.property);
+      })();
+      return typeof value === "number"
+        ? { status: "ok", type: reference.type, value: { kind: "number", value } }
+        : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
+    }
     return { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
   if (!reference.elementId || reference.targetSourceOrder === null || reference.targetSourceOrder >= sourceOrder) {
@@ -99,6 +126,14 @@ export const resolveDocumentGeometryTarget = (
   target: ScalarExpressionResolvedGeometryTarget,
   sourceOrder: number
 ): GeometryBuiltinTargetLookupResult | undefined => {
+  if (target.kind === "geometryValue") {
+    const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
+    if (!entry) return undefined;
+    if (!target.pointKey) return entry.value;
+    if (entry.value.kind !== "line") return undefined;
+    return target.pointKey === "end" ? { kind: "point", x: entry.value.end.x, y: entry.value.end.y } :
+      target.pointKey === "start" ? { kind: "point", x: entry.value.start.x, y: entry.value.start.y } : undefined;
+  }
   if (target.statementIndex >= sourceOrder || !geometry.elementsById.has(target.statementId)) return undefined;
   if (geometry.activities.get(target.statementId)?.activity === "disabled") {
     return { kind: "unavailable", reason: "disabled" };

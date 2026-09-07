@@ -20,6 +20,7 @@ import {
   svgNumericAttrKeys
 } from "./dslPrintLayoutAttributes";
 import {
+  geometryValueInitializerCompletionContextAt,
   recordDeclarationInitializerCompletionContextAt,
   typedDeclarationInitializerCompletionContext
 } from "./dslTypedDeclarationCompletionContext";
@@ -44,6 +45,7 @@ export type DslCompletionContext =
   | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean; expectedScalarType: ScalarType }
   | { kind: "declaredType"; from: number; to: number; bindingKind: "const" | "let" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
+  | { kind: "geometryValueInitializer"; from: number; to: number; declaredType: "point" | "line" | "path" }
   | { kind: "recordInitializer"; from: number; to: number; initializerFrom: number; recordTypeName: string; fieldLabel: boolean; providedFieldNames: readonly string[] }
   | ({ kind: "geometryArrayValue" } & GeometryArrayCompletionContext)
   | { kind: "conditionExpression"; from: number; to: number; positionContext: ScalarExpressionCompletionContext }
@@ -433,6 +435,8 @@ export const dslCompletionContextAt = (
   if (geometryArrayContext) return { kind: "geometryArrayValue", ...geometryArrayContext };
 
   const typedDeclarationContext = typedDeclarationInitializerCompletionContext(code, pos);
+  const geometryValueContext = geometryValueInitializerCompletionContextAt(code, pos);
+  if (geometryValueContext) return { kind: "geometryValueInitializer", ...geometryValueContext };
   if (typedDeclarationContext) {
     if (typedDeclarationContext.geometryProperty) {
       return {

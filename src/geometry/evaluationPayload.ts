@@ -8,6 +8,8 @@ import type {
   ForGroupGeneratedRow,
   GeometryMutationExecution
 } from "../types/geometry";
+import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { BindingVersionId } from "../scalars/bindingVersions";
 import type { BindingVersionRuntimeHistory } from "../scalars/linearMutationEvaluator";
@@ -245,6 +247,7 @@ const parseEffectiveDrawingModifierResolutions = (
 
 export type EvaluationPayload = {
   computedGeometry: ComputedGeometry[];
+  computedGeometryValues?: ComputedGeometryValueEntry[];
   preMutationGeometry?: ComputedGeometry[];
   geometryMutationExecutions?: GeometryMutationExecution[];
   instanceBaseGeometry?: Array<{ instanceId: ElementId; geometry: ComputedGeometry[] }>;
@@ -273,6 +276,9 @@ export const evaluationResultToPayload = (result: EvaluationResult): EvaluationP
   const modifierResolutions = effectiveDrawingModifierResolutionsFromResult(result);
   return {
     computedGeometry: Array.from(result.computedGeometry.values()),
+    computedGeometryValues: result.computedGeometryValues?.size
+      ? Array.from(result.computedGeometryValues.values())
+      : undefined,
     preMutationGeometry: result.preMutationGeometry?.size
       ? Array.from(result.preMutationGeometry.values())
       : undefined,
@@ -315,6 +321,9 @@ export const evaluationPayloadToResult = (
   payload: EvaluationPayload
 ): EvaluationResultWithDrawingModifierInspection => ({
   computedGeometry: new Map(payload.computedGeometry.map((geometry) => [geometry.elementId, geometry])),
+  computedGeometryValues: new Map(
+    (payload.computedGeometryValues ?? []).map((entry) => [geometryValueOccurrenceKey(entry.occurrence), entry])
+  ),
   preMutationGeometry: new Map(
     (payload.preMutationGeometry ?? []).map((geometry) => [geometry.elementId, geometry])
   ),

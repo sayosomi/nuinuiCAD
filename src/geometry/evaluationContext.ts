@@ -11,6 +11,9 @@ import type {
 import { elementDisplayName } from "../model/elementNames";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { evaluateNumericValue } from "./numericExpressions";
+import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 
 export const isPoint = (
   geometry: ComputedGeometry | undefined
@@ -106,8 +109,10 @@ export const numericError = (
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
   disabledByGroupId?: Map<ElementId, ElementId>,
-  elements?: CadElement[]
+  elements?: CadElement[],
+  computedGeometryValues?: ReadonlyMap<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>
 ) => {
+  void computedGeometryValues;
   const result = evaluateNumericValue({
     value,
     computedGeometry,
@@ -145,7 +150,8 @@ export const getPointAnchorOrError = (
   localVariables?: Map<string, number>,
   localVariableNames?: Map<string, string>,
   disabledByGroupId?: Map<ElementId, ElementId>,
-  elements?: CadElement[]
+  elements?: CadElement[],
+  computedGeometryValues?: ReadonlyMap<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>
 ) => {
   if (anchor.mode === "reference") {
     return getComputedPointOrError(
@@ -169,6 +175,33 @@ export const getPointAnchorOrError = (
       ...point,
       elementId: `${anchor.elementId}:${anchor.pointKey}`,
       name: `${source!.name}.${anchor.pointKey}`
+    };
+  }
+
+  if (anchor.mode === "geometryValue") {
+    const entry = computedGeometryValues?.get(geometryValueOccurrenceKey(anchor.occurrence));
+    const value = entry?.value;
+    const point = value?.kind === "point"
+      ? value
+      : value?.kind === "line"
+        ? anchor.pointKey === "end" ? value.end : anchor.pointKey === "start" ? value.start : undefined
+        : undefined;
+    if (!point) {
+      errors.push({
+        elementId: element.id,
+        elementName: element.name,
+        missingDependencyId: anchor.occurrence.sourceStatementId,
+        missingDependencyName: anchor.occurrence.sourceStatementId,
+        message: `${element.name} は immutable geometry value を参照していますが、先に評価できません。`
+      });
+      return undefined;
+    }
+    return {
+      kind: "point" as const,
+      elementId: `${element.id}:${anchorKey}`,
+      name: `${element.name}.${anchorKey}`,
+      x: point.x,
+      y: point.y
     };
   }
 

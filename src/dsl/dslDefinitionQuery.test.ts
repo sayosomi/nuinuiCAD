@@ -62,6 +62,20 @@ describe("queryDslDefinition", () => {
     expect(result!.declarationRange.from).toBe(source.indexOf("const P") + "const ".length);
   });
 
+  it("resolves references used by a constructed geometry declaration", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)"
+    ].join("\n");
+    const result = exactQuery(source, "@A");
+
+    expect(result).not.toBeNull();
+    expect(sourceSlice(source, result!.referenceRange)).toBe("A");
+    expect(sourceSlice(source, result!.declarationRange)).toBe("A");
+  });
+
   it("resolves ordinary geometry from source semantics without runtime materialization", () => {
     const source = [
       "nui 1",

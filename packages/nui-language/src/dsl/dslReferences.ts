@@ -7,6 +7,7 @@ import type {
   NumericValue,
   PointAnchor
 } from "../types/geometry";
+import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
 import type { DslDiagnostic, DslSpan } from "./dslTypes";
 import {
   formatDslReferencePath,
@@ -26,6 +27,12 @@ export type NameIndex = {
     sourceNamespace: SourceLexicalNamespaceIndex;
     elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
     statementIndexByElementId: ReadonlyMap<ElementId, number>;
+    geometryValueByStatementIndex?: ReadonlyMap<number, {
+      kind: "value" | "drawable";
+      occurrence?: GeometryValueOccurrence;
+      declaredInterfaceType: "point" | "line" | "path";
+      elementId?: ElementId;
+    }>;
   };
 };
 
@@ -34,6 +41,12 @@ export const createNameIndex = (
   sourceLexicalResolution?: {
     sourceNamespace: SourceLexicalNamespaceIndex;
     elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+    geometryValueByStatementIndex?: ReadonlyMap<number, {
+      kind: "value" | "drawable";
+      occurrence?: GeometryValueOccurrence;
+      declaredInterfaceType: "point" | "line" | "path";
+      elementId?: ElementId;
+    }>;
   }
 ): NameIndex => {
   const idsByName = new Map<string, ElementId[]>();
@@ -56,7 +69,10 @@ export const createNameIndex = (
           sourceLexicalResolution: {
             sourceNamespace: sourceLexicalResolution.sourceNamespace,
             elementIdByStatementIndex: sourceLexicalResolution.elementIdByStatementIndex,
-            statementIndexByElementId
+            statementIndexByElementId,
+            ...(sourceLexicalResolution.geometryValueByStatementIndex
+              ? { geometryValueByStatementIndex: sourceLexicalResolution.geometryValueByStatementIndex }
+              : {})
           }
         }
       : {})
@@ -233,6 +249,36 @@ export const resolveAnchor = (
   if (coordinate) return coordinate;
   const reference = sourceReference(value, line, diagnostics, sourceSpan);
   if (!reference) return referenceAnchor(value.trim());
+  const sourceResolution = index.sourceLexicalResolution && currentElement
+    ? (() => {
+        const statementIndex = index.sourceLexicalResolution!.statementIndexByElementId.get(currentElement.id);
+        return statementIndex === undefined
+          ? null
+          : resolveSourceLexicalPath(
+              index.sourceLexicalResolution!.sourceNamespace,
+              statementIndex,
+              reference.path
+            );
+      })()
+    : null;
+  if (sourceResolution?.kind === "resolved" &&
+      sourceResolution.declaration.kind === "typedDeclaration" &&
+      sourceResolution.declaration.statement.kind === "typedDeclaration" &&
+      isDslGeometryValueType(sourceResolution.declaration.statement.valueType)) {
+    const value = index.sourceLexicalResolution?.geometryValueByStatementIndex?.get(sourceResolution.declaration.statementIndex);
+    if (value?.kind === "drawable" && value.elementId && (!reference.property || reference.property === "start" || reference.property === "end")) {
+      return reference.property
+        ? derivedAnchor(value.elementId, reference.property)
+        : referenceAnchor(value.elementId);
+    }
+    if (value?.kind === "value" && value.occurrence && (!reference.property || reference.property === "start" || reference.property === "end")) {
+      return {
+        mode: "geometryValue",
+        occurrence: value.occurrence,
+        ...(reference.property ? { pointKey: reference.property } : {})
+      };
+    }
+  }
   const pathToken = `@${formatDslReferencePath(reference.path)}`;
   const elementId = resolveId(pathToken, index, line, diagnostics, currentElement, sourceSpan);
   return reference.property

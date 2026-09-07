@@ -78,6 +78,20 @@ describe("queryDslReferences", () => {
     expect(slices(source, declaration!.referenceRanges)).toEqual(["P", "P"]);
   });
 
+  it("indexes construction references through the existing geometry identity", () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "const L: line = segment(start: @A, end: @B)"
+    ].join("\n");
+    const result = queryAt(source, "@A");
+
+    expect(result).not.toBeNull();
+    expect(slices(source, result!.declarationRange)).toEqual(["A"]);
+    expect(slices(source, result!.referenceRanges)).toEqual(["A"]);
+  });
+
   it("resolves ordinary containers, parent references, and geometry properties", () => {
     const parentSource = [
       "nui 1",

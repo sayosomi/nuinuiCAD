@@ -12,13 +12,13 @@ use super::scalars::{
 use super::scalars::{
     resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
-use super::types::EvaluationState;
+use super::types::{EvaluationState, GeometryValueOccurrence};
 use serde_json::Value;
 
 struct ResolverEnvironment<'a> {
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
-    current_source_order: Option<usize>,
+    current_source_order: Option<f64>,
 }
 
 fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation {
@@ -30,6 +30,41 @@ fn unavailable_geometry_property(property_type: &ScalarType) -> ScalarEvaluation
     }
 }
 
+pub(crate) fn lookup_geometry_value_property(
+    state: &EvaluationState,
+    occurrence: &GeometryValueOccurrence,
+    point_key: Option<&str>,
+    property: &str,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
+    property_type: &ScalarType,
+) -> ScalarEvaluation {
+    // Presence in the separate value store is the runtime source-order check.
+    // Value execution positions may be fractional within a source statement
+    // gap, while the scalar resolver's current position is statement-based.
+    let _ = (target_source_order, current_source_order);
+    let Some(geometry) = state.computed_geometry_values.get(occurrence) else {
+        return unavailable_geometry_property(property_type);
+    };
+    let value = if let Some(point_key) = point_key {
+        geometry
+            .get(point_key)
+            .and_then(|point| point.get(property).and_then(Value::as_f64))
+    } else if geometry.get("kind").and_then(Value::as_str) == Some("point") {
+        geometry.get(property).and_then(Value::as_f64)
+    } else if property == "length" {
+        geometry.get("length").and_then(Value::as_f64)
+    } else {
+        None
+    };
+    value
+        .map(|value| ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(value),
+        })
+        .unwrap_or_else(|| unavailable_geometry_property(property_type))
+}
+
 /// Resolves an already-validated geometry-property reference against the
 /// current evaluator-owned state. Numeric properties keep the canonical
 /// computed-geometry accessor; choice properties read the current effective
@@ -38,8 +73,8 @@ pub(crate) fn lookup_geometry_property(
     state: &EvaluationState,
     element_id: &str,
     property: &str,
-    target_source_order: usize,
-    current_source_order: Option<usize>,
+    target_source_order: f64,
+    current_source_order: Option<f64>,
     property_type: &ScalarType,
 ) -> ScalarEvaluation {
     if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
@@ -121,12 +156,31 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(
             self.state,
             element_id,
+            property,
+            target_source_order,
+            self.current_source_order,
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_property(
+            self.state,
+            occurrence,
+            point_key,
             property,
             target_source_order,
             self.current_source_order,
@@ -151,7 +205,7 @@ pub(crate) fn evaluate_document_typed_expression(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    current_source_order: Option<usize>,
+    current_source_order: Option<f64>,
 ) -> ScalarEvaluation {
     evaluate_typed_expression(
         expression,

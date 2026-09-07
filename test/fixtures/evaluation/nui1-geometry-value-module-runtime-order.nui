@@ -1,0 +1,10 @@
+nui 1
+point EarlierA = coordinate(x: -10, y: 1)
+point EarlierB = coordinate(x: -20, y: 2)
+point EarlierC = coordinate(x: -30, y: 3)
+point Source = coordinate(x: 0, y: 42)
+module M(source: point) {
+  export const P: point = coordinate(x: 7, y: @source.y)
+}
+instance I = M(source: @Source)
+line Use = segment(start: @I::P, end: @Source)

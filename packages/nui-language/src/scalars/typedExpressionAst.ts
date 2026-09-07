@@ -9,6 +9,7 @@ import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarType } from "./types";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
+import type { GeometryValueOccurrence } from "../types/geometry";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 
 export interface TypedScalarNumberLiteralNode {
@@ -69,6 +70,14 @@ export interface TypedScalarReferenceNode {
  * && must not perform another name lookup.
  */
 export type ScalarExpressionResolvedGeometryTarget = {
+  readonly kind?: "drawable";
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly pointKey?: string;
+} | {
+  readonly kind: "geometryValue";
+  readonly occurrence: GeometryValueOccurrence;
   readonly statementId: string;
   readonly statementIndex: number;
   readonly geometryType: ModuleGeometryInterfaceType;
@@ -90,8 +99,16 @@ export type ScalarExpressionResolvedReference =
  * The common expression typechecker consumes this closed result; it does not
  * resolve element names, property schemas, or source order itself. */
 export type ScalarExpressionResolvedGeometryProperty = {
+  readonly kind?: "drawable";
   readonly elementId: ElementId;
   readonly property: string;
+  readonly targetSourceOrder: number;
+  readonly type: ScalarType;
+} | {
+  readonly kind: "geometryValue";
+  readonly occurrence: GeometryValueOccurrence;
+  readonly property: string;
+  readonly pointKey?: string;
   readonly targetSourceOrder: number;
   readonly type: ScalarType;
 };
@@ -104,6 +121,8 @@ export interface TypedScalarGeometryPropertyReferenceNode {
   readonly propertySpan: ScalarSpan;
   readonly elementName: string;
   readonly elementId: string | null;
+  readonly geometryValueOccurrence?: GeometryValueOccurrence;
+  readonly geometryValuePointKey?: string;
   readonly property: string;
   readonly targetSourceOrder: number | null;
   readonly type: ScalarType | null;

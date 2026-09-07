@@ -13,6 +13,8 @@ import {
 import { dependencyError, geometryError, getPointAnchorOrError, numericError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { arcTangentAngles, lineTangentAngles } from "./lineMeasurements";
+import { segmentGeometryKernel } from "./geometryValueKernels";
+import { resolveLineGeometryInput } from "./lineGeometryInput";
 
 export const evaluateLineElement = (element: CadElement, context: ElementEvaluationContext) => {
   const {
@@ -20,6 +22,7 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
     elementsById,
     errors,
     disabledByGroupId,
+    computedGeometryValues,
     localVariables: { localVariableValues, localVariableNames }
   } = context;
 
@@ -34,7 +37,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames,
-          disabledByGroupId
+          disabledByGroupId,
+          undefined,
+          computedGeometryValues
         );
         const end = getPointAnchorOrError(
           element,
@@ -45,26 +50,23 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames,
-          disabledByGroupId
+          disabledByGroupId,
+          undefined,
+          computedGeometryValues
         );
         if (!start || !end) {
           break;
         }
 
-        const dx = end.x - start.x;
-        const dy = start.y - end.y;
-        const length = Math.hypot(dx, dy);
-        const angles = lineTangentAngles(start, end);
+        const structural = segmentGeometryKernel(start, end);
         computedGeometry.set(element.id, {
-          kind: "line",
+          ...structural,
           elementId: element.id,
           name: element.name,
           startPointId: anchorReferenceElementId(element.startPoint),
           endPointId: anchorReferenceElementId(element.endPoint),
-          start,
-          end,
-          length,
-          ...angles
+          start: { kind: "point", elementId: start.elementId, name: start.name, x: start.x, y: start.y },
+          end: { kind: "point", elementId: end.elementId, name: end.name, x: end.x, y: end.y }
         });
         break;
       }
@@ -87,7 +89,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames,
-          disabledByGroupId
+          disabledByGroupId,
+          undefined,
+          computedGeometryValues
         ));
         if (points.some((point) => !point)) break;
         const resolvedPoints = points as ComputedPoint[];
@@ -142,7 +146,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames,
-          disabledByGroupId
+          disabledByGroupId,
+          undefined,
+          computedGeometryValues
         );
         if (!start) {
           break;
@@ -199,8 +205,8 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
         break;
       }
       case "commonTangentLine": {
-        const firstGeometry = computedGeometry.get(element.firstLineId);
-        const secondGeometry = computedGeometry.get(element.secondLineId);
+        const firstGeometry = resolveLineGeometryInput(context, "firstLineId", element.firstLineId);
+        const secondGeometry = resolveLineGeometryInput(context, "secondLineId", element.secondLineId);
         if (!firstGeometry) {
           errors.push(dependencyError(element, element.firstLineId, elementsById, disabledByGroupId, errors));
         } else if (firstGeometry.kind !== "arcLine") {
@@ -304,7 +310,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames,
-          disabledByGroupId
+          disabledByGroupId,
+          undefined,
+          computedGeometryValues
         );
         if (!center) {
           break;
@@ -317,7 +325,10 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          undefined,
+          undefined,
+          computedGeometryValues
         );
         const startAngleDeg = numericError(
           element,
@@ -326,7 +337,10 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          undefined,
+          undefined,
+          computedGeometryValues
         );
         const endAngleDeg = numericError(
           element,
@@ -335,7 +349,10 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           elementsById,
           errors,
           localVariableValues,
-          localVariableNames
+          localVariableNames,
+          undefined,
+          undefined,
+          computedGeometryValues
         );
         if (radius === undefined || startAngleDeg === undefined || endAngleDeg === undefined) {
           break;
@@ -389,6 +406,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames
+          , undefined,
+          undefined,
+          computedGeometryValues
         );
         const point2 = getPointAnchorOrError(
           element,
@@ -399,6 +419,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
           errors,
           localVariableValues,
           localVariableNames
+          , undefined,
+          undefined,
+          computedGeometryValues
         );
         const point3 = getPointAnchorOrError(
           element,
@@ -517,7 +540,9 @@ export const evaluateLineElement = (element: CadElement, context: ElementEvaluat
             errors,
             localVariableValues,
             localVariableNames,
-            disabledByGroupId
+            disabledByGroupId,
+            undefined,
+            computedGeometryValues
           )
         );
         if (!start || !end || intermediatePoints.some((point) => !point)) {

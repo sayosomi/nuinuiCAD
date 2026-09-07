@@ -34,7 +34,7 @@ impl<'a> ScalarEvaluationEnvironment for ResolverEnvironment<'a> {
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(

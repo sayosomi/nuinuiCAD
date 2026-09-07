@@ -57,6 +57,8 @@ fn evaluates_line_tangent_offset_point_on_line() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -119,6 +121,8 @@ fn evaluates_convex_and_concave_curve_side_on_a_bezier() {
         })));
     }
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -162,6 +166,8 @@ fn rejects_curve_side_on_non_bezier_and_negative_distance() {
         "distance": 1
     })));
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -216,6 +222,8 @@ fn rejects_curve_side_on_non_bezier_and_negative_distance() {
         "distance": -1
     })));
     let negative_result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -286,6 +294,8 @@ fn evaluates_unique_curve_side_and_rejects_ambiguous_internal_join() {
         "distance": 1
     })));
     let valid = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -317,6 +327,8 @@ fn evaluates_unique_curve_side_and_rejects_ambiguous_internal_join() {
         "distance": 1
     })));
     let ambiguous = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -343,6 +355,8 @@ fn evaluates_unique_curve_side_and_rejects_ambiguous_internal_join() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -403,6 +417,8 @@ fn evaluates_line_tangent_offset_point_on_diagonal_line_using_y_up_angles() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_arc_line() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -460,6 +476,8 @@ fn evaluates_line_tangent_offset_point_on_arc_line() {
 #[test]
 fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -541,6 +559,8 @@ fn evaluates_line_tangent_offset_point_on_bezier_intermediate_point_tangent() {
 #[test]
 fn reports_line_tangent_offset_point_base_line_dependency_that_appears_too_late() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -602,6 +622,8 @@ fn reports_line_tangent_offset_point_base_point_dependency() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -644,6 +666,8 @@ fn reports_line_tangent_offset_point_when_base_point_is_not_on_line() {
         "distance": 10
     })));
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -685,6 +709,8 @@ fn evaluates_line_tangent_offset_point_numeric_parameters() {
         "distance": 20
     })));
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,

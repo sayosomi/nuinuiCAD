@@ -43,6 +43,7 @@ const pointValueFromAnchor = ({
 }) => {
   if (!anchor) return undefined;
   if (anchor.mode === "coordinate") return anchor[axis];
+  if (anchor.mode === "geometryValue") return undefined;
   const sourceId = anchor.mode === "reference" ? anchor.pointId : anchor.elementId;
   const geometry = computedGeometry.get(sourceId);
   if (anchor.mode === "reference") {

@@ -18,6 +18,11 @@ import type {
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
+import type {
+  GeometryValueProgram,
+  GeometryValueProgramEntry,
+  GeometryValueProgramPoint
+} from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { moduleParameterPresenceKey } from "../dsl/moduleScalarExpression";
 import type { CadElement, DrawingModifierDefinition, ElementId } from "../types/geometry";
@@ -89,6 +94,7 @@ export type ModuleScalarRuntimeCompilation = {
   materializedConditionalGroupConditions: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
   conditionalOwnerStatementIdByElementId: ReadonlyMap<ElementId, string>;
   forGroupMutationOwnerByElementId: ReadonlyMap<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
+  geometryValueProgram: GeometryValueProgram;
 };
 
 type BindingInfo = {
@@ -586,6 +592,16 @@ const typecheckGeometryTargetFor = (
       ...(pointKey ? { pointKey } : {})
     };
   }
+  if (target.kind === "geometryValue") {
+    return {
+      kind: "geometryValue",
+      occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: occurrence.expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,
@@ -633,16 +649,35 @@ const lowerExpression = (
       });
       continue;
     }
-    const elementId = property.target.kind === "sourceGeometryProperty"
-      ? property.target.statementId
-      : property.target.kind === "deferredModuleExportProperty"
-        ? property.target.instanceStatementId
-        : property.target.definitionStatementId;
-    const targetSourceOrder = property.target.kind === "sourceGeometryProperty"
-      ? property.target.statementIndex
-      : property.target.kind === "deferredModuleExportProperty"
-        ? property.target.instanceStatementIndex
-        : -1;
+    if (runtimeTarget?.kind === "value") {
+      geometryPropertyReferences.set(property.span.start, {
+        kind: "geometryValue",
+        occurrence: runtimeTarget.occurrence,
+        property: runtimeTarget.property,
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        targetSourceOrder: runtimeTarget.targetSourceOrder ?? (
+          property.target.kind === "sourceGeometryProperty" || property.target.kind === "geometryValueProperty"
+            ? property.target.statementIndex
+            : -1
+        ),
+        type: property.type
+      });
+      continue;
+    }
+  const elementId = property.target.kind === "sourceGeometryProperty"
+    ? property.target.statementId
+    : property.target.kind === "deferredModuleExportProperty"
+      ? property.target.instanceStatementId
+        : property.target.kind === "parameterProperty"
+          ? property.target.definitionStatementId
+          : property.target.statementId;
+  const targetSourceOrder = property.target.kind === "sourceGeometryProperty"
+    ? property.target.statementIndex
+    : property.target.kind === "deferredModuleExportProperty"
+      ? property.target.instanceStatementIndex
+        : property.target.kind === "geometryValueProperty"
+          ? property.target.statementIndex
+          : -1;
     geometryPropertyReferences.set(property.span.start, {
       elementId,
       property: property.target.property,
@@ -723,7 +758,17 @@ const lowerExpression = (
         const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, geometryBuiltinForTarget, hasValueForParameter);
         return { node: lowered.expression, references: lowered.references };
       }
-      return { node: { ...node, elementId: resolved.elementId, property: resolved.property, targetSourceOrder: resolved.targetSourceOrder ?? null }, references: [] };
+      return {
+        node: {
+          ...node,
+          elementId: resolved.kind === "runtime" ? resolved.elementId : null,
+          ...(resolved.kind === "value" ? { geometryValueOccurrence: resolved.occurrence } : {}),
+          ...(resolved.kind === "value" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
+          property: resolved.property,
+          targetSourceOrder: resolved.targetSourceOrder ?? null
+        },
+        references: []
+      };
     }
     if (node.kind === "unary") {
       const operand = lowerGeometryProperties(node.operand);
@@ -1565,6 +1610,45 @@ export const compileModuleScalarRuntime = ({
     if (target.kind === "iteration") return documentIterationBindingForTarget(target);
     return undefined;
   };
+  const executionPositionForValue = (path: readonly string[], statementIndex: number): number => {
+    if (path.length === 0) {
+      const exact = eventOrderByStatementIndex.get(statementIndex);
+      if (exact !== undefined) return exact;
+      const next = [...eventOrderByStatementIndex.entries()]
+        .filter(([candidate]) => candidate > statementIndex)
+        .sort((left, right) => left[0] - right[0])[0];
+      if (next) return Math.max(0, next[1] - 0.5);
+      const previous = [...eventOrderByStatementIndex.entries()]
+        .filter(([candidate]) => candidate < statementIndex)
+        .sort((left, right) => right[0] - left[0])[0];
+      return Math.max(0, previous ? previous[1] + 0.5 : statementIndex);
+    }
+    const candidates = moduleMaterialization.executionStatements
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => {
+        const entryPath = entry.runtimeInstancePath ?? entry.instancePath;
+        return entryPath.length === path.length && entryPath.every((part, index) => part === path[index]);
+      });
+    const first = candidates.find(({ entry }) => entry.sourceStatementIndex >= statementIndex) ?? candidates.at(-1);
+    const base = first?.index ?? 0;
+    const context = contextsByKey.get(pathKey(path));
+    const priorScalarEvents = context
+      ? [
+          ...[...context.parameters.values()].map((parameter) => eventOrderByBindingId.get(parameter.id)),
+          ...context.definition.bodyStatements
+            .filter((body) => body.statementIndex < statementIndex)
+            .map((body) => eventOrderByStatementIndex.get(body.statementIndex))
+        ].filter((order): order is number => order !== undefined)
+      : [];
+    const statementFraction = statementIndex / Math.max(1_000_000, statements.length + 1);
+    const firstAvailableAfterScalars = priorScalarEvents.length > 0
+      ? Math.max(...priorScalarEvents) + 0.5 + statementFraction
+      : base + statementFraction;
+    return Math.max(
+      base + statementFraction,
+      firstAvailableAfterScalars
+    );
+  };
   const resolvedGeometryPropertyForContext = (
     target: ModuleGeometryPropertySourceTarget,
     context: InstanceContext
@@ -1573,6 +1657,16 @@ export const compileModuleScalarRuntime = ({
       const lowered = moduleGeometryRuntime.resolvePropertyTarget(target, context.path, new Map(elements.map((element) => [element.id, element])));
       if (!lowered) return undefined;
       if (lowered.kind === "expression") return lowered;
+      if (lowered.kind === "value") {
+        return {
+          ...lowered,
+          targetSourceOrder: lowered.targetSourceOrder ?? (
+            target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty"
+              ? executionPositionForValue(context.path, target.statementIndex)
+              : -1
+          )
+        };
+      }
       const sourceOrder = elementOrderById.get(lowered.elementId);
       return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
     }
@@ -1604,15 +1698,20 @@ export const compileModuleScalarRuntime = ({
       occurrence.expectedGeometryType
     );
     if (!lowered) return undefined;
+    if (lowered.kind === "geometryValue") {
+      return {
+        kind: "geometryValue",
+        occurrence: lowered.occurrence,
+        statementId: lowered.occurrence.sourceStatementId,
+        statementIndex: occurrence.reference.target.kind === "geometryValue"
+          ? executionPositionForValue(context.path, occurrence.reference.target.statementIndex)
+          : occurrence.span.start,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
     const statementIndex = elementOrderById.get(lowered.elementId);
-    return statementIndex === undefined
-      ? undefined
-      : {
-          statementId: lowered.elementId,
-          statementIndex,
-          geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
-        };
+    return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
   const resolvedGeometryBuiltinForRoot = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic
@@ -1624,15 +1723,20 @@ export const compileModuleScalarRuntime = ({
       occurrence.expectedGeometryType
     );
     if (!lowered) return undefined;
+    if (lowered.kind === "geometryValue") {
+      return {
+        kind: "geometryValue",
+        occurrence: lowered.occurrence,
+        statementId: lowered.occurrence.sourceStatementId,
+        statementIndex: occurrence.reference.target.kind === "geometryValue"
+          ? executionPositionForValue([], occurrence.reference.target.statementIndex)
+          : occurrence.span.start,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      };
+    }
     const statementIndex = elementOrderById.get(lowered.elementId);
-    return statementIndex === undefined
-      ? undefined
-      : {
-          statementId: lowered.elementId,
-          statementIndex,
-          geometryType: lowered.geometryType,
-          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
-        };
+    return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleReferences: InitializerReference[] = [];
@@ -1860,6 +1964,16 @@ export const compileModuleScalarRuntime = ({
       new Map(elements.map((element) => [element.id, element]))
     );
     if (!lowered || lowered.kind === "expression") return lowered;
+    if (lowered.kind === "value") {
+      return {
+        ...lowered,
+        targetSourceOrder: lowered.targetSourceOrder ?? (
+          target.kind === "sourceGeometryProperty" || target.kind === "geometryValueProperty"
+            ? executionPositionForValue([], target.statementIndex)
+            : -1
+        )
+      };
+    }
     const sourceOrder = elementOrderById.get(lowered.elementId);
     return sourceOrder === undefined ? undefined : { ...lowered, targetSourceOrder: sourceOrder };
   };
@@ -1942,6 +2056,116 @@ export const compileModuleScalarRuntime = ({
     }
   }
   for (const [bindingId, initializer] of moduleInitializers) initializers.set(bindingId, initializer);
+
+  const geometryValueProgramEntries: GeometryValueProgramEntry[] = [];
+
+  const lowerGeometryValueScalar = (semantic: ModuleScalarExpressionSemantic, context?: InstanceContext) => {
+    const lowered = context
+      ? lowerExpression(
+          semantic,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (definitionStatementId, parameterIndex, definitionDocumentId) => hasValueForParameter(context, definitionStatementId, parameterIndex, definitionDocumentId)
+        )
+      : lowerExpression(
+          semantic,
+          (target, name, statementIndex) => rootBindingForTarget(target, statementIndex),
+          bindingsById,
+          rootGeometryPropertyFor,
+          resolvedGeometryBuiltinForRoot
+        );
+    return lowered.expression;
+  };
+
+  const lowerGeometryValuePoint = (
+    reference: import("../dsl/moduleSemanticTypes").ModuleGeometryReferenceSemantic,
+    context: InstanceContext | undefined,
+    executionPosition: number
+  ): GeometryValueProgramPoint | undefined => {
+    if (reference.coordinate?.x && reference.coordinate.y) {
+      return {
+        kind: "coordinate",
+        x: lowerGeometryValueScalar(reference.coordinate.x, context),
+        y: lowerGeometryValueScalar(reference.coordinate.y, context)
+      };
+    }
+    if (!reference.target || !moduleGeometryRuntime) return undefined;
+    const path = context?.path ?? [];
+    const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "point");
+    if (!lowered) return undefined;
+    if (lowered.kind === "geometryValue") {
+      return {
+        kind: "target",
+        target: {
+          kind: "geometryValue",
+          occurrence: lowered.occurrence,
+          statementId: lowered.occurrence.sourceStatementId,
+          statementIndex: reference.target.kind === "geometryValue"
+            ? executionPositionForValue(path, reference.target.statementIndex)
+            : executionPosition,
+          geometryType: lowered.geometryType,
+          ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+        }
+      };
+    }
+    const targetSourceOrder = elementOrderById.get(lowered.elementId);
+    if (targetSourceOrder === undefined) return undefined;
+    return {
+      kind: "target",
+      target: {
+        statementId: lowered.elementId,
+        statementIndex: targetSourceOrder,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {})
+      }
+    };
+  };
+
+  const addGeometryValueProgramEntry = (value: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic, context?: InstanceContext) => {
+    if (!value.construction) return;
+    const path = context?.path ?? [];
+    const executionPosition = executionPositionForValue(path, value.statementIndex);
+    const construction = value.construction.kind === "coordinate"
+      ? value.construction.x && value.construction.y
+        ? {
+            kind: "coordinate" as const,
+            x: lowerGeometryValueScalar(value.construction.x, context),
+            y: lowerGeometryValueScalar(value.construction.y, context)
+          }
+        : null
+      : (() => {
+          const start = lowerGeometryValuePoint(value.construction.start, context, executionPosition);
+          const end = lowerGeometryValuePoint(value.construction.end, context, executionPosition);
+          return start && end ? { kind: "segment" as const, start, end } : null;
+        })();
+    if (!construction) return;
+    geometryValueProgramEntries.push({
+      sourceStatementId: value.statementId,
+      sourceStatementIndex: value.statementIndex,
+      declaredInterfaceType: value.declaredInterfaceType,
+      occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+      executionPosition,
+      construction
+    });
+  };
+
+  for (const value of moduleSemanticAnalysis.geometryValues) {
+    if (value.ownerModuleDefinitionStatementId !== null) continue;
+    addGeometryValueProgramEntry(value);
+  }
+  for (const context of contextsByKey.values()) {
+    if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
+    for (const value of context.definition.localGeometryValues) addGeometryValueProgramEntry(value, context);
+  }
+  geometryValueProgramEntries.sort((left, right) =>
+    left.executionPosition - right.executionPosition ||
+    left.sourceStatementIndex - right.sourceStatementIndex ||
+    left.occurrence.instancePath.join("\u0000").localeCompare(right.occurrence.instancePath.join("\u0000"))
+  );
+  const geometryValueProgram: GeometryValueProgram = geometryValueProgramEntries;
+
   const sourceOrderByBindingId = new Map<BindingId, number>();
   for (const [bindingId, order] of eventOrderByBindingId) sourceOrderByBindingId.set(bindingId, order);
   const scalarProgram = lowerScalarProgram({
@@ -2123,6 +2347,7 @@ export const compileModuleScalarRuntime = ({
     materializedTextTemplates,
     materializedConditionalGroupConditions,
     conditionalOwnerStatementIdByElementId,
-    forGroupMutationOwnerByElementId
+    forGroupMutationOwnerByElementId,
+    geometryValueProgram
   };
 };

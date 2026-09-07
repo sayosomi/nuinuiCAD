@@ -162,6 +162,15 @@ const geometryPropertyMetadataFor = (
   if (target.kind === "deferredModuleExportProperty") {
     return { elementId: target.instanceStatementId, property: target.property, targetSourceOrder: target.instanceStatementIndex, type };
   }
+  if (target.kind === "geometryValueProperty") {
+    return {
+      kind: "geometryValue",
+      occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+      property: target.property,
+      targetSourceOrder: target.statementIndex,
+      type
+    };
+  }
   if (target.kind === "recordField") {
     throw new Error("moduleScalarExpression: record field properties are lowered as scalar references");
   }
@@ -435,6 +444,16 @@ const typecheckGeometryTarget = (
   }
   if (target.kind === "sourceGeometry") {
     return {
+      statementId: target.statementId,
+      statementIndex: target.statementIndex,
+      geometryType: expectedGeometryType,
+      ...(pointKey ? { pointKey } : {})
+    };
+  }
+  if (target.kind === "geometryValue") {
+    return {
+      kind: "geometryValue",
+      occurrence: { sourceStatementId: target.statementId, instancePath: [] },
       statementId: target.statementId,
       statementIndex: target.statementIndex,
       geometryType: expectedGeometryType,

@@ -243,6 +243,15 @@ diagnostics and Rust runtime evaluation remain host/runtime-owned. The
 exact-current compiled semantic proof needed by workspace consumers is exposed
 only through the package workspace entry, not as an ordinary session method.
 
+Immutable single-geometry declarations have a Language Core-owned compiled
+geometry-value program in `moduleGeometryValueProgram.ts` and
+`moduleScalarRuntime.ts`. Each entry carries its source declaration identity,
+declared public interface, resolved scalar/geometry construction inputs, and
+the existing source/module execution position. Runtime occurrences use a
+dedicated geometry-value occurrence key (`sourceStatementId` plus the existing
+Module instance path); they are not `ElementId`s and never enter authored or
+materialized element lists.
+
 ### Language Core package boundary
 
 Primary:
@@ -635,6 +644,15 @@ runtime entries、text/control metadata、source/Module mutation ownersを一度
 element-id keyed runtime metadataへlowerする。TypeScript evaluator は reference /
 parity / test path。`useEvaluationEngine` は`evaluationRevision` /
 `evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
+
+`src/geometry/evaluate.ts` maintains a separate computed geometry-value store
+for the immutable `coordinate` and `segment` subset. Structural point/line
+results share the coordinate and segment kernels with drawable evaluators, but
+carry no drawable metadata or identity. `buildRustEvaluationInput` projects the
+same compiled program and discriminated runtime targets through the existing
+`evaluate_document(input)` boundary; Rust stores and returns these values in a
+separate `computed_geometry_values` payload field. Neither evaluator adds these
+occurrences to drawable geometry or drawable activity-ID sets.
 
 `productionEvaluationContext.ts` accepts an optional resolved
 `selectedDrawingProfileId`. An omitted profile means common-only modifier

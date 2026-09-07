@@ -37,6 +37,7 @@ const flatAnchor = (value: PointAnchor | null | undefined) => {
   if (!value) return "none";
   if (value.mode === "reference") return sourceToken(value.pointId);
   if (value.mode === "derived") return `${sourceToken(value.elementId)}.${value.pointKey}`;
+  if (value.mode === "geometryValue") return "none";
   return `(${numericValueExpression(value.x)}, ${numericValueExpression(value.y)})`;
 };
 
@@ -81,6 +82,7 @@ export const documentDslRefs = (
       if (!value) return "none";
       if (value.mode === "reference") return sourceToken(token(value.pointId, source));
       if (value.mode === "derived") return `${sourceToken(token(value.elementId, source))}.${value.pointKey}`;
+      if (value.mode === "geometryValue") return "none";
       return `(${numeric(value.x, source)}, ${numeric(value.y, source)})`;
     },
     endpoint: (value, source) => `${sourceToken(token(value.lineId, source))}.${value.endpointKey}`,

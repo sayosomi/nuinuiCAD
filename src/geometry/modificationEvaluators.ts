@@ -652,7 +652,9 @@ export const evaluateModificationElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   if (!point) return true;
 

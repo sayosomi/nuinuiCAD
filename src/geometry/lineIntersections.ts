@@ -3,7 +3,7 @@ import type {
   ComputedOffsetLine,
   ComputedOffsetLineSegment
 } from "../types/geometry";
-import type { LineLikeGeometry } from "./linePaths";
+import type { LineLikeGeometryInput } from "./linePaths";
 import { cubicDerivativeAt, cubicPointAt } from "./bezierMath";
 
 type Point = { x: number; y: number };
@@ -234,7 +234,7 @@ const offsetPathSegments = (line: ComputedOffsetLine) => {
   return segments;
 };
 
-const pathSegmentsForLine = (geometry: LineLikeGeometry) => {
+const pathSegmentsForLine = (geometry: LineLikeGeometryInput) => {
   if (geometry.kind === "line") return pointPathSegments([geometry.start, geometry.end]);
   if (geometry.kind === "arcLine") {
     return arcPathSegments({
@@ -280,7 +280,7 @@ const offsetSegmentEndForward = (segment: ComputedOffsetLineSegment) => {
   return arcForwardTangent(segment.startAngleDeg + segment.sweepAngleDeg, segment.sweepAngleDeg);
 };
 
-const endpointTangents = (geometry: LineLikeGeometry) => {
+const endpointTangents = (geometry: LineLikeGeometryInput) => {
   if (geometry.kind === "line") {
     const forward = normalizeVector(vectorBetween(geometry.start, geometry.end));
     return forward ? { start: geometry.start, end: geometry.end, startForward: forward, endForward: forward } : null;
@@ -327,7 +327,7 @@ const endpointTangents = (geometry: LineLikeGeometry) => {
 
 const extensionSegments = (
   segments: IntersectionSegment[],
-  geometry: LineLikeGeometry
+  geometry: LineLikeGeometryInput
 ): IntersectionSegment[] => {
   const tangents = endpointTangents(geometry);
   if (!tangents) return [];
@@ -948,8 +948,8 @@ const samePoint = (a: LineIntersection, b: LineIntersection) =>
   Math.hypot(a.x - b.x, a.y - b.y) <= DEDUPE_EPSILON;
 
 export const findLineIntersections = (
-  line1: LineLikeGeometry,
-  line2: LineLikeGeometry,
+  line1: LineLikeGeometryInput,
+  line2: LineLikeGeometryInput,
   options: { useExtensions: boolean }
 ): LineIntersectionResult => {
   const baseSegments1 = pathSegmentsForLine(line1);

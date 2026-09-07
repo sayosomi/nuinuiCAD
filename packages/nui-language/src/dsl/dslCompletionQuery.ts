@@ -1,5 +1,5 @@
 import { dslModuleParameterTypeNames, dslTypedDeclarationTypeNames } from "./dslDeclarationParser";
-import { argumentCompletionCandidates, constructionCompletionCandidates } from "./dslCallCompletionCandidates";
+import { argumentCompletionCandidates, constructionCompletionCandidates, pureGeometryValueConstructionCandidates } from "./dslCallCompletionCandidates";
 import {
   dslCompletionContextAt,
   dslGeometryReferenceKindForParameter,
@@ -912,6 +912,7 @@ const queryCandidates = (
       : []);
   }
   if (context.kind === "construction") return constructionCompletionCandidates(context.category).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
+  if (context.kind === "geometryValueInitializer") return pureGeometryValueConstructionCandidates(context.declaredType).map((candidate) => ({ kind: "construction" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "argument") return argumentCompletionCandidates(context.spec, context.usedArgumentNames).map((candidate) => ({ kind: "argumentName" as const, label: candidate.label, detail: candidate.detail, identity: candidate.label }));
   if (context.kind === "declaredType") {
     const names = context.bindingKind === "const"

@@ -16,7 +16,8 @@ import {
   sourceSegmentsForGeometry,
   sourceStart
 } from "./offsetSourceSegments";
-import { isLineLikeGeometry } from "./linePaths";
+import { isLineLikeGeometryInput } from "./linePaths";
+import { resolveLineGeometryInputAt } from "./lineGeometryInput";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 
 const transformPoint = ({
@@ -155,7 +156,9 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   const endPoint = getPointAnchorOrError(
     element,
@@ -166,7 +169,9 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   const angleDeg = numericError(
     element,
@@ -194,9 +199,9 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
 
   const sourceSegmentGroups: SourceSegment[][] = [];
   let hasMissingBase = false;
-  for (const baseLineId of element.baseLineIds) {
-    const geometry = computedGeometry.get(baseLineId);
-    if (!isLineLikeGeometry(geometry)) {
+  for (const [index, baseLineId] of element.baseLineIds.entries()) {
+    const geometry = resolveLineGeometryInputAt(context, "baseLineIds", index, baseLineId);
+    if (!isLineLikeGeometryInput(geometry)) {
       errors.push(dependencyError(element, baseLineId, elementsById, disabledByGroupId));
       hasMissingBase = true;
       continue;

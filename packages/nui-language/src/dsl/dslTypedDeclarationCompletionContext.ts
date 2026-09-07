@@ -8,7 +8,7 @@ import { parseDslTypedDeclarationStatement } from "./dslDeclarationParser";
 import type { DslSpan } from "./dslTypes";
 import { scalarExpressionCompletionContextAt, type ScalarExpressionCompletionContext } from "../scalars/scalarExpressionPositionClassifier";
 import type { ScalarType } from "../scalars/types";
-import { nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 import {
   typedGeometryPropertyCompletionContextAt,
   type TypedGeometryPropertyCompletionContext
@@ -86,6 +86,18 @@ export const typedDeclarationInitializerCompletionContext = (
   const positionContext = scalarExpressionCompletionContextAt(logicalText, pos, span, declaredType);
   if (!positionContext) return null;
   return { declaredType, positionContext };
+};
+
+export const geometryValueInitializerCompletionContextAt = (
+  logicalText: string,
+  pos: number
+): { from: number; to: number; declaredType: "point" | "line" | "path" } | null => {
+  const { statement } = parseDslTypedDeclarationStatement(logicalText);
+  const declaredType = isDslGeometryValueType(statement?.valueType) ? statement.valueType.kind : null;
+  if (!statement || !declaredType) return null;
+  const span = initializerSpanIncludingEmpty(logicalText, statement.payloadSpans.initializer);
+  if (!span || pos < span.start || pos > span.end) return null;
+  return { from: span.start, to: span.end, declaredType };
 };
 
 const topLevelColon = (source: string, from: number, to: number) => {

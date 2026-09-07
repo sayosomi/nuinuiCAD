@@ -1,13 +1,15 @@
 import type {
   CadElement,
   ComputedGeometry,
+  ComputedGeometryValueLine,
   ComputedOffsetLine,
   OffsetLineSide
 } from "../types/geometry";
 import { dependencyError, geometryError, geometryWarning, numericError } from "./evaluationContext";
-import { isLineLikeGeometry } from "./linePaths";
+import { isLineLikeGeometryInput } from "./linePaths";
 import { buildOffsetLineGeometry } from "./offsetPaths";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import { resolveLineGeometryInputAt } from "./lineGeometryInput";
 
 type InspectableComputedOffsetLine = ComputedOffsetLine & {
   offsetDistance: number;
@@ -37,11 +39,11 @@ export const evaluateOffsetLineElement = (element: CadElement, context: ElementE
         );
         if (offset === undefined) break;
 
-        const baseGeometries: ComputedGeometry[] = [];
+        const baseGeometries: Array<ComputedGeometry | ComputedGeometryValueLine> = [];
         let hasMissingBase = false;
-        for (const baseLineId of element.baseLineIds) {
-          const geometry = computedGeometry.get(baseLineId);
-          if (!isLineLikeGeometry(geometry)) {
+        for (const [index, baseLineId] of element.baseLineIds.entries()) {
+          const geometry = resolveLineGeometryInputAt(context, "baseLineIds", index, baseLineId);
+          if (!isLineLikeGeometryInput(geometry)) {
             errors.push(dependencyError(element, baseLineId, elementsById, disabledByGroupId));
             hasMissingBase = true;
             continue;

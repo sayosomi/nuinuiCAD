@@ -16,7 +16,8 @@ import {
   sourceSegmentsForGeometry,
   sourceStart
 } from "./offsetSourceSegments";
-import { isLineLikeGeometry } from "./linePaths";
+import { isLineLikeGeometryInput } from "./linePaths";
+import { resolveLineGeometryInputAt } from "./lineGeometryInput";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 
 const reflectPointAcrossAxis = ({
@@ -134,6 +135,7 @@ export const evaluateSymmetricCopyLineElement = (
     elementsById,
     errors,
     disabledByGroupId,
+    computedGeometryValues,
     localVariables: { localVariableValues, localVariableNames }
   } = context;
 
@@ -146,7 +148,9 @@ export const evaluateSymmetricCopyLineElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    computedGeometryValues
   );
   const axisPoint2 = getPointAnchorOrError(
     element,
@@ -157,7 +161,9 @@ export const evaluateSymmetricCopyLineElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    computedGeometryValues
   );
   if (!axisPoint1 || !axisPoint2) return true;
   if (lineLength(axisPoint1, axisPoint2) <= 0) {
@@ -167,9 +173,9 @@ export const evaluateSymmetricCopyLineElement = (
 
   const sourceSegmentGroups: SourceSegment[][] = [];
   let hasMissingBase = false;
-  for (const baseLineId of element.baseLineIds) {
-    const geometry = computedGeometry.get(baseLineId);
-    if (!isLineLikeGeometry(geometry)) {
+  for (const [index, baseLineId] of element.baseLineIds.entries()) {
+    const geometry = resolveLineGeometryInputAt(context, "baseLineIds", index, baseLineId);
+    if (!isLineLikeGeometryInput(geometry)) {
       errors.push(dependencyError(element, baseLineId, elementsById, disabledByGroupId));
       hasMissingBase = true;
       continue;

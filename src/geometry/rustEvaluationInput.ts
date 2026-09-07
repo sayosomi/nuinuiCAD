@@ -23,6 +23,14 @@ export type EvaluateDocumentInput = {
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   numericBindings?: readonly NumericBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
+  geometryValueProgram?: EvaluateElementsOptions["geometryValueProgram"];
+  geometryInputTargets?: Array<{
+    elementId: ElementId;
+    parameters: Array<{
+      parameterKey: string;
+      target: import("../types/geometry").GeometryInputTarget | readonly import("../types/geometry").GeometryInputTarget[];
+    }>;
+  }>;
   conditionExpressions?: readonly ConditionExpressionInput[];
   textTemplates?: readonly TextTemplateInput[];
   textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
@@ -65,6 +73,15 @@ export const buildRustEvaluationInput = (
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
     ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
+    ...(options.geometryValueProgram?.length ? { geometryValueProgram: options.geometryValueProgram } : {}),
+    ...(options.geometryInputTargetsByElementId?.size
+      ? {
+          geometryInputTargets: Array.from(options.geometryInputTargetsByElementId, ([elementId, parameters]) => ({
+            elementId,
+            parameters: Array.from(parameters, ([parameterKey, target]) => ({ parameterKey, target }))
+          }))
+        }
+      : {}),
     ...(options.conditionalGroupConditionsByElementId?.size
       ? { conditionExpressions: Array.from(options.conditionalGroupConditionsByElementId, ([elementId, expression]) => ({ elementId, expression })) }
       : {}),

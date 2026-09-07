@@ -48,6 +48,12 @@ export const anchorEquals = (a: PointAnchor | null, b: PointAnchor | null) => {
   if (a.mode === "coordinate" && b.mode === "coordinate") {
     return a.x === b.x && a.y === b.y;
   }
+  if (a.mode === "geometryValue" && b.mode === "geometryValue") {
+    return a.occurrence.sourceStatementId === b.occurrence.sourceStatementId &&
+      a.occurrence.instancePath.length === b.occurrence.instancePath.length &&
+      a.occurrence.instancePath.every((part, index) => part === b.occurrence.instancePath[index]) &&
+      a.pointKey === b.pointKey;
+  }
   return false;
 };
 
@@ -131,6 +137,7 @@ export const derivedPointLabel = (
 
 export const pointAnchorLabel = (anchor: PointAnchor, elements: CadElement[]) => {
   if (anchor.mode === "coordinate") return "座標";
+  if (anchor.mode === "geometryValue") return "geometry value";
   if (anchor.mode === "reference") {
     return elements.find((element) => element.id === anchor.pointId)?.name ?? anchor.pointId;
   }

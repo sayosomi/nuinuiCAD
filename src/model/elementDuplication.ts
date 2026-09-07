@@ -38,6 +38,7 @@ const remapPointAnchor = (anchor: PointAnchor, idMap: Map<ElementId, ElementId>)
   if (anchor.mode === "derived") {
     return { ...anchor, elementId: mapId(anchor.elementId, idMap) };
   }
+  if (anchor.mode === "geometryValue") return anchor;
   return {
     ...anchor,
     x: remapNumericValue(anchor.x, idMap),

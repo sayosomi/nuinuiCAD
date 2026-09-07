@@ -5,7 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
 
-use super::super::scalar_expression_runtime::lookup_geometry_property;
+use super::super::scalar_expression_runtime::{
+    lookup_geometry_property, lookup_geometry_value_property,
+};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
@@ -186,7 +188,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
         &self,
         element_id: &str,
         property: &str,
-        target_source_order: usize,
+        target_source_order: f64,
         property_type: &ScalarType,
     ) -> ScalarEvaluation {
         lookup_geometry_property(
@@ -194,7 +196,26 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
             element_id,
             property,
             target_source_order,
-            Some(self.source_order),
+            Some(self.source_order as f64),
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &super::super::types::GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_property(
+            self.state,
+            occurrence,
+            point_key,
+            property,
+            target_source_order,
+            Some(self.source_order as f64),
             property_type,
         )
     }
@@ -206,7 +227,7 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeTarget,
         super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
-        resolve_geometry_builtin_target(self.state, self.source_order, target)
+        resolve_geometry_builtin_target(self.state, self.source_order as f64, target)
     }
 }
 

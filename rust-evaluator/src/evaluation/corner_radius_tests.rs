@@ -34,6 +34,8 @@ fn bezier_curve(id: &str, start_id: &str, end_id: &str) -> Value {
 #[test]
 fn corner_radius_trims_two_lines_and_creates_arc() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -75,6 +77,8 @@ fn corner_radius_trims_two_lines_and_creates_arc() {
 #[test]
 fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -103,6 +107,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
     assert_eq!(geometry(&result, "corner")["kind"], json!("arcLine"));
 
     let offset_result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -151,6 +157,8 @@ fn corner_radius_trims_bezier_and_offset_line_to_polylines() {
 #[test]
 fn corner_radius_can_feed_downstream_line_elements() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -189,6 +197,8 @@ fn corner_radius_can_feed_downstream_line_elements() {
 #[test]
 fn corner_radius_reports_geometry_and_dependency_errors() {
     let same_line = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -212,6 +222,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
     assert!(same_line.errors[0].message.contains("同じ線"));
 
     let radius_error = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -237,6 +249,8 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
     assert!(radius_error.errors[0].message.contains("半径"));
 
     let missing = evaluate_document_input(EvaluationInput {
+        geometry_input_targets: None,
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,

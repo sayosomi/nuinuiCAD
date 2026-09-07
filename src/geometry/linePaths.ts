@@ -2,6 +2,8 @@ import type {
   ComputedArcLine,
   ComputedBezierCurve,
   ComputedGeometry,
+  ComputedGeometryValue,
+  ComputedGeometryValueLine,
   ComputedLine,
   ComputedOffsetLine,
   ComputedOffsetLineSegment,
@@ -13,6 +15,7 @@ import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 type Point = { x: number; y: number };
 
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline;
+export type LineLikeGeometryInput = LineLikeGeometry | ComputedGeometryValueLine;
 
 type BezierLikeSegment = {
   start: Point;
@@ -235,7 +238,16 @@ export const isLineLikeGeometry = (geometry: ComputedGeometry | undefined): geom
   geometry?.kind === "offsetLine" ||
   geometry?.kind === "polyline";
 
-const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] => {
+export const isLineLikeGeometryInput = (
+  geometry: ComputedGeometry | ComputedGeometryValue | undefined
+): geometry is LineLikeGeometryInput =>
+  geometry?.kind === "line" ||
+  geometry?.kind === "arcLine" ||
+  geometry?.kind === "bezierCurve" ||
+  geometry?.kind === "offsetLine" ||
+  geometry?.kind === "polyline";
+
+const segmentsForLineLikeGeometry = (geometry: LineLikeGeometryInput): PathSegment[] => {
   if (geometry.kind === "line") {
     const segment = pathSegment(geometry.start, geometry.end);
     return segment ? [segment] : [];
@@ -259,7 +271,7 @@ const segmentsForLineLikeGeometry = (geometry: LineLikeGeometry): PathSegment[] 
 // Snap a chord-sampled path point onto the true analytic geometry: the exact
 // cubic for Beziers, the exact circle for arcs, && the constituent analytic
 // primitives for offset lines.
-const snapOntoGeometry = (geometry: LineLikeGeometry, point: Point): Point | null => {
+const snapOntoGeometry = (geometry: LineLikeGeometryInput, point: Point): Point | null => {
   if (geometry.kind === "bezierCurve") {
     const projection = projectPointOntoCurve(geometry.segments, point);
     return projection ? projection.point : null;
@@ -313,7 +325,7 @@ const offsetSegmentTangent = (
 };
 
 export const pointAtDistanceFromEndpoint = (
-  geometry: LineLikeGeometry,
+  geometry: LineLikeGeometryInput,
   endpointKey: "start" | "end",
   distanceFromEndpoint: number
 ): Point | null => {
@@ -360,7 +372,7 @@ export const pointAtDistanceFromEndpoint = (
 };
 
 export const tangentAtPointOnLineLikeGeometry = (
-  geometry: LineLikeGeometry,
+  geometry: LineLikeGeometryInput,
   point: Point,
   tolerance = 0.001
 ): { angleDeg: number; distanceFromLine: number } | null => {
