@@ -21,6 +21,8 @@ type Manifest = {
 };
 
 const extensionRoot = resolve(process.cwd(), "vscode-extension");
+const packageNlsPath = resolve(extensionRoot, "package.nls.json");
+const packageNlsJaPath = resolve(extensionRoot, "package.nls.ja.json");
 
 const readManifest = async (): Promise<Manifest> =>
   JSON.parse(await readFile(resolve(extensionRoot, "package.json"), "utf8")) as Manifest;
@@ -53,6 +55,8 @@ describe("nuinuiCAD Explorer manifest", () => {
 
   it("reuses the existing surface commands as Elements title actions", async () => {
     const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, string>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, string>;
     expect(manifest.contributes?.menus?.["view/title"]).toEqual([
       {
         command: "nuinuiCAD.openCanvas",
@@ -68,15 +72,25 @@ describe("nuinuiCAD Explorer manifest", () => {
 
     const commands = manifest.contributes?.commands ?? [];
     expect(commands.find(({ command }) => command === "nuinuiCAD.openCanvas")).toMatchObject({
-      title: "nuinuiCAD: Open Canvas",
-      shortTitle: "Open Canvas",
+      title: "%command.openCanvas.title%",
+      shortTitle: "%command.openCanvas.shortTitle%",
       icon: { light: "media/spline.svg", dark: "media/spline.svg" }
     });
     expect(commands.find(({ command }) => command === "nuinuiCAD.openOutputPreview")).toMatchObject({
-      title: "nuinuiCAD: Open Output Preview",
-      shortTitle: "Open Output Preview",
+      title: "%command.openOutputPreview.title%",
+      shortTitle: "%command.openOutputPreview.shortTitle%",
       icon: { light: "media/printer.svg", dark: "media/printer.svg" }
     });
+    for (const command of [
+      commands.find(({ command }) => command === "nuinuiCAD.openCanvas"),
+      commands.find(({ command }) => command === "nuinuiCAD.openOutputPreview")
+    ]) {
+      expect(command).toBeDefined();
+      expect(english[command!.title.slice(1, -1)]).toMatch(/^nuinuiCAD: /);
+      expect(japanese[command!.title.slice(1, -1)]).toMatch(/^nuinuiCAD: /);
+      expect(english[command!.shortTitle!.slice(1, -1)]).toBeDefined();
+      expect(japanese[command!.shortTitle!.slice(1, -1)]).toBeDefined();
+    }
   });
 
   it("keeps the Lucide launch assets neutral and theme-aware", async () => {
