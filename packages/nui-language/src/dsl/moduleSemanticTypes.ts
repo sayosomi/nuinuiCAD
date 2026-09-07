@@ -303,6 +303,15 @@ export type ModuleGeometryConstructionSemantic =
       span: DslSpan;
       start: ModuleGeometryReferenceSemantic;
       end: ModuleGeometryReferenceSemantic;
+    }
+  | {
+      kind: "arc";
+      span: DslSpan;
+      center: ModuleGeometryReferenceSemantic;
+      radius: ModuleScalarExpressionSemantic | null;
+      start: ModuleScalarExpressionSemantic | null;
+      end: ModuleScalarExpressionSemantic | null;
+      direction: ModuleScalarExpressionSemantic | null;
     };
 
 export type ModuleGeometryValueSemantic = {

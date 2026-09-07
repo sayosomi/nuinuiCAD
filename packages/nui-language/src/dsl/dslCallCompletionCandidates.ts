@@ -1,12 +1,14 @@
 import { elementTypeLabels } from "../types/geometry";
 import { dslCompletionMetadataForType } from "./dslCompletionMetadata";
 import {
+  allConstructionSpecs,
   commonArgSpecs,
   constructionCandidatesFor,
   MUTATION_CATEGORY,
   type DslConstructionCategory,
   type DslConstructionSpec,
 } from "./dslConstructions";
+import { isModuleGeometryInterfaceAssignable } from "./moduleGeometryInterfaces";
 
 export type DslCallCompletionCandidate = {
   label: string;
@@ -26,10 +28,9 @@ export const constructionCompletionCandidates = (category: DslConstructionCatego
 export const pureGeometryValueConstructionCandidates = (
   interfaceType: "point" | "line" | "path"
 ): readonly DslCallCompletionCandidate[] => {
-  const category = interfaceType === "point" ? "point" : "line";
-  const pureInterface = interfaceType === "point" ? "point" : "line";
-  return constructionCandidatesFor(category)
-    .filter((spec) => spec.pureValueInterface === pureInterface)
+  return allConstructionSpecs()
+    .filter((spec) => spec.pureValueInterface !== undefined)
+    .filter((spec) => isModuleGeometryInterfaceAssignable(spec.pureValueInterface, interfaceType))
     .map((spec) => ({
       label: spec.construction,
       apply: spec.construction,

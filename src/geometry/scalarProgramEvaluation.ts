@@ -130,7 +130,7 @@ export const resolveDocumentGeometryTarget = (
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
     if (!entry) return undefined;
     if (!target.pointKey) return entry.value;
-    if (entry.value.kind !== "line") return undefined;
+    if (entry.value.kind !== "line" && entry.value.kind !== "arcLine") return undefined;
     return target.pointKey === "end" ? { kind: "point", x: entry.value.end.x, y: entry.value.end.y } :
       target.pointKey === "start" ? { kind: "point", x: entry.value.start.x, y: entry.value.start.y } : undefined;
   }

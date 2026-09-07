@@ -52,10 +52,8 @@ pub(crate) fn lookup_geometry_value_property(
             .and_then(|point| point.get(property).and_then(Value::as_f64))
     } else if geometry.get("kind").and_then(Value::as_str) == Some("point") {
         geometry.get(property).and_then(Value::as_f64)
-    } else if property == "length" {
-        geometry.get("length").and_then(Value::as_f64)
     } else {
-        None
+        computed_reference_value(geometry, property)
     };
     value
         .map(|value| ScalarEvaluation::Ok {

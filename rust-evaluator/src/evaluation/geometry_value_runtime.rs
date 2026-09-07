@@ -1,7 +1,8 @@
 use serde_json::{json, Value};
 
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, segment_geometry_kernel, StructuralPoint,
+    coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
+    StructuralPoint,
 };
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -44,6 +45,13 @@ pub(crate) enum GeometryValueConstruction {
     Segment {
         start: Box<GeometryValuePoint>,
         end: Box<GeometryValuePoint>,
+    },
+    Arc {
+        center: Box<GeometryValuePoint>,
+        radius: Box<TypedScalarExpression>,
+        start_angle_deg: Box<TypedScalarExpression>,
+        end_angle_deg: Box<TypedScalarExpression>,
+        direction: Box<TypedScalarExpression>,
     },
 }
 
@@ -239,6 +247,45 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                         .ok_or_else(|| "geometry value segment is missing end".to_owned())?,
                 )?),
             },
+            "arc" => GeometryValueConstruction::Arc {
+                center: Box::new(decode_point(
+                    construction_object
+                        .get("center")
+                        .ok_or_else(|| "geometry value arc is missing center".to_owned())?,
+                )?),
+                radius: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object
+                            .get("radius")
+                            .ok_or_else(|| "geometry value arc is missing radius".to_owned())?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+                start_angle_deg: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object.get("startAngleDeg").ok_or_else(|| {
+                            "geometry value arc is missing startAngleDeg".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+                end_angle_deg: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object.get("endAngleDeg").ok_or_else(|| {
+                            "geometry value arc is missing endAngleDeg".to_owned()
+                        })?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+                direction: Box::new(
+                    validate_typed_expression_payload(
+                        construction_object
+                            .get("direction")
+                            .ok_or_else(|| "geometry value arc is missing direction".to_owned())?,
+                    )
+                    .map_err(|error| format!("{error:?}"))?,
+                ),
+            },
             kind => {
                 return Err(format!(
                     "unsupported geometry value construction kind {kind}"
@@ -286,6 +333,21 @@ fn number_expression(
             r#type: ScalarType::Number,
             value: ScalarValue::Number(value),
         } => Some(value),
+        _ => None,
+    }
+}
+
+fn choice_expression(
+    expression: &TypedScalarExpression,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<String> {
+    match evaluate_document_typed_expression(expression, resolver, state, Some(source_order)) {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Choice { .. },
+            value: ScalarValue::Choice { value, .. },
+        } if value == "counterclockwise" || value == "clockwise" => Some(value),
         _ => None,
     }
 }
@@ -373,6 +435,69 @@ pub(crate) fn evaluate_geometry_value_entry(
             evaluate_point(start, resolver, state, source_order)
                 .zip(evaluate_point(end, resolver, state, source_order))
                 .map(|(start, end)| segment_json(start, end))
+        }
+        GeometryValueConstruction::Arc {
+            center,
+            radius,
+            start_angle_deg,
+            end_angle_deg,
+            direction,
+        } => {
+            if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
+                return;
+            }
+            let center = evaluate_point(center, resolver, state, source_order);
+            let radius = number_expression(radius, resolver, state, source_order);
+            let start_angle_deg = number_expression(start_angle_deg, resolver, state, source_order);
+            let end_angle_deg = number_expression(end_angle_deg, resolver, state, source_order);
+            let direction = choice_expression(direction, resolver, state, source_order);
+            match (center, radius, start_angle_deg, end_angle_deg, direction) {
+                (
+                    Some(center),
+                    Some(radius),
+                    Some(start_angle_deg),
+                    Some(end_angle_deg),
+                    Some(direction),
+                ) => {
+                    if radius.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+                        append_geometry_value_error(
+                            state,
+                            entry,
+                            "円弧の半径は0より大きい値で指定してください。",
+                        );
+                        return;
+                    }
+                    let structural = direct_arc_geometry_kernel(
+                        StructuralPoint {
+                            x: center.0,
+                            y: center.1,
+                        },
+                        radius,
+                        start_angle_deg,
+                        end_angle_deg,
+                        &direction,
+                    );
+                    Some(json!({
+                        "kind": "arcLine",
+                        "center": { "x": structural.center.x, "y": structural.center.y },
+                        "start": { "x": structural.start.x, "y": structural.start.y },
+                        "end": { "x": structural.end.x, "y": structural.end.y },
+                        "radius": structural.radius,
+                        "startAngleDeg": structural.start_angle_deg,
+                        "endAngleDeg": structural.end_angle_deg,
+                        "startTangentAngleDeg": structural.start_tangent_angle_deg,
+                        "endTangentAngleDeg": structural.end_tangent_angle_deg,
+                        "sweepAngleDeg": structural.sweep_angle_deg,
+                        "length": structural.length
+                    }))
+                }
+                _ => None,
+            }
         }
     };
     if let Some(value) = value {

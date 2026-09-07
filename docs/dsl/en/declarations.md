@@ -7,8 +7,10 @@ Typed scalar declarations use an explicit type annotation and initializer:
 - `const name: type = expression` creates a read-only scalar or geometry array.
 - `const name: point|line|path = @reference` creates a read-only, non-drawable
   geometry value. The initializer may be an existing geometry reference or, in
-  the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`
-  and `segment(start: ..., end: ...)` for `line` or `path`.
+  the implemented pure-value subset, `coordinate(x: ..., y: ...)` for `point`,
+  `segment(start: ..., end: ...)` for `line` or `path`, and direct
+  `arc(center: ..., radius: ..., start: ..., end: ..., direction: ...)` for
+  `path`. `direction` defaults to `counterclockwise`.
 - `let name: type = expression` creates a mutable scalar binding.
 - `set name = expression` creates a new source-order version of an existing
   `let` binding.
@@ -25,8 +27,10 @@ required.
 
 Pure geometry constructions are source values, not drawable declarations. They
 do not create an element or drawable identity. Other construction calls,
-including `bezier` and `offset`, remain unsupported as pure value initializers
-in this slice.
+including `through`, `bezier`, and `offset`, remain unsupported as pure value
+initializers in this slice. Direct arc values expose the common path geometry
+surface and preserve their evaluated center, endpoints, radius, directed sweep,
+and length without a drawable identity.
 
 `set` does not create a geometry element or a new binding. Its target must be a
 mutable scalar in scope, and its right-hand side is checked against that

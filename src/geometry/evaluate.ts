@@ -9,6 +9,7 @@ import type {
   ForGroupGeneratedRow,
   GeometryMutationExecution
 } from "../types/geometry";
+import type { ArcDirection } from "../types/geometry";
 import {
   isConditionalGroupElement,
   isForGroupElement,
@@ -71,7 +72,7 @@ import type {
   ComputedGeometryValueEntry,
   GeometryValueEvaluationError
 } from "./evaluationTypes";
-import { coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 
 export type EvaluateElementsOptions = {
@@ -337,6 +338,20 @@ export const evaluateElements = (
     return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
   };
 
+  const evaluateGeometryValueDirection = (expression: TypedScalarExpression, sourceOrder: number): ArcDirection | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "choice", options: [] }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
+    return evaluation.value.value === "clockwise" || evaluation.value.value === "counterclockwise"
+      ? evaluation.value.value
+      : undefined;
+  };
+
   const appendGeometryValueError = (
     entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry,
     message: string
@@ -382,7 +397,7 @@ export const evaluateElements = (
       if (x !== undefined && y !== undefined) {
         value = { kind: "point", ...coordinateGeometryKernel(x, y) };
       }
-    } else {
+    } else if (entry.construction.kind === "segment") {
       if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
@@ -391,6 +406,23 @@ export const evaluateElements = (
       const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
       if (start && end) {
         value = segmentGeometryKernel(start, end);
+      }
+    } else {
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
+      const center = structuralPointForProgramPoint(entry.construction.center, sourceOrder);
+      const radius = evaluateGeometryValueScalar(entry.construction.radius, sourceOrder);
+      const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
+      const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
+      const direction = evaluateGeometryValueDirection(entry.construction.direction, sourceOrder);
+      if (center && radius !== undefined && startAngleDeg !== undefined && endAngleDeg !== undefined && direction) {
+        if (!(radius > 0)) {
+          appendGeometryValueError(entry, "円弧の半径は0より大きい値で指定してください。");
+          return;
+        }
+        value = arcGeometryKernel(center, radius, startAngleDeg, endAngleDeg, direction);
       }
     }
     if (value) {

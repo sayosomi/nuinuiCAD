@@ -2,10 +2,10 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::geometry_error;
-use super::geometry_value_kernels::{segment_geometry_kernel, StructuralPoint};
-use super::math::{
-    angle_from_to, arc_tangent_angles, circle_through_three_points, positive_sweep_degrees,
+use super::geometry_value_kernels::{
+    direct_arc_geometry_kernel, segment_geometry_kernel, StructuralArcLine, StructuralPoint,
 };
+use super::math::{angle_from_to, circle_through_three_points};
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};
 use super::types::{element_id, element_name, insert_geometry, EvaluationState, Point};
@@ -259,19 +259,6 @@ pub(crate) fn evaluate_angle_length_line(
     );
 }
 
-fn directed_sweep_degrees(start_angle_deg: f64, end_angle_deg: f64, direction: &str) -> f64 {
-    let sweep = if direction == "clockwise" {
-        -positive_sweep_degrees(end_angle_deg, start_angle_deg)
-    } else {
-        positive_sweep_degrees(start_angle_deg, end_angle_deg)
-    };
-    if sweep == 0.0 {
-        0.0
-    } else {
-        sweep
-    }
-}
-
 pub(crate) fn evaluate_arc_line(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
@@ -331,9 +318,16 @@ pub(crate) fn evaluate_arc_line(
         .get("direction")
         .and_then(Value::as_str)
         .unwrap_or("counterclockwise");
-    let sweep_angle_deg = directed_sweep_degrees(start_angle_deg, end_angle_deg, direction);
-    let (start_tangent_angle_deg, end_tangent_angle_deg) =
-        arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);
+    let structural = direct_arc_geometry_kernel(
+        StructuralPoint {
+            x: center.x,
+            y: center.y,
+        },
+        radius,
+        start_angle_deg,
+        end_angle_deg,
+        direction,
+    );
     let id = element_id(element).unwrap_or_default();
     insert_arc_line_geometry(
         state,
@@ -342,12 +336,7 @@ pub(crate) fn evaluate_arc_line(
             name: element_name(element),
             center_point_id: anchor_reference_element_id(center_anchor),
             center,
-            radius,
-            start_angle_deg,
-            end_angle_deg,
-            start_tangent_angle_deg,
-            end_tangent_angle_deg,
-            sweep_angle_deg,
+            structural,
         },
     );
 }
@@ -416,9 +405,16 @@ pub(crate) fn evaluate_three_point_arc_line(
         return;
     };
 
-    let sweep_angle_deg = positive_sweep_degrees(start_angle_deg, end_angle_deg);
-    let (start_tangent_angle_deg, end_tangent_angle_deg) =
-        arc_tangent_angles(start_angle_deg, end_angle_deg, sweep_angle_deg);
+    let structural = direct_arc_geometry_kernel(
+        StructuralPoint {
+            x: circle.x,
+            y: circle.y,
+        },
+        circle.radius,
+        start_angle_deg,
+        end_angle_deg,
+        "counterclockwise",
+    );
     let id = element_id(element).unwrap_or_default();
     insert_arc_line_geometry(
         state,
@@ -432,12 +428,7 @@ pub(crate) fn evaluate_three_point_arc_line(
                 x: circle.x,
                 y: circle.y,
             },
-            radius: circle.radius,
-            start_angle_deg,
-            end_angle_deg,
-            start_tangent_angle_deg,
-            end_tangent_angle_deg,
-            sweep_angle_deg,
+            structural,
         },
     );
 }
@@ -447,17 +438,11 @@ struct ArcGeometry {
     name: String,
     center_point_id: Option<String>,
     center: Point,
-    radius: f64,
-    start_angle_deg: f64,
-    end_angle_deg: f64,
-    start_tangent_angle_deg: f64,
-    end_tangent_angle_deg: f64,
-    sweep_angle_deg: f64,
+    structural: StructuralArcLine,
 }
 
 fn insert_arc_line_geometry(state: &mut EvaluationState, arc: ArcGeometry) {
-    let start_angle_rad = arc.start_angle_deg.to_radians();
-    let end_angle_rad = arc.end_angle_deg.to_radians();
+    let structural = arc.structural;
     insert_geometry(
         state,
         arc.id.clone(),
@@ -467,15 +452,15 @@ fn insert_arc_line_geometry(state: &mut EvaluationState, arc: ArcGeometry) {
             "name": arc.name,
             "centerPointId": arc.center_point_id,
             "center": computed_point(arc.center.element_id, arc.center.name, arc.center.x, arc.center.y),
-            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), arc.center.x + start_angle_rad.cos() * arc.radius, arc.center.y + start_angle_rad.sin() * arc.radius),
-            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), arc.center.x + end_angle_rad.cos() * arc.radius, arc.center.y + end_angle_rad.sin() * arc.radius),
-            "radius": arc.radius,
-            "startAngleDeg": arc.start_angle_deg,
-            "endAngleDeg": arc.end_angle_deg,
-            "startTangentAngleDeg": arc.start_tangent_angle_deg,
-            "endTangentAngleDeg": arc.end_tangent_angle_deg,
-            "sweepAngleDeg": arc.sweep_angle_deg,
-            "length": arc.radius * arc.sweep_angle_deg.to_radians().abs()
+            "start": computed_point(format!("{}:start", arc.id), format!("{}.始点", arc.name), structural.start.x, structural.start.y),
+            "end": computed_point(format!("{}:end", arc.id), format!("{}.終点", arc.name), structural.end.x, structural.end.y),
+            "radius": structural.radius,
+            "startAngleDeg": structural.start_angle_deg,
+            "endAngleDeg": structural.end_angle_deg,
+            "startTangentAngleDeg": structural.start_tangent_angle_deg,
+            "endTangentAngleDeg": structural.end_tangent_angle_deg,
+            "sweepAngleDeg": structural.sweep_angle_deg,
+            "length": structural.length
         }),
     );
 }

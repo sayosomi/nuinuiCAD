@@ -28,7 +28,21 @@ export type ComputedGeometryValueLine = {
   endTangentAngleDeg: number | null;
 };
 
-export type ComputedGeometryValue = ComputedGeometryValuePoint | ComputedGeometryValueLine;
+export type ComputedGeometryValueArcLine = {
+  kind: "arcLine";
+  center: { x: number; y: number };
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  radius: number;
+  startAngleDeg: number;
+  endAngleDeg: number;
+  startTangentAngleDeg: number;
+  endTangentAngleDeg: number;
+  sweepAngleDeg: number;
+  length: number;
+};
+
+export type ComputedGeometryValue = ComputedGeometryValuePoint | ComputedGeometryValueLine | ComputedGeometryValueArcLine;
 
 export type ComputedGeometryValueEntry = {
   occurrence: GeometryValueOccurrence;

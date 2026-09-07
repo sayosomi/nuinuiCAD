@@ -1844,40 +1844,84 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const argument = (name: string) => invocation.args.find((candidate) => candidate.key === name);
     const xArgument = argument("x");
     const yArgument = argument("y");
+    const centerArgument = argument("center");
+    const radiusArgument = argument("radius");
     const startArgument = argument("start");
     const endArgument = argument("end");
+    const directionArgument = argument("direction");
+    const scalar = (
+      candidate: typeof xArgument,
+      expectedType: ScalarType | null,
+      defaultValue: string
+    ) => candidate
+      ? analyzeExpression(
+          statementIndex,
+          source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
+          candidate.valueSpan,
+          expectedType,
+          options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
+          options.bareScalarResolver,
+          options.geometryPropertyResolver,
+          undefined,
+          undefined,
+          options.presenceFacts
+        )
+      : analyzeExpression(
+          statementIndex,
+          defaultValue,
+          { start: constructionSpan.end, end: constructionSpan.end + defaultValue.length },
+          expectedType,
+          options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
+          options.bareScalarResolver,
+          options.geometryPropertyResolver,
+          undefined,
+          undefined,
+          options.presenceFacts
+        );
     if (invocation.pureValueInterface === "point") {
       if (expectedInterfaceType !== "point") {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "coordinate construction は point value にのみ代入できます。", {
           presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "coordinate" } }
         }));
       }
-      const scalar = (candidate: typeof xArgument) => candidate
-        ? analyzeExpression(
+      return { kind: "coordinate", span: { start: constructionSpan.start, end: initializerSpan.end }, x: scalar(xArgument, { kind: "number" }, "0"), y: scalar(yArgument, { kind: "number" }, "0") };
+    }
+    if (invocation.construction === "arc" && invocation.pureValueInterface === "path") {
+      if (expectedInterfaceType !== "path") {
+        addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "arc construction は path value にのみ代入できます。", {
+          presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: "arc" } }
+        }));
+      }
+      const center = centerArgument
+        ? resolveGeometry(
             statementIndex,
-            source.slice(candidate.valueSpan.start, candidate.valueSpan.end),
-            candidate.valueSpan,
-            { kind: "number" },
-            options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
-            options.bareScalarResolver,
-            options.geometryPropertyResolver,
-            undefined,
-            undefined,
-            options.presenceFacts
+            ownerIndex,
+            source.slice(centerArgument.valueSpan.start, centerArgument.valueSpan.end),
+            centerArgument.valueSpan,
+            "point",
+            {
+              expectedInterfaceType: "point",
+              allowCoordinate: true,
+              role: "coordinatePoint",
+              scalarResolver: options.scalarResolver,
+              bareScalarResolver: options.bareScalarResolver,
+              geometryPropertyResolver: options.geometryPropertyResolver,
+              presenceFacts: options.presenceFacts
+            }
           )
-        : analyzeExpression(
-            statementIndex,
-            "0",
-            { start: constructionSpan.end, end: constructionSpan.end + 1 },
-            { kind: "number" },
-            options.scalarResolver ?? ((reference, presenceFacts) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span, presenceFacts)),
-            options.bareScalarResolver,
-            options.geometryPropertyResolver,
-            undefined,
-            undefined,
-            options.presenceFacts
-          );
-      return { kind: "coordinate", span: { start: constructionSpan.start, end: initializerSpan.end }, x: scalar(xArgument), y: scalar(yArgument) };
+        : geometryReference("", constructionSpan, "point", null, "invalid", null, "coordinatePoint");
+      const arcDirectionType = scalarTypeForParameterDefinition(
+        getParameterDefinitions({ type: "arcLine", intermediatePoints: [] } as never).find((definition) => definition.key === "direction")
+      );
+      return {
+        kind: "arc",
+        span: { start: constructionSpan.start, end: initializerSpan.end },
+        center,
+        radius: scalar(radiusArgument, { kind: "number" }, "30"),
+        start: scalar(startArgument, { kind: "number" }, "0"),
+        end: scalar(endArgument, { kind: "number" }, "90"),
+        direction: arcDirectionType ? scalar(directionArgument, arcDirectionType, "counterclockwise") : null
+      };
     }
     if (expectedInterfaceType !== "line" && expectedInterfaceType !== "path") {
       addLocal(statementIndex, issue("module-geometry-type-mismatch", constructionSpan, "segment construction は line または path value にのみ代入できます。", {
@@ -2388,6 +2432,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       rootGeometryReferencesByStatementId.set(statementId, [
         { parameterKey: "start", span: construction.start.span, reference: construction.start },
         { parameterKey: "end", span: construction.end.span, reference: construction.end }
+      ]);
+    } else if (construction?.kind === "arc") {
+      rootGeometryReferencesByStatementId.set(statementId, [
+        { parameterKey: "center", span: construction.center.span, reference: construction.center }
       ]);
     }
   }

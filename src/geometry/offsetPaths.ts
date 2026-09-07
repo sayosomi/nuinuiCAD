@@ -1,6 +1,6 @@
 import type {
   ComputedGeometry,
-  ComputedGeometryValueLine,
+  ComputedGeometryValue,
   ComputedOffsetLine,
   ComputedOffsetLineSegment,
   ElementId
@@ -109,7 +109,7 @@ export const buildOffsetLineGeometry = ({
   elementId: ElementId;
   name: string;
   baseLineIds: ElementId[];
-  baseGeometries: Array<ComputedGeometry | ComputedGeometryValueLine>;
+  baseGeometries: Array<ComputedGeometry | ComputedGeometryValue>;
   offset: number;
   closed: boolean;
   suppressTrimWarnings?: boolean;

@@ -75,6 +75,51 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ]);
   }, 30000);
 
+  it("matches direct pure arc values and radius diagnostics across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const Valid: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "const Invalid: path = arc(center: (0, 0), radius: -5, start: 0, end: 90, direction: counterclockwise)"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 2) throw new Error("expected valid and invalid pure arc program entries");
+    const validEntry = program[0]!;
+    const invalidEntry = program[1]!;
+    const options = optionsFor(fixture);
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const sameOccurrence = (
+      left: typeof validEntry.occurrence,
+      right: typeof validEntry.occurrence
+    ) => left.sourceStatementId === right.sourceStatementId &&
+      left.instancePath.length === right.instancePath.length &&
+      left.instancePath.every((value, index) => value === right.instancePath[index]);
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof validEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])]
+      .find((entry) => sameOccurrence(entry.occurrence, occurrence))?.value;
+
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      const validValue = valueFor(result, validEntry.occurrence);
+      expect(validValue).toMatchObject({ kind: "arcLine", radius: 10, sweepAngleDeg: -270 });
+      expect(validValue).not.toHaveProperty("elementId");
+      expect(valueFor(result, invalidEntry.occurrence)).toBeUndefined();
+      expect(result.geometryValueErrors).toEqual([{
+        occurrence: invalidEntry.occurrence,
+        message: "円弧の半径は0より大きい値で指定してください。"
+      }]);
+      expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+    }
+  }, 30000);
+
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);

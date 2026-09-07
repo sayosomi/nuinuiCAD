@@ -11,6 +11,15 @@ fn number(value: f64) -> Value {
     })
 }
 
+fn choice(value: &str) -> Value {
+    json!({
+        "kind": "choiceLiteral",
+        "span": { "start": 0, "end": value.len() },
+        "value": value,
+        "type": { "kind": "choice", "options": ["counterclockwise", "clockwise"] }
+    })
+}
+
 #[test]
 fn incompatible_geometry_value_constructions_emit_occurrence_owned_errors() {
     let coordinate_occurrence = json!({
@@ -254,6 +263,126 @@ fn drawable_and_value_segments_share_the_same_structural_numeric_fields() {
     }
     assert_eq!(drawable["start"]["elementId"], json!("drawable:line:start"));
     assert!(value["start"].get("elementId").is_none());
+}
+
+#[test]
+fn direct_arc_value_uses_identity_free_arc_geometry_and_feeds_endpoint_anchor() {
+    let occurrence = json!({
+        "sourceStatementId": "value:arc",
+        "instancePath": []
+    });
+    let element = json!({
+        "id": "drawable:line",
+        "name": "L",
+        "type": "line",
+        "activity": "visible",
+        "startPoint": { "mode": "geometryValue", "occurrence": occurrence.clone(), "pointKey": "start" },
+        "endPoint": { "mode": "coordinate", "x": 0, "y": 10 }
+    });
+    let program = json!({
+        "sourceStatementId": "value:arc",
+        "sourceStatementIndex": 0,
+        "declaredInterfaceType": "path",
+        "occurrence": occurrence,
+        "executionPosition": -0.5,
+        "construction": {
+            "kind": "arc",
+            "center": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+            "radius": number(10.0),
+            "startAngleDeg": number(0.0),
+            "endAngleDeg": number(90.0),
+            "direction": choice("counterclockwise")
+        }
+    });
+
+    let result = evaluate_document_input(input(vec![element], vec![program]));
+    assert!(result.errors.is_empty());
+    let value = &result.computed_geometry_values[0]["value"];
+    assert_eq!(value["kind"], "arcLine");
+    assert_eq!(value["center"], json!({ "x": 0.0, "y": 0.0 }));
+    assert_eq!(value["start"], json!({ "x": 10.0, "y": 0.0 }));
+    assert_eq!(value["radius"], 10.0);
+    assert_eq!(value["sweepAngleDeg"], 90.0);
+    assert!(value.get("elementId").is_none());
+    assert!(value.get("name").is_none());
+    assert!(value.get("centerPointId").is_none());
+    assert_eq!(result.computed_geometry[0]["start"]["x"], 10.0);
+    assert_eq!(result.computed_geometry[0]["start"]["y"], 0.0);
+}
+
+#[test]
+fn invalid_direct_arc_radius_uses_occurrence_owned_errors_without_computed_values() {
+    let program = [
+        ("value:arc-zero", Vec::<&str>::new(), 0.0),
+        ("value:arc-negative", vec!["instance:one"], -5.0),
+    ]
+    .into_iter()
+    .map(|(source_statement_id, instance_path, radius)| {
+        json!({
+            "sourceStatementId": source_statement_id,
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": {
+                "sourceStatementId": source_statement_id,
+                "instancePath": instance_path
+            },
+            "executionPosition": 0.0,
+            "construction": {
+                "kind": "arc",
+                "center": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "radius": number(radius),
+                "startAngleDeg": number(0.0),
+                "endAngleDeg": number(90.0),
+                "direction": choice("counterclockwise")
+            }
+        })
+    })
+    .collect();
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0]
+            .occurrence
+            .source_statement_id,
+        "value:arc-zero"
+    );
+    assert!(result.geometry_value_errors[0]
+        .occurrence
+        .instance_path
+        .is_empty());
+    assert_eq!(
+        result.geometry_value_errors[1]
+            .occurrence
+            .source_statement_id,
+        "value:arc-negative"
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert!(result
+        .geometry_value_errors
+        .iter()
+        .all(|error| error.message == "円弧の半径は0より大きい値で指定してください。"));
+
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert_eq!(
+        serialized["geometryValueErrors"][1],
+        json!({
+            "occurrence": {
+                "sourceStatementId": "value:arc-negative",
+                "instancePath": ["instance:one"]
+            },
+            "message": "円弧の半径は0より大きい値で指定してください。"
+        })
+    );
+    assert!(!serialized["geometryValueErrors"]
+        .to_string()
+        .contains("elementId"));
 }
 
 #[test]

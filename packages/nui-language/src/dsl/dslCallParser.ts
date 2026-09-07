@@ -51,7 +51,7 @@ export type DslConstructionInvocation = {
   categories: readonly string[];
   category: string | null;
   elementType: CadElementType | null;
-  pureValueInterface?: "point" | "line";
+  pureValueInterface?: "point" | "line" | "path";
 };
 
 export type DslConstructionInvocationParseResult = {
