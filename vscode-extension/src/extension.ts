@@ -1265,7 +1265,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         targetDocument.getText(),
         target.range
       );
-      const visibleEditor = visibleEditorFor(session.document);
+      const visibleEditor = visibleEditorFor(targetDocument) ?? visibleEditorFor(session.document);
       let editor: vscode.TextEditor | undefined;
       try {
         editor = await vscode.window.showTextDocument(targetDocument, {
@@ -2343,7 +2343,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
           : {
               sourceTarget: target.target,
               sourceRevision: target.sourceRevision,
-              graphRevision: target.graphRevision
+              graphRevision: target.graphRevision,
+              ...(target.runtimeProjection === undefined
+                ? {}
+                : { runtimeProjection: target.runtimeProjection })
             })
       };
       session.pendingCanvasFocus = null;

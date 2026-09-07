@@ -67,7 +67,11 @@ import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluat
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
-import type { ComputedGeometryValue, ComputedGeometryValueEntry } from "./evaluationTypes";
+import type {
+  ComputedGeometryValue,
+  ComputedGeometryValueEntry,
+  GeometryValueEvaluationError
+} from "./evaluationTypes";
 import { arcGeometryKernel, coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 
@@ -212,6 +216,7 @@ export const evaluateElements = (
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedGeometryValues = new Map<import("../model/geometryValueOccurrence").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
+  const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
   const geometryMutationExecutions: GeometryMutationExecution[] = [];
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
@@ -347,6 +352,16 @@ export const evaluateElements = (
       : undefined;
   };
 
+  const appendGeometryValueError = (
+    entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry,
+    message: string
+  ) => {
+    geometryValueErrors.push({
+      occurrence: entry.occurrence,
+      message
+    });
+  };
+
   const structuralPointForValueTarget = (target: Parameters<typeof resolveDocumentGeometryTarget>[1], sourceOrder: number): StructuralPoint | undefined => {
     const geometry = resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder);
     if (!geometry || geometry.kind === "unavailable") return undefined;
@@ -373,25 +388,40 @@ export const evaluateElements = (
     }
     let value: ComputedGeometryValue | undefined;
     if (entry.construction.kind === "coordinate") {
+      if (entry.declaredInterfaceType !== "point") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
       const x = evaluateGeometryValueScalar(entry.construction.x, sourceOrder);
       const y = evaluateGeometryValueScalar(entry.construction.y, sourceOrder);
       if (x !== undefined && y !== undefined) {
         value = { kind: "point", ...coordinateGeometryKernel(x, y) };
       }
     } else if (entry.construction.kind === "segment") {
+      if (entry.declaredInterfaceType !== "line" && entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
       const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
       const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
       if (start && end) {
         value = segmentGeometryKernel(start, end);
       }
     } else {
-      if (entry.declaredInterfaceType !== "path") return;
+      if (entry.declaredInterfaceType !== "path") {
+        appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
+        return;
+      }
       const center = structuralPointForProgramPoint(entry.construction.center, sourceOrder);
       const radius = evaluateGeometryValueScalar(entry.construction.radius, sourceOrder);
       const startAngleDeg = evaluateGeometryValueScalar(entry.construction.startAngleDeg, sourceOrder);
       const endAngleDeg = evaluateGeometryValueScalar(entry.construction.endAngleDeg, sourceOrder);
       const direction = evaluateGeometryValueDirection(entry.construction.direction, sourceOrder);
       if (center && radius !== undefined && startAngleDeg !== undefined && endAngleDeg !== undefined && direction) {
+        if (!(radius > 0)) {
+          appendGeometryValueError(entry, "円弧の半径は0より大きい値で指定してください。");
+          return;
+        }
         value = arcGeometryKernel(center, radius, startAngleDeg, endAngleDeg, direction);
       }
     }
@@ -893,6 +923,7 @@ export const evaluateElements = (
   return {
     computedGeometry,
     computedGeometryValues,
+    geometryValueErrors,
     preMutationGeometry,
     geometryMutationExecutions,
     instanceBaseGeometry,

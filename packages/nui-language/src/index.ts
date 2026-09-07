@@ -14,6 +14,7 @@ export * from "./dsl/dslRenameQuery";
 export * from "./dsl/dslHoverQuery";
 export * from "./dsl/dslNavigationQuery";
 export * from "./dsl/dslCanvasRevealQuery";
+export * from "./dsl/dslRevealRuntimeProjection";
 export * from "./dsl/dslCompletionQuery";
 export * from "./dsl/dslCallParser";
 export * from "./dsl/dslConstructionCategoryQuickFixQuery";

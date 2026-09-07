@@ -29,6 +29,29 @@ describe("evaluation payload conversion", () => {
     expect(roundTrip.effectiveDrawingModifierStrokes).toEqual(evaluation.effectiveDrawingModifierStrokes);
   });
 
+  it("round-trips occurrence-owned geometry value errors without drawable identity", () => {
+    const occurrence = { sourceStatementId: "statement:value", instancePath: ["instance:one", "instance:two"] };
+    const baseline = evaluationResultToPayload(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
+    const payload: EvaluationPayload = {
+      ...baseline,
+      geometryValueErrors: [{
+        occurrence,
+        message: "Geometry value construction is incompatible with its declared interface type."
+      }]
+    };
+
+    const result = evaluationPayloadToResult(payload);
+    expect(result.geometryValueErrors).toEqual(payload.geometryValueErrors);
+    expect(result.geometryValueErrors?.[0]).not.toHaveProperty("elementId");
+    expect(evaluationResultToPayload(result).geometryValueErrors).toEqual(payload.geometryValueErrors);
+  });
+
+  it("omits an empty geometry value error channel from the JSON payload", () => {
+    const payload = evaluationResultToPayload(evaluateElements(sampleElements, { evaluationLimitIndex: 3 }));
+    expect(payload.geometryValueErrors).toBeUndefined();
+    expect(evaluationPayloadToResult(payload).geometryValueErrors).toEqual([]);
+  });
+
   it("round-trips ordered successful geometry mutation executions", () => {
     const evaluation = evaluateElements([
       { id: "a", name: "A", type: "freePoint", activity: "visible", x: 0, y: 0 },

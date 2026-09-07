@@ -811,6 +811,7 @@ fn evaluate_document_input_with_scalar_program(
         condition_evaluation_traces: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     };
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
@@ -1305,6 +1306,7 @@ fn evaluate_document_input_with_scalar_program(
             })
             .collect(),
         errors: state.errors,
+        geometry_value_errors: state.geometry_value_errors,
         warnings: state.warnings,
         evaluated_element_ids: evaluated_elements.iter().filter_map(element_id).collect(),
         evaluation_limit_index,

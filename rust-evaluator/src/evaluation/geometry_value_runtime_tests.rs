@@ -20,6 +20,102 @@ fn choice(value: &str) -> Value {
     })
 }
 
+#[test]
+fn incompatible_geometry_value_constructions_emit_occurrence_owned_errors() {
+    let coordinate_occurrence = json!({
+        "sourceStatementId": "value:point",
+        "instancePath": ["instance:one"]
+    });
+    let segment_occurrence = json!({
+        "sourceStatementId": "value:line",
+        "instancePath": ["instance:two", "instance:nested"]
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:point",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "line",
+            "occurrence": coordinate_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "coordinate",
+                "x": number(1.0),
+                "y": number(2.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:line",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": segment_occurrence,
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "segment",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) }
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0]
+            .occurrence
+            .source_statement_id,
+        "value:point"
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[1]
+            .occurrence
+            .source_statement_id,
+        "value:line"
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence.instance_path,
+        vec!["instance:two", "instance:nested"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "Geometry value construction is incompatible with its declared interface type."
+    );
+
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert_eq!(
+        serialized["geometryValueErrors"],
+        json!([
+            {
+                "occurrence": {
+                    "sourceStatementId": "value:point",
+                    "instancePath": ["instance:one"]
+                },
+                "message": "Geometry value construction is incompatible with its declared interface type."
+            },
+            {
+                "occurrence": {
+                    "sourceStatementId": "value:line",
+                    "instancePath": ["instance:two", "instance:nested"]
+                },
+                "message": "Geometry value construction is incompatible with its declared interface type."
+            }
+        ])
+    );
+}
+
+#[test]
+fn empty_geometry_value_error_channel_is_omitted_from_payload() {
+    let result = evaluate_document_input(input(Vec::new(), Vec::new()));
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert!(serialized.get("geometryValueErrors").is_none());
+}
+
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         geometry_input_targets: None,
@@ -212,6 +308,81 @@ fn direct_arc_value_uses_identity_free_arc_geometry_and_feeds_endpoint_anchor() 
     assert!(value.get("centerPointId").is_none());
     assert_eq!(result.computed_geometry[0]["start"]["x"], 10.0);
     assert_eq!(result.computed_geometry[0]["start"]["y"], 0.0);
+}
+
+#[test]
+fn invalid_direct_arc_radius_uses_occurrence_owned_errors_without_computed_values() {
+    let program = [
+        ("value:arc-zero", Vec::<&str>::new(), 0.0),
+        ("value:arc-negative", vec!["instance:one"], -5.0),
+    ]
+    .into_iter()
+    .map(|(source_statement_id, instance_path, radius)| {
+        json!({
+            "sourceStatementId": source_statement_id,
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "path",
+            "occurrence": {
+                "sourceStatementId": source_statement_id,
+                "instancePath": instance_path
+            },
+            "executionPosition": 0.0,
+            "construction": {
+                "kind": "arc",
+                "center": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "radius": number(radius),
+                "startAngleDeg": number(0.0),
+                "endAngleDeg": number(90.0),
+                "direction": choice("counterclockwise")
+            }
+        })
+    })
+    .collect();
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0]
+            .occurrence
+            .source_statement_id,
+        "value:arc-zero"
+    );
+    assert!(result.geometry_value_errors[0]
+        .occurrence
+        .instance_path
+        .is_empty());
+    assert_eq!(
+        result.geometry_value_errors[1]
+            .occurrence
+            .source_statement_id,
+        "value:arc-negative"
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert!(result
+        .geometry_value_errors
+        .iter()
+        .all(|error| error.message == "円弧の半径は0より大きい値で指定してください。"));
+
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert_eq!(
+        serialized["geometryValueErrors"][1],
+        json!({
+            "occurrence": {
+                "sourceStatementId": "value:arc-negative",
+                "instancePath": ["instance:one"]
+            },
+            "message": "円弧の半径は0より大きい値で指定してください。"
+        })
+    );
+    assert!(!serialized["geometryValueErrors"]
+        .to_string()
+        .contains("elementId"));
 }
 
 #[test]

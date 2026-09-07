@@ -5,7 +5,8 @@ use std::fmt;
 
 pub type ElementId = String;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct GeometryValueOccurrence {
     pub(crate) source_statement_id: String,
     pub(crate) instance_path: Vec<String>,
@@ -158,6 +159,13 @@ pub(crate) struct GeometryMutationExecution {
     pub(crate) target_element_ids: Vec<ElementId>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GeometryValueEvaluationError {
+    pub(crate) occurrence: GeometryValueOccurrence,
+    pub(crate) message: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EffectiveDrawingModifierStroke {
@@ -178,6 +186,8 @@ pub struct EvaluationPayload {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) instance_base_geometry: Vec<Value>,
     pub(crate) errors: Vec<DependencyError>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) geometry_value_errors: Vec<GeometryValueEvaluationError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
     pub(crate) evaluated_element_ids: Vec<ElementId>,
     pub(crate) evaluation_limit_index: usize,
@@ -258,6 +268,7 @@ pub(crate) struct EvaluationState {
     pub(crate) condition_evaluation_traces: Vec<Value>,
     pub(crate) instance_base_geometry: HashMap<ElementId, Vec<Value>>,
     pub(crate) errors: Vec<DependencyError>,
+    pub(crate) geometry_value_errors: Vec<GeometryValueEvaluationError>,
     pub(crate) warnings: Vec<EvaluationWarning>,
 }
 

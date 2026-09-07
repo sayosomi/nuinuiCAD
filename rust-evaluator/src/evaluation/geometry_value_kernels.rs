@@ -104,7 +104,10 @@ pub(crate) fn direct_arc_geometry_kernel(
 
 #[cfg(test)]
 mod tests {
-    use super::{coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel, StructuralPoint};
+    use super::{
+        coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
+        StructuralPoint,
+    };
 
     #[test]
     fn structural_segment_is_identity_free_and_deterministic() {

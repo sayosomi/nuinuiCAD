@@ -1,6 +1,10 @@
 import * as vscode from "vscode";
-import { queryDslCanvasSourceTarget } from "@nuinuicad/nui-language";
-import { queryDslCanvasRevealSourceTarget } from "@nuinuicad/nui-language";
+import {
+  projectDslRevealRuntimeStatementOwner,
+  queryDslCanvasSourceTarget,
+  queryDslCanvasRevealSourceTarget,
+  type DslRevealRuntimeStatementOwnerProjection
+} from "@nuinuicad/nui-language";
 import {
   isDslOutputPreviewRevealSourceTargetStructurallyAvailable,
   queryDslOutputPreviewRevealSourceTarget,
@@ -83,6 +87,7 @@ export type VscodeCanvasRevealSourceTarget = {
   normalizedSourceOffset: number;
   sourceRevision: number;
   graphRevision: number | null;
+  runtimeProjection?: DslRevealRuntimeStatementOwnerProjection;
 };
 
 export type VscodeCanvasRevealSourceTargetResult =
@@ -271,7 +276,16 @@ export const revealInCanvasSourceTargetForEditor = async (
           documentVersion: capturedVersion,
           normalizedSourceOffset: capturedOffset,
           sourceRevision: graphSemantic.sourceRevision,
-          graphRevision: graphSemantic.graphRevision
+          graphRevision: graphSemantic.graphRevision,
+          ...(graphTarget.target.kind === "statement-owner"
+            ? {
+                runtimeProjection: projectDslRevealRuntimeStatementOwner(
+                  graphSemantic.compiled,
+                  graphTarget.target.sourceStatementIndex,
+                  graphSemantic.rootDocumentId
+                )
+              }
+            : {})
         }
       };
     }

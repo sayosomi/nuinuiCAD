@@ -8,6 +8,7 @@ import type {
   DslCanvasRevealFailureReason,
   DslCanvasRevealSourceTarget
 } from "../dsl/dslCanvasRevealQuery";
+import type { DslRevealRuntimeStatementOwnerProjection } from "../dsl/dslRevealRuntimeProjection";
 import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";
@@ -232,6 +233,7 @@ export type VscodeCanvasNavigationRequest =
       sourceTarget: DslCanvasRevealSourceTarget;
       sourceRevision: number;
       graphRevision: number;
+      runtimeProjection?: DslRevealRuntimeStatementOwnerProjection;
     };
 
 export type VscodeToExtensionMessage =

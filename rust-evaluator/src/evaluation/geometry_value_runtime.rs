@@ -1,7 +1,8 @@
 use serde_json::{json, Value};
 
 use super::geometry_value_kernels::{
-    coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel, StructuralPoint,
+    coordinate_geometry_kernel, direct_arc_geometry_kernel, segment_geometry_kernel,
+    StructuralPoint,
 };
 use super::point_anchor::point_from_geometry;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
@@ -9,7 +10,9 @@ use super::scalars::{
     validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType,
     ScalarValue, TypedScalarExpression,
 };
-use super::types::{EvaluationCommandError, EvaluationState, GeometryValueOccurrence};
+use super::types::{
+    EvaluationCommandError, EvaluationState, GeometryValueEvaluationError, GeometryValueOccurrence,
+};
 
 pub(crate) struct EmptyBindingResolver;
 
@@ -260,17 +263,17 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                 ),
                 start_angle_deg: Box::new(
                     validate_typed_expression_payload(
-                        construction_object
-                            .get("startAngleDeg")
-                            .ok_or_else(|| "geometry value arc is missing startAngleDeg".to_owned())?,
+                        construction_object.get("startAngleDeg").ok_or_else(|| {
+                            "geometry value arc is missing startAngleDeg".to_owned()
+                        })?,
                     )
                     .map_err(|error| format!("{error:?}"))?,
                 ),
                 end_angle_deg: Box::new(
                     validate_typed_expression_payload(
-                        construction_object
-                            .get("endAngleDeg")
-                            .ok_or_else(|| "geometry value arc is missing endAngleDeg".to_owned())?,
+                        construction_object.get("endAngleDeg").ok_or_else(|| {
+                            "geometry value arc is missing endAngleDeg".to_owned()
+                        })?,
                     )
                     .map_err(|error| format!("{error:?}"))?,
                 ),
@@ -406,6 +409,11 @@ pub(crate) fn evaluate_geometry_value_entry(
     let value = match &entry.construction {
         GeometryValueConstruction::Coordinate { x, y } => {
             if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             let x = number_expression(x, resolver, state, source_order);
@@ -417,6 +425,11 @@ pub(crate) fn evaluate_geometry_value_entry(
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             evaluate_point(start, resolver, state, source_order)
@@ -431,6 +444,11 @@ pub(crate) fn evaluate_geometry_value_entry(
             direction,
         } => {
             if entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             let center = evaluate_point(center, resolver, state, source_order);
@@ -438,12 +456,22 @@ pub(crate) fn evaluate_geometry_value_entry(
             let start_angle_deg = number_expression(start_angle_deg, resolver, state, source_order);
             let end_angle_deg = number_expression(end_angle_deg, resolver, state, source_order);
             let direction = choice_expression(direction, resolver, state, source_order);
-            center
-                .zip(radius)
-                .zip(start_angle_deg)
-                .zip(end_angle_deg)
-                .zip(direction)
-                .map(|((((center, radius), start_angle_deg), end_angle_deg), direction)| {
+            match (center, radius, start_angle_deg, end_angle_deg, direction) {
+                (
+                    Some(center),
+                    Some(radius),
+                    Some(start_angle_deg),
+                    Some(end_angle_deg),
+                    Some(direction),
+                ) => {
+                    if radius.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+                        append_geometry_value_error(
+                            state,
+                            entry,
+                            "円弧の半径は0より大きい値で指定してください。",
+                        );
+                        return;
+                    }
                     let structural = direct_arc_geometry_kernel(
                         StructuralPoint {
                             x: center.0,
@@ -454,7 +482,7 @@ pub(crate) fn evaluate_geometry_value_entry(
                         end_angle_deg,
                         &direction,
                     );
-                    json!({
+                    Some(json!({
                         "kind": "arcLine",
                         "center": { "x": structural.center.x, "y": structural.center.y },
                         "start": { "x": structural.start.x, "y": structural.start.y },
@@ -466,8 +494,10 @@ pub(crate) fn evaluate_geometry_value_entry(
                         "endTangentAngleDeg": structural.end_tangent_angle_deg,
                         "sweepAngleDeg": structural.sweep_angle_deg,
                         "length": structural.length
-                    })
-                })
+                    }))
+                }
+                _ => None,
+            }
         }
     };
     if let Some(value) = value {
@@ -475,4 +505,17 @@ pub(crate) fn evaluate_geometry_value_entry(
             .computed_geometry_values
             .insert(entry.occurrence.clone(), value);
     }
+}
+
+fn append_geometry_value_error(
+    state: &mut EvaluationState,
+    entry: &GeometryValueProgramEntry,
+    message: &str,
+) {
+    state
+        .geometry_value_errors
+        .push(GeometryValueEvaluationError {
+            occurrence: entry.occurrence.clone(),
+            message: message.to_owned(),
+        });
 }

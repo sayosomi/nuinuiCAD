@@ -49,6 +49,11 @@ export type ComputedGeometryValueEntry = {
   value: ComputedGeometryValue;
 };
 
+export type GeometryValueEvaluationError = {
+  occurrence: GeometryValueOccurrence;
+  message: string;
+};
+
 export type ComputedPoint = {
   kind: "point";
   elementId: ElementId;
@@ -252,6 +257,8 @@ export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
   /** Immutable construction results, deliberately separate from drawable geometry. */
   computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
+  /** Runtime failures owned by immutable geometry-value occurrences, never drawable elements. */
+  geometryValueErrors?: GeometryValueEvaluationError[];
   /** Every successfully evaluated declaration, captured before later mutations. */
   preMutationGeometry?: Map<ElementId, ComputedGeometry>;
   /** Successful in-place geometry mutations, preserving actual runtime execution order. */

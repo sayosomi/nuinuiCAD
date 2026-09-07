@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { projectDslRevealRuntimeStatementOwner } from "@nuinuicad/nui-language";
 import { selectElement } from "../commands/selectionCommands";
 import * as commandRegistry from "../commands/commands";
 import { confirmCommandLineSession, submitCommandLineInput } from "../commands/commandLineSessionCommands";
@@ -22,6 +23,14 @@ import type {
 import type { VscodeReferencePickAuthorityFor } from "./useVSCodeReferencePickSession";
 import { VscodeRustTransport } from "./vscodeRustTransport";
 import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
+import {
+  buildImportedRevealFreshnessFixture,
+  importedRevealDocumentVersion,
+  importedRevealGraphRevision,
+  importedRevealGraphRootSourceRevision,
+  importedRevealRootSource
+} from "./testSupport/importedRevealFreshnessFixture";
+import { canvasNavigationFreshnessFor } from "./canvasNavigationFreshness";
 
 const drawingCanvasProps = vi.hoisted(() => ({
   postCanonicalSourceText: null as ((sourceText: string, metadata?: SourceCreationCommitMetadata) => void) | null,
@@ -287,6 +296,142 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(drawingCanvasProps.multiDocumentRuntimePresentation).not.toBeNull();
     expect(drawingCanvasProps.multiDocumentRuntimePresentation?.rootSourceRevision).toBe(37);
+  });
+
+  it("reveals a genuine imported caller from graph runtime authority without local compiled-document currentness", async () => {
+    const fixture = await buildImportedRevealFreshnessFixture();
+    const api = { postMessage: vi.fn() };
+    const runtimeElements = fixture.runtimePresentation.elements;
+    const runtimeGeometry = new Map(
+      runtimeElements
+        .filter((element) => element.type === "freePoint")
+        .map((element, index) => [element.id, {
+          kind: "point" as const,
+          elementId: element.id,
+          name: element.name,
+          x: index,
+          y: 0
+        }])
+    );
+    drawingCanvasProps.evaluation = {
+      computedGeometry: runtimeGeometry,
+      preMutationGeometry: new Map(),
+      instanceBaseGeometry: new Map(),
+      errors: [],
+      warnings: [],
+      evaluatedElementIds: new Set(runtimeElements.map((element) => element.id)),
+      effectiveEnabledElementIds: new Set(runtimeElements.map((element) => element.id)),
+      effectiveVisibleElementIds: new Set(runtimeElements.map((element) => element.id))
+    };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: importedRevealRootSource,
+          documentVersion: importedRevealDocumentVersion
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", {
+        data: fixture.publication
+      }));
+    });
+
+    const webviewCompilerRevision = useCadDocumentStore.getState().currentSourceRevision;
+    expect(webviewCompilerRevision).not.toBe(importedRevealGraphRootSourceRevision);
+    const diagnosticState = useCadDocumentStore.getState();
+    expect(diagnosticState.sourceText).toBe(importedRevealRootSource);
+    expect(diagnosticState.doc.spans.sourceMap.source).not.toBe(importedRevealRootSource);
+    expect(diagnosticState.currentSourceRevision).not.toBe(importedRevealGraphRootSourceRevision);
+    const statementOwnerTarget = fixture.target;
+    if (statementOwnerTarget.kind !== "statement-owner") throw new Error("expected imported statement-owner target");
+    const rootDirect = fixture.compiled.moduleMaterialization!.executionStatements.find((entry) =>
+      entry.type === "moduleInstance" &&
+      entry.sourceStatementIndex === statementOwnerTarget.sourceStatementIndex &&
+      String(entry.origin?.sourceDocumentId) === fixture.publication.graph.rootDocumentId
+    );
+    expect(rootDirect).toBeDefined();
+    const runtimeProjection = projectDslRevealRuntimeStatementOwner(
+      fixture.compiled,
+      statementOwnerTarget.sourceStatementIndex,
+      fixture.publication.graph.rootDocumentId
+    );
+    expect(runtimeProjection).toEqual({ candidates: [rootDirect!.runtimeElementId] });
+    const expectedRuntimeElementId = rootDirect!.runtimeElementId;
+    expect(canvasNavigationFreshnessFor({
+      authoritativeDocumentAvailable: true,
+      graphBackedRequest: true,
+      documentVersion: importedRevealDocumentVersion,
+      normalizedSource: importedRevealRootSource,
+      sourceRevision: importedRevealGraphRootSourceRevision,
+      graphRevision: importedRevealGraphRevision,
+      publication: fixture.publication,
+      runtimePresentation: fixture.runtimePresentation
+    })).toEqual({ status: "ready" });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 9041,
+          documentVersion: importedRevealDocumentVersion,
+          normalizedSourceOffset: importedRevealRootSource.indexOf("Direct"),
+          sourceTarget: fixture.target,
+          sourceRevision: importedRevealGraphRootSourceRevision,
+          graphRevision: importedRevealGraphRevision,
+          runtimeProjection
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBe(expectedRuntimeElementId);
+    expect(useCadUiStore.getState().selectedElementIds).toEqual([expectedRuntimeElementId]);
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 9041,
+      status: "resolved",
+      degradations: []
+    });
+  });
+
+  it("fails closed for an imported statement-owner request without its graph runtime projection", async () => {
+    const fixture = await buildImportedRevealFreshnessFixture();
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "replaceTextDocument",
+          sourceText: importedRevealRootSource,
+          documentVersion: importedRevealDocumentVersion
+        }
+      }));
+      window.dispatchEvent(new MessageEvent("message", { data: fixture.publication }));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: {
+          type: "canvasNavigationRequest",
+          requestId: 9042,
+          documentVersion: importedRevealDocumentVersion,
+          normalizedSourceOffset: importedRevealRootSource.indexOf("Direct"),
+          sourceTarget: fixture.target,
+          sourceRevision: importedRevealGraphRootSourceRevision,
+          graphRevision: importedRevealGraphRevision
+        }
+      }));
+    });
+
+    expect(useCadUiStore.getState().selectedElementId).toBeNull();
+    expect(api.postMessage).toHaveBeenCalledWith({
+      type: "canvasNavigationResult",
+      requestId: 9042,
+      status: "failed",
+      reason: "source-mismatch"
+    });
   });
 
   it("fails closed when the host runtime source revision disagrees with the graph root", async () => {
@@ -1559,7 +1704,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
           normalizedSourceOffset: source.indexOf("Root"),
           sourceTarget: { kind: "statement-owner", sourceStatementIndex: 1 },
           sourceRevision: rootState.currentSourceRevision,
-          graphRevision: 12
+          graphRevision: 12,
+          runtimeProjection: { candidates: [importedInstanceId] }
         }
       }));
     });

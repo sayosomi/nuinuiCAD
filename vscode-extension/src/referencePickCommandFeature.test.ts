@@ -318,6 +318,20 @@ describe("registerVscodeReferencePickFeature", () => {
       languageSemanticSnapshotFor: vi.fn(async () => semanticSnapshot)
     };
 
+    const materialized = semanticSnapshot.compiled.moduleMaterialization!.executionStatements;
+    const rootDirect = materialized.find((entry) =>
+      entry.type === "moduleInstance" &&
+      entry.sourceStatementIndex === 2 &&
+      String(entry.origin?.sourceDocumentId) === semanticSnapshot.rootDocumentId
+    );
+    const dependencyCollision = materialized.find((entry) =>
+      entry.sourceStatementIndex === 2 &&
+      String(entry.origin?.sourceDocumentId) === "file:///tmp/library.nui"
+    );
+    expect(rootDirect).toBeDefined();
+    expect(dependencyCollision).toBeDefined();
+    expect(rootDirect!.runtimeElementId).not.toBe(dependencyCollision!.runtimeElementId);
+
     const resolved = await revealInCanvasSourceTargetForEditor(editor, languageSession);
     expect(resolved.status).toBe("resolved");
     if (resolved.status !== "resolved") return;
@@ -325,6 +339,12 @@ describe("registerVscodeReferencePickFeature", () => {
       kind: "statement-owner",
       sourceStatementIndex: 2
     });
+    expect(resolved.value.runtimeProjection).toEqual({
+      candidates: [rootDirect!.runtimeElementId]
+    });
+    expect(resolved.value.runtimeProjection!.candidates).toHaveLength(1);
+    expect(resolved.value.runtimeProjection!.candidates).toContain(rootDirect!.runtimeElementId);
+    expect(resolved.value.runtimeProjection!.candidates).not.toContain(dependencyCollision!.runtimeElementId);
     expect(resolved.value.graphRevision).not.toBeNull();
     await expect(sourceTargetAvailabilityForEditorAsync(editor, languageSession)).resolves.toMatchObject({
       revealInCanvas: true

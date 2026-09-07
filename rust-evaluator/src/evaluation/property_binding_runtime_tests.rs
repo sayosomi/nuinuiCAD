@@ -118,6 +118,7 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         condition_evaluation_traces: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     }
 }

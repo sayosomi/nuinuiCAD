@@ -3,6 +3,7 @@ import { compileDslDocument } from "../../packages/nui-language/src/dsl/dslDocum
 import { parseDslSnapshot } from "../../packages/nui-language/src/dsl/dslParser";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 import { evaluateElements } from "./evaluate";
+import { runtimeGeometryDiagnostics } from "./runtimeGeometryDiagnostics";
 import type { LastGoodDslDocument } from "../document/canonicalDocument";
 
 const compile = (source: string) => {
@@ -26,6 +27,33 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it.each([
+    ["coordinate", "point", "line"],
+    ["segment", "line", "point"]
+  ] as const)("reports an incompatible %s construction through the occurrence-owned channel", (constructionKind, validInterface, incompatibleInterface) => {
+    const compiled = compile([
+      "nui 1",
+      constructionKind === "coordinate"
+        ? "const Value: point = coordinate(x: 1, y: 2)"
+        : "const Value: line = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const entry = compiled.geometryValueProgram?.[0];
+    expect(entry?.declaredInterfaceType).toBe(validInterface);
+    if (!entry) throw new Error("expected compiled geometry value entry");
+
+    const result = evaluateElements(compiled.document!.elements, {
+      ...buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }),
+      geometryValueProgram: [{ ...entry, declaredInterfaceType: incompatibleInterface }]
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: entry.occurrence,
+      message: "Geometry value construction is incompatible with its declared interface type."
+    }]);
+  });
+
   it("keeps constructed points out of drawable identity while feeding a later line", () => {
     const { compiled, result } = evaluate([
       "nui 1",
@@ -118,6 +146,62 @@ describe("pure geometry construction runtime", () => {
     expect(defaultArc).toEqual(expect.objectContaining({ radius: 30, sweepAngleDeg: 90 }));
     expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "line" });
     expect(result.computedGeometry.get("geometry-value-runtime:6")).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it.each([0, -5])("reports an invalid pure arc radius through geometryValueErrors without drawable identity (%s)", (radius) => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      `const Invalid: path = arc(center: (0, 0), radius: ${radius}, start: 0, end: 90, direction: counterclockwise)`
+    ].join("\n"));
+
+    const occurrence = compiled.geometryValueProgram![0]!.occurrence;
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence,
+      message: "円弧の半径は0より大きい値で指定してください。"
+    }]);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors?.every((error) => !("elementId" in error))).toBe(true);
+  });
+
+  it("preserves module occurrence identity for an invalid pure arc and projects its runtime diagnostic", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "module M() {",
+      "  const Invalid: path = arc(center: (0, 0), radius: -1, start: 0, end: 90, direction: counterclockwise)",
+      "}",
+      "instance One = M()"
+    ].join("\n"));
+
+    const entry = compiled.geometryValueProgram!.find((candidate) => candidate.construction.kind === "arc");
+    expect(entry).toBeDefined();
+    const error = result.geometryValueErrors?.find((candidate) => candidate.occurrence.instancePath.length > 0);
+    expect(error).toEqual({
+      occurrence: expect.objectContaining({
+        sourceStatementId: entry!.occurrence.sourceStatementId,
+        instancePath: expect.arrayContaining([expect.stringMatching(/^geometry-value-runtime:/)])
+      }),
+      message: "円弧の半径は0より大きい値で指定してください。"
+    });
+    expect(error?.occurrence.instancePath).toHaveLength(1);
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.errors).toEqual([]);
+
+    const diagnostics = runtimeGeometryDiagnostics({
+      geometryValueErrors: result.geometryValueErrors,
+      compiledDocument: compiled
+    });
+    const statementIndex = compiled.statementMap.statementIndexByStatementId!.get(entry!.occurrence.sourceStatementId)!;
+    const statement = compiled.statements[statementIndex]!;
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      severity: "error",
+      message: "円弧の半径は0より大きい値で指定してください。",
+      origin: "runtime",
+      navigationTarget: { kind: "sourceSpan", physicalSpan: statement.namePhysicalSpan }
+    });
+    expect(diagnostics[0]).not.toHaveProperty("elementId");
+    expect(diagnostics[0]).not.toHaveProperty("bindingId");
   });
 
   it("passes a constructed line directly to a strict read-only line consumer", () => {

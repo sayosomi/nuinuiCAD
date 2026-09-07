@@ -2,7 +2,9 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::errors::geometry_error;
-use super::geometry_value_kernels::{direct_arc_geometry_kernel, segment_geometry_kernel, StructuralArcLine, StructuralPoint};
+use super::geometry_value_kernels::{
+    direct_arc_geometry_kernel, segment_geometry_kernel, StructuralArcLine, StructuralPoint,
+};
 use super::math::{angle_from_to, circle_through_three_points};
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::point_anchor::{anchor_reference_element_id, computed_point, point_anchor_or_error};

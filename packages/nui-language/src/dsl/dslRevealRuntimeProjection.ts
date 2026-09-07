@@ -24,6 +24,9 @@ export type DslRevealRuntimeProjection = {
   ownerCandidates: readonly (ElementId | null)[];
 };
 
+/** JSON-safe raw candidates for an authored statement-owner target. */
+export type DslRevealRuntimeStatementOwnerProjection = Pick<DslRevealRuntimeProjection, "candidates">;
+
 const sameInstancePath = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((identity, index) => identity === right[index]);
 
@@ -132,16 +135,33 @@ const semanticCandidates = ({
 
 const ownerCandidates = (
   compiled: DslRevealRuntimeProjectionInput["compiled"],
-  sourceStatementIndex: number | null
+  sourceStatementIndex: number | null,
+  authoredSourceDocumentId?: string
 ): readonly (ElementId | null)[] => {
   if (sourceStatementIndex === null) return [];
   const materialized = compiled.moduleMaterialization?.executionStatements
     .filter((entry) => entry.sourceStatementIndex === sourceStatementIndex)
+    .filter((entry) => authoredSourceDocumentId === undefined ||
+      String(entry.origin?.sourceDocumentId) === authoredSourceDocumentId)
     .map((entry) => entry.runtimeElementId) ?? [];
   if (materialized.length > 0) return materialized;
+  if (authoredSourceDocumentId !== undefined) return [];
   const direct = compiled.statementMap?.elementIdByStatementIndex.get(sourceStatementIndex);
   return direct ? [direct] : [];
 };
+
+/**
+ * Projects one authored statement-owner target through the exact current
+ * module materialization. Hosts may transport this plain-data result without
+ * requiring a local compiled document.
+ */
+export const projectDslRevealRuntimeStatementOwner = (
+  compiled: Pick<DslRevealRuntimeProjectionInput["compiled"], "statementMap" | "moduleMaterialization">,
+  sourceStatementIndex: number,
+  authoredSourceDocumentId?: string
+): DslRevealRuntimeStatementOwnerProjection => ({
+  candidates: ownerCandidates(compiled, sourceStatementIndex, authoredSourceDocumentId)
+});
 
 /**
  * Expands a Canvas-compatible Reveal source target into raw current runtime
@@ -151,7 +171,10 @@ export const projectDslRevealRuntimeTarget = (
   input: DslRevealRuntimeProjectionInput
 ): DslRevealRuntimeProjection => {
   if (input.target.kind === "statement-owner") {
-    const candidates = ownerCandidates(input.compiled, input.target.sourceStatementIndex);
+    const candidates = projectDslRevealRuntimeStatementOwner(
+      input.compiled,
+      input.target.sourceStatementIndex
+    ).candidates;
     return { candidates, ownerCandidates: candidates };
   }
 
