@@ -9,7 +9,9 @@ use super::scalars::{
     validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType,
     ScalarValue, TypedScalarExpression,
 };
-use super::types::{EvaluationCommandError, EvaluationState, GeometryValueOccurrence};
+use super::types::{
+    EvaluationCommandError, EvaluationState, GeometryValueEvaluationError, GeometryValueOccurrence,
+};
 
 pub(crate) struct EmptyBindingResolver;
 
@@ -345,6 +347,11 @@ pub(crate) fn evaluate_geometry_value_entry(
     let value = match &entry.construction {
         GeometryValueConstruction::Coordinate { x, y } => {
             if entry.declared_interface_type != "point" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             let x = number_expression(x, resolver, state, source_order);
@@ -356,6 +363,11 @@ pub(crate) fn evaluate_geometry_value_entry(
         }
         GeometryValueConstruction::Segment { start, end } => {
             if entry.declared_interface_type != "line" && entry.declared_interface_type != "path" {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value construction is incompatible with its declared interface type.",
+                );
                 return;
             }
             evaluate_point(start, resolver, state, source_order)
@@ -368,4 +380,17 @@ pub(crate) fn evaluate_geometry_value_entry(
             .computed_geometry_values
             .insert(entry.occurrence.clone(), value);
     }
+}
+
+fn append_geometry_value_error(
+    state: &mut EvaluationState,
+    entry: &GeometryValueProgramEntry,
+    message: &str,
+) {
+    state
+        .geometry_value_errors
+        .push(GeometryValueEvaluationError {
+            occurrence: entry.occurrence.clone(),
+            message: message.to_owned(),
+        });
 }

@@ -48,6 +48,7 @@ fn state_with_geometry(
         condition_evaluation_traces: Vec::new(),
         instance_base_geometry: HashMap::new(),
         errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     }
 }

@@ -11,7 +11,9 @@ import {
   optionsFor,
   parityFixtureNames,
   readParityFixture,
-  runtimeDiagnosticsFor
+  runtimeDiagnosticsFor,
+  evaluateWithRustOptions,
+  fixtureFromSource
 } from "./evaluationParitySupport";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,6 +42,39 @@ const expectScalarNumberClose = (
 };
 
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
+  it("keeps incompatible geometry-value construction in the occurrence-owned error channel", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const PointValue: point = coordinate(x: 1, y: 2)",
+      "const LineValue: line = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program || program.length !== 2) throw new Error("expected two geometry value program entries");
+    const options = {
+      ...optionsFor(fixture),
+      geometryValueProgram: [
+        { ...program[0]!, declaredInterfaceType: "line" as const },
+        { ...program[1]!, declaredInterfaceType: "point" as const }
+      ]
+    };
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(tsPayload.errors).toEqual([]);
+    expect(tsPayload.computedGeometryValues).toBeUndefined();
+    expect(tsPayload.geometryValueErrors).toEqual([
+      {
+        occurrence: program[0]!.occurrence,
+        message: "Geometry value construction is incompatible with its declared interface type."
+      },
+      {
+        occurrence: program[1]!.occurrence,
+        message: "Geometry value construction is incompatible with its declared interface type."
+      }
+    ]);
+  }, 30000);
+
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);
     const options = optionsFor(fixture);

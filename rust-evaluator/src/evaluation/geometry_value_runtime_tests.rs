@@ -11,6 +11,102 @@ fn number(value: f64) -> Value {
     })
 }
 
+#[test]
+fn incompatible_geometry_value_constructions_emit_occurrence_owned_errors() {
+    let coordinate_occurrence = json!({
+        "sourceStatementId": "value:point",
+        "instancePath": ["instance:one"]
+    });
+    let segment_occurrence = json!({
+        "sourceStatementId": "value:line",
+        "instancePath": ["instance:two", "instance:nested"]
+    });
+    let program = vec![
+        json!({
+            "sourceStatementId": "value:point",
+            "sourceStatementIndex": 1,
+            "declaredInterfaceType": "line",
+            "occurrence": coordinate_occurrence,
+            "executionPosition": 1.0,
+            "construction": {
+                "kind": "coordinate",
+                "x": number(1.0),
+                "y": number(2.0)
+            }
+        }),
+        json!({
+            "sourceStatementId": "value:line",
+            "sourceStatementIndex": 2,
+            "declaredInterfaceType": "point",
+            "occurrence": segment_occurrence,
+            "executionPosition": 2.0,
+            "construction": {
+                "kind": "segment",
+                "start": { "kind": "coordinate", "x": number(0.0), "y": number(0.0) },
+                "end": { "kind": "coordinate", "x": number(10.0), "y": number(0.0) }
+            }
+        }),
+    ];
+
+    let result = evaluate_document_input(input(Vec::new(), program));
+
+    assert!(result.errors.is_empty());
+    assert!(result.computed_geometry_values.is_empty());
+    assert_eq!(result.geometry_value_errors.len(), 2);
+    assert_eq!(
+        result.geometry_value_errors[0]
+            .occurrence
+            .source_statement_id,
+        "value:point"
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].occurrence.instance_path,
+        vec!["instance:one"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[1]
+            .occurrence
+            .source_statement_id,
+        "value:line"
+    );
+    assert_eq!(
+        result.geometry_value_errors[1].occurrence.instance_path,
+        vec!["instance:two", "instance:nested"]
+    );
+    assert_eq!(
+        result.geometry_value_errors[0].message,
+        "Geometry value construction is incompatible with its declared interface type."
+    );
+
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert_eq!(
+        serialized["geometryValueErrors"],
+        json!([
+            {
+                "occurrence": {
+                    "sourceStatementId": "value:point",
+                    "instancePath": ["instance:one"]
+                },
+                "message": "Geometry value construction is incompatible with its declared interface type."
+            },
+            {
+                "occurrence": {
+                    "sourceStatementId": "value:line",
+                    "instancePath": ["instance:two", "instance:nested"]
+                },
+                "message": "Geometry value construction is incompatible with its declared interface type."
+            }
+        ])
+    );
+}
+
+#[test]
+fn empty_geometry_value_error_channel_is_omitted_from_payload() {
+    let result = evaluate_document_input(input(Vec::new(), Vec::new()));
+    let serialized = serde_json::to_value(&result).expect("EvaluationPayload must serialize");
+    assert!(serialized.get("geometryValueErrors").is_none());
+}
+
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
         geometry_input_targets: None,

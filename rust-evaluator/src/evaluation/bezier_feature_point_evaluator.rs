@@ -410,6 +410,7 @@ mod tests {
             condition_evaluation_traces: Vec::new(),
             instance_base_geometry: HashMap::new(),
             errors: Vec::new(),
+            geometry_value_errors: Vec::new(),
             warnings: Vec::new(),
         };
         evaluate_bezier_extreme_point(&element, &(HashMap::new(), HashMap::new()), &mut state);
@@ -455,6 +456,7 @@ mod tests {
             condition_evaluation_traces: Vec::new(),
             instance_base_geometry: HashMap::new(),
             errors: Vec::new(),
+            geometry_value_errors: Vec::new(),
             warnings: Vec::new(),
         };
 

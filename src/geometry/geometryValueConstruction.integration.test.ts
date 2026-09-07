@@ -26,6 +26,33 @@ const evaluate = (source: string) => {
 };
 
 describe("pure geometry construction runtime", () => {
+  it.each([
+    ["coordinate", "point", "line"],
+    ["segment", "line", "point"]
+  ] as const)("reports an incompatible %s construction through the occurrence-owned channel", (constructionKind, validInterface, incompatibleInterface) => {
+    const compiled = compile([
+      "nui 1",
+      constructionKind === "coordinate"
+        ? "const Value: point = coordinate(x: 1, y: 2)"
+        : "const Value: line = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n"));
+    const entry = compiled.geometryValueProgram?.[0];
+    expect(entry?.declaredInterfaceType).toBe(validInterface);
+    if (!entry) throw new Error("expected compiled geometry value entry");
+
+    const result = evaluateElements(compiled.document!.elements, {
+      ...buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined }),
+      geometryValueProgram: [{ ...entry, declaredInterfaceType: incompatibleInterface }]
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues).toEqual(new Map());
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: entry.occurrence,
+      message: "Geometry value construction is incompatible with its declared interface type."
+    }]);
+  });
+
   it("keeps constructed points out of drawable identity while feeding a later line", () => {
     const { compiled, result } = evaluate([
       "nui 1",

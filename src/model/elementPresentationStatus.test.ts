@@ -28,4 +28,28 @@ describe("createElementPresentationStatusIndex", () => {
     expect(status.get(hidden.id)).toMatchObject({ hiddenSelf: true, disabledSelf: false });
     expect(status.get(disabled.id)).toMatchObject({ hiddenSelf: false, disabledSelf: true });
   });
+
+  it("does not project occurrence-owned geometry value errors onto drawable elements or groups", () => {
+    const state = initialCadDocumentState();
+    const elements = [
+      { id: "group", name: "G", type: "group" as const, activity: "visible" as const },
+      { id: "point", name: "P", type: "freePoint" as const, activity: "visible" as const, parentGroupId: "group", x: 0, y: 0 }
+    ];
+    const status = createElementPresentationStatusIndex({
+      elements,
+      evaluation: {
+        ...emptyEvaluationResult(elements),
+        geometryValueErrors: [{
+          occurrence: { sourceStatementId: "statement:value", instancePath: ["instance:one"] },
+          message: "Geometry value construction is incompatible with its declared interface type."
+        }]
+      },
+      groupFoldById: new Map(),
+      visibilityProfiles: state.visibilityProfiles,
+      activeVisibilityProfileId: state.activeVisibilityProfileId
+    });
+
+    expect(status.get(elements[1]!.id)?.hasError).toBe(false);
+    expect(status.get(elements[0]!.id)?.hasError).toBe(false);
+  });
 });

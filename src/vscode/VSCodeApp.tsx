@@ -646,6 +646,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
       ...scalarDiagnostics,
       ...runtimeGeometryDiagnostics({
         errors: evaluationRef.current.errors,
+        geometryValueErrors: evaluationRef.current.geometryValueErrors,
         compiledDocument: current.compiled
       })
     ];
