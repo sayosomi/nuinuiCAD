@@ -1228,72 +1228,72 @@
         {
           "command": "nuinuiCAD.revealInCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInCanvasSourceTarget",
-          "group": "2_nuinuiCAD_1_navigation@1"
+          "group": "2_nuinuiCAD@1"
         },
         {
           "command": "nuinuiCAD.openCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInCanvasSourceTarget",
-          "group": "2_nuinuiCAD_1_navigation@1"
+          "group": "2_nuinuiCAD@1"
         },
         {
           "command": "nuinuiCAD.revealInOutputPreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.revealInOutputPreviewSourceTarget",
-          "group": "2_nuinuiCAD_1_navigation@2"
+          "group": "2_nuinuiCAD@2"
         },
         {
           "command": "nuinuiCAD.openOutputPreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !nuinuiCAD.revealInOutputPreviewSourceTarget",
-          "group": "2_nuinuiCAD_1_navigation@2"
+          "group": "2_nuinuiCAD@2"
         },
         {
           "command": "nuinuiCAD.openModulePreview",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewSourceTarget",
-          "group": "2_nuinuiCAD_1_navigation@3"
+          "group": "2_nuinuiCAD@3"
         },
         {
           "command": "nuinuiCAD.inlineModuleInstance",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget",
-          "group": "2_nuinuiCAD_2_module_refactor@1"
+          "group": "2_nuinuiCAD@4"
         },
         {
           "command": "nuinuiCAD.extractModule",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget",
-          "group": "2_nuinuiCAD_2_module_refactor@2"
+          "group": "2_nuinuiCAD@5"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget",
-          "group": "2_nuinuiCAD_3_reference_convert@1"
+          "group": "2_nuinuiCAD@6"
         },
         {
           "submenu": "nuinuiCAD.convertPoint",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget",
-          "group": "2_nuinuiCAD_3_reference_convert@2"
+          "group": "2_nuinuiCAD@7"
         },
         {
           "command": "nuinuiCAD.replaceGeometryReferences",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget",
-          "group": "2_nuinuiCAD_3_reference_convert@3"
+          "group": "2_nuinuiCAD@8"
         },
         {
           "command": "nuinuiCAD.stepSourceValueForward",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
-          "group": "2_nuinuiCAD_4_value@1"
+          "group": "2_nuinuiCAD@9"
         },
         {
           "command": "nuinuiCAD.stepSourceValueBackward",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.sourceValueStepTarget",
-          "group": "2_nuinuiCAD_4_value@2"
+          "group": "2_nuinuiCAD@10"
         },
         {
           "command": "nuinuiCAD.bakeCurrentShape",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
-          "group": "2_nuinuiCAD_5_bake@1"
+          "group": "2_nuinuiCAD@11"
         },
         {
           "command": "nuinuiCAD.bakeBaseShape",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
-          "group": "2_nuinuiCAD_5_bake@2"
+          "group": "2_nuinuiCAD@12"
         }
       ]
     },

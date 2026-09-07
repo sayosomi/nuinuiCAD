@@ -367,7 +367,7 @@ describe("VS Code extension manifest command contributions", () => {
     expect(manifest.contributes?.menus?.["editor/context"]).toContainEqual({
       submenu: "nuinuiCAD.convertPoint",
       when: coordinatePointConversionSourceContextWhen,
-      group: "2_nuinuiCAD_3_reference_convert@2"
+      group: "2_nuinuiCAD@7"
     });
     expect(manifest.contributes?.menus?.["webview/context"]).toContainEqual({
       submenu: "nuinuiCAD.convertPoint",
@@ -469,20 +469,20 @@ describe("VS Code extension manifest command contributions", () => {
   it("keeps independent Reveal/Open fallback slots in the consolidated Source hierarchy", async () => {
     const manifest = await readManifest();
     expect(manifest.contributes?.menus?.["editor/context"]).toEqual([
-      { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD_1_navigation@1" },
-      { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD_1_navigation@1" },
-      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD_1_navigation@2" },
-      { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD_1_navigation@2" },
-      { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD_1_navigation@3" },
-      { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD_2_module_refactor@1" },
-      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD_2_module_refactor@2" },
-      { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD_3_reference_convert@1" },
-      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "2_nuinuiCAD_3_reference_convert@2" },
-      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "2_nuinuiCAD_3_reference_convert@3" },
-      { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD_4_value@1" },
-      { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD_4_value@2" },
-      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD_5_bake@1" },
-      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD_5_bake@2" }
+      { command: "nuinuiCAD.revealInCanvas", when: canvasRevealContextWhen, group: "2_nuinuiCAD@1" },
+      { command: "nuinuiCAD.openCanvas", when: canvasOpenFallbackContextWhen, group: "2_nuinuiCAD@1" },
+      { command: "nuinuiCAD.revealInOutputPreview", when: outputPreviewRevealContextWhen, group: "2_nuinuiCAD@2" },
+      { command: "nuinuiCAD.openOutputPreview", when: outputPreviewOpenFallbackContextWhen, group: "2_nuinuiCAD@2" },
+      { command: "nuinuiCAD.openModulePreview", when: modulePreviewContextWhen, group: "2_nuinuiCAD@3" },
+      { command: "nuinuiCAD.inlineModuleInstance", when: inlineModuleSourceContextWhen, group: "2_nuinuiCAD@4" },
+      { command: "nuinuiCAD.extractModule", when: extractModuleSourceContextWhen, group: "2_nuinuiCAD@5" },
+      { command: "nuinuiCAD.pickReferenceFromCanvas", when: referencePickContextWhen, group: "2_nuinuiCAD@6" },
+      { submenu: "nuinuiCAD.convertPoint", when: coordinatePointConversionSourceContextWhen, group: "2_nuinuiCAD@7" },
+      { command: "nuinuiCAD.replaceGeometryReferences", when: geometryReferenceRetargetContextWhen, group: "2_nuinuiCAD@8" },
+      { command: "nuinuiCAD.stepSourceValueForward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD@9" },
+      { command: "nuinuiCAD.stepSourceValueBackward", when: sourceValueStepContextWhen, group: "2_nuinuiCAD@10" },
+      { command: "nuinuiCAD.bakeCurrentShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD@11" },
+      { command: "nuinuiCAD.bakeBaseShape", when: bakeSourceContextWhen, group: "2_nuinuiCAD@12" }
     ]);
     expect(manifest.contributes?.menus?.["webview/context"]).toEqual([
       { command: "nuinuiCAD.createFreePointAtPointer", when: canvasBlankWhen, group: "1_create@0" },
