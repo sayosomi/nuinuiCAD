@@ -2,7 +2,7 @@ import { exactPhysicalSpan } from "./dslDiagnosticSpan";
 import type { CompiledDslDocument } from "./dslDocument";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import { rootCompiledGeometryPropertyOccurrences } from "./dslCompiledGeometryProperty";
-import { sourceOwnerByRuntimeElementId } from "./sourceOwnership";
+import { sourceOwnerByRuntimeElementId, type SourceOwner } from "./sourceOwnership";
 import type { SourceSnapshot } from "./logicalStatementSourceMap";
 import type {
   ModuleGeometryPropertyReference,
@@ -261,7 +261,25 @@ const ownerAt = (
     moduleMaterialization: compiled.moduleMaterialization,
     moduleRuntimeContext: compiled.moduleRuntimeContext
   });
-  const runtimeStatementIndexes = new Set([...owners.values()].map((owner) => owner.sourceStatementIndex));
+  const rootDocumentId = compiled.moduleRuntimeContext?.rootDocumentId;
+  const ownerBelongsToRootDocument = (owner: SourceOwner): boolean => {
+    const isDocumentQualified = owner.sourceDocumentId !== undefined ||
+      owner.sourceIdentity !== undefined ||
+      owner.source !== undefined;
+    if (!isDocumentQualified) return true;
+    return Boolean(
+      rootDocumentId !== undefined &&
+      owner.sourceDocumentId === rootDocumentId &&
+      owner.sourceIdentity?.documentId === rootDocumentId &&
+      owner.source?.kind === "root-current" &&
+      owner.source.documentId === rootDocumentId
+    );
+  };
+  const runtimeStatementIndexes = new Set(
+    [...owners.values()]
+      .filter(ownerBelongsToRootDocument)
+      .map((owner) => owner.sourceStatementIndex)
+  );
 
   for (const [statementIndex, statement] of compiled.statements.entries()) {
     if (!runtimeStatementIndexes.has(statementIndex) || statement.sourceRevision !== source.sourceRevision) continue;

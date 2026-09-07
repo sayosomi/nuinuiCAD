@@ -200,6 +200,7 @@ describe("multi-document module runtime", () => {
     const root = rootSource("reveal-root", [
       "nui 1",
       "import \"./library.nui\" as lib",
+      "const untouched: number = 0",
       "instance Direct = lib::Panel(value: 20)"
     ].join("\n"));
     const { graph, semantics, context, compiled } = await compileImported(
@@ -213,25 +214,39 @@ describe("multi-document module runtime", () => {
     expect(compiled.moduleRuntimeContext).toBe(context);
     expect(compiled.moduleMaterialization?.executionStatements.some((entry) =>
       entry.type === "moduleInstance" &&
-      entry.sourceStatementIndex === 2 &&
+      entry.sourceStatementIndex === 3 &&
       entry.origin?.sourceDocumentId === root.documentId &&
       entry.origin.moduleDefinitionDocumentId === library.documentId
     )).toBe(true);
+    const materializedPoint = compiled.document?.elements.find((element) => element.name === "P");
+    expect(materializedPoint).toBeDefined();
+    expect(materializedPoint && compiled.moduleMaterialization?.originByRuntimeElementId.get(materializedPoint.id)).toMatchObject({
+      sourceDocumentId: library.documentId,
+      sourceStatementIndex: 2
+    });
 
-    const result = queryDslCanvasRevealSourceTarget({
-      source: {
-        normalizedSource: root.normalizedSource,
-        sourceRevision: root.sourceRevision
-      },
+    const source = {
+      normalizedSource: root.normalizedSource,
+      sourceRevision: root.sourceRevision
+    };
+    const unrelatedRootResult = queryDslCanvasRevealSourceTarget({
+      source,
+      compiled,
+      position: root.normalizedSource.indexOf("untouched") + 2
+    });
+    expect(unrelatedRootResult).toEqual({ status: "failed", reason: "no-target" });
+
+    const importedCallerResult = queryDslCanvasRevealSourceTarget({
+      source,
       compiled,
       position: root.normalizedSource.indexOf("Direct") + 2
     });
 
-    expect(result).toEqual({
+    expect(importedCallerResult).toEqual({
       status: "resolved",
       target: {
         kind: "statement-owner",
-        sourceStatementIndex: 2
+        sourceStatementIndex: 3
       }
     });
   });
