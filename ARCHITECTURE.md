@@ -654,6 +654,11 @@ same compiled program and discriminated runtime targets through the existing
 separate `computed_geometry_values` payload field. Neither evaluator adds these
 occurrences to drawable geometry or drawable activity-ID sets.
 
+Drawable geometry errors remain `ElementId`-owned, while immutable geometry-value
+errors are occurrence-owned (`sourceStatementId` plus Module instance path). Both
+error channels project through the existing runtime source diagnostic surface;
+pure value errors never enter drawable presentation identity.
+
 `productionEvaluationContext.ts` accepts an optional resolved
 `selectedDrawingProfileId`. An omitted profile means common-only modifier
 semantics and is the context used by Canvas; selected profiles add their

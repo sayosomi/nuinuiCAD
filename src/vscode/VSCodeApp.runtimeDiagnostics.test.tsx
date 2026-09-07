@@ -95,10 +95,10 @@ const currentBindingId = () => {
   return binding.id;
 };
 
-const acceptHostDocument = async (documentVersion: number) => {
+const acceptHostDocument = async (documentVersion: number, sourceText = source) => {
   await act(async () => {
     window.dispatchEvent(new MessageEvent("message", {
-      data: { type: "replaceTextDocument", sourceText: source, documentVersion }
+      data: { type: "replaceTextDocument", sourceText, documentVersion }
     }));
   });
 };
@@ -175,6 +175,42 @@ describe("VSCodeApp runtime diagnostics publication", () => {
         navigationTarget: { kind: "element", elementId: point!.id }
       }]
     });
+  });
+
+  it("publishes occurrence-owned geometry value errors through the existing runtime diagnostic transport", async () => {
+    const api = { postMessage: vi.fn() };
+    const valueSource = [
+      "nui 1",
+      "const Value: point = coordinate(x: 0, y: 0)"
+    ].join("\n");
+    const view = render(<VSCodeApp api={api} />);
+    await acceptHostDocument(12, valueSource);
+
+    const occurrence = useCadDocumentStore.getState().doc.geometryValueProgram![0]!.occurrence;
+    const message = "Geometry value construction is incompatible with its declared interface type.";
+    setEvaluationState({
+      ...emptyEvaluation(),
+      geometryValueErrors: [{ occurrence, message }]
+    }, 1);
+    await act(async () => {
+      view.rerender(<VSCodeApp api={api} />);
+    });
+
+    const publication = publications(api.postMessage).at(-1);
+    expect(publication).toMatchObject({
+      type: "runtimeDiagnosticsPublication",
+      documentVersion: 12,
+      diagnostics: [{
+        severity: "error",
+        message,
+        origin: "runtime",
+        exactSpanOnly: true,
+        navigationTarget: { kind: "sourceSpan" }
+      }]
+    });
+    expect(publication.diagnostics[0]).not.toHaveProperty("elementId");
+    expect(publication.diagnostics[0]).not.toHaveProperty("bindingId");
+    expect(JSON.parse(JSON.stringify(publication))).toEqual(publication);
   });
 
   it("does not publish a stale evaluation even when the host source itself is authoritative", async () => {

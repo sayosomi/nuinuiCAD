@@ -58,9 +58,19 @@ export const evaluateWithRustFixture = (
   repoRoot: string,
   fixture: EvaluationFixture,
   selectedDrawingProfileId?: string
+): EvaluationPayload => evaluateWithRustOptions(
+  repoRoot,
+  fixture.elements,
+  optionsFor(fixture, selectedDrawingProfileId)
+);
+
+export const evaluateWithRustOptions = (
+  repoRoot: string,
+  elements: CadElement[],
+  options: EvaluateElementsOptions
 ): EvaluationPayload => {
   const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
-  const input = buildRustEvaluationInput(fixture.elements, optionsFor(fixture, selectedDrawingProfileId));
+  const input = buildRustEvaluationInput(elements, options);
   const output = execFileSync(
     "cargo",
     ["run", "--quiet", "--manifest-path", cargoManifest, "--example", "evaluate_fixture"],

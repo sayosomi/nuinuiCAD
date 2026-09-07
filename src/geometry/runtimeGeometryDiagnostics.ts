@@ -1,12 +1,27 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
 import { sourceOwnerForRuntimeElementId } from "../dsl/sourceOwnership";
 import type { DslDiagnostic } from "../dsl/dslTypes";
-import type { DependencyError, ElementId } from "../types/geometry";
+import type {
+  DependencyError,
+  ElementId,
+  GeometryValueEvaluationError
+} from "../types/geometry";
 
-export type RuntimeGeometryDiagnostic = DslDiagnostic & {
+type RuntimeDrawableDiagnostic = DslDiagnostic & {
   origin: "runtime";
   elementId: ElementId;
 };
+
+type RuntimeGeometryValueDiagnostic = DslDiagnostic & {
+  origin: "runtime";
+  elementId?: never;
+  bindingId?: never;
+  physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]>;
+  exactSpanOnly: true;
+  navigationTarget: { kind: "sourceSpan"; physicalSpan: NonNullable<DslDiagnostic["physicalSpan"]> };
+};
+
+export type RuntimeGeometryDiagnostic = RuntimeDrawableDiagnostic | RuntimeGeometryValueDiagnostic;
 
 /**
  * Project current geometry-evaluation failures onto their authored source
@@ -18,12 +33,13 @@ export type RuntimeGeometryDiagnostic = DslDiagnostic & {
  */
 export const runtimeGeometryDiagnostics = (input: {
   errors?: readonly DependencyError[];
+  geometryValueErrors?: readonly GeometryValueEvaluationError[];
   compiledDocument: CompiledDslDocument;
 }): readonly RuntimeGeometryDiagnostic[] => {
   const statementMap = input.compiledDocument.statementMap;
   if (!statementMap) return [];
 
-  return (input.errors ?? []).flatMap((error) => {
+  const drawableDiagnostics = (input.errors ?? []).flatMap((error): RuntimeDrawableDiagnostic[] => {
     const owner = sourceOwnerForRuntimeElementId(
       {
         statementMap,
@@ -48,4 +64,28 @@ export const runtimeGeometryDiagnostics = (input: {
         : {})
     }];
   });
+
+  const geometryValueDiagnostics = (input.geometryValueErrors ?? []).flatMap((error): RuntimeGeometryValueDiagnostic[] => {
+    const statementIndex = statementMap.statementIndexByStatementId?.get(error.occurrence.sourceStatementId);
+    if (statementIndex === undefined) return [];
+    const statement = input.compiledDocument.statements[statementIndex];
+    if (statement?.kind !== "typedDeclaration" || !statement.namePhysicalSpan || statement.namePhysicalSpan.segments.length === 0) {
+      return [];
+    }
+    const physicalSpan = statement.namePhysicalSpan;
+    return [{
+      severity: "error",
+      line: statement.line,
+      column: physicalSpan.segments[0]!.from + 1,
+      message: error.message,
+      sourceRevision: statement.sourceRevision,
+      physicalSpan,
+      exactSpanOnly: true,
+      origin: "runtime",
+      statementIndex,
+      navigationTarget: { kind: "sourceSpan", physicalSpan }
+    }];
+  });
+
+  return [...drawableDiagnostics, ...geometryValueDiagnostics];
 };
