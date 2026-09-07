@@ -1265,7 +1265,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
         targetDocument.getText(),
         target.range
       );
-      const visibleEditor = visibleEditorFor(session.document);
+      const visibleEditor = visibleEditorFor(targetDocument) ?? visibleEditorFor(session.document);
       let editor: vscode.TextEditor | undefined;
       try {
         editor = await vscode.window.showTextDocument(targetDocument, {
