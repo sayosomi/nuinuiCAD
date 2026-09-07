@@ -345,6 +345,7 @@ mod tests {
 
     fn evaluation_input(elements: Vec<Value>) -> EvaluationInput {
         EvaluationInput {
+            geometry_value_program: None,
             module_materialization: None,
             property_bindings: None,
             control_boolean_bindings: None,
@@ -395,6 +396,7 @@ mod tests {
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry,
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),
@@ -438,6 +440,7 @@ mod tests {
             selected_drawing_profile_id: None,
             group_states: HashMap::new(),
             computed_geometry,
+            computed_geometry_values: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),

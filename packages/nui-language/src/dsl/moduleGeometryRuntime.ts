@@ -1,5 +1,5 @@
 import { referenceAnchor } from "../model/pointAnchors";
-import type { CadElement, ElementId } from "../types/geometry";
+import type { CadElement, ElementId, GeometryValueOccurrence } from "../types/geometry";
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
@@ -34,11 +34,19 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 
 export type { ModuleGeometryPropertyRuntimeTarget };
 
-export type ModuleGeometryBuiltinRuntimeTarget = {
-  elementId: ElementId;
-  geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
-  pointKey?: string;
-};
+export type ModuleGeometryBuiltinRuntimeTarget =
+  | {
+      kind: "drawable";
+      elementId: ElementId;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    }
+  | {
+      kind: "geometryValue";
+      occurrence: GeometryValueOccurrence;
+      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      pointKey?: string;
+    };
 
 export type ModuleGeometryRuntimeCompilation = {
   diagnostics: readonly DslDiagnostic[];
@@ -304,6 +312,18 @@ export const buildModuleGeometryRuntime = ({
       ? { ...target, kind: "parameter" }
       : target.kind === "sourceGeometryProperty"
         ? { ...target, kind: "sourceGeometry", geometryKind: target.category === "point" ? "point" : "line" }
+        : target.kind === "geometryValueProperty"
+          ? {
+              kind: "geometryValue",
+              statementId: target.statementId,
+              statementIndex: target.statementIndex,
+              declaredInterfaceType: target.declaredInterfaceType,
+              backingTarget: null,
+              ownerModuleDefinitionStatementId: target.ownerModuleDefinitionStatementId,
+              ownerModuleDefinitionStatementIndex: target.ownerModuleDefinitionStatementIndex,
+              ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+              ...(target.identity ? { identity: target.identity } : {})
+            }
         : { ...target, kind: "deferredModuleExport", expectedGeometryKind: "line" };
     const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
     return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
@@ -324,13 +344,21 @@ export const buildModuleGeometryRuntime = ({
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath);
     if (!alias) return undefined;
     if (expectedGeometryType === "line" && alias.kind === "line") {
-      return { elementId: alias.elementId, geometryType: "line" };
+      return { kind: "drawable", elementId: alias.elementId, geometryType: "line" };
+    }
+    if (alias.kind === "value" && alias.geometryType === expectedGeometryType) {
+      return {
+        kind: "geometryValue",
+        occurrence: alias.occurrence,
+        geometryType: expectedGeometryType,
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "reference") {
-      return { elementId: alias.anchor.pointId, geometryType: "point" };
+      return { kind: "drawable", elementId: alias.anchor.pointId, geometryType: "point" };
     }
     if (expectedGeometryType === "point" && alias.kind === "point" && alias.anchor.mode === "derived") {
-      return { elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
+      return { kind: "drawable", elementId: alias.anchor.elementId, geometryType: "point", pointKey: alias.anchor.pointKey };
     }
     // Coordinate aliases intentionally fail closed here:
     // geometry builtins require a concrete runtime geometry element identity.

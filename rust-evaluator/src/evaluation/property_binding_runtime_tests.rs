@@ -18,6 +18,7 @@ fn input(
     property_bindings: Option<Value>,
 ) -> EvaluationInput {
     EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         elements,
         evaluation_limit_index: None,
@@ -108,6 +109,7 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::new(),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),

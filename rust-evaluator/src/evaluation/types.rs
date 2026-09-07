@@ -5,6 +5,12 @@ use std::fmt;
 
 pub type ElementId = String;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct GeometryValueOccurrence {
+    pub(crate) source_statement_id: String,
+    pub(crate) instance_path: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationInput {
@@ -60,6 +66,11 @@ pub struct EvaluationInput {
     pub(crate) text_property_bindings: Option<Value>,
     /// Existing module materialization boundaries projected as JSON arrays.
     pub(crate) module_materialization: Option<ModuleMaterializationInput>,
+    /// Host-neutral immutable geometry construction program. Entries contain
+    /// resolved typed expressions and occurrence identities; Rust never
+    /// reparses source names here.
+    #[serde(default)]
+    pub(crate) geometry_value_program: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -142,6 +153,8 @@ pub(crate) struct EffectiveDrawingModifierStroke {
 pub struct EvaluationPayload {
     pub(crate) computed_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) computed_geometry_values: Vec<Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) pre_mutation_geometry: Vec<Value>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
@@ -220,6 +233,7 @@ pub(crate) struct EvaluationState {
     pub(crate) group_states: HashMap<ElementId, GroupState>,
     pub(crate) computed_geometry: HashMap<ElementId, Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
+    pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) pre_mutation_geometry: HashMap<ElementId, Value>,
     pub(crate) geometry_mutation_executions: Vec<GeometryMutationExecution>,
     pub(crate) condition_evaluation_traces: Vec<Value>,

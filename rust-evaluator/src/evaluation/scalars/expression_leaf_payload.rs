@@ -17,6 +17,7 @@ use super::scalar_payload::decode_scalar_type;
 use super::types::{
     ScalarBinaryOperator, ScalarSpan, ScalarType, ScalarUnaryOperator, TypedScalarExpression,
 };
+use crate::evaluation::types::GeometryValueOccurrence;
 
 pub(crate) fn decode_span(json: &Value, context: &str) -> Result<ScalarSpan, ScalarPayloadIssue> {
     let object = as_object(json, context)?;
@@ -334,6 +335,8 @@ pub(crate) fn decode_geometry_property(
             "propertySpan",
             "elementName",
             "elementId",
+            "geometryValueOccurrence",
+            "geometryValuePointKey",
             "property",
             "targetSourceOrder",
             "type",
@@ -362,16 +365,46 @@ pub(crate) fn decode_geometry_property(
             )
         })?
         .to_owned();
-    let element_id = require_field(object, "elementId", "geometryProperty node")?
-        .as_str()
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            issue(
-                Code::InvalidFieldType,
-                "geometryProperty node \"elementId\" must be a non-empty string",
-            )
-        })?
-        .to_owned();
+    let element_id = match require_field(object, "elementId", "geometryProperty node")? {
+        Value::Null => String::new(),
+        value => value
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                issue(
+                    Code::InvalidFieldType,
+                    "geometryProperty node \"elementId\" must be a non-empty string",
+                )
+            })?
+            .to_owned(),
+    };
+    let geometry_value_occurrence = match object.get("geometryValueOccurrence") {
+        None | Some(Value::Null) => None,
+        Some(value) => {
+            let occurrence = as_object(value, "geometryProperty node geometryValueOccurrence")?;
+            reject_unexpected_fields(
+                occurrence,
+                &["sourceStatementId", "instancePath"],
+                "geometryProperty node geometryValueOccurrence",
+            )?;
+            let source_statement_id = require_field(occurrence, "sourceStatementId", "geometryProperty node geometryValueOccurrence")?
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| issue(Code::InvalidFieldType, "geometryProperty node geometryValueOccurrence sourceStatementId must be a non-empty string"))?
+                .to_owned();
+            let instance_path = require_field(occurrence, "instancePath", "geometryProperty node geometryValueOccurrence")?
+                .as_array()
+                .ok_or_else(|| issue(Code::InvalidFieldType, "geometryProperty node geometryValueOccurrence instancePath must be an array"))?
+                .iter()
+                .map(|item| item.as_str().filter(|value| !value.is_empty()).map(ToOwned::to_owned)
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "geometryProperty node geometryValueOccurrence instancePath must contain non-empty strings")))
+                .collect::<Result<Vec<_>, _>>()?;
+            Some(GeometryValueOccurrence {
+                source_statement_id,
+                instance_path,
+            })
+        }
+    };
     let property = require_field(object, "property", "geometryProperty node")?
         .as_str()
         .filter(|value| !value.is_empty())
@@ -382,14 +415,30 @@ pub(crate) fn decode_geometry_property(
             )
         })?
         .to_owned();
+    let geometry_value_point_key = match object.get("geometryValuePointKey") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        "geometryProperty node geometryValuePointKey must be a non-empty string",
+                    )
+                })?
+                .to_owned(),
+        ),
+    };
     let target_source_order = require_field(object, "targetSourceOrder", "geometryProperty node")?
-        .as_u64()
+        .as_f64()
+        .filter(|value| value.is_finite())
         .ok_or_else(|| {
             issue(
                 Code::InvalidFieldType,
-                "geometryProperty node \"targetSourceOrder\" must be an integer",
+                "geometryProperty node \"targetSourceOrder\" must be a finite number",
             )
-        })? as usize;
+        })?;
     let scalar_type = decode_scalar_type(require_field(object, "type", "geometryProperty node")?)?;
     if !matches!(scalar_type, ScalarType::Number | ScalarType::Choice { .. }) {
         return Err(issue(
@@ -403,6 +452,8 @@ pub(crate) fn decode_geometry_property(
         property_span,
         element_name,
         element_id,
+        geometry_value_occurrence,
+        geometry_value_point_key,
         property,
         target_source_order,
         r#type: scalar_type,

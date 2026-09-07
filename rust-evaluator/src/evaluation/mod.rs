@@ -40,6 +40,9 @@ mod for_group_generic_runtime_tests;
 mod for_group_mutation_runtime;
 #[cfg(test)]
 mod for_group_tests;
+mod geometry_value_runtime;
+#[cfg(test)]
+mod geometry_value_runtime_tests;
 mod groups;
 mod image_evaluator;
 #[cfg(test)]
@@ -428,6 +431,9 @@ pub fn evaluate_document(
         decode_text_templates(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
     let text_property_bindings =
         decode_text_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())?;
+    let geometry_value_program = geometry_value_runtime::decode_geometry_value_program(
+        input.geometry_value_program.as_ref(),
+    )?;
     Ok(evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -439,6 +445,7 @@ pub fn evaluate_document(
             condition_expressions,
             text_templates,
             text_property_bindings,
+            geometry_value_program,
         },
     ))
 }
@@ -452,6 +459,7 @@ struct DecodedScalarPayloads {
     condition_expressions: Option<Vec<ValidatedConditionExpression>>,
     text_templates: Option<Vec<ValidatedTextTemplate>>,
     text_property_bindings: Option<Vec<ValidatedPropertyBinding>>,
+    geometry_value_program: Vec<geometry_value_runtime::GeometryValueProgramEntry>,
 }
 
 fn inactive_conditional_group_id(
@@ -685,6 +693,10 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     let text_property_bindings =
         decode_text_property_bindings(&input, scalar_program.as_ref(), binding_versions.as_ref())
             .expect("evaluation test input text_property_bindings must be valid");
+    let geometry_value_program = geometry_value_runtime::decode_geometry_value_program(
+        input.geometry_value_program.as_ref(),
+    )
+    .expect("evaluation test input geometry_value_program must be valid");
     evaluate_document_input_with_scalar_program(
         input,
         DecodedScalarPayloads {
@@ -696,6 +708,7 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
             condition_expressions,
             text_templates,
             text_property_bindings,
+            geometry_value_program,
         },
     )
 }
@@ -713,7 +726,17 @@ fn evaluate_document_input_with_scalar_program(
         condition_expressions,
         text_templates,
         text_property_bindings,
+        geometry_value_program,
     } = decoded;
+    let mut geometry_value_program = geometry_value_program;
+    geometry_value_program.sort_by(|left, right| {
+        left.execution_position
+            .total_cmp(&right.execution_position)
+            .then(
+                left.source_statement_index
+                    .cmp(&right.source_statement_index),
+            )
+    });
     let evaluation_limit_index = input
         .evaluation_limit_index
         .unwrap_or(input.elements.len())
@@ -768,6 +791,7 @@ fn evaluate_document_input_with_scalar_program(
         drawing_modifiers,
         selected_drawing_profile_id: input.selected_drawing_profile_id.clone(),
         computed_geometry: HashMap::new(),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -848,6 +872,9 @@ fn evaluate_document_input_with_scalar_program(
         .map(|template| (template.element_id.clone(), template))
         .collect();
 
+    let mut next_geometry_value_index = 0usize;
+    let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
+
     'elements: for index in 0..evaluation_limit_index {
         if index > 0 {
             capture_completed_instances(index - 1, &mut state);
@@ -866,7 +893,12 @@ fn evaluate_document_input_with_scalar_program(
             scalar_mutation_resolver
                 .as_mut()
                 .expect("source order requires a scalar mutation resolver")
-                .advance_before(source_order, &state);
+                .advance_before_with_geometry_values(
+                    source_order,
+                    &mut state,
+                    &geometry_value_program,
+                    &mut next_geometry_value_index,
+                );
         }
         let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
             scalar_mutation_resolver
@@ -877,6 +909,21 @@ fn evaluate_document_input_with_scalar_program(
                         .as_ref()
                         .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
                 });
+        let current_execution_position = current_source_order
+            .map(|source_order| source_order as f64)
+            .unwrap_or(index as f64);
+        while next_geometry_value_index < geometry_value_program.len()
+            && geometry_value_program[next_geometry_value_index].execution_position
+                <= current_execution_position
+        {
+            let resolver = active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
+            geometry_value_runtime::evaluate_geometry_value_entry(
+                &geometry_value_program[next_geometry_value_index],
+                resolver,
+                &mut state,
+            );
+            next_geometry_value_index += 1;
+        }
         if template_descendant_ids.contains(&id) {
             continue;
         }
@@ -1125,6 +1172,23 @@ fn evaluate_document_input_with_scalar_program(
             ),
         }
     }
+    let remaining_geometry_value_resolver = scalar_mutation_resolver
+        .as_ref()
+        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        .or_else(|| {
+            scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        })
+        .unwrap_or(&empty_geometry_value_resolver);
+    while next_geometry_value_index < geometry_value_program.len() {
+        geometry_value_runtime::evaluate_geometry_value_entry(
+            &geometry_value_program[next_geometry_value_index],
+            remaining_geometry_value_resolver,
+            &mut state,
+        );
+        next_geometry_value_index += 1;
+    }
     if evaluation_limit_index > 0 {
         capture_completed_instances(evaluation_limit_index - 1, &mut state);
     }
@@ -1195,6 +1259,23 @@ fn evaluate_document_input_with_scalar_program(
             .computed_geometry_order
             .iter()
             .filter_map(|id| state.computed_geometry.get(id).cloned())
+            .collect(),
+        computed_geometry_values: geometry_value_program
+            .iter()
+            .filter_map(|entry| {
+                state
+                    .computed_geometry_values
+                    .get(&entry.occurrence)
+                    .map(|value| {
+                        serde_json::json!({
+                            "occurrence": {
+                                "sourceStatementId": entry.occurrence.source_statement_id,
+                                "instancePath": entry.occurrence.instance_path,
+                            },
+                            "value": value,
+                        })
+                    })
+            })
             .collect(),
         pre_mutation_geometry: state
             .computed_geometry_order

@@ -378,6 +378,12 @@ export type CompileDslContext = {
   sourceLexicalResolution?: {
     sourceNamespace: import("./sourceLexicalNamespaceIndex").SourceLexicalNamespaceIndex;
     elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+    geometryValueByStatementIndex?: ReadonlyMap<number, {
+      kind: "value" | "drawable";
+      occurrence?: import("../model/cadDocumentTypes").GeometryValueOccurrence;
+      declaredInterfaceType: "point" | "line" | "path";
+      elementId?: ElementId;
+    }>;
   };
 };
 
@@ -406,6 +412,8 @@ export type CompileDslResult = {
   moduleMaterialization?: ModuleMaterialization;
   /** Compile-time lowered geometry aliases && export resolvers. */
   moduleGeometryRuntime?: ModuleGeometryRuntimeCompilation;
+  /** Host-neutral immutable geometry value execution program. */
+  geometryValueProgram?: import("./moduleGeometryValueProgram").GeometryValueProgram;
 };
 
 export type SerializeDslOptions = {

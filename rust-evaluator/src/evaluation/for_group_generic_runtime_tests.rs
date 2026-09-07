@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 fn input(elements: Vec<Value>) -> EvaluationInput {
     EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         elements,
         evaluation_limit_index: None,

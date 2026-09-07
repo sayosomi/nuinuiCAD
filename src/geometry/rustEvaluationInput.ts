@@ -23,6 +23,7 @@ export type EvaluateDocumentInput = {
   propertyBindings?: readonly PropertyBindingRuntimeEntry[];
   numericBindings?: readonly NumericBindingRuntimeEntry[];
   controlBooleanBindings?: readonly PropertyBindingRuntimeEntry[];
+  geometryValueProgram?: EvaluateElementsOptions["geometryValueProgram"];
   conditionExpressions?: readonly ConditionExpressionInput[];
   textTemplates?: readonly TextTemplateInput[];
   textPropertyBindings?: readonly PropertyBindingRuntimeEntry[];
@@ -65,6 +66,7 @@ export const buildRustEvaluationInput = (
     ...(options.propertyBindingEntries?.length ? { propertyBindings: options.propertyBindingEntries } : {}),
     ...(options.numericBindingEntries?.length ? { scalarExpressionPayload: { numericBindings: options.numericBindingEntries } } : {}),
     ...(options.controlBooleanEntries?.length ? { controlBooleanBindings: options.controlBooleanEntries } : {}),
+    ...(options.geometryValueProgram?.length ? { geometryValueProgram: options.geometryValueProgram } : {}),
     ...(options.conditionalGroupConditionsByElementId?.size
       ? { conditionExpressions: Array.from(options.conditionalGroupConditionsByElementId, ([elementId, expression]) => ({ elementId, expression })) }
       : {}),

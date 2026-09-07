@@ -36,6 +36,28 @@ export type DslCallParseResult = {
   diagnostics: DslCallDiagnostic[];
 };
 
+/**
+ * The declaration parser deliberately keeps initializers opaque.  This is the
+ * shared, call-parser-owned representation used when a later semantic owner
+ * needs to inspect a construction initializer without inventing another call
+ * grammar or argument validator.
+ */
+export type DslConstructionInvocation = {
+  construction: string;
+  constructionSpan: DslSpan;
+  callSpan: DslSpan;
+  args: ScannedArg[];
+  payloadSpans: Record<string, DslSpan>;
+  categories: readonly string[];
+  elementType: CadElementType | null;
+  pureValueInterface?: "point" | "line";
+};
+
+export type DslConstructionInvocationParseResult = {
+  invocation: DslConstructionInvocation | null;
+  diagnostics: DslCallDiagnostic[];
+};
+
 export type ParseDslCallOptions = { opensBlock?: boolean };
 
 export const CONSTRUCTION_CATEGORY_MISMATCH_CODE = "construction-category-mismatch";
@@ -338,6 +360,72 @@ const validateArgs = (
     }
   }
   return spec;
+};
+
+/** Parse one registry-backed `construction(...)` invocation.
+ *
+ * `spanOffset` is only for projecting the scanner's exact local spans into a
+ * declaration's source line.  The scanner, registry lookup, and argument
+ * validation remain the same owners used by element calls.
+ */
+export const parseDslConstructionInvocation = (
+  source: string,
+  { spanOffset = 0 }: { spanOffset?: number } = {}
+): DslConstructionInvocationParseResult => {
+  const diagnostics: DslCallDiagnostic[] = [];
+  const head = source.match(identifier);
+  if (!head) {
+    diagnostic(diagnostics, "construction が必要です。", { start: spanOffset, end: spanOffset });
+    return { invocation: null, diagnostics };
+  }
+  const construction = head[0];
+  const constructionSpan = { start: spanOffset, end: spanOffset + construction.length };
+  let open = construction.length;
+  while (whitespace.test(source[open] ?? "")) open += 1;
+  if (source[open] !== "(") {
+    diagnostic(diagnostics, "construction の後には「(」が必要です。", { start: spanOffset + open, end: spanOffset + open });
+    return { invocation: null, diagnostics };
+  }
+  const close = matchingClose(source, open);
+  if (close < 0) {
+    diagnostic(diagnostics, "呼び出しの「(」が閉じられていません。", { start: spanOffset + open, end: spanOffset + open + 1 }, UNCLOSED_CALL_CODE);
+  }
+  const callSpan = { start: open + 1, end: close >= 0 ? close : source.length };
+  const scanned = scanCallArgs(source, callSpan);
+  diagnostics.push(...scanned.errors);
+  const categories = categoriesForConstruction(construction);
+  const category = categories[0];
+  const payloadSpans: Record<string, DslSpan> = {};
+  if (!category) {
+    diagnostic(diagnostics, `未知の construction「${construction}」です。`, { start: 0, end: construction.length }, "unknown-construction", {
+      key: "diagnostic.unknown-construction",
+      parameters: { category: "geometry", construction }
+    });
+  } else {
+    validateArgs(category, construction, { start: 0, end: construction.length }, { start: 0, end: construction.length }, scanned.args, diagnostics, payloadSpans);
+  }
+  const projectSpan = (span: DslSpan): DslSpan => ({ start: span.start + spanOffset, end: span.end + spanOffset });
+  const projectedDiagnostics = diagnostics.map((item) => ({ ...item, span: projectSpan(item.span) }));
+  return {
+    invocation: {
+      construction,
+      constructionSpan,
+      callSpan: projectSpan(callSpan),
+      args: scanned.args.map((arg) => ({
+        ...arg,
+        ...(arg.keySpan ? { keySpan: projectSpan(arg.keySpan) } : {}),
+        valueSpan: projectSpan(arg.valueSpan),
+        ...(arg.rawValueSpan ? { rawValueSpan: projectSpan(arg.rawValueSpan) } : {})
+      })),
+      payloadSpans: Object.fromEntries(Object.entries(payloadSpans).map(([key, span]) => [key, projectSpan(span)])),
+      categories,
+      elementType: category ? constructionFor(category, construction)?.elementType ?? null : null,
+      ...(category && constructionFor(category, construction)?.pureValueInterface
+        ? { pureValueInterface: constructionFor(category, construction)!.pureValueInterface }
+        : {})
+    },
+    diagnostics: projectedDiagnostics
+  };
 };
 
 const callStatement = (

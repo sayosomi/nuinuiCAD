@@ -155,7 +155,9 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   const endPoint = getPointAnchorOrError(
     element,
@@ -166,7 +168,9 @@ export const evaluateCopyLineElement = (element: CadElement, context: ElementEva
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   const angleDeg = numericError(
     element,

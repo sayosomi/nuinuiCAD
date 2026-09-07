@@ -82,6 +82,7 @@ export const pickedPointAnchorForTargetForGroup = ({
   anchor: PointAnchor;
 }): PointAnchor | null => {
   if (anchor.mode === "coordinate") return anchor;
+  if (anchor.mode === "geometryValue") return anchor;
   if (anchor.mode === "reference") {
     const pointId = generatedElementIdForTargetForGroup({
       elements,
@@ -140,8 +141,11 @@ export const pickedPointAnchorReferencesTarget = ({
   anchor: PointAnchor;
 }) => {
   if (anchor.mode === "coordinate") return false;
+  if (anchor.mode === "geometryValue") return false;
   const normalized = pickedPointAnchorForTargetForGroup({ elements, targetElementId, anchor });
-  if (!normalized || normalized.mode === "coordinate") return false;
+  if (!normalized) return false;
+  if (normalized.mode === "coordinate") return true;
+  if (normalized.mode === "geometryValue") return false;
   return normalized.mode === "reference"
     ? normalized.pointId === targetElementId
     : normalized.elementId === targetElementId;
@@ -179,7 +183,9 @@ export const isValidPickedPointAnchorForTarget = ({
     targetElementId: normalizationTargetId,
     anchor
   });
-  if (!normalized || normalized.mode === "coordinate") return Boolean(normalized);
+  if (!normalized) return false;
+  if (normalized.mode === "coordinate") return true;
+  if (normalized.mode === "geometryValue") return false;
   if (normalized.mode === "reference") {
     if (normalized.pointId === targetElementId) return false;
     const point = elements.find((element) => element.id === normalized.pointId);

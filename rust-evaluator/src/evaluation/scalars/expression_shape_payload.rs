@@ -20,6 +20,7 @@ use super::types::{
     ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
     TypedScalarCallTarget,
 };
+use crate::evaluation::types::GeometryValueOccurrence;
 
 /// A `unary` node's own fields, validated - `operand` is a borrowed
 /// reference to its still-undecoded child JSON.
@@ -188,7 +189,7 @@ fn decode_geometry_interface_type(
     })
 }
 
-fn decode_geometry_target(
+pub(crate) fn decode_geometry_target_payload(
     json: &Value,
 ) -> Result<Option<ScalarExpressionResolvedGeometryTarget>, ScalarPayloadIssue> {
     if json.is_null() {
@@ -197,9 +198,55 @@ fn decode_geometry_target(
     let object = as_object(json, "geometry reference target")?;
     reject_unexpected_fields(
         object,
-        &["statementId", "statementIndex", "geometryType", "pointKey"],
+        &[
+            "kind",
+            "statementId",
+            "statementIndex",
+            "geometryType",
+            "pointKey",
+            "occurrence",
+        ],
         "geometry reference target",
     )?;
+    let geometry_value_occurrence = match object.get("occurrence") {
+        None | Some(Value::Null) => None,
+        Some(value) => {
+            let occurrence = as_object(value, "geometry reference target occurrence")?;
+            reject_unexpected_fields(
+                occurrence,
+                &["sourceStatementId", "instancePath"],
+                "geometry reference target occurrence",
+            )?;
+            let source_statement_id = require_field(
+                occurrence,
+                "sourceStatementId",
+                "geometry reference target occurrence",
+            )?
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| issue(Code::InvalidFieldType, "geometry reference target occurrence sourceStatementId must be a non-empty string"))?
+            .to_owned();
+            let instance_path = require_field(
+                occurrence,
+                "instancePath",
+                "geometry reference target occurrence",
+            )?
+            .as_array()
+            .ok_or_else(|| issue(Code::InvalidFieldType, "geometry reference target occurrence instancePath must be an array"))?
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .filter(|value| !value.is_empty())
+                    .map(ToOwned::to_owned)
+                    .ok_or_else(|| issue(Code::InvalidFieldType, "geometry reference target occurrence instancePath must contain non-empty strings"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+            Some(GeometryValueOccurrence {
+                source_statement_id,
+                instance_path,
+            })
+        }
+    };
     let statement_id = require_field(object, "statementId", "geometry reference target")?
         .as_str()
         .filter(|value| !value.is_empty())
@@ -211,12 +258,12 @@ fn decode_geometry_target(
         })?
         .to_owned();
     let statement_index = require_field(object, "statementIndex", "geometry reference target")?
-        .as_u64()
-        .and_then(|value| usize::try_from(value).ok())
+        .as_f64()
+        .filter(|value| value.is_finite() && *value >= 0.0)
         .ok_or_else(|| {
             issue(
                 Code::InvalidFieldType,
-                "geometry reference target \"statementIndex\" must be a non-negative integer",
+                "geometry reference target \"statementIndex\" must be a non-negative finite number",
             )
         })?;
     let geometry_type = decode_geometry_interface_type(
@@ -249,6 +296,7 @@ fn decode_geometry_target(
         statement_index,
         geometry_type,
         point_key,
+        geometry_value_occurrence,
     }))
 }
 
@@ -281,8 +329,11 @@ pub(crate) fn decode_call_argument_shape(
                 require_field(object, "expectedGeometryType", "geometry call argument")?,
                 "geometry call argument \"expectedGeometryType\"",
             )?;
-            let target =
-                decode_geometry_target(require_field(object, "target", "geometry call argument")?)?;
+            let target = decode_geometry_target_payload(require_field(
+                object,
+                "target",
+                "geometry call argument",
+            )?)?;
             Ok(CallArgumentShape::GeometryReference {
                 expected_geometry_type,
                 target,

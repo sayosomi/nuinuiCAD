@@ -22,6 +22,7 @@ const elementName = (elementId: ElementId, elements: CadElement[]) => {
 export const pointAnchorName = (anchor: PointAnchor, elements: CadElement[]) => {
   if (anchor.mode === "reference") return elementName(anchor.pointId, elements);
   if (anchor.mode === "derived") return derivedPointLabel(anchor.elementId, anchor.pointKey, elements);
+  if (anchor.mode === "geometryValue") return "geometry value";
   return `(${numericValueExpression(anchor.x)}, ${numericValueExpression(anchor.y)})`;
 };
 

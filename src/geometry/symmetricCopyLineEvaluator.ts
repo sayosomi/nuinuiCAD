@@ -134,6 +134,7 @@ export const evaluateSymmetricCopyLineElement = (
     elementsById,
     errors,
     disabledByGroupId,
+    computedGeometryValues,
     localVariables: { localVariableValues, localVariableNames }
   } = context;
 
@@ -146,7 +147,9 @@ export const evaluateSymmetricCopyLineElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    computedGeometryValues
   );
   const axisPoint2 = getPointAnchorOrError(
     element,
@@ -157,7 +160,9 @@ export const evaluateSymmetricCopyLineElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    computedGeometryValues
   );
   if (!axisPoint1 || !axisPoint2) return true;
   if (lineLength(axisPoint1, axisPoint2) <= 0) {

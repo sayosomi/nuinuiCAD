@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use super::errors::dependency_error;
 use super::numeric_expression::evaluate_numeric_or_push;
 use super::types::{
-    element_id, element_name, element_type, find_element_name, ElementId, EvaluationState, Point,
+    element_id, element_name, element_type, find_element_name, ElementId, EvaluationState,
+    GeometryValueOccurrence, Point,
 };
 
 pub(crate) fn computed_point(
@@ -212,6 +213,43 @@ pub(crate) fn point_anchor_or_error(
                 name: format!("{}.{anchor_key}", element_name(element)),
                 x,
                 y,
+            })
+        }
+        Some("geometryValue") => {
+            let occurrence = anchor.get("occurrence")?.as_object()?;
+            let source_statement_id = occurrence.get("sourceStatementId")?.as_str()?.to_owned();
+            let instance_path = occurrence
+                .get("instancePath")?
+                .as_array()?
+                .iter()
+                .map(|value| value.as_str().map(ToOwned::to_owned))
+                .collect::<Option<Vec<_>>>()?;
+            let occurrence = GeometryValueOccurrence {
+                source_statement_id,
+                instance_path,
+            };
+            let geometry = state.computed_geometry_values.get(&occurrence)?;
+            let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {
+                let value = geometry.get(point_key)?;
+                Point {
+                    element_id: String::new(),
+                    name: String::new(),
+                    x: value.get("x")?.as_f64()?,
+                    y: value.get("y")?.as_f64()?,
+                }
+            } else {
+                Point {
+                    element_id: String::new(),
+                    name: String::new(),
+                    x: geometry.get("x")?.as_f64()?,
+                    y: geometry.get("y")?.as_f64()?,
+                }
+            };
+            Some(Point {
+                element_id: format!("{}:{anchor_key}", element_id(element).unwrap_or_default()),
+                name: format!("{}.{anchor_key}", element_name(element)),
+                x: point.x,
+                y: point.y,
             })
         }
         _ => None,

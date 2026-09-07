@@ -1,7 +1,9 @@
 //! Task 32/33 in-place mutation cursor. Conditional selection is registered
 //! by Task 25's Rust runtime; this module never parses or evaluates a branch.
 mod for_group_scheduler;
-use super::super::scalar_expression_runtime::lookup_geometry_property;
+use super::super::scalar_expression_runtime::{
+    lookup_geometry_property, lookup_geometry_value_property,
+};
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{result_for_declared_type, scalar_evaluation_json};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
@@ -10,6 +12,9 @@ use super::mutation_payload::{
     InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
 use super::types::{BindingId, ScalarEvaluation, ScalarType};
+use crate::evaluation::geometry_value_runtime::{
+    evaluate_geometry_value_entry, GeometryValueProgramEntry,
+};
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -46,13 +51,28 @@ impl<'a> ScalarMutationResolver<'a> {
             frames: Vec::new(),
         }
     }
-    pub(crate) fn advance_before(&mut self, source_order: usize, state: &EvaluationState) {
+    pub(crate) fn advance_before_with_geometry_values(
+        &mut self,
+        source_order: usize,
+        state: &mut EvaluationState,
+        geometry_value_program: &[GeometryValueProgramEntry],
+        next_geometry_value_index: &mut usize,
+    ) {
         while self.next_version_index < self.program.versions.len() {
             let version = &self.program.versions[self.next_version_index];
             if version.source_order >= source_order {
                 break;
             }
             self.retire_before(version.source_order);
+            while *next_geometry_value_index < geometry_value_program.len()
+                && geometry_value_program[*next_geometry_value_index].execution_position
+                    <= version.source_order as f64
+            {
+                let entry = &geometry_value_program[*next_geometry_value_index];
+                let resolver: &dyn ScalarDocumentBindingResolver = self;
+                evaluate_geometry_value_entry(entry, resolver, state);
+                *next_geometry_value_index += 1;
+            }
             self.next_version_index += 1;
             if self.is_version_before_cutoff(version) {
                 self.execute(version, state);
@@ -335,6 +355,25 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_> {
         lookup_geometry_property(
             self.state,
             element_id,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &super::super::types::GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_property(
+            self.state,
+            occurrence,
+            point_key,
             property,
             target_source_order,
             Some(self.source_order),

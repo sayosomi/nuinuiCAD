@@ -20,6 +20,37 @@ const compiled = () => {
 };
 
 describe("module semantic editor range view", () => {
+  it("indexes constructed geometry values and their construction references under one source identity", () => {
+    const constructedSource = [
+      "nui 1",
+      "const P: point = coordinate(x: 1, y: 2)",
+      "const Q: point = @P",
+      "line Use = segment(start: @P, end: @Q)"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: constructedSource, sourceRevision: 0 });
+    const document = compileDslDocument(constructedSource, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `statement:constructed:${index}`]))
+    });
+    expect(document.diagnostics).toEqual([]);
+    const index = createModuleSemanticRangeIndex(document);
+    const pOccurrences = index.tokens.filter((token) => constructedSource.slice(token.from, token.to) === "P");
+    expect(pOccurrences.map((token) => token.target)).toEqual(expect.arrayContaining([
+      { kind: "moduleSource", statementId: "statement:constructed:1" }
+    ]));
+    const rename = analyzeModuleSemanticRename(
+      constructedSource,
+      document,
+      { kind: "moduleSource", statementId: "statement:constructed:1" },
+      "RenamedP"
+    );
+    expect(rename.verdict).toBe("ok");
+    if (rename.verdict === "ok") {
+      expect(rename.entries.map((entry) => entry.oldName)).toEqual(expect.arrayContaining(["P"]));
+      expect(rename.entries.every((entry) => entry.oldName === "P")).toBe(true);
+    }
+  });
+
   it("uses stable definition/parameter/instance/source targets and exact qualified spans", () => {
     const index = createModuleSemanticRangeIndex(compiled());
     const token = (text: string) => index.tokens.find((candidate) => source.slice(candidate.from, candidate.to) === text);

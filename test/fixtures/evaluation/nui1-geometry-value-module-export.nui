@@ -1,0 +1,7 @@
+nui 1
+module M() {
+  export const P: point = coordinate(x: 10, y: 20)
+  export const L: line = segment(start: @P, end: (30, 20))
+}
+instance I = M()
+line Use = segment(start: @I::P, end: @I::L.end)

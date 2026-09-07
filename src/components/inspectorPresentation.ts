@@ -116,6 +116,7 @@ const displayReferenceInspectorValue = (
         return `(${displayInspectorNumericValue(anchor.x, elementNameById)}, ${displayInspectorNumericValue(anchor.y, elementNameById)})`;
       }
       if (anchor.mode === "reference") return resolvedElementName(anchor.pointId, elementNameById);
+      if (anchor.mode === "geometryValue") return "geometry value";
       return displayDerivedAnchor(anchor, elementNameById);
     }
     case "lineEndpointReference": {
@@ -141,6 +142,7 @@ const displayReferenceInspectorValue = (
             const anchor = item as PointAnchor;
             if (anchor.mode === "reference") return resolvedElementName(anchor.pointId, elementNameById);
             if (anchor.mode === "derived") return displayDerivedAnchor(anchor, elementNameById);
+            if (anchor.mode === "geometryValue") return "geometry value";
             return `(${displayInspectorNumericValue(anchor.x, elementNameById)}, ${displayInspectorNumericValue(anchor.y, elementNameById)})`;
           }).join(", ")
         : displayInspectorValue(value);

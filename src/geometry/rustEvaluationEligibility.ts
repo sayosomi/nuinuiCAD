@@ -97,7 +97,7 @@ const referencesRustSupportedPointAnchor = (
   anchor: PointAnchor,
   elementsById: Map<string, CadElement>
 ) => {
-  if (anchor.mode === "coordinate") return true;
+  if (anchor.mode === "coordinate" || anchor.mode === "geometryValue") return true;
   const referencedElement = elementsById.get(anchorReferenceElementId(anchor) ?? "");
   if (!referencedElement) return false;
   return anchor.mode === "reference"

@@ -5,7 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
 
-use super::super::scalar_expression_runtime::lookup_geometry_property;
+use super::super::scalar_expression_runtime::{
+    lookup_geometry_property, lookup_geometry_value_property,
+};
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::geometry_builtin_runtime::resolve_geometry_builtin_target;
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
@@ -192,6 +194,25 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_> {
         lookup_geometry_property(
             self.state,
             element_id,
+            property,
+            target_source_order,
+            Some(self.source_order),
+            property_type,
+        )
+    }
+
+    fn lookup_geometry_value_property(
+        &self,
+        occurrence: &super::super::types::GeometryValueOccurrence,
+        point_key: Option<&str>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        lookup_geometry_value_property(
+            self.state,
+            occurrence,
+            point_key,
             property,
             target_source_order,
             Some(self.source_order),

@@ -375,7 +375,7 @@ fn geometry_property_payload_accepts_number_and_choice_and_preserves_resolved_fi
         };
         assert_eq!(element_id, "element:line");
         assert_eq!(property, "length");
-        assert_eq!(*target_source_order, 0);
+        assert_eq!(*target_source_order, 0.0);
         if r#type["kind"] == json!("number") {
             assert_eq!(decoded_type, &ScalarType::Number);
         } else {
@@ -544,7 +544,7 @@ fn preserves_resolved_geometry_target_identity_and_rejects_raw_source_name() {
         panic!("expected resolved geometry target");
     };
     assert_eq!(target.statement_id, "element-id");
-    assert_eq!(target.statement_index, 12);
+    assert_eq!(target.statement_index, 12.0);
     assert_eq!(target.geometry_type, GeometryInterfaceType::Point);
 
     let mut malformed = geometry_call(

@@ -8,6 +8,8 @@ import type {
 import type { BindingId } from "../scalars/bindingCatalog";
 import type { ScalarEvaluation } from "../scalars/types";
 import type { TextTemplateAst } from "../scalars/textTemplate";
+import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 
 export type LocalVariableEvaluation = {
   localVariableValues: Map<string, number>;
@@ -16,6 +18,7 @@ export type LocalVariableEvaluation = {
 
 export type ElementEvaluationContext = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
   elementsById: Map<ElementId, CadElement>;
   errors: DependencyError[];
   warnings: EvaluationWarning[];

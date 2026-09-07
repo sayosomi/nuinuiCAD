@@ -52,6 +52,9 @@ export type DslConstructionSpec = {
   category: DslConstructionCategory;
   construction: string;
   elementType: CadElementType;
+  /** Immutable geometry interface supported when this construction is used
+   * as a source value. Omitted constructions remain drawable-only here. */
+  pureValueInterface?: "point" | "line";
   preset?: Partial<CadElement>;
   exclusiveGroups?: string[][];
   args: DslArgSpec[];
@@ -86,7 +89,7 @@ export const commonArgSpecs: DslArgSpec[] = [
 ];
 
 const constructionSpecs: DslConstructionSpec[] = [
-  { category: "point", construction: "coordinate", elementType: "freePoint", args: [arg("x"), arg("y")] },
+  { category: "point", construction: "coordinate", elementType: "freePoint", pureValueInterface: "point", args: [arg("x"), arg("y")] },
   { category: "point", construction: "offset", elementType: "offsetPoint", args: [required("from", "fromPoint"), arg("dx"), arg("dy")] },
   { category: "point", construction: "polar", elementType: "polarOffsetPoint", args: [required("from", "fromPoint"), arg("angle", "angleDeg"), arg("distance")] },
   {
@@ -128,7 +131,7 @@ const constructionSpecs: DslConstructionSpec[] = [
     elementType: "bezierBulgePoint",
     args: [required("source", "baseLineId"), arg("segmentIndex")],
   },
-  { category: "line", construction: "segment", elementType: "line", args: [required("start", "startPoint"), required("end", "endPoint")] },
+  { category: "line", construction: "segment", elementType: "line", pureValueInterface: "line", args: [required("start", "startPoint"), required("end", "endPoint")] },
   { category: "line", construction: "polar", elementType: "angleLengthLine", args: [required("start", "startPoint"), arg("angle", "angleDeg"), arg("length")] },
   {
     category: "line",

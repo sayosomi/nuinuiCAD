@@ -267,7 +267,9 @@ const checkNode = (
         elementNameSpan: node.elementNameSpan,
         propertySpan: node.propertySpan,
         elementName: node.elementName,
-        elementId: resolved?.elementId ?? null,
+        elementId: resolved && "elementId" in resolved ? resolved.elementId : null,
+        ...(resolved && resolved.kind === "geometryValue" ? { geometryValueOccurrence: resolved.occurrence } : {}),
+        ...(resolved && resolved.kind === "geometryValue" && resolved.pointKey ? { geometryValuePointKey: resolved.pointKey } : {}),
         property: resolved?.property ?? node.property,
         targetSourceOrder: resolved?.targetSourceOrder ?? null,
         type: resolved?.type ?? null

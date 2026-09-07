@@ -31,7 +31,9 @@ export const evaluateImageElement = (
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   if (!origin) return true;
 

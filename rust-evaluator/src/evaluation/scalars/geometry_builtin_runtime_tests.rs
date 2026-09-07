@@ -40,6 +40,7 @@ fn state_with_geometry(
         selected_drawing_profile_id: None,
         group_states: HashMap::new(),
         computed_geometry: HashMap::from([(id.to_owned(), geometry)]),
+        computed_geometry_values: HashMap::new(),
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),
@@ -63,9 +64,10 @@ fn target(
 ) -> ScalarExpressionResolvedGeometryTarget {
     ScalarExpressionResolvedGeometryTarget {
         statement_id: id.to_owned(),
-        statement_index: index,
+        statement_index: index as f64,
         geometry_type,
         point_key: None,
+        geometry_value_occurrence: None,
     }
 }
 
@@ -76,9 +78,10 @@ fn derived_target(
 ) -> ScalarExpressionResolvedGeometryTarget {
     ScalarExpressionResolvedGeometryTarget {
         statement_id: id.to_owned(),
-        statement_index: index,
+        statement_index: index as f64,
         geometry_type: GeometryInterfaceType::Point,
         point_key: Some(point_key.to_owned()),
+        geometry_value_occurrence: None,
     }
 }
 

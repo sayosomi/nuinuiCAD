@@ -1031,14 +1031,24 @@ follow the ordinary lexical namespace, source-order, dependency, module
 parameter, and export rules; alias chains are allowed when each step is
 assignable.
 
-The initializer must be an existing `@` geometry reference accepted by the
-existing geometry resolver. Coordinate literals, construction calls, and other
-pure construction expressions are not allowed in this declaration form. A
+The initializer may be an existing `@` geometry reference accepted by the
+existing geometry resolver, or one of the currently implemented pure
+construction forms:
+
+```text
+const originPoint: point = coordinate(x: 10, y: 20)
+const edge: line = segment(start: @originPoint, end: (30, 20))
+const outline: path = segment(start: @originPoint, end: (30, 20))
+```
+
+`coordinate` produces `point`; `segment` produces strict `line`, and the
+directional `line -> path` interface rule permits the `path` form. A
 single-geometry value is `const`-only; `let` receives a focused diagnostic.
-These values are source-level aliases, not drawable elements and not scalar
-runtime values. They do not create a new element, computed geometry entry, or
-synthetic `ElementId`; geometry consumers resolve them through the same
-namespace and runtime target boundaries as the referenced geometry.
+These values are source-level immutable values, not drawable elements and not
+scalar runtime values. They do not create a new element, computed drawable
+geometry entry, or synthetic `ElementId`; geometry consumers resolve them
+through the shared runtime target boundary. Other geometry constructions,
+including `bezier`, `offset`, and `arc`, remain deferred as pure value forms.
 
 The same form is available for root declarations, module locals, and exported
 members. Module parameters are declared in the Module signature rather than

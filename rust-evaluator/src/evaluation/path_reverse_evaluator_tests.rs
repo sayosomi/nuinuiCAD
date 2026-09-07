@@ -15,6 +15,7 @@ fn path_reverse(id: &str, name: &str, target_line_id: &str) -> serde_json::Value
 #[test]
 fn path_reverse_flips_target_line_in_place_without_own_geometry() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -55,6 +56,7 @@ fn path_reverse_flips_target_line_in_place_without_own_geometry() {
 #[test]
 fn path_reverse_reports_dependency_error_for_missing_target() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -89,6 +91,7 @@ fn path_reverse_reports_dependency_error_for_missing_target() {
 #[test]
 fn path_reverse_does_not_apply_inside_a_disabled_group() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -136,6 +139,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
         ]
     };
     let inactive = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -157,6 +161,7 @@ fn path_reverse_only_applies_in_the_active_conditional_branch() {
     assert_close(inactive_geometry["end"]["x"].as_f64().unwrap(), 100.0);
 
     let active = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -192,6 +197,7 @@ fn for_group(id: &str, name: &str, count: i64, parent_group_id: Option<&str>) ->
 #[test]
 fn path_reverse_allows_target_declared_in_the_same_for_loop() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -234,6 +240,7 @@ fn path_reverse_allows_target_declared_in_the_same_for_loop() {
 #[test]
 fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_fallback() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -286,6 +293,7 @@ fn path_reverse_generated_clone_keeps_model_name_empty_but_reports_display_name_
 #[test]
 fn path_reverse_rejects_target_declared_outside_its_for_loop() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -324,6 +332,7 @@ fn path_reverse_rejects_target_declared_outside_its_for_loop() {
 #[test]
 fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_element() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -365,6 +374,7 @@ fn path_reverse_rejects_nested_inner_loop_reverse_targeting_outer_loop_only_elem
 #[test]
 fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_element() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,
@@ -402,6 +412,7 @@ fn path_reverse_allows_nested_inner_loop_reverse_targeting_same_inner_loop_eleme
 #[test]
 fn path_reverse_reports_geometry_error_for_non_line_target() {
     let result = evaluate_document_input(EvaluationInput {
+        geometry_value_program: None,
         module_materialization: None,
         property_bindings: None,
         control_boolean_bindings: None,

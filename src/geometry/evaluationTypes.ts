@@ -8,6 +8,30 @@ import type {
   DrawingModifierStroke,
   ElementId
 } from "../model/cadDocumentTypes";
+import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
+import type { GeometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+
+export type ComputedGeometryValuePoint = {
+  kind: "point";
+  x: number;
+  y: number;
+};
+
+export type ComputedGeometryValueLine = {
+  kind: "line";
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  length: number;
+  startAngleDeg: number | null;
+  endAngleDeg: number | null;
+};
+
+export type ComputedGeometryValue = ComputedGeometryValuePoint | ComputedGeometryValueLine;
+
+export type ComputedGeometryValueEntry = {
+  occurrence: GeometryValueOccurrence;
+  value: ComputedGeometryValue;
+};
 
 export type ComputedPoint = {
   kind: "point";
@@ -210,6 +234,8 @@ export type GeometryMutationExecution = {
 
 export type EvaluationResult = {
   computedGeometry: Map<ElementId, ComputedGeometry>;
+  /** Immutable construction results, deliberately separate from drawable geometry. */
+  computedGeometryValues?: Map<GeometryValueOccurrenceKey, ComputedGeometryValueEntry>;
   /** Every successfully evaluated declaration, captured before later mutations. */
   preMutationGeometry?: Map<ElementId, ComputedGeometry>;
   /** Successful in-place geometry mutations, preserving actual runtime execution order. */

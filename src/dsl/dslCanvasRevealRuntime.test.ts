@@ -116,7 +116,7 @@ const runtime = ({
   resolversByRuntimeElementId: new Map(),
   resolveBuiltinTarget: (_target, instancePath, expectedGeometryType) => {
     const id = builtin.get(JSON.stringify(instancePath));
-    return id ? { elementId: id, geometryType: expectedGeometryType } : undefined;
+    return id ? { kind: "drawable", elementId: id, geometryType: expectedGeometryType } : undefined;
   },
   resolvePropertyTarget: (_target, instancePath) => {
     const id = property.get(JSON.stringify(instancePath));

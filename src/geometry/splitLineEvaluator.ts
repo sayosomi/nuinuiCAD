@@ -537,7 +537,9 @@ export const evaluateSplitLineElement = (element: CadElement, context: ElementEv
     errors,
     localVariableValues,
     localVariableNames,
-    disabledByGroupId
+    disabledByGroupId,
+    undefined,
+    context.computedGeometryValues
   );
   if (!splitPoint) return true;
 

@@ -17,6 +17,7 @@ import { dependencyError, geometryError, getComputedPointOrError, getPointAnchor
 import { pointAtDistanceFromEndpoint, isLineLikeGeometry, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { findLineIntersections } from "./lineIntersections";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
+import { coordinateGeometryKernel } from "./geometryValueKernels";
 
 /**
  * The only place a divisionPoint/lineDivisionPoint's placement is read leniently:
@@ -189,6 +190,7 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
     disabledByGroupId,
     elements,
     localVariables: { localVariableValues, localVariableNames }
+    , computedGeometryValues
   } = context;
   const evaluateNumber = (value: Parameters<typeof numericError>[1]) =>
     numericError(
@@ -200,7 +202,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
       localVariableValues,
       localVariableNames,
       disabledByGroupId,
-      elements
+      elements,
+      computedGeometryValues
     );
   const evaluatePointAnchor = (anchor: Parameters<typeof getPointAnchorOrError>[1], key: string) =>
     getPointAnchorOrError(
@@ -213,7 +216,8 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
       localVariableValues,
       localVariableNames,
       disabledByGroupId,
-      elements
+      elements,
+      computedGeometryValues
     );
 
   switch (element.type) {
@@ -222,12 +226,12 @@ export const evaluatePointElement = (element: CadElement, context: ElementEvalua
         const y = evaluateNumber(element.y);
         if (x === undefined || y === undefined) break;
 
+        const structural = coordinateGeometryKernel(x, y);
         computedGeometry.set(element.id, {
           kind: "point",
           elementId: element.id,
           name: element.name,
-          x,
-          y
+          ...structural
         });
         break;
       }

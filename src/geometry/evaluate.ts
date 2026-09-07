@@ -64,6 +64,11 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import type { ForGroupMutationOwner } from "../scalars/forGroupMutationControl";
 import type { ForGroupMutationStatement } from "../scalars/linearMutationEvaluator";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import type { GeometryValueProgram } from "../dsl/moduleGeometryValueProgram";
+import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import type { ComputedGeometryValue, ComputedGeometryValueEntry } from "./evaluationTypes";
+import { coordinateGeometryKernel, segmentGeometryKernel, type StructuralPoint } from "./geometryValueKernels";
+import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 
 export type EvaluateElementsOptions = {
   evaluationLimitIndex?: number;
@@ -98,6 +103,8 @@ export type EvaluateElementsOptions = {
   moduleConditionalOwnerStatementIdByElementId?: ReadonlyMap<ElementId, string>;
   moduleForGroupMutationOwnerByElementId?: ReadonlyMap<ElementId, ForGroupMutationOwner>;
   moduleMaterialization?: ModuleMaterialization;
+  /** Compiled immutable geometry values; never converted into elements. */
+  geometryValueProgram?: GeometryValueProgram;
   /**
    * Schema-driven elementId-keyed property sources (already re-keyed from
    * CompiledDslDocument.propertyBindings by
@@ -201,6 +208,7 @@ export const evaluateElements = (
   const evaluatedElements = elements.slice(0, evaluationLimitIndex);
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
+  const computedGeometryValues = new Map<import("../model/geometryValueOccurrence").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
   const geometryMutationExecutions: GeometryMutationExecution[] = [];
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
@@ -269,7 +277,7 @@ export const evaluateElements = (
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
   }
   const linearMutationResolver = linearMutationEnabled
-    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, elementsById: runtimeElementsById, activities })
+    ? createDocumentLinearScalarBindingResolver(options.bindingVersions!, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities })
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
@@ -277,10 +285,10 @@ export const evaluateElements = (
       .map((owner) => owner.ownerStatementId)) ?? []
   );
   const declarationResolver = !linearMutationResolver && options.scalarProgram
-    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, elementsById: runtimeElementsById, activities })
+    ? createDocumentScalarBindingResolver(options.scalarProgram, { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities })
     : undefined;
   const scalarBindingResolver = linearMutationResolver ?? declarationResolver;
-  const geometryRuntime = { computedGeometry, elementsById: runtimeElementsById, activities };
+  const geometryRuntime = { computedGeometry, computedGeometryValues, elementsById: runtimeElementsById, activities };
   const propertyBindingEntriesByElementId = options.propertyBindingEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.propertyBindingEntries)
     : undefined;
@@ -308,8 +316,72 @@ export const evaluateElements = (
         throw new Error(
           `evaluateElements: a typed text template hole referenced binding "${bindingId}" but no scalarProgram ` +
             "was provided - a typed hole implies a typed declaration, which implies a scalarProgram"
-        );
+      );
       };
+
+  const evaluateGeometryValueScalar = (expression: TypedScalarExpression, sourceOrder: number): number | undefined => {
+    const evaluation = evaluateTypedExpression(expression, {
+      lookupBinding: scalarBindingResolver
+        ? scalarBindingResolver.resolveBinding
+        : () => ({ status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable" }),
+      lookupGeometryProperty: (reference) => resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder),
+      lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder)
+    });
+    return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
+  };
+
+  const structuralPointForValueTarget = (target: Parameters<typeof resolveDocumentGeometryTarget>[1], sourceOrder: number): StructuralPoint | undefined => {
+    const geometry = resolveDocumentGeometryTarget(geometryRuntime, target, sourceOrder);
+    if (!geometry || geometry.kind === "unavailable") return undefined;
+    if (geometry.kind === "point") return { x: geometry.x, y: geometry.y };
+    return undefined;
+  };
+
+  const structuralPointForProgramPoint = (
+    point: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramPoint,
+    sourceOrder: number
+  ): StructuralPoint | undefined => {
+    if (point.kind === "coordinate") {
+      const x = evaluateGeometryValueScalar(point.x, sourceOrder);
+      const y = evaluateGeometryValueScalar(point.y, sourceOrder);
+      return x === undefined || y === undefined ? undefined : coordinateGeometryKernel(x, y);
+    }
+    return structuralPointForValueTarget(point.target, sourceOrder);
+  };
+
+  const evaluateGeometryValueEntry = (entry: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramEntry) => {
+    const sourceOrder = entry.executionPosition;
+    if (linearMutationResolver) {
+      linearMutationResolver.advanceTo({ kind: "beforeStatement", sourceOrder });
+    }
+    let value: ComputedGeometryValue | undefined;
+    if (entry.construction.kind === "coordinate") {
+      const x = evaluateGeometryValueScalar(entry.construction.x, sourceOrder);
+      const y = evaluateGeometryValueScalar(entry.construction.y, sourceOrder);
+      if (x !== undefined && y !== undefined) {
+        value = { kind: "point", ...coordinateGeometryKernel(x, y) };
+      }
+    } else {
+      const start = structuralPointForProgramPoint(entry.construction.start, sourceOrder);
+      const end = structuralPointForProgramPoint(entry.construction.end, sourceOrder);
+      if (start && end) {
+        value = segmentGeometryKernel(start, end);
+      }
+    }
+    if (value) {
+      computedGeometryValues.set(geometryValueOccurrenceKey(entry.occurrence), { occurrence: entry.occurrence, value });
+    }
+  };
+
+  const geometryValueProgram = options.geometryValueProgram ?? [];
+  let nextGeometryValueIndex = 0;
+  const evaluateGeometryValuesThrough = (sourceOrder: number) => {
+    while (nextGeometryValueIndex < geometryValueProgram.length &&
+      geometryValueProgram[nextGeometryValueIndex]!.executionPosition <= sourceOrder) {
+      evaluateGeometryValueEntry(geometryValueProgram[nextGeometryValueIndex]!);
+      nextGeometryValueIndex += 1;
+    }
+  };
 
   const advanceLinearBindingsBefore = (element: CadElement, sourceElement?: CadElement) => {
     if (!linearMutationEnabled) return;
@@ -724,6 +796,7 @@ export const evaluateElements = (
     const errorCountBeforeElementEvaluation = errors.length;
     evaluateElement(elementToEvaluate, {
       computedGeometry,
+      computedGeometryValues,
       elementsById: runtimeElementsById,
       errors,
       warnings,
@@ -748,6 +821,10 @@ export const evaluateElements = (
 
   for (const [elementIndex, element] of evaluatedElements.entries()) {
     if (templateDescendantIds.has(element.id)) continue;
+    const sourceOrder = options.scalarExecutionPositionByElementId?.get(element.id) ??
+      options.sourceExecutionPositionByElementId?.get(element.id) ??
+      options.statementInfoByElementId?.get(element.id)?.statementIndex ?? elementIndex;
+    evaluateGeometryValuesThrough(sourceOrder);
     evaluateRuntimeElement(element);
     for (const snapshot of instanceSnapshotsByEnd.get(elementIndex) ?? []) {
       const geometry = snapshot.descendantIds
@@ -757,6 +834,8 @@ export const evaluateElements = (
       instanceBaseGeometry.set(snapshot.instanceId, geometry);
     }
   }
+
+  evaluateGeometryValuesThrough(Number.POSITIVE_INFINITY);
 
   const linearFinal = linearMutationResolver
     ? linearMutationResolver.finalize({
@@ -783,6 +862,7 @@ export const evaluateElements = (
 
   return {
     computedGeometry,
+    computedGeometryValues,
     preMutationGeometry,
     geometryMutationExecutions,
     instanceBaseGeometry,

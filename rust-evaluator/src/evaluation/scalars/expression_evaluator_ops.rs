@@ -254,61 +254,53 @@ pub(crate) fn evaluate_geometry_builtin_call(
     }) {
         Ok(runtime_targets) => {
             let result = match (name, runtime_targets.as_slice()) {
-                (
-                    BuiltinFunctionName::Distance,
-                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
-                ) => {
-                    let dx = second.x - first.x;
-                    let dy = second.y - first.y;
-                    dx.hypot(dy)
+                (BuiltinFunctionName::Distance, [first, second]) => point_xy(first)
+                    .zip(point_xy(second))
+                    .map(|((first_x, first_y), (second_x, second_y))| {
+                        (second_x - first_x).hypot(second_y - first_y)
+                    }),
+                (BuiltinFunctionName::Angle, [first, second]) => point_xy(first)
+                    .zip(point_xy(second))
+                    .map(|((first_x, first_y), (second_x, second_y))| {
+                        atan2_degrees_360(second_y - first_y, second_x - first_x)
+                    }),
+                (BuiltinFunctionName::LineDistance, [point, line]) => {
+                    point_xy(point).zip(line_xy(line)).map(
+                        |((point_x, point_y), ((start_x, start_y), (end_x, end_y)))| {
+                            let dx = end_x - start_x;
+                            let dy = end_y - start_y;
+                            (dx * (start_y - point_y) - (start_x - point_x) * dy).abs()
+                                / dx.hypot(dy)
+                        },
+                    )
                 }
-                (
-                    BuiltinFunctionName::Angle,
-                    [GeometryBuiltinRuntimeTarget::Point(first), GeometryBuiltinRuntimeTarget::Point(second)],
-                ) => {
-                    let dx = second.x - first.x;
-                    let dy = second.y - first.y;
-                    atan2_degrees_360(dy, dx)
+                (BuiltinFunctionName::LineAngle, [first, second]) => {
+                    line_xy(first).zip(line_xy(second)).map(
+                        |(
+                            ((first_start_x, first_start_y), (first_end_x, first_end_y)),
+                            ((second_start_x, second_start_y), (second_end_x, second_end_y)),
+                        )| {
+                            let first_dx = first_end_x - first_start_x;
+                            let first_dy = first_end_y - first_start_y;
+                            let second_dx = second_end_x - second_start_x;
+                            let second_dy = second_end_y - second_start_y;
+                            let ratio = (first_dx * second_dx + first_dy * second_dy).abs()
+                                / (first_dx.hypot(first_dy) * second_dx.hypot(second_dy));
+                            radians_to_degrees(ratio.clamp(0.0, 1.0).acos())
+                        },
+                    )
                 }
-                (
-                    BuiltinFunctionName::LineDistance,
-                    [GeometryBuiltinRuntimeTarget::Point(point), GeometryBuiltinRuntimeTarget::Line { start, end }],
-                ) => {
-                    let dx = end.x - start.x;
-                    let dy = end.y - start.y;
-                    let length = dx.hypot(dy);
-                    (dx * (start.y - point.y) - (start.x - point.x) * dy).abs() / length
-                }
-                (
-                    BuiltinFunctionName::LineAngle,
-                    [GeometryBuiltinRuntimeTarget::Line {
-                        start: first_start,
-                        end: first_end,
-                    }, GeometryBuiltinRuntimeTarget::Line {
-                        start: second_start,
-                        end: second_end,
-                    }],
-                ) => {
-                    let first_dx = first_end.x - first_start.x;
-                    let first_dy = first_end.y - first_start.y;
-                    let second_dx = second_end.x - second_start.x;
-                    let second_dy = second_end.y - second_start.y;
-                    let first_length = first_dx.hypot(first_dy);
-                    let second_length = second_dx.hypot(second_dy);
-                    let ratio = (first_dx * second_dx + first_dy * second_dy).abs()
-                        / (first_length * second_length);
-                    radians_to_degrees(ratio.clamp(0.0, 1.0).acos())
-                }
-                _ => {
-                    return ScalarEvaluation::Error {
-                        r#type,
-                        issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    };
-                }
+                _ => None,
             };
-            finite_number_result(r#type, result)
+            result.map_or_else(
+                || ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                |value| finite_number_result(r#type.clone(), value),
+            )
         }
         Err(GeometryBuiltinRuntimeError::Unavailable) => ScalarEvaluation::Error {
             r#type,
@@ -337,6 +329,24 @@ pub(crate) fn evaluate_geometry_builtin_call(
             binding_id: None,
             context: None,
         },
+    }
+}
+
+fn point_xy(target: &GeometryBuiltinRuntimeTarget) -> Option<(f64, f64)> {
+    match target {
+        GeometryBuiltinRuntimeTarget::Point(point) => Some((point.x, point.y)),
+        GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y } => Some((*x, *y)),
+        _ => None,
+    }
+}
+
+fn line_xy(target: &GeometryBuiltinRuntimeTarget) -> Option<((f64, f64), (f64, f64))> {
+    match target {
+        GeometryBuiltinRuntimeTarget::Line { start, end } => {
+            Some(((start.x, start.y), (end.x, end.y)))
+        }
+        GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end } => Some((*start, *end)),
+        _ => None,
     }
 }
 

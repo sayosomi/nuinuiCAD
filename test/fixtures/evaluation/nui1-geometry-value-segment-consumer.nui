@@ -1,0 +1,7 @@
+nui 1
+const P: point = coordinate(x: 0, y: 0)
+const Q: point = coordinate(x: 3, y: 4)
+const L: line = segment(start: @P, end: @Q)
+const Length: number = @L.length
+const Distance: number = distance(@P, @Q)
+line Later = segment(start: @L.start, end: @L.end)

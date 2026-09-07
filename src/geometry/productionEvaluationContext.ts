@@ -139,6 +139,7 @@ export const buildEvaluationOptions = ({
       moduleForGroupMutationOwnerByElementId
     } : {}),
     ...(compiledDocument.moduleMaterialization ? { moduleMaterialization: compiledDocument.moduleMaterialization } : {}),
+    ...(compiledDocument.geometryValueProgram ? { geometryValueProgram: compiledDocument.geometryValueProgram } : {}),
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
